@@ -38,7 +38,7 @@ test('the repository census accounts for every tracked test and docs check [C7,C
   const { readPlan } = await import('../../../../codemap/src/io/cells/scripts/plan.js');
   const { cellInventory } = await import('../../../../codemap/index.js');
   const { importsIn, commonJsIn } = await import('../../../index.js');
-  const root = fileURLToPath(new URL('../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   const inventory = cellInventory(root, { importsIn, commonJsIn });
   const rows = classifyTestFiles(tracked, inventory, readPlan(root));
@@ -67,7 +67,7 @@ test('clause 3: the fixture report shows a cell, a journey and an unknown reason
 
 test('clause 1: node packages/codemap/src/io/cells/scripts/plan.js --place-tests prints every tracked test file and docs check with its home; clause 2: a repeated run prints identical output [C7,CD64]', async () => {
   const { fileURLToPath } = await import('node:url');
-  const root = fileURLToPath(new URL('../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const run = () => runFixtureChild(process.execPath, ['packages/codemap/src/io/cells/scripts/plan.js', '--place-tests'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const first = run();
   assert.equal(first.failure, null, first.context);

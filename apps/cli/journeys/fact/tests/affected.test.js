@@ -208,7 +208,7 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
 
 test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   const box = graph(t);
-  copyPackageSubset(fileURLToPath(new URL('../', import.meta.url)), box.root,
+  copyPackageSubset(fileURLToPath(new URL('../../../../../', import.meta.url)), box.root,
     [{ path: 'packages/gate/src/io/browser/guard.js' },
       { path: 'packages/kernel/src/logic/refused.js', as: 'src/refused.js' }]);
   const guardBody = 'packages/gate/src/io/browser/guard.js';
@@ -402,7 +402,7 @@ test('runtime discovery and the selector agree on which files are engines and co
 
 test('a src change selects only its importers despite run-tests.js [V4,C7]', (t) => {
   const box = graph(t);
-  const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
+  const sourceRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   // Real source modules declare committed data inputs too; copy their complete tracked source/input tree.
   const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });

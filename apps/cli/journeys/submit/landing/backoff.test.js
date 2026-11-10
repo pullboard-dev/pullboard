@@ -140,7 +140,7 @@ function resumeLander(box, { commits = {}, idle = false, pollMs = 5000 } = {}) {
   const source = [
     `import { runLandingWake, landingWakeMarks } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/io/landing/automatic.js')).href)};`,
     `import { resumeAutomaticLanding, automaticLandingDirectory } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
-    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
+    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../tests/fixtures/child.js')).href)};`,
     "import { existsSync, readFileSync, writeFileSync } from 'node:fs'; import { join } from 'node:path'; import { randomUUID } from 'node:crypto';",
     'const { root, commits, idle, pollMs } = JSON.parse(process.argv[1]);',
     'const read = name => { const file = join(automaticLandingDirectory(root), name); return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null; };',

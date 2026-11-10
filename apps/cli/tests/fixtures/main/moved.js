@@ -19,7 +19,7 @@ import { runFixtureChild } from '../child.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 
-const SOURCE = new URL('../', import.meta.url);
+const SOURCE = new URL('../../../../../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
 export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false } = {}) {

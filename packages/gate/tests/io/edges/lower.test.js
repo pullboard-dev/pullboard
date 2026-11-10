@@ -10,7 +10,7 @@ import { commonJsIn } from '../../../index.js';
 import { importsIn } from '../../../index.js';
 import { readPlan } from '../../../../codemap/index.js';
 
-const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 test('the actual store, sandbox and items graphs have no native quarantine imports [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);

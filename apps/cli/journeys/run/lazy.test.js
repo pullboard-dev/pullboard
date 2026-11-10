@@ -38,7 +38,7 @@ import {
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const RUNNER = join(ROOT, 'packages/gate/src/io/run/tests.js');
 /** The engine the launcher starts; the source guards below read this file, where the code lives. */
 const ENGINE = join(ROOT, 'packages/gate/src/io/run-tests.js');

@@ -24,7 +24,7 @@ import { takeResource } from '../../index.js';
 import { renewWithBeat } from '../../src/io/renewal.js';
 import { tuneRenewalBeat } from '../../src/io/renewal.js';
 
-const RESOURCES = pathToFileURL(join(import.meta.dirname, '../../..', 'packages', 'resources', 'index.js')).href;
+const RESOURCES = pathToFileURL(join(import.meta.dirname, '../../index.js')).href;
 /** How far the cleanup process's clock runs ahead: the 120 s cutoff then sits 10 s behind real time. */
 const AHEAD_MS = 110_000;
 /** How long the blocked renewal holds the waiter's thread: past the shifted cutoff, several beats long. */

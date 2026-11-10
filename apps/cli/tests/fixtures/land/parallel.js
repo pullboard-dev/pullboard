@@ -273,7 +273,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href)};
 ${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href)}`,
     `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/resources/index.js')).href)};`,
-    `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
+    `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../child.js')).href)};`,
     'const [root, bin] = process.argv.slice(1); let owned;',
     'await withGateSlot(root, async lease => { owned = lease; const env = { ...process.env, ...gateSlotEnvironment(lease) };',
     'assert.equal(holdsLease(lease), true);',

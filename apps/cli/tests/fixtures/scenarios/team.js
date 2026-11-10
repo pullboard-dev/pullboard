@@ -168,7 +168,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const CLI = join(import.meta.dirname, '../../../pullboard.js');
 /** The shipped command run with an explicit trusted fixture relay; test-only, never published (#408). */
-const TRUSTED_CLI = join(import.meta.dirname, 'person-trusted-cli.js');
+const TRUSTED_CLI = join(import.meta.dirname, '../person/trusted.js');
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

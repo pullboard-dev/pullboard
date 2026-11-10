@@ -102,7 +102,7 @@ test('clause 1 and clause 2: a waiting lander started before main changed its co
   const source = [
     `import { runLandingWake, landingWakeMarks } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/io/landing/automatic.js')).href)};`,
     `import { resumeAutomaticLanding, scheduleAutomaticLanding } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
-    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
+    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../tests/fixtures/child.js')).href)};`,
     "import { writeFileSync } from 'node:fs'; import { join } from 'node:path'; import { randomUUID } from 'node:crypto';",
     'const { root, file, worker } = JSON.parse(process.argv[1]);',
     "const codeCommit = () => runFixtureGit(['log', '-1', '--format=%H', 'HEAD', '--', 'apps/cli/src/io/landing/automatic.js', 'packages/landing'], { cwd: root }) || null;",

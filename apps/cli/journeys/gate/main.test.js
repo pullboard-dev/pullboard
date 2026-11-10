@@ -197,7 +197,7 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   const fixturePackage = { ...actualPackage, scripts: { ...actualPackage.scripts, test: 'node test/suite-sentinel.js' } };
   assert.equal(fixturePackage.scripts.gate, gateScript, 'the real package gate command is preserved verbatim');
   writeFileSync(join(root, 'package.json'), JSON.stringify(fixturePackage, null, 2) + '\n');
-  copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(root, 'packages/gate/tests/fixtures/budgets.js'));
+  copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(root, 'packages/gate/tests/fixtures/budgets.js'));
   // The shipped scanner entry delegates to the gate package after the cells move.
   const scanner = join(root, 'packages/gate/src/shell');
   mkdirSync(scanner, { recursive: true });

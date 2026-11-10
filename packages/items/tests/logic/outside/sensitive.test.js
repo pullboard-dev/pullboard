@@ -9,7 +9,7 @@ import { SENSITIVE_CELLS } from '../../../index.js';
 import { outsideSensitivePaths } from '../../../index.js';
 import { outsideSensitivity } from '../../../index.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const PLAN = readPlan(ROOT);
 const mainPolicy = () => ({ version: 1, commit: 'HEAD', config: {} });
 

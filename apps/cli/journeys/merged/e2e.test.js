@@ -86,7 +86,7 @@ test("init's spec has its sections and no rows, and the README's example fits un
   const spec = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   assert.deepEqual(parseSpec(spec).rows, [], 'no placeholder row, so no placeholder id is ever committed and made permanent');
   assert.deepEqual(parseSpec(spec).sections.map((section) => section.name), ['G · Goals: what the client asked for', 'K · Constraints']);
-  const readme = readFileSync(join(import.meta.dirname, '..', 'README.md'), 'utf8');
+  const readme = readFileSync(join(import.meta.dirname, '../../../../README.md'), 'utf8');
   const section = /^## (?:Quick start|By hand)\s*$/mu.exec(readme);
   const markdownExamples = [...readme.matchAll(/```markdown\n([\s\S]*?)```/gu)];
   /** Match the spec example rather than unrelated markdown examples.

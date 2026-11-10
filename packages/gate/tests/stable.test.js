@@ -22,7 +22,7 @@ import {
   findRunnerAncestor,
 } from '../../../apps/cli/tests/fixtures/chrome.js';
 
-const ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PROBE = join(ROOT, 'packages/gate/tests/fixtures/cockpit/probe.mjs');
 const DEATH_BUDGET_MS = 10_000; // budget: the item's declared bound for Chrome to exit after its owner dies.
 const READY_BUDGET_MS = 600_000; // budget: hang ceiling for one real Chrome launch, including a wait for a gate browser slot.

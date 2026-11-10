@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
-const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const TOOL_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();

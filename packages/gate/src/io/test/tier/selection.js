@@ -74,7 +74,7 @@ let tierCode;
 function tierCodeDigest() {
   if (tierCode !== undefined) return tierCode;
   try {
-    const files = checkCommandDefinition(fileURLToPath(new URL('../../../../', import.meta.url)), [], TIER_CODE).map(file => [file.path, file.mode, file.digest]);
+    const files = checkCommandDefinition(fileURLToPath(new URL('../../../../../../', import.meta.url)), [], TIER_CODE).map(file => [file.path, file.mode, file.digest]);
     tierCode = createHash('sha256').update(JSON.stringify({ node: process.version, files })).digest('hex');
   } catch { tierCode = null; }
   return tierCode;

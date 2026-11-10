@@ -2,4 +2,4 @@
 import { fileURLToPath } from 'node:url';
 import { writeFormatTable } from '../../packages/state/index.js';
 
-writeFormatTable(fileURLToPath(new URL('../', import.meta.url)));
+writeFormatTable(fileURLToPath(new URL('../../', import.meta.url)));

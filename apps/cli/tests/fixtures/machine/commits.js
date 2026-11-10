@@ -8,7 +8,7 @@ import {
   mappedPath,
 } from '../../../../../packages/codemap/index.js';
 
-const SOURCE_MAP = new Map([...readPathMap(fileURLToPath(new URL('../', import.meta.url)))].filter(([, target]) => target.startsWith('packages/commits/')));
+const SOURCE_MAP = new Map([...readPathMap(fileURLToPath(new URL('../../../../../', import.meta.url)))].filter(([, target]) => target.startsWith('packages/commits/')));
 
 /** The re-export shim the commits move generated for src/hooks.js, kept as text to exercise the alias reader. */
 const GENERATED_HOOKS_SHIM = 'export { HOOKS, HOOKS_DIR, HOOK_MARK, FIX_NOTE, commitMsgProblems, computerName, machineNames, machineNameProblems, commitCitationWarnings, stagedPaths, addedLines, secretsIn, matchesPattern, blockedPaths, preCommitProblems, deletedGateProblems, preMergeHookProblems, unwiredHookProblems, applyFixers, deletedRowProblems, prePushProblems, pushesTrunk, hookScript, installHooks } from "../../../../../packages/commits/index.js";\n';

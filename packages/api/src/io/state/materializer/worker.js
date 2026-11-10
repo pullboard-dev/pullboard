@@ -30,7 +30,7 @@ const { createStateSnapshots } = await import('../../main.js');
 /** How often, at most, a board's snapshot is saved while it keeps changing. */
 const SAVE_EVERY_MS = 60_000;
 const SNAPSHOT_VERSION = 1;
-const CODE_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const CODE_ROOT = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
 /**
  * Name the code this worker runs: a digest of every source file's path, size and modification time. Why not

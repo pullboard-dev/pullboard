@@ -57,7 +57,7 @@ const EXCLUDED = Object.freeze({
   export: 'prints the whole board as a data document meant for a file, never for an agent context',
 });
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /**
  * A scratch checkout of merge-base main, or null when main is absent. Its node_modules links to this checkout's.

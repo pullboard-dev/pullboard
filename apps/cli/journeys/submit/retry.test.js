@@ -20,7 +20,7 @@ import { getItem } from '../../../../packages/store/index.js';
 import { events } from '../../../../packages/store/index.js';
 import { claimProgress } from '../../../../packages/items/index.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 after(cleanupToolingSnapshots);
 
 /** Demand a genuine private native command result. */

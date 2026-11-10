@@ -17,7 +17,7 @@ export function executionServicesSource(gateURL) {
 
 /** Exercise two real gates and their empty single-slot queue in one watchdog-owned worker [Q4,C7]. */
 export function redGateReleaseSource() {
-  const root = new URL('../', import.meta.url);
+  const root = new URL('../../../../../', import.meta.url);
   const GATE_MODULE = new URL('packages/gate/index.js', root).href;
   return `
     import assert from 'node:assert/strict';

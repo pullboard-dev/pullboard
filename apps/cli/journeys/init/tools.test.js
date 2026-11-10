@@ -21,7 +21,7 @@ import { styleSources } from '../../../../packages/codemap/index.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { copyPackageSubset } from '../../tests/fixtures/copy.js';
 
-const REPO = fileURLToPath(new URL('../', import.meta.url));
+const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 const MAP = { '#*': './packages/*/index.js', '#*.js': './packages/*.js' };
 
 /** Create isolated files and immutable Git snapshots without inheriting repository hooks. */

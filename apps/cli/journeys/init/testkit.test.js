@@ -49,7 +49,7 @@ function fixtureAdmissionProof(t) {
       assert.doesNotMatch(`prefix${helperName}Suffix`, usage, 'helper names require real word boundaries');
     }
   }
-  const helper = readFileSync(join(import.meta.dirname, 'testkit-fixture.js'), 'utf8');
+  const helper = readFileSync(join(import.meta.dirname, '../../tests/fixtures/testkit.js'), 'utf8');
   for (const flag of ['--route', '--brief', '--model']) assert.match(helper, new RegExp(flag));
 }
 

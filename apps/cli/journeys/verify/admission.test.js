@@ -45,7 +45,7 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     mkdirSync(join(box.repo, 'test'));
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
     // A literal fixture runner executes the selected file, without importing the real project's test pool.
-    writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "await import(new URL('../' + process.argv[2], import.meta.url));\n");
+    writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "await import(new URL('../../../../' + process.argv[2], import.meta.url));\n");
     writeFileSync(join(box.repo, 'test/desktop.test.js'), `${liveGui ? '/** @pullboard-test-gui */\n' : ''}import { test } from 'node:test';\ntest('desktop fixture executes', () => {});\n`);
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'test: explicit desktop admission fixture [G1]');

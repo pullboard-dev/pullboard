@@ -98,7 +98,7 @@ function project(source) {
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
-  copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
+  copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
   const originalHook = readFileSync(join(repo, 'apps/cli/src/io/commands/hook.js'), 'utf8');
   // This private project has one committed test; copied package and app fixtures are not its tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });

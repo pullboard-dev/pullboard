@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 
-const SOURCE=new URL('../',import.meta.url);
+const SOURCE=new URL('../../../../../../',import.meta.url);
 /** Genuine Git operations retain exact commit identities; no board history is edited directly. */
 function git(root,env,...args) {const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
 import { mainAuditFixture } from './project.js';

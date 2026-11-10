@@ -45,7 +45,7 @@ function fixture() {
   config.submitDeferAbove = 1;
   put(box.repo, 'pullboard.json', JSON.stringify(config));
   put(box.repo, 'package.json', '{"type":"module"}\n');
-  const toolRoot = fileURLToPath(new URL('../', import.meta.url));
+  const toolRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   const scanner = testClosures(toolRoot).closures.get('packages/gate/tests/io/board/baseline/guard.test.js');
   assert.ok(scanner?.files, scanner?.reason || 'the actual board-file scanner needs a complete committed closure');
   copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/')) });

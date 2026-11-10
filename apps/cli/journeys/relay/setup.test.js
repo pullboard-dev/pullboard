@@ -81,7 +81,7 @@ test('the approval wait names the phone in local time once [H17]', async (t) => 
   const box = await relayClientFixture(t);
   await box.link();
   const linkModule = JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href);
-  const fixtureModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, 'fixture-child.js')).href);
+  const fixtureModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/child.js')).href);
   const result = await box.script(`
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

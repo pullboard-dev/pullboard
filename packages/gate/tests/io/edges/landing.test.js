@@ -10,7 +10,7 @@ import { commonJsIn } from '../../../index.js';
 import { importsIn } from '../../../index.js';
 import { readPlan } from '../../../../codemap/index.js';
 
-const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 test('the actual landing import graph has no edge into native quarantine [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);

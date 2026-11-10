@@ -23,7 +23,7 @@ test('a passkey on the paired browser confirms a terminal-started person move on
 }, async (t) => { // budget: hang ceiling for real CLI runs, Chrome and relay calls; not a speed target.
   // WebAuthn needs a domain for its RP id, so this relay is reached as localhost, not 127.0.0.1.
   const box = await relayClientFixture(t, { host: 'localhost' });
-  const trustedEntry = join(import.meta.dirname, 'person-trusted-cli.js');
+  const trustedEntry = join(import.meta.dirname, '../../tests/fixtures/person/trusted.js');
   /** Hand only this private test's relay origin to the explicit test entry, never the shipped binary. */
   const cli = (...args) => relayFixtureChild(box.root, box.env, [trustedEntry, box.origin, ...args, '--json']);
   assert.equal((await cli('add', box.lane, 'PASSKEY_BROWSER_READY')).code, 0);

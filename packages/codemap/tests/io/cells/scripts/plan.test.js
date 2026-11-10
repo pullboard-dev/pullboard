@@ -16,7 +16,7 @@ import { cellsStateKey } from '../../../../index.js';
 import { fixture } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 
-const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
 /** Run one cached check that prints in both streams and counts how often it really ran. */
 function run(root, label, code, counter, options = { enabled: true }) {

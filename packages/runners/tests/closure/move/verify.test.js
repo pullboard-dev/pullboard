@@ -20,7 +20,7 @@ import { workingSourceInventory } from '../../../../gate/src/io/scan.js';
 import { packageFiles } from '../../../index.js';
 import { sourceDirectories } from '../../../../gate/tests/fixtures/functions.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const VERIFY = new Map([...readPathMap(ROOT)].filter(([, moved]) => moved.startsWith('packages/verify/')));
 const IDENTITY = new Map([...VERIFY].map(([old, moved]) => [moved, old]));
 

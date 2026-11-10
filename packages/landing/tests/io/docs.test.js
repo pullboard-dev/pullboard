@@ -24,7 +24,7 @@ function git(cwd, ...args) {
 /** Build a real temporary repository from this checkout's committed generator and documentation sources. */
 function temporaryRepository() {
   const dir = mkdtempSync(join(tmpdir(), 'landing-regenerates-docs-'));
-  const source = fileURLToPath(new URL('../../../', import.meta.url));
+  const source = fileURLToPath(new URL('../../../../', import.meta.url));
   const archive = spawnSync('git', ['archive', 'HEAD', 'README.md', 'bin', 'apps', 'docs', 'packages', 'src', 'package.json'], { cwd: source, env: cleanGitEnvironment(), maxBuffer: 512 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.stderr?.toString());
   const extracted = spawnSync('tar', ['-xf', '-', '-C', dir], { input: archive.stdout });

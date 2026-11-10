@@ -131,7 +131,7 @@ test('the suite runs while a view holds the default port [N26,C7]', async (t) =>
   ];
   const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [
     resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'), '--test-name-pattern', names.join('|'),
-    resolve(import.meta.dirname, 'view-port.test.js'), resolve(import.meta.dirname, 'resume-flow.test.js'),
+    resolve(import.meta.dirname, 'port.test.js'), resolve(import.meta.dirname, '../resume/flow.test.js'),
   ], { cwd: resolve(import.meta.dirname, '..'), env: { ...process.env } }));
   if (result.status !== 0) t.diagnostic(safeErrorSummary(result.stdout));
   assert.equal(result.status, 0, result.failure ?? result.stderr);
@@ -302,7 +302,7 @@ test('a reset during view shutdown is observed until the listener really closes 
 
 /** Start an owned worker that holds the real fixed port under its test-home-independent lease. */
 function portLeaseWorker(directory, port) {
-  const fixture = pathToFileURL(resolve(import.meta.dirname, 'view-port-fixture.js')).href;
+  const fixture = pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/view/port.js')).href;
   const source = `
     import { createServer } from 'node:net';
     import { takeDefaultViewPort } from ${JSON.stringify(fixture)};

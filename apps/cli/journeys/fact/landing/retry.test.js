@@ -67,7 +67,7 @@ test('a diagnostic block is superseded after main moves and lands without anothe
     `import { context, landAfterAcceptance } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../index.js')).href)};`,
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/store/index.js')).href)};`,
     `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../lib/index.js')).href)};`,
-    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
+    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../tests/fixtures/child.js')).href)};`,
     `import { join } from 'node:path'; import { readFileSync, existsSync } from 'node:fs';`,
     'const [root, token, dueAt, mode, itemId, blockedId] = process.argv.slice(1);',
     'const pendingFile = join(root, ".git/pullboard/automatic-landing/pending.json"); let waits=0, lands=0;',

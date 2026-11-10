@@ -18,7 +18,7 @@ import { workingSourceInventory } from '../../../../gate/src/io/scan.js';
 import { packageFiles } from '../../../index.js';
 import { sourceDirectories } from '../../../../gate/tests/fixtures/functions.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
 // The reopen move reads the conflict predicate through the merge core door, which re-exports this body.
 const REOPEN = 'packages/moves/src/core/moves/reopen.js';

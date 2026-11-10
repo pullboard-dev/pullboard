@@ -40,7 +40,7 @@ import { eligibilityProblem } from '../../../../../packages/verify/index.js';
 import { lineSettings } from '../../../../../packages/state/index.js';
 import { observeWorkers } from '../../../../cli/src/io/scale.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 test('the actual stats seats verify items and queue graphs have no board-query imports [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);

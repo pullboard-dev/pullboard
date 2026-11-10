@@ -6,7 +6,7 @@ import { generatedDocDrift } from '../../apps/cli/index.js';
 import { generatedDocs } from '../../apps/cli/index.js';
 import { writeGeneratedDocs } from '../../apps/cli/index.js';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2);
 if (!(args.length === 0 || args.length === 1 && ['--check', '--json'].includes(args[0])
     || args.length === 2 && args[0] === '--print')) {

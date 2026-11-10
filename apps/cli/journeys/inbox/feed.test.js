@@ -56,7 +56,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 test('worker inbox handles nineteen aliases and forty thousand shouts within one second per read [B7,C7]', t => {
-  const result = runFixtureChild(process.execPath, [join(import.meta.dirname, 'worker-inbox-scale-fixture.js')],
+  const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../tests/fixtures/worker/scale.js')],
     { encoding: 'utf8', timeout: 15_000 });
   assert.equal(result.status, 0, `bounded history fixture: ${result.error?.message ?? ''}\n${result.stderr}\n${result.stdout}`);
   const measured = JSON.parse(result.stdout);

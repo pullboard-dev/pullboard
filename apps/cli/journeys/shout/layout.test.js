@@ -791,7 +791,7 @@ test('no view source file is over the 1500-line cap [C7,D1]', async () => {
   // The file-size check counts every source file in the repo; this test owns the view's source files (#745). The
   // view's tests under test/cockpit are kept whole and unchanged, so they are not counted here.
   const { fileSizeProblems } = await import('../../../../packages/gate/src/io/file/size.js');
-  const root = fileURLToPath(new URL('../../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const viewLane = /^(?:src\/cockpit\.js|src\/serve\.js|src\/view\.css|src\/view\/)/u;
   const over = fileSizeProblems(root).filter((problem) => viewLane.test(problem.path)).map((problem) => `${problem.path}:${problem.line}`);
   assert.deepEqual(over, [], 'every view file is under the 1500-line cap, so the file-size check prints no block for it');

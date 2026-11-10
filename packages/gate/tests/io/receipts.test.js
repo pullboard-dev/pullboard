@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 
-const BIN = join(import.meta.dirname, '../../..', 'apps', 'cli', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../../../../apps/cli/pullboard.js');
 
 /** Create isolated main and core worktrees with Pullboard's real installed commit hooks. */
 function fixture(t) {

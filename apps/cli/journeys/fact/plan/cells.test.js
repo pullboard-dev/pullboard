@@ -37,7 +37,7 @@ import {
 import { formatJson } from '../../../../../packages/codemap/index.js';
 import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 const PLAN = readPlan(ROOT);
 

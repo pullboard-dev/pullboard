@@ -40,7 +40,7 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js');
-const CALLER_REPORTER = resolve(import.meta.dirname, 'timing-reporter-fixture.js');
+const CALLER_REPORTER = resolve(import.meta.dirname, '../../tests/fixtures/reporter.js');
 const RESOURCE_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';

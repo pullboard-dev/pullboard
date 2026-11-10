@@ -22,7 +22,7 @@ async function viewScenario(box, mode) {
   const setupModule = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/link/index.js')).href;
   const relayModule = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/link/index.js')).href;
   const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/native.js')).href;
-  const fixtureModule = pathToFileURL(resolve(import.meta.dirname, 'fixture-child.js')).href;
+  const fixtureModule = pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/child.js')).href;
   const machineModule = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/link/index.js')).href;
   return box.script(`
 import assert from 'node:assert/strict';

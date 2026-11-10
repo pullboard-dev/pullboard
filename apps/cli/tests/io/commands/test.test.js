@@ -204,7 +204,7 @@ function declaredRunnerModules(source, sourceRoot) {
 }
 
 /** Build the runner-discovery fixture from a source checkout. */
-function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../', import.meta.url))) {
+function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../../../../../', import.meta.url))) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-discovery-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, 'bin');

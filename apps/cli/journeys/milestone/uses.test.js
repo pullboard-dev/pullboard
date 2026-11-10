@@ -360,7 +360,7 @@ function manyCalls() {
  * while a move changes where its body lives, so no move has to edit these cases.
  */
 function mappedProducer(identity) {
-  const root = fileURLToPath(new URL('../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const mapped = mappedWorkingSource(root, identity);
   const files = new Map([[mapped.implementationPath, mapped.body], ...(mapped.shimPath ? [[mapped.shimPath, mapped.shimBody]] : [])]);
   if (mapped.implementationPath.startsWith('packages/seats/')) {
@@ -525,7 +525,7 @@ test('fixed-leaf producers follow canonical named shims but refuse unresolved or
 });
 
 test('all original git-move fixture groups retain their actual source input obligations [C7]', () => {
-  const root = fileURLToPath(new URL('../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
   const plan = JSON.parse(readFileSync(new URL('../../../../packages/codemap/data/plan/02-git.json', import.meta.url), 'utf8'));
   const captured = new Map();

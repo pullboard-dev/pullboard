@@ -212,7 +212,7 @@ test('a person running view with JSON in a terminal keeps the server in that ter
   let box = sandbox();
   box.env.PULLBOARD_MODEL ??= 'Fixture Model';
   box = project(CONFIG.gate, box);
-  const helper = resolve(import.meta.dirname, 'fixtures/view-person-pty.py');
+  const helper = resolve(import.meta.dirname, '../../tests/fixtures/view/pty.py');
   const result = JSON.parse(execFileSync('python3', [helper], {
     cwd: box.repo,
     env: box.env,

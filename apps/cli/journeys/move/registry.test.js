@@ -90,7 +90,7 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 test('live registry invariants and historical actors, order and SQLite replay hold [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => SNAPSHOT.operations.includes(operation)), SNAPSHOT.operations, 'historical operation order is retained while new declarations append independently');
   const root = fileURLToPath(new URL('../src/', import.meta.url));
-  const repository = fileURLToPath(new URL('../', import.meta.url));
+  const repository = fileURLToPath(new URL('../../../../', import.meta.url));
   const identities = new Set(readdirSync(root, { recursive: true }).filter(file => file.endsWith('.js')).map(file => 'src/' + file));
   for (const [identity] of readPathMap(repository)) if (identity.startsWith('src/') && identity.endsWith('.js')) identities.add(identity);
   const sources = mappedWorkingSources(repository, [...identities])
@@ -258,7 +258,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('row_decisions',
     JSON.stringify([{ event: 7, revision: { source: 'private recorded revision fixture' } }]));
   assert.equal(minimumMoveEngine('applyRowDecisions', [{ events: [7] }], board), SPEC_REVISION_ENGINE);
-  const root = fileURLToPath(new URL('../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const forbidden = new Set(['packages/store/src/shell/board.js', 'packages/state/src/shell/engine.js', 'packages/store/src/shell/board-engine-ports.js', 'apps/cli/src/core/next-step-words.js', 'packages/moves/src/shell/move-registry.js', 'packages/git/src/shell/git.js']);
   for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
@@ -314,7 +314,7 @@ test('registry invariants reject missing recovery, slots and allocation collisio
 
 
 test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
-  const root = fileURLToPath(new URL('../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const git = (...args) => run(root, 'git', args);
   assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages/state/src/core/engines')), git), []);
 });

@@ -119,7 +119,7 @@ test('clause 2: an error out of the drain loop releases the dispatcher lock and 
   rmSync(join(handoffQueueDirectory(), '0001-broken.json'), { force: true });
   const receipt = join(handoffQueueDirectory(), 'dispatcher.json');
   assert.ok(!existsSync(receipt), 'no dispatcher has been launched yet');
-  await ensureHandoffDispatcher(fileURLToPath(new URL('../../../', import.meta.url)), checkout);
+  await ensureHandoffDispatcher(fileURLToPath(new URL('../../../../../', import.meta.url)), checkout);
   const { pid } = JSON.parse(readFileSync(receipt, 'utf8'));
   assert.ok(Number.isInteger(pid), 'a fresh dispatcher process was started');
   // The fresh dispatcher finds an empty queue and exits; the home is removed only after it, so nothing outlives the test.
@@ -131,7 +131,7 @@ test('clause 1: every machine path of the dispatcher runs stays inside the temp 
   const run = spawnSync(process.execPath, [entry], { cwd: checkout, env: process.env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(run.status, 0, run.stderr);
   assert.doesNotMatch(run.stderr, /EACCES|\.pullboard/u, 'the dispatcher never reached for the account ~/.pullboard');
-  await ensureHandoffDispatcher(fileURLToPath(new URL('../../../', import.meta.url)), checkout);
+  await ensureHandoffDispatcher(fileURLToPath(new URL('../../../../../', import.meta.url)), checkout);
   const { pid } = JSON.parse(readFileSync(join(handoffQueueDirectory(), 'dispatcher.json'), 'utf8'));
   await waitForCondition(() => gone(pid), 'the launched dispatcher exited', { signal: t.signal });
   assert.ok(handoffQueueDirectory().startsWith(join(dir, 'home')), 'the handoff queue is in the temp home');
@@ -161,7 +161,7 @@ async function whileLaunchLockHeld(action) {
 
 test('clause 1: while another process holds the launch lock, ensureHandoffDispatcher returns false at once [C7]', () => withHome(() => whileLaunchLockHeld(async () => {
   const started = Date.now();
-  const launched = await ensureHandoffDispatcher(fileURLToPath(new URL('../../../', import.meta.url)), process.cwd());
+  const launched = await ensureHandoffDispatcher(fileURLToPath(new URL('../../../../../', import.meta.url)), process.cwd());
   assert.equal(launched, false, 'a second launcher never queues behind the first');
   assert.ok(!existsSync(join(handoffQueueDirectory(), 'dispatcher.json')), 'it launched nothing');
   assert.ok(Date.now() - started < 1000, 'it did not wait for the lock'); // budget: hang ceiling; a wait would run for the whole lock hold, which this test never ends.
@@ -169,7 +169,7 @@ test('clause 1: while another process holds the launch lock, ensureHandoffDispat
 
 test('clause 2: with the launch lock held, a queued-launch recovery from a board command returns in under 1 s [C7]', () => withHome(() => whileLaunchLockHeld(async () => {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('../../../', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('../../../../../', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
   const started = Date.now();
   await recoverHandoffDispatcher({ loadStartOf: async () => () => '' });
   assert.ok(Date.now() - started < 1000, 'recovery does not queue behind the launcher that holds the lock'); // budget: declared by clause 2 of #3838 as under 1 s; a queued recovery would hang for the whole lock hold.
@@ -191,7 +191,7 @@ async function recoveryStep(dir, positionals) {
 /** Queue one captured launch file, as a submit does. */
 function queueLaunch() {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('../../../', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('../../../../../', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
 }
 
 test('#3839 clause 1: heartbeat, inbox and hook commit-msg never call recoverQueuedHandoffs, and leave a queued launch queued [C7]', () => withHome(async dir => {

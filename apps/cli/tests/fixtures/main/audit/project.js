@@ -43,7 +43,7 @@ export function readAuditJob(directory, key) {
   assert.equal(mainAuditKey(job), key, 'the journal binds the requested board, batch and source identity');
   return job;
 }
-const SOURCE=new URL('../',import.meta.url);
+const SOURCE=new URL('../../../../../../',import.meta.url);
 /** Run actual Git in the private fixture and retain failures. */
 function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
 /** Wait for an observed native ownership boundary. */

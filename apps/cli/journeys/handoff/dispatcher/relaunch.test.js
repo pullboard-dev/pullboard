@@ -59,7 +59,7 @@ async function fixture(t, state) {
   // The shipped detached launcher re-parents the dispatcher, so the captured tooling carries it beside the stub [C7].
   copyFileSync(join(import.meta.dirname, '../../../../../packages/resources/src/io/handoff/worker/detach.js'), join(tools, 'packages/resources/src/io/handoff/worker/detach.js'));
   // A working dispatcher is whoever holds the machine's dispatcher lock, so the captured stub takes it and keeps it until told to stop.
-  const resourcesUrl = pathToFileURL(join(import.meta.dirname, '..', 'packages', 'resources', 'index.js')).href;
+  const resourcesUrl = pathToFileURL(join(import.meta.dirname, '../../../../../packages/resources/index.js')).href;
   writeFileSync(join(tools, 'apps/lib/src/io/handoff/dispatcher.js'), [
     "const fs = require('node:fs');",
     `const stop = ${JSON.stringify(stop)};`,

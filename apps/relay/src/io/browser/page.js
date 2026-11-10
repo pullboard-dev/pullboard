@@ -16,7 +16,7 @@ import { relayScreenMarkup } from './notice.js';
 
 const STYLES = composeViewStyles() + APPROVAL_CARD_STYLES;
 
-const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 /**
  * The browser modules served by a fixed public name, each read from its exact body. Relay files import one another by

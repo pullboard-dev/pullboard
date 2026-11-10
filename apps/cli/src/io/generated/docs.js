@@ -16,7 +16,7 @@ import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
 
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
-export function generatedDocs(root = fileURLToPath(new URL('../../../../', import.meta.url)), { openBoard } = {}) {
+export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
   let blocks;
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
