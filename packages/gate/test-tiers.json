@@ -14261,7 +14261,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/dashboard-render.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-render.test.js",
       "tier": "T3",
       "packages": [
         ".",
