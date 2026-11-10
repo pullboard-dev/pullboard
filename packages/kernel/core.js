@@ -8,3 +8,4 @@ export { registryGuardsProblem } from './src/core/registry-guards.js';
 export { AGENT_SESSION_IDS } from './src/core/discovery.js';
 export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
 export { parseProcessCensus } from './src/core/process-census.js';
+export { engineBindings } from './src/core/engine-declarations.js';

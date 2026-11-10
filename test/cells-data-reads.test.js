@@ -1,9 +1,9 @@
 /** Exact generated-data declarations never turn a moved repository source into fixture data [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { fixtureSourceEdits } from '../packages/codemap/index.js';
 import { checkMoved } from '../bin/cells-plan.js';
-import { parseDataReads, staleDataReads } from '../bin/cells-data-reads.js';
+import { parseDataReads, staleDataReads } from '../packages/codemap/src/shell/cells-data-reads.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

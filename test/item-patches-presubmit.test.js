@@ -71,6 +71,8 @@ function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs
   if (deferred) config.submitGate = 'landing';
   config.lanes.core = { owns: ['core/'], specs: ['G1'] };
   config.lanes.view = { owns: ['view/'], specs: ['G2'] };
+  // Seat routes come from the board's model table since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
   writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-m', 'chore: private companion lane policy');
@@ -108,10 +110,10 @@ function attach(f, key = 'approved-view', source = f.source, file = f.patchFile,
 
 /** Produce a second genuine phase pair on the same private item, retaining native admission and receipt writing. */
 async function repeatNativePhases(f, binding) {
-  const module = name => new URL('../src/' + name, import.meta.url).href;
   const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = join(f.box.dir, 'repeat-phases.mjs');
-  writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
+  // The store front door replaced src/board.js in #1776.
+  writeFileSync(script, `import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
 import { openBoard } from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}

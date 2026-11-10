@@ -65,9 +65,9 @@ const BROWSER_STANDINS = {
   'src/person-pairing-limit.js': new URL('../../../../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
   // The moved relay limits read PAIR_PACKAGE_BYTES through the person door; its pure core.js does not carry that body.
   'packages/person/index.js': new URL('../../../../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
-  // The kernel door also carries Node-only pieces (machineHome imports node:path); a browser module reads only Refused from it.
-  'packages/kernel/index.js': new URL('../../../../packages/kernel/src/core/refused.js', import.meta.url),
-  'packages/kernel/core.js': new URL('../../../../packages/kernel/src/core/refused.js', import.meta.url),
+  // The kernel door also carries Node-only pieces (machineHome imports node:path); a browser module reads the browser-safe pure.js instead, which exports every name a page imports.
+  'packages/kernel/index.js': new URL('../../../../packages/kernel/pure.js', import.meta.url),
+  'packages/kernel/core.js': new URL('../../../../packages/kernel/pure.js', import.meta.url),
 };
 
 /** Where a module the browser reaches by repository path is served; its directory structure is kept, so relative imports resolve. */
