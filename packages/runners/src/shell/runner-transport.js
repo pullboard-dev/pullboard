@@ -19,7 +19,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
-import { parseProcessCensus } from '../../../kernel/src/core/process-census.js';
+import { parseProcessCensus } from '../../../kernel/core.js';
 import { liveJobSet } from './runner-orphan-holders.js';
 import { sortHolders } from './runner-orphan-holders.js';
 import { stopOrphanWorkers } from './runner-orphan-holders.js';

@@ -17,7 +17,7 @@ import {
   join,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseProcessCensus } from '../../../../packages/kernel/src/core/process-census.js';
+import { parseProcessCensus } from '../../../../packages/kernel/core.js';
 import { childJournalPreloadSource } from '../../../../packages/gate/src/shell/child-journal-preload.js';
 import { exactStart } from '../../../../packages/gate/src/shell/child-journal-preload.js';
 

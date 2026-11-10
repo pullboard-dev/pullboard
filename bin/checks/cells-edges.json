@@ -818,7 +818,7 @@
     },
     "apps/runner/src/shell/runner-custody.js": {
       "cells": 2,
-      "deep": 3
+      "deep": 2
     },
     "apps/runner/src/shell/runner-disk-sweep.js": {
       "cells": 1,
@@ -850,7 +850,7 @@
     },
     "apps/runner/src/shell/runner-worker-health.js": {
       "cells": 3,
-      "deep": 7
+      "deep": 1
     },
     "apps/runner/src/shell/runner-worker-main.js": {
       "cells": 5,
@@ -2735,10 +2735,6 @@
     "packages/runners/src/shell/runner-tooling-snapshot.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/runners/src/shell/runner-transport.js": {
-      "cells": 2,
-      "deep": 1
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
@@ -5368,6 +5364,7 @@
     "packages/seats/core.js": 27,
     "packages/runners/core.js": 40,
     "packages/git/core.js": 12,
-    "packages/resources/core.js": 27
+    "packages/resources/core.js": 27,
+    "packages/kernel/core.js": 7
   }
 }
