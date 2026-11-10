@@ -181,7 +181,7 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
     'temporary exceptions are disabled in both snapshots and the old exact edge is still equal debt');
   const clean = await plannedFixture(t);
   clean.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  clean.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   clean.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
   clean.put('apps/cli/index.js', "import '../../src/cli.js';\n");
   clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
@@ -192,7 +192,7 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
 /** Move the real kernel body through its named front door and a committed per-cell path-map shard. */
 function moveFixtureKernel(box, body) {
   box.put('packages/kernel/src/logic/refused.js', body);
-  box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  box.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   box.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
   box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
   box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
@@ -424,7 +424,7 @@ test('eligible runtime context changes require a fresh real binding compiler obs
 test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
   const box = await plannedFixture(t, box => {
     box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-    box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    box.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
     box.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
     box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
     box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
@@ -493,7 +493,7 @@ test('scheduled rows stay unmoved while mapped cells retain real missing-body ch
   const box = await plannedFixture(t);
   const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
   box.put('src/new.css', 'body { color: red; }\n');
-  kernel.paths.push(['src/new.css', 'packages/kernel/src/shell/new.css', 'rule']);
+  kernel.paths.push(['src/new.css', 'packages/kernel/src/io/new.css', 'rule']);
   writePlan(box.root, plan);
   assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
     'a scheduled asset in an unmoved cell does not require its future body');
