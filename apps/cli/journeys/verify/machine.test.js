@@ -244,7 +244,7 @@ function codeProblems(machine, read = fromDisk) {
   for (const { verbs, at } of ENTRY_POINTS) {
     const declared = declaredCodes(machine, verbs);
     for (const entry of at) {
-      for (const code of walk.refusalsOf(entry, new Set(CAUGHT[entry] ?? []))) {
+      for (const code of walk.refusalsOf(entry)) {
         if (!declared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
       }
     }
