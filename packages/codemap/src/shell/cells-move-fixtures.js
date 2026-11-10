@@ -2,13 +2,14 @@
 import { matchingDataRead } from './cells-data-reads.js';
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
-import { lex } from '../packages/kernel/index.js';
-import { bindingReadsForModules } from '../packages/codemap/index.js';
-import { localFunctionCallSets } from '../packages/codemap/index.js';
-import { readOnlyMemberRanges } from '../packages/codemap/index.js';
-import { stringSuffixDisjoint } from '../packages/codemap/index.js';
-import { repositoryImport } from '../packages/codemap/index.js';
-import { canonicalCopierPaths, operationalMentions } from './cells-move-mentions.js';
+import { lex } from '../../../kernel/index.js';
+import { bindingReadsForModules } from './cell-binding-uses.js';
+import { localFunctionCallSets } from './cell-binding-uses.js';
+import { readOnlyMemberRanges } from './cell-binding-uses.js';
+import { stringSuffixDisjoint } from '../core/path-map-operands.js';
+import { repositoryImport } from '../core/import-map.js';
+import { canonicalCopierPaths } from './cells-move-mentions.js';
+import { operationalMentions } from './cells-move-mentions.js';
 
 const ID = '[A-Za-z_$][\\w$]*';
 const READS = new Set(['readFileSync', 'cpSync', 'copyFileSync']);

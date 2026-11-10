@@ -1,6 +1,5 @@
 /** Move one leaf with exact reversible byte custody; never evaluate the moved module [C7]. */
-import { Refused } from '../packages/kernel/index.js';
-import { spawnSync } from 'node:child_process';
+import { Refused } from '../../../kernel/index.js';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
@@ -58,10 +57,10 @@ function parents(root, file) {
   }
 }
 /** Construct the narrowly supported transaction using controller-loaded accepted tools, never candidate evaluation. */
-export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolations, readPathMap, cleanGitEnvironment, fixtureSourceEdits }) {
+export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolations, readPathMap, cleanGitEnvironment, fixtureSourceEdits, runProcess }) {
   /** Run immutable Git selectors with ambient selectors removed, or ordinary scoped mutations. */
   function git(root, args, encoding = 'utf8', input = undefined) {
-    const result = spawnSync('git', ['--no-replace-objects', '--literal-pathspecs', ...args], {
+    const result = runProcess('git', ['--no-replace-objects', '--literal-pathspecs', ...args], {
       cwd: root, env: cleanGitEnvironment(), encoding, input, maxBuffer: 64 * 1024 * 1024,
     });
     requireThat(result.status === 0, `git ${args[0]} failed: ${String(result.stderr ?? result.error ?? '')}`);

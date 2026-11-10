@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { createRelayBrowserHandler } from '../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../apps/relay/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs, findChromeExecutable } from './relay-browser-fixture.js';
 import { startFixtureChild } from './fixture-child.js';

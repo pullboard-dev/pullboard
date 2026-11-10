@@ -6,17 +6,19 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { parseWorkerBudget } from '../packages/config/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { fixtureAddItem, fixtureRegister, openGatedWebBoard } from './worker-scale-fixture.js';
-import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
-import { planWorkerScale } from '../apps/cli/src/shell/worker-scale.js';
-import { scaleCycle } from '../apps/cli/src/shell/worker-scale.js';
-import { seatHoldsWork } from '../apps/cli/src/shell/worker-scale.js';
-import { windowStart } from '../apps/cli/src/shell/worker-scale.js';
-import { workerLedger } from '../apps/cli/src/shell/worker-scale.js';
+import * as store from '../../../packages/store/index.js';
+import { parseWorkerBudget } from '../../../packages/config/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { fixtureAddItem } from '../../../test/worker-scale-fixture.js';
+import { fixtureRegister } from '../../../test/worker-scale-fixture.js';
+import { openGatedWebBoard } from '../../../test/worker-scale-fixture.js';
+import { observeWorkers } from '../src/shell/worker-scale.js';
+import { planWorkerScale } from '../src/shell/worker-scale.js';
+import { scaleCycle } from '../src/shell/worker-scale.js';
+import { seatHoldsWork } from '../src/shell/worker-scale.js';
+import { windowStart } from '../src/shell/worker-scale.js';
+import { workerLedger } from '../src/shell/worker-scale.js';
 
 const HOUR = 3_600_000;
 
@@ -288,9 +290,9 @@ test('clause 1: workers.budget parses and stores spend per day, and the scaler l
 });
 
 test('clause 2: workers help text and setting descriptions name spend per day, and the unset default message matches [C7]', async () => {
-  const { SETTING_DESCRIPTIONS } = await import('../packages/config/index.js');
-  const { workHelp } = await import('../apps/cli/src/core/help/work.js');
-  const { DEFAULT_NEXT_STEPS } = await import('../packages/state/index.js');
+  const { SETTING_DESCRIPTIONS } = await import('../../../packages/config/index.js');
+  const { workHelp } = await import('../src/core/help/work.js');
+  const { DEFAULT_NEXT_STEPS } = await import('../../../packages/state/index.js');
   assert.match(SETTING_DESCRIPTIONS['workers.budget'].description, /spend per day or week/u);
   assert.equal(SETTING_DESCRIPTIONS['workers.budget'].unit, 'spend');
   assert.match(workHelp, /workers\.budget spend per day/u);

@@ -382,15 +382,7 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/cells-move-fixtures.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "bin/cells-move-tool.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
-      "path": "bin/cells-move-transaction.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
@@ -424,14 +416,6 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/cells-data-reads.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
-      "path": "bin/cells-move-mentions.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "src/git-sync-format.js",
       "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
     },
@@ -449,10 +433,6 @@
     },
     {
       "path": "bin/cells-submit-checks.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "bin/cells-engine-stays.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -751,10 +731,6 @@
     },
     {
       "path": "bin/checks/relay-boundary.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "relay/browser-adapter.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1683,6 +1659,22 @@
       ]
     },
     {
+      "cell": "app:cli",
+      "row": [
+        "test/exit-rules.test.js",
+        "apps/cli/tests/exit-rules.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/worktree-maintenance-scheduler.test.js",
+        "apps/cli/tests/worktree-maintenance-scheduler.test.js",
+        "rule"
+      ]
+    },
+    {
       "cell": "state",
       "row": [
         "test/relay-approval-delivery.test.js",
@@ -2104,6 +2096,7 @@
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
+    "doctrine->codemap",
     "gate->store",
     "gate->kernel",
     "gate->git",
@@ -2190,6 +2183,7 @@
     "github->items",
     "link->kernel",
     "apps/relay->link",
+    "apps/relay->kernel",
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
