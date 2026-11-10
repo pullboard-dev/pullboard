@@ -33,7 +33,7 @@ test('land --adopt after takeover rebinds the landing worktree to the new sessio
   const batch = json(box, box.repo, 'resume').landingBatches.at(-1);
   const binding = join(box.git(batch.root, 'rev-parse', '--absolute-git-dir'), 'pullboard-checkout-session.json');
   // The landing's own commits in its worktree run the repository hooks, which bind the worktree to the committing session.
-  box.tryGit(batch.root, 'commit', '-q', '--allow-empty', '-m', 'chore(doctrine): record lower held counts [B3]');
+  box.tryGit(batch.root, 'commit', '-q', '--allow-empty', '-m', 'chore(doctrine): record lower held counts [G1]');
   assert.ok(existsSync(binding), 'the first session bound the landing worktree through a hook');
   process.kill(-child.pid, 'SIGKILL');
   await closed;
