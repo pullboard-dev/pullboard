@@ -3,10 +3,9 @@ import {
   cellExistsSync as existsSync,
   cellLstatSync as lstatSync,
   cellReadFileSync as readFileSync,
-} from '../packages/codemap/index.js';
+} from './cell-source-snapshot.js';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { tryGit } from './cells-snapshot-git.js';
 
 const KINDS = new Set(['hook', 'settings', 'spec', 'marker', 'config', 'HTML']);
 
@@ -40,8 +39,8 @@ export function parseDataReads(value, label = 'generated-data manifest') {
   return { reads: problems.length ? [] : reads, problems };
 }
 
-/** Read only this cell's bounded regular manifest; absence preserves the original analyzer behavior. */
-export function readMoveDataReads(root, cell) {
+/** Read only this cell's bounded regular manifest; absence preserves the original analyzer behavior. The caller supplies the snapshot-aware `tryGit`, since Git object scopes sit above this cell. */
+export function readMoveDataReads(root, cell, tryGit) {
   const file = `bin/cells-plan/data-reads/${cell}.json`;
   const head = tryGit(root, ['rev-parse', 'HEAD']);
   if (head.status !== 0) return { reads: [], problems: [`${file}: cannot inspect the committed manifest`] };

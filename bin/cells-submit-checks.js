@@ -49,7 +49,7 @@ import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
 import { unplanned } from './cells-plan.js';
 import { stalePlanRows } from './cells-plan.js';
-import { engineStayTransition } from './cells-engine-stays.js';
+import { engineStayTransition } from '../packages/codemap/index.js';
 import { scriptMentions } from './cells-remove-shims.js';
 import { testFile } from '../packages/codemap/index.js';
 import { posix } from 'node:path';
