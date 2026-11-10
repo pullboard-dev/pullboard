@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 /** Exercise real CLI add and join admissions, then lint fixture call sites and option ownership. */
@@ -17,7 +17,7 @@ function fixtureAdmissionProof(t) {
   assert.match(item.item_brief, /Files:[\s\S]*Change:[\s\S]*Test:/u);
   const identity = box.run(box.web, 'whoami', '--json');
   assert.equal(identity.code, 0, identity.err);
-  assert.equal(JSON.parse(identity.out).model, 'Fixture');
+  assert.equal(JSON.parse(identity.out).model, FIXTURE_MODEL);
   const log = box.run(box.repo, 'log', String(item.item_id), '--json');
   assert.equal(log.code, 0, log.err);
   assert.match(log.out, /diagnosis/u);
