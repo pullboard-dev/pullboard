@@ -221,7 +221,7 @@ export function componentHome(row, plan) {
  * for the caller to raise; `lex` is the kernel lexer the caller hands in. With `components`, a cross-cell test whose
  * componentHome is this cell moves here too.
  */
-export function planTestMove({ tracked, inventory, plan, cell: name, paths = [], lex, components = false }) {
+export function planTestMove({ tracked, inventory, plan, cell: name, paths = [], lex, components = false, helpers = false }) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) return { refused: { code: 'CELLS_TESTS_UNKNOWN', message: `unknown cell ${JSON.stringify(name ?? '')}; name a cell from packages/codemap/data/plan/cells.json: node packages/codemap/src/io/cells/scripts/plan.js --move-tests <cell> [<path>...]` } };
   const unsafe = paths.filter(file => !safePath(file));
@@ -229,15 +229,17 @@ export function planTestMove({ tracked, inventory, plan, cell: name, paths = [],
   const listed = new Set(tracked), exists = file => listed.has(file);
   const rows = new Map(classifyTestFiles(tracked, inventory, plan).map(row => [row.file, row]));
   const wanted = paths.length ? [...new Set(paths)].sort(byCodeUnit)
-    : [...rows.values()].filter(row => row.kind === 'cell' && row.cell === cell.name).map(row => row.file);
+    : [...rows.values()].filter(row => row.kind === 'cell' && row.cell === cell.name && (!helpers || !TEST.test(row.file))).map(row => row.file);
+  const destination = file => helpers ? `${cell.root}/tests/fixtures/${file.slice('test/'.length)}` : testHome(cell, file);
   const already = [], refused = [], moved = new Map();
   for (const file of wanted) {
     const row = rows.get(file);
-    if (!row && !listed.has(file) && listed.has(testHome(cell, file))) already.push(file);
+    if (helpers && (!file.startsWith('test/') || TEST.test(file))) refused.push(`unknown helper ${file} (name a root test helper)`);
+    else if (!row && !listed.has(file) && listed.has(destination(file))) already.push(file);
     else if (!row) refused.push(`unknown path ${file} (not a tracked test file or docs check)`);
     else if (!(row.kind === 'cell' && row.cell === cell.name) && !(components && componentHome(row, plan) === cell.name)) refused.push(`unknown path ${file} (${home(row)}, not cell ${cell.name})`);
-    else if (listed.has(testHome(cell, file))) refused.push(`${file} (its home ${testHome(cell, file)} is taken)`);
-    else moved.set(file, testHome(cell, file));
+    else if (listed.has(destination(file))) refused.push(`${file} (its home ${destination(file)} is taken)`);
+    else moved.set(file, destination(file));
   }
   const writes = [];
   const folder = path => listed.has(path) || path === '.' || tracked.some(file => file.startsWith(`${path}/`));
@@ -334,26 +336,13 @@ function batchMoves(tracked, inventory, plan, lex) {
     stays.push({ file, reason: alone ? alone.refused.message.replace(/^refusing to move tests for [^:]+: /u, '').replace(/; nothing moved$/u, '')
       : `${lines} lines, over the ${HARD_MAX_LINES}-line cell file maximum; split it first` });
   }
-  const importers = new Map();
-  for (const [file, edges] of inventory.edges) for (const edge of edges) {
-    if (!importers.has(edge.target)) importers.set(edge.target, []);
-    importers.get(edge.target).push(file);
+  // Helpers move independently: every tracked importer is repointed, including importers outside the owning cell.
+  for (const helper of helpers) {
+    const alone = planTestMove({ ...state, cell: helper.cell, paths: [helper.file], helpers: true });
+    if (alone.refused) stays.push({ file: helper.file, reason: alone.refused.message });
+    else homes.set(helper.file, { cell: helper.cell, tier: 'helper' });
   }
-  // A helper moves only with every one of its importers; the loop repeats because a moved helper can unlock another.
   const group = new Map();
-  for (let grew = true; grew;) {
-    grew = false;
-    for (const helper of helpers.splice(0)) {
-      const users = importers.get(helper.file) ?? [];
-      if (!users.length || !users.every(user => homes.get(user)?.cell === helper.cell)) { helpers.push(helper); continue; }
-      const alone = planTestMove({ ...state, cell: helper.cell, paths: [helper.file] });
-      if (alone.refused) { stays.push({ file: helper.file, reason: alone.refused.message }); continue; }
-      homes.set(helper.file, { cell: helper.cell, tier: 'helper' });
-      group.set(helper.file, users);
-      grew = true;
-    }
-  }
-  for (const helper of helpers) stays.push({ file: helper.file, reason: 'helper with an importer that does not move to its cell' });
   return { rows, homes, journeys, stays, group };
 }
 
@@ -395,7 +384,7 @@ function testBatches(tracked, inventory, plan, { args, root, lex, git, reread })
     const results = [];
     for (const batch of batches) {
       const listed = git(['ls-files', '-z']).stdout.split('\0').filter(Boolean);
-      const planned = planTestMove({ tracked: listed, inventory: reread(), plan, cell: batch.cell, paths: batch.files, lex, components: true });
+      const planned = planTestMove({ tracked: listed, inventory: reread(), plan, cell: batch.cell, paths: batch.files, lex, components: true, helpers: batch.tiers?.helper === batch.files.length });
       if (planned.refused) { results.push({ batch: batch.batch, cell: batch.cell, planned: batch.count, moved: 0, refused: planned.refused.message }); continue; }
       applyTestMove(root, planned, step => { const run = git(step); if (run.status !== 0) throw new Error(`git ${step[0]}: ${run.stderr}`); });
       const split = planned.moves.filter(([, to]) => splitImports(root, to)).map(([, to]) => to);
@@ -408,8 +397,10 @@ function testBatches(tracked, inventory, plan, { args, root, lex, git, reread })
   const { rows, homes, journeys, stays, group } = batchMoves(tracked, inventory, plan, lex);
   const batches = [];
   for (const cell of plan.cells) {
-    const files = [...homes].filter(([, home]) => home.cell === cell.name).map(([file]) => file);
-    for (const chunk of packBatches(files, group, max)) {
+    const owned = [...homes].filter(([, home]) => home.cell === cell.name);
+    const helpers = owned.filter(([, home]) => home.tier === 'helper').map(([file]) => file);
+    const files = owned.filter(([, home]) => home.tier !== 'helper').map(([file]) => file);
+    for (const chunk of [...packBatches(helpers, group, max), ...packBatches(files, group, max)]) {
       const tiers = Object.fromEntries(['cell', 'component', 'helper'].map(tier => [tier, chunk.filter(file => homes.get(file).tier === tier).length]));
       batches.push({ batch: batches.length + 1, cell: cell.name, count: chunk.length, tiers, files: chunk });
     }
