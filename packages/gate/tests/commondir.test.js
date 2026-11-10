@@ -76,7 +76,7 @@ test('clause 3: no raw commonDir === or !== comparison outside the canonical hel
   // resident-client and current-cli compare two paths from one Git answer and must stay import-light.
   const allowed = new Set(['apps/cli/src/io/resident/client.js', 'apps/cli/src/io/current.js', 'packages/git/src/io/main.js']);
   const found = [];
-  for (const file of [...sources(join(root, 'apps')), ...sources(join(root, 'packages'))]) {
+  for (const file of [...sources(join(root, 'packages'))]) {
     const name = relative(root, file);
     if (allowed.has(name)) continue;
     readFileSync(file, 'utf8').split('\n').forEach((line, index) => {

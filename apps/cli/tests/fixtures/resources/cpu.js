@@ -20,7 +20,6 @@ export function cpuCheckRepo(box) {
   fixtureProjectPolicy(repo, { config: { gate: 'true', spec: 'SPEC.md', affectedTests: 'node packages/gate/src/io/run/tests.js', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] },
     spec: '# CPU check fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n' });
   writeFileSync(join(repo, 'package.json'), '{"type":"module"}\n');
-  mkdirSync(join(repo, 'bin'), { recursive: true });
   copyFixtureRunner(resolve(import.meta.dirname, '../../../../..'), repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/unrelated.test.js'), "import { test } from 'node:test'; test('unrelated test', () => {});\n");

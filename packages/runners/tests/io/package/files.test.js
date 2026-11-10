@@ -38,7 +38,7 @@ import { packageFiles } from '../../../index.js';
 import { toolSourcePath } from '../../../index.js';
 
 /** Create isolated package bytes and remove only this test's owned temporary directory. */
-function fixture(t, files = ['src', 'packages/*/src']) {
+function fixture(t, files = ['src', 'apps', 'packages/*/src']) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-package-copies-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'source');
@@ -211,7 +211,7 @@ test('a fixture copy includes added packages entries and nothing outside package
   copyPackageFiles(f.root, destination);
   assert.deepEqual(copiedFiles(destination), expected);
   assert.equal(readFileSync(join(destination, 'packages/leaf/src/value.js'), 'utf8'), 'export const value = 42;\n');
-  assert.deepEqual(JSON.parse(readFileSync(join(destination, 'package.json'), 'utf8')).files, ['src', 'packages/*/src']);
+  assert.deepEqual(JSON.parse(readFileSync(join(destination, 'package.json'), 'utf8')).files, ['src', 'apps', 'packages/*/src']);
 });
 
 test('package copies refuse escaping patterns, selected symlinks and recursive destinations [C7,P3]', t => {
@@ -237,7 +237,7 @@ test('package files honor a later exclusion and name any entry they cannot parse
 
 test('a computed runner copy follows a new packages import without a hand-kept list [C7,P3]', t => {
   const f = fixture(t);
-  f.write('apps/runner/src/io/scripts/worker.js', "import {value} from '../packages/leaf/src/value.js'; console.log(value);\n");
+  f.write('apps/runner/src/io/scripts/worker.js', "import {value} from '../../../../../packages/leaf/src/value.js'; console.log(value);\n");
   f.write('packages/leaf/src/unused.js', 'export const unused = true;\n');
   const capsule = runnerPackage(f.root);
   assert.deepEqual(Object.keys(capsule.files), ['package.json', 'packages/leaf/src/value.js', 'apps/runner/src/io/scripts/worker.js']);
@@ -253,8 +253,8 @@ test('a computed runner copy follows a new packages import without a hand-kept l
 });
 
 test('runner closure refuses the named unshipped import, and a closure past 1 MiB raw is returned whole for the capsule bound and the raw ratchet to judge (#4140) [C7,P3]', t => {
-  const f = fixture(t, ['src']);
-  f.write('apps/runner/src/io/scripts/worker.js', "import '../packages/leaf/src/value.js';\n");
+  const f = fixture(t, ['src', 'apps']);
+  f.write('apps/runner/src/io/scripts/worker.js', "import '../../../../../packages/leaf/src/value.js';\n");
   assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES'
     && error.message.includes('packages/leaf/src/value.js') && error.message.includes('leaves package.json files'));
   f.write('apps/runner/src/io/scripts/worker.js', "import 'unshipped-external-package';\n");
@@ -282,8 +282,8 @@ test('runner installation rejects a correctly hashed escaping path without writi
 });
 
 test('an installed worker follows Node import-pattern prefix precedence [C7,P3]', t => {
-  const f = fixture(t, ['src', 'packages']);
-  f.write('package.json', JSON.stringify({ type: 'module', files: ['src', 'packages'], imports: {
+  const f = fixture(t, ['src', 'apps', 'packages']);
+  f.write('package.json', JSON.stringify({ type: 'module', files: ['src', 'apps', 'packages'], imports: {
     '#a/*/long': './packages/less/src/*.js', '#a/b/*': './packages/more/src/*.js',
   } }));
   f.write('apps/runner/src/io/scripts/worker.js', "import {value} from '#a/b/value/long'; console.log(value);\n");
@@ -355,7 +355,7 @@ test('runtime URL closure rejects missing unsafe and opaque paths while generate
 
 test('a loaded controller refuses changes to every derived runtime file before rescanning [C7,P3]', t => {
   const f = fixture(t);
-  f.write('apps/runner/src/io/scripts/worker.js', "import '../packages/leaf/src/value.js';\n");
+  f.write('apps/runner/src/io/scripts/worker.js', "import '../../../../../packages/leaf/src/value.js';\n");
   f.write('packages/runners/index.js', 'export const controller = true;\n');
   f.write('apps/runner/src/io/controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
@@ -376,7 +376,7 @@ test('a loaded controller refuses changes to every derived runtime file before r
 
 test('freshness follows added package dependencies and ignores files outside the runtime [C7,P3]', t => {
   const f = fixture(t);
-  f.write('apps/runner/src/io/scripts/worker.js', "import '../packages/leaf/src/value.js';\n");
+  f.write('apps/runner/src/io/scripts/worker.js', "import '../../../../../packages/leaf/src/value.js';\n");
   f.write('packages/runners/index.js', 'export const controller = true;\n');
   f.write('apps/runner/src/io/controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);
@@ -392,7 +392,7 @@ test('freshness follows added package dependencies and ignores files outside the
 
 test('a warmed derived snapshot still refuses newly selected symlinks outside its runtime [C7,P3]', t => {
   const f = fixture(t);
-  f.write('apps/runner/src/io/scripts/worker.js', "import '../packages/leaf/src/value.js';\n");
+  f.write('apps/runner/src/io/scripts/worker.js', "import '../../../../../packages/leaf/src/value.js';\n");
   f.write('packages/runners/index.js', 'export const controller = true;\n');
   f.write('apps/runner/src/io/controller.js', 'export const composition = true;\n');
   const loaded = captureRunnerTooling(f.root);

@@ -224,6 +224,7 @@ test('the import scan finds a package however it is imported, and nothing that i
 function packageSource(file, source) {
   const loaders = {
     [join(ROOT, 'packages/moves/src/io/registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
+    [join(ROOT, 'apps/cli/src/io/commands/index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
   };
   const loader = loaders[file];
   return loader ? source.replace(loader[0], loader[1]) : source;
