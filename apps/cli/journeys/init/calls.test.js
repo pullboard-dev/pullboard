@@ -72,7 +72,7 @@ function fixture(t, { ruleProof = false } = {}) {
   const realGit = realGitPath();
   const gitShim = join(shims, 'git');
   const pullboardShim = join(shims, 'pullboard');
-  writeFileSync(gitShim, '#!/bin/sh\nprintf "git\\n" >> "$PULLBOARD_GIT_CALLS"\nexec "$PULLBOARD_REAL_GIT" "$@"\n');
+  writeFileSync(gitShim, '#!/bin/sh\nprintf "git %s\\n" "$*" >> "$PULLBOARD_GIT_CALLS"\nexec "$PULLBOARD_REAL_GIT" "$@"\n');
   chmodSync(gitShim, 0o755);
   writeFileSync(pullboardShim, `#!/bin/sh\nexec '${process.execPath}' '${BIN}' "$@"\n`);
   chmodSync(pullboardShim, 0o755);
@@ -155,7 +155,7 @@ test('help starts no Git and linked-worktree status spawns at most four Git proc
   const version = resetAndCount(box, box.dir, '--version');
   assert.equal(version.count, 0, '--version has no repository work to do');
   const help = resetAndCount(box, box.dir, 'help');
-  assert.equal(help.count, 0, 'global help has no repository work to do');
+  assert.equal(help.count, 0, `global help has no repository work to do: ${box.readCalls()}`);
   const status = resetAndCount(box, box.worker, 'status', '--json');
   assert.ok(status.count <= 4, `linked-worktree status started ${status.count} Git processes`);
   assert.equal(JSON.parse(status.result.stdout).me.id, 'core-1');
@@ -166,7 +166,7 @@ test('help starts no Git and linked-worktree status spawns at most four Git proc
 test('ordinary resume reads its indexed work card with at most four Git processes [N19,N26,C7]', t => {
   const box = fixture(t);
   const resumed = resetAndCount(box, box.worker, 'resume', '--json');
-  assert.ok(resumed.count <= 4, `linked-worktree resume started ${resumed.count} Git processes`);
+  assert.ok(resumed.count <= 4, `linked-worktree resume started ${resumed.count} Git processes: ${box.readCalls()}`);
   const card = JSON.parse(resumed.result.stdout);
   assert.equal(card.me.id, 'core-1');
   assert.equal(realpathSync(card.root), realpathSync(box.worker));
@@ -276,7 +276,7 @@ test('populated rule receipt history preserves the linked status Git budget and 
   seedRuleBudgetRun(box, { command: 'true' });
   seedRuleBudgetRun(box);
   const current = resetAndCount(box, box.worker, 'status', '--json');
-  assert.ok(current.count <= 4, `populated linked-worktree status started ${current.count} Git processes`);
+  assert.ok(current.count <= 4, `populated linked-worktree status started ${current.count} Git processes: ${box.readCalls()}`);
   assert.deepEqual(JSON.parse(current.result.stdout).ruleCounts,
     { approved: 2, gated: 2, ungated: 0, proven: 1, unproven: 1, contradicted: 1 });
   box.git(box.repo, 'pack-refs', '--all', '--prune');
