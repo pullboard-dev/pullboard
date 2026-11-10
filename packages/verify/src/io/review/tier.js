@@ -10,7 +10,7 @@ import { outsideSource } from '../../../../items/light.js';
 
 // Rulings 39301/39401: source areas and named guard tests, never all test/board/review/person families.
 const SOURCE_DIRECTORIES = ['apps/relay/', 'src/gate/', 'src/auth/', 'src/relay/', 'src/kernel/', 'src/landing/', 'src/runner/',
-  'packages/gate/src/io/', '.githooks/', '.husky/', '.github/workflows/'];
+  'packages/gate/src/', 'packages/auth/src/', 'packages/kernel/src/', 'packages/landing/src/', 'packages/runners/src/', 'apps/runner/src/', '.githooks/', '.husky/', '.github/workflows/'];
 const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
   // Preserve the strict tier of the exact moved relay workers (#1591).
@@ -80,6 +80,22 @@ const SOURCE_FILES = new Set([
   'src/land.js', 'packages/runners/index.js', 'packages/gate/src/io/browser/admission.js', 'src/gui-admission.js',
   'src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js', 'src/runner-request.js',
   'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
+  // The same bodies at their current places; the old paths above stay so a replay of older work reads the same tier.
+  'packages/state/src/logic/admission.js', 'packages/state/src/logic/engines/known-main-failures-engine.js',
+  'packages/gate/src/io/test/selection.js', 'packages/gate/src/io/test/store.js', 'packages/gate/src/io/test/file/dispatch.js',
+  'packages/gate/src/io/test/run.js', 'packages/gate/src/io/test/isolation.js', 'packages/gate/src/io/test/action/cache.js',
+  'packages/gate/src/io/test/action/transfer.js', 'packages/gate/src/io/test/placement.js', 'packages/gate/src/io/check/baseline.js',
+  'packages/gate/src/io/check/baseline/worker.js', 'packages/landing/src/io/main/matches.js', 'packages/kernel/src/logic/registry.js',
+  'packages/kernel/src/logic/refused.js', 'packages/kernel/src/logic/discovery.js', 'packages/kernel/src/logic/lex.js',
+  'packages/kernel/src/logic/words.js', 'packages/person/src/io/main.js', 'packages/person/src/io/presence.js', 'packages/person/src/io/signing.js',
+  'packages/person/src/logic/request.js', 'packages/person/src/logic/attested.js', 'packages/pages/src/logic/sealed.js',
+  'packages/state/src/logic/grant.js', 'packages/git/src/io/receipts.js', 'packages/gate/src/io/release.js',
+  'packages/gate/src/io/release/receipt.js', 'packages/landing/src/io/land.js', 'packages/gate/src/io/gui/admission.js',
+  'packages/runners/src/io/source/scan.js', 'packages/runners/src/io/pack.js', 'packages/runners/src/io/tooling/remote.js',
+  'packages/runners/src/io/request.js', 'packages/runners/src/io/result.js', 'packages/runners/src/io/dispatch.js',
+  'packages/runners/src/io/health.js', 'packages/pages/src/io/relay/cache.js', 'packages/pages/src/io/relay/client.js',
+  'packages/pages/src/logic/relay/layout.js', 'packages/pages/src/logic/relay/storage.js', 'packages/pages/src/logic/relay/writer.js',
+  'packages/pages/src/io/relay/presentation.js',
 ]);
 // An old Standard body keeps its tier after moving under a cell the area rule would otherwise raise to Strict (#1574).
 const STANDARD_MOVED = new Set(['packages/link/src/io/command.js']);
