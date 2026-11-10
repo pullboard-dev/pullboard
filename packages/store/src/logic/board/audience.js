@@ -42,8 +42,8 @@ export const UNREAD_SHOUT_SQL = `FROM (
   UNION ALL
   SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to >= 'item:' AND shout_to < 'item;' AND EXISTS
     (SELECT 1 FROM item WHERE item_id = CAST(substr(shout_to, 6) AS INTEGER) AND shout_to = 'item:' || item_id AND
-    (? = 'coordinator' OR COALESCE(item_owner, item_built_by) = ? OR COALESCE(item_review_by, item_verified_by) = ? OR EXISTS
-      (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event_kind IN ('handoff-open','handoff-take') AND event_by=?)))
+    (? = 'coordinator' OR COALESCE(item_owner, item_built_by) = ? OR COALESCE(item_review_by, item_verified_by) = ? OR item.item_id IN
+      (SELECT item_id FROM event WHERE event_kind IN ('handoff-open','handoff-take') AND event_by=? AND item_id IS NOT NULL)))
 ) AS unread`;
 
 /** Bind every positional identity occurrence explicitly, including item-role checks. */

@@ -585,20 +585,26 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   interests.unknownWorkingFiles = !Array.isArray(observed) && observed.unknown === true;
   const wanted = [...new Set([...interests.related, ...[...interests.byId.values()]
     .filter(item => item.item_lane === agent.agent_lane).map(item => item.item_id)])];
+  const query = workerInboxQuery(board, agent);
+  const messages = board.db.prepare(`${query.sql} AND shout_id<=? ORDER BY shout_id`)
+    .all(...query.bindings, shoutCursor);
+  // Valid shout events without a deliverable message cannot contribute to the projection. Keep malformed details:
+  // they produce an explicit diagnostic, and news has its own independent session cursor.
+  const relevant = `AND (event_kind != 'shout' OR
+    json_type(CASE WHEN json_valid(event_detail) THEN event_detail ELSE 'null' END) != 'object' OR
+    json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END, '$.shout') IN (SELECT value FROM json_each(?)))`;
+  const messageIds = JSON.stringify(messages.map(message => message.shout_id));
   const rows = new Map();
   // Read the new events once by id range and keep the wanted items' ones: an advanced cursor leaves a handful of rows,
   // where probing the item index once per wanted item cost tens of milliseconds on a board of a thousand items.
   const wantedIds = new Set(wanted);
-  if (wantedIds.size) for (const event of board.db.prepare('SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IS NOT NULL ORDER BY event_id').all(after, cursor)) {
+  if (wantedIds.size) for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IS NOT NULL ${relevant} ORDER BY event_id`).all(after, cursor, messageIds)) {
     if (wantedIds.has(event.item_id)) rows.set(event.event_id, event);
   }
   for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=?
-    AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
+    AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ${relevant} ORDER BY event_id`).all(after, cursor, messageIds)) rows.set(event.event_id, event);
   if (sessionStart) for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND event_kind='shout_news'
     ORDER BY event_id`).all(newsAfter, cursor)) rows.set(event.event_id, event);
-  const query = workerInboxQuery(board, agent);
-  const messages = board.db.prepare(`${query.sql} AND shout_id<=? ORDER BY shout_id`)
-    .all(...query.bindings, shoutCursor);
   // News delivery uses its own cursor so ordinary inbox reads cannot consume a future session's digest.
   const possibleNewsIds = [...rows.values()].filter(event => event.event_kind === 'shout_news')
     .map(event => activityEventDetail(event)?.shout).filter(id => Number.isSafeInteger(id) && id > 0);
