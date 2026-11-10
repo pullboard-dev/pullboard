@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { receiptBody } from '../../../../../packages/gate/index.js';
+import { receiptBody } from '../../../../packages/gate/index.js';
 import { freshBoard } from '../../tests/fixtures/blueprint.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
