@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -58,8 +59,11 @@ async function project(t, { predates = false } = {}) {
   const root = join(dir, 'repo');
   mkdirSync(join(root, 'bin'), { recursive: true });
   mkdirSync(join(root, '.githooks'));
-  // The entry and every bin module it imports, so the fixture runs the real start-up path.
-  for (const file of [...ENTRY_FILES, '.githooks/pre-commit', 'package.json']) copyFileSync(join(SOURCE, file), join(root, file));
+  // The entry and its modules retain their source paths in the fixture.
+  for (const file of [...ENTRY_FILES, '.githooks/pre-commit', 'package.json']) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    copyFileSync(join(SOURCE, file), join(root, file));
+  }
   if (predates) {
     // The first commit is the entry as it was before the handover existed.
     const entry = join(root, 'apps/cli/pullboard.js'), source = readFileSync(entry, 'utf8');
