@@ -41,10 +41,10 @@
   "apps/relay/tests/approval-revoke.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/relay/activation/browser.test.js": {
+  "apps/relay/tests/relay-browser-fixture.test.js": {
     "sleep": 2
   },
-  "apps/cli/journeys/relay/activation/client.test.js": {
+  "apps/relay/tests/relay-client-fixture.test.js": {
     "sleep": 1
   },
   "apps/cli/journeys/verify/check.test.js": {
