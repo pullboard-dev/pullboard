@@ -25,7 +25,7 @@ import { test } from 'node:test';
 import { defaults } from "../../config/index.js";
 import { preCommitProblems } from "../../commits/index.js";
 
-const BIN = join(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = join(import.meta.dirname, '..', '..', '..', 'bin', 'pullboard.js');
 
 /** Run private Git with an explicit fixture identity, retaining only nonsensitive diagnostics. */
 function git(root, ...args) {
