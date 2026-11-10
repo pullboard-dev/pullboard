@@ -39,6 +39,7 @@ import { serveApi } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
 import { pathToFileURL } from 'node:url';
 import { fetchFresh } from '../../tests/fixtures/http.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/runners/index.js')).href;
@@ -294,9 +295,10 @@ test('populated rule receipt history preserves the linked status Git budget and 
 
 test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   const box = fixture(t);
-  box.ok(box.repo, 'add', 'core', 'Refresh cached HEAD', '--specs', 'C7', '--route', 'light',
-    '--criterion', 'the runner reads the commit it just made', '--check', 'test -f src/result.txt',
-    '--brief', 'Files: src/result.txt\nTest: the runner creates the result file.');
+  fileFixtureItem(box, box.repo, { lane: 'core', title: 'Refresh cached HEAD', route: 'mid',
+    criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
+    brief: 'Files: src/result.txt\nChange: create the runner result file.\nTest case: the runner reads the commit it just made.',
+    args: ['--specs', 'C7'] });
   const agent = join(box.dir, 'agent.sh');
   writeFileSync(agent, '#!/bin/sh\nmkdir -p src\nprintf result > src/result.txt\n');
   chmodSync(agent, 0o700);
