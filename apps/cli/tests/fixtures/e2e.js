@@ -52,10 +52,8 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
-    for (const dir of sandboxes) {
-      try { rmSync(dir, { recursive: true, force: true, maxRetries: 0 }); }
-      catch (error) { process.stderr.write(`DIAG cleanup failure ${dir} ${error.code} ${error.path}\n`); throw error; }
-    }
+    // Node increases the delay on each retry: 200 * (1 + ... + 17) = 30.6 seconds.
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 17, retryDelay: 200 });
   };
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../../src/io/cockpit.js'), 'utf8');
