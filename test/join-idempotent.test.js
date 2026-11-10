@@ -1,5 +1,6 @@
 /** A same-seat, same-lane and same-model join is harmless to repeat [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { test, after } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -12,6 +13,13 @@ after(e2e.cleanup);
 /** Join a fixture seat once and return the box and its worktree. */
 function joinedSeat() {
   const box = e2e.project('true', undefined, { withWorktree: false });
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  // The board's model table determines the original route since b95e1aa538.
+  config.modelTiers = [{ contains: 'Fixture', route: 'strong' }];
+  writeFileSync(configPath, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-qm', 'chore: route join fixture');
   const worktree = join(box.dir, 'joined-seat');
   box.git(box.repo, 'worktree', 'add', '-q', worktree, '-b', 'web/join-idempotent');
   const first = fixtureJoin(box.run, worktree, 'web', '--model', 'Fixture');
