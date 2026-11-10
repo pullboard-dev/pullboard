@@ -1,6 +1,6 @@
-/** @pullboard-test-input source-tree */
 // pullboard: browser
-/** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/stage.css apps/view/src/shell/view/dashboard.css apps/view/src/shell/view/cost.css apps/view/src/shell/view/doctrine.css apps/view/src/shell/view/item-panel.css apps/view/src/shell/view/item-rows.css */
+/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
