@@ -98,11 +98,12 @@ function project(source) {
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
-  copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
   const originalHook = readFileSync(join(repo, 'apps/cli/src/io/commands/hook.js'), 'utf8');
   // This private project has one committed test; copied package and app fixtures are not its tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
   for (const name of readdirSync(join(repo, 'apps'))) rmSync(join(repo, 'apps', name, 'tests'), { recursive: true, force: true });
+  mkdirSync(join(repo, 'packages/gate/tests/fixtures'), { recursive: true });
+  copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-qm', 'chore: install synthetic tool source before board initialization');
   const initialized = box.run(repo, 'init');
