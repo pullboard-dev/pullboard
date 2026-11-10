@@ -59,13 +59,14 @@ function project(disableRefresh) {
   const env = box.env;
   // The archive goes to a file, not a captured buffer: the committed tree outgrew any fixed in-memory limit.
   const tarball = join(box.dir, 'candidate-archive.tar');
-  const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'packages', 'apps', 'docs', 'skills', 'package.json',
+    ':(exclude,glob)packages/*/tests/**', ':(exclude,glob)apps/*/tests/**', ':(exclude,glob)apps/*/journeys/**'],
     { cwd: join(import.meta.dirname, '../../../../..'), env });
   assert.equal(archive.status, 0, archive.context);
-  const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', tarball, '-C', box.repo], { env });
+  const extracted = runFixtureChild('tar', ['-xf', tarball, '-C', box.repo], { env });
   assert.equal(extracted.status, 0, extracted.context);
   // The private project uses its own explicit gate, not this repository's generated test inventory.
-  rmSync(join(box.repo, 'packages/gate/data/tests/tiers.json'));
+  rmSync(join(box.repo, 'packages/gate/data/tests/tiers.json'), { force: true });
   // Its source layout is real, but this private project has no inherited cell plan or package test suite.
   rmSync(join(box.repo, 'packages/codemap/data/plan/cells.json'));
   const armed = join(box.dir, 'landing-gate-armed');
@@ -82,8 +83,8 @@ function project(disableRefresh) {
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "import { existsSync } from 'node:fs';",
-    "import { generatedDocDrift } from '../../../index.js';",
-    "import { openBoard } from '../../../../lib/index.js';",
+    "import { generatedDocDrift } from '../apps/cli/index.js';",
+    "import { openBoard } from '../apps/lib/index.js';",
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
