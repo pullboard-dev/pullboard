@@ -11,6 +11,7 @@ import { withMainCheckout } from '../../../../../packages/landing/index.js';
 import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { itemsInStatus } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { knownRedCheck } from '../test/known.js';
 import { recordClauseTicks } from './submit.js';
 import { queuesTestRun } from '../../../../../packages/drive/index.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
@@ -85,8 +86,8 @@ function sayTestRunStatus(io, ctx, id) {
 
 /** Run the files here and block for the result: the person's, the script's and a queued run's worker path. */
 async function runHere(io, ctx, { agent, item, files, values }) {
-  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, compareMain: values['compare-main'] === true, agent, item, onWait: io.gateWaitReporter(io), say: line => io.err(line) });
-  if (values['compare-main'] === true && !result.green) io.err('pullboard test: waiting on the main comparison (--compare-main)');
+  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, compareMain: values['compare-main'] === true, knownRed: knownRedCheck(ctx.info.root, () => withBoardRead(ctx, board => listItems(board, { all: true }))), agent, item, onWait: io.gateWaitReporter(io), say: line => io.err(line) });
+  if (values['compare-main'] === true && !result.green && !result.mainSkipped) io.err('pullboard test: waiting on the main comparison (--compare-main)');
   result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
     { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
   const covered = new Set(result.mainFailures.map(row => row.file));
