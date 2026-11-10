@@ -1,7 +1,7 @@
 import { VENDOR_FAMILY_ENGINE } from '../state/light.js';
 export { criterionSize } from './src/logic/size.js';
 import { vendorFamilyAliases } from './src/logic/vendors.js';
-import { ENGINE_VERSION } from '../state/src/io/engine/metadata.js';
+import { ENGINE_VERSION } from '../state/light.js';
 import { FAMILY_ALIAS_ENGINE } from '../state/light.js';
 
 /** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */

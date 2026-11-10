@@ -202,7 +202,7 @@ Harness results below are from 8 November 2026. Live receipts are this board's `
 
 What the matrix says today:
 
-- Board command latency: through the warm resident process, show, whoami and inbox meet 200 ms on the fixture board; status, claim and next do not yet. A fresh process loads 1,415-1,674 modules for each seat command. The periodic main audit runs the same check (`packages/gate/src/io/board/budget.js`): a module count over its ceiling in `packages/gate/data/ceilings/board-commands.json`, or a median over 200 ms, files a board item naming the command, the value, the ceiling, the modules it newly loads and the commits since the last passing check; a pass lowers each ceiling to what it measured.
+- Board command latency: through the warm resident process, show, whoami and inbox meet 200 ms on the fixture board; status, claim and next do not yet. A fresh process loads 1,415-1,674 modules for each seat command. The periodic main audit runs the same check (`apps/cli/src/io/landing/budget.js`): a module count over its ceiling in `packages/gate/data/ceilings/board-commands.json`, or a median over 200 ms, files a board item naming the command, the value, the ceiling, the modules it newly loads and the commits since the last passing check; a pass lowers each ceiling to what it measured.
 - The analysis job on the runner has no harness. It needs a runner that takes the analysis artifact path, which the local stand-in does not cover yet.
 - Five hops pass their harness while production disagrees, command latency above among them. The other four: READY misses, requeue time, admission time and SUBMIT_HANDOFF_DEAD counts in the window still include gates that started before the 8 Nov fixes, on runners under load 60. Each becomes current when a later window agrees.
 
@@ -280,7 +280,7 @@ No move declares these, so the board file refuses them whatever command asks. A 
 | withdrawn → claimed | `storeTriggers` in `packages/state/src/io/machine.js` | `apps/cli/journeys/verify/machine.test.js` |
 | withdrawn → submitted | `storeTriggers` in `packages/state/src/io/machine.js` | `apps/cli/journeys/verify/machine.test.js` |
 | withdrawn → verified | `storeTriggers` in `packages/state/src/io/machine.js` | `apps/cli/journeys/verify/machine.test.js` |
-| verified and merged to open or submitted (guard only: the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it) | `reopen` in `packages/store/src/io/board/reopen.js` | `packages/state/tests/logic/engine/move/reopen.test.js` |
+| verified and merged to open or submitted (guard only: the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it) | `reopen` in `packages/store/src/io/board/reopen.js` | `apps/cli/journeys/engine/reopen.test.js` |
 
 #### Writes that bypass the declaration
 

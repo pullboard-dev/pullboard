@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { unplanned } from '../../../../codemap/src/io/cells/scripts/plan.js';
+import { unplanned } from '../../../../codemap/index.js';
 import { readPlan } from '../../../../codemap/index.js';
 import { moveHistoryPlacement } from '../../../../codemap/index.js';
 import { requirePlannedSource } from '../../../../items/index.js';
