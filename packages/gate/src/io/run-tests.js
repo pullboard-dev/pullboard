@@ -1012,7 +1012,13 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
         if (data.file && error && !['testAborted', 'subtestsFailed'].includes(error.failureType)
             && !failureDiagnostics.has(data.file)) failureDiagnostics.set(data.file, data);
       }
-      for (const reporter of reporters) reporter.write(event);
+      for (const [index, reporter] of reporters.entries()) {
+        // Node 22's human coverage tree reserves `file` as a key and crashes on a directory with that name.
+        // The independent audit reporter and every custom reporter still receive the complete native event.
+        if (env.PULLBOARD_AUDIT_COVERAGE_REPORTER && event.type === 'test:coverage'
+          && ['tap', 'spec'].includes(reporterEntries[index].reporter)) continue;
+        reporter.write(event);
+      }
     });
     stream.on('end', endReporters);
     let streamClosed = false;
