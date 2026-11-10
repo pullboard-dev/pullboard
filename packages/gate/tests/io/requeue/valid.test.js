@@ -59,7 +59,7 @@ const completed=await withGateSlot(root,async lease=>{
   seen.push(lease.runner.host);
   if(seen.length===2){
     const db=new DatabaseSync(${JSON.stringify(join(box.machine, 'resources.sqlite'))},{readOnly:true});
-    try {assert.ok(db.prepare('SELECT host FROM runner_unavailable WHERE host=?').get(${JSON.stringify(HOST)}),'the lost first runner was quarantined');}
+    try {assert.ok(db.prepare('SELECT host FROM runner_unavailable WHERE host=?').get(${JSON.stringify(HOST)}),'the lost first runner was quarantined; DBG '+JSON.stringify({seen,events:db.prepare('SELECT host,kind,detail FROM runner_recovery_event').all(),holders:db.prepare('SELECT * FROM holder').all(),unavailable:db.prepare('SELECT * FROM runner_unavailable').all(),terr:db.prepare('SELECT host,diagnostic FROM runner_transport_error').all()}).slice(0,1500));}
     finally {db.close();}
   }
   const result=await runProfiledShell(root,'printf unpinned-runner-retry',{gateLease:lease});
