@@ -3743,7 +3743,7 @@
     "raw-board": 3,
     "model": 1
   },
-  "apps/view/tests/io/coverage.test.js": {
+  "apps/cli/journeys/check/view.test.js": {
     "tempdir": 1
   },
   "apps/cli/journeys/view/main.test.js": {

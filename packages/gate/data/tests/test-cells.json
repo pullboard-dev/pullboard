@@ -212,7 +212,6 @@
   },
   "leaves": [],
   "findings": {
-    "apps/view/tests/io/coverage.test.js": "imports apps/cli/src/io/static/view.js, outside its own cell apps/view; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/io/board/write/plan.test.js": "imports packages/codemap/src/io/cells/scripts/plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/io/check/baseline.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/io/check/baseline/delivery.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -258,6 +257,7 @@
     "apps/lib",
     "apps/relay",
     "apps/runner",
+    "apps/view",
     "blueprints",
     "commits",
     "config",
