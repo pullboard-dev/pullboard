@@ -946,10 +946,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/tier-row-change.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/240.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1967,6 +1963,7 @@
     "drive->jobs",
     "drive->kernel",
     "resources->jobs",
+    "resources->git",
     "codemap->git",
     "codemap->kernel",
     "gate->codemap",
@@ -2033,6 +2030,7 @@
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
+    "apps/cli->queue",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2061,6 +2059,7 @@
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",
+    "sandbox->commits",
     "rigor->store",
     "(root)->store",
     "spec->kernel",

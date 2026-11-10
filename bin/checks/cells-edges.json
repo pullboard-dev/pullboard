@@ -5367,6 +5367,7 @@
     "packages/config/core.js": 9,
     "packages/seats/core.js": 27,
     "packages/runners/core.js": 40,
-    "packages/git/core.js": 12
+    "packages/git/core.js": 12,
+    "packages/resources/core.js": 27
   }
 }

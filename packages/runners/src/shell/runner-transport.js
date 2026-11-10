@@ -1,8 +1,8 @@
 /** Bounded transport health observations never execute or certify a project's tests [C7]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { recoveryIdentity } from '../../../resources/index.js';
-import { openPoolReadOnly } from '../../../resources/index.js';
+import { recoveryIdentity } from '../../../resources/core.js';
+import { openPoolReadOnly } from '../../../resources/core.js';
 import { mkdirSync } from 'node:fs';
 import { linkSync } from 'node:fs';
 import { lstatSync } from 'node:fs';

@@ -5,6 +5,8 @@
   "src/guard-revert.js": "packages/commits/src/shell/guard-revert.js",
   "src/hooks.js": "packages/commits/src/shell/hooks.js",
   "src/infra-note.js": "packages/commits/src/shell/infra-note.js",
+  "src/plan-row-change.js": "packages/commits/src/core/plan-row-change.js",
+  "src/tier-row-change.js": "packages/commits/src/core/tier-row-change.js",
   "src/why-file.js": "packages/commits/src/core/why-file.js",
   "test/agent-guidance.test.js": "packages/commits/tests/agent-guidance.test.js",
   "test/landing-message.test.js": "packages/commits/tests/landing-message.test.js",
