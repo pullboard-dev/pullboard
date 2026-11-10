@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/resources",
  "frontDoor": "packages/resources/index.js",
+ "lightFrontDoor": "packages/resources/core.js",
  "paths": [
   ["src/resources.js","packages/resources/src/shell/resources.js","seed"],
   ["test/resource-inheritance.test.js","packages/resources/tests/resource-inheritance.test.js","seed"],
