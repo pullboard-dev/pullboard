@@ -793,7 +793,7 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     // The raw signature changes between identical runs; the stable one (error type plus deepest repository frame) does not, so
     // a case main fails with the same stable signature is main's failure, not one that "fails differently" [C7,#5303].
     const matched = matchingMainFailures([failure], comparison, comparison.main)
-      ?? (mainCases.length === 1 && failure.stable && mainCases[0].stable === failure.stable
+      ?? (mainCases.length === 1 && failure.stable && mainCases[0].stable === failure.stable && mainCases[0].stableData === failure.stableData
         ? matchingMainFailures([{ ...failure, signature: mainCases[0].signature }], comparison, comparison.main) : null);
     // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
     if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>

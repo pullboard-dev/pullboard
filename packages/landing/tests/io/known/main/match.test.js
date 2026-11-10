@@ -146,7 +146,7 @@ function jobBlock(job, fn = 'assertLinked') {
   location: '${checkout}/apps/cli/journeys/relay/device.test.js:30:1'
   failureType: 'testCodeFailure'
   error: |-
-    real device sign-in links the board at ${checkout}/state/board.json
+    real device sign-in links the board; state in /home/vanilla/.pullboard-runner/jobs/${job}/state/board.json
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   operator: 'strictEqual'
@@ -157,11 +157,13 @@ function jobBlock(job, fn = 'assertLinked') {
 }
 
 test('failures carry a stable signature that survives different runner job directories while the raw one moves [C7]', () => {
-  const [first] = retainedRun([jobBlock('11111111-aaaa-4bbb-8ccc-000000000001')], '/srv/main');
-  const [second] = retainedRun([jobBlock('22222222-aaaa-4bbb-8ccc-000000000002')], '/srv/main');
-  const [other] = retainedRun([jobBlock('22222222-aaaa-4bbb-8ccc-000000000002', 'assertSeated')], '/srv/main');
+  const run = (job, fn) => retainedRun([jobBlock(job, fn)], `/home/vanilla/.pullboard-runner/jobs/${job}/checkout`)[0];
+  const first = run('11111111-aaaa-4bbb-8ccc-000000000001');
+  const second = run('22222222-aaaa-4bbb-8ccc-000000000002');
+  const other = run('22222222-aaaa-4bbb-8ccc-000000000002', 'assertSeated');
   assert.notEqual(first.signature, second.signature, 'the raw signature changes between identical runs');
   assert.equal(first.stable, 'AssertionError:ERR_ASSERTION:strictEqual @ apps/cli/tests/fixtures/relay/client.js#assertLinked');
   assert.equal(first.stable, second.stable);
   assert.notEqual(first.stable, other.stable);
+  assert.equal(first.stableData, second.stableData, 'asserted values are the same in both runs');
 });

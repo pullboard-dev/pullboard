@@ -37,7 +37,7 @@ function diagnostics(output, root) {
     if (/^[\w-]+:/u.test(value)) omitted = false;
     if (!omitted && value !== '---' && value !== '...') active.lines.push(value);
   }
-  return rows.map(row => ({ ...row, stable: stableFailure(row.all, root),
+  return rows.map(row => ({ ...row, ...stableFailure(row.all, root),
     signature: row.lines.some(line => line.startsWith('error:')) && row.lines.some(line => line.startsWith('failureType:'))
       ? createHash('sha256').update(JSON.stringify([MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics(row.lines, root)])).digest('hex') : null }));
 }
@@ -59,10 +59,16 @@ function diagnosticFields(all) {
   return fields;
 }
 
-/** The stable failure signature of one failure's diagnostics, or null when no repository frame names it [C7]. */
+/**
+ * The stable failure signature of one failure's diagnostics (null when no repository frame names it), and a digest of its
+ * asserted values: a changed expected or actual value is a different failure at the same frame, not run noise [C7].
+ */
 function stableFailure(all, root) {
-  const { error, stack, name, code, operator } = diagnosticFields(all);
-  return failureSignature({ error, stack, name, code, operator, root });
+  const { error, stack, name, code, operator, expected, actual } = diagnosticFields(all);
+  const stable = failureSignature({ error, stack, name, code, operator, root });
+  if (!stable) return {};
+  const values = normalizedFailureDiagnostics([`expected: ${expected ?? ''}`, `actual: ${actual ?? ''}`], root);
+  return { stable, stableData: createHash('sha256').update(JSON.stringify(values)).digest('hex').slice(0, 16) };
 }
 
 /** Extract the first safe diagnostic line without changing the failure signature. */
@@ -104,7 +110,7 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => {
       const error = firstError(details[index].lines, executionRoot);
-      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable } : {}) };
+      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable, stableData: details[index].stableData } : {}) };
     }) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }
