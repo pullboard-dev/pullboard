@@ -58,7 +58,7 @@ test('a new stray is refused against the baseline, and its finding says where it
   assert.deepEqual(growth.map(row => row.key).filter(key => key !== '(total)').sort(), ['bin/new-tool.js', 'relay/worker.js']);
   const strays = box.strays();
   assert.match(strays.get('relay/worker.js'), /next: move relay\/worker\.js under apps\/<app>\/ or packages\/<cell>\//u);
-  assert.match(strays.get('bin/new-tool.js'), /next: put bin\/new-tool\.js's code in packages\/<cell>\/src\/shell\/ or apps\/<app>\//u);
+  assert.match(strays.get('bin/new-tool.js'), /next: put bin\/new-tool\.js's code in packages\/<cell>\/src\/io\/ or apps\/<app>\//u);
   assert.match(strayNextStep('test/new.test.js'), /packages\/<cell>\/tests\//u);
 });
 
