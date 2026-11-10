@@ -52,6 +52,8 @@ export const JSON_SHAPES = {
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array', thread: 'array', reviewEligibility: 'object' }),
     capacity: shape({ report: 'object' }),
     stats: shape({ stats: 'object', gateWaits: 'array', usage: 'object' }),
+    'stats pipeline': shape({ pipeline: 'object' }),
+    'stats moves': shape({ moves: 'object' }),
     'stats time': shape({ time: 'object', checkpoint: 'string|null' }),
     'stats disk': shape({ disk: 'object' }),
     badge: shape({ items: 'number', checked: 'number', percent: 'number|null', changed: 'array' }),
