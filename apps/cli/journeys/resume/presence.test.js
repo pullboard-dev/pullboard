@@ -39,6 +39,7 @@ test('ready work waiting past the limit while agents are idle warns the coordina
   store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange dispatch fixture', name: 'Current', items: [ready, blocked] });
   store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange dispatch fixture', name: 'Later', items: [future] });
   const warnings = () => store.allShouts(box.board).filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith('Stuck:') && row.shout_text.includes('UNPAIRED_WORK'));
+  box.scan();
   box.advance(299999);
   store.heartbeatSeat(box.board, box.seats.actor.id);
   box.scan();

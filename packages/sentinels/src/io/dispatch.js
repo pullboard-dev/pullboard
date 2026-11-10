@@ -43,7 +43,7 @@ export function dispatchHealth(board, config = {}) {
       if (error instanceof Refused) continue; // An unresolvable local seat cannot take work yet.
       throw error;
     }
-    const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds, assignedIds: [...items] });
+    const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds });
     if (!selected.item || selected.held || items.has(selected.item.item_id)) continue;
     const item = selected.item.item_id;
     items.add(item);
