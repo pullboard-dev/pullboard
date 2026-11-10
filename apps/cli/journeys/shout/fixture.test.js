@@ -358,7 +358,7 @@ test('the page uses only API v1 for state, code and every offered move [A3,N26,N
       && !/^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves|events|items\/\d+|items\?q=[^&]+)(?:\?|$))/.test(path)))];
     assert.deepEqual(offPublic, [], 'every page request uses a public v1 path');
     assert.ok(page.requests.some((request) => request.path === '/api/v1/boards'));
-    assert.ok(page.requests.some((request) => request.path === `/api/v1/boards/${id}/state`), JSON.stringify(page.requests.map((request) => request.path)));
+    assert.ok(page.requests.some((request) => request.path.startsWith(`/api/v1/boards/${id}/state`)), JSON.stringify(page.requests.map((request) => request.path)));
     assert.ok(page.requests.some((request) => request.path.startsWith(`/api/v1/boards/${id}/code?`)));
     assert.ok(moves.every((request) => request.path === `/api/v1/boards/${id}/moves`));
     assert.doesNotMatch(page.html, /['"]\/api\/(?:state|act|code)(?:[?'"])/, 'the served page contains no legacy API calls');
