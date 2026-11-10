@@ -209,7 +209,7 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   runFixtureGit(['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env });
   await box.runWorker();
   const first = readAuditJob(box.directory, box.key);
-  assert.equal(first.state, 'complete', JSON.stringify(first));
+  assert.equal(first.state, 'complete', JSON.stringify(first) + '\n' + readFileSync(join(box.directory, box.key, 'gate.log'), 'utf8'));
   assert.equal(first.green, true);
   assert.equal(box.readUnitMarker(), 'ran');
   const firstReceipt = box.readGateReceipt(box.receiptStore(box.repo), first.receiptId);

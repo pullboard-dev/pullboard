@@ -18,12 +18,13 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
 const HOOKS = ['pre-commit', 'pre-merge-commit'];
 
 /** Run Git in `cwd` with the given environment; the caller decides which index Git reads. */
 function git(cwd, args, env, input) {
-  return spawnSync('git', args, { cwd, env, input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return gitSpawnSync(args, { cwd, env, input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
 /** Resolve a path through symlinks, or null when it is gone. */
