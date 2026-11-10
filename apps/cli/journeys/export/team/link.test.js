@@ -49,7 +49,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   assert.equal((await early.cli('init')).code, 0);
   assert.equal((await early.cli('add', box.lane, 'Health endpoint')).code, 0);
   box.providerState.signer = 'bob';
-  const split = await early.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const split = await early.cli('relay', 'on', '--url', box.origin);
   assert.equal(split.document?.error?.code, 'BOARD_REPO_LINKED', `the relay refuses a second board for the repository: ${JSON.stringify(split.document?.error ?? null)}`);
   assert.match(split.document.error.message + ' ' + split.document.error.next, new RegExp(link.board + '[\\s\\S]*pullboard.json'), 'the refusal names the board and where a clone finds it');
   assert.equal(box.auth.linkedBoards().length, 1, 'the relay holds one board for the repository');
@@ -60,11 +60,11 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   runFixtureGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: name the relay board'], { cwd: box.root, env: box.env });
   rmSync(join(early.root, 'pullboard.json')); // the clone's own init wrote it before the repository carried one
   runFixtureGit(['pull', '-q', '--no-rebase', box.root, 'HEAD'], { cwd: early.root, env: early.env });
-  const kept = await early.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const kept = await early.cli('relay', 'on', '--url', box.origin);
   assert.equal(kept.document?.error?.code, 'RELAY_JOIN_NOT_EMPTY', `a clone with work of its own is not joined over it: ${JSON.stringify(kept.document?.error ?? null)}`);
   assert.equal(box.auth.linkedBoards().length, 1);
 
-  const members = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'members', 'set', 'bob');
+  const members = await box.cli('relay', 'members', 'set', 'bob');
   assert.equal(members.code, 0, `alice publishes a real signed member list: ${members.stderr}`);
   assert.deepEqual(members.document.members, ['bob']);
 
@@ -73,7 +73,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   const stray = memberDevice(t, box, 'bob-stray');
   assert.equal((await stray.cli('init')).code, 0);
   stray.sshKey();
-  const strayOn = stray.start('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const strayOn = stray.start('relay', 'on', '--url', box.origin);
   assert.equal(await strayOn.said('no member device is online'), true, 'with no member online the new device says so and waits');
   assert.equal((await box.cli('status')).code, 0, 'alice’s computer comes online');
   const refused = await strayOn.closed;
@@ -84,7 +84,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   const fresh = memberDevice(t, box, 'bob-new');
   assert.equal((await fresh.cli('init')).code, 0);
   box.providerState.sshKeys = { alice: [alicePublic], bob: [fresh.sshKey()] };
-  const freshOn = fresh.start('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const freshOn = fresh.start('relay', 'on', '--url', box.origin);
   assert.equal(await freshOn.said('no member device is online'), true, 'the new device says no member is online and waits');
   assert.equal((await box.cli('status')).code, 0, 'alice’s computer comes online and hands the key over');
   const joined = await freshOn.closed;

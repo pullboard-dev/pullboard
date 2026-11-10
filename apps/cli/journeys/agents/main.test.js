@@ -511,7 +511,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
   execFileSync('git', ['add', '-A'], { cwd: box.root, env: personEnv, stdio: 'pipe' });
   execFileSync('git', ['commit', '-q', '-m', 'test: prepare private credential view'], { cwd: box.root, env: personEnv, stdio: 'pipe' });
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  const setup = spawn(process.execPath, [BIN, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin, '--json'], {
+  const setup = spawn(process.execPath, [BIN, 'relay', 'on', '--all', '--url', box.origin, '--json'], {
     cwd: box.root, env: personEnv, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let setupOutput = '';
@@ -579,7 +579,7 @@ test('local agents panel inventories and phone-revokes a scoped credential [H2,H
     'the machine holds tokens only for the two agents and the coordinator that created them');
   assert.ok([agentId, other.document.agent].every(seat => expectedAgents.includes(seat)), 'each agent holds its own cached token');
   assert.match(oldPA.token, /^pa_[A-Za-z0-9_-]{43}$/u);
-  const listed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'tokens');
+  const listed = await box.cli('relay', 'tokens');
   assert.equal(listed.code, 0, listed.failure ?? 'the real CLI reads token metadata');
   const expected = listed.document.tokens.find(row => row.agent === agentId);
   assert.ok(expected?.id && expected.created && expected.expires);

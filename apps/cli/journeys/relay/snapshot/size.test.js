@@ -138,7 +138,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   await box.link();
 
   // Pair a second native CLI while the board is small; it must later restore the relay snapshot.
-  const pairing = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const pairing = await box.cli('relay', 'pair');
   const second = await box.otherDeviceJoin(pairing.document.code);
 
   // An ordinary older JSON snapshot remains readable by the CLI after the relay compacts it.
@@ -374,7 +374,7 @@ async function thirtyThousandBoard(t) {
   const box = await relayClientFixture(t);
   const transitStart = box.transit.length;
   await box.link();
-  const pairing = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const pairing = await box.cli('relay', 'pair');
   const second = await box.otherDeviceJoin(pairing.document.code);
   const currentMarker = 'PAGED_CURRENT_STATE_903';
   const oldestMarker = 'PAGED_OLDEST_SHOUT_903';

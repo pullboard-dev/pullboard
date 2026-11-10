@@ -98,7 +98,7 @@ export function orderedWaiters(waiters, now, order) {
   /** Opportunity positions are consumed separately from immutable waiter identity tickets. */
   const opportunity = waiter => releaseOrder ? waiter.queue_ticket ?? waiter.ticket : waiter.ticket;
   const line = [...waiters].sort((left, right) => rank(left) - rank(right) || opportunity(left) - opportunity(right) || left.ticket - right.ticket);
-  if (!releaseOrder) return followUpsForward(line, now);
+  if (!releaseOrder) return diagnosticsForward(followUpsForward(line, now));
   const positions = new Map();
   line.forEach((waiter, index) => {
     const waited = Math.max(0, now - (Date.parse(waiter.since ?? '') || now));
@@ -113,7 +113,7 @@ export function orderedWaiters(waiters, now, order) {
     const entries = group.map(index => line[index]).sort((left, right) => left.release_rank - right.release_rank || opportunity(left) - opportunity(right) || left.ticket - right.ticket);
     group.forEach((index, at) => { line[index] = { ...entries[at], queue_ticket: tickets[at] }; });
   }
-  return followUpsForward(line, now);
+  return diagnosticsForward(followUpsForward(line, now));
 }
 
 /** Whether a waiter is a gate's own follow-up run; a landing keeps its own place at the front. */
@@ -145,4 +145,12 @@ function followUpsForward(line, now) {
     ordered.push(waiter);
   }
   return [...ordered, ...pending];
+}
+
+/** Prioritize diagnostics only when every queued client understands this ordering. */
+function diagnosticsForward(line) {
+  if (!line.every(waiter => waiter.diagnosticAware === 1)) return line;
+  const landing = waiter => waiter.landing === 1 || waiter.landing === true;
+  const diagnostic = waiter => !landing(waiter) && (waiter.diagnostic === 1 || waiter.diagnostic === true);
+  return [...line.filter(landing), ...line.filter(diagnostic), ...line.filter(waiter => !landing(waiter) && !diagnostic(waiter))];
 }

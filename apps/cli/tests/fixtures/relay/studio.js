@@ -75,7 +75,7 @@ async function machineValue(file, read, message, timeoutMs = 20_000) {
 
 /** Set up relay on --all on studio and pair a phone-sized Chrome in the phone's own time zone. */
 export async function pairStudioPhone(t, box) {
-  const setup = studioCommand(box, box.root, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const setup = studioCommand(box, box.root, ['relay', 'on', '--all', '--url', box.origin]);
   const chrome = await startChrome();
   t.after(async () => {
     await chrome.close();

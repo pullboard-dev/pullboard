@@ -592,7 +592,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
 test('person recovery explicitly skips one future-engine blocker and publishes a refusal checkpoint [H3,H16]', async (t) => {
   // The injected faults address the released whole-ciphertext API1 checkpoint contract.
   const box = await fixture(t, { legacySnapshots: true });
-  for (const args of [['help', 'relay', 'recover'], ['apps', 'relay', 'src', 'io', 'deploy', 'recover', '--help'], ['help', '--all']]) {
+  for (const args of [['help', 'relay', 'recover'], ['relay', 'recover', '--help'], ['help', '--all']]) {
     const help = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), ...args],
       { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(help.status, 0, `recovery help succeeds: ${args.join(' ')}`);
@@ -639,7 +639,7 @@ test('person recovery explicitly skips one future-engine blocker and publishes a
   assert.match(diagnostics.join('\n'), /ENGINE_VERSION/);
   assert.equal(ordinary.sequence, 0, 'ordinary catch-up stops without advancing either replica');
   await assert.rejects(() => relayRecover(box.root, 2, io), /blocked next sequence 1/);
-  const agentAttempt = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'apps', 'relay', 'src', 'io', 'deploy', 'recover', '--skip', '1', '--json'],
+  const agentAttempt = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'relay', 'recover', '--skip', '1', '--json'],
     { cwd: box.root, env: { ...box.env, CODEX_THREAD_ID: 'private-agent-test' }, encoding: 'utf8' });
   assert.equal(agentAttempt.status, 1);
   assert.match(agentAttempt.stdout, /B26_PERSON_CHANNEL/);
@@ -854,7 +854,7 @@ test('person recovery explicitly skips one future-engine blocker and publishes a
   try { assert.equal(appliedSequence(atEight), futureSequence - 1); }
   finally { store.closeBoard(atEight); }
   suppressCheckpointWrites = false;
-  const headerRecovery = await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'apps', 'relay', 'src', 'io', 'deploy', 'recover', '--skip', String(futureSequence));
+  const headerRecovery = await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'relay', 'recover', '--skip', String(futureSequence));
   assert.equal(headerRecovery.version, 1);
   assert.equal(headerRecovery.linked, true);
   assert.equal(headerRecovery.board, box.id);
@@ -1018,7 +1018,7 @@ test('recovery collision status preserves the retry while the winner catches an 
   for (const marker of markers) delete process.env[marker];
   let adoptedOutput = '';
   const streams = { cwd: secondRoot, stdout: { isTTY: false, write: (text) => { adoptedOutput += text; } }, stderr: { isTTY: false, write: () => {} } };
-  assert.equal(await main(['apps', 'relay', 'src', 'io', 'deploy', 'recover', '--skip', '1'], streams), 0);
+  assert.equal(await main(['relay', 'recover', '--skip', '1'], streams), 0);
   assert.equal(adoptedOutput.includes('relay recovery adopted the authenticated checkpoint at sequence 1; blocked sequence 1 remains recorded as refused'), true,
     'the CLI reports adoption rather than claiming it published the winner');
   const syncDiagnostics = [];

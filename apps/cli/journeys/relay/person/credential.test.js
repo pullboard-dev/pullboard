@@ -105,7 +105,7 @@ test('same-user agents never act as their person while the phone approves native
   assert.equal(item.code, 0);
   const itemId = item.document.item.item_id;
 
-  const setup = command(box.root, personEnv, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const setup = command(box.root, personEnv, ['relay', 'on', '--all', '--url', box.origin]);
   t.after(async () => { if (setup.child.exitCode === null) setup.child.kill('SIGTERM'); await setup.done.catch(() => {}); });
   const pending = await waitFor(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile)).pending,
     'foreground setup publishes the one-use phone enrollment');
@@ -141,11 +141,11 @@ test('same-user agents never act as their person while the phone approves native
   const state = JSON.parse(readFileSync(box.linkFile));
   const pa = state.agentTokens[agentId];
   assert.match(pa.token, /^pa_[A-Za-z0-9_-]{43}$/u);
-  const listed = await command(agentRoot, agentEnv, ['apps', 'relay', 'src', 'io', 'deploy', 'tokens']).done;
+  const listed = await command(agentRoot, agentEnv, ['relay', 'tokens']).done;
   assert.equal(listed.code, 0, 'board-scoped token ids need no tap');
   assert.equal(listed.document.tokens.some(row => Object.hasOwn(row, 'token') || Object.hasOwn(row, 'hash')), false);
   const nativeCalls = box.calls.filter(call => !call.browser).length;
-  const denied = await command(agentRoot, agentEnv, ['apps', 'relay', 'src', 'io', 'deploy', 'revoke', machine.devices[0].deviceId]).done;
+  const denied = await command(agentRoot, agentEnv, ['relay', 'revoke', machine.devices[0].deviceId]).done;
   assert.equal(denied.code, 1);
   assert.equal(denied.document.error.code, 'B26_PERSON_CHANNEL');
   assert.equal(box.calls.filter(call => !call.browser).length, nativeCalls, 'an agent shell refuses before every approval/network request');
@@ -187,7 +187,7 @@ test('same-user agents never act as their person while the phone approves native
   });
 
   await t.test('native token revocation needs exactly one phone tap and the grant cannot replay [H16,B26]', async () => {
-    const revoke = command(box.root, personEnv, ['apps', 'relay', 'src', 'io', 'deploy', 'revoke', pa.id]);
+    const revoke = command(box.root, personEnv, ['relay', 'revoke', pa.id]);
     t.after(async () => { if (revoke.child.exitCode === null) revoke.child.kill('SIGTERM'); await revoke.done.catch(() => {}); });
     await chrome.waitFor("[...document.querySelectorAll('.phone-approval')].some(node => node.textContent.includes(" + JSON.stringify(pa.id) + '))');
     const before = box.calls.filter(call => call.path.endsWith('/authorize')).length;
@@ -204,7 +204,7 @@ test('same-user agents never act as their person while the phone approves native
   });
   await t.test('native device revocation needs one phone tap and offline agent unlink always works [H5,H16,H17,B26]', async () => {
     const target = await enrollProtocolPhone(box);
-    const revoke = command(box.root, personEnv, ['apps', 'relay', 'src', 'io', 'deploy', 'revoke', target]);
+    const revoke = command(box.root, personEnv, ['relay', 'revoke', target]);
     t.after(async () => { if (revoke.child.exitCode === null) revoke.child.kill('SIGTERM'); await revoke.done.catch(() => {}); });
     await chrome.waitFor("[...document.querySelectorAll('.phone-approval')].some(node => node.textContent.includes(" + JSON.stringify(target) + '))');
     const before = box.calls.filter(call => call.path.endsWith('/authorize')).length;
@@ -214,7 +214,7 @@ test('same-user agents never act as their person while the phone approves native
     assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, before + 1);
     assert.deepEqual(JSON.parse(readFileSync(machineFile)).devices.map(device => device.deviceId), [machine.devices[0].deviceId],
       'the approving phone remains paired after it revokes the other target');
-    const lastPhone = await command(box.root, personEnv, ['apps', 'relay', 'src', 'io', 'deploy', 'revoke', machine.devices[0].deviceId]).done;
+    const lastPhone = await command(box.root, personEnv, ['relay', 'revoke', machine.devices[0].deviceId]).done;
     assert.equal(lastPhone.code, 0, 'fresh GitHub sign-in removes the last phone without asking it to approve itself');
     assert.equal(JSON.parse(readFileSync(machineFile)).devices.length, 0);
     await box.stopRelay();

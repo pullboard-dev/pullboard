@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/tests/fixtures/actions-stale-v11/* */
+/** @pullboard-test-input packages/gate/tests/../../../gate/tests/fixtures/actions-stale-v11/* */
 /** Execute the pinned upstream processor with isolated REST/clock adapters, never GitHub. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -6,7 +6,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import vm from 'node:vm';
 import { createHash } from 'node:crypto';
 
-const manifest = JSON.parse(readFileSync(new URL('fixtures/actions-stale-v11/manifest.json', import.meta.url), 'utf8'));
+const manifest = JSON.parse(readFileSync(new URL('../../../gate/tests/fixtures/actions-stale-v11/manifest.json', import.meta.url), 'utf8'));
 const DAY = 86400000, epoch = Date.parse('2026-01-01T00:00:00Z');
 let now = epoch;
 /** Preserve real Date parsing while injecting a deterministic wall clock. */
@@ -36,7 +36,7 @@ const context = vm.createContext({ Date: ClockDate, console,
 function load(file, name) {
   const entry = manifest.sources.find(entry => entry.source === file);
   assert.ok(entry, 'only a pinned upstream source is evaluated');
-  const bytes = readFileSync(new URL('fixtures/actions-stale-v11/' + entry.file, import.meta.url));
+  const bytes = readFileSync(new URL('../../../gate/tests/fixtures/actions-stale-v11/' + entry.file, import.meta.url));
   assert.equal(createHash('sha256').update(bytes).digest('hex'), entry.sha256, 'the exact pinned upstream bytes are intact');
   const source = bytes.toString('utf8');
   const plain = stripTypeScriptTypes(source).replace(/^import .*;\r?\n/gmu, '').replace(/^export /gmu, '');
@@ -104,7 +104,7 @@ async function scenario(text, expectedClose, { marked = false, labels = ['clarif
 
 /** Prove the committed workflow's inactivity behavior using the pinned upstream implementation. */
 export async function assertClarificationQuietPeriod(after) {
-  const before = readFileSync(new URL('fixtures/actions-stale-v11/before-stale.yml', import.meta.url), 'utf8');
+  const before = readFileSync(new URL('../../../gate/tests/fixtures/actions-stale-v11/stale/before.yml', import.meta.url), 'utf8');
   return { before: await scenario(before, false), after: await scenario(after, true),
     activityResetsMarker: await scenario(after, true, { marked: true }),
     unlabelledIssue: await scenario(after, false, { labels: ['bug'] }),

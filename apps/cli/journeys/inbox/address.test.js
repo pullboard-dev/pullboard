@@ -47,7 +47,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.match(initial.address, /^pullboard:[0-9a-f]{32}:[A-Za-z0-9_-]+$/u, 'each real joined seat exposes its stable board-bound address');
 
   await box.link();
-  const pairing = document(await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair'));
+  const pairing = document(await box.cli('relay', 'pair'));
   const second = await box.otherDeviceJoin(pairing.code);
   const sender = await seat(box, second.root, second.env, 'sender', second.cliAt);
   const sent = document(await second.cliAt(sender.path, 'shout', initial.address, 'An authenticated remote message'));
@@ -81,7 +81,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.ok(readFileSync(join(second.root, '.git', 'pullboard', 'relay-outbox.sealed')).length > 0,
     'the accepted local move has a durable sealed outbox, not a delivery acknowledgment');
 
-  const synced = document(await second.cliAt(sender.path, 'apps', 'relay', 'src', 'io', 'deploy', 'status'));
+  const synced = document(await second.cliAt(sender.path, 'relay', 'status'));
   assert.ok(synced.diagnostics?.some(line => line.includes(`the relay token of ${sender.id} was revoked on this board`)),
     'the sender is told when replay obtains a fresh refusal');
   assert.equal(JSON.parse(readFileSync(join(second.root, '.git', 'pullboard', 'relay.json'), 'utf8'))

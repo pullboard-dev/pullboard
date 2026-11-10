@@ -106,7 +106,7 @@ test('the in-process adapter serializes environment and restores globals after f
 
 test('in-process dispatch retains the production person-channel refusal [H2,B26,C7]', async t => {
   const cwd = directory(t);
-  const result = await runCliInProcess(['apps', 'relay', 'src', 'io', 'deploy', 'members', 'set', 'alice', '--json'], {
+  const result = await runCliInProcess(['relay', 'members', 'set', 'alice', '--json'], {
     cwd, env: { ...process.env, CODEX_THREAD_ID: 'adapter-contract-agent' },
   });
   assert.equal(result.status, 1);
