@@ -323,11 +323,8 @@
   "test/trusted-policy.test.js": {
     "hand-policy": 1
   },
-  "packages/state/tests/bar-corrections.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "raw-board": 4
+  "packages/store/tests/bar-corrections.test.js": {
+    "raw-board": 3
   },
   "packages/state/tests/check-baseline-worker.test.js": {
     "raw-board": 4
@@ -356,11 +353,8 @@
   "packages/state/tests/flow-submit-size.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/implies.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "raw-board": 10
+  "packages/store/tests/implies.test.js": {
+    "raw-board": 8
   },
   "packages/state/tests/item-hold.test.js": {
     "raw-board": 9,
