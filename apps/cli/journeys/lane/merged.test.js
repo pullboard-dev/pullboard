@@ -15,6 +15,7 @@ import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
+import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 async function mergedPlacement(t) {
@@ -49,6 +50,7 @@ async function mergedPlacement(t) {
   box.git(box.repo, 'add', 'packages/codemap/data/plan');
   box.git(box.repo, 'commit', '-q', '-m', 'feat(view): accept an independent main placement [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
+  await publishAcceptedCells(t, box.repo, main.trim(), box.env.PULLBOARD_MACHINE_HOME);
   const mainRow = readPlan(box.repo).cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === mainFile);
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'],
     { cwd: view, env: box.env, encoding: 'utf8' });
