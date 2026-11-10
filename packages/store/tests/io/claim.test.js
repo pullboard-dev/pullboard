@@ -57,8 +57,8 @@ test('interactive and automatic selection agree on an own rejected item [C7,#289
 
 test('nextFor and dispatchWork read held claims from the one heldClaim function, with no second claim filter [C7,#2899]', async () => {
   const { readFileSync } = await import('node:fs');
-  for (const file of ['board-next-for.js', 'dispatch-eligibility.js']) {
-    const source = readFileSync(new URL(`../src/shell/${file}`, import.meta.url), 'utf8');
+  for (const file of ['board/next.js', 'eligibility.js']) {
+    const source = readFileSync(new URL(`../../src/io/${file}`, import.meta.url), 'utf8');
     assert.match(source, /heldClaim\(board, agentId/u, `${file} calls heldClaim`);
     assert.doesNotMatch(source, /item_status === 'claimed' && [a-z]+\.item_owner === agentId/u, `${file} keeps no claim filter of its own`);
   }

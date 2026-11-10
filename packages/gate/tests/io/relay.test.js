@@ -22,8 +22,8 @@ test('the moved GitHub client fetch is allowed at apps/relay/src/io/github.js [C
 });
 
 test('the relay boundary check passes on this tree [C7]', () => {
-  const relay = readdirSync(join(ROOT, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
-    .map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(repoPath(ROOT, `relay/${entry.name}`), 'utf8') }));
+  const relay = readdirSync(join(ROOT, 'apps/relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
+    .map(entry => ({ file: `apps/relay/${entry.name}`, source: readFileSync(repoPath(ROOT, `apps/relay/${entry.name}`), 'utf8') }));
   assert.deepEqual(relayBoundaryProblems([...styleSources(ROOT), ...relay]), []);
 });
 

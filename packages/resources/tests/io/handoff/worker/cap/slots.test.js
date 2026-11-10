@@ -37,7 +37,7 @@ finish();
 async function fixture(t, count) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-handoff-slots-')));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), WORKER);
   const log = join(dir, 'log');
   writeFileSync(log, '');

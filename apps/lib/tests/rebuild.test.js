@@ -54,7 +54,7 @@ function isolateMachine(t) {
 /** Build a real repository holding this checkout's tooling plus a cells plan, committed on main. */
 function toolingRepo(t) {
   const root = temporaryRepository(t, 'accepted-identity-repo-');
-  const files = execFileSync('git', ['-C', REPO, 'ls-files', '-z', 'bin', 'packages', 'src', 'apps', 'package.json'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+  const files = execFileSync('git', ['-C', REPO, 'ls-files', '-z', 'packages', 'apps', 'package.json'], { encoding: 'utf8' }).split('\0').filter(Boolean);
   for (const file of files) {
     if (!existsSync(join(REPO, file))) continue;
     mkdirSync(dirname(join(root, file)), { recursive: true });
@@ -92,7 +92,7 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
   const { root, commit } = toolingRepo(t);
   const copy = temporaryDirectory('accepted-identity-copy-');
   t.after(() => rmSync(copy, { recursive: true, force: true }));
-  for (const dir of ['bin', 'packages', 'src', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
+  for (const dir of ['packages', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
   writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
   const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
   writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// modified tooling copy\n`);
@@ -112,7 +112,7 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
 function modifiedToolingCopy(t, root) {
   const copy = temporaryDirectory('accepted-identity-candidate-');
   t.after(() => rmSync(copy, { recursive: true, force: true }));
-  for (const dir of ['bin', 'packages', 'src', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
+  for (const dir of ['packages', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
   writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
   const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
   writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// candidate changes the checker\n`);
