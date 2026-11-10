@@ -120,7 +120,7 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   const landed = box.run(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err || landed.out);
   const receipt = JSON.parse(landed.out);
-  assert.deepEqual([...receipt.landed].sort(), [many.id, refrozen.id].sort());
+  assert.deepEqual([...receipt.landed].sort(), [many.id, refrozen.id].sort(), JSON.stringify(receipt));
   const merges = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${receipt.batch.tip}`).split('\n').filter(Boolean);
   const messages = new Map(merges.map((commit) => {
     const message = box.git(box.repo, 'log', '-1', '--format=%B', commit);
