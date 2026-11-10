@@ -290,8 +290,11 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /CRITERIA_CHANGED/);
   assert.match(box.run(box.repo, 'refreeze', '1').out, /refrozen/);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  box.run(box.web, 'claim', '1');
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const refrozenItem = `${box.web}-item-1`;
+  assert.equal(commitFile(box, refrozenItem, 'web/a.html', '<h1>Hi again</h1>', 'feat(web): update page [G1]').status, 0);
+  const resubmitted = box.run(refrozenItem, 'submit', '1');
+  assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /PROOF_REQUIRED/);
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed the heading; the page test failed').out, /verified #1: CRITERION_MET/);
   const show = box.run(box.repo, 'show', '1').out;
@@ -480,7 +483,7 @@ test('next claims the next free item in its folder; --verify names the next to c
   const submitted = box.run(item, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const blocked = box.run(box.web, 'next');
-  assert.equal(blocked.code, 1);
+  assert.equal(blocked.code, 1, blocked.err || blocked.out);
   // Since the idle-seat queue step, the refusal first names the seat's lane and route.
   assert.match(blocked.err, /NOTHING_FREE\] lane web, route strong: #2 waits on #1 \(submitted, web lane\)/);
   assert.match(box.run(box.repo, 'next', '--verify').err, /MAIN_IS_COORDINATOR/);
