@@ -35,7 +35,7 @@ function spy(calls) {
  * @returns {string} The new commit.
  */
 function commitBrokenCli(repo, message) {
-  mkdirSync(join(repo, 'bin'), { recursive: true });
+  mkdirSync(join(repo, 'apps/cli'), { recursive: true });
   writeFileSync(join(repo, 'apps/cli/pullboard.js'), `throw new Error('import cycle ${message}');\n`);
   for (const args of [['add', '-A'], ['commit', '-q', '-m', `feat: ${message}`]]) assert.equal(spawnSync('git', args, { cwd: repo, env: ENV }).status, 0);
   return spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, env: ENV, encoding: 'utf8' }).stdout.trim();

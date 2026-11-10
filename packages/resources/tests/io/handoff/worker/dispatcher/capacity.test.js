@@ -38,7 +38,7 @@ function fixture() {
   delete process.env.HANDOFF_TEST_READY;
   delete process.env.HANDOFF_TEST_RELEASE;
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), [
     "const { appendFileSync, existsSync, watch } = require('node:fs');",
     "const { dirname, join } = require('node:path');",
