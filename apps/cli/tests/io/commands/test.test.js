@@ -15,6 +15,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -209,16 +210,20 @@ function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../../../../../
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, 'bin');
   const tests = join(root, 'test');
+  const runtime = join(root, 'node_modules', 'pullboard-runtime');
   mkdirSync(bin);
   mkdirSync(tests);
-  // Keep shipped runtime data, including assets read by imported modules at initialization.
-  const shipped = copyPackageFiles(sourceRoot, root);
-  const copied = copyRunnerImports(sourceRoot, root);
+  mkdirSync(runtime, { recursive: true });
+  // Keep runtime code outside Node's default test-file discovery while preserving package paths through symlinks.
+  const shipped = copyPackageFiles(sourceRoot, runtime);
+  const copied = copyRunnerImports(sourceRoot, runtime);
   // JavaScript stays limited to the actual import closure: pre-copying an undiscovered
   // dependency must never make the transitive-import test pass, or add real shipped tests.
   for (const file of shipped) {
-    if (/\.[cm]?js$/u.test(file) && !copied.has(file)) rmSync(join(root, file));
+    if (/\.[cm]?js$/u.test(file) && !copied.has(file)) rmSync(join(runtime, file));
   }
+  symlinkSync(join(runtime, 'apps'), join(root, 'apps'), 'dir');
+  symlinkSync(join(runtime, 'packages'), join(root, 'packages'), 'dir');
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
