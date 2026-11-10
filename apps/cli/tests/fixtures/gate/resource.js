@@ -99,7 +99,7 @@ export function probeSuite(box, name) {
   const root = join(box.dir, name);
   const tests = join(root, 'test');
   mkdirSync(tests, { recursive: true });
-  writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\nwriteFileSync(${JSON.stringify(join(root, 'probe-env.json'))}, JSON.stringify({pid: process.pid, marker: process.env.${PROBE_PATH_ENV} ?? null, release: process.env.${PROBE_RELEASE_ENV} ?? null}));\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
+  writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\nwriteFileSync(${JSON.stringify(join(root, 'probe-env.json'))}, JSON.stringify({pid: process.pid, marker: process.env.${PROBE_PATH_ENV} ?? null, release: process.env.${PROBE_RELEASE_ENV} ?? null, nodeTestContext: process.env.NODE_TEST_CONTEXT ?? null, argv: process.argv}));\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  writeFileSync(${JSON.stringify(join(root, 'probe-callback.json'))}, JSON.stringify({pid:process.pid}));\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
   commitProbePolicy(box, root);
   return root;
 }
@@ -193,7 +193,7 @@ export async function wholeSuiteHolders(box, names) {
     const db = new DatabaseSync(join(box.dir, 'home', 'resources.sqlite'), { readOnly: true });
     let rows;
     try { rows = { holders: db.prepare('SELECT pid,name FROM holder').all(), waiters: db.prepare('SELECT pid,name FROM waiter').all() }; } finally { db.close(); }
-    throw new Error(`${error.message}: ${runs.map((run, index) => JSON.stringify({pid: run.child.pid, exit: run.child.exitCode, signal: run.child.signalCode, stdout: run.child.stdoutText, stderr: run.child.stderrText, probe: existsSync(join(box.dir, names[index], 'probe-env.json')) ? readFileSync(join(box.dir, names[index], 'probe-env.json'), 'utf8') : null})).join(' | ')}; rows ${JSON.stringify(rows)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
+    throw new Error(`${error.message}: ${runs.map((run, index) => JSON.stringify({pid: run.child.pid, exit: run.child.exitCode, signal: run.child.signalCode, stdout: run.child.stdoutText, stderr: run.child.stderrText, probe: existsSync(join(box.dir, names[index], 'probe-env.json')) ? readFileSync(join(box.dir, names[index], 'probe-env.json'), 'utf8') : null, callback: existsSync(join(box.dir, names[index], 'probe-callback.json'))})).join(' | ')}; rows ${JSON.stringify(rows)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
   }
   return runs;
 }
