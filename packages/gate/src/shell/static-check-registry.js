@@ -12,7 +12,7 @@ import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
 import { cellsEdgeProblems } from '../../../../bin/checks/cells-edges.js';
 import { syncSpawnProblems } from '../../../../bin/checks/sync-spawn-in-leases.js';
-import { assumptionProblems } from '../../../../bin/checks/no-runtime-assumptions.js';
+import { assumptionProblems } from '../../../codemap/index.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
 import { EXPORT_ONLY_CEILINGS } from '../core/export-only-files.js';
 import { declaredDoorFiles } from '../core/export-only-files.js';
@@ -93,7 +93,7 @@ export const STATIC_CHECKS = Object.freeze([
   // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (bin/checks/sync-spawn-in-leases.js).
   { name: 'sync-spawn-in-leases', run: ({ root, text }) => syncSpawnProblems(root, { read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  // Core code names no test runner or operating system; those literals live in adapters (bin/checks/no-runtime-assumptions.js).
+  // Core code names no test runner or operating system; those literals live in adapters (packages/codemap/src/shell/no-runtime-assumptions.js).
   { name: 'no-runtime-assumptions', run: ({ root, text }) => assumptionProblems(root, { read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },

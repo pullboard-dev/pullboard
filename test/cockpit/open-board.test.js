@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { createRelayBrowserHandler } from '../../relay/browser-page.js';
-import { RELAY_SCREEN_WORDS } from '../../relay/browser-notice.js';
+import { createRelayBrowserHandler } from '../../apps/relay/index.js';
+import { RELAY_SCREEN_WORDS } from '../../apps/relay/index.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, proofShot, press } from './fixture.js';
 
 const HOSTED = 'https://app.pullboard.dev';

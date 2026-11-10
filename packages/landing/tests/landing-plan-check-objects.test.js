@@ -3,9 +3,9 @@
 /** The landing plan check reads the plan and paths from Git objects and adds no worktree [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { computePlan } from '../../../bin/cells-plan.js';
-import { placePath } from '../../../bin/cells-plan.js';
-import { writePlan } from '../../../bin/cells-plan.js';
+import { computePlan } from '../../codemap/index.js';
+import { placePath } from '../../codemap/index.js';
+import { writePlan } from '../../codemap/index.js';
 import { fixture } from '../../../test/cells-plan-fixture.js';
 import { git } from '../../../test/cells-plan-fixture.js';
 import { requireLandingPlanCheck } from '../index.js';

@@ -1,13 +1,13 @@
 /** A per-link capability reuses existing seals without holding another board's full key [E32,H17]. */
 import { createHash } from 'node:crypto';
 import { Refused } from "../../../kernel/index.js";
-import { seal } from "../../../kernel/src/core/seal.js";
-import { unseal } from "../../../kernel/src/core/seal.js";
-import { boardReferenceId } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkBody } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkName } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkFormat } from "../../../kernel/src/core/registry-guards.js";
-import { discloseBoardState } from "../../../kernel/src/core/registry-guards.js";
+import { seal } from "../../../kernel/index.js";
+import { unseal } from "../../../kernel/index.js";
+import { boardReferenceId } from "../../../kernel/index.js";
+import { boardLinkBody } from "../../../kernel/index.js";
+import { boardLinkName } from "../../../kernel/index.js";
+import { boardLinkFormat } from "../../../kernel/index.js";
+import { discloseBoardState } from "../../../kernel/index.js";
 
 const LIMIT = 65536;
 

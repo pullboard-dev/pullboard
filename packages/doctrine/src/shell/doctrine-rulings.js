@@ -33,7 +33,7 @@ import {
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
 import { writeRowApply } from '../../../spec/index.js';
-import { mainCriterionFacts } from '../../../../src/main-criterion-facts.js';
+import { mainCriterionFacts } from './main-criterion-facts.js';
 import {
   loadSpec,
   parseSpec,
