@@ -1,4 +1,4 @@
-/** Commit messages, metadata, signoff, hooks, file history and contribution records. */
+/** Commit messages, metadata, signoff, hooks, file history, contribution records and their clause runner. */
 export * from "./src/core/commit-message.js";
 export * from "./src/core/commit-metadata.js";
 export * from "./core.js";
@@ -10,5 +10,7 @@ export * from "./src/core/why-file.js";
 export * from "./src/core/import-bindings.js";
 export * from "./src/shell/import-binding-fix.js";
 export * from "./src/core/contribution-record.js";
+export * from "./src/core/contribution-clauses.js";
+export * from "./src/shell/contribution-clauses.js";
 export * from "./src/core/landing-rows.js";
 export * from "./src/core/board-format.js";
