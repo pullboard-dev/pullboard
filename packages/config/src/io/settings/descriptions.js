@@ -93,6 +93,7 @@ const ROWS = [
   ['cells.shimMaxAgeDays', 'Shim removal age', 'Health names compatibility shims left beyond this many days after their cell move landed.', 'Checks', 'days'],
   ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
+  ['rigor.autoDraft', 'Draft unproved Rigor rules', 'Rigor drafts a rule for a repeated failure before any fix is proven; false keeps only drafts you prove with rigor draft --red/--green.', 'Checks', 'on/off'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
   ['flakes.quarantine', 'Quarantine flaky tests', 'A test that keeps flaking is set aside so it stops blocking work.', 'Checks', 'on/off'],
   ['testConcurrency.files', 'Test files at once', 'How many test files run at the same time.', 'Checks', 'count'],

@@ -262,7 +262,8 @@ export function configProblems(config) {
       || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
   if (config.rigor !== undefined && (!config.rigor || typeof config.rigor !== 'object' || Array.isArray(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
-      || Object.keys(config.rigor).some(key => key !== 'budget'))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add; 400 by default');
+      || config.rigor.autoDraft !== undefined && typeof config.rigor.autoDraft !== 'boolean'
+      || Object.keys(config.rigor).some(key => !['budget', 'autoDraft'].includes(key)))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add (400 by default), and the optional boolean "autoDraft", on by default; false stops unproved Rigor auto-drafts');
   if (config.relay !== undefined && (!config.relay || typeof config.relay !== 'object' || Array.isArray(config.relay)
       || config.relay.outbox !== undefined && typeof config.relay.outbox !== 'boolean'
       || config.relay.board !== undefined && (typeof config.relay.board !== 'string' || !/^[0-9a-f]{32}$/u.test(config.relay.board))
