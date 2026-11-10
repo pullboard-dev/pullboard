@@ -94,6 +94,8 @@ test('clause 1: a recorded red main result is reused, so the second --compare-ma
   assert.ok(first.main, 'with no item and no record, main is compared once');
   assert.equal(first.known[0]?.result, 'red');
   const second = compare(box);
-  assert.equal(second.main, null, 'the recorded red is not run on main again');
+  let cache = 'none';
+  try { cache = readFileSync(join(box.repo, '.git/pullboard/main-red.json'), 'utf8'); } catch (error) { cache = String(error); }
+  assert.equal(second.main, null, `the recorded red is not run on main again: ${cache.slice(0, 1500)}`);
   assert.match(second.mainSkipped, /known red.*recorded/u);
 });
