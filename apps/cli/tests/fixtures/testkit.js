@@ -1,5 +1,6 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -144,6 +145,7 @@ export function fixtureMachineSettings(machineHome, settings) {
  * @returns {void}
  */
 export function fixtureCellsPlan(repo, text) {
+  mkdirSync(join(repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(repo, 'packages/codemap/data/plan/cells.json'), text);
 }
 
