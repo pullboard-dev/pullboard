@@ -5450,7 +5450,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past codemap front door (src/main-facts-cache.js)",
-        "imports past doctrine front door (src/main-criterion-facts.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"

@@ -14,7 +14,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { cachedMainFact } from '../packages/codemap/index.js';
 import { mainFactDigest } from '../packages/codemap/index.js';
-import { mainCriterionFacts } from '../src/main-criterion-facts.js';
+import { mainCriterionFacts } from '../packages/doctrine/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

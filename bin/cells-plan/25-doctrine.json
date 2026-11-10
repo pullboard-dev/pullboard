@@ -20,7 +20,8 @@
   {"cell":"config","imports":3,"before":true},
   {"cell":"spec","imports":4,"before":true},
   {"cell":"store","imports":2,"before":true},
-  {"cell":"sandbox","imports":1,"before":true}
+  {"cell":"sandbox","imports":1,"before":true},
+  {"cell":"codemap","imports":2,"before":false}
  ],
  "cuts": [],
  "ratchets": {
