@@ -46,7 +46,7 @@ test('a green dot-reporter gate records both selected files and accepts with its
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'packages/alpha'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'packages/alpha/index.js'), 'export const value = 1;\n');
+  writeFileSync(join(box.repo, 'packages/alpha/index.js'), 'export const value = 1;\n\n\n\n\n');
   const files = ['test/alpha-one.test.js', 'test/alpha-two.test.js'];
   for (const file of files) writeFileSync(join(box.repo, file), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -59,7 +59,8 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const id = (await json(box, box.repo, 'add', 'web', 'Native account covers both files', '--specs', 'G1',
     '--criterion', 'Both selected unit files pass.', '--check', check, '--wait')).item.item_id;
   await json(box, box.web, 'claim', String(id));
-  writeFileSync(join(box.web, 'packages/alpha/index.js'), 'export const value = 2;\n');
+  const builtInput = join(box.web, 'packages/alpha/index.js');
+  writeFileSync(builtInput, readFileSync(builtInput, 'utf8').replace('value = 1', 'value = 2'));
   const head = commit(box, box.web, 'feat(web): satisfy both unit files [G1]');
   const submitted = await json(box, box.web, 'submit', String(id), '--wait', '--no-next');
   assert.equal(submitted.gate.green, true);
@@ -78,9 +79,11 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   assert.match(observed.comparison.error, /no configured runner/u);
 
 
-  // Changing accepted main requires a private review run instead of sealed submit-proof reuse.
+  // Move a checked input on accepted main so a private review cannot reuse the earlier submit proof.
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/account.txt'), 'Review against the current accepted main.\n');
+  const input = join(box.repo, 'packages/alpha/index.js');
+  writeFileSync(input, readFileSync(input, 'utf8') + '// main changed this checked input\n');
   commit(box, box.repo, 'docs: advance main after the selected gate [G1]');
   const reviewer = join(box.dir, 'account-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
@@ -92,7 +95,7 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const profiles = readdirSync(directory).filter(file => file.endsWith('.profile.json'))
     .map(file => JSON.parse(readFileSync(join(directory, file), 'utf8')));
   const checked = profiles.find(profile => profile.tests.length === 0 && profile.testOutcomes?.length === files.length);
-  assert.ok(checked, `private review persists its structured account even with no TAP/JUnit case timings: ${JSON.stringify(profiles)}`);
+  assert.ok(checked, 'private review persists its structured account even with no TAP/JUnit case timings');
   assert.deepEqual([...new Set(checked.testOutcomes.map(row => row.file))].sort(), files);
   assert.throws(() => requireTestTierAccount({ green: true, profile: { ...checked,
     testOutcomes: checked.testOutcomes.filter(row => row.file === files[0]) } }, files),
