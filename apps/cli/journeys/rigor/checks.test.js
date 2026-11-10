@@ -94,7 +94,7 @@ const PINNED_PROBLEMS = {
     ['test/view.test.js', 200, 'row text is escaped, so a row cannot inject markup'],
   ].map(([path, line, name]) => `${path}:${line}: ${NO_ID}${name}`),
   'empty-catch': [
-    ['src/api.js', 214], ['src/api.js', 222], ['src/board.js', 166], ['src/board.js', 224], ['apps/runner/src/io/scripts/worker.js', 1190],
+    ['src/api.js', 214], ['src/api.js', 222], ['src/board.js', 166], ['src/board.js', 224], ['src/runner-worker.js', 1190],
     ['test/cockpit/items.test.js', 1159], ['test/land.test.js', 170], ['test/land.test.js', 172], ['test/land.test.js', 673],
     ['test/land.test.js', 760], ['test/land.test.js', 762], ['test/land.test.js', 906], ['test/runners.test.js', 1250],
   ].map(([path, line]) => `${path}:${line}: ${BARE}`),
