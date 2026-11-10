@@ -12,7 +12,7 @@ function repository(t) {
   const root = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-timer-quiet-')));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const primary = join(root, 'primary'), linked = join(root, 'linked');
-  fs.mkdirSync(join(primary, 'bin'), { recursive: true });
+  fs.mkdirSync(join(primary, 'apps/cli'), { recursive: true });
   maintenanceGit(primary, ['init', '-q', '-b', 'main']);
   maintenanceGit(primary, ['config', 'user.name', 'Timer Fixture']);
   maintenanceGit(primary, ['config', 'user.email', 'timer@example.invalid']);

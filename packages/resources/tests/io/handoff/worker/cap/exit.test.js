@@ -41,7 +41,7 @@ if (result) {
 function fixture(ids) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-handoff-exit-')));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), WORKER);
   const log = join(dir, 'log');
   writeFileSync(log, '');

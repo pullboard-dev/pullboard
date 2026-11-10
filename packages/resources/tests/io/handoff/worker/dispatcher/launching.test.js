@@ -31,7 +31,7 @@ appendFileSync(process.env.HANDOFF_TEST_LOG, basename(dirname(process.argv[2])) 
 function fixture() {
   const dir = realpathSync(temporaryDirectory('pullboard-keeps-launching-'));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), WORKER);
   const log = join(dir, 'log');
   writeFileSync(log, '');

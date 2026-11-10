@@ -28,7 +28,7 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   mkdirSync(dir, { recursive: true });
   for (const name of ['a', 'b', 'unrelated']) writeFileSync(join(dir, `${name}.test.js`), `import { test } from 'node:test';\ntest('${name}', () => {});\n`);
   if (tiers) {
-    mkdirSync(join(box.repo, 'packages', 'gate'), { recursive: true });
+    mkdirSync(join(box.repo, 'packages', 'gate', 'data', 'tests'), { recursive: true });
     writeFileSync(join(box.repo, 'packages', 'gate', 'data', 'tests', 'tiers.json'), JSON.stringify({ version: 1, files: [] }));
   }
   // The map is committed before the move: a map file first appearing in the change is a non-module input that import

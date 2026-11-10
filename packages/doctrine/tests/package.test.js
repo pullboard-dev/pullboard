@@ -10,6 +10,7 @@ import {
 } from '../../../apps/cli/tests/fixtures/child.js';
 import { once } from 'node:events';
 import {
+  existsSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -223,7 +224,6 @@ test('the import scan finds a package however it is imported, and nothing that i
 function packageSource(file, source) {
   const loaders = {
     [join(ROOT, 'packages/moves/src/io/registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
-    [join(ROOT, 'src/commands/index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
   };
   const loader = loaders[file];
   return loader ? source.replace(loader[0], loader[1]) : source;
@@ -233,20 +233,23 @@ function packageSource(file, source) {
 function importsForPackageFile(file, source) { return importsIn([packageSource(file, source)])[0]; }
 
 test('every import is a node: built-in or a relative file [P3]', () => {
-  const files = [
-    ...readdirSync(join(ROOT, 'src'), { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => repoPath(ROOT, `src/${name}`)),
-    join(ROOT, 'apps/cli/pullboard.js'),
-  ];
+  const files = [join(ROOT, 'apps/cli/pullboard.js')];
+  for (const group of ['apps', 'packages']) {
+    for (const cell of readdirSync(join(ROOT, group))) {
+      const source = join(ROOT, group, cell, 'src');
+      if (!existsSync(source)) continue;
+      files.push(...readdirSync(source, { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => repoPath(ROOT, `${group}/${cell}/src/${name}`)));
+    }
+  }
   const moveDirectory = join(ROOT, 'packages/moves/src/logic/moves');
   const moveFiles = readdirSync(moveDirectory).filter(name => name.endsWith('.js'));
-  files.push(...moveFiles.map(name => join(moveDirectory, name)));
   assert.ok(moveFiles.length > 0, 'all discovered move modules remain inside the no-dependencies scan');
   const found = importsIn(files.map(file => packageSource(file, readFileSync(file, 'utf8'))));
   files.forEach((file, index) => {
     for (const target of found[index]) assert.ok(target.startsWith('node:') || target.startsWith('.'), `${file} imports ${target}`);
   });
   const seen = found.flat().length;
-  assert.ok(seen > 50, `the scan found ${seen} imports in src/ and bin/; expected every file's`);
+  assert.ok(seen > 50, `the scan found ${seen} imports in apps and packages; expected every file's`);
 });
 
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
@@ -257,7 +260,7 @@ test('discovery import normalization still exposes package imports and arbitrary
   assert.ok(importsForPackageFile(file, source.replace(site, "import('left-pad')")).includes('left-pad'));
   assert.ok(importsForPackageFile(file, source.replace(site, 'import(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source + '\nvoid import(otherTarget);').includes(COMPUTED), 'a second computed import has no exemption');
-  assert.ok(importsForPackageFile(join(ROOT, 'src/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
+  assert.ok(importsForPackageFile(join(ROOT, 'packages/moves/src/logic/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
 });
 
 test('the installable package includes the single inherited doctrine file [D1]', () => {
