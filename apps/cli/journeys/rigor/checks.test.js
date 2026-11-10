@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /**
- * Pullboard's first Rigor checks (D1, C7): bin/checks/ holds four scripts a doctrine row's
+ * Pullboard's first Rigor checks (D1, C7): packages/gate holds four scripts a doctrine row's
  * `gate: check` can count. Each prints one `path:line: text` line per problem, sorted, and exits 0
  * with none or 1 with some. The census is pinned to the main commit this item merged, so it never
  * goes stale as main moves; the live checkout is held to the format, the timing and, for file size,
@@ -58,7 +58,8 @@ const conflictE2e = createE2eHelpers();
 after(conflictE2e.cleanup);
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
-const CHECKS = ['file-size', 'test-names', 'empty-catch', 'test-inputs'];
+const CHECK_PATHS = { 'file-size': 'file/size.js', 'test-names': 'test/names.js', 'empty-catch': 'catch.js', 'test-inputs': 'test/inputs.js' };
+const CHECKS = Object.keys(CHECK_PATHS);
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-rigor-')));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -121,7 +122,7 @@ function git(args, options = {}) {
  */
 function runCheck(name, { cwd = ROOT, root } = {}) {
   const started = performance.now();
-  const result = spawnSync(process.execPath, [join(ROOT, 'bin/checks', `${name}.js`), ...(root ? [root] : [])], { cwd, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [join(ROOT, 'packages/gate/src/io', CHECK_PATHS[name]), ...(root ? [root] : [])], { cwd, encoding: 'utf8' });
   const ms = performance.now() - started;
   return { status: result.status, lines: result.stdout.split('\n').filter(Boolean), stderr: result.stderr, ms };
 }
