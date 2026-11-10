@@ -100,7 +100,17 @@ function project(t) {
       try { tools = JSON.parse(readFileSync(request, 'utf8')).tools ?? null; } catch { return false; }
       return !existsSync(join(jobs, job, 'source')) && (!tools || !existsSync(tools));
     }), 'MCP fixture submit worker cleanup');
-    rmSync(dir, { recursive: true, force: true });
+    try { rmSync(dir, { recursive: true, force: true }); }
+    catch (error) {
+      // Report only fixture-owned paths and processes; preserve the original cleanup failure.
+      const failedPath = error.path ?? dir;
+      let entries = [];
+      try { entries = readdirSync(failedPath).slice(0, 30); } catch { /* The failing path may already be gone. */ }
+      const ps = runFixtureChild('/bin/ps', ['-axo', 'pid,ppid,command'], { encoding: 'utf8' });
+      const processes = (ps.stdout ?? '').split('\n').filter(line => line.includes(dir)).slice(0, 20);
+      error.message += `\nMCP cleanup provenance: ${JSON.stringify({ failedPath, entries, processes })}`;
+      throw error;
+    }
   });
   const bin = join(dir, 'bin');
   mkdirSync(bin);
