@@ -29,6 +29,7 @@ export function normalizedDispatch(value) {
 export function dispatchHealth(board, config = {}) {
   const row = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='health-scan' ORDER BY event_id DESC LIMIT 1").get();
   const previous = row ? JSON.parse(row.event_detail).dispatch ?? [] : [];
+  const active = row ? JSON.parse(row.event_detail).active ?? [] : [];
   const at = board.clock.now();
   const dispatch = [], findings = [], items = new Set();
   const agents = store.listAgents(board);
@@ -58,7 +59,16 @@ export function dispatchHealth(board, config = {}) {
     const since = before && (!lastChange || lastChange <= before.since) ? before.since : observedSince;
     dispatch.push({ seat: seat.agent_id, item, review: selected.review, since });
     if (at.getTime() - Date.parse(since) < 300000) continue;
-    findings.push({ key: `UNPAIRED_WORK:${seat.agent_id}:${item}`, cause: 'UNPAIRED_WORK', item,
+    const key = `UNPAIRED_WORK:${seat.agent_id}:${item}`;
+    const retained = active.some(finding => finding.key === key && finding.since === since);
+    // A delivered warning belongs to the seat's idle spell, even if next later chooses a different item.
+    const warned = board.db.prepare(`SELECT 1 FROM event e JOIN shout s ON s.shout_id=json_extract(e.event_detail,'$.shout')
+      WHERE e.event_kind='shout' AND e.event_by='sentinel' AND s.shout_to='coordinator'
+        AND instr(s.shout_text, ?) = 1 AND instr(s.shout_text, '[UNPAIRED_WORK]') > 0
+        AND e.event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE event_by=? AND event_kind IN ('claim','reserve')), 0) LIMIT 1`)
+      .get(`Stuck: ${seat.agent_id} beside #`, seat.agent_id);
+    if (warned && !retained) continue;
+    findings.push({ key, cause: 'UNPAIRED_WORK', item,
       subject: `${seat.agent_id} beside #${item}`, title: 'ready work has waited five minutes for a free seat', since,
       why: `${seat.agent_id} is live and free for ${idleMinutes} min while eligible ${selected.review ? 'review' : 'build'} #${item} remains unreserved`,
       next: `run pullboard next --take in ${seat.agent_path}`, owner: { role: 'coordinator', who: 'coordinator' } });

@@ -60,6 +60,36 @@ test('ready work waiting past the limit while agents are idle warns the coordina
   assert.equal(warnings().length, 1, 'dependent and future work do not count as ready');
 });
 
+test('changing the eligible item does not repeat an idle-seat warning until a claim [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  const first = box.add('First eligible item');
+  const warnings = () => store.allShouts(box.board).filter(row => row.shout_to === 'coordinator'
+    && row.shout_text.startsWith(`Stuck: ${box.seats.actor.id} beside #`) && row.shout_text.includes('UNPAIRED_WORK'));
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1);
+  assert.match(warnings()[0].shout_text, new RegExp(`#${first}\\b`, 'u'));
+  const second = box.add('Replacement eligible item');
+  store.holdItem(box.board, first, { agentId: 'coordinator', reason: 'The first fixture item is held' });
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1, 'changing next selection does not create another warning in the same idle spell');
+  const claimed = await dispatchCli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  assert.equal(claimed.document.item.item_id, second);
+  store.release(box.board, second, box.seats.actor.id, 'Reopen the private fixture item', 'OTHER');
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 2, 'a claim starts a new idle spell');
+  assert.match(warnings()[1].shout_text, new RegExp(`#${second}\\b`, 'u'));
+});
+
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
