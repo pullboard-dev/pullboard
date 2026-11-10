@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -24,6 +25,11 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   copyFixtureRunner(resolve(import.meta.dirname, '../../../..'), box.repo);
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test/quick.test.js'), "import { test } from 'node:test'; test('quick', () => new Promise(done => setTimeout(done, 200)));\n");
+  // The fixture lane must own the paths its check names, or the claim refuses with CROSS_OWNERSHIP.
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.lanes.web.owns.push('test/', 'packages/gate/src/io/run/tests.js');
+  writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', '.');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add a browser-free named check');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
