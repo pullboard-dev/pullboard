@@ -256,10 +256,8 @@ test('ship reclaims a lapsed lease only inside this builder first-refusal window
   const sent = f.box.run(f.box.web, 'submit', String(f.id), '--no-next', '--json');
   assert.equal(sent.code, 0, sent.out + sent.err);
   onBoard(f.box, board => {
-    const item = store.getItem(board, f.id);
-    store.verify(board, f.id, { agentId: 'coordinator', decision: 'REJECT', digest: item.item_frozen_digest,
-      head: item.item_commit, reason: 'BEHAVIOR_MISMATCH', clause: 'The fixture passes its native check.',
-      note: 'A fixture return creates the ordinary first-refusal window.', policy: 'any', check: 'green', reopenFirstRefusalMinutes: 30 });
+    store.reopen(board, f.id, { agentId: 'coordinator', conflict: 'The fixture landing conflicted with main.',
+      note: 'A failed landing creates the ordinary first-refusal window.', reopenFirstRefusalMinutes: 30 });
   });
   const reclaimed = f.box.run(f.box.web, 'claim', String(f.id), '--json');
   assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
