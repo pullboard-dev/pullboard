@@ -23,6 +23,7 @@ import { processCensus } from '../../../../runner/index.js';
 import { isolateTestMachine } from '../../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
+import { runFixtureChildAsync } from '../child.js';
 import { installSshStandIn } from './ssh.js';
 import { HOST } from './ssh.js';
 import { executionServicesSource } from '../gate/execution.js';
@@ -110,7 +111,7 @@ if(command.includes(' --health ')||command.includes(' --restart ')||command.incl
 }
 
 /** Exercise the actual fresh controller; a fixture watchdog reports a failure instead of hanging the combined check. */
-function run(box, abortAfterReady = false) {
+async function run(box, abortAfterReady = false) {
   const source = `import {runOnRunnerAsync} from ${JSON.stringify(sourceURL('packages/runners/index.js'))};
 import {existsSync} from 'node:fs';
 const cancellation=new AbortController();let readyAt=null;
@@ -119,7 +120,7 @@ if(readyAt!==null&&Date.now()-readyAt>=28000)cancellation.abort();},100):null;
 try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
 catch(error){console.log(JSON.stringify({name:error.name,code:error.code,message:error.message,diagnostic:error.diagnostic}));}
 finally{clearInterval(watch);}`;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 60_000,
   });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
@@ -202,8 +203,8 @@ export function registerRunnerJobLostTests() {
     assert.match(retry.unavailable[0].until, /exact-job cleanup/u);
     assert.equal(retry.unavailable[0].diagnostic.confirmingProbe, null, 'ordinary healthy SSH cannot erase unknown cleanup');
   });
-  test('cleanup timeout settles owned TERM-ignoring SSH and inherited pipes without claiming remote cleanup [C7,H16]', t => {
-    const box = transport(t, 'cleanup'), result = run(box), recorded = JSON.parse(readFileSync(box.record, 'utf8'));
+  test('cleanup timeout settles owned TERM-ignoring SSH and inherited pipes without claiming remote cleanup [C7,H16]', async t => {
+    const box = transport(t, 'cleanup'), result = await run(box), recorded = JSON.parse(readFileSync(box.record, 'utf8'));
     assert.equal(result.code, 'RUNNER_CLEANUP_TIMEOUT');
     assert.equal(result.diagnostic.request, recorded.job);
     assert.deepEqual(result.diagnostic.recovery, recorded.recovery);
@@ -215,8 +216,9 @@ export function registerRunnerJobLostTests() {
     assert.equal(waited[0].command, process.execPath);
     assert.match(result.message, new RegExp(`pid=${waited[0].pid} command=`));
   });
-  for (const mode of ['running', 'unknown', 'healthy']) test(`a ${mode} job observation never invents remote owner death [C7,H16]`, t => {
-    const box = transport(t, mode), result = run(box, true);
+  test('independent job observations never invent remote owner death [C7,H16]', { concurrency: 3 }, async t => {
+    await Promise.all(['running', 'unknown', 'healthy'].map(mode => t.test(`a ${mode} job observation never invents remote owner death [C7,H16]`, async child => {
+    const box = transport(child, mode), result = await run(box, true);
     assert.notEqual(result.code, 'RUNNER_JOB_LOST');
     assert.notEqual(result.unexpectedSuccess, true);
     let probes = '';
@@ -228,5 +230,6 @@ export function registerRunnerJobLostTests() {
       assert.ok(replies.some(reply => reply.state === (mode === 'running' ? 'running' : 'unknown')));
       assert.ok(replies.every(reply => reply.cleanup === false), 'status observations never certify cleanup');
     }
+    })));
   });
 }
