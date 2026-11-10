@@ -381,9 +381,6 @@
     "raw-board": 6,
     "model": 1
   },
-  "packages/state/tests/registry-merge.test.js": {
-    "tempdir": 2
-  },
   "packages/state/tests/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
@@ -3936,5 +3933,8 @@
   },
   "packages/store/tests/merge-read-ports.test.js": {
     "raw-board": 2
+  },
+  "packages/runners/tests/registry-merge.test.js": {
+    "tempdir": 2
   }
 }
