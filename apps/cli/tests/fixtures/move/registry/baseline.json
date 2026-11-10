@@ -6481,7 +6481,7 @@
     }
   ],
   "nextSteps": {
-    "CELLS_UNPLACED": "add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write",
+    "CELLS_UNPLACED": "add a name rule for the reported paths in packages/codemap/src/io/cells/plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write",
     "CELLS_PLAN_CELL": "use a cell name listed in packages/codemap/data/plan/cells.json, as in node packages/codemap/src/io/cells/scripts/plan.js --moved kernel",
     "CELLS_PLAN_SHARD": "regenerate the plan and its shards with node packages/codemap/src/io/cells/scripts/plan.js --write",
     "CELLS_PLAN_FILE": "run pullboard list core --all to see which move items exist, fix the reported problem, then rerun node packages/codemap/src/io/cells/scripts/plan.js --file, which skips filed items",

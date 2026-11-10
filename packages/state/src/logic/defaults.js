@@ -45,7 +45,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAN_UNAVAILABLE: 'connect to a local IPv4 network, then run pullboard view --lan; ordinary pullboard view remains available on this machine',
   CELL_BASELINE: 'run node packages/codemap/src/io/cell/scripts/lints.js --report; restore the complete accepted packages/codemap/data/baselines/lints descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node packages/codemap/src/io/cell/scripts/lints.js --check; initialize with --init only when no accepted baseline exists after explicit review',
   CELL_LINT_ROSE: 'run node packages/codemap/src/io/cell/scripts/lints.js --report and node packages/codemap/src/io/cell/scripts/lints.js --check; repair every reported debt increase, then use node packages/codemap/src/io/cell/scripts/lints.js --update only to record falling allowances; never regenerate an accepted baseline to raise debt',
-  CELLS_UNPLACED: 'add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write',
+  CELLS_UNPLACED: 'add a name rule for the reported paths in packages/codemap/src/io/cells/plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write',
   CELLS_MOVE: 'restore the clean recorded checkout or resolve the unsupported input, then rerun node packages/codemap/src/io/cells/move.js',
   CELLS_PLAN_CELL: 'use a cell name listed in packages/codemap/data/plan/cells.json, as in node packages/codemap/src/io/cells/scripts/plan.js --moved kernel',
   CELLS_PLAN_SHARD: 'regenerate the plan and its shards with node packages/codemap/src/io/cells/scripts/plan.js --write',

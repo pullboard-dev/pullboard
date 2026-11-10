@@ -199,7 +199,7 @@ export function placePaths({ paths, edges, seed, readers = new Map() }) {
   }
   pending = pending.filter(file => !placed.has(file));
   if (pending.length) {
-    throw new Refused('CELLS_UNPLACED', `no seed, name rule or import places ${pending.join(', ')}; add a name rule in src/cells-plan.js and regenerate with node packages/codemap/src/io/cells/scripts/plan.js --write`);
+    throw new Refused('CELLS_UNPLACED', `no seed, name rule or import places ${pending.join(', ')}; add a name rule in packages/codemap/src/io/cells/plan.js and regenerate with node packages/codemap/src/io/cells/scripts/plan.js --write`);
   }
   for (const [file, cell] of Object.entries(seed.tests ?? {})) {
     if (paths.includes(file) || !edges.has(file)) continue;

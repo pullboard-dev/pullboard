@@ -344,7 +344,7 @@ export function lifecycleMarkdown(machine = MACHINE, { compact = false } = {}) {
   return [
     '# The item lifecycle',
     '',
-    'Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node docs/tools/update-docs.js` to refresh all generated documents.',
+    'Generated from packages/state/src/io/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node docs/tools/update-docs.js` to refresh all generated documents.',
     '',
     `An item starts ${machine.initial}. Its final states, ${finals.map((state) => state.id).join(' and ')}, cannot be left. Every move into a guarded state passes the same guards, whatever command gets there. The board file refuses any move not declared here.`,
     '',
@@ -407,5 +407,5 @@ export function lifecycleHelp(machine = MACHINE) {
     const plain = [...new Set(moves.filter((move) => !move.when || counts.get(move.verb) > 1).map((move) => move.verb))];
     return `  ${role.padEnd(13)} ${[...plain, ...when].join(', ')}`;
   });
-  return ['Lifecycle, read from src/machine.js', '  pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram', ...lines].join('\n');
+  return ['Lifecycle, read from packages/state/src/io/machine.js', '  pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram', ...lines].join('\n');
 }
