@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { computePlan } from '../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../packages/codemap/index.js';
 import { retainEnginePaths } from '../../../../packages/codemap/index.js';
+import { engineStayTransition } from '../../../../packages/codemap/index.js';
 import { requireSubmitCells } from '../../index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
@@ -20,6 +22,26 @@ import { importsIn } from '../../../../packages/gate/index.js';
 import { commonJsIn } from '../../../../packages/gate/index.js';
 import { withImportParseCache } from '../../../../packages/gate/index.js';
 import { foreignNodeOptions } from '../../../../packages/gate/index.js';
+
+test('canonical metadata and move constants retain exact source authority [C7,CD64]', t => {
+  const accepted = fixture(t), candidate = fixture(t);
+  for (const file of ['packages/state/src/io/engine/metadata.js', 'packages/state/src/logic/move/constants.js']) {
+    const row = [file, 'packages/state/relocated/' + file.split('/').at(-1), 'fixture'];
+    const before = { cells: [{ name: 'state', root: 'packages/state', paths: [row] }], engineStays: [] };
+    const after = { cells: [{ name: 'state', root: 'packages/state', paths: [] }],
+      stays: [{ path: file, reason: 'canonical engine identity retained in src during package moves' }],
+      engineStays: [{ cell: 'state', row }] };
+    const check = () => engineStayTransition({ beforeRoot: accepted.root, afterRoot: candidate.root, before, after, afterMap: new Map() });
+    accepted.put(file, 'export const value = 1;\n');
+    candidate.put(file, 'export const value = 1;\n');
+    assert.deepEqual(check().problems, [], `${file} retains the accepted source`);
+    candidate.put(file, 'export const value = 2;\n');
+    assert.ok(check().problems.includes(`unproven canonical engine stay: ${file}`), 'changed candidate bytes are refused');
+    rmSync(join(candidate.root, file));
+    symlinkSync(join(accepted.root, file), join(candidate.root, file));
+    assert.ok(check().problems.includes(`unproven canonical engine stay: ${file}`), 'a symlink cannot attest source authority');
+  }
+});
 
 /** Pin actual accepted source and complete lint authority before a candidate requests engine stays. */
 function accepted(t, cellName = 'state') {
