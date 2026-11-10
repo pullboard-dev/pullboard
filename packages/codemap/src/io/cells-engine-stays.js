@@ -6,8 +6,8 @@ import { engineBindings } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 
-const SUPPORT = new Set(['src/engine-next.js', 'packages/state/src/io/engine/numbers.js']);
-const HISTORY = /^packages\/state\/data\/history\/(?:legacy|[1-9][0-9]*)\.json$/u;
+const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js', 'packages/state/src/io/engine/numbers.js']);
+const HISTORY = /^(?:src\/move-history|packages\/state\/data\/history)\/(?:legacy|[1-9][0-9]*)\.json$/u;
 const REASON = 'canonical engine identity retained in src during package moves';
 
 /** Read only a regular canonical root leaf; symlinks cannot supply accepted source authority. */
