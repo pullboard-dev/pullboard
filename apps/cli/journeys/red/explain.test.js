@@ -3,10 +3,12 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { receiptBody } from '../../../../packages/gate/index.js';
-import { freshBoard } from '../../tests/fixtures/blueprint.js';
+import { emptyRepo } from '../../tests/fixtures/blueprint.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fixtureCommittedGraph } from '../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { explainObservations } from '../../src/io/commands/red.js';
 
 test('red explain finds only closure commits between recorded green and red [C7]', () => {
@@ -32,7 +34,9 @@ test('red explain finds only closure commits between recorded green and red [C7]
 });
 
 test('red explain reads receipt history through the real CLI [C7]', () => {
-  const box = freshBoard();
+  const box = emptyRepo();
+  box.git = (...args) => runFixtureGit(args, { cwd: box.repo, env: box.env });
+  fixtureProjectPolicy(box.repo);
   const file = 'test/sample.test.js', source = 'src/logic.js';
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
