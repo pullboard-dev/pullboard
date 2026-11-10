@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/io/machine.js */
 /** Merged receipts only record item work on the primary trunk, unless noted [R3,R1]. */
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
@@ -24,19 +24,19 @@ import {
   test,
 } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import * as store from '../../../../store/index.js';
-import { openBoard } from '../../../../../apps/lib/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../../../src/io/engine.js';
-import { exportBoard } from '../../../../store/index.js';
-import { joinFixtureSeat } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { unpackRelease } from '../../../../../apps/cli/tests/fixtures/release/archive.js';
+} from '../../../../packages/state/src/io/engine.js';
+import { exportBoard } from '../../../../packages/store/index.js';
+import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { unpackRelease } from '../../tests/fixtures/release/archive.js';
 
 const TEMP_DIRS = [];
 const HOUR = 3_600_000;
-const BIN = resolve(import.meta.dirname, '../../../../../apps/cli/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
 /** Remove fixture repositories and their real SQLite boards after tests finish. */
 function cleanup() {

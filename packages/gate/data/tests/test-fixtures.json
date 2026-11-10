@@ -311,18 +311,18 @@
   "packages/store/tests/corrections.test.js": {
     "raw-board": 3
   },
-  "packages/state/tests/logic/engines/check-engine.test.js": {
+  "apps/cli/journeys/engine/check.test.js": {
     "raw-board": 4
   },
   "packages/store/tests/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },
-  "packages/state/tests/io/engine/replay.test.js": {
+  "apps/cli/journeys/engine/replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
-  "packages/state/tests/logic/engines/grant-engine/exchange.test.js": {
+  "apps/cli/journeys/engine/exchange.test.js": {
     "raw-board": 29,
     "tempdir": 2,
     "hand-policy": 1,
@@ -342,26 +342,26 @@
     "tempdir": 1,
     "raw-board": 2
   },
-  "packages/state/tests/io/engine/merged.test.js": {
+  "apps/cli/journeys/engine/merged.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 2
   },
-  "packages/state/tests/logic/relay/activation.test.js": {
+  "apps/cli/journeys/relay/activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
   },
-  "packages/state/tests/logic/engine/move/reopen.test.js": {
+  "apps/cli/journeys/engine/reopen.test.js": {
     "raw-board": 22,
     "tempdir": 4
   },
-  "packages/state/tests/logic/engines/review-engine.test.js": {
+  "apps/cli/journeys/engine/review.test.js": {
     "raw-board": 6
   },
-  "packages/state/tests/logic/engines/queue-engine.test.js": {
+  "apps/cli/journeys/engine/queue.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/logic/engines/settings-engine.test.js": {
+  "apps/cli/journeys/engine/settings.test.js": {
     "env-spread": 3,
     "tempdir": 2,
     "hand-policy": 2,
@@ -371,12 +371,12 @@
   "packages/state/tests/logic/engines/core-engine.test.js": {
     "repo-read": 1
   },
-  "packages/state/tests/logic/engines/grant-engine/team.test.js": {
+  "apps/cli/journeys/engine/team.test.js": {
     "raw-board": 11,
     "tempdir": 2,
     "model": 1
   },
-  "packages/state/tests/logic/engines/grant-engine/grants.test.js": {
+  "apps/cli/journeys/engine/grants.test.js": {
     "raw-board": 16,
     "model": 3
   },

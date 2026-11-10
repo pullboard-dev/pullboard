@@ -17,11 +17,11 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { installRegistrationProbeStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { installRegistrationProbeStandIn } from '../../tests/fixtures/runner/ssh.js';
 
-const BIN = resolve(import.meta.dirname, '../../../../../apps/cli/pullboard.js');
-const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../../../../resources/index.js');
+const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
 
 /** Run settings in an isolated machine home, returning its structured CLI result. */
 function settings(home, ...args) {
@@ -99,17 +99,17 @@ test('[Q4] the machine pool ignores board and HOME overrides unless explicitly s
 });
 
 test('the settings API reports every setting with its scope, value, default and source and never a secret [O5,O6]', async () => {
-  const { proveSettingsApi } = await import('../../fixtures/api.js');
+  const { proveSettingsApi } = await import('../../../../packages/state/tests/fixtures/api.js');
   await proveSettingsApi();
 });
 
 /** Board-owned settings keep native move evidence, independent of machine-wide admission settings [R1,R2,H16]. */
 test('a line setting change is a recorded move with its reason and its range [R1,R2,H16]', async t => {
-  const { createE2eHelpers } = await import('../../../../../apps/cli/tests/fixtures/e2e.js');
-  const store = await import('../../../../store/index.js');
-  const nativeBoard = await import('../../../../../apps/lib/index.js');
-  const { exportBoard, importBoard } = await import('../../../../store/index.js');
-  const { prepareEngineMove, applyRelayMove, appliedSequence } = await import('../../../src/io/engine.js');
+  const { createE2eHelpers } = await import('../../tests/fixtures/e2e.js');
+  const store = await import('../../../../packages/store/index.js');
+  const nativeBoard = await import('../../../lib/index.js');
+  const { exportBoard, importBoard } = await import('../../../../packages/store/index.js');
+  const { prepareEngineMove, applyRelayMove, appliedSequence } = await import('../../../../packages/state/src/io/engine.js');
   const fixtures = createE2eHelpers();
   let board, replica;
   t.after(() => { if (replica) store.closeBoard(replica); if (board) store.closeBoard(board); fixtures.cleanup(); });

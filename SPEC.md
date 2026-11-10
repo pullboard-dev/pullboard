@@ -103,12 +103,12 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - V33 [draft, must] Every cell holds only `index.js`, an optional `light.js` and `browser.js`, `src/logic/`, `src/io/`, `tests/`, an optional `data/`, and, in an app, an optional command file named after its command. (Corey approved 9 Nov.) | gate: review
 
 ## O · Options
-- O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: packages/state/tests/logic/engines/settings-engine.test.js | serves: O5
+- O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: apps/cli/journeys/engine/settings.test.js | serves: O5
 - O2 [approved, aim] verify.family: off, prefer or require a verifier from a model family that built none of it. | gate: apps/cli/journeys/resume/board.test.js | serves: V1
 - O3 [approved, aim] Agents declare their model family on joining; submissions and verdicts record it. | gate: apps/cli/journeys/resume/board.test.js | serves: O2
 - O4 [retired] Merged into V13.
-- O5 [approved, aim] Machine settings in ~/.pullboard hold what belongs to the machine: gate concurrency, run's tier commands, the view's port. | gate: packages/state/tests/logic/engines/settings-engine.test.js
-- O6 [approved, aim] Each setting has one home: board rules in the repo, machine capacity and tools in ~/.pullboard; flags override. | gate: packages/state/tests/logic/engines/settings-engine.test.js | serves: O5
+- O5 [approved, aim] Machine settings in ~/.pullboard hold what belongs to the machine: gate concurrency, run's tier commands, the view's port. | gate: apps/cli/journeys/engine/settings.test.js
+- O6 [approved, aim] Each setting has one home: board rules in the repo, machine capacity and tools in ~/.pullboard; flags override. | gate: apps/cli/journeys/engine/settings.test.js | serves: O5
 - O7 [retired] Merged into Q4.
 - O8 [approved, must] Every agent declares the model that runs it; names show it, as web-1 (Claude) or claude-web-1 by option. | gate: apps/cli/journeys/resume/board.test.js | serves: O3
 
@@ -164,7 +164,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: apps/cli/journeys/resume/board.test.js
 - R2 [approved, must] Every move lands in an append-only event log. | gate: apps/cli/journeys/resume/board.test.js
-- R3 [draft, must] merged records only a trunk commit that contains the item's commit or carries its patch; anything else needs a note. | gate: packages/state/tests/io/engine/merged.test.js | serves: R1
+- R3 [draft, must] merged records only a trunk commit that contains the item's commit or carries its patch; anything else needs a note. | gate: apps/cli/journeys/engine/merged.test.js | serves: R1
 - R4 [draft, must] Pullboard supports the current release and the one before it. Every release ships a migration from the release before, so pullboard upgrade walks a board of any older version up the chain to a verified, fingerprinted checkpoint; a board outside the window is refused with that one upgrade step named. | gate: test/upgrade-chain.test.js
 
 ## I · Init

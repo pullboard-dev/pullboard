@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { ENGINE_VERSION } from '../../../../src/io/machine.js';
-import { relayClientFixture } from '../../../../../../apps/cli/tests/fixtures/relay/client.js';
+import { ENGINE_VERSION } from '../../../../../packages/state/src/io/machine.js';
+import { relayClientFixture } from '../../../tests/fixtures/relay/client.js';
 
 const PRODUCTION_POLL_MS = 200;
 const WINDOW_MS = 2_000;

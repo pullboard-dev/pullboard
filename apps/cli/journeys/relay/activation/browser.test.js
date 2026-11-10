@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { ENGINE_VERSION } from '../../../../src/io/machine.js';
-import { legacyRelayClientFixture as relayClientFixture } from '../../../../../../apps/cli/tests/fixtures/relay/client.js';
+import { ENGINE_VERSION } from '../../../../../packages/state/src/io/machine.js';
+import { legacyRelayClientFixture as relayClientFixture } from '../../../tests/fixtures/relay/client.js';
 import {
   findChromeExecutable,
   relayWorkBudgetMs,
   startChrome,
-} from '../../../../../../apps/cli/tests/fixtures/relay/browser.js';
+} from '../../../tests/fixtures/relay/browser.js';
 
 /** Assert the fixed CDP bound reports its command context and relay-request state. */
 async function stalledCommand(chrome, label, pending) {

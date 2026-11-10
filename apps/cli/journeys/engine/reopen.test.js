@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/store/src/io/board.js src/claims.js packages/state/src/io/engine.js src/exchange.js packages/state/src/io/machine.js */
 /** Real Git, SQLite and ordered-engine coverage for coordinator criterion reopen [V2,V6,H16]. */
-import { agentGrantMinimum } from '../../../../index.js';
+import { agentGrantMinimum } from '../../../../packages/state/index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
@@ -17,26 +17,26 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../../../store/index.js';
-import { openBoard } from '../../../../../../apps/lib/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
 import {
   appliedSequence,
   applyRelayMove,
   engineReceipt,
   prepareEngineMove,
-} from '../../../../src/io/engine.js';
+} from '../../../../packages/state/src/io/engine.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../../../store/index.js';
-import { ENGINE_VERSION } from '../../../../src/io/machine.js';
-import { QUOTED_LANDING_FAILURE_ENGINE } from '../../../../src/logic/engines/quoted-landing-failure-engine.js';
-import { AGENT_GRANT_ENGINE } from '../../../../src/logic/engines/agent-grant-engine.js';
-import { createE2eHelpers } from '../../../../../../apps/cli/tests/fixtures/e2e.js';
-import { runCliInProcess } from '../../../../../../apps/cli/tests/fixtures/process.js';
-import { safeFixtureDiagnostic } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { correctedNoVerdictReopen } from '../../../../../items/index.js';
-import { unpackRelease } from '../../../../../../apps/cli/tests/fixtures/release/archive.js';
+} from '../../../../packages/store/index.js';
+import { ENGINE_VERSION } from '../../../../packages/state/src/io/machine.js';
+import { QUOTED_LANDING_FAILURE_ENGINE } from '../../../../packages/state/src/logic/engines/quoted-landing-failure-engine.js';
+import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/agent-grant-engine.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { safeFixtureDiagnostic } from '../../tests/fixtures/child.js';
+import { correctedNoVerdictReopen } from '../../../../packages/items/index.js';
+import { unpackRelease } from '../../tests/fixtures/release/archive.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

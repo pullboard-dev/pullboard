@@ -5,23 +5,23 @@ import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../../../store/index.js';
+import * as store from '../../../../packages/store/index.js';
 import {
   openBoard,
   openBoardForRead,
-} from '../../../../../apps/lib/index.js';
-import { agentGrantMinimum } from '../../../src/logic/grant.js';
-import { AGENT_GRANT_ENGINE } from '../../../src/logic/engines/agent-grant-engine.js';
-import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../src/logic/engines/rigor-instructions-engine.js';
-import { appliedSequence } from '../../../src/io/engine.js';
-import { applyEngineMove } from '../../../src/io/engine.js';
-import { prepareEngineMove } from '../../../src/io/engine.js';
-import { startRelayEpoch } from '../../../src/io/engine.js';
-import { exportBoard } from '../../../../store/index.js';
-import { importBoard } from '../../../../store/index.js';
-import { restoreRelaySnapshot } from '../../../../store/index.js';
-import { recordSchemaStamp } from '../../../../store/index.js';
-import { SCHEMA_DIGEST } from '../../../../store/index.js';
+} from '../../../lib/index.js';
+import { agentGrantMinimum } from '../../../../packages/state/src/logic/grant.js';
+import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/agent-grant-engine.js';
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../../packages/state/src/logic/engines/rigor-instructions-engine.js';
+import { appliedSequence } from '../../../../packages/state/src/io/engine.js';
+import { applyEngineMove } from '../../../../packages/state/src/io/engine.js';
+import { prepareEngineMove } from '../../../../packages/state/src/io/engine.js';
+import { startRelayEpoch } from '../../../../packages/state/src/io/engine.js';
+import { exportBoard } from '../../../../packages/store/index.js';
+import { importBoard } from '../../../../packages/store/index.js';
+import { restoreRelaySnapshot } from '../../../../packages/store/index.js';
+import { recordSchemaStamp } from '../../../../packages/store/index.js';
+import { SCHEMA_DIGEST } from '../../../../packages/store/index.js';
 
 const AT = '2026-10-01T12:00:00.000Z';
 const LEGACY = AGENT_GRANT_ENGINE - 1;

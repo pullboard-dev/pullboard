@@ -10,25 +10,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../../../../../store/index.js';
-import { openBoard } from '../../../../../../apps/lib/index.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
+import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../../../store/index.js';
+} from '../../../../packages/store/index.js';
 import {
   applyEngineMove,
   appliedSequence,
   engineReceipt,
   prepareEngineMove,
-} from '../../../../src/io/engine.js';
+} from '../../../../packages/state/src/io/engine.js';
 import {
   ENGINE_VERSION,
   VERDICT_REVIEW_ENGINE,
-} from '../../../../src/io/machine.js';
-import { unpackRelease } from '../../../../../../apps/cli/tests/fixtures/release/archive.js';
-import { AGENT_GRANT_ENGINE } from '../../../../src/logic/engines/agent-grant-engine.js';
+} from '../../../../packages/state/src/io/machine.js';
+import { unpackRelease } from '../../tests/fixtures/release/archive.js';
+import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/agent-grant-engine.js';
 
 const BASE = 'a'.repeat(40);
 const COMMIT = 'b'.repeat(40);

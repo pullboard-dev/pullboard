@@ -1,9 +1,9 @@
-import { AGENT_GRANT_ENGINE } from '../../../../src/logic/engines/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/agent-grant-engine.js';
 /**
  * The v1 board exchange keeps each SQLite row, including lifecycle history and sequence counters.
  */
-import { repositoryBoardFile } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { repositoryBoardFile } from '../../tests/fixtures/board/submit.js';
+import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
@@ -14,24 +14,24 @@ import {
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../tests/fixtures/child.js';
 import { tmpdir } from 'node:os';
 import {
   join,
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../../store/index.js';
-import { openBoard } from '../../../../../../apps/lib/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
 import {
   exportBoard,
   importBoard,
   isInitialBoard,
-} from '../../../../../store/index.js';
-import { SIGNED_EVENT_LOG_VERSION } from '../../../../../store/index.js';
+} from '../../../../packages/store/index.js';
+import { SIGNED_EVENT_LOG_VERSION } from '../../../../packages/store/index.js';
 
 const SHA = 'a'.repeat(40);
-const BIN = resolve(import.meta.dirname, '../../../../../../apps/cli/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /** The deterministic frozen criterion used by the fixture. */
 const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
 

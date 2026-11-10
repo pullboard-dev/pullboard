@@ -10,21 +10,21 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../../../store/index.js';
-import { openBoard } from '../../../../../../apps/lib/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../../../store/index.js';
+} from '../../../../packages/store/index.js';
 import {
   appliedSequence,
   applyEngineMove,
   applyRelayMove,
   prepareEngineMove,
-} from '../../../../src/io/engine.js';
-import { createE2eHelpers } from '../../../../../../apps/cli/tests/fixtures/e2e.js';
-import { unpackRelease } from '../../../../../../apps/cli/tests/fixtures/release/archive.js';
-import { submitFixture as submitBoardStateFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+} from '../../../../packages/state/src/io/engine.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { unpackRelease } from '../../tests/fixtures/release/archive.js';
+import { submitFixture as submitBoardStateFixture } from '../../tests/fixtures/board/submit.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -94,7 +94,7 @@ test('clause 1: an agent grant narrows at claim and expires identically on indep
 });
 
 test('clause 1: an agent grant narrows at claim without changing old receipts or permitting an old-engine bypass [E21,H16]', async t => {
-  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../../src/logic/engines/agent-grant-engine.js');
+  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../../packages/state/src/logic/engines/agent-grant-engine.js');
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-01T00:00:00.000Z') };
   const boards = ['legacy-authority.sqlite', 'legacy-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock));
@@ -346,7 +346,7 @@ test('clause 1: an agent grant narrows at claim but any joined seat can append a
 
 /** The activation boundary is an ordered engine prefix, not a client opening the database. */
 test('clause 1: an agent grant narrows at claim after the recorded engine high-water mark [E21,H16]', async t => {
-  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../../src/logic/engines/agent-grant-engine.js');
+  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../../packages/state/src/logic/engines/agent-grant-engine.js');
   const box = helpers.project();
   const directory = join(box.dir, 'actual-pre-grant-writer');
   mkdirSync(directory);

@@ -5,11 +5,11 @@ import {
   readEngineLeaves,
 } from './numbers.js';
 
-export { AUTO_ESCALATE_ENGINE } from '../../../light.js';
-export { ROW_DRAFT_ENGINE } from '../../../light.js';
-export { STRONG_REJECTION_NOTICE_ENGINE } from '../../../light.js';
-export { SUBMITTED_CONFLICT_ENGINE } from '../../../light.js';
-export { WITHDRAW_MILESTONE_ENGINE } from '../../../light.js';
+export { AUTO_ESCALATE_ENGINE } from '../../logic/engines/auto-escalate-engine.js';
+export { ROW_DRAFT_ENGINE } from '../../logic/engines/row-draft-engine.js';
+export { STRONG_REJECTION_NOTICE_ENGINE } from '../../logic/engines/strong-rejection-notice-engine.js';
+export { SUBMITTED_CONFLICT_ENGINE } from '../../logic/engines/submitted-conflict-engine.js';
+export { WITHDRAW_MILESTONE_ENGINE } from '../../logic/engines/withdraw-milestone-engine.js';
 
 /**
  * Find every feature engine: each packages/state/src/logic/engines/*-engine.js leaf declares exactly one `export const NAME_ENGINE = n;` line.
@@ -28,8 +28,8 @@ export function discoverEngines(directory = new URL('../../logic/engines/', impo
   return Object.fromEntries(entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
 }
 
-export { REOPEN_FIRST_REFUSAL_ENGINE } from '../../../light.js';
-export { QUOTED_LANDING_FAILURE_ENGINE } from '../../../light.js';
+export { REOPEN_FIRST_REFUSAL_ENGINE } from '../../logic/engines/reopen-first-refusal-engine.js';
+export { QUOTED_LANDING_FAILURE_ENGINE } from '../../logic/engines/quoted-landing-failure-engine.js';
 
 /** Every feature engine by name, discovered from the *-engine.js files in the state cell's engines folder. */
 export const ENGINE_REGISTRY = discoverEngines();
@@ -49,5 +49,5 @@ export const CAUSE_ENGINE = 30;
 /** First released engine binding the checked composition, review trunk and paths [E8,H16]. */
 export const VERDICT_REVIEW_ENGINE = 33;
 
-export { MILESTONE_RANK_ENGINE } from '../../../light.js';
+export { MILESTONE_RANK_ENGINE } from '../../logic/engines/milestone-rank-engine.js';
 
