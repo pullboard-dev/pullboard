@@ -2172,6 +2172,7 @@
     "spec->kernel",
     "gate->spec",
     "(root)->doctrine",
+    "(root)->codemap",
     "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine",

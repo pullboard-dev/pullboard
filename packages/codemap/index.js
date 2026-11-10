@@ -36,3 +36,5 @@ export { importParseScopes } from './src/shell/module-import-cache-state.js';
 export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/core/layout.js';
 export { layoutCheck, layoutReport, layoutWrite } from './src/shell/layout-check.js';
 export { cachedMainFact, mainFactDigest, mainFactToolIdentity } from './src/shell/main-facts-cache.js';
+export { narrowedTo, readText, TEST_FILE, walk } from './src/shell/check-walk.js';
+export { assumptionCounts, assumptionProblems, assumptionsIn, writeAssumptionBaseline } from './src/shell/no-runtime-assumptions.js';
