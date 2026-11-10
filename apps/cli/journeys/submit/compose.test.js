@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -87,7 +88,8 @@ test('native view submit validates its core companion placement on the composed 
   const source = box.git(view, 'rev-parse', 'HEAD');
   rmSync(box.marker, { force: true });
   const refused = box.run(view, 'submit', String(id), '--wait', '--no-next', '--json');
-  assert.equal(refused.code, 1, refused.out + refused.err);
+  const trials = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+  assert.equal(refused.code, 1, refused.out + refused.err + (existsSync(trials) ? readFileSync(trials, 'utf8') : ''));
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
   assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
