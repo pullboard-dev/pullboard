@@ -213,9 +213,6 @@
   },
   "leaves": [],
   "findings": {
-    "packages/gate/tests/cells-port-quarantine-landing.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/gate/tests/cells-port-quarantine-lower.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/gate/tests/cells-temporary-edges.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-wildcard-forwarders.test.js": "imports bin/cells-plan-cuts.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/check-baseline-delivery.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/check.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
