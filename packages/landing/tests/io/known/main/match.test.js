@@ -158,9 +158,9 @@ function jobBlock(job, fn = 'assertLinked') {
 
 test('failures carry a stable signature that survives different runner job directories while the raw one moves [C7]', () => {
   const run = (job, fn) => retainedRun([jobBlock(job, fn)], `/home/vanilla/.pullboard-runner/jobs/${job}/checkout`)[0];
-  const first = run('11111111-aaaa-4bbb-8ccc-000000000001');
-  const second = run('22222222-aaaa-4bbb-8ccc-000000000002');
-  const other = run('22222222-aaaa-4bbb-8ccc-000000000002', 'assertSeated');
+  const first = run('r7k2m9');
+  const second = run('x3p8q1');
+  const other = run('x3p8q1', 'assertSeated');
   assert.notEqual(first.signature, second.signature, 'the raw signature changes between identical runs');
   assert.equal(first.stable, 'AssertionError:ERR_ASSERTION:strictEqual @ apps/cli/tests/fixtures/relay/client.js#assertLinked');
   assert.equal(first.stable, second.stable);
