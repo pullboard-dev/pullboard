@@ -2,7 +2,7 @@
 /** Review routing never offers an item to a seat that shares a parent session with its author [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { board as store } from '../../../apps/lib/index.js';
+import { board as store } from '../index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 

@@ -1,8 +1,8 @@
 /** A busy board or locked slot database is waited out, never counted toward GATE_INFRA_EXHAUSTED [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { submitUntilSettled } from '../../../apps/lib/index.js';
-import { Refused } from '../index.js';
+import { submitUntilSettled } from '../index.js';
+import { Refused } from '../../../packages/kernel/index.js';
 
 const settle = (run, extra = {}) => {
   const waits = [];
