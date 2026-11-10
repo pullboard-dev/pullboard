@@ -137,7 +137,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
   function readJournal() {
     if (existsSync(overflowPath)) { markUncertain('child spawn journal overflow or write failure'); }
     let total = 0;
-    const files = readdirSync(journal.journalDirectory).filter(name => /^children-\d+(?:-\d+)?\.jsonl$/u.test(name)).sort();
+    const files = readdirSync(journal.journalDirectory).filter(name => /^children-\d+\.jsonl$/u.test(name)).sort();
     // A full suite creates one journal per Node process; align this count with
     // the event and identity bounds while retaining the byte bounds below.
     if (files.length > 100_000) { markUncertain('child spawn journal file limit exceeded'); return; }
