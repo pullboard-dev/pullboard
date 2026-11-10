@@ -8,11 +8,9 @@
  * stored, and nothing in the correction record is taken from the move beyond the reason text, so
  * a relay or API caller cannot mark a reject as the bar's.
  */
-import { ENGINE_VERSION } from './engine-metadata.js';
-import { Refused } from '../packages/kernel/index.js';
-
-/** The engine whose edits carry a reason and refuse an unexplained bar correction; older replays never did. */
-export const BAR_ENGINE = 19;
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { Refused } from '../../../kernel/index.js';
+import { BAR_ENGINE } from '../../../state/core.js';
 
 /**
  * True when a sealed edit carries this engine's meaning, a reason; older engines refuse it before replay.

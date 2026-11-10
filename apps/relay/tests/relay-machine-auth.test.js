@@ -9,10 +9,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { createRelayAuth } from '../../../apps/relay/index.js';
-import { createGitHubClient } from '../../../apps/relay/index.js';
+import { createRelayAuth } from '../index.js';
+import { createGitHubClient } from '../index.js';
 import { githubFixture } from '../../../test/relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../index.js';
+import { VERIFIER_STANDING_ENGINE } from '../../../packages/state/index.js';
 
 /** Create an actual signed-in account against the loopback GitHub protocol fixture. */
 async function signedPerson(box, auth) {

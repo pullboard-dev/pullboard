@@ -215,7 +215,7 @@ ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
 ${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(process.env.HOME, '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
-  const suffix = `/runtime/${tooling.sha256}/src/runner-worker.js`;
+  const suffix = `/runtime/${tooling.sha256}/${tooling.entry ?? 'src/runner-worker.js'}`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;
   return { command: `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}${extra}`,
     input: Buffer.from(`${Buffer.byteLength(payload)}\n${payload}`, 'ascii') };

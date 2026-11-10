@@ -1,5 +1,5 @@
 /** Board-scoped line controls use ordered moves; the existing settings command still owns machine controls. */
-import { lineSettings } from '../../../state/src/core/line-settings-read.js';
+import { lineSettings } from '../../../state/core.js';
 import { LINE_SETTING_DEFINITIONS } from '../../../queue/index.js';
 import { Refused } from '../../../kernel/core.js';
 

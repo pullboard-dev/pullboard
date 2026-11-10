@@ -33,3 +33,5 @@ export { cellExistsSync, cellLstatSync, cellReadFileSync, cellReaddirSync, cellS
 export { moveDeclarationFiles, runnerWorkerFiles } from './src/shell/cells-move-closure.js';
 export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/shell/module-imports.js';
 export { importParseScopes } from './src/shell/module-import-cache-state.js';
+export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/core/layout.js';
+export { layoutCheck, layoutReport, layoutWrite } from './src/shell/layout-check.js';

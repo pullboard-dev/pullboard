@@ -18,8 +18,10 @@ import { takeResource } from '../../resources/index.js';
 import { updateRunnerSettings } from '../../resources/index.js';
 import { recordRunnerFailure } from '../../resources/index.js';
 import { recoverUnavailableRunners } from '../../resources/index.js';
-import { HEAL_RETRY_MS } from '../../resources/src/shell/runner-leak-heal.js';
 import { stopLeakedRunnerJobs } from '../src/shell/runner-leak-stop.js';
+
+/** The heal retry wait the resources cell documents for a runner with no holders: 30 s. */
+const HEAL_RETRY_MS = 30_000;
 
 /** Build a private runner root with an ssh stand-in that runs the remote command in a local shell, and a machine database file. */
 function machine(t) {
@@ -81,7 +83,7 @@ test('a quarantined runner with a live holder keeps its leftover process and sta
   assert.ok(m.alive(pid), 'a runner with a holder is never touched');
   const held = m.db.prepare('SELECT * FROM runner_unavailable').get();
   assert.match(JSON.parse(held.failure).latestProbe.reason, new RegExp('live process ' + pid));
-  assert.ok(held.probe_after - Date.now() > HEAL_RETRY_MS, 'a held runner keeps the long wait');
+  assert.ok(held.probe_after - Date.now() > HEAL_RETRY_MS, 'a held runner keeps the long wait'); // budget: declared by the resources heal retry
 });
 
 test('a no-holder runner whose heal fails retries within 60 s, and an unreadable holder table is never zero [C7]', async t => {
@@ -91,7 +93,7 @@ test('a no-holder runner whose heal fails retries within 60 s, and an unreadable
   await recoverUnavailableRunners(m.db, [m.runner], { probe: async () => ({ healthy: false, step: 'cleanup' }),
     idleProbe: m.idleProbe, leakProbe: async () => ({ stopped: [] }), now });
   const held = m.db.prepare('SELECT * FROM runner_unavailable').get();
-  assert.ok(held.probe_after - now <= HEAL_RETRY_MS, 'a no-holder runner retries within a minute');
+  assert.ok(held.probe_after - now <= HEAL_RETRY_MS, 'a no-holder runner retries within a minute'); // budget: declared by the resources heal retry
   assert.ok(m.alive(pid));
   m.db.exec('DROP TABLE holder');
   m.db.prepare('UPDATE runner_unavailable SET probe_after=0,probe_until=0').run();

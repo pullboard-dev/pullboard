@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { takeResource } from '../../resources/index.js';
-import { recordRunnerFailure } from '../../resources/src/shell/resource-recovery.js';
+import { recordRunnerFailure } from '../../resources/index.js';
 import { runnerUnavailableRefusal } from '../src/shell/runner-dispatch.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 

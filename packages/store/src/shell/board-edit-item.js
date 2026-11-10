@@ -42,7 +42,7 @@ import { requireOwnLaneCheck } from "../../../verify/core.js";
 import { laneOf } from "../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { barCorrectionFields } from "../../../../src/bar-corrections.js";
+import { barCorrectionFields } from "../../../verify/index.js";
 import { moveItem } from "./board.js";
 import { setItem } from "./board.js";
 import { insertShout } from "./board-shout.js";

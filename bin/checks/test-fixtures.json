@@ -289,7 +289,7 @@
   "packages/store/tests/main-red-focus.test.js": {
     "raw-board": 6
   },
-  "packages/runners/tests/cleanup-diagnostics.test.js": {
+  "apps/runner/tests/cleanup-diagnostics.test.js": {
     "tempdir": 2
   },
   "packages/runners/tests/runner-controller-generation.test.js": {
@@ -2684,7 +2684,7 @@
     "tempdir": 1,
     "raw-board": 3
   },
-  "packages/state/tests/relay-machine-auth.test.js": {
+  "apps/relay/tests/relay-machine-auth.test.js": {
     "tempdir": 2
   },
   "apps/relay/tests/relay-machine-journal.test.js": {
@@ -2795,7 +2795,7 @@
   "test/relay-snapshot-size.test.js": {
     "raw-board": 5
   },
-  "packages/state/tests/relay-storage-quota.test.js": {
+  "apps/relay/tests/relay-storage-quota.test.js": {
     "tempdir": 1
   },
   "test/relay-study-delta.study.js": {
@@ -2821,7 +2821,7 @@
   "test/relay-upload-pause.test.js": {
     "raw-board": 1
   },
-  "packages/state/tests/relay-version.test.js": {
+  "apps/relay/tests/relay-version.test.js": {
     "tempdir": 1
   },
   "test/relay.test.js": {
@@ -2961,7 +2961,7 @@
     "hand-policy": 2,
     "raw-board": 7
   },
-  "packages/kernel/tests/review-route-skips-author-session.test.js": {
+  "apps/lib/tests/review-route-skips-author-session.test.js": {
     "raw-board": 2
   },
   "test/review-tier-default.test.js": {
