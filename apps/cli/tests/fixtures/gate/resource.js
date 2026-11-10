@@ -192,7 +192,7 @@ export async function wholeSuiteHolders(box, names) {
   try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
     const db = new DatabaseSync(join(box.dir, 'home', 'resources.sqlite'), { readOnly: true });
     let rows;
-    try { rows = { holders: db.prepare('SELECT * FROM holder').all(), waiters: db.prepare('SELECT * FROM waiter').all() }; } finally { db.close(); }
+    try { rows = { holders: db.prepare('SELECT pid,name FROM holder').all(), waiters: db.prepare('SELECT pid,name FROM waiter').all() }; } finally { db.close(); }
     throw new Error(`${error.message}: ${runs.map((run, index) => JSON.stringify({pid: run.child.pid, exit: run.child.exitCode, signal: run.child.signalCode, stdout: run.child.stdoutText, stderr: run.child.stderrText, probe: existsSync(join(box.dir, names[index], 'probe-env.json')) ? readFileSync(join(box.dir, names[index], 'probe-env.json'), 'utf8') : null})).join(' | ')}; rows ${JSON.stringify(rows)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
   }
   return runs;
