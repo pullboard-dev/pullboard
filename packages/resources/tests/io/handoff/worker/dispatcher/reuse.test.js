@@ -42,8 +42,7 @@ appendFileSync(${JSON.stringify(log)}, 'dispatcher ' + process.pid + '\\n');
 function fixture() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-dispatcher-reuse-')));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  for (const folder of ['apps/cli/src/io/gate', 'apps/lib/src/io/handoff', 'packages/resources/src/io/handoff/worker']) mkdirSync(join(tools, folder), { recursive: true });
   // The captured tools are ES modules, and the dispatcher is started through the real detached launcher the production code runs.
   writeFileSync(join(tools, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(tools, 'packages/resources/src/io/handoff/worker/detach.js'), readFileSync(new URL('../../../../../src/io/handoff/worker/detach.js', import.meta.url), 'utf8'));

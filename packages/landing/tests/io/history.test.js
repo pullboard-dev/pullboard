@@ -15,7 +15,7 @@ import { placeLandingHistory } from '../../index.js';
 
 test('a new packages/state/data/history file is placed as a stay [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));
-  mkdirSync(join(root, 'bin'));
+  for (const folder of ['packages/codemap/data/plan', 'packages/codemap/src/io/cells/scripts']) mkdirSync(join(root, folder), { recursive: true });
   writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
   writeFileSync(join(root, 'packages/codemap/src/io/cells/scripts/plan.js'), "import { appendFileSync } from 'node:fs'; appendFileSync('placed.log', JSON.stringify(process.argv.slice(2)) + '\\n');\n");
   for (const args of [['init', '-q'], ['add', '.'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base']]) {
@@ -28,7 +28,7 @@ test('a new packages/state/data/history file is placed as a stay [C7,D3]', () =>
 
 test('a generated history is staged before placement, so the placer sees a tracked file [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));
-  mkdirSync(join(root, 'bin'));
+  mkdirSync(join(root, 'packages/codemap/data/plan'), { recursive: true });
   mkdirSync(join(root, 'packages/state/data/history'), { recursive: true });
   writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
   for (const args of [['init', '-q'], ['add', '.'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base']]) {

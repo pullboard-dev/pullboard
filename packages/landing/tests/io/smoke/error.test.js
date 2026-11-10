@@ -14,7 +14,7 @@ import { temporaryRepository } from '../../../../../apps/cli/tests/fixtures/boar
 
 /** Commit a trivial CLI entry so the smoke tries to extract the tree. */
 function commitCli(repo) {
-  mkdirSync(join(repo, 'bin'));
+  mkdirSync(join(repo, 'apps/cli'), { recursive: true });
   writeFileSync(join(repo, 'apps/cli/pullboard.js'), '// entry\n');
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' };
   for (const args of [['add', '-A'], ['commit', '-q', '-m', 'feat: add cli']]) assert.equal(spawnSync('git', args, { cwd: repo, env }).status, 0);

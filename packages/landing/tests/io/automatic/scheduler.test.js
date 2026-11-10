@@ -17,7 +17,7 @@ function repo(t, { lander }) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-main-worker-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const main = join(root, 'main');
-  mkdirSync(join(main, 'bin'), { recursive: true });
+  mkdirSync(join(main, 'apps/cli/src/io/landing'), { recursive: true });
   if (lander) writeFileSync(join(main, 'apps/cli/src/io/landing/automatic.js'), '');
   else writeFileSync(join(main, 'README'), '');
   const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd, encoding: 'utf8' });

@@ -226,7 +226,7 @@ test('clause 1: land writes a landed batch through the same finish sequence; a r
 });
 
 test('clause 1: pullboard merged and pullboard land both call the land cell, and merged records only inside its record step [C7]', () => {
-  const source = name => readFileSync(new URL(`../../cli/src/shell/commands/${name}.js`, import.meta.url), 'utf8');
+  const source = name => readFileSync(new URL(`../../../cli/src/io/commands/${name}.js`, import.meta.url), 'utf8');
   const merged = source('merged');
   const land = source('land');
   assert.match(merged, /import \{ landMerged \} from '[./]+packages\/land\/index\.js';/);

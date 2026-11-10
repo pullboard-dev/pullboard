@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { withMainCheckout } from '../../../index.js';
@@ -42,6 +43,7 @@ async function landingUnderSlot(t, runnerExecution) {
   return await withMainCheckout(SOURCE, head, async root => {
     runFixtureGit(['checkout', '-B', 'main'], { cwd: root, env });
     const file = 'test/nested-shard-body.test.js';
+    mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), "import { test } from 'node:test';\nimport { appendFileSync } from 'node:fs';\n"
       + `test('nested shard body [C7]', () => appendFileSync(${JSON.stringify(marker)}, 'x'));\n`);
     runFixtureGit(['add', file], { cwd: root, env });
