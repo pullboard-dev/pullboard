@@ -453,7 +453,7 @@ globalThis.fetch = function tracedFetch(input, init) {
 
   /** Start a saved real relay link without exposing the pairing fragment. */
   async function link(name) {
-    const result = await cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', origin, ...(name === undefined ? [] : ['--name', name]));
+    const result = await cli('relay', 'on', '--url', origin, ...(name === undefined ? [] : ['--name', name]));
     assert.equal(result.code, 0, 'real device sign-in links the board');
     privateKeys.add(readKey().trim());
     return result;
@@ -479,7 +479,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     const snapshot = join(scratch, 'snapshot.json');
     writeFileSync(snapshot, JSON.stringify(before), { mode: 0o600 });
     assert.equal((await run('import', snapshot)).code, 0, 'second device imports the same real board');
-    assert.equal((await run('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', origin)).code, 0, 'second device signs in independently');
+    assert.equal((await run('relay', 'on', '--url', origin)).code, 0, 'second device signs in independently');
     return (await run('relay', 'off')).code;
   }
   /** Clone the same committed project into a separate repository/home, then join through a printed code. */
@@ -496,7 +496,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     const initEnv = { ...otherEnv };
     delete initEnv.PULLBOARD_MODEL; // Pairing imports the source coordinator's declaration.
     assert.equal((await childResult(otherRoot, initEnv, [CLI, 'init', '--json'])).code, 0, 'the cloned project initializes its private local board');
-    const joined = await run('apps', 'relay', 'src', 'io', 'deploy', 'join', code, '--url', origin, ...(name === undefined ? [] : ['--name', name]));
+    const joined = await run('relay', 'join', code, '--url', origin, ...(name === undefined ? [] : ['--name', name]));
     const document = joined.document;
     if (joined.code !== 0) {
       const refusal = document?.error?.code;
@@ -534,7 +534,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     provider.state.repositories.push(repository);
     assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', `git@github.com:fixture/${repository}.git`], { cwd: nextRoot, env: nextEnv, encoding: 'utf8' }).status, 0);
     assert.equal((await run('add', lane, title)).code, 0);
-    assert.equal((await run('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', origin)).code, 0);
+    assert.equal((await run('relay', 'on', '--url', origin)).code, 0);
     const state = JSON.parse(readFileSync(join(nextRoot, '.git', 'pullboard', 'relay.json'), 'utf8'));
     const encoded = readFileSync(join(nextEnv.PULLBOARD_HOME, 'relay-keys', state.board + '.key'), 'utf8').trim();
     privateKeys.add(encoded);

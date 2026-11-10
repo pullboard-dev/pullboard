@@ -148,7 +148,7 @@ test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   const remoteDeclaration = await relay.cli('join', 'coordinator', '--model', 'Remote Coordinator');
   assert.equal(remoteDeclaration.code, 0, remoteDeclaration.failure);
   await relay.link();
-  const pairing = await relay.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const pairing = await relay.cli('relay', 'pair');
   assert.equal(pairing.code, 0, `${pairing.failure}; ${pairing.document.error?.code ?? ''}`);
   delete relay.env.PULLBOARD_MODEL;
   const paired = await relay.otherDeviceJoin(pairing.document.code);

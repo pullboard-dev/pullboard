@@ -222,7 +222,7 @@ test('set-up-once failure capture retains a real CLI refusal code and message [H
   });
   t.after(() => new Promise(resolveClose => server.close(resolveClose)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const result = await command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', origin]).done;
+  const result = await command(box.root, box.env, ['relay', 'on', '--url', origin]).done;
   assert.notEqual(result.code, 0, 'the production CLI actually refuses the loopback protocol response');
   assert.ok(calls.some(call => call.method === 'POST' && call.path === '/auth/device/start'),
     'the refusal crosses the actual foreground sign-in protocol');
@@ -252,7 +252,7 @@ test('set up once links three registered boards, later registration and a persis
   const second = await project(box, 'second-project');
   const third = await project(box, 'third-project');
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  setup = command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  setup = command(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin]);
   const pending = await waitFor(() => {
     if (!existsSync(machineFile)) return null;
     return JSON.parse(readFileSync(machineFile, 'utf8')).pending;
@@ -357,7 +357,7 @@ test('set up once links three registered boards, later registration and a persis
   }
 
   // Explicit --all always signs in again, while retaining the paired phone key and avoiding re-pairing.
-  const resumed = await command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all']).done;
+  const resumed = await command(box.root, box.env, ['relay', 'on', '--all']).done;
   assert.equal(resumed.code, 0);
   assert.equal(resumed.document.linked.length, 4);
   assert.equal(resumed.document.paired, true);
@@ -397,7 +397,7 @@ test('set up once links three registered boards, later registration and a persis
 
   assert.equal((await command(fourth, box.env, ['init']).done).code, 0);
   assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), false, 'registration respects the explicit local opt-out');
-  const excludedSetup = await command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all']).done;
+  const excludedSetup = await command(box.root, box.env, ['relay', 'on', '--all']).done;
   assert.equal(excludedSetup.code, 0);
   assert.equal(excludedSetup.document.linked.length, 3, 'explicit machine setup does not undo the fourth-board opt-out');
   assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 3,
@@ -405,7 +405,7 @@ test('set up once links three registered boards, later registration and a persis
   assert.equal(box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length, 1,
     'the paired phone is not enrolled again while excluding a board');
   const relinkCallsStart = box.calls.length;
-  const relinked = await command(fourth, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin]).done;
+  const relinked = await command(fourth, box.env, ['relay', 'on', '--url', box.origin]).done;
   assertSetupSucceeded(relinked, box.calls.slice(relinkCallsStart), box.origin);
   assert.equal(JSON.parse(readFileSync(machineFile, 'utf8')).excluded.includes(fourth), false,
     'explicit board linking clears its opt-out');
@@ -427,7 +427,7 @@ test('set up once links three registered boards, later registration and a persis
 
   const revokedDeviceId = await enrollProtocolPhone(box);
   const approvalsBeforeRevoke = box.transit.filter(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals').length;
-  const revokeCommand = command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'revoke', revokedDeviceId]);
+  const revokeCommand = command(box.root, box.env, ['relay', 'revoke', revokedDeviceId]);
   t.after(async () => { if (revokeCommand.child.exitCode === null) revokeCommand.child.kill('SIGTERM'); await revokeCommand.done.catch(() => {}); });
   /** Read the request id for the newly published revocation without adding another wait. */
   const revokeRequestId = () => {
@@ -457,7 +457,7 @@ test('set up once keeps completed links on interruption and names partial failur
   const bad = await project(box, 'invalid-origin-project');
   assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'https://invalid.example/repository.git'], { cwd: bad, env: box.env }).status, 0);
   const file = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  const started = command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const started = command(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin]);
   t.after(async () => { if (started.child.exitCode === null) started.child.kill('SIGTERM'); await started.done.catch(() => {}); });
   await waitFor(() => box.calls.some(call => call.method === 'GET' && call.path.startsWith('/api/v1/devices/enrollments/')),
     'first pairing is waiting in the foreground');
@@ -473,7 +473,7 @@ test('set up once keeps completed links on interruption and names partial failur
   const retained = link(box.root).board;
   assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository-invalid-origin-project.git'], { cwd: bad, env: box.env }).status, 0);
   const before = box.calls.length;
-  const retry = command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all']);
+  const retry = command(box.root, box.env, ['relay', 'on', '--all']);
   t.after(async () => { if (retry.child.exitCode === null) retry.child.kill('SIGTERM'); await retry.done.catch(() => {}); });
   await waitFor(() => box.calls.slice(before).some(call => call.method === 'GET' && call.path.startsWith('/api/v1/devices/enrollments/')),
     'a later process can obtain a fresh pairing link without repeating sign-in');
@@ -515,7 +515,7 @@ test('a set-up-once run stretched past 30 seconds still gets its approval card [
   });
 
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  setup = command(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin], 90_000);
+  setup = command(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 90_000);
   const pending = await waitFor(() => {
     if (!existsSync(machineFile)) return null;
     return JSON.parse(readFileSync(machineFile, 'utf8')).pending;

@@ -573,7 +573,7 @@ test('browser state/cookie binding and one-use device ticket protect both sign-i
 test('relay on from an SSH shell links only after the person confirms in the browser [P6, H5, H8, B26]', async (t) => {
   const box = await relayClientFixture(t);
   const ssh = { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22', PULLBOARD_RELAY_TOKEN: 'pa_' + 'x'.repeat(43) };
-  const running = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin], ssh);
+  const running = box.startCli(['relay', 'on', '--url', box.origin], ssh);
   const marker = 'After sign-in, confirm the link in your browser: ';
   const output = await running.waitForOutput(marker);
   const startResponse = await box.waitForResponse('/auth/device/start');
@@ -604,7 +604,7 @@ test('relay on from an SSH shell links only after the person confirms in the bro
   assert.equal(JSON.parse(completed.stdout).linked, true);
 
   const declineBox = await relayClientFixture(t);
-  const declinedRun = declineBox.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', declineBox.origin], { SSH_TTY: '/dev/pts/8' });
+  const declinedRun = declineBox.startCli(['relay', 'on', '--url', declineBox.origin], { SSH_TTY: '/dev/pts/8' });
   const declinedOutput = await declinedRun.waitForOutput(marker);
   const declinedLine = declinedOutput.split('\n').find(value => value.includes(marker));
   const declinedURL = declinedLine?.slice(declinedLine.indexOf(marker) + marker.length).trim();
@@ -619,7 +619,7 @@ test('relay on from an SSH shell links only after the person confirms in the bro
   assert.equal(linkedBoardCount(declineBox.authDatabase), 0, 'declining leaves the board unlinked');
 
   const startsBeforeRefusals = box.calls.filter(call => call.path === '/auth/device/start').length;
-  const agent = spawnSync(process.execPath, [CLI, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin, '--json'], {
+  const agent = spawnSync(process.execPath, [CLI, 'relay', 'on', '--url', box.origin, '--json'], {
     cwd: box.root, env: { ...box.env, SSH_CONNECTION: ssh.SSH_CONNECTION, AI_AGENT: '1' }, encoding: 'utf8',
   });
   assert.equal(agent.status, 1);
