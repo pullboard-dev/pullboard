@@ -356,3 +356,16 @@ test('created-item bindings distinguish repair outputs and survive reordered mul
   assert.deepEqual(resolveMove(entry, outbox, { local: true }).move.args, [{ parentId: 32, after: [33, 34, 9] }],
     'partial replay uses each newly shown local repair identity');
 });
+
+test('selector gap binds only a newly filed repair item [B26,H16]', () => {
+  const created = { move: { id: 'gap', operation: 'recordSelectorGap' } };
+  rememberCreatedItems(created, { item: 7, filed: true });
+  const existing = { move: { id: 'existing', operation: 'recordSelectorGap' } };
+  rememberCreatedItems(existing, { item: 9, filed: false });
+  assert.deepEqual(existing.created, [], 'an existing repair is not newly created');
+  const outbox = { moves: [created, existing], results: { gap: { item: 12, filed: true } } };
+  const move = { operation: 'addItem', args: [{ parentId: 7, after: [9] }] };
+  const refs = bindRefs(outbox, move);
+  assert.equal(refs.length, 1, 'only the newly filed item receives a binding');
+  assert.deepEqual(resolveMove({ move, refs }, outbox).move.args, [{ parentId: 12, after: [9] }]);
+});
