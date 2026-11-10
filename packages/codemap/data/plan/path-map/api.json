@@ -1,0 +1,6 @@
+{
+  "src/api-delta-fields.js": "packages/api/src/logic/fields.js",
+  "src/api-http.js": "packages/api/src/io/http.js",
+  "src/api.js": "packages/api/src/io/main.js",
+  "test/shout-item-cli.test.js": "apps/cli/journeys/shout/item.test.js"
+}

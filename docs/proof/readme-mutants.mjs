@@ -7,9 +7,9 @@
  */
 import { audit } from './harness.mjs';
 
-const LINKED = ['test/readme.test.js', 'the README links every figure draw.mjs draws'];
-const CARD = ['test/readme.test.js', 'each figure carries its own light and dark colors'];
-const DECLARED = ['test/readme.test.js', 'the lifecycle figure is drawn from the declaration'];
+const LINKED = ['apps/cli/journeys/doctrine/readme.test.js', 'the README links every figure draw.mjs draws'];
+const CARD = ['apps/cli/journeys/doctrine/readme.test.js', 'each figure carries its own light and dark colors'];
+const DECLARED = ['apps/cli/journeys/doctrine/readme.test.js', 'the lifecycle figure is drawn from the declaration'];
 const LAYOUT_ALT =
   'alt="Where things live. The main checkout is the coordinator and holds SPEC.md, DOCTRINE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine."';
 

@@ -1,0 +1,244 @@
+/** Read-only integrity checks for a pullboard board file (A6). */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  DOCTRINE_FILE,
+  LEGACY_DOCTRINE_FILE,
+} from '../../../config/index.js';
+import { tryGit } from '../../../git/index.js';
+import {
+  submissionPaths,
+  dependencySnapshots,
+} from '../../../sandbox/index.js';
+import {
+  BLANKS,
+  STATES,
+  storeTriggers,
+} from '../../../state/index.js';
+
+import {
+  boardBusyError,
+  EVENT_LOG_VERSION,
+  openBoardReadOnly,
+  readEventLogVersion,
+  SCHEMA_VERSION,
+} from '../../../store/index.js';
+import {
+  staleFrozenItems,
+  staleItemFinding,
+} from '../../../spec/index.js';
+import { loadSpec } from '../../../spec/index.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
+import {
+  preMergeHookProblems,
+  unwiredHookProblems,
+} from '../../../commits/index.js';
+const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
+
+/** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */
+export function doctrineProblems(root, config) {
+  if (config.practice !== LEGACY_DOCTRINE_FILE || !existsSync(join(root, LEGACY_DOCTRINE_FILE))) return [];
+  const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', LEGACY_DOCTRINE_FILE]).status === 0;
+  const command = tracked ? 'git mv' : 'mv';
+  return [finding('DOCTRINE_LEGACY', `${LEGACY_DOCTRINE_FILE} is the legacy name for the repo doctrine`, `${command} -- ${LEGACY_DOCTRINE_FILE} ${DOCTRINE_FILE}`)];
+}
+
+/**
+ * Check a board and its git pins without opening it through the migrator, which repairs boards on
+ * open. `doctor` must report the evidence it sees and leave that evidence untouched.
+ *
+ * @param {string} file
+ * @param {string} root
+ * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
+ * @param {any} [config] - Compare frozen rows with this checkout's current source when supplied.
+ * @param {{ isMain?: boolean }} [options] - Give older-board repair steps for the running source.
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit } = {}) {
+  if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
+  const startedAt = Date.now();
+  let db;
+  try {
+    db = openBoardReadOnly(file);
+    const schemaProblems = versionProblems(db, isMain);
+    if (schemaProblems.length) return schemaProblems;
+    const eventProblems = [];
+    try {
+      const version = readEventLogVersion(db);
+      if (version < EVENT_LOG_VERSION) {
+        const next = isMain ? 'run pullboard status to upgrade this event log'
+          : 'merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board';
+        eventProblems.push(finding('EVENT_LOG_VERSION', `event log version is ${version}; this pullboard expects ${EVENT_LOG_VERSION}`, next));
+      }
+    }
+    catch (error) {
+      if (error.code !== 'EVENT_LOG_VERSION') throw error;
+      return [finding(error.code, error.message, 'upgrade pullboard to read this event log, or restore a compatible board')];
+    }
+    const layout = layoutProblems(db);
+    return [
+      ...preMergeHookProblems(root),
+      ...unwiredHookProblems(root),
+      ...eventProblems,
+      ...triggerProblems(db),
+      ...layout.problems,
+      ...(layout.itemFields ? itemProblems(db) : []),
+      ...(layout.itemPins ? pinProblems(db, root, tryGit) : []),
+      ...(layout.verdicts ? verdictProblems(db, root, tryGit) : []),
+      ...(layout.itemAudit ? submissionProblems(db, root, checkAtCommit) : []),
+      ...(layout.itemAudit && config ? staleFrozenItems(db.prepare('SELECT * FROM item ORDER BY item_id').all(), loadSpec(root, config).rows, loadDoctrine(root, config).rows).map(staleItemFinding) : []),
+    ];
+  } catch (error) {
+    throw boardBusyError(file, startedAt, error);
+  } finally {
+    db?.close();
+  }
+}
+
+/**
+ * Make one stable finding for both text and JSON output.
+ *
+ * @param {string} code
+ * @param {string} message
+ * @param {string} next
+ * @returns {{ code: string, message: string, next: string }}
+ */
+const finding = (code, message, next) => ({ code, message, next });
+
+/** Inspect the layout before each row check, retaining trigger findings on an incomplete board. */
+function layoutProblems(db) {
+  const required = {
+    item: [...new Set(['item_id', 'item_status', 'item_commit', 'item_claim_head', 'item_lane', 'item_frozen', 'item_merged_commit', ...STATES.flatMap((state) => state.requires)])],
+    verdict: ['verdict_id', 'item_id', 'verdict_commit'],
+  };
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((table) => table.name));
+  const columns = new Map();
+  const problems = [];
+  for (const [table, fields] of Object.entries(required)) {
+    if (!tables.has(table)) {
+      problems.push(finding('TABLE_MISSING', `board table ${table} is missing`, 'restore a consistent board backup, or run pullboard status to recreate the missing table'));
+      columns.set(table, new Set());
+      continue;
+    }
+    const present = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name));
+    columns.set(table, present);
+    const missing = fields.filter((field) => !present.has(field));
+    if (missing.length) problems.push(finding('COLUMN_MISSING', `board table ${table} is missing columns ${missing.join(', ')}`, 'restore a consistent board backup, then run pullboard status'));
+  }
+  const has = (table, fields) => fields.every((field) => columns.get(table).has(field));
+  return {
+    problems,
+    itemFields: has('item', ['item_id', 'item_status']),
+    itemPins: has('item', ['item_id', 'item_status', 'item_commit']),
+    itemAudit: has('item', ['item_id', 'item_status', 'item_commit', 'item_claim_head', 'item_lane', 'item_frozen', 'item_merged_commit']),
+    verdicts: has('verdict', required.verdict),
+  };
+}
+
+/**
+ * Report a schema version this executable cannot safely use.
+ *
+ * @param {DatabaseSync} db
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+function versionProblems(db, isMain) {
+  const version = db.prepare('PRAGMA user_version').get().user_version;
+  if (version === SCHEMA_VERSION) return [];
+  const repair = version < SCHEMA_VERSION
+    ? (isMain ? 'run pullboard status to upgrade this board' : 'merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board')
+    : 'use a pullboard version that supports this board schema';
+  return [finding('SCHEMA_VERSION', `schema version is ${version}; this pullboard expects ${SCHEMA_VERSION}`, repair)];
+}
+
+/**
+ * Report missing, changed or undeclared lifecycle triggers and how the normal opener repairs them.
+ *
+ * @param {DatabaseSync} db
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+function triggerProblems(db) {
+  const expected = storeTriggers();
+  const actual = new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map((row) => [row.name, row.sql]));
+  const problems = [];
+  for (const trigger of expected) {
+    const sql = actual.get(trigger.name);
+    if (sql === undefined) problems.push(finding('TRIGGER_MISSING', `board trigger ${trigger.name} is missing`, 'run pullboard status'));
+    else if (sql !== trigger.sql) problems.push(finding('TRIGGER_CHANGED', `board trigger ${trigger.name} has changed`, 'run pullboard status'));
+  }
+  for (const name of actual.keys()) {
+    if (!expected.some((trigger) => trigger.name === name)) problems.push(finding('TRIGGER_UNEXPECTED', `board trigger ${name} is unexpected`, 'run pullboard status'));
+  }
+  return problems;
+}
+
+/**
+ * Report item rows missing fields required by their current state.
+ *
+ * @param {DatabaseSync} db
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+function itemProblems(db) {
+  const required = new Map(STATES.map((state) => [state.id, state.requires]));
+  const problems = [];
+  for (const item of db.prepare('SELECT * FROM item ORDER BY item_id').all()) {
+    const fields = required.get(item.item_status) ?? [];
+    const missing = fields.filter((field) => [...String(item[field] ?? '')].every((character) => blankCharacters.has(character)));
+    if (missing.length) problems.push(finding('ITEM_FIELDS', `item #${item.item_id} (${item.item_status}) is missing ${missing.join(', ')}`, 'restore a consistent board backup, then run pullboard doctor'));
+  }
+  return problems;
+}
+
+/**
+ * Report submitted or verified items whose saved commit pin no longer resolves.
+ *
+ * @param {DatabaseSync} db
+ * @param {string} root
+ * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+function pinProblems(db, root, tryGit) {
+  const items = db.prepare("SELECT item_id, item_commit FROM item WHERE item_status IN ('submitted', 'verified') ORDER BY item_id").all();
+  return items.flatMap((item) => {
+    const commit = item.item_commit ?? '';
+    const pin = `refs/pullboard/items/${item.item_id}/${commit.slice(0, 12)}`;
+    const found = commit && tryGit(root, ['rev-parse', '--verify', '--quiet', `${pin}^{commit}`]);
+    if (found?.status === 0 && found.stdout === commit) return [];
+    return [finding('ITEM_PIN_MISSING', `item #${item.item_id} has no pin for ${commit || 'its missing commit'} at ${pin}`, `fetch the commit if needed, then run git update-ref ${pin} ${commit || '<commit>'}`)];
+  });
+}
+
+/**
+ * Report verdict receipts whose commit object is no longer in the repository.
+ *
+ * @param {DatabaseSync} db
+ * @param {string} root
+ * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+function verdictProblems(db, root, tryGit) {
+  return db.prepare('SELECT verdict_id, item_id, verdict_commit FROM verdict ORDER BY verdict_id').all().flatMap((verdict) => {
+    const found = tryGit(root, ['rev-parse', '--verify', '--quiet', `${verdict.verdict_commit}^{commit}`]);
+    if (found.status === 0 && found.stdout === verdict.verdict_commit) return [];
+    const pin = `refs/pullboard/items/${verdict.item_id}/${verdict.verdict_commit.slice(0, 12)}`;
+    return [finding('VERDICT_COMMIT_MISSING', `verdict #${verdict.verdict_id} for item #${verdict.item_id} names missing commit ${verdict.verdict_commit}`, `fetch the commit if needed, then run git update-ref ${pin} ${verdict.verdict_commit}`)];
+  });
+}
+
+/** Audit the pinned submission, including its pre-merge policy proof, without changing the board or live checkout. */
+function submissionProblems(db, root, checkAtCommit) {
+  const problems = [];
+  const eventsExist = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event'").get();
+  for (const item of db.prepare("SELECT * FROM item WHERE item_status='verified' OR item_merged_commit IS NOT NULL ORDER BY item_id").all()) {
+    try {
+      const events = eventsExist ? db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC").all(item.item_id) : [];
+      const proof = events.map(event => JSON.parse(event.event_detail)).find(event => event.commit === item.item_commit);
+      submissionPaths(root, item, item.item_commit, { mainCommit: proof?.policyCommit, dependencies: dependencySnapshots(db, item) });
+    } catch (error) {
+      problems.push(finding(error.code ?? 'SUBMISSION_POLICY', 'item #' + item.item_id + ': ' + (error.code === 'OUTSIDE_LANE' ? error.message : 'its committed submission policy or claim base cannot be checked'), 'ask the coordinator to restore the original policy and inspect this submission'));
+    }
+    const check = checkAtCommit(root, item);
+    if (check.state === 'unverified') problems.push(finding('CHECK_UNVERIFIED', 'item #' + item.item_id + ' has an unverified frozen ' + check.stage + ' at ' + item.item_commit + '; output digest: ' + check.report, 'restore the install or check environment, then rerun doctor'));
+    else if (check.state === 'red') problems.push(finding('CHECK_RED', 'item #' + item.item_id + ' has a red frozen check at ' + item.item_commit + '; output digest: ' + check.report, 'ask the coordinator to record and repair the failing submission'));
+  }
+  return problems;
+}
