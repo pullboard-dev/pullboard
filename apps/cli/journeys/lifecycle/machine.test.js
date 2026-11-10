@@ -12,7 +12,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 const copy = () => structuredClone(machineRules.MACHINE);
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
-test('the lifecycle page is printed from the declaration on demand, never kept as a committed copy [M1, P4]', () => {
+test('clause 2: the lifecycle page is printed from the declaration on demand, never kept as a committed copy [M1, P4]', () => {
   const page = machineRules.lifecycleMarkdown();
   assert.ok(!fs.existsSync(new URL('../../../../docs/lifecycle.md', import.meta.url)), 'docs/lifecycle.md is not committed; pullboard lifecycle prints it');
   assert.match(page, /```mermaid\nstateDiagram-v2\n {2}\[\*\] --> open\n/);
