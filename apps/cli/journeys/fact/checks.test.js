@@ -24,7 +24,7 @@ const helpers = createE2eHelpers();
 after(() => helpers.cleanup());
 
 const REPO = join(import.meta.dirname, '../../../..');
-const CHECKS = join(REPO, 'packages/gate/src/io/changed');
+const CHECKS = join(REPO, 'packages/gate/src/io/changed/scripts');
 const NODE_FLAGS = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning'];
 
 /** Seed the native CLI tree before init installs its pre-commit hook. */
