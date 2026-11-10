@@ -7,6 +7,7 @@ import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { styleSources } from '../../../../packages/codemap/index.js';
 import { readEngineLeaves } from '../../../../packages/state/src/io/engine/numbers.js';
+import { ENGINE_FOLDER } from '../../../../packages/state/src/io/engine/numbers.js';
 import { gateJudgmentPath } from '../../../../packages/verify/index.js';
 import {
   runFixtureExecFile as execFileSync,
@@ -479,10 +480,10 @@ function engineRows(source){const code=lex(source).code;return [...code.matchAll
 test('store extraction preserves the accepted engine identity set and every recorded number [C7,H16]', () => {
   const root = resolve(import.meta.dirname, '../../../..');
   const landing = new Set(ACCEPTED_ENGINE_VALUES.filter(row => row[1] === null).map(row => row[0]));
-  const placeholders = readEngineLeaves(join(root, 'src')).filter(row => row.number === undefined || row.number === null).map(row => [row.name, null]);
+  const placeholders = readEngineLeaves(join(root, ENGINE_FOLDER)).filter(row => row.number === undefined || row.number === null).map(row => [row.name, null]);
   const actual = [...styleSources(root).flatMap(row => engineRows(row.source)), ...placeholders]
     .map(([name, number]) => [name, landing.has(name) ? null : number]).sort((a, b) => a[0].localeCompare(b[0]) || a[1] - b[1]);
   assert.deepEqual(actual, ACCEPTED_ENGINE_VALUES, 'moving a declaration changes neither its identity nor numeric history');
-  const leaf = readEngineLeaves(join(root, 'src')).filter(row => row.name === 'HEALTH_SENTINEL_ENGINE');
+  const leaf = readEngineLeaves(join(root, ENGINE_FOLDER)).filter(row => row.name === 'HEALTH_SENTINEL_ENGINE');
   assert.deepEqual(leaf, [{ file: 'health-sentinel-engine.js', name: 'HEALTH_SENTINEL_ENGINE', number: 42 }]);
 });
