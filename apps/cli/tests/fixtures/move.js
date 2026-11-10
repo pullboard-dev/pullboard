@@ -300,7 +300,7 @@ export async function privateBoardMoves(box, privateFile) {
   const root = await moveRepository(box, 'acme-web', 'acme');
   const bobRoot = await moveRepository(box, 'bob-web', 'bob');
   await enrollProtocolPhone(box);
-  const signedIn = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin);
+  const signedIn = await box.cli('relay', 'on', '--all', '--url', box.origin);
   assert.equal(signedIn.code, 0, 'the real machine sign-in writer records its GitHub login: ' + JSON.stringify(signedIn.document?.error));
   assert.equal(signedIn.document.paired, true, 'existing authenticated protocol enrollment avoids waiting for a new browser pairing');
   const owner = await box.script(`
@@ -418,7 +418,7 @@ export async function privateBoardMoves(box, privateFile) {
   assert.deepEqual(moveState(privateFile), privateState, 'a provisional source ID is refused before destination ID reservation');
   assert.deepEqual(outboxOperations(box), ['addItem'], 'the re-home never joins the provisional local outbox');
   await box.restartRelay();
-  const synchronized = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'status');
+  const synchronized = await box.cli('relay', 'status');
   assert.equal(synchronized.code, 0, JSON.stringify(synchronized.document?.error));
   assert.deepEqual(outboxOperations(box), [], 'the add receives relay order before a move can use its ID');
   const authoritative = await box.cli('show', String(provisionalId));
@@ -435,7 +435,7 @@ export async function privateBoardMoves(box, privateFile) {
   // A private destination reservation is local and durable, but a team source tombstone still needs relay order.
   const teamSource = await box.cli('add', box.lane, 'acknowledged source remains put while relay is offline');
   assert.equal(teamSource.code, 0, JSON.stringify(teamSource.document?.error));
-  const synchronizedSource = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'status');
+  const synchronizedSource = await box.cli('relay', 'status');
   assert.equal(synchronizedSource.code, 0, JSON.stringify(synchronizedSource.document?.error));
   assert.deepEqual(outboxOperations(box), [], 'the team source receives relay order before the outage control');
   const authoritativeTeamSource = await box.cli('show', String(teamSource.document.item.item_id));
@@ -461,7 +461,7 @@ export async function privateBoardMoves(box, privateFile) {
   assert.ok((afterOfflineDestinationReservation.sequence?.seq ?? 0) > (beforeOfflineDestinationReservation.sequence?.seq ?? 0),
     'the private destination reservation may consume an ID without replacing an item');
   await box.restartRelay();
-  await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'status');
+  await box.cli('relay', 'status');
   const movedAfterReconnect = await box.cli('move', `fixture/repository#${authoritativeTeamSource.document.item_id}`, '--to', '~fixture/repository');
   assert.equal(movedAfterReconnect.code, 0, JSON.stringify(movedAfterReconnect.document?.error));
   assert.equal(movedAfterReconnect.document.item.sourceItemId, authoritativeTeamSource.document.item_id);

@@ -126,7 +126,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     PATH: local.env.PATH,
   };
   const localRelayResult = await journeyDeadline.wait('link duplicate board', () => runFixtureChildAsync(process.execPath,
-    [BIN, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', linked.origin, '--json'],
+    [BIN, 'relay', 'on', '--url', linked.origin, '--json'],
     { cwd: duplicateProject.repo, env: localRelayEnv, timeout: relayWorkBudgetMs(), signal: journeyAbortController.signal }));
   assert.equal(localRelayResult.status, 0,
     'C links its actual local board to the relay as a second source for the same board identity');

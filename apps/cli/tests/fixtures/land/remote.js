@@ -53,7 +53,7 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   observe(() => assert.equal(status.code, 0, status.err));
   observe(() => assert.doesNotMatch(status.err + status.out, /not linked:|\[RELAY_(?:ORIGIN|SESSION)\]/u, 'an inherited link-all never turns local status into a relay refusal'));
   observe(() => assert.match(status.out, /optional:.*relay on/u, 'status offers linking as an optional next step'));
-  const explicit = box.run(repo, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--json');
+  const explicit = box.run(repo, 'relay', 'on', '--json');
   observe(() => assert.equal(explicit.code, 1, 'an explicit link still requires a GitHub origin'));
   observe(() => assert.match(explicit.out + explicit.err, /RELAY_ORIGIN/u));
   const landed = box.run(repo, 'land', '--json');

@@ -210,7 +210,7 @@ async function independentCanaryHost(host, lane, name) {
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/' + name, root], { cwd: host.root, env: host.env });
   const joined = await host.cliAt(root, 'join', lane, '--model', 'canary-fixture');
   assert.equal(joined.code, 0, joined.failure);
-  const enabled = await host.cliAt(root, 'apps', 'relay', 'src', 'io', 'deploy', 'canary', 'on', '--timeout', '5000');
+  const enabled = await host.cliAt(root, 'relay', 'canary', 'on', '--timeout', '5000');
   assert.equal(enabled.code, 0, enabled.failure);
   const saved = await withFixtureEnvironment(host.env, () => ({
     config: loadMachineSettings().relay?.canary,
@@ -236,7 +236,7 @@ test('two paired host configurations independently alert and recover through rea
     const box = await relayClientFixture(t);
     commitConfiguration(box);
     await box.link();
-    const printed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+    const printed = await box.cli('relay', 'pair');
     assert.equal(printed.code, 0, printed.failure);
     const paired = await box.otherDeviceJoin(printed.document.code, 'canary-host-b');
     const left = await independentCanaryHost(box, box.lane, 'canary-host-a-seat');

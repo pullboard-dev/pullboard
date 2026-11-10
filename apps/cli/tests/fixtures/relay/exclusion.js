@@ -24,14 +24,14 @@ export async function deletedCopyRelinks(t) {
     method: 'DELETE', headers: { authorization: `Bearer ${phone.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(removed.status, 200, 'the person genuinely removes the remote copy');
-  const detected = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'status');
+  const detected = await box.cli('relay', 'status');
   assert.equal(detected.code, 0);
   assert.equal(machine(box).excluded.includes(box.root), false, 'a deleted copy never creates a durable person exclusion');
   const stale = await fetchFresh(`${box.origin}/api/v1/boards/${old.board}/state`, {
     headers: { authorization: `Bearer ${old.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(stale.status, 410, 'deleted credentials remain tombstoned and cannot recreate their board');
-  const linked = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const linked = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(linked.code, 0, 'the existing genuine sign-in flow grants the replacement link: ' + (linked.document?.error?.code ?? 'no refusal code'));
   const fresh = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.notEqual(fresh.board, old.board, 'the deleted remote epoch is replaced rather than resurrected');
@@ -77,12 +77,12 @@ export async function relayOnClearsExclusion(t) {
   assert.ok(Number.isFinite(Date.parse(status.document.relay.exclusion.at)), 'new exclusions retain their actual time');
   assert.match(status.document.relay.exclusion.next, /pullboard relay on/u);
   box.refuseSnapshotWrites(true);
-  const pending = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const pending = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(pending.code, 0, 'a refused checkpoint retains a retryable authorized link');
   assert.equal(machine(box).excluded.includes(box.root), true, 'a pending upload cannot prematurely clear the opt-out');
   assert.equal((await box.cli('status')).document.relay.excluded, true, 'pending-link status still exposes the uncleared exclusion');
   box.refuseSnapshotWrites(false);
-  const linked = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const linked = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(linked.code, 0);
   assert.match(linked.document.notice, /exclusion.*clear|clear.*exclusion/iu, 'successful explicit on names the cleared exclusion');
   assert.equal(machine(box).excluded.includes(box.root), false);

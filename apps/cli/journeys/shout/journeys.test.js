@@ -69,7 +69,7 @@ async function waitFor(read, message, timeoutMs = 30_000) {
 
 /** Keep the real foreground --all child available for its actual phone-enrollment handoff. */
 function startRelayAll(box) {
-  const child = startFixtureChild(process.execPath, [CLI, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin, '--json'], {
+  const child = startFixtureChild(process.execPath, [CLI, 'relay', 'on', '--all', '--url', box.origin, '--json'], {
     cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';

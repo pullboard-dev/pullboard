@@ -89,7 +89,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   mkdirSync(join(bobEnv.PULLBOARD_HOME, 'relay-keys'), { recursive: true, mode: 0o700 });
   box.copyOwnKey(bobEnv.PULLBOARD_HOME, repoBoardId);
   box.providerState.signer = 'bob';
-  const linked = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin, '--json']);
+  const linked = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'relay', 'on', '--url', box.origin, '--json']);
   box.providerState.signer = 'alice';
   assert.equal(linked.code, 0, `another team member links their own device: ${JSON.stringify(linked.document?.error ?? null)}`);
   const bobItems = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'list', '--all', '--json']);
