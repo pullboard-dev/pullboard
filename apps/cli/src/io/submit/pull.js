@@ -42,7 +42,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
 const input = JSON.parse(readFileSync(0, 'utf8'));
-const receipt = { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [] };
+const receipt = { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment: { node: process.versions.node, platform: process.platform, arch: process.arch } };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
@@ -59,7 +59,7 @@ else {
   if (ownership) refusals.push({ part: 'authorization', code: 'OUTSIDE_LANE', message: ownership.message, paths: ownership.paths });
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
-    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, admission: analysis.admission ?? null };
+    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   if (!refusals.length && !receipt.analysis.infra) {
     // Only the proof's test runner comes from accepted main; the test files and the frozen check are the candidate's own.
     const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
