@@ -68,14 +68,14 @@ export function hostProcesses(dir) {
   return execFileSync('ps', ['-A', '-o', 'pid=,command='], { encoding: 'utf8' }).split('\n').filter(line => line.includes(dir)).length;
 }
 
-/** A real project and board under gate.runnerDispatch pull (or the given gate settings), whose main carries the stand-in tooling, and the board's loopback job API. */
-export async function pullProject(t, count, { check = () => 'true', gate = { runnerDispatch: 'pull' } } = {}) {
+/** A real project and board under gate.runnerDispatch pull (or the given gate settings), whose main carries the stand-in tooling (with `tooling` files over it), and the board's loopback job API. */
+export async function pullProject(t, count, { check = () => 'true', gate = { runnerDispatch: 'pull' }, tooling = {} } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate });
-  for (const [path, text] of Object.entries(TOOLING)) { mkdirSync(dirname(join(box.repo, path)), { recursive: true }); writeFileSync(join(box.repo, path), text); }
+  for (const [path, text] of Object.entries({ ...TOOLING, ...tooling })) { mkdirSync(dirname(join(box.repo, path)), { recursive: true }); writeFileSync(join(box.repo, path), text); }
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), staticChecks: 'node apps/cli/src/io/static/checks.js' }, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
