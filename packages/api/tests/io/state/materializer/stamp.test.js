@@ -1,20 +1,30 @@
 /** @pullboard-test-input source-tree */
 /** The state snapshot's code stamp covers the release's package.json, so a CLI copy with a new version rebuilds [A2,C7]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { deserialize } from 'node:v8';
 import { Worker } from 'node:worker_threads';
-import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 
 const WORKER = fileURLToPath(new URL('../../../../src/io/state/materializer/worker.js', import.meta.url));
 
 /** A copy of the real worker in a small code tree whose board modules are stubs, so the key it saves can be read back. */
-function codeTree() {
-  const tree = privateFixtureFiles('stamp-');
+function codeTree(t) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-stamp-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const tree = { root, write(file, content) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), content);
+  } };
   tree.write('packages/api/src/io/state/materializer/worker.js', readFileSync(WORKER));
   tree.write('packages/api/src/io/main.js', `export function createStateSnapshots() {
   return { formats: 'f', snapshotPlace: () => ({ cacheId: 'c', folder: 'f' }), carry: () => ({}), restore() {}, materialize: () => ({ sequence: 1 }) };
@@ -40,8 +50,8 @@ async function savedKey(tree) {
   return deserialize(readFileSync(out)).key;
 }
 
-test('clause 1: the saved snapshot key changes when the root package.json changes [A2,C7]', async () => {
-  const tree = codeTree();
+test('clause 1: the saved snapshot key changes when the root package.json changes [A2,C7]', async (t) => {
+  const tree = codeTree(t);
   tree.write('package.json', '{"version":"0.9.4"}\n');
   const before = await savedKey(tree);
   assert.equal(await savedKey(tree), before, 'unchanged code keeps its key');

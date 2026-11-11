@@ -1490,17 +1490,9 @@
     "raw-board": 3,
     "model": 10
   },
-  "apps/cli/journeys/show/policy/dependency.test.js": {
-    "hand-policy": 1,
-    "raw-board": 1
-  },
   "apps/cli/journeys/show/policy/e2e.test.js": {
-    "hand-policy": 3,
-    "raw-board": 2
-  },
-  "apps/cli/journeys/show/policy/refs.test.js": {
-    "hand-policy": 1,
-    "raw-board": 2
+    "hand-policy": 5,
+    "raw-board": 5
   },
   "apps/cli/journeys/verify/checks.test.js": {
     "raw-board": 3,
@@ -1669,6 +1661,9 @@
     "tempdir": 2
   },
   "packages/commits/tests/io/revert.test.js": {
+    "tempdir": 1
+  },
+  "packages/api/tests/io/state/materializer/stamp.test.js": {
     "tempdir": 1
   },
   "apps/cli/journeys/init/refresh.test.js": {
