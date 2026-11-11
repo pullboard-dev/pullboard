@@ -101,6 +101,7 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
   const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict), allowCancelled });
+  process.stderr.write(`PROBE-OUT ${JSON.stringify(run.stages.map(x => [x.status, x.testOutcomeRunId, x.output]))}\n`);
   process.stderr.write(`PROBE-FS acc=${failures ? failures.length : failures} stages=${JSON.stringify((run.stages??[]).map(x => ({ s: x.status, o: x.output?.length, id: x.testOutcomeRunId, p: x.pipeline?.map(y => ({ s: y.status, o: y.output?.length, id: y.testOutcomeRunId })) })))} green=${run.isGreen}\n`);
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
