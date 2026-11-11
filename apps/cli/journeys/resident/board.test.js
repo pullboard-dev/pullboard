@@ -471,3 +471,39 @@ test('clause 1: while one resident process runs a long command, the next pool pr
   assert.equal(stillRunning(), true, 'the slow shout was still running throughout');
   assert.ok(fx.poolPids().length >= 2, 'a second pool process is running');
 }));
+
+test('clause 1: a command running past the per-command ceiling is ended with an error and its resident process retires, freeing the slot [C7,#5470]', async () => {
+  fx.awaitResident();
+  const entry = join(fx.code, 'apps/cli/pullboard.js');
+  const socket = join(fx.dir, 'ceiling.sock'), pidFile = join(fx.dir, 'ceiling.pid');
+  const child = spawn(process.execPath, [join(fx.code, 'apps/cli/src/io/resident/board.js'), socket, entry, 'ceiling-test', pidFile],
+    { env: { ...fx.env, PULLBOARD_RESIDENT_COMMAND_MS: '1500' }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const exited = new Promise(done => child.on('exit', done));
+  await new Promise(done => child.stdout.on('data', chunk => { if (String(chunk).includes('listening')) done(); }));
+  const lock = new DatabaseSync(fx.board);
+  lock.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
+  let frames = '';
+  try {
+    const client = connect(socket);
+    client.setEncoding('utf8');
+    const started = performance.now();
+    await new Promise((done) => {
+      client.on('connect', () => client.write(JSON.stringify({ version: 1, code: 'ceiling-test', sentAt: Date.now(), cwd: fx.worktree,
+        env: { ...fx.env, PULLBOARD_BOARD_QUEUE_MS: '60000' }, argv: ['shout', 'all', 'hung write'], tty: {} }) + '\n'));
+      client.on('data', (chunk) => { frames += chunk; if (frames.includes('"t":"exit"')) done(); });
+    });
+    assert.ok(performance.now() - started < 15_000, 'the command was ended soon after the ceiling'); // budget: ceiling of bar clause 1, a 1.5 s ceiling ends the command well inside 15 s
+    assert.match(frames, /RESIDENT_COMMAND_CEILING/u);
+    assert.match(frames, /"t":"exit","code":1/u);
+    const code = await Promise.race([exited, new Promise(done => setTimeout(() => done('still running'), 10_000))]);
+    assert.notEqual(code, 'still running', 'the process that ran past the ceiling retired and exited');
+    assert.ok(!existsSync(socket), 'its socket path is free for a successor');
+  } finally { lock.exec('ROLLBACK'); lock.close(); child.kill('SIGKILL'); }
+});
+
+test('clause 2: pullboard test --status is served by the resident process, a thin client of under 20 modules [C7,#5470]', () => {
+  fx.awaitResident();
+  const warm = fx.runIn(fx.repo, ['test', '--status', 'no-such-run'], { modules: true });
+  assert.ok(warm.loaded.length < 20, `test --status was served warm (client loaded ${warm.loaded.length} modules)`);
+  assert.match(warm.stdout + warm.stderr, /no-such-run|run/u);
+});
