@@ -110,6 +110,8 @@ export const workHelp = `Work
                                         in an agent seat it queues on the board and returns at once with a run id;
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
+  pullboard test --census [prefix..]    every tracked test file (or those under prefixes) in a few shards per runner
+                                        --out <jsonl> names the file that gets one row per test file
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill

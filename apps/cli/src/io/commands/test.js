@@ -23,12 +23,16 @@ async function claimedItem(ctx, agent) {
  * Run `pullboard test <files>` and return its exit code. An agent seat's call queues the run on the board and returns
  * at once with its run id; `pullboard next` hands the result back. With `--wait`, or for a person or a script, the
  * run happens here and blocks: 0 when every named file passes. `--status <id>` prints one run's state once.
+ * `--census [--out <jsonl>]` runs every tracked test file as a few shards per runner and writes a row per file.
  *
  * Why queue for seats: seats sat 16-54 min in sleep-and-pgrep loops on runner-queued runs; waiting is an error [C7].
  */
 export async function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   if (values.status !== undefined) return sayTestRunStatus(io, ctx, values.status);
+  if (values.census === true) {
+    return (await import('../test/census.js')).runCensus(io, ctx, values, { prefixes: [first, second, ...rest].filter(prefix => prefix !== undefined && prefix !== '') });
+  }
   const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
   if (values.diagnose === true && (files.length !== 1 || values.affected === true)) throw new Refused('USAGE', '--diagnose requires exactly one named test file');
   const seat = (await import('../board/access.js')).resourceAgent(ctx);
