@@ -23,7 +23,7 @@ function reviewWithLanding(t, { setting, landing }) {
   delete box.env.NODE_TEST_CONTEXT;
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
-  for (const folder of ['test', 'web', 'api', 'bin']) mkdirSync(join(box.repo, folder), { recursive: true });
+  for (const folder of ['test', 'web', 'api', 'bin', 'packages/gate/src/io/run']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   // This is the fixture project's real runner; the installed CLI remains outside the project.
   writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
