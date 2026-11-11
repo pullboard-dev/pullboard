@@ -57,12 +57,7 @@ function realGitPath() {
 /** Build a private real repo and linked agent worktree with an instrumented Git executable. */
 function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
-  t.after(() => {
-    try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); } catch (error) {
-      const left = spawnSync('sh', ['-c', `ps -axo pid,command | grep -F ${JSON.stringify(dir)} | grep -v grep; lsof +D ${JSON.stringify(dir)} 2>&1 | head -5; ps -axo pid,ppid,command | grep -E 'pullboard|node' | grep -v grep | tail -n 6; find ${JSON.stringify(dir)} | tail -n 8`], { encoding: 'utf8' }).stdout;
-      throw new Error(`${error.message}\n${left}`);
-    }
-  });
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })); // a submitted run may still be writing [C7]
   const repo = join(dir, 'repo');
   const worker = join(dir, 'worker');
   const home = join(dir, 'home');
