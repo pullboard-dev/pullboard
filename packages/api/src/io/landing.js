@@ -25,17 +25,18 @@ function landingItems(items) {
  * checks and pushes. Offering the same landing again returns the job as it stands.
  *
  * Why: the board host only keeps rows, so a landing survives the board host sleeping, and nothing here runs git.
- * Behind gate.runnerDispatch pull with landing.trunkRemote set, so today's lander stays the default.
+ * Behind gate.runnerDispatch pull with trunk.remote set, so today's lander stays the default.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, config: { landing?: { trunkRemote?: string } },
+ * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, config: { trunk?: { remote?: string }, landing?: { trunkRemote?: string } },
  *   mode: string, trunk?: string, check?: string[] | null, needs?: string[], now?: number }} request
  * @returns {ReturnType<typeof offerJob>}
  */
 export function offerLandingJob(db, { items, expect, config, mode, trunk = 'refs/heads/main', check = null, needs = [], now = Date.now() }) {
   if (mode !== 'pull') throw new Refused('LANDING_NOT_PULL', 'landing runs as a runner job only when gate.runnerDispatch is pull; today\'s lander lands this board');
-  const remote = config?.landing?.trunkRemote;
-  if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set landing.trunkRemote in pullboard.json to its git URL');
+  // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
+  const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
+  if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
   if (!SHA.test(expect ?? '')) throw new Refused('LANDING_EXPECT', 'a landing job names the full trunk sha its items were accepted against');
   if (!REF.test(trunk)) throw new Refused('LANDING_TRUNK_REF', 'the trunk is a refs/ name, like refs/heads/main');
   if (check !== null && (!Array.isArray(check) || check.length === 0 || check.some(part => typeof part !== 'string'))) throw new Refused('LANDING_CHECK', 'a landing check is a command as a list of strings, like ["npm", "run", "gate"]');
