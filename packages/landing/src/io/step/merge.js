@@ -21,6 +21,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { checkLandingMessages } from '../../logic/message.js';
 import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
+import { scanRidesRunner } from '../scan.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { landingHooks } from './selection.js';
@@ -173,7 +174,8 @@ export async function mergeGroup(state, items) {
   if (tip !== beforeDoctrine) for (const file of git(batch.root, ['diff', '--name-only', '-z', beforeDoctrine, tip]).split('\0').filter(Boolean)) landingWrites.add(file);
   state.landingWrites = [...landingWrites].sort();
   requireLandingCompanions(batch.root, state.board, merged, tip);
-  await requireLandingModuleResolution(batch.root, batch.base, tip);
+  // A named batch is scanned by the runner job beside its static checks (step/trunk.js), not on the coordinator [C7,#5559].
+  if (!scanRidesRunner(state)) await requireLandingModuleResolution(batch.root, batch.base, tip);
   return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 

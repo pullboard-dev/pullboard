@@ -76,6 +76,7 @@ import { landOnTrunk } from './trunk.js';
 import { flakeRatchetBeforeGate } from './trunk.js';
 import { finishTrunk } from './publish.js';
 import { timedPhase } from '../timing.js';
+import { scanRidesRunner } from '../scan.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
@@ -90,6 +91,7 @@ function requireParallelGateAdmission(root, config) {
  * packages/codemap/data/plan/cells.json on base or in the merge has no placement rules to enforce, so the check passes there.
  */
 export async function placedMerge(state, items) {
+  if (scanRidesRunner(state)) return true; // the runner job checks a named batch's placement beside its static checks [C7,#5559]
   if (!existsSync(join(state.root, 'packages/codemap/data/plan/cells.json')) || !existsSync(join(state.batch.root, 'packages/codemap/data/plan/cells.json'))) return true;
   const { unplanned, readPlan, addedPlacementProblems } = await import('../../../../codemap/index.js');
   const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });

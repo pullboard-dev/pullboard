@@ -34,6 +34,7 @@ function staticProject() {
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   config.staticChecks = `node ${JSON.stringify(script)}`;
+  config.landing = { perItem: false, manualOverride: true, publish: 'separate' };
   writeFileSync(path, JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure a static fixture check');

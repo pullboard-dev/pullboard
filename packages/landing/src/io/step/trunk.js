@@ -46,6 +46,9 @@ import { namedFailures } from './diagnose.js';
 import { returnRefusedItem } from './diagnose.js';
 import { landingFault } from './diagnose.js';
 import { landingSpan } from '../../../../resources/index.js';
+import { requireLandingModuleResolution } from '../guards.js';
+import { SCAN_UNAVAILABLE } from '../scan.js';
+import { scanRidesRunner } from '../scan.js';
 import { externalGuards } from './external.js';
 
 /** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
@@ -91,6 +94,20 @@ export function landingSmoke(services) {
   return services.runLandingCliSmoke ?? smokeCandidate;
 }
 
+/** The static command with the landing scan chained on, so both run as one runner job; null when there is no static command. */
+function withLandingScan(state) {
+  const command = state.config.staticChecks.trim();
+  const scan = `node packages/landing/src/io/scan.js --base ${state.batch.base} --tip ${headCommit(state.batch.root)}`;
+  return { config: { ...state.config, staticChecks: `${command} && ${scan}` } };
+}
+
+/** When the runner's checkout could not carry the scan, run it here once; a runner's own scan answered otherwise. */
+async function finishLandingScan(state, ran) {
+  if (!ran || ran.reused || !String(ran.output ?? '').includes(SCAN_UNAVAILABLE)) return;
+  await requireLandingModuleResolution(state.batch.root, state.batch.base, headCommit(state.batch.root));
+  state.say?.('the runner could not scan this batch; module resolution ran on the coordinator');
+}
+
 /**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
@@ -102,8 +119,12 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   const runGate = services.gateGroup ?? gateGroup;
   const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root), { external: state.batch.external === true });
   if (proven) {
-    await landingSpan('static', () => runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
+    // A named batch's module-resolution parse and plan check ride in the same runner job as the static checks, so the coordinator scans nothing [C7,#5559].
+    const scanned = proven.externalProof && scanRidesRunner(state) ? withLandingScan(state) : null;
+    const config = scanned?.config ?? state.config;
+    const ran = await landingSpan('static', () => runChecks(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
+    if (scanned) await finishLandingScan(state, ran);
     await smoke(state.batch.root, { record: true });
     state.say?.(proven.externalProof
       ? `${proven.externalProof.map(id => `#${id}`).join(', ')}: proven elsewhere by the coordinator; the static checks and smoke ran on the runners, no tests rerun`

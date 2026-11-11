@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { landingSpan } from '../../../../resources/index.js';
 import { claimRefreshStart } from '../main/red/refresh/flight.js';
 import { AGENT_SESSION_IDS } from '../../../../kernel/index.js';
+import { scanRidesRunner } from '../scan.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -198,7 +199,7 @@ const AUTOMATIC_EARLIER = ['amendLandingEngines', 'gate', 'activateMainAudits', 
 export async function publish(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
-  await requireLandingModuleResolution(batch.root, batch.base, batch.tip);
+  if (!scanRidesRunner(state)) await requireLandingModuleResolution(batch.root, batch.base, batch.tip);
   requireLandingCarries(state, batch);
   const remote = requirePushTarget(state.root, batch.branch);
   if (batch.proof?.failures?.length && batch.state !== 'pushed') {
@@ -290,7 +291,7 @@ async function finishTrunkSteps(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await timedPhase(state.say, 'lease check', () => state.checkLease());
   state.say?.('finish: envelope recorded; checking module resolution');
-  await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
+  if (!scanRidesRunner(state)) await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
   state.say?.('finish: module resolution checked; recording the finished batch');
   state.batch = state.config.landing?.requireReceipts === true

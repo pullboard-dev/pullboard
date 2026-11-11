@@ -48,6 +48,7 @@
   ["src/landing-step-publish.js","packages/landing/src/io/step/publish.js","rule"],
   ["src/landing-step-trunk.js","packages/landing/src/io/step/trunk.js","rule"],
   ["src/landing-step-external.js","packages/landing/src/io/step/external.js","rule"],
+  ["src/landing-scan.js","packages/landing/src/io/scan.js","rule"],
   ["src/landing-step-parallel.js","packages/landing/src/io/step/parallel.js","rule"],
   ["src/landing-step-batch.js","packages/landing/src/io/step/batch.js","rule"],
   ["src/landing-history-plan.js","packages/landing/src/io/history.js","rule"],
