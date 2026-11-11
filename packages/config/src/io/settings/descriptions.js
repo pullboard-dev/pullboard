@@ -75,7 +75,7 @@ const ROWS = [
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
   ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Project', 'list'],
-  ['trunk.remote', 'Trunk remote', 'The git URL runners fetch candidates from and landing pushes the trunk to; empty uses the board host\'s own repository.', 'Project', 'text'],
+  ['trunk.remote', 'Trunk remote', 'The git URL runners fetch candidates from and landing pushes the trunk to, with gate.runnerDispatch pull as a runner job that pushes only if trunk has not moved; empty uses the board host\'s own repository.', 'Project', 'text'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],
@@ -137,7 +137,7 @@ const ROWS = [
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
   ['landing.auditOnly', 'Audit-only tests', 'Test files the per-item landing gate leaves to the post-landing audit, which files a red there as a main red; off unless listed.', 'Landing', 'list'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
-  ['landing.trunkRemote', 'Trunk remote', 'The git URL of the trunk of record, apart from the board host: runners fetch from it, and with gate.runnerDispatch pull a runner landing job pushes to it only if trunk has not moved.', 'Landing', 'text'],
+  ['landing.trunkRemote', 'Trunk remote (old name)', 'Deprecated: the old name for trunk.remote, read for one release when trunk.remote is empty and removed after it; set trunk.remote instead.', 'Landing', 'text'],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
   // This repo: Commits
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],

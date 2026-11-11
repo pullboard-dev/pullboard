@@ -1,10 +1,11 @@
 /**
- * Under gate.runnerDispatch pull with landing.trunkRemote set, the automatic lander offers accepted items as one runner
+ * Under gate.runnerDispatch pull with trunk.remote set, the automatic lander offers accepted items as one runner
  * land job and returns: a runner merges, checks and pushes trunk with compare-and-swap, and its receipt marks the items
  * merged. This host merges nothing and runs no landing batch [P7].
  */
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
+import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { withBoard } from '../context.js';
@@ -30,8 +31,8 @@ export function landingItemRef(id) {
  */
 export function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit }) {
   const policy = mainPolicy(root);
-  const remote = policy.config.landing?.trunkRemote;
-  if (runnerDispatchMode() !== 'pull' || typeof remote !== 'string' || !remote) return null;
+  const remote = configTrunkRemote(policy.config);
+  if (runnerDispatchMode() !== 'pull' || !remote) return null;
   return withBoard(ctx, board => {
     const open = openLandingJob(board.db);
     if (open) return { offered: open, items: [], waiting: false };
