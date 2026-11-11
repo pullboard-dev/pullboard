@@ -268,6 +268,7 @@
         "apps/cli/journeys/rigor/view.test.js",
         "apps/cli/journeys/roadmap/card.test.js",
         "apps/cli/journeys/roadmap/cockpit.test.js",
+        "apps/cli/journeys/roadmap/cockpit/",
         "apps/cli/journeys/roadmap/count.test.js",
         "apps/cli/journeys/roadmap/counts.test.js",
         "apps/cli/journeys/roadmap/held.test.js",
