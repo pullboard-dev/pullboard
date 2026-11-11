@@ -1,13 +1,14 @@
 /**
  * Refusals that say the landing's machinery could not run, not that the batch or an item failed: a busy board, a locked
- * slot database, or a gate whose only non-green shards are runner refusals. They are retried and never park an item.
+ * slot database, accepted policy that moved mid-write (#5672), or a gate whose only non-green shards are runner refusals.
+ * They are retried and never park an item.
  * Why here: the repeat guard (core) and the landing steps (shell) must judge the same codes [C7,#3693].
  */
-export const LANDING_FAULT_CODES = Object.freeze(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'LAND_RUNNER_FAULT']);
+export const LANDING_FAULT_CODES = Object.freeze(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'LAND_RUNNER_FAULT', 'POLICY_SNAPSHOT_STALE']);
 
 /** A new accepted main may repair diagnostics or executor admission, never an attributed item defect [B35,C7]. */
 export function retryableLandingRefusal(code) {
-  return code === 'LAND_DIAGNOSTIC' || code === 'SLOT_DB_LOCKED' || code === 'LAND_GATE_TIMEOUT' || code === 'LAND_RUNNER_FAULT'
+  return code === 'LAND_DIAGNOSTIC' || code === 'SLOT_DB_LOCKED' || code === 'POLICY_SNAPSHOT_STALE' || code === 'LAND_GATE_TIMEOUT' || code === 'LAND_RUNNER_FAULT'
     || typeof code === 'string' && code.startsWith('RUNNER_');
 }
 

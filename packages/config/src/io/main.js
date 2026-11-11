@@ -15,6 +15,7 @@ import {
 } from '../logic/exit/rules.js';
 import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
+import { trunkProblems } from '../logic/trunk.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 import { COORDINATOR } from '../../../queue/light.js';
@@ -76,6 +77,7 @@ export function defaults() {
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
     lanes: {},
+    trunk: { remote: '' },
     products: {},
     shared: [],
     fix: [],
@@ -288,7 +290,7 @@ export function configProblems(config) {
   }
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -304,6 +306,9 @@ export function configProblems(config) {
     problems.push('"landing.auditOnly" is a list of test file paths the per-item landing gate leaves to the post-landing audit');
   }
   if (config.landing?.requireReceipts !== undefined && typeof config.landing.requireReceipts !== 'boolean') problems.push('"landing.requireReceipts" is a boolean; omit it or use false to preserve legacy landing records');
+  if (config.landing?.trunkRemote !== undefined && (typeof config.landing.trunkRemote !== 'string' || !config.landing.trunkRemote.trim() || config.landing.trunkRemote.startsWith('-') || /\s/u.test(config.landing.trunkRemote))) {
+    problems.push('"landing.trunkRemote" is the git URL of the trunk remote of record, which runners fetch from and a runner landing job pushes to; omit it to keep landing on this machine');
+  }
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
@@ -439,6 +444,7 @@ export function configProblems(config) {
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
   }
+  problems.push(...trunkProblems(config.trunk));
   return problems;
 }
 
