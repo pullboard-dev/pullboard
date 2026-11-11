@@ -1,5 +1,6 @@
 /** A held state record reports the current clock when the board revision is unchanged [A2,C7,N26]. */
 import assert from 'node:assert/strict';
+import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { viewApiPorts } from '../../../../../../apps/view/index.js';
 import { refusalDocument } from '../../../../../../apps/cli/index.js';
@@ -36,5 +37,11 @@ test('[A2,C7,N26] a read of an unchanged board reports a newer flow asOf, with t
     assert.deepEqual(next.items, first.items, `read ${index} holds the same items`);
     previous = next;
   }
+  // A restamp is a slice of held text, not a build or a worker round trip: warm reads of the unchanged board stay quick.
+  const times = [];
+  for (let index = 0; index < 20; index += 1) { const started = performance.now(); await read(); times.push(performance.now() - started); }
+  times.sort((left, right) => left - right);
+  t.diagnostic(`warm unchanged read over HTTP: median ${times[10].toFixed(1)} ms, slowest ${times[19].toFixed(1)} ms`);
+  assert.ok(times[10] < 25, `a warm read of an unchanged board is served in ${times[10].toFixed(1)} ms (median), under 25 ms`);
   assert.equal(builds.length, built, 'reads of an unchanged board start no rebuild of the board');
 });
