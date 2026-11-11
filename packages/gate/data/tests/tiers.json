@@ -50473,6 +50473,15 @@
       ]
     },
     {
+      "file": "apps/cli/journeys/submit/parallel/red.test.js",
+      "tier": "T3",
+      "packages": [],
+      "reasons": [
+        "no package: no implementation import",
+        "process: apps/cli/tests/fixtures/child.js"
+      ]
+    },
+    {
       "file": "apps/cli/journeys/submit/pin.test.js",
       "tier": "T3",
       "packages": [
