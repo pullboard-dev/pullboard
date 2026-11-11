@@ -305,8 +305,9 @@ export async function threeReplicaFixture(t, timing) {
   gitAt(seed, envs[0], 'add', '-A');
   gitAt(seed, envs[0], 'commit', '-q', '-m', 'test: seed relay claim fixture');
 
-  // Shared objects: no object file is copied or hardlinked, so a loaded runner cannot fail the clone mid-copy [C7].
-  for (const clone of clones) gitAt(scratch, envs[0], 'clone', '-q', '--shared', seed, clone);
+  // One pack file, not thousands of loose objects, so each clone copies a single file and a loaded runner cannot fail it mid-copy [C7].
+  gitAt(seed, envs[0], 'repack', '-adq');
+  for (const clone of clones) gitAt(scratch, envs[0], 'clone', '-q', seed, clone);
   for (let index = 0; index < clones.length; index += 1) {
     gitAt(clones[index], envs[index], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
     gitAt(clones[index], envs[index], 'worktree', 'add', '-q', '-b', `web/race-${index + 1}`, worktrees[index], 'main');
