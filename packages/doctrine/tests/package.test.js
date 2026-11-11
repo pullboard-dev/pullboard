@@ -133,7 +133,7 @@ const MODULE = `(?:'(?:node:)?module'|"(?:node:)?module")`;
  * `m?.createRequire` or `m['createRequire']`. Any other bracket read on such a binding is computed.
  *
  * @param {string} source
- * @returns {{factories: RegExp[], computed: number}}
+ * @returns {{factories: RegExp[], computed: number, modules: number}} the module-property forms come last, `modules` of them
  */
 function requireFactories(source) {
   const names = new Set(['createRequire']);
@@ -151,7 +151,7 @@ function requireFactories(source) {
       if (!/^\[\s*(['"])createRequire\1\s*\]/u.test(source.slice(read.index + read[0].length - 1))) computed += 1;
     }
   }
-  return { factories, computed };
+  return { factories, computed, modules: modules.size };
 }
 
 /**
@@ -159,18 +159,21 @@ function requireFactories(source) {
  * import list, so it is read like import(...): a loader bound as `const name =
  * factory(import.meta.url)` loads its plain string argument, and any other argument, any other
  * use of that name, or the factory called any other way is COMPUTED. The factory is found under any
- * name requireFactories knows. Words are matched in the text, not confirmed as code: the scan errs
+ * name requireFactories knows; a factory word inside a module-property read is that read, not a second call. Words are matched in the text, not confirmed as code: the scan errs
  * toward a false alarm, never a miss.
  *
  * @param {string} source
  * @returns {string[]}
  */
 function requiresIn(source) {
-  const { factories, computed } = requireFactories(source);
+  const { factories, computed, modules } = requireFactories(source);
   const found = Array.from({ length: computed }, () => COMPUTED);
-  for (const factory of factories) {
-    for (const { index, 0: word } of source.matchAll(factory)) {
+  const reads = factories.map((factory) => [...source.matchAll(factory)]);
+  const spans = reads.slice(factories.length - modules).flat().map(({ index, 0: word }) => [index, index + word.length]);
+  for (const matches of reads) {
+    for (const { index, 0: word } of matches) {
       if (pastGap(source, index + word.length)[0] !== '(') continue;
+      if (spans.some(([from, to]) => from < index && index + word.length <= to)) continue;
       const binding = new RegExp(`(?:const|let|var)\\s+(${NAME})\\s*=\\s*$`, 'u').exec(source.slice(0, index));
       const own = /^import\s*\.\s*meta\s*\.\s*url\s*\)/u.test(pastGap(pastGap(source, index + word.length), 1));
       if (!binding || !own) {
