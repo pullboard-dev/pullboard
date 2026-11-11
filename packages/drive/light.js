@@ -7,3 +7,4 @@ export { wallLoadFactor } from './src/logic/policy.js';
 export { installFileWatchdog } from './src/io/file/watchdog.js';
 export { FILE_WATCHDOG_WORKER } from './src/io/file/watchdog.js';
 export { parseWorkerProcessIdentity, workerProcessIdentityQuery, isWorkerProcessIdentityTimeout } from './src/logic/identity.js';
+export { startDetachedCheck } from './src/io/detached.js';

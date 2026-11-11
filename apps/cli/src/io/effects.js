@@ -2,10 +2,19 @@
 import { heartbeatCommand } from './presence.js';
 import { checkpointAfterMove } from '../../../../packages/stats/index.js';
 import { usageCheckpointWorkerEntrypoint } from './checkpoint.js';
+import { isSubmitHandoffWorker } from '../../../../packages/sandbox/index.js';
+import { startClaimBeater } from '../../../../packages/gate/light.js';
 
-/** Preserve heartbeat order after the original native move succeeds and mark its usage checkpoint due. */
+/** The moves that leave this seat holding a claim it will work outside the CLI. */
+const CLAIMING = new Set(['claim', 'takeHandoff']);
+
+/**
+ * Preserve heartbeat order after the original native move succeeds and mark its usage checkpoint due. A recorded
+ * claim starts the seat's detached beater, bound to the agent session; a background submit worker has no session.
+ */
 export async function afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered }) {
   if (requested && ctx.io.recordedMove) heartbeatCommand(ctx.io, { ctx, board, overlaps: ctx.io.defaultLoop !== true });
+  if (requested && ctx.io.recordedMove && CLAIMING.has(operation) && !isSubmitHandoffWorker(ctx)) startClaimBeater(ctx.info.root);
   if (['claim', 'submit', 'release'].includes(operation) && actor) {
     await checkpointAfterMove(ctx, board, { agent: actor, item: args[0], operation }, { ordered, worker: usageCheckpointWorkerEntrypoint() });
   }

@@ -144,6 +144,9 @@ function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
 
 // What the runner worker uses from gate, re-exported so apps/runner imports the light door and never gate's src.
 export { chromeCloneDirectories } from './src/io/clone.js';
+export { startClaimBeater } from './src/io/beater.js';
+export { keepSeatAlive } from './src/io/keepalive.js';
+export { runSeat } from './src/io/keepalive.js';
 export { childJournalPreloadSource } from './src/io/journal/preload.js';
 export { exactStart } from './src/io/journal/preload.js';
 export { gateStages } from './src/io/stages.js';

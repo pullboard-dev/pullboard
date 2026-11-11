@@ -72,6 +72,7 @@ export function keepSeatAlive(cwd, { everyMs = 60_000, seatOf = timingSeat, beat
 
 /**
  * Whether `seat` still holds a claim on the board in `file`; an item in its queued gate stays claimed, so this covers gates too.
+ * A seat whose registered worktree is gone holds nothing it can work on, so its beat ends and the seat-gone sweep takes the claim.
  * A board that cannot be read this tick counts as held, so a busy writer never ends the beat early; a missing board holds nothing.
  */
 async function defaultHeld(file, seat) {
@@ -80,6 +81,8 @@ async function defaultHeld(file, seat) {
     store = await import('../../../store/index.js');
     board = store.openBoardForRead(file);
     if (!board) return false;
+    const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(seat)?.agent_path;
+    if (typeof path === 'string' && !existsSync(path)) return false;
     return Boolean(board.db.prepare("SELECT 1 FROM item WHERE item_status='claimed' AND item_owner=? LIMIT 1").get(seat));
   } catch { return true; }
   finally { try { if (board) store.closeBoard(board); } catch { /* already closed */ } }
@@ -90,18 +93,19 @@ function pause(ms) { return new Promise(done => setTimeout(done, ms)); }
 
 /**
  * Beat this directory's seat through heartbeatSeat while it holds any claim or queued gate, then return once it holds none.
+ * `alive` ends the beat early: the claim beater passes its agent session's liveness, so a dead agent stops beating.
  * Why: coordinators ran five shell loops that read item_owner and agent_path straight from SQLite with different seat rules;
  * one command keeps every claim of a seat alive on the same path the test runner's keepalive uses [B3,C7,#3784].
  *
  * @param {string} cwd the seat checkout or one of its item folders
  * @returns {Promise<{ seat: string|null, beats: number }>}
  */
-export async function keepClaimsAlive(cwd, { everyMs = 30_000, seatOf = runSeat, held = defaultHeld, beat = defaultBeat, wait = pause } = {}) {
+export async function keepClaimsAlive(cwd, { everyMs = 30_000, seatOf = runSeat, held = defaultHeld, beat = defaultBeat, wait = pause, alive = () => true } = {}) {
   const binding = seatOf(cwd);
   if (!binding?.seat || !binding.file) return { seat: null, beats: 0 };
   const file = join(dirname(binding.file), 'board.sqlite');
   let beats = 0;
-  while (await held(file, binding.seat)) {
+  while (alive() && await held(file, binding.seat)) {
     await beat(file, binding.seat);
     beats += 1;
     await wait(everyMs);
