@@ -296,6 +296,12 @@ export async function threeReplicaFixture(t, timing) {
 
   t.after(async () => {
     await cleanupFixtureChildren(); // live fixture children would keep writing into scratch during the removal
+    for (const home of homes) { // each home's background relay sender is detached and keeps writing its log there
+      try {
+        const pid = Number(readFileSync(join(home, '.pullboard', 'relay-sender', 'sender.pid'), 'utf8'));
+        if (Number.isSafeInteger(pid) && pid > 1) process.kill(pid, 'SIGKILL');
+      } catch { /* No sender, or it already exited. */ }
+    }
     rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   });
   gitAt(seed, envs[0], 'init', '-q', '-b', 'main');
