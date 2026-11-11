@@ -169,7 +169,7 @@ export async function observeNativeFailure(options) {
 export function diagnosticUnavailable(options, error, started = Date.now()) {
   const code = diagnosticCode(error);
   options.run.flakeDiagnostics = { ...(options.run.flakeDiagnostics ?? { observations: [] }), wallMs: Date.now() - started, error: code };
-  const message = `failure diagnostics could not finish (${code}); the original result stays red; inspect the retained gate log and pullboard flakes\n`;
+  const message = `failure diagnostics could not finish (${code}) DEBUG ${String(error?.stack ?? error).slice(0, 700)}; the original result stays red; inspect the retained gate log and pullboard flakes\n`;
   try {
     if (typeof options.onError === 'function') options.onError({ code, message });
     else process.stderr.write(message);
