@@ -104,6 +104,8 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // The rigor auto-draft switch reads pullboard.json to honor rigor.autoDraft; a missing or bad config keeps the default and never refuses release or reopen.
+  '../packages/store/src/io/board/shout.js#rigorAutoDraftOn': ['../packages/config/index.js#loadConfig'],
   // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
   '../apps/cli/src/io/claim.js#refreshesLanePolicy': ['../apps/cli/src/io/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
