@@ -45,7 +45,6 @@ export {
 export {
   requireTrunkMerge,
   itemPolicy,
-  policyVersion,
   submissionPaths,
   dependencySnapshots,
   frozenCheck,
