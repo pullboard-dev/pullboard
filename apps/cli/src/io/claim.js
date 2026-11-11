@@ -210,9 +210,10 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
 /**
  * Decide whether a new claim can refresh policy metadata in place, re-freezing this one item [C7].
  *
- * Why: policy outside the bar (gate inputs, other lanes, a grown owns list) moves often and never changes what the bar
- * means, so the claim re-pins it in its own write; a changed verify or check rule, a shrunk owns list, a named file that
- * changed lanes or a row that no longer resolves would change the bar, so only those still refuse, naming who acts.
+ * Why: policy outside the bar (gate inputs, other lanes, the item lane's owns list) moves often and never changes what the
+ * bar means, so the claim re-pins it in its own write; a changed verify or check rule, a named file that changed lanes
+ * (L2) or a row that no longer resolves (V3) would change the bar, so only those still refuse, naming who acts. A shrunk
+ * owns list is judged like another lane's owns change: by the named paths it moves, never by the list alone (#3793).
  *
  * @param {any} ctx
  * @param {any} board
@@ -238,10 +239,11 @@ async function refreshesLanePolicy(ctx, board, id, agentId) {
     .flatMap(key => changedPolicyLeaves(old.config[key], current.config[key], key));
   if (!changed.length) return null;
   const lane = `lanes.${item.item_lane}`;
-  const grew = (before, after) => Array.isArray(before) && Array.isArray(after) && before.every(path => after.includes(path));
+  // The lane's owns list only decides which lane each path is in (L2); the moved check below refuses a named path it moves.
+  const owns = current.config.lanes?.[item.item_lane]?.owns;
+  const stillOwns = Array.isArray(old.config.lanes?.[item.item_lane]?.owns) && Array.isArray(owns) && owns.length > 0;
   const inBar = changed.filter(key => ['verify', 'check'].some(name => key === name || key.startsWith(`${name}.`))
-    || ((key === lane || key.startsWith(`${lane}.`)) && !(key === `${lane}.owns`
-      && grew(old.config.lanes?.[item.item_lane]?.owns, current.config.lanes?.[item.item_lane]?.owns))));
+    || ((key === lane || key.startsWith(`${lane}.`)) && !(key === `${lane}.owns` && stillOwns)));
   if (inBar.length) throw stale(`${inBar.join(', ')} changed what its bar means`);
   const { barPaths } = await import('./commands/add.js');
   const moved = barPaths({ criterion: item.item_criterion, check: item.item_check, brief: item.item_brief })

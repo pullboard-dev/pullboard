@@ -154,8 +154,8 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // Cells the test-cell check records as sealed (packages/gate/data/tests/test-cells.json): their tests conform, so the plan names them [C7].
   const sealedCells = sealedTestCells(root, commit);
   // A cell's own plan shard is a listing that rides with its work, so only the other plan files are global here (#4633).
-  const hardGlobal = !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file) || (file.startsWith('packages/codemap/data/plan') && !PLAN_SHARD.test(file)));
-  const confined = hardGlobal ? null : sealedConfinement(actual, sealedCells, (file, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${file}`], true));
+  const hardGlobal = isHardGlobal(actual);
+  const confined = confinementOf(root, base, commit, actual, sealedCells);
   const global = hardGlobal || (!confined && actual.some(file => PLAN_SHARD.test(file)));
   if (global) for (const row of after.manifest.files) for (const name of row.packages) packages.add(name);
   else for (const file of actual) {
@@ -193,6 +193,16 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const journeys = confined ? after.manifest.files.filter(row => readers?.has(row.file) && !units.includes(row.file)).map(row => row.file)
     : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+}
+
+/** Whether a change list carries a file that is global whatever cell it sits in: a manifest, lockfile or non-shard plan file. */
+function isHardGlobal(actual) {
+  return !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file) || (file.startsWith('packages/codemap/data/plan') && !PLAN_SHARD.test(file)));
+}
+
+/** The sealed-cell confinement of the change from `base` to `commit`, or null; shared by selection and its guard so both read one rule (#5671). */
+function confinementOf(root, base, commit, actual, sealedCells) {
+  return isHardGlobal(actual) ? null : sealedConfinement(actual, sealedCells, (file, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${file}`], true));
 }
 
 /** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
@@ -350,7 +360,10 @@ export function requireSealedSkips(root, plan, { proofFiles, check } = {}) {
   const doors = new Set([...(seals?.doors ?? []), ...changed.filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);
   const contractRoots = [...doors].map(door => ownerOf(door, after.packageFiles, after.owners)).filter(Boolean).map(name => `${name}/contract/`);
   const contract = row => contractRoots.some(prefix => row.file.startsWith(prefix));
-  const required = after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => mustRun.has(name))) || own(row) || contract(row)).map(row => row.file);
+  // A change confined to sealed cells narrows the units to theirs (#4003), so the guard demands only those; an unsealed
+  // package inside the cell still has to select or skip its unit tests (#5671).
+  const confined = plan.base ? confinementOf(root, plan.base, plan.commit, changed, sealedTestCells(root, plan.commit)) : null;
+  const required = after.manifest.files.filter(row => ((row.tier === 'T1' && row.packages.some(name => mustRun.has(name))) || own(row) || contract(row)) && (!confined || confinedUnit(row, confined.roots, doors))).map(row => row.file);
   const missing = required.filter(file => !plan.units.includes(file)).sort();
   if (missing.length) throw new Refused('TEST_SELECTION_INCOMPLETE', `unit tests of unsealed packages are neither selected nor skipped: ${missing.join(', ')}; select tests from the committed diff`);
   if (!proofFiles) return;
