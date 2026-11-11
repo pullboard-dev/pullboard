@@ -334,7 +334,9 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   }
   // copyWords' clipboard fallback (#764) creates a read-only field, selects it and removes it in the same call, so it
   // never holds anything a person typed; every other field the script could build is still refused.
-  const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n');
+  // The Spec tab's Answer box is the one other field; its refresh case in spec/cockpit.test.js proves the draft and focus survive.
+  const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n')
+    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''");
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
 
