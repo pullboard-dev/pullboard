@@ -302,6 +302,7 @@
         "apps/cli/journeys/shout/words.test.js",
         "apps/cli/journeys/show/rows.test.js",
         "apps/cli/journeys/spec/cockpit.test.js",
+        "apps/cli/journeys/spec/cockpit/",
         "apps/cli/journeys/spec/descriptions.test.js",
         "apps/cli/journeys/spec/redesign.test.js",
         "apps/cli/journeys/spec/revision.test.js",

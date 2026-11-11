@@ -32,10 +32,11 @@ export function toolingKey(sources) {
 
 /**
  * A cache of one check's per-file results. An entry is reused only when the file's blob oid, the check's rule version and
- * the tooling key all match; anything else recomputes, so the rows equal a full run's rows exactly.
+ * the tooling key all match (and the entry's own `valid` test passes, for rows that also depend on files outside the blob);
+ * anything else recomputes, so the rows equal a full run's rows exactly.
  *
  * @param {{name: string, version: number | string, tooling: string, home?: string | null}} options - `home: null` keeps it in memory only.
- * @returns {{get: (path: string, oid: string, compute: () => unknown) => unknown, save: () => void, hits: number, misses: number}}
+ * @returns {{get: (path: string, oid: string, compute: () => unknown, valid?: (value: any) => boolean) => any, save: () => void, hits: number, misses: number}}
  */
 export function fileCache({ name, version, tooling, home = undefined }) {
   const dir = home === null ? null : join(home ?? join(machineHome(), 'static-cache'));
@@ -52,10 +53,12 @@ export function fileCache({ name, version, tooling, home = undefined }) {
   const cache = {
     hits: 0,
     misses: 0,
-    get(file, oid, compute) {
+    /** Whether `get` would answer this file from the cache, without counting a hit or a miss. */
+    has(file, oid) { return entries[file]?.oid === oid; },
+    get(file, oid, compute, valid = () => true) {
       seen.add(file);
       const entry = entries[file];
-      if (entry && entry.oid === oid) { cache.hits++; return entry.value; }
+      if (entry && entry.oid === oid && valid(entry.value)) { cache.hits++; return entry.value; }
       cache.misses++;
       const value = compute();
       entries[file] = { oid, value };
@@ -77,6 +80,55 @@ export function fileCache({ name, version, tooling, home = undefined }) {
   return cache;
 }
 
+const GRAPHS = new WeakMap();
+
+/**
+ * The cell graph of one source list, built once per list: each file's blob oid, its owner cell, the cells each cell imports
+ * (from `edgeCache`, per file by blob) and a digest of each cell's files. Every cell-scoped key and partition reads it [5567].
+ *
+ * @param {{file: string, source: string}[]} sources - The style sources of the tree.
+ * @param {ReturnType<typeof fileCache>} edgeCache - Per-file import edges, kept by blob.
+ */
+export function cellGraph(sources, edgeCache) {
+  const known = GRAPHS.get(sources);
+  if (known?.edgeCache === edgeCache) return known.graph;
+  const owner = new Map(), imports = new Map(), byCell = new Map(), digest = new Map();
+  const paths = createHash('sha1');
+  for (const row of sources) {
+    const oid = blobOid(row.source), own = cellOf(row.file).cell;
+    owner.set(row.file, own);
+    if (!byCell.has(own)) { byCell.set(own, []); imports.set(own, new Set()); digest.set(own, createHash('sha1')); }
+    byCell.get(own).push(row);
+    digest.get(own).update(`${row.file}\0${oid}\n`);
+    paths.update(`${row.file}\n`);
+    for (const to of edgeCache.get(row.file, oid, () => fileEdges(row.file, row.source).map(edge => edge.to))) imports.get(own).add(to);
+  }
+  const cellDigest = new Map([...digest].map(([cell, hash]) => [cell, hash.digest('hex')]));
+  const pathsDigest = paths.digest('hex');
+  const graph = {
+    cells: [...byCell.keys()].sort(),
+    ownerOf: file => owner.get(file) ?? cellOf(file).cell,
+    /** The cells named plus every cell they import, transitively, and the root. */
+    reach(cells) {
+      const reached = new Set([...cells, '(root)']), queue = [...reached];
+      for (let at = 0; at < queue.length; at++) for (const to of imports.get(queue[at]) ?? []) if (!reached.has(to)) { reached.add(to); queue.push(to); }
+      return reached;
+    },
+    /** The sources of some cells, in tree order. */
+    sourcesOf: reached => sources.filter(row => reached.has(owner.get(row.file))),
+    /** The key of the cells' reach: their blobs, plus the full path list unless `paths` is false, plus extra files. */
+    key(cells, { paths: withPaths = true, extra = [], read = () => '' } = {}) {
+      const hash = createHash('sha1');
+      if (withPaths) hash.update(pathsDigest);
+      for (const cell of [...graph.reach(cells)].sort()) hash.update(`${cell}\0${cellDigest.get(cell) ?? ''}\n`);
+      for (const file of extra) hash.update(`${file}\0${blobOid(read(file))}\n`);
+      return hash.digest('hex');
+    },
+  };
+  GRAPHS.set(sources, { edgeCache, graph });
+  return graph;
+}
+
 /**
  * A key for a check that reads across files but only inside some cells: the blobs of every file in the named cells, in every
  * cell they import (transitively, by the import edges of the cell graph), and in the root, plus the tree's full path list
@@ -84,24 +136,33 @@ export function fileCache({ name, version, tooling, home = undefined }) {
  *
  * @param {{file: string, source: string}[]} sources - The style sources of the tree.
  * @param {string[]} cells - Entry cells as cellOf names them, such as `runners` or `apps/cli`.
- * @param {{edgeCache: ReturnType<typeof fileCache>, extra?: string[], read?: (file: string) => string}} options - Per-file import edges are kept in `edgeCache`.
+ * @param {{edgeCache: ReturnType<typeof fileCache>, extra?: string[], read?: (file: string) => string, paths?: boolean}} options - Per-file import edges are kept in `edgeCache`.
  * @returns {string}
  */
-export function cellScopedKey(sources, cells, { edgeCache, extra = [], read = () => '' }) {
-  const owner = new Map(), imports = new Map();
-  for (const { file, source } of sources) {
-    const own = cellOf(file).cell;
-    owner.set(file, own);
-    const edges = edgeCache.get(file, blobOid(source), () => fileEdges(file, source).map(edge => edge.to));
-    if (!imports.has(own)) imports.set(own, new Set());
-    for (const to of edges) imports.get(own).add(to);
+export function cellScopedKey(sources, cells, { edgeCache, extra = [], read = () => '', paths = true }) {
+  return cellGraph(sources, edgeCache).key(cells, { paths, extra, read });
+}
+
+/**
+ * Run a check that judges each file against the files it can reach, one cell at a time: a cell's rows are cached under the
+ * key of that cell plus the cells it imports, so a landing reruns only the cells whose reach changed. `compute` gets the
+ * sources of the reach of every stale cell together and must return rows for all of them; only rows whose file lives in a
+ * cell are kept under it, so every row is kept once and the rows equal a full run's.
+ *
+ * @param {{sources: {file: string, source: string}[], edgeCache: ReturnType<typeof fileCache>, cache: ReturnType<typeof fileCache>, compute: (sources: {file: string, source: string}[]) => object[], fileOf?: (row: object) => string}} options
+ * @returns {object[]} Rows in tree order of their files, a file's rows in the order `compute` made them.
+ */
+export function cellRows({ sources, edgeCache, cache, compute, fileOf = row => row.file }) {
+  const graph = cellGraph(sources, edgeCache), keys = new Map(graph.cells.map(cell => [cell, graph.key([cell], { paths: false })]));
+  // One compute call covers every stale cell: the union of their reaches holds all each of them reads, and a cold cache makes it the full run.
+  const stale = graph.cells.filter(cell => !cache.has(cell, keys.get(cell)));
+  let fresh = null;
+  if (stale.length) {
+    const reached = new Set(stale.flatMap(cell => [...graph.reach([cell])]));
+    fresh = compute(graph.sourcesOf(reached));
   }
-  const reached = new Set(cells), queue = [...cells];
-  for (let at = 0; at < queue.length; at++) for (const to of imports.get(queue[at]) ?? []) if (!reached.has(to)) { reached.add(to); queue.push(to); }
-  const hash = createHash('sha1');
-  for (const { file, source } of sources) {
-    hash.update(`${file}\0${reached.has(owner.get(file)) || owner.get(file) === '(root)' ? blobOid(source) : ''}\n`);
-  }
-  for (const file of extra) hash.update(`${file}\0${blobOid(read(file))}\n`);
-  return hash.digest('hex');
+  const rows = [];
+  for (const cell of graph.cells) rows.push(...cache.get(cell, keys.get(cell), () => fresh.filter(row => graph.ownerOf(fileOf(row)) === cell)));
+  const order = new Map(sources.map((row, at) => [row.file, at]));
+  return rows.map((row, at) => ({ row, at })).sort((a, b) => (order.get(fileOf(a.row)) ?? 0) - (order.get(fileOf(b.row)) ?? 0) || a.at - b.at).map(({ row }) => row);
 }

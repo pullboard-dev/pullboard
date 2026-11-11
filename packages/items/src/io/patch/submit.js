@@ -161,14 +161,17 @@ export function sealItemPatchSubmit(board, id, options) {
   return options;
 }
 
-/** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch. */
+/** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch, after any diagnostics the work left running. */
 export async function withItemPatchSubmit(root, binding, work) {
   if (!binding) return work(root);
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-companion-submit-')));
   const checkout = join(directory, 'repo');
   try {
     git(root, ['worktree', 'add', '--detach', checkout, binding.commit]);
-    return await work(checkout);
+    const result = await work(checkout);
+    // A red gate's flake diagnostics run after its verdict and still ask for a slot and a checkout under this root: keep the scratch until they settle.
+    await result?.diagnosing?.catch?.(() => {});
+    return result;
   } finally {
     // A post-checkout hook may fail after Git registered the worktree: inspect native registration, not exit status.
     const registered = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0').includes(`worktree ${checkout}`);

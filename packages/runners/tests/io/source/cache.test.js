@@ -29,7 +29,7 @@ import { suiteProven } from '../../../../gate/index.js';
 import { testActionKeys } from '../../../../gate/index.js';
 import { prepareTestResultExchange } from '../../../../gate/index.js';
 
-const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../../../src', import.meta.url));
 
 test('runner source scan reuses only clean matching verdicts from the export root manifest [C7]', t => {
@@ -130,7 +130,7 @@ function makeFixture(t) {
   /** Run the whole suite through the real runner; return its status, output and the files that ran. */
   const run = (files = []) => {
     writeFileSync(capture, '');
-    const result = runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', ...(files.length ? files : ['--all'])], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
+    const result = runFixtureChild(process.execPath, ['apps/cli/src/io/run/tests.js', ...(files.length ? files : ['--all'])], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
     const ran = readFileSync(capture, 'utf8').trim().split('\n').filter(Boolean).sort();
     return { status: result.status, output: `${result.stdout}\n${result.stderr}`, ran, context: result.context };
   };
@@ -229,7 +229,7 @@ test('nested proof', async t => { await t.test('child proof', () => {}); });
   const observed = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
     import assert from 'node:assert/strict';
     import { runProfiledShellAsync, requireTestTierAccount } from ${JSON.stringify(gateModule)};
-    const run = await runProfiledShellAsync(process.cwd(), 'node packages/gate/src/io/run/tests.js test/b.test.js');
+    const run = await runProfiledShellAsync(process.cwd(), 'node apps/cli/src/io/run/tests.js test/b.test.js');
     requireTestTierAccount(run, ['test/b.test.js']);
     assert.throws(() => requireTestTierAccount(run, ['test/a.test.js', 'test/b.test.js']), {code:'TEST_SELECTION_UNVERIFIED'});
     const noOp = await runProfiledShellAsync(process.cwd(), 'true');
@@ -387,7 +387,7 @@ test('a runner dispatch request reads its keys without the store upkeep, which o
     if (previous.home === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous.home;
     if (previous.store !== undefined) process.env.PULLBOARD_TEST_RESULT_STORE = previous.store;
   });
-  const exchange = await prepareTestResultExchange(fixture.root, 'node packages/gate/src/io/run/tests.js ./test/a.test.js', 'HEAD');
+  const exchange = await prepareTestResultExchange(fixture.root, 'node apps/cli/src/io/run/tests.js ./test/a.test.js', 'HEAD');
   assert.ok(exchange?.inputKeys.length >= 1, 'the dispatch still names its input keys');
   assert.equal(existsSync(join(fixture.store, 'parts-prune')), false, 'the dispatch ran no parts prune');
   assert.equal(existsSync(join(fixture.root, 'machine', 'key-memo-prune')), false, 'the dispatch ran no memo age sweep');

@@ -20,11 +20,12 @@ import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
 
 const FORBIDDEN = [
-  ['apps/cli/pullboard.js', /\/bin\/pullboard\.js['"]/u],
-  ['apps/cli', /\/apps\/cli\/[^'"]*['"]/u],
-  ['the library front door apps/lib/index.js', /\/apps\/lib\/index\.js['"]/u],
-  ['apps/cli/tests/fixtures/e2e.js', /\/e2e-helpers\.js['"]/u],
+  ['apps/cli/pullboard.js', /\/apps\/cli\/pullboard\.js['"]/u],
+  ['an apps/cli module outside the shared fixtures', /\/apps\/cli\/(?!tests\/fixtures\/)[^'"]*['"]/u],
+  ['apps/cli/tests/fixtures/e2e.js', /\/e2e\.js['"]/u],
 ];
+/** The library front door is forbidden to the cell fixture itself; its shared helper (testkit.js) opens boards through it. */
+const FIXTURE_FORBIDDEN = ['the library front door apps/lib/index.js', /\/apps\/lib\/index\.js['"]/u];
 
 /** The static import and re-export specifiers of one module, comments and strings left aside. */
 function specifiers(source) {
@@ -46,19 +47,20 @@ test('clause 1: cellRepo commits pullboard.json and SPEC.md in a real Git repo w
 });
 
 test('clause 1: the cell fixture and its helpers import no CLI entry, no apps/cli module and not the library front door [C7]', () => {
-  const pending = ['cell-fixture.js'], seen = new Set();
+  const pending = [new URL('../../../../packages/store/tests/fixtures/cell.js', import.meta.url)], seen = new Set();
   while (pending.length) {
-    const name = pending.shift();
+    const url = pending.shift(), name = url.pathname;
     if (seen.has(name)) continue;
     seen.add(name);
-    const source = readFileSync(new URL(name, import.meta.url), 'utf8');
+    const source = readFileSync(url, 'utf8');
     assert.doesNotMatch(source, /import\s*\*\s*as\s+[\w$]+\s+from\s*['"][^'"]*\/index\.js['"]/u, `${name} takes a namespace of a front door`);
     for (const specifier of specifiers(source)) {
       for (const [label, pattern] of FORBIDDEN) assert.doesNotMatch(`'${specifier}'`, pattern, `${name} imports ${label}: ${specifier}`);
-      if (specifier.startsWith('./')) pending.push(specifier.slice(2));
+      if (seen.size === 1) assert.doesNotMatch(`'${specifier}'`, FIXTURE_FORBIDDEN[1], `${name} imports ${FIXTURE_FORBIDDEN[0]}: ${specifier}`);
+      if (specifier.startsWith('.') && !specifier.endsWith('/index.js')) pending.push(new URL(specifier, url));
     }
   }
-  assert.ok(seen.has('testkit-fixture.js') && seen.has('fixture-child.js'), [...seen].join(', '));
+  assert.ok([...seen].some(file => file.endsWith('/tests/fixtures/testkit.js')) && [...seen].some(file => file.endsWith('/tests/fixtures/child.js')), [...seen].join(', '));
 });
 
 test('clause 2: cellSeat and cellItem leave the seat and item rows join and add leave, through the store moves [C7]', t => {

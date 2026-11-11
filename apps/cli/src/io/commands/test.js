@@ -36,7 +36,9 @@ export async function run(io, { first, second, rest, values }) {
   const item = await claimedItem(ctx, agent);
   if (values.diagnose !== true && queuesTestRun(ctx, seat, values)) return queueSeatRun(io, ctx, { agent, item, files, values });
   if (values['test-run'] !== undefined) {
-    await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).payload);
+    const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
+    await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).payload,
+      { beatSeat: board => heartbeatSeat(board, agent) });
     return 0;
   }
   return (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).code;
@@ -53,7 +55,7 @@ function queueSeatRun(io, ctx, { agent, item, files, values }) {
   const missing = files.filter(file => !existsSync(join(ctx.info.root, file)));
   if (missing.length) throw new Refused('NO_TEST_FILE', `no such test file in this checkout: ${missing.join(', ')}`);
   if (!affected && (typeof ctx.config.affectedTests !== 'string' || !ctx.config.affectedTests.trim())) {
-    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node packages/gate/src/io/run/tests.js"');
+    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
   }
   const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, files, affected, compareMain: values['compare-main'] === true });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });

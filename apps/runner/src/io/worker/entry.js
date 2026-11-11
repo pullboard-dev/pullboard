@@ -22,6 +22,7 @@ import { assertTransportLive } from './process.js';
 import { retrySlotLocked } from './process.js';
 import { drainAllOwned } from './process.js';
 import { installSignalCustody } from './process.js';
+import { watchJobFolder } from './orphan.js';
 import { receipt } from './receipt.js';
 import { safeSetupMessage } from './receipt.js';
 import { setupRefusalCode } from './receipt.js';
@@ -62,6 +63,7 @@ export async function main(S) {
   const spec = await readSpec(S);
   S.workSpecAccepted = true;
   S.workerId = spec.id;
+  const orphanWatch = watchJobFolder(S);
   const sink = outputSink(S);
   const phases = startRunnerPhases();
   let api;
@@ -196,6 +198,7 @@ export async function main(S) {
         phases: { install: null, check: null }, guard: spec.trustedMode.guard ? { applied: false, problem: message } : null,
         sourceUnchanged: false, problem: { stage: 'check', message } } } : {}) };
   } finally {
+    orphanWatch.stop();
     phases.mark('cleanupMs');
     // The result goes out first: the controller returns on this receipt while cleanup below continues here (#2538).
     await reportResult();
@@ -237,6 +240,7 @@ export async function main(S) {
   // Past the receipt a slow or failed cleanup is only a leftover for the sweep (#2525); it never turns the result red.
   clearTimeout(S.cleanupTimer);
   clearTimeout(S.phaseCleanupTimer);
+  orphanWatch.finish();
   // The result is already delivered, so the cleanup budget no longer applies; sweep leftovers after each job.
   if (recoveryRoot && api) await sweepRunnerDiskForWorker(recoveryRoot, S.workerId, Date.now() + 60_000, api, process.env.PULLBOARD_MACHINE_HOME ?? join(userInfo().homedir, '.pullboard'));
   process.exitCode = S.resultSent ? 0 : 1;

@@ -19,7 +19,7 @@ import { withMainCheckout } from '../../../../src/io/main/red.js';
 import { runnerPolicyRecord } from '../../../../../sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../../sandbox/index.js';
 
-const runner = fileURLToPath(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-file-budget-'));

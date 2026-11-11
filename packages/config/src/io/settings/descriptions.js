@@ -16,6 +16,7 @@ const ROWS = [
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
   ['gate.runnerDispatch', 'How runner jobs are watched', 'controller keeps one controller process per runner job until its result; pull submits, waits on a shared status file and finishes in short processes, so waiting costs none.', 'Capacity', 'controller/pull'],
+  ['gate.mainComparison', 'Compare red runs with main', 'on-red (default) compares a red submit or review run with main to tell known main reds from new ones; off treats a red gate as red, with no main comparison and no carried-red acceptance.', 'Capacity', 'on-red/off'],
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
@@ -111,7 +112,7 @@ const ROWS = [
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
-  ['review.independence', 'Reviewer independence', 'Off: any seat but the builder may verify, even a subagent of the builder\'s session. Session: only a different agent session may verify.', 'Review', 'choice'],
+  ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims

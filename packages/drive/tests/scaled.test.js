@@ -12,7 +12,7 @@ import { DEFAULT_FILE_WALL_MS } from '../index.js';
 import { fileWatchdogLimits } from '../index.js';
 import { wallLoadFactor } from '../index.js';
 
-const runner = fileURLToPath(new URL('../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('the load factor is load per core, never below 1x and never above 4x [C7,V10]', () => {
   assert.equal(wallLoadFactor(0.5, 14), 1);

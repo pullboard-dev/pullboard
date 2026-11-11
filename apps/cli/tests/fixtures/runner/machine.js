@@ -15,7 +15,9 @@ export function runnerControllerCallees(file, body, source) {
     && entrySource.includes("import { runnerItemSources } from '../../../../packages/resources/index.js'")
     && entrySource.includes("import { controllerDeadline } from '../../../../packages/resources/index.js'")
     && entrySource.includes("import { probeRunnerJob } from '../../../../packages/runners/index.js'")
-    && entrySource.includes('if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob })')) {
+    // A pulled job's short modes are served by servePullController; the bridge without a mode still serves the real controller.
+    && entrySource.includes('if (isRunnerControllerEntry()) (pullMode ? servePullController(pullMode, ')
+    && entrySource.includes(': serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob }))')) {
     return ['../packages/runners/src/io/main.js#serveRunnerController'];
   }
   return [];
