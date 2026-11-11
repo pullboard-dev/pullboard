@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/fixtures/budgets.js */
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
