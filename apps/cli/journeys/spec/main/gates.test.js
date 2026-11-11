@@ -219,7 +219,7 @@ test('an exact-content gate rename passes the commit and spec guards; changed co
 
 test('a gate path written another way still guards its test [S4]', (t) => {
   // ./test/proof.test.js and test/x/../proof.test.js name the file Git reports as test/proof.test.js (#809 review).
-  for (const gate of ['.././test/proof.test.js', 'test/x/../proof.test.js']) {
+  for (const gate of ['./test/proof.test.js', 'test/x/../proof.test.js']) {
     const box = specBox(t, { specSource: `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: ${gate}\n` });
     mkdirSync(join(box.root, 'test'));
     writeFileSync(join(box.root, 'test/proof.test.js'), 'export {};\n');
