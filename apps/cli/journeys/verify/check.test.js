@@ -194,6 +194,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
     const { repo, web } = project(box);
     const historical = submitted(box, repo, web, 'Historical accept');
     const common = box.git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+    // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
     try {
       const item = store.getItem(board, historical.id);
@@ -213,6 +214,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
 
 /** Read the verdicts of one item from the repo's board, opening it read-only for the assertion. */
 function verdictsOf(repo, id) {
+  // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.verdictsFor(board, id); }
   finally { store.closeBoard(board); }
@@ -284,14 +286,19 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   const { repo, web } = project(box);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...config.verify, composeAtAdmission: true } }, null, 2) + '\n');
+  mkdirSync(join(repo, 'web'), { recursive: true });
+  writeFileSync(join(repo, 'web', 'review-input.txt'), 'before submit\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
   // The landing changes the item's own file with the bytes it reviewed (so the composition merges cleanly), and only once the review checkout exists (an earlier empty landing keeps the submit proof from being reused): an empty or unrelated landing no longer voids a verdict (61b93a7c77).
   const reviewer = join(box.dir, 'moving-check-reviewer');
-  const landing = `[ -d '${reviewer}' ] || { git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land before the review [G1]'; exit 0; }; mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'`;
+  const landing = `test -f web/review-input.txt && { [ -d '${reviewer}' ] || { git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land before the review [G1]'; exit 0; }; mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'; }`;
   const { id, commit } = submitted(box, repo, web, 'Moving check', landing);
   box.git(repo, 'switch', '-q', 'main');
+  writeFileSync(join(repo, 'web', 'review-input.txt'), 'after submit\n');
+  box.git(repo, 'add', 'web/review-input.txt');
+  box.git(repo, 'commit', '-q', '-m', 'chore: change the checked review input');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
   succeeds(box, reviewer, 'join', 'web');
   const refused = box.run(reviewer, 'verify', String(id), 'accept', '--note', 'Verified while main moves during the check');

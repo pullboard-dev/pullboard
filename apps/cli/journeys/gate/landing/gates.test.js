@@ -47,6 +47,7 @@ function fixture(t) {
   };
   const initial = commit({});
   mkdirSync(join(root, '.git/pullboard'), { recursive: true });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(root, '.git/pullboard/board.sqlite'));
   t.after(() => closeBoard(board));
   const options = { agentId: 'fixture', policyCommit: initial, commit: initial, tree: git('rev-parse', 'HEAD^{tree}') };
@@ -82,6 +83,7 @@ for (const policy of [{ gate: 'false' }, { check: { timeout: '2s' } }]) test(`ch
 
 /** Observe the real queue without opening a write transaction or supplying any proof receipt. */
 function queuedState(box, id) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { return { job: submitHandoff(board, id), item: getItem(board, id) }; }
   finally { closeBoard(board); }
