@@ -17,6 +17,7 @@ import {
 import { fileURLToPath } from 'node:url';
 import { testClosures } from '../../../../../packages/gate/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
+import { packageFiles } from '../../../../../packages/runners/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
 
@@ -48,7 +49,9 @@ function fixture() {
   const toolRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   const scanner = testClosures(toolRoot).closures.get('packages/gate/tests/io/board/baseline/guard.test.js');
   assert.ok(scanner?.files, scanner?.reason || 'the actual board-file scanner needs a complete committed closure');
-  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/')) });
+  // Only shipped files copy; the guard itself is written below, and other test files are not part of the package.
+  const shipped = new Set(packageFiles(toolRoot));
+  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => shipped.has(file)) });
   put(box.repo, 'packages/gate/tests/io/board/baseline/guard.test.js', [
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",
