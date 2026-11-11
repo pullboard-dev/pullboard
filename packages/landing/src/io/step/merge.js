@@ -79,8 +79,11 @@ export async function mergeGroup(state, items) {
   if (!isClean(batch.root) || untracked(batch.root).length) await resetDirtyOnce(state);
   git(state.batch.root, ['checkout', '--detach', state.batch.base]);
   // Every message is built and checked before the first merge, so a bad one cannot land half a batch.
+  // A named landing carries the coordinator's proven commits; those are the commits it merges and checks [C7,#5559].
+  const proven = batch.external ? new Map((batch.candidates ?? batch.items).map(entry => [entry.id, entry.commit])) : null;
+  const landedCommit = (item) => proven?.get(item.item_id) ?? store.checkedLandingCommit(state.board, item);
   const messages = checkLandingMessages(items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)),
-    landingContext(batch.root, batch.base, state.config, (item) => store.checkedLandingCommit(state.board, item)));
+    landingContext(batch.root, batch.base, state.config, landedCommit));
   const merged = [];
   const conflicts = [];
   const resolutions = [];
@@ -89,11 +92,12 @@ export async function mergeGroup(state, items) {
   for (const entry of items) {
     await state.checkLease();
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
-    if (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
-    const checked = store.checkedLandingCommit(state.board, item);
-    if (checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
+    if (!proven && (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit))) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
+    if (proven && item.item_merged_commit) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} is already merged; name only unmerged items`);
+    const checked = landedCommit(item);
+    if (!proven && checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
     requireLandingCompanions(batch.root, state.board, [item], checked);
-    const stale = verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
+    const stale = proven ? null : verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.
@@ -132,7 +136,8 @@ export async function mergeGroup(state, items) {
     const engines = amendLandingEngines(batch.root, hooks);
     for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
     const first = firstContainingCommit(batch.root, checked);
-    merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
+    const commit = proven ? checked : item.item_commit;
+    merged.push({ id: item.item_id, commit, ...(checked !== commit ? { reviewedCommit: checked } : {}), merge: first });
   }
   // The paths the landing itself writes after the item merges (badge counts, lowered doctrine counts): data the board
   // derives, never an item's change, so a submit receipt still answers for a tree that differs only there [C7,#3685].
