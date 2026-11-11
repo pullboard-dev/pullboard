@@ -186,13 +186,13 @@ function diagnosticCode(error) {
  * persist one typed result per case without changing its verdict. Batching keeps a 33-case red file to two probes
  * instead of 66 [#1899]; each case still keeps its own evidence directory, receipts and classification.
  */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
+async function observeFailure({ root, outputRoot = root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
   const load = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
   const prefix = nodePrefix(command, config, root, pin);
-  const parsed = tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
+  const parsed = tapTests(run.output ?? '', run.executionRoot ?? outputRoot).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
   const failures = parsed.length ? parsed : [{ file: null, name: null, indent: null }];
   const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   if (common.status !== 0) throw new Error('Cannot retain flake evidence without the board Git directory.');
