@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/edit.js apps/cli/src/io/entry.js apps/cli/src/logic/help.js apps/view/src/io/serve.js packages/state/index.js packages/state/src/io/machine.js */
 /** Help stays page-safe and its command inventory follows its printed usages [N26]. @pullboard-world-pin: the edit help case reads edit.js itself to check every option is listed. */
 import assert from 'node:assert/strict';
 import {

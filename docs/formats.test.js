@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/state/src/logic/engines/* */
 import { submitHandoffEventContract } from '../apps/cli/tests/fixtures/generated/handoff.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../packages/link/index.js';

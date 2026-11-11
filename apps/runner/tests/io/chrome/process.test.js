@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/runners/index.js */
 /** A foreign process must neither be signalled nor take a healthy runner out of service [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

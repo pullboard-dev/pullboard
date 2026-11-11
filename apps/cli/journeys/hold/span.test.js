@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/git/index.js packages/landing/index.js packages/landing/src/io/step/selection.js packages/store/index.js */
 /** A landing refused by a held test defect, or with nothing to select, holds the board for under a second [C7,#3333]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js packages/landing/index.js */
 /** A landing inside a runner's job sizes its shards from that runner's pool, and landings started together coalesce [B35,B3,R3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 import { viewApiPorts } from '../../../view/index.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';

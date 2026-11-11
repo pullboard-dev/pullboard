@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/tests/fixtures/evidence.js packages/gate/src/io/run/tests.js packages/sandbox/src/io/smoke.js */
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
 import { shellWord } from '../../index.js';
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';

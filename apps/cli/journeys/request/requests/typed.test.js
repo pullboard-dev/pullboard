@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Typed requests retain coordinator authority, native execution evidence and ordered replay [B3,N26,H16]. */
 import assert from 'node:assert/strict';
 import {

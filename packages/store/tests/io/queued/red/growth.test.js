@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Private real-Git/SQLite lifecycle controls; none of these records claims a gate or publication. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

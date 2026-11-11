@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A board command only marks its usage checkpoint due; a detached worker reads just the new log bytes [N2]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';

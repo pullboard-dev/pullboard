@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/index.js packages/codemap/data/plan/19-items.json packages/codemap/data/plan/cells.json packages/codemap/src/io/cells/scripts/plan.js packages/items/index.js */
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** New source must be placed through the bounded plan writer before native submit runs its check [C7]. */
 import assert from 'node:assert/strict';
