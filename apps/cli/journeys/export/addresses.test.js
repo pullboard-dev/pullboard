@@ -105,6 +105,8 @@ async function sharedChrome(executable, url) {
   }
   const { chrome } = sharedBrowser;
   await chrome.send('Page.navigate', { url: 'about:blank' });
+  // Chrome keeps only 50 history entries, so a long file would hide the one-entry-per-change checks.
+  await chrome.send('Page.resetNavigationHistory');
   await chrome.send('Emulation.clearDeviceMetricsOverride');
   await chrome.send('Emulation.setEmulatedMedia', { features: [] });
   chrome.exceptions.splice(0);
