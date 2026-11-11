@@ -17,6 +17,7 @@ import {
   mkdirSync,
   readFileSync,
   statSync,
+  unlinkSync,
 } from 'node:fs';
 import { connect } from 'node:net';
 import {
@@ -51,6 +52,20 @@ export const RESIDENT_BUSY_DIRECT_MS = 250;
 export const RESIDENT_START_WAIT_MS = 1_500;
 /** The latest a resident process starts a queued command, counted from the client's send; past it the client has left. */
 export const RESIDENT_START_CUTOFF_MS = 1_000;
+/**
+ * The longest a resident process may run one command; past it the command is ended with an error and the process
+ * retires, so its slot frees. Why: on 10 Nov all four slots held commands that had hung 3-11 h at no CPU, so every
+ * call ran cold (~1 s, ~1,750 modules) instead of warm (~0.25 s, 19 modules) [C7,#5470].
+ */
+export const RESIDENT_COMMAND_CEILING_MS = 60_000;
+/** How far past the ceiling a busy file may age before a client treats its process as wedged and replaces it. */
+export const RESIDENT_WEDGED_GRACE_MS = 10_000;
+
+/** The ceiling in effect: PULLBOARD_RESIDENT_COMMAND_MS when set to a positive number, else the default. */
+export function residentCommandCeiling(env = process.env) {
+  const ms = Number(env.PULLBOARD_RESIDENT_COMMAND_MS);
+  return Number.isFinite(ms) && ms > 0 ? ms : RESIDENT_COMMAND_CEILING_MS;
+}
 
 /** The busy file a resident process writes beside its pid file while a command runs: `<pid> <started ms>`. */
 export function residentBusyFile(pidFile) {
@@ -61,13 +76,29 @@ export function residentBusyFile(pidFile) {
  * Whether the resident process has been running one command for longer than RESIDENT_BUSY_DIRECT_MS. Read from a file
  * so it holds while that command blocks the process's event loop, which then answers nothing on its socket.
  */
-export function residentBusy(pidFile, now = Date.now()) {
+export function residentBusy(pidFile, now = Date.now(), env = process.env) {
   try {
     const [pid, at] = readFileSync(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
     if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
     process.kill(pid, 0);
+    // A command past its ceiling and grace is wedged (its own timer never fired, so its event loop is blocked or the
+    // process is stuck): the slot is not busy, it is dead, and is freed for a successor.
+    if (now - at > residentCommandCeiling(env) + RESIDENT_WEDGED_GRACE_MS) return !reapWedged(pidFile, pid);
     return true;
   } catch (error) { return error?.code === 'EPERM'; }
+}
+
+/**
+ * End a wedged resident process and clear its files so the slot starts a fresh one. Only the process the pid file
+ * still names is signalled, so a recycled pid is never hit. True when the slot was cleared.
+ */
+function reapWedged(pidFile, pid) {
+  try {
+    if (Number(readFileSync(pidFile, 'utf8').trim()) !== pid) return false;
+    process.kill(pid, 'SIGKILL');
+    for (const file of [residentBusyFile(pidFile), pidFile]) try { unlinkSync(file); } catch { /* Already gone. */ }
+    return true;
+  } catch { return false; }
 }
 
 /** Find the Git metadata above a directory without starting Git: the checkout root, its Git dir and the shared one. */
@@ -149,11 +180,14 @@ export function residentAllowed(env, linked) {
 
 /** Whether a command line is one the resident process serves: a listed command that neither waits nor acts as the person. */
 export function residentCommand(argv) {
-  if (!RESIDENT_COMMANDS.has(argv[0])) return false;
+  // test --status only reads one run's row and prints it; a test run itself, --wait and --test-run keep their process.
+  const status = argv[0] === 'test' && argv.slice(1).some(arg => arg === '--status' || arg.startsWith('--status='));
+  if (!RESIDENT_COMMANDS.has(argv[0]) && !status) return false;
   for (let index = 1; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--') return false;
     if (arg === '--wait' || arg.startsWith('--wait=')) return false;
+    if (status && (arg === '--test-run' || arg.startsWith('--test-run='))) return false;
     if (arg === '--as' && argv[index + 1] === 'person' || arg === '--as=person') return false;
   }
   return true;
@@ -213,7 +247,7 @@ export function residentPlace(cwd, entry, env) {
     const place = residentSocket(cwd, entry, slot);
     if (!place) return null;
     // A command already running a while would hold this one behind it; the next slot, or a direct read, answers sooner.
-    if (!residentBusy(place.pid)) return place;
+    if (!residentBusy(place.pid, Date.now(), env)) return place;
   }
   return null;
 }
