@@ -64,20 +64,54 @@ function handoffProcessEnvironment(env = process.env) {
  */
 export const HANDOFF_WORKER_LIFELINE_ENV = 'PULLBOARD_WORKER_LIFELINE';
 
+/** The line a dispatcher that hands the machine over writes on each running worker's lifeline. */
+export const HANDOFF_LIFELINE_RELEASE = 'handed-over';
+
 /**
  * Call `stop` once this worker's dispatcher exits: the pipe it holds on this process's stdin ends. A process started
- * without the lifeline is left alone, so a worker run by hand or by a test never stops on its own stdin.
+ * without the lifeline is left alone, so a worker run by hand or by a test never stops on its own stdin. A worker whose
+ * dispatcher wrote HANDOFF_LIFELINE_RELEASE on the pipe was handed over: it calls `onRelease` and finishes its gate
+ * whenever that dispatcher exits [DJ16].
  *
  * @param {() => unknown} stop
- * @param {{ env?: NodeJS.ProcessEnv, stdin?: NodeJS.ReadableStream }} [options]
+ * @param {{ env?: NodeJS.ProcessEnv, stdin?: NodeJS.ReadableStream, onRelease?: () => unknown }} [options]
  * @returns {boolean} Whether a lifeline is watched.
  */
-export function onDispatcherLifelineEnd(stop, { env = process.env, stdin = process.stdin } = {}) {
+export function onDispatcherLifelineEnd(stop, { env = process.env, stdin = process.stdin, onRelease = () => {} } = {}) {
   if (env[HANDOFF_WORKER_LIFELINE_ENV] !== '1') return false;
-  stdin.once('end', stop);
-  stdin.once('error', stop);
+  let heard = '';
+  let released = false;
+  const ended = () => { if (!released) stop(); };
+  stdin.on('data', chunk => {
+    if (released) return;
+    heard = (heard + String(chunk)).slice(-256);
+    if (heard.split('\n').slice(0, -1).includes(HANDOFF_LIFELINE_RELEASE)) { released = true; onRelease(); }
+  });
+  stdin.once('end', ended);
+  stdin.once('error', ended);
   stdin.resume();
   return true;
+}
+
+/**
+ * Tell every worker this dispatcher started that is still running that the machine is handed over, so each finishes
+ * its gate whatever becomes of this process. Resolves to how many were told once each write has settled.
+ * Why: on 11 Nov handed-over dispatchers died with nothing in their log while their gates ran; every driver then stopped
+ * on its lifeline's end and its gate restarted from scratch on the successor (10-60 s of authorization each) [C7,DJ16].
+ *
+ * @param {Map<unknown, { exited?: boolean, worker?: { stdin?: NodeJS.WritableStream | null } }>} running
+ * @returns {Promise<number>}
+ */
+export async function releaseLifelines(running) {
+  const writes = [];
+  for (const entry of running.values()) {
+    const stdin = entry.worker?.stdin;
+    if (entry.exited || !stdin || stdin.destroyed || !stdin.writable) continue;
+    // A worker that exits meanwhile closes its end; that write fails into the callback and never ends this process.
+    stdin.on('error', () => {});
+    writes.push(new Promise(done => stdin.write(`${HANDOFF_LIFELINE_RELEASE}\n`, error => done(!error))));
+  }
+  return (await Promise.all(writes)).filter(Boolean).length;
 }
 
 /** Keep the detached dispatcher functional without passing agent or command session state to it. */
