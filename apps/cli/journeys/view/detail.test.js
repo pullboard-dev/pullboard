@@ -97,10 +97,10 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       // Lazy panes render when opened; Roadmap still needs no item-detail request.
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
       await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 2");
-      listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.chip').textContent)");
-      assert.deepEqual([...listed.roadmap].sort(), ['#1 accepted', '#2 to verify'], 'the roadmap reads every member and its exact state from summaries');
+      listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.stage-word').textContent)");
+      assert.deepEqual([...listed.roadmap].sort(), ['#1 Verified', '#2 In review'], 'the roadmap reads every member and its exact state from summaries');
       // Positioned work follows the backend queue; accepted items have no queue position.
-      assert.deepEqual(listed.roadmap, ['#2 to verify', '#1 accepted'], 'the roadmap shows queue-positioned work before unpositioned accepted items');
+      assert.deepEqual(listed.roadmap, ['#2 In review', '#1 Verified'], 'the roadmap shows queue-positioned work before unpositioned accepted items');
       assert.deepEqual(itemReads(listed.reads), [], 'Shouts renders the board summaries with no item detail fetched');
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), [], 'opening Roadmap renders summaries without fetching item detail');
       await press(chrome, "document.querySelector('[data-tab=shouts]')");
