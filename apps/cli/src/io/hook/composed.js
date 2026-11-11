@@ -22,6 +22,12 @@ import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
 const HOOKS = ['pre-commit', 'pre-merge-commit'];
 
+/** Paths a hook run never loads: the tests and journeys folders and their fixtures. The composed tree leaves them out (#5498). */
+const UNREAD = [':(exclude,glob)**/tests/**', ':(exclude,glob)**/journeys/**'];
+
+/** Files that can change what the CLI does when it loads. */
+const CODE = /\.(?:m?js|cjs|json)$/u;
+
 /** Run Git in `cwd` with the given environment; the caller decides which index Git reads. */
 function git(cwd, args, env, input) {
   return gitSpawnSync(args, { cwd, env, input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -78,11 +84,29 @@ export function composeHookTree(root, { indexFile, patches, env, directory }) {
     const applied = git(root, ['apply', '--cached', '--whitespace=nowarn', '-'], composed, patch);
     if (applied.status !== 0) return { refusal: `companion ${key} does not apply to the staged index: ${applied.stderr.trim().split('\n')[0] ?? ''}; merge main or ask its author to re-attach it against this head` };
   }
-  const checkout = git(root, ['checkout-index', '--all', `--prefix=${tree}`], composed);
+  // Only what a hook run loads is written: the temp tree skips tests and journeys, about half of the checkout (#5498).
+  const listed = git(root, ['ls-files', '-z', '--cached', '--', '.', ...UNREAD], composed);
+  if (listed.status !== 0) return { refusal: `could not list the staged tree: ${listed.stderr.trim()}` };
+  const checkout = git(root, ['checkout-index', '-z', '--stdin', `--prefix=${tree}`], composed, listed.stdout);
   if (checkout.status !== 0) return { refusal: `could not write the staged tree: ${checkout.stderr.trim()}` };
   const stagedPaths = new Set(staged.stdout.split('\0').filter(Boolean));
   const all = git(root, ['diff', '--cached', '--name-only', '-z'], composed).stdout.split('\0').filter(Boolean);
   return { index, tree, companionPaths: all.filter(path => !stagedPaths.has(path)) };
+}
+
+/**
+ * Whether the checkout's own files already equal the staged index where the CLI loads code: no unstaged edit to a
+ * code file and no staged deletion. Then, with no companion patch, the checkout is the staged tree and nothing needs
+ * copying (#5498).
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} env the environment naming the real index
+ * @returns {boolean}
+ */
+function checkoutMatchesIndex(root, env) {
+  const edited = git(root, ['diff', '--name-only', '-z'], env);
+  const deleted = git(root, ['diff', '--cached', '--name-only', '--diff-filter=D', '-z'], env);
+  if (edited.status !== 0 || deleted.status !== 0) return false;
+  return ![...edited.stdout.split('\0'), ...deleted.stdout.split('\0')].some(path => CODE.test(path));
 }
 
 /**
@@ -106,6 +130,9 @@ export async function runComposedHook(entry, args, { cwd, env }) {
   const directories = [];
   /** Compose the current real index with the companions into a fresh private index and tree. */
   const compose = () => {
+    if (patches.length === 0 && checkoutMatchesIndex(root, { ...env, GIT_INDEX_FILE: indexFile })) {
+      return { index: indexFile, tree: root + '/', companionPaths: [] };
+    }
     const directory = mkdtempSync(join(tmpdir(), 'pullboard-hook-'));
     directories.push(directory);
     return composeHookTree(root, { indexFile, patches, env, directory });
