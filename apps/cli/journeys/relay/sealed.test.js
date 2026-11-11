@@ -1,5 +1,6 @@
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { main as nativeTestMain } from '../../tests/fixtures/native.js';
 import { fixture } from '../../tests/fixtures/relay/sealed.js';
 import assert from 'node:assert/strict';
@@ -616,7 +617,7 @@ test('person recovery explicitly skips one future-engine blocker and publishes a
     body: { sequence: 1, sealed: Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(future)), { boardId: box.id, kind: 'move', sequence: 1 })).toString('base64url') } })).status, 200);
   assert.equal((await box.call(box.path + '/events?after=0')).body.events.length, 1);
   const diagnostics = [];
-  const io = { err: (message) => diagnostics.push(message), say: () => {} };
+  const io = { ...apiBoardOpeners, err: (message) => diagnostics.push(message), say: () => {} };
   const previousPullboardHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.home;
   t.after(() => { if (previousPullboardHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousPullboardHome; });
@@ -917,7 +918,7 @@ test('two future-engine blockers recover one durable position at a time on two r
   const previousHome = process.env.PULLBOARD_HOME;
   t.after(() => { if (previousHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousHome; });
   process.env.PULLBOARD_HOME = box.home;
-  const io = { say: () => {}, err: () => {} };
+  const io = { ...apiBoardOpeners, say: () => {}, err: () => {} };
   assert.equal((await syncRelay(box.root, io)).sequence, 5);
   const first = await relayRecover(box.root, 6, io);
   assert.equal(first.sequence, 6, 'later engine99 record cannot roll back the selected skip');
@@ -1022,7 +1023,7 @@ test('recovery collision status preserves the retry while the winner catches an 
   assert.equal(adoptedOutput.includes('relay recovery adopted the authenticated checkpoint at sequence 1; blocked sequence 1 remains recorded as refused'), true,
     'the CLI reports adoption rather than claiming it published the winner');
   const syncDiagnostics = [];
-  const syncSummary = await syncRelay(secondRoot, { err: (line) => syncDiagnostics.push(line), say: () => {} });
+  const syncSummary = await syncRelay(secondRoot, { ...apiBoardOpeners, err: (line) => syncDiagnostics.push(line), say: () => {} });
   assert.deepEqual(syncSummary.recovery, { pending: false, skip: 0, next: '' }, 'adoption clears the durable recovery');
   assert.equal(syncDiagnostics.length, 0);
   const collisionStatus = await replayClient(secondRoot, secondEnv, 'status');
@@ -1088,7 +1089,7 @@ test('recovery preserves a local write racing its first staged publish [H16]', a
   try { assert.ok(store.listItems(board, { all: true }).some(item => item.item_title === 'Concurrent local write')); }
   finally { store.closeBoard(board); }
   const diagnostics = [];
-  await syncRelay(box.root, { err: line => diagnostics.push(line), say: () => {} });
+  await syncRelay(box.root, { ...apiBoardOpeners, err: line => diagnostics.push(line), say: () => {} });
   assert.match(diagnostics.join('\n'), /ENGINE_VERSION/);
   const afterSync = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try { assert.ok(store.listItems(afterSync, { all: true }).some(item => item.item_title === 'Concurrent local write')); }
@@ -1135,7 +1136,7 @@ test('lost-ACK recovery retry refuses to overwrite a concurrent local write [H16
     { code: 'RELAY_LOCAL_CHANGED', message: /cannot be retried from the changed board/ },
     'a local change is preserved and the message does not suggest export alone will unblock retry');
   const diagnostics = [];
-  await syncRelay(box.root, { err: line => diagnostics.push(line), say: () => {} });
+  await syncRelay(box.root, { ...apiBoardOpeners, err: line => diagnostics.push(line), say: () => {} });
   assert.match(diagnostics.join('\n'), /RELAY_RECOVERY_PENDING/);
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {

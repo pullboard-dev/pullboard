@@ -138,7 +138,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   const boardCopy = join(mkdtempSync(join(tmpdir(), 'pullboard-mint-board-')), 'board.sqlite');
   t.after(() => rmSync(dirname(boardCopy), { recursive: true, force: true }));
   copyFileSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), boardCopy);
-  const board = openBoard(boardCopy);
+  const board = openBoard(boardCopy, undefined, { gitRoot: box.root });
   t.after(() => store.closeBoard(board));
   assert.equal(store.agentCreator(board, manual), 'machine', 'a manual join records that no seat made it');
   assert.equal(store.agentCreator(board, builder.id), 'coordinator');
