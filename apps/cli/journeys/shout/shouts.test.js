@@ -20,7 +20,11 @@ import {
   storage,
   openPage,
   boardId,
+  earlier,
 } from '../../tests/fixtures/cockpit/harness.js';
+import {
+  shout as shoutOnBoard,
+} from '../../../../packages/store/index.js';
 import {
   MACHINE_MODEL,
 } from '../../tests/fixtures/cockpit/machine.js';
@@ -61,7 +65,9 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
 
     // A burst larger than the forty shouts the page loads still counts in full, after a reload too.
     await reloaded.click({ tab: 'items' });
-    for (let n = 1; n <= 41; n += 1) box.run(alpha.web, 'shout', 'all', `burst ${n}`);
+    earlier(alpha.repo, Date.now(), (board) => {
+      for (let n = 1; n <= 41; n += 1) shoutOnBoard(board, { from: 'web-1', to: 'all', text: `burst ${n}`, lanes: ['web'] });
+    });
     await reloaded.run('refresh()');
     assert.equal(count(reloaded), '41', 'every arrival counts, not just the forty loaded');
     const again = await openPage(view, { store });
