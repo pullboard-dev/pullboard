@@ -71,7 +71,7 @@ ${subtest ? '});' : ''}
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: commit declared CPU placement probe');
   stage('source-committed');
-  installSshStandIn({ bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, requests });
+  installSshStandIn({ bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, requests, nodeCommand: process.execPath });
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
   for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_TEST_CONTEXT') delete env[key];
   /** Use the ordinary fixture CLI to configure its own genuine runner registration and policy. */
