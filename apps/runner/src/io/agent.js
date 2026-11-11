@@ -94,17 +94,22 @@ tend() {
   [ -z "$pid" ] && ! stale "$d/owner.json" && return 0
   finish "$1" '"LOST"' lost
 }
-full=0
+CORES=$(cores); c=$CORES; full=0; ticks=0
 gate() {
-  c=$(cores); l=$(load1); full=0; state=ok
+  l=$(load1); full=0; state=ok
   if [ -n "$l" ] && awk "BEGIN{exit !($l >= $c)}"; then full=1; state=hold; fi
   shown=$l; [ -n "$shown" ] || shown=-
   printf 'state=%s load=%s cores=%s at=%s\n' "$state" "$shown" "$c" "$(now)" > "$ROOT/load.tmp" && mv "$ROOT/load.tmp" "$ROOT/load"
 }
 idle_since=$(now)
 while :; do
-  busy=0
-  gate
+  busy=0; ticks=$((ticks + 1)); queued=0
+  for d in "$Q"/*/; do
+    [ -d "$d" ] || continue
+    case $d in */.*) continue ;; esac
+    queued=1; break
+  done
+  if [ "$queued" = 1 ] || [ "$ticks" -ge 10 ]; then gate; ticks=0; fi
   for d in "$Q"/*/; do
     [ -d "$d" ] || continue
     id=$(basename "$d")
