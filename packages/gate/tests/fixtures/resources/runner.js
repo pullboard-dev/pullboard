@@ -266,9 +266,12 @@ process.exit(lines.length?1:0);
     assert.ok(observations.some(row => row.commit === commit), 'candidate command really ran');
     assert.ok(observations.some(row => row.commit === base), `touched existing problem really exercised the baseline command: base ${base}, saw ${JSON.stringify(observations)}`);
     assert.ok(observations.every(row => row.cwd.startsWith(paths.remoteHome + '/')), 'no current or baseline doctrine shell ran on the controller');
-    const output = resolve(box.web, box.git(box.web, 'rev-parse', '--git-path', 'pullboard-doctrine-output'));
-    const receipts = readdirSync(output).map(name => join(output, name, 'observation.json')).filter(existsSync)
-      .map(file => JSON.parse(readFileSync(file, 'utf8')));
+    // The probe's folder holds the baseline's receipt: main's count is measured once, machine-wide, by whichever submit comes first.
+    const receipts = [box.web, folder].flatMap(seat => {
+      const output = resolve(seat, box.git(seat, 'rev-parse', '--git-path', 'pullboard-doctrine-output'));
+      return readdirSync(output).map(name => join(output, name, 'observation.json')).filter(existsSync)
+        .map(file => JSON.parse(readFileSync(file, 'utf8')));
+    });
     assert.ok(receipts.some(row => row.checkedSource.commit === commit && row.privateCheck.phases.check.code === 1), 'exit one remains a counted current result');
     assert.ok(receipts.some(row => row.checkedSource.commit === base && row.privateCheck.phases.check.code === 1), 'the baseline has its own actual source-bound receipt');
     assert.ok(receipts.some(row => row.privateCheck.phases.check.code === 3), 'the uncountable exit is retained rather than a passing empty count');
