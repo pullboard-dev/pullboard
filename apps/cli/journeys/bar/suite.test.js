@@ -92,10 +92,12 @@ test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy 
   assert.equal(box.run(box.web, 'claim', String(ids[1])).code, 0);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
+  // @pullboard-board-file journey: seed legacy item rows into the board the real CLI under test reads next.
   let board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { submitFixture(board, ids[1], { agentId: 'web-1', commit, tree }); }
   finally { closeBoard(board); }
   assert.equal(box.run(secondBuilder, 'claim', String(ids[2])).code, 0);
+  // @pullboard-board-file journey: seed legacy item rows into the board the real CLI under test reads next.
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   const original = new Map([
     [ids[0], 'The named test passes [test]. The full suite passes as run by the submit gate.'],
