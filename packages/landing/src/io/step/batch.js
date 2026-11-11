@@ -201,7 +201,7 @@ export async function land(options) {
     } }));
   let failed = false;
   try {
-    await lease.assertHeld();
+    await lease.assertHeld(); await lease.guard(controller); // The guardian stops a gate this command can no longer own.
     invalidateGitFacts(); // The holder may have moved main while this command waited.
     /** Bind each batch transition to this acknowledged grant, never to an optimistic local result. */
     const write = async (operation, args) => {
@@ -227,7 +227,11 @@ export async function land(options) {
     // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
     if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
-  } catch (error) { failed = true; throw error; }
+  } catch (error) {
+    failed = true;
+    // A gate stopped by the guardian's loss fails on its own; the loss is the cause.
+    throw controller.signal.aborted && controller.signal.reason?.code === 'LAND_WORKER' ? controller.signal.reason : error;
+  }
   finally {
     try { await lease.release(); }
     catch (error) {
@@ -293,7 +297,7 @@ export function crashRefusal(error) {
  * Why: FLAKE_RATCHET escaped with the batch still gating and killed the worker 50 times on 5 Nov [C7,#3188].
  */
 export async function blockAfterRefusal(state, error) {
-  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST';
+  const refused = error instanceof Refused && !['LAND_LEASE_LOST', 'LAND_WORKER'].includes(error.code);
   if ((refused || isCrash(error)) && ['merging', 'gating', 'ready', 'trunk'].includes(state.batch.state)) await save(state, { state: 'blocked' });
 }
 
