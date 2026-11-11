@@ -2,6 +2,10 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { submitFixture } from './board/submit.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
@@ -269,6 +273,49 @@ export function fixtureJoinRoute(args, defaultModel) {
 export function fixtureAddRoute(args) {
   if (args[0] === 'add' && !args.some(arg => arg === '--route' || arg.startsWith('--route='))) args.push('--route', 'strong');
   return args;
+}
+
+/**
+ * A private repository and board where tests submit and reject synthetic items through the normal board moves.
+ *
+ * Why: Rigor draft tests need real rejects and reopens on a real board; the raw repository and board setup lives in
+ * this one kit seam instead of being copied into each test [C7].
+ *
+ * @param {object} store - The store module, passed in so the kit takes on no cell import.
+ * @returns {{ root: string, board: object, submit: (title: string) => number, reject: (id: number) => void, close: () => void }} The fixture.
+ */
+export function rigorFixtureBoard(store) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-rigor-fixture-'));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Rigor fixture', GIT_AUTHOR_EMAIL: 'rigor@example.invalid',
+    GIT_COMMITTER_NAME: 'Rigor fixture', GIT_COMMITTER_EMAIL: 'rigor@example.invalid',
+    PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ name: 'Rigor fixture', gate: 'true', spec: 'SPEC.md',
+    lanes: { app: { owns: ['src/'] } }, landing: { cadence: '1h' } }));
+  writeFileSync(join(root, 'SPEC.md'), '# Spec\n\n## G · Goals\n- G1 [approved, must] Keep the product coherent. | gate: review\n');
+  writeFileSync(join(root, 'DOCTRINE.md'), '# Doctrine\n\n## DR · Rulings\n');
+  git('add', '.'); git('commit', '-q', '-m', 'chore: prepare isolated Rigor fixture');
+  const policy = { version: 1, commit: git('rev-parse', 'HEAD').trim(), verify: { policy: 'any', family: 'off' } };
+  mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
+  const now = new Date('2026-10-24T12:00:00Z');
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(now) }, { gitRoot: root });
+  store.board_ensureCoordinator(board, root);
+  const builder = store.register(board, { lane: 'app', path: join(root, 'builder'), model: 'Fixture builder' });
+  const reviewer = store.register(board, { lane: 'app', path: join(root, 'reviewer'), model: 'Fixture reviewer' });
+  let serial = 0;
+  const submit = title => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'app', title });
+    store.claim(board, id, { agentId: builder, lane: 'app', leaseMs: 7_200_000,
+      freeze: item => ({ text: JSON.stringify({ criterion: item.item_title, policy }), digest: `fixture:${item.item_title}` }) });
+    submitFixture(board, id, { agentId: builder, commit: (++serial).toString(16).padStart(40, '0'), tree: 'e'.repeat(40) });
+    return id;
+  };
+  const reject = id => { store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+    note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
+    digest: store.getItem(board, id).item_frozen_digest, policy: 'any' }); };
+  return { root, board, submit, reject, close: () => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); } };
 }
 
 /** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
