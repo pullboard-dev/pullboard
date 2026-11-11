@@ -365,7 +365,7 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   assert.equal(stateResponse.status, 200);
   const stateDocument = await stateResponse.json();
   const external = stateDocument.state.milestones[0].items[0];
-  assert.deepEqual(external, { id: 'external-1', title: 'External item', status: 'unavailable', state: 'unavailable' });
+  assert.deepEqual(external, { id: 'external-1', title: 'External item', status: 'unavailable', state: 'unavailable', progress: null });
   assert.ok(localItem.item_id > 0);
   const localRoadmap = JSON.stringify(stateDocument.state.milestones);
   assert.ok(!localRoadmap.includes(foreign.name));
