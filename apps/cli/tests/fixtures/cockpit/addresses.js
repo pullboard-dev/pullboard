@@ -1,4 +1,4 @@
-/** Shared helpers for the address journeys: one Chrome per file, real clicks and the browser's own history [N38,N26]. */
+/** Shared helpers for the address journeys: real clicks and the browser's own history [N38,N26]. */
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
@@ -7,7 +7,6 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after } from 'node:test';
 import {
   SPEC,
   project,
@@ -69,51 +68,24 @@ export function addressBoard(box, name, group) {
   box.run(p.repo, 'milestone', 'add', `${name} address milestone`, '--reason', 'Arrange fixture release', '--items', '1,2');
   return p;
 }
-/** The one Chrome every address case reuses, so its launch is paid once per file instead of per case. */
-let sharedBrowser;
-/** Hand the next case a clean tab of the shared Chrome: no emulation, no earlier exceptions, a blank page. */
-async function sharedChrome(executable, url) {
-  if (!sharedBrowser) {
-    const profile = mkdtempSync(join(tmpdir(), 'pullboard-addresses-'));
-    sharedBrowser = { profile, chrome: await openSnapshotChrome(executable, url, profile) };
-    return sharedBrowser.chrome;
-  }
-  const { chrome } = sharedBrowser;
-  await chrome.send('Page.navigate', { url: 'about:blank' });
-  // Chrome keeps only 50 history entries, so a long file would hide the one-entry-per-change checks.
-  await chrome.send('Page.resetNavigationHistory');
-  await chrome.send('Emulation.clearDeviceMetricsOverride');
-  await chrome.send('Emulation.setEmulatedMedia', { features: [] });
-  chrome.exceptions.splice(0);
-  await chrome.send('Page.navigate', { url });
-  return chrome;
-}
-/** Stop the shared Chrome and drop its profile; a case that failed discards it so the next starts clean. */
-async function dropSharedChrome() {
-  const held = sharedBrowser;
-  sharedBrowser = undefined;
-  if (!held) return;
-  try { await closeSnapshotChrome(held.chrome); }
-  finally { rmSync(held.profile, { recursive: true, force: true }); }
-}
-after(dropSharedChrome);
-/** Own one server per case on the shared browser, discarding the browser if an assertion fails. */
+/** Own one browser and server, with cleanup even if an assertion fails. */
 export async function withBrowser(box, run) {
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required for address checks');
   const server = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-addresses-'));
+  let chrome;
   try {
-    const chrome = await sharedChrome(executable, server.link.href);
+    chrome = await openSnapshotChrome(executable, server.link.href, profile);
     await settled(chrome, SCRIPT);
     // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await run(chrome, server);
     assert.deepEqual(chrome.exceptions, [], 'new-document navigation causes no page exceptions');
-  } catch (error) {
-    await dropSharedChrome();
-    throw error;
   } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
     await server.stop();
+    rmSync(profile, { recursive: true, force: true });
   }
 }
 
