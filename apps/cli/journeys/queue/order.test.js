@@ -40,6 +40,7 @@ import {
   localReleaseRank,
 } from '../../../../packages/landing/index.js';
 import { orderedWaiters } from '../../../../packages/queue/index.js';
+import { openKitBoard } from '../../tests/fixtures/testkit.js';
 
 test('release priority uses only local verified work, leaving external references alone [C7,V4]', () => {
   const releases = [
@@ -224,4 +225,35 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   assert.deepEqual(lifted.order, [2, 3], 'coordinator ordering works once overrides are explicitly lifted');
   assert.equal(lifted.sunk, undefined);
   assert.equal(lifted.reasons, undefined);
+});
+
+test('an item waiting only on verified or withdrawn items ranks as ready and next offers it by score [N22,B13]', (t) => {
+  const board = openKitBoard(':memory:');
+  t.after(() => closeBoard(board));
+  register(board, { lane: 'coordinator', path: '/coordinator' });
+  const mid = register(board, { lane: 'core', path: '/mid', route: 'mid' });
+  const reviewer = register(board, { lane: 'review', path: '/reviewer', route: 'strong' });
+  /** Add one mid core item waiting on the given items. */
+  const add = (title, after = []) => addItem(board, { by: 'coordinator', lane: 'core', title, route: 'mid', after,
+    criterion: 'the item can be built and checked from its brief', check: 'true', brief: `Files: src/${title.replace(/\W+/gu, '-')}.js\nTest: the queue order` });
+  const landed = add('landed blocker');
+  const dropped = add('withdrawn blocker');
+  const oneOffs = Array.from({ length: 3 }, (_, index) => add(`ready one-off ${index + 1}`));
+  const freed = add('waits on landed and withdrawn work', [landed, dropped]);
+  const waiter = add('waits on the freed item', [freed]);
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'now', items: [landed, dropped, ...oneOffs, freed, waiter] });
+  claim(board, landed, { agentId: mid, lane: 'core', leaseMs: 3_600_000, freeze: (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` }) });
+  const commit = '1'.repeat(40);
+  submitFixture(board, landed, { agentId: mid, commit, tree: commit });
+  verify(board, landed, { agentId: reviewer, decision: 'ACCEPT', policy: 'any', head: commit, digest: getItem(board, landed).item_frozen_digest,
+    note: 'Synthetic accepted lifecycle record; no gate execution claimed.' });
+  queueStore.merged(board, landed, { agentId: 'coordinator', commit: '2'.repeat(40) });
+  queueStore.withdraw(board, dropped, { agentId: 'coordinator', reason: 'No longer needed' });
+  assert.deepEqual([landed, dropped].map((id) => getItem(board, id).item_status), ['verified', 'withdrawn']);
+
+  const shown = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
+  const rows = new Map(shown.releases[0].items.map((item) => [item.id, item]));
+  assert.match(rows.get(freed).why, /ready and unblocks 1/u, 'a withdrawn blocker clears, so the item is ready work');
+  assert.equal(shown.releases[0].items[0].id, freed, 'its score (unblocks 1, effort 2) puts it above the ready one-offs');
+  assert.equal(nextFor(board, { agentId: mid, lane: 'core' }).item.item_id, freed, 'next offers it in score order among ready items');
 });
