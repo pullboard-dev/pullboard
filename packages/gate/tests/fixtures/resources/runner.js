@@ -219,7 +219,7 @@ process.exit(lines.length?1:0);
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
     const rose = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
-    assert.notEqual(rose.code, 0, rose.out);
+    assert.notEqual(rose.code, 0, `${rose.err}\n${rose.out.slice(0, 400)}\n${JSON.stringify(JSON.parse(rose.out).gate?.activity ?? null).slice(0, 1500)}`);
     assert.equal(JSON.parse(rose.out).error.code, 'RATCHET_ROSE', `${rose.err}\n${rose.out}`);
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
