@@ -186,7 +186,7 @@ async function openOnPhone(t, { box, link, heldPage, currentMarker }, { holdStat
   } catch (error) {
     // Record what the page itself reached, so a miss reads as a page measurement rather than a runner timeout (#953).
     const page = await chrome.evaluate(`({ ...window.__phoneTiming, sinceNavigationMs: performance.now(), readyState: document.readyState,
-      transport: typeof transport, historyProgress: typeof transport?.historyProgress, chain: Boolean(document.querySelector('#chain')), loading: document.body?.classList.contains('loading') })`).catch(() => null);
+      transport: typeof transport, historyProgress: typeof transport?.historyProgress, chain: Boolean(document.querySelector('#chain')), tabs: [...document.querySelectorAll('[data-tab]')].map(b => b.dataset.tab + ':' + b.getAttribute('aria-selected')).join(), chainText: (document.querySelector('#chain')?.textContent ?? '').slice(0, 160), chainHeight: document.querySelector('#chain')?.getBoundingClientRect().height, hasMarker: document.body.textContent.includes('${currentMarker}'), loading: document.body?.classList.contains('loading') })`).catch(() => null);
     t.diagnostic(JSON.stringify({ phonePageAtTimeout: page }));
     error.message += '; the page reached ' + JSON.stringify(page);
     throw error;
