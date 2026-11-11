@@ -70,8 +70,8 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
     for (const project of missing) writeFileSync(join(project.repo, 'pullboard.json'), '{invalid json');
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'missing-projects-chrome'));
     await chrome.waitFor('data?.projects?.filter(project => project.warningCode === "BOARD_UNAVAILABLE").length === 4');
-    assert.equal(await chrome.stable('compactProjectPath("/Users/alex/Code/project")'), '~/Code/project');
-    assert.equal(await chrome.stable('compactProjectPath("/home/alex/Code/project")'), '~/Code/project');
+    assert.equal(await chrome.stable('compactProjectPath("/Users/person/Code/project")'), '~/Code/project');
+    assert.equal(await chrome.stable('compactProjectPath("/home/person/Code/project")'), '~/Code/project');
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);

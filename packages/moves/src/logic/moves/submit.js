@@ -41,7 +41,8 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  const errorLines = args[1]?.autoMainReds?.comparisons?.some(receipt => receipt.failureSignatures?.failures?.some(row => row.firstError !== undefined));
+  const errorLines = args[1]?.autoMainReds?.comparisons?.some(receipt => receipt.failureSignatures?.failures?.some(row => row.firstError !== undefined))
+    || args[1]?.submissionProof?.knownMainFailures?.failures?.some(row => row?.firstError !== undefined || row?.stable !== undefined);
   return Math.max(args[1]?.machineVerified !== undefined || args[1]?.machineReceipts !== undefined ? MACHINE_VERDICT_ENGINE : 1, args[1]?.strictRenames !== undefined ? STRICT_RENAME_ENGINE : 1, errorLines ? MAIN_RED_FAILURE_LINES_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined)

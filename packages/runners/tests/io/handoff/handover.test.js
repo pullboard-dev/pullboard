@@ -46,7 +46,7 @@ test('clause 1: a dispatcher whose tools snapshot is not its tool root\'s curren
   const { launches, old, current } = launchesAtTwoCommits(t);
   assert.equal(staleDispatcherTools({ own: old, launches: () => launches, head }), current, 'a dispatcher on older tools is handed the snapshot captured at main\'s HEAD');
   assert.equal(staleDispatcherTools({ own: current, launches: () => launches, head }), null, 'a dispatcher on main tooling keeps launching, though an older launch still waits');
-  assert.equal(staleDispatcherTools({ own: '/Users/someone/pullboard', launches: () => launches, head }), null, 'a dispatcher run from a checkout never hands over');
+  assert.equal(staleDispatcherTools({ own: '/Users/example/pullboard', launches: () => launches, head }), null, 'a dispatcher run from a checkout never hands over');
   assert.equal(staleDispatcherTools({ own: old, launches: () => [launches[0]], head }), null, 'with no launch captured at main\'s HEAD there is nothing to hand over to');
 });
 

@@ -7,7 +7,7 @@ import {
   localConfigIs,
   plainLocalConfigValue,
 } from '../main.js';
-import { Refused } from '../../../../kernel/light.js';
+import { Refused } from '../../../../kernel/browser.js';
 
 /** Retain the local primary branch outside replicated board data and read-only diagnostics [B34,V6]. */
 export function trunkRef(root, branch) {

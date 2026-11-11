@@ -10065,6 +10065,50 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
+    "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/selection/landing.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/selection/invariants.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/selection/jest.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
     "test/submit-gate-ticks-clause.test.js": {
       "cells": [
         "app:cli",
@@ -11285,6 +11329,30 @@
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
         "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
+      ]
+    },
+    "apps/cli/journeys/export/shouts.test.js": {
+      "cells": [
+        "app:cli",
+        "app:lib",
+        "app:relay",
+        "config",
+        "gate",
+        "kernel",
+        "link",
+        "outbox",
+        "person",
+        "resources",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past app:cli front door (apps/cli/src/io/commands/view.js)",
+        "imports past app:lib front door (apps/lib/src/logic/native.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/journeys/export/shouts.test.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
       ]
     }
   }

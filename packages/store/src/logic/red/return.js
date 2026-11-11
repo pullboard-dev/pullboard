@@ -1,5 +1,5 @@
 /** A red queued gate's return protects its builder's claim from idle maintenance while the lease lasts [V4,H16,B4]. */
-import { ENGINE_VERSION } from "../../../../state/index.js";
+import { ENGINE_VERSION } from "../../../../state/light.js";
 import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../state/light.js";
 import { PINNED_CLAIM_RELEASE_MS } from "../pinned.js";
 import { itemPinned } from "../pinned.js";

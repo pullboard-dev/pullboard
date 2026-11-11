@@ -159,7 +159,7 @@ test('record ${name} [C7]', recordSelectedFile);
     rmSync(root, { recursive: true, force: true });
   }
   t.after(cleanupFixture);
-  return { root, capture, expected, runner: join(bin, 'run-tests.js') };
+  return { root, capture, expected, runner: join(root, 'packages/gate/src/io/run/tests.js') };
 }
 
 /** Build a fixture with one held sibling, one failure, and queued sentinels beyond worker capacity. */
@@ -222,9 +222,11 @@ test('queued sentinel ${number} releases ordinary sibling', () => {
 });
 `);
   }
+  // Without a commit, native discovery would also run every copied gate source file under a test/ folder.
+  stageFixtureTests(root, ['test/01-sibling.test.js', 'test/02-failing.test.js', ...queuedFiles]);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
-    root, runner: join(bin, 'run-tests.js'),
+    root, runner: join(root, 'packages/gate/src/io/run/tests.js'),
     siblingStarted: join(root, 'sibling-started'), siblingFinished: join(root, 'sibling-finished'),
     failure: join(root, 'failure'), queued: join(root, 'queued'), queuedFiles, workerMarker: join(root, 'worker-marker'),
     release: join(root, 'release'),
@@ -450,7 +452,7 @@ test('a landing worker runs after persistent identity snapshot errors [C7,V4]', 
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
-  const fixtureRunner = join(bin, 'run-tests.js');
+  const fixtureRunner = join(root, 'packages/gate/src/io/run/tests.js');
   const workerTest = join(tests, 'worker-start.test.js');
   const preload = join(root, 'worker-snapshot-unavailable.mjs');
   const injected = join(root, 'worker-snapshot-unavailable');
@@ -910,18 +912,24 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
     PULLBOARD_C7_FAIL_CHILD_PID: ordinary.failChildPid,
     PULLBOARD_C7_FAIL_CHILD_DRAINED: ordinary.failChildDrained,
   };
-  const normal = runFixtureChild(process.execPath, [ordinary.runner, '--test-concurrency=2',
+  // The failing worker drains its own child before it exits, so its slot stays held until that child ends; end it once it is up.
+  const normalChild = startFixtureChild(process.execPath, [ordinary.runner, '--test-concurrency=2',
     'test/01-sibling.test.js', 'test/02-failing.test.js', ...ordinary.queuedFiles], {
-    cwd: ordinary.root, env: ordinaryEnv, encoding: 'utf8', timeout: 20000,
+    cwd: ordinary.root, env: ordinaryEnv, stdio: ['ignore', 'pipe', 'pipe'],
   });
-  assert.equal(normal.status, 1, normal.context);
+  const normal = { stdout: '', stderr: '', context: 'ordinary run' };
+  normalChild.stdout?.setEncoding('utf8').on('data', part => { normal.stdout += part; });
+  normalChild.stderr?.setEncoding('utf8').on('data', part => { normal.stderr += part; });
+  const normalClosed = new Promise(resolve => normalChild.once('close', (code, signal) => resolve({ code, signal })));
+  await waitForFixtureMarker(ordinary.failChildReady, 'the failing file launched its detached child');
+  process.kill(Number(readFileSync(ordinary.failChildPid, 'utf8').trim()), 'SIGTERM');
+  normal.status = (await normalClosed).code;
+  assert.equal(normal.status, 1, `${normal.context}\n${normal.stdout}\n${normal.stderr}`);
   assert.ok(existsSync(ordinary.siblingFinished), `ordinary runs wait for active sibling files\n${normal.context}\nstdout: ${normal.stdout ?? ''}`);
   assert.ok(existsSync(ordinary.queued), 'ordinary runs continue scheduling queued files');
   assert.ok(existsSync(ordinary.childDrained), 'ordinary test cleanup also drains its detached child');
   assert.ok(await waitForFixtureProcessDrain(readFileSync(ordinary.childPid, 'utf8').trim()), 'ordinary test cleanup waited for its child to stop');
   assert.ok(existsSync(ordinary.failChildReady), 'the failing worker launched its detached child during an ordinary run');
-  try { process.kill(Number(readFileSync(ordinary.failChildPid, 'utf8').trim()), 'SIGTERM'); }
-  catch (error) { if (error.code !== 'ESRCH') throw error; }
   assert.ok(await waitForFixtureProcessDrain(readFileSync(ordinary.failChildPid, 'utf8').trim()), 'ordinary fixture child was drained');
   assert.ok(existsSync(ordinary.failChildDrained), 'the regression cleaned up the ordinary failing-worker child');
   assert.doesNotMatch(`${normal.stdout ?? ''}\n${normal.stderr ?? ''}`, /stopped early/u);
@@ -1145,7 +1153,7 @@ test('ignored test must not run [C7]', failIfIgnoredRuns);
 `);
   stageFixtureTests(root, ['.gitignore', ...trackedSources.keys(), 'tracked.spec.js']);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, runner: join(bin, 'run-tests.js'), capture, expected };
+  return { root, runner: join(root, 'packages/gate/src/io/run/tests.js'), capture, expected };
 }
 
 /** Create a small ESM or CommonJS test that records its discovery-pattern label. */
@@ -1237,10 +1245,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) throw new Error('standal
   put('apps/cli/journeys/init/perf.test.js', `import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { value as run } from './perf/run.mjs';
-import { value as generate } from './perf/generate.mjs';
-import { value as fixture } from './fixture.js';
-import { value as link } from '../view-link-fixture.js';
+import { value as run } from '../../tests/fixtures/cockpit/perf/run.mjs';
+import { value as generate } from '../../tests/fixtures/cockpit/perf/generate.mjs';
+import { value as fixture } from '../../tests/fixtures/cockpit/harness.js';
+import { value as link } from '../../tests/fixtures/view/link.js';
 /** Exercise every imported helper without its standalone workload. */
 function importedHelpersWork() { assert.deepEqual([run, generate, fixture, link], [42,42,42,42]); appendFileSync(process.env.PULLBOARD_SHARD_CAPTURE, 'cockpit/perf.test.js\\n'); }
 test('perf helpers remain importable [C7]', importedHelpersWork);
