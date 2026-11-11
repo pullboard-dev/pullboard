@@ -371,8 +371,6 @@
     "enabled": true,
     "every": "1h",
     "grace": "1d",
-    "exclude": [
-      "/Users/coreyolson/Code/Open Source/pullboard-local-core-24"
-    ]
+    "exclude": []
   }
 }
