@@ -38,14 +38,14 @@ import {
   runFixtureChild,
   runFixtureChildAsync,
   runFixtureGit,
-} from '../../fixtures/child.js';
-import { codeVersion } from '../../../src/io/resident/client.js';
+} from '../../tests/fixtures/child.js';
+import { codeVersion } from '../../src/io/resident/client.js';
 import {
   residentBusyFile,
   residentSocket,
-} from '../../../src/io/resident/client.js';
+} from '../../src/io/resident/client.js';
 
-const REPO = resolve(import.meta.dirname, '../../../../..');
+const REPO = resolve(import.meta.dirname, '../../../..');
 const BUDGET_MS = 200;
 let fx;
 
@@ -169,7 +169,7 @@ before(() => {
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: 'true',
     lanes: { core: { owns: ['src/'], specs: ['H24'] } } }));
-  writeFileSync(join(repo, 'SPEC.md'), '# Test spec\n\n## H · Speed\n- H24 [approved, must] Board commands answer fast. | gate: apps/cli/tests/io/resident/board.test.js\n');
+  writeFileSync(join(repo, 'SPEC.md'), '# Test spec\n\n## H · Speed\n- H24 [approved, must] Board commands answer fast. | gate: apps/cli/journeys/resident/board.test.js\n');
   assert.equal(runIn(repo, ['init']).status, 0);
   runFixtureGit(['add', '-A'], { cwd: repo, env });
   runFixtureGit(['commit', '-q', '-m', 'chore(repo): set up the resident fixture'], { cwd: repo, env });

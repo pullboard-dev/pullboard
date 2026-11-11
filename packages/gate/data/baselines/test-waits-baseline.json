@@ -11,7 +11,7 @@
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "sleep": 3
   },
-  "packages/landing/tests/io/main/red.test.js": {
+  "apps/cli/journeys/red/main-red.test.js": {
     "sleep": 2
   },
   "apps/cli/journeys/relay/confirmation.test.js": {
@@ -205,7 +205,7 @@
     "poll": 1,
     "sleep": 1
   },
-  "packages/gate/tests/io/affected/graph/cache/lock.test.js": {
+  "apps/cli/journeys/gate/main-red-lock.test.js": {
     "poll": 1,
     "sleep": 1
   },
