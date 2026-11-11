@@ -41,6 +41,8 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import { once } from 'node:events';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -58,7 +60,7 @@ function withoutAction(text, action = 'pullboard next --wait 1') {
 
 /** Await real production CLI dispatch without repeating cold process startup for fixture state moves. */
 function fixtureCommand(box, cwd, ...args) {
-  return runCliInProcess(args, { cwd, env: box.env });
+  return runCliInProcess(fixtureAddRoute(fixtureJoinRoute([...args], box.env.PULLBOARD_MODEL)), { cwd, env: box.env });
 }
 
 test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', () => {
@@ -133,7 +135,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   chmodSync(join(bin, 'pullboard'), 0o755);
   const committed = commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(Test Model\), web lane/);
+  assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async () => {
@@ -378,7 +380,7 @@ test('worktree prints the opening lines of a subagent\'s prompt, with its folder
   const folder = join(box.dir, "my app's $PULLBOARD_PATH_PROBE-web-1");
   const quoted = `'${folder.replaceAll("'", "'\\''")}'`;
   assert.match(made, /For a subagent working here, begin its prompt with:\n/);
-  assert.ok(made.includes(`  You are web-1 (Test Model), in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
+  assert.ok(made.includes(`  You are web-1 (fixture-model), in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
   assert.ok(made.includes(`  Read '${folder.replaceAll("'", "'\\''")}/AGENTS.md' first. Its rules govern this work, over any other repo's instructions you were given.\n`), made);
   // Pasted into a shell as printed, the line enters the real folder: nothing in the path expands.
   const cdLine = /start every command with (cd .+ &&)\n/.exec(made)[1];
