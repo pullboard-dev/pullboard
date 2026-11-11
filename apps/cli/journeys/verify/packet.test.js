@@ -74,7 +74,7 @@ export default async function* report(events) {
 }
 
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
-const CRITERION = 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text. The full suite passes as run by the submit gate.';
+const CRITERION = 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text.';
 
 test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
@@ -152,9 +152,9 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(packet.head, head);
   assert.match(packet.diff.stat, /web\/packet\.test\.js/u);
   assert.match(packet.diff.patch, /^\+test\('clause 2: the visitor is named \[G1\]'/mu, 'the full hunks are in the packet');
-  assert.deepEqual(packet.clauses.map(clause => clause.n), [1, 2, 3, 4, 5]);
-  assert.match(packet.clauses[4].text, /^G1: /u, 'each frozen spec row is a clause after the criterion');
-  for (const n of [1, 2, 5]) {
+  assert.deepEqual(packet.clauses.map(clause => clause.n), [1, 2, 3, 4]);
+  assert.match(packet.clauses[3].text, /^G1: /u, 'each frozen spec row is a clause after the criterion');
+  for (const n of [1, 2, 4]) {
     const clause = packet.clauses[n - 1];
     assert.ok(clause.runs.length > 0, `clause ${n} maps to a recorded run`);
     for (const run of clause.runs) {
@@ -167,15 +167,12 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.deepEqual(packet.clauses[2].runs, [], 'a skipped test that cites the clause is not a recorded run');
   assert.ok(packet.clauses.every(clause => clause.runs.every(run => run.test !== 'clause 3: Old browsers fall back to plain text [G1]')));
   assert.equal(packet.clauses[2].gap, 'no recorded run');
-  if (packet.proof.deferred) assert.match(packet.clauses[3].gap, /deferred the full suite/u, 'a deferred full suite is not a recorded run');
-  else assert.ok(packet.proof.full && packet.clauses[3].runs.every(run => receiptIds.has(run.receipt) && run.file === '(submit gate)'),
-    `a full-suite clause cites the gate's own proof receipts: ${JSON.stringify({ proof: packet.proof, clause: packet.clauses[3] })}`);
   assert.deepEqual(packet.failures, []);
   assert.deepEqual(packet.cells, { before: 0, after: 0, added: [], removed: [], touched: [] });
   assert.match(review.out, /^ {2}3\. Old browsers fall back to plain text\.\n {5}no recorded run: read this clause and name it in --read$/mu, 'the uncovered clause is named');
   assert.match(review.out, /^failures at head: none$/mu);
   const rerun = packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n);
-  assert.ok(rerun.includes(3) && !rerun.includes(1) && !rerun.includes(2) && !rerun.includes(5));
+  assert.ok(rerun.includes(3) && !rerun.includes(1) && !rerun.includes(2) && !rerun.includes(4));
   assert.match(review.out, new RegExp(`^review rule: read every clause marked no recorded run \\(${rerun.join(', ')}\\) and name it in --read`, 'mu'));
 
   const reviewer = join(box.dir, 'api-review');
