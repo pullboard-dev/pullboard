@@ -6,6 +6,8 @@ import {
   privateCheckEnvelope,
   privateCheckPhases,
 } from '../../index.js';
+import { PULL_MODES } from '../../../../packages/runners/index.js';
+import { servePullController } from '../../../../packages/runners/index.js';
 import { serveRunnerController } from '../../../../packages/runners/index.js';
 import { runnerItemState } from '../../../../packages/resources/index.js';
 import { runnerItemSources } from '../../../../packages/resources/index.js';
@@ -19,5 +21,9 @@ function isRunnerControllerEntry() {
   catch { return false; }
 }
 
-if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob })
+/** A pulled job's short submit, serve-need or finish process: it carries the private-check policy only, never a lease or a watch [C7,#5465]. */
+const pullMode = PULL_MODES.includes(process.argv[3]) ? process.argv[3] : null;
+
+if (isRunnerControllerEntry()) (pullMode ? servePullController(pullMode, { privateCheckEnvelope, privateCheckPhases })
+  : serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob }))
   .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
