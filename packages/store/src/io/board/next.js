@@ -60,6 +60,8 @@ import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
 import { lineSettings } from "../../../../state/index.js";
 import { rejectionReturnEnabled } from "../../logic/rework.js";
 import { reworkFamilyRoute } from "../../logic/rework.js";
+import { rejectedFirstEnabled } from "../../logic/rework.js";
+import { isReturned } from "../../logic/rework.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../../state/index.js';
 import { heldClaim } from '../claim.js';
 
@@ -304,6 +306,11 @@ export function nextFor(board, options) {
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
+  // Rejected or reopened work leads new work for every seat, its builder's own first: a preference, never a reservation (#5765).
+  if (rejectedFirstEnabled(board)) {
+    const back = new Map(mine.map(({ entry }) => [entry.item_id, isReturned(board, entry) ? 1 + Number(entry.item_built_by === agentId) : 0]));
+    mine.sort((a, b) => back.get(b.entry.item_id) - back.get(a.entry.item_id));
+  }
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
   // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
   const parked = parkedClaims(board, agentId);
