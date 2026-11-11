@@ -22,27 +22,19 @@ import {
   waitJob,
 } from '../../../../tests/fixtures/submit/handoff.js';
 
-/**
- * Copy the parts of the repository a captured-tools driver runs from: both source trees and the package manifest.
- * Why: the docs, skills and release files are never read by a driver, and copying them per case dominated the copy.
- */
-function copyTools(source, tools) {
-  for (const entry of ['apps', 'packages', 'package.json']) cpSync(join(source, entry), join(tools, entry), { recursive: true });
-}
-
 for (const mode of ['silent']) test(`a dead queued handoff is ${mode === 'missing' ? 'returned when captured tools are gone' : mode === 'silent' ? 'returned after one silent relaunch' : 'relaunched from captured tools'} [V4,H16,E18]`, async t => {
   const missing = mode === 'missing';
   const box = fixture(t);
   const source = resolve(import.meta.dirname, '../../../../../..');
   const tools = join(box.dir, 'initially-silent-tools');
   const exited = join(box.dir, 'initial-worker-exited');
-  copyTools(source, tools);
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
   const worker = join(tools, 'apps/cli/src/io/gate/drive.js');
   // The driver entry starts with a shebang, which must stay its first line; the fixture's exit goes right after it.
   const [shebang, ...body] = readFileSync(worker, 'utf8').split('\n');
   writeFileSync(worker, `${shebang}\n{
     const fs = await import('node:fs');
-    if (process.argv[1]?.endsWith('gate-drive-worker.js') && (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)}))) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
+    if (process.argv[1]?.endsWith('apps/cli/src/io/gate/drive.js') && (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)}))) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
   }\n` + body.join('\n'));
   const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' }));

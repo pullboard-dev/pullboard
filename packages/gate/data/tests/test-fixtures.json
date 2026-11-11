@@ -3495,7 +3495,10 @@
     "raw-board": 4
   },
   "apps/cli/journeys/submit/handoff.test.js": {
-    "raw-board": 4
+    "raw-board": 3
+  },
+  "apps/cli/journeys/submit/handoff/barrier.test.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/submit/invariants.test.js": {
     "raw-board": 9
