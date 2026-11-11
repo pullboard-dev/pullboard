@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /**
  * Submit asks why when a change edits an existing test or gate file, and a new test file needs no reason [C7,V4].
  * Drives the real CLI in process.

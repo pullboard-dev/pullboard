@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/resources/index.js */
 /** @pullboard-test-loads packages/resources/index.js */
 /** @pullboard-test-loads packages/resources/index.js */
 /** A runner quarantined before READY releases its lease for one healthy dispatch [C7,H16]. */

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/scripts/worker.js packages/gate/index.js packages/resources/index.js packages/runners/index.js */
 /** Real private worker/controller custody: refused input must not retain an open pipe or gate lease [C7]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';

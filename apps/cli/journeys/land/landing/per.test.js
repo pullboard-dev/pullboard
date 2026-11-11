@@ -64,10 +64,10 @@ function refuseEveryCommit(box) {
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
 
-/** Run one plain land and return its JSON result. */
-function land(box) {
+/** Run one plain land and return its JSON result; `code` is 1 when nothing landed and a culprit came back [C7,#4265]. */
+function land(box, code = 0) {
   const result = box.run(box.repo, 'land', '--json');
-  assert.equal(result.code, 0, result.out + result.err);
+  assert.equal(result.code, code, result.out + result.err);
   return JSON.parse(result.out);
 }
 
@@ -111,7 +111,7 @@ test('a red item goes back to open alone with its evidence and the next run land
   moveMainPastSubmit(box); // the red submit was recorded green with its red suppressed; main moves so landing runs its own gate [C7]
   const start = box.git(box.repo, 'rev-parse', 'main');
 
-  const one = land(box);
+  const one = land(box, 1);
   assert.deepEqual(one.landed, []);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), start, 'nothing red reaches main');
   const shown = json(box, box.repo, 'show', String(red.item));
@@ -135,7 +135,7 @@ test('two land runs on an unchanged board never record the same stop twice [C7,#
   acceptItem(box, red);
   moveMainPastSubmit(box);
 
-  land(box);
+  land(box, 1);
   const recorded = events(box);
   const reopens = rows => rows.filter(row => row.item_id === red.item && row.event_kind === 'reopen').length;
   assert.equal(reopens(recorded), 1, 'the stop is recorded once');

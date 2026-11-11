@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Landing cancellation retains the real assertion in CLI and full-log reports [C7,V4]. */
 import assert from 'node:assert/strict';
 import {

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/resume/flow.test.js apps/cli/pullboard.js apps/view/index.js packages/gate/src/io/run/tests.js */
 /** Keep the view's exact named-port refusal covered in a core-owned file [N26]. */
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/landing/src/io/shards.js packages/landing/src/logic/land/guard.js */
 /** A sharded landing gate runs its controller on the coordinator, so its shards fan out to the runners [C7,#3158]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

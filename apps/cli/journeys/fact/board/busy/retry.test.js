@@ -1,5 +1,5 @@
 /** Native lock admission and submit preparation keep slow repository work outside SQLite [C7]. */
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js packages/resources/index.js packages/store/index.js */
 /** @pullboard-test-loads packages/store/index.js packages/resources/index.js */
 import {
   openBoard,

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/src/io/cells/scripts/plan.js */
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** Engine leaves live in packages/state/src/logic/engines; a new src/<name>-engine.js has no plan row and is refused [C7,V4]. */
 import assert from 'node:assert/strict';

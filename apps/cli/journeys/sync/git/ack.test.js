@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Git sharing turns on only after origin accepts the first board; a refusal never freezes later writes [C7]. */
 import assert from 'node:assert/strict';
 import {

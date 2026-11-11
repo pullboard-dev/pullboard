@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/verify/machine.test.js apps/cli/tests/fixtures/move/registry/cases.js */
 /** A file the gate's watchdog stopped is recorded, never bisected or charged, and alone it never blocks a landing [C7,#3167]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

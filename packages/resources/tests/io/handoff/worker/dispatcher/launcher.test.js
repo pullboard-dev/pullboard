@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/resources/src/io/handoff/worker/cap.js packages/resources/src/io/handoff/worker/detach.js */
 /** @pullboard-world-pin copies the real detach entry point from packages/resources so the dispatcher under test is the shipped file. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A verdict survives a main move that touches nothing the review depends on (#928) [V4,C7]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** @pullboard-test-loads apps/cli/src/io/entry.js */
 /** Resource queue cases that drive the real CLI (settings, check, verify) or the fixtures that start it [Q1,Q2,Q4,C7,V4]. */
 import assert from 'node:assert/strict';

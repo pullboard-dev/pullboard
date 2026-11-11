@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /** Native flake landing: a red landing keeps its original verdict and a retained diagnostic is consumed once [C7,H16]. */
 import {
   flakyProject,

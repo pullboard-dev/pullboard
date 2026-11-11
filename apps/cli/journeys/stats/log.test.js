@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js packages/store/index.js packages/store/src/io/board/hold/baseline.json packages/store/src/io/board/write/lock.js */
 /** Real write-boundary observations and a deterministic source allowance, independent of fleet load [C7,P4]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

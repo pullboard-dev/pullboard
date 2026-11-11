@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Authored build scope is cut before claim, and capacity measures real build intervals against it [N2,B3]. */
 import assert from 'node:assert/strict';
 import {

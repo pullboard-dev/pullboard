@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/seed.json packages/codemap/src/io/cells/scripts/plan.js packages/state/data/history/legacy.json */
 /** A real landing merge allocates and places history before exposing its amended commit [B3,C7,D3,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
