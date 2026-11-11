@@ -1,6 +1,9 @@
 /** Three linked replicas recover lost replies once and agree on the final order [H3,H16,V1,V17]. */
 import assert from 'node:assert/strict';
-import { cpSync } from 'node:fs';
+import {
+  cpSync,
+  rmSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { readAcceptedCells } from '../../../../../packages/gate/index.js';
 import { warmAcceptedCells } from '../../../../../packages/gate/index.js';
@@ -26,27 +29,38 @@ after(cleanupFixtureChildren);
  */
 async function publishAcceptedInventories(fixture) {
   const stash = join(fixture.scratch, 'inventory-stash');
-  /** Put the published inventory back in every replica's machine home; a CLI step can drop it before a later submit. */
-  const restore = () => {
-    for (const env of fixture.envs) cpSync(stash, join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'), { recursive: true, force: true });
-  };
-  for (let index = 0; index < fixture.clones.length; index += 1) {
-    const env = fixture.envs[index];
-    env.PULLBOARD_MACHINE_HOME = join(env.HOME, 'machine');
+  let stashedTree = '';
+  /** Run work with the process machine home set to one replica's, as that replica's CLI sees it. */
+  const inMachineHome = async (env, work) => {
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
-    try {
-      const main = String(fixture.gitAt(fixture.clones[index], env, 'rev-parse', 'main')).trim();
-      // The three clones share one main tree, so the first replica's analysis is the others' too: copy its published
-      // inventory instead of re-analyzing the tree twice more (about 35 s each on a loaded runner).
-      if (index > 0) cpSync(join(fixture.envs[0].PULLBOARD_MACHINE_HOME, 'cells-cache'), join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'), { recursive: true });
-      else {
-        const artifact = await warmAcceptedCells(fixture.clones[index], main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: 'main' });
-        assert.equal(artifact.available, true, 'the producer published the replica main inventory');
-        cpSync(join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'), stash, { recursive: true });
-      }
-      assert.equal(readAcceptedCells(fixture.worktrees[index], main).available, true, 'a submit from the seat worktree reads it');
-    } finally { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; }
+    try { return await work(); } finally { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; }
+  };
+  /** Analyze the first replica's current main once and keep the published inventory in the stash. */
+  const publishFirst = async (tree) => {
+    const main = String(fixture.gitAt(fixture.clones[0], fixture.envs[0], 'rev-parse', 'main')).trim();
+    const artifact = await inMachineHome(fixture.envs[0], () => warmAcceptedCells(fixture.clones[0], main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: 'main' }));
+    assert.equal(artifact.available, true, 'the producer published the replica main inventory');
+    rmSync(stash, { recursive: true, force: true });
+    cpSync(join(fixture.envs[0].PULLBOARD_MACHINE_HOME, 'cells-cache'), stash, { recursive: true });
+    stashedTree = tree;
+  };
+  const mainTree = () => String(fixture.gitAt(fixture.clones[0], fixture.envs[0], 'rev-parse', 'main^{tree}')).trim();
+  for (let index = 0; index < fixture.clones.length; index += 1) fixture.envs[index].PULLBOARD_MACHINE_HOME = join(fixture.envs[index].HOME, 'machine');
+  await publishFirst(mainTree());
+  /**
+   * Put the published inventory back in every replica's machine home; a CLI step can drop it before a later submit, and
+   * relay moves can advance main to a tree it was not published for, so a changed main is analyzed again (once, then copied).
+   */
+  const restore = async () => {
+    const tree = mainTree();
+    if (tree !== stashedTree) await publishFirst(tree);
+    for (const env of fixture.envs) cpSync(stash, join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'), { recursive: true, force: true });
+  };
+  await restore();
+  for (let index = 0; index < fixture.clones.length; index += 1) {
+    const main = String(fixture.gitAt(fixture.clones[index], fixture.envs[index], 'rev-parse', 'main')).trim();
+    assert.equal(await inMachineHome(fixture.envs[index], () => readAcceptedCells(fixture.worktrees[index], main).available), true, 'a submit from the seat worktree reads it');
   }
   return restore;
 }
