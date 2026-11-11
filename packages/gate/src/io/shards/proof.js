@@ -79,6 +79,11 @@ export function shardPassStore(tree, command, { folder = join(machineHome(), 'sh
   return { tree, file, read, record };
 }
 
+/** The files of `files` that recorded green shards already cover on this store's tree. */
+export function reusedShardFiles(passes, files) {
+  return reusablePasses(passes, files, null).flatMap(shard => shard.files);
+}
+
 /**
  * The recorded green shards a run of `files` can take as its own: each wholly inside the selection, on the same tree,
  * and sharing no file with one taken before. Each reused run's outcome frames are rebound from its own timing run id to
