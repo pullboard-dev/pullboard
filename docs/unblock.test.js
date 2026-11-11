@@ -18,8 +18,8 @@ test('the unblock page says when it applies and that the person decides [I1]', (
 test('the unblock page names every command [I1]', () => {
   for (const command of [
     'pullboard test --compare-main --wait <files>',
-    'pullboard land --items <id> --commit <sha> --dry-run',
-    'pullboard land --items <id> --commit <sha>',
+    'git merge --no-ff <sha>',
+    'pullboard merged <id> <sha> --forced',
     'pullboard escalate <id> --note',
   ]) assert.ok(page.includes(command), `missing ${command}`);
 });

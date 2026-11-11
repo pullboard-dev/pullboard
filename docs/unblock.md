@@ -26,17 +26,13 @@ Reds that main also has are not yours. Any new red blocks the landing.
 
 ## Land it by hand
 
-Land the named item at its commit. This uses the same merge and records the same receipts as the automatic lander. Look first:
+`pullboard land` only batches items that passed the gate, so it cannot land this fix. Merge the item's commit onto main yourself, then record the landing:
 
 ```
-pullboard land --items <id> --commit <sha> --dry-run
-pullboard land --items <id> --commit <sha>
+git merge --no-ff <sha>
+pullboard merged <id> <sha> --forced "why the pipeline could not pass its own fix; the runner proof"
 ```
 
-Then record why the pipeline could not pass it:
-
-```
-pullboard escalate <id> --note "why the pipeline could not pass its own fix; the runner proof"
-```
+`--forced` records the work as landed without a verify, and keeps your reason on the item.
 
 Once the fix is on main, the pipeline passes ordinary work again.
