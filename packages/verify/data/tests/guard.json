@@ -24,6 +24,10 @@
     "packages/store/tests/engine-replay.test.js",
     "apps/cli/journeys/fact/tests/affected.test.js",
     "apps/cli/journeys/check-baseline/main.test.js",
+    "apps/cli/journeys/check-baseline/branch.test.js",
+    "apps/cli/journeys/check-baseline/warn.test.js",
+    "apps/cli/journeys/check-baseline/replay.test.js",
+    "apps/cli/journeys/check-baseline/hold.test.js",
     "packages/moves/tests/engine.test.js",
     "apps/cli/journeys/flakes/main.test.js",
     "apps/cli/journeys/gate/main.test.js",
@@ -49,6 +53,7 @@
     "apps/cli/journeys/fact/merge.test.js",
     "apps/cli/journeys/init/assurance.test.js",
     "apps/cli/journeys/verify/check.test.js",
+    "apps/cli/journeys/verify/store-bodies.test.js",
     "apps/cli/journeys/show/verdict/trunk.test.js"
   ],
   "moved": {
