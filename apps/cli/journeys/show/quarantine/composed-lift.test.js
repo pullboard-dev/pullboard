@@ -9,7 +9,8 @@ import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 
 test('clause 1: twenty clean runs lift the quarantine two composed Submit pairs filed [C7,H16]', t => {
   const box = fixture(t, false, true);
-  assert.equal(submit(box).code, 1);
+  const first = submit(box);
+  assert.equal(first.code, 1, JSON.stringify(first.document));
   assert.equal(submit(box).code, 0); // the active quarantine lets the computed verdict through
   const cleanIds = new Set();
   for (let index = 0; index < 20; index += 1) {
