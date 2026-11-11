@@ -691,7 +691,7 @@ test('person recovery explicitly skips one future-engine blocker and publishes a
   assert.equal(humanStatus.stdout.includes('recovery pending for sequence 1; retry pullboard relay recover --skip 1'), true,
     'human status shows the actionable recovery without counting it as an upload');
   registerProject(box.root);
-  const localView = await serveView({ port: 0, runCommand: nativeTestMain });
+  const localView = await serveView({ port: 0, runCommand: nativeTestMain, boardOpeners: apiBoardOpeners });
   try {
     const viewAddress = new URL(localView.url);
     const apiRequest = await fetch(viewAddress.origin + '/api/v1/boards/' + box.id + '/requests', {
@@ -971,16 +971,16 @@ test('recovery collision status preserves the retry while the winner catches an 
     return previousFetch(url, options);
   };
   process.env.PULLBOARD_HOME = box.home;
-  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }), { code: 'CHECKPOINT_TEST' });
+  await assert.rejects(() => relayRecover(box.root, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'CHECKPOINT_TEST' });
   process.env.PULLBOARD_HOME = secondHome;
-  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'CHECKPOINT_TEST' });
+  await assert.rejects(() => relayRecover(secondRoot, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'CHECKPOINT_TEST' });
   const firstLink = JSON.parse(readFileSync(join(box.root, '.git/pullboard/relay.json'), 'utf8'));
   const secondLink = JSON.parse(readFileSync(join(secondRoot, '.git/pullboard/relay.json'), 'utf8'));
   assert.notEqual(firstLink.recovery.sealed, secondLink.recovery.sealed, 'each replica stages its own exact encrypted checkpoint');
 
   globalThis.fetch = previousFetch;
   process.env.PULLBOARD_HOME = box.home;
-  await relayRecover(box.root, 1, { err: () => {}, say: () => {} });
+  await relayRecover(box.root, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} });
   const winningCheckpoint = (await box.call(box.path + '/state')).body.state;
   const winningNative = await openCheckpoint(box, winningCheckpoint);
   process.env.PULLBOARD_HOME = secondHome;
@@ -989,14 +989,14 @@ test('recovery collision status preserves the retry while the winner catches an 
   const futureSeal = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(futureNative)),
     { boardId: box.id, kind: 'snapshot', sequence: 1 })).toString('base64url');
   assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 1, sealed: futureSeal } })).status, 200);
-  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'ENGINE_VERSION' },
+  await assert.rejects(() => relayRecover(secondRoot, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'ENGINE_VERSION' },
     'an authenticated winning snapshot still stops at its newer engine version');
   const noProofNative = structuredClone(winningNative);
   noProofNative.tables.board_meta = noProofNative.tables.board_meta.filter((row) => row.meta_key !== 'relay_refusal_1');
   const noProofSeal = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(noProofNative)),
     { boardId: box.id, kind: 'snapshot', sequence: 1 })).toString('base64url');
   assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 1, sealed: noProofSeal } })).status, 200);
-  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_RECOVERY_PENDING' },
+  await assert.rejects(() => relayRecover(secondRoot, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'RELAY_RECOVERY_PENDING' },
     'a person checkpoint without the selected refusal proof cannot resolve the pending recovery');
   assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token,
     body: { sequence: winningCheckpoint.sequence, sealed: winningCheckpoint.sealed } })).status, 200);
@@ -1007,7 +1007,7 @@ test('recovery collision status preserves the retry while the winner catches an 
     document.state.sender = { kind: 'agent', agent: 'client-two', userId: 'fixture-user' };
     return new Response(JSON.stringify(document), { status: response.status, headers: { 'content-type': 'application/json' } });
   };
-  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_PERSON_ONLY' },
+  await assert.rejects(() => relayRecover(secondRoot, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'RELAY_PERSON_ONLY' },
     'the checkpoint sender must be a person even when its ciphertext matches a saved recovery');
   globalThis.fetch = previousFetch;
   const markers = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
@@ -1082,7 +1082,7 @@ test('recovery preserves a local write racing its first staged publish [H16]', a
     }
     return response;
   };
-  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_LOCAL_CHANGED' });
+  await assert.rejects(() => relayRecover(box.root, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'RELAY_LOCAL_CHANGED' });
   globalThis.fetch = priorFetch;
   assert.equal((await box.call(box.path + '/state')).body.state.sequence, 0, 'no checkpoint is published after a local edit races staging');
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
@@ -1118,7 +1118,7 @@ test('lost-ACK recovery retry refuses to overwrite a concurrent local write [H16
     }
     return response;
   };
-  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_UNAVAILABLE' });
+  await assert.rejects(() => relayRecover(box.root, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }), { code: 'RELAY_UNAVAILABLE' });
   globalThis.fetch = priorFetch;
   const recovery = JSON.parse(readFileSync(join(box.root, '.git/pullboard/relay.json'), 'utf8')).recovery;
   assert.equal(recovery.skip, 1);
@@ -1132,7 +1132,7 @@ test('lost-ACK recovery retry refuses to overwrite a concurrent local write [H16
     assert.equal(remote.body.state.root.id, prepared.reference.id, 'the relay retained the exact graph published before its ACK was lost');
     assert.equal(remote.body.state.sequence, recovery.skip);
   } finally { cache.close(); }
-  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }),
+  await assert.rejects(() => relayRecover(box.root, 1, { ...apiBoardOpeners, err: () => {}, say: () => {} }),
     { code: 'RELAY_LOCAL_CHANGED', message: /cannot be retried from the changed board/ },
     'a local change is preserved and the message does not suggest export alone will unblock retry');
   const diagnostics = [];

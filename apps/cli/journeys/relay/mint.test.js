@@ -71,12 +71,16 @@ function freezer() {
   return () => ({ text, digest: createHash('sha256').update(text).digest('hex') });
 }
 
-/** Create synthetic submitted history for the credential test; this fixture does not run a gate. */
-function submitted(board, builder, lane) {
+/**
+ * Create synthetic submitted history for the credential test; this fixture does not run a gate.
+ * A file board binds its repository only while it seals the submit; replayed relay moves run without one.
+ */
+function submitted(board, builder, lane, gitRoot) {
   const added = store.addItem(board, { by: 'coordinator', lane, title: 'provenance review', criterion: 'an independent seat accepts it' });
   const item = { item_id: typeof added === 'number' ? added : added.item_id };
   store.claim(board, item.item_id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: freezer(), head: 'a'.repeat(40) });
-  submitFixture(board, item.item_id, { agentId: builder, commit: 'b'.repeat(40), tree: 'c'.repeat(40) });
+  if (gitRoot) board.gitRoot = gitRoot;
+  try { submitFixture(board, item.item_id, { agentId: builder, commit: 'b'.repeat(40), tree: 'c'.repeat(40) }); } finally { if (gitRoot) board.gitRoot = undefined; }
   return store.getItem(board, item.item_id);
 }
 
@@ -138,7 +142,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   const boardCopy = join(mkdtempSync(join(tmpdir(), 'pullboard-mint-board-')), 'board.sqlite');
   t.after(() => rmSync(dirname(boardCopy), { recursive: true, force: true }));
   copyFileSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), boardCopy);
-  const board = openBoard(boardCopy, undefined, { gitRoot: box.root });
+  const board = openBoard(boardCopy);
   t.after(() => store.closeBoard(board));
   assert.equal(store.agentCreator(board, manual), 'machine', 'a manual join records that no seat made it');
   assert.equal(store.agentCreator(board, builder.id), 'coordinator');
@@ -263,7 +267,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   });
 
   await t.test('linked verify refuses the builder line and seats without standing, in one line', () => {
-    const item = submitted(board, builder.id, lane);
+    const item = submitted(board, builder.id, lane, box.root);
     /** The accept arguments a seat sends for this item. */
     const verdict = (agentId) => [item.item_id, { agentId, decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'checked the proof', head: 'd'.repeat(40), digest: item.item_frozen_digest }];
     let id = 0;
@@ -287,7 +291,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
     const accepted = move('verify', verdict(reviewer.id), { agent: reviewer.id });
     assert.equal(accepted.result?.decision, 'ACCEPT', 'a seat the coordinator made outside the builder line verifies');
     // The literal rule holds for the coordinator too (decision 11096): its seats share its lineage.
-    const own = submitted(board, 'coordinator', 'coordinator');
+    const own = submitted(board, 'coordinator', 'coordinator', box.root);
     const ownVerdict = move('verify', [own.item_id, { ...verdict(reviewer.id)[1], digest: own.item_frozen_digest }], { agent: reviewer.id });
     assert.equal(ownVerdict.error?.code, 'VERIFIER_STANDING', 'a coordinator-made seat cannot verify the coordinator\'s own work');
     assert.match(ownVerdict.error.message, /another machine's registration lineage, or the person/u);
