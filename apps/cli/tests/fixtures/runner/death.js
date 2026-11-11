@@ -216,10 +216,10 @@ process.kill = (pid, signal) => {
     await waitForMarker(childGone);
     await waitForCondition(() => !processIsAlive(detachedPid), 'the detached child PID exits');
     if (holdRelease) {
-      // Since #3084 a release enqueues its resource write and never throws, so the worker exits while the raw lock blocks the write.
+      // Since #3084 a release enqueues its resource write and never throws, so the write waits in the queue while the raw lock stays held.
       const queued = () => existsSync(remoteDatabase + '.writes') && readdirSync(remoteDatabase + '.writes').filter(name => name.includes('-o-')).length;
-      await waitForCondition(() => !processIsAlive(held[0].pid) && queued() > 0,
-        'the worker exits with its release queued behind the held database transaction',
+      await waitForCondition(() => queued() > 0,
+        'the worker queues its release behind the held database transaction',
         { signal: t.signal, state: () => ({ workerAlive: processIsAlive(held[0].pid), queued: queued(),
           holders: readRemoteGateHolders(remoteDatabase).map(({ pid, agent, kind }) => ({ pid, agent, kind })) }),
           onTimeout: message => t.diagnostic(message) });
@@ -230,6 +230,7 @@ process.kill = (pid, signal) => {
       process.env.PULLBOARD_MACHINE_HOME = remoteMachineHome;
       try { (await takeResource({ name: 'drain-probe', capacity: 1, scope: 'machine', agent: 'drain-probe' })).release(); }
       finally { process.env.PULLBOARD_MACHINE_HOME = machineHome; }
+      assert.equal(queued(), 0, 'the later write drained the queued release');
     }
     let lastReleaseState = 'not observed';
     await waitForCondition(() => {
@@ -242,6 +243,7 @@ process.kill = (pid, signal) => {
       t.diagnostic(message);
       t.diagnostic('worker cleanup report ' + JSON.stringify(workerCleanupReport()));
     } });
+    if (holdRelease) await waitForCondition(() => !processIsAlive(held[0].pid), 'the worker exits after its queued release lands', { signal: t.signal });
     if (epermOnce) assert.equal(existsSync(epermAnswered), true, 'a group signal really answered EPERM before the release');
     const controller = await remoteRun.closed;
     remoteRun = null;
