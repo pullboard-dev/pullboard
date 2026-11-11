@@ -795,7 +795,15 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   const mergeRetry = await timing.wait('retry the original merge after its tag is removed', () => cli(clones[0], envs[0], 'merged', '2', lostRef));
   assert.equal(mergeRetry.commit, originalCommit);
   assert.deepEqual((await relayUploadSummary(relay.uploads.slice(beforeMerge), key, boardId)).map(({ operation }) => operation).filter(operation => operation === 'merged'), ['merged'], 'merge retries report the original full commit after its ref disappears, never a second merge');
+  await restoreOutboxDefault();
+}
 
+/** Recover a lost stacked submit reply and refuse a receipt-missing descriptor under the legacy ACK policy. */
+export async function recoverStackedSubmits(fixture, timing, restoreInventories = () => {}) {
+  const { scratch, clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
+  timing.begin('stacked-submit recovery', 'recover lost stacked submit replies and refuse a receipt-missing descriptor across all replicas');
+  await timing.wait('establish the legacy approval baseline before the stacked scenarios', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for stack recovery'));
+  const restoreOutboxDefault = await enterLegacyAckPolicy(fixture);
   // One main checkout coordinates at a time (E19, #347): clone C takes the coordinator before it adds.
   await timing.wait('pass the coordinator to clone C', () => cli(clones[2], envs[2], 'takeover'));
   const beforeAutomatic = relay.uploads.length;

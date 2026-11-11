@@ -89,7 +89,6 @@ export function threeReplicaPhaseCapture(t) {
         throw error;
       } finally {
         const waitReceipt = { operation: label, elapsedMs: Math.round(performance.now() - frame.startedAt), outcome };
-        process.stderr.write('[wait-diag] ' + waitReceipt.elapsedMs + ' ' + label + '\n');
         phase.completedWaits.push(waitReceipt);
         phase.lastCompletedWait = waitReceipt;
         const index = phase.activeWaits.indexOf(frame);

@@ -960,6 +960,10 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/tests/fixtures/relay/client/inventories.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/tests/fixtures/relay/client/replica.js": {
       "cells": 2,
       "deep": 0
