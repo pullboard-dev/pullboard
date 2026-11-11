@@ -5,6 +5,7 @@ import {
   chmodSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -48,7 +49,7 @@ function write(root, files) {
  * and that entry loads api/serve.js, which imports web/shim.js. A web item deletes the shim; its api companion
  * repoints the importer.
  */
-function fixture({ fixer = false } = {}) {
+function fixture({ fixer = false, companion = true } = {}) {
   const box = helpers.project('true');
   if (fixer) {
     // A fixer rewrites staged .txt files; the composed check hands the real hook to this checkout's CLI.
@@ -59,10 +60,16 @@ function fixture({ fixer = false } = {}) {
   write(box.repo, {
     'web/real.js': 'export const value = 1;\n',
     'web/shim.js': "export * from './real.js';\n",
+    'web/tests/real.js': 'export const unread = 1;\n',
+    'api/journeys/unread.js': 'export const unread = 1;\n',
     'api/serve.js': SHIM_IMPORT,
     'apps/cli/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
       + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
       + 'if (composed !== null) process.exit(composed);\n'
+      + "if (process.env.PB_PROBE) (await import('node:fs')).writeFileSync(process.env.PB_PROBE, JSON.stringify({ dir: import.meta.dirname,"
+        + " real: (await import('node:fs')).existsSync(new URL('../../web/real.js', import.meta.url)),"
+        + " unread: (await import('node:fs')).existsSync(new URL('../../web/tests/real.js', import.meta.url))"
+        + " || (await import('node:fs')).existsSync(new URL('../../api/journeys/unread.js', import.meta.url)) }));\n"
       + "await import('../../api/serve.js');\n"
       + (fixer ? "if (process.env.PULLBOARD_HOOK_COMPOSED === '1') (await import('node:fs')).writeFileSync(process.env.PB_CHECKED_OUT, "
         + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
@@ -85,7 +92,7 @@ function fixture({ fixer = false } = {}) {
   const source = box.git(builder, 'rev-parse', 'HEAD').trim();
   const patch = join(box.dir, 'repoint.patch');
   writeFileSync(patch, REPOINT);
-  run(box, box.repo, 'patch', 'attach', String(item), patch, '--key', 'repoint', '--author', author, '--source', source);
+  if (companion) run(box, box.repo, 'patch', 'attach', String(item), patch, '--key', 'repoint', '--author', author, '--source', source);
   box.git(box.repo, 'config', 'core.hooksPath', '.selfhooks');
   return { box, builder };
 }
@@ -207,4 +214,40 @@ test('control: a builder who stages a file of another lane is still refused besi
   const refused = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
   assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
   assert.match(`${refused.stdout}${refused.stderr}`, /outside the core lane: .*api/u);
+});
+
+test('a pre-commit with no companion patch runs the checkout itself and writes no tree copy [C7]', () => {
+  const { box, builder } = fixture({ companion: false });
+  const probe = join(box.dir, 'probe.json');
+  box.env.PB_PROBE = probe;
+  write(builder, { 'web/real.js': 'export const value = 2;\n' });
+  box.git(builder, 'add', 'web/real.js');
+  const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(web): change the value [G1]');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
+  assert.equal(realpathSync(JSON.parse(readFileSync(probe, 'utf8')).dir), realpathSync(join(builder, 'apps/cli')), 'the entry ran in place');
+});
+
+test('control: an unstaged edit to a code file makes the hook run the staged bytes from a copy [C7]', () => {
+  const { box, builder } = fixture({ companion: false });
+  const probe = join(box.dir, 'probe.json');
+  box.env.PB_PROBE = probe;
+  write(builder, { 'web/real.js': 'export const value = 2;\n' });
+  box.git(builder, 'add', 'web/real.js');
+  write(builder, { 'web/real.js': 'export const value = 3;\n' });
+  const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(web): change the value [G1]');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
+  assert.notEqual(realpathSync(JSON.parse(readFileSync(probe, 'utf8')).dir), realpathSync(join(builder, 'apps/cli')), 'the entry ran from a copy');
+});
+
+test('with a companion patch the composed tree holds the code and leaves tests and journeys out [C7]', () => {
+  const { box, builder } = fixture();
+  const probe = join(box.dir, 'probe.json');
+  box.env.PB_PROBE = probe;
+  box.git(builder, 'rm', '-q', 'web/shim.js');
+  const committed = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
+  const seen = JSON.parse(readFileSync(probe, 'utf8'));
+  assert.notEqual(realpathSync(seen.dir), realpathSync(join(builder, 'apps/cli')), 'the entry ran from the composed copy');
+  assert.equal(seen.real, true, 'the code the check loads is written');
+  assert.equal(seen.unread, false, 'tests are not written');
 });
