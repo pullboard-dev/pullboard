@@ -159,3 +159,40 @@ test('clause 1: a symlinked archive folder whose target another user owns is ref
   t.after(() => { process.getuid = saved; });
   assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: roomy }), /not private/);
 });
+
+/** An archive whose files read back with the modes and times a network share reports [C7,#5454]. */
+function shareArchive(t) {
+  const { repo, common, target } = symlinkedArchive(t, 0o700);
+  const archive = archiveMaintenanceWorktree(repo, common, { volume: roomy });
+  const directory = join(target, archive.manifest.id);
+  const blob = join(directory, 'blobs', archive.manifest.files[0].sha256);
+  return { repo, archive, directory, blob };
+}
+
+test('clause 1: an archive whose files read back with share-mapped modes and times still verifies [C7,#5454]', t => {
+  const { repo, archive, directory, blob } = shareArchive(t);
+  for (const file of [blob, join(directory, 'manifest.json'), join(directory, 'staged.patch')]) {
+    fs.chmodSync(file, 0o700);
+    fs.utimesSync(file, new Date(1e12), new Date(1e12));
+  }
+  assert.equal(maintenanceArchiveMatches(repo, archive), true);
+});
+
+test('clause 1: a changed archived file of the same size still fails verification [C7,#5454]', t => {
+  const { repo, archive, blob } = shareArchive(t);
+  const bytes = fs.readFileSync(blob);
+  fs.writeFileSync(blob, Buffer.alloc(bytes.length, 0x78));
+  assert.equal(maintenanceArchiveMatches(repo, archive), false);
+});
+
+test('clause 1: a truncated archived file still fails verification [C7,#5454]', t => {
+  const { repo, archive, blob } = shareArchive(t);
+  fs.truncateSync(blob, 1);
+  assert.equal(maintenanceArchiveMatches(repo, archive), false);
+});
+
+test('clause 1: an archive root that others can read still fails verification [C7,#5454]', t => {
+  const { repo, archive, directory } = shareArchive(t);
+  fs.chmodSync(directory, 0o755);
+  assert.equal(maintenanceArchiveMatches(repo, archive), false);
+});
