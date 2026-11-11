@@ -1275,7 +1275,7 @@ async function main(args) {
     const fileTimes = shardLabel ? join(sandbox, 'landing-file-times.jsonl') : '';
     // Observe leftovers around the whole execution, including failed cases; never remove clones.
     const cloneCheck = browser && process.platform === 'darwin'
-      ? await import('../../index.js') : null;
+      ? await import('./clone.js') : null;
     let clonesBefore;
     if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
     try {
@@ -1304,8 +1304,11 @@ async function main(args) {
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
     if ((process.env[LANDING_RUN_ENV] === '1' || ordinaryShards) && !shardLabel) {
-      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments, freeRunnerSlots } = await import('../../index.js');
-      let count = ordinaryShards ? freeRunnerSlots() : landingShardCount(process.cwd());
+      // Direct modules, not the barrel: the barrel loads main.js, and an ordinary run never needs it (only a landing counts shards there).
+      const [{ landingShardOptions, landingFanOutFiles }, { nativeFileArguments }, { freeRunnerSlots }] = await Promise.all([
+        import('./test/selection.js'), import('./test/file/dispatch.js'), import('./shards/proof.js'),
+      ]);
+      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../index.js')).landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
       shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
