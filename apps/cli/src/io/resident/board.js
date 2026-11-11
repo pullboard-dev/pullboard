@@ -27,6 +27,8 @@ import {
   connect,
   createServer,
 } from 'node:net';
+// Node 22 announces that node:sqlite is experimental; this drops the notice before socket.js loads it.
+import './quiet.js';
 import {
   endThen,
   flushesDue,
@@ -35,13 +37,6 @@ import {
   processAlive,
   releaseOwnSocket,
 } from './socket.js';
-
-// Node 22 announces that node:sqlite is experimental; the in-process entry drops that notice, and so does this one.
-const emitWarning = process.emitWarning;
-process.emitWarning = (warning, ...rest) => {
-  if (String(warning).includes('SQLite is an experimental feature')) return;
-  emitWarning.call(process, warning, ...rest);
-};
 
 const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;

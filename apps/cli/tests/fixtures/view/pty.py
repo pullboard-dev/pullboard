@@ -1,13 +1,19 @@
 """Run one person-mode pullboard view command with real terminal file descriptors."""
+import os
+import sys
+
+# This file is named pty.py: run as a script its own folder leads sys.path and `import pty` would load
+# this file instead of the standard library's, so drop that folder first.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [entry for entry in sys.path if os.path.abspath(entry or os.getcwd()) != _HERE]
+
 import http.cookiejar
 import json
-import os
 import pty
 import select
 import signal
 import socket
 import subprocess
-import sys
 import time
 import urllib.request
 
@@ -136,5 +142,10 @@ if __name__ == "__main__":
     except Exception as error:
         # Never echo the captured terminal buffer or URL: it contains the session key.
         detail = error.args[0] if isinstance(error, AssertionError) and error.args else "unexpected helper failure"
-        print(f"PTY regression failed: {type(error).__name__}: {detail}", file=sys.stderr)
+        frames = []
+        trace = error.__traceback__
+        while trace is not None:
+            frames.append(trace.tb_lineno)
+            trace = trace.tb_next
+        print(f"PTY regression failed: {type(error).__name__}: {detail} (frames {frames})", file=sys.stderr)
         raise SystemExit(1)

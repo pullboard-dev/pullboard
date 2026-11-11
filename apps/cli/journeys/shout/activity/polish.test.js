@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-journey Native shout, work and sentinel events reach authenticated real Chrome [N26]. */
 import assert from 'node:assert/strict';

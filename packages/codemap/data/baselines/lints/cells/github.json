@@ -1,10 +1,12 @@
 {
   "version": 1,
   "cell": "github",
-  "baseSha256": "15512bf489ef5a0c5262dbc17e7c795c7bca8f8f7b61dc9121cc1594448daf13",
+  "baseSha256": "ba29652e0c3b4b90b0cf18b6c089d68db54a2c67159ab83e9ee6cccf213d1957",
   "metrics": {
     "boundaries": {
       "remove": [
+        "src/pr-proof-graph.js->packages/git/index.js",
+        "src/pr-publish.js->packages/git/index.js",
         "src/pr-publish.js->packages/kernel/src/logic/refused.js",
         "src/pr-publish.js->src/board.js",
         "src/pr-publish.js->src/pr-github.js",
@@ -14,6 +16,8 @@
         "src/publish.js->src/pr-publish.js"
       ],
       "allowances": {
+        "packages/github/src/io/pr/graph.js->packages/git/index.js": 1,
+        "packages/github/src/io/pr/publish.js->packages/git/index.js": 1,
         "packages/github/src/io/pr/publish.js->packages/kernel/src/logic/refused.js": 1,
         "packages/github/src/io/pr/publish.js->src/pr-github.js": 1,
         "packages/github/src/io/pr/publish.js->src/pr-verification.js": 1,
@@ -32,5 +36,5 @@
       }
     }
   },
-  "sha256": "a63d45af5260bb984705aa8030cf3a5a2b52bc50725168bc474ee9919651360f"
+  "sha256": "674f01e95a51bb70499e1c54e3a807221e6be37ce3bdcd5b8e83558ee1e0fd50"
 }
