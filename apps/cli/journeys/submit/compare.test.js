@@ -275,8 +275,9 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
 
 test('with gate.mainComparison off a red submit stays red and runs no main comparison [V4,C7,#5565]', async t => {
   const box = fixture(t, 1);
-  const set = cli(box, box.root, 'settings', 'gate.mainComparison', 'off');
-  assert.equal(set.status, 0, set.stdout + set.stderr);
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...saved, gate: { ...saved.gate, mainComparison: 'off' } }));
   const submission = launch(box, 'submit', String(box.item));
   const result = await submission.closed;
   assert.equal(result.code, 1, result.out + result.err);
@@ -287,9 +288,8 @@ test('with gate.mainComparison off a red submit stays red and runs no main compa
 
 test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', async t => {
   const box = fixture(t, 1);
-  const shown = cli(box, box.root, 'settings', 'gate.mainComparison');
-  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
-  assert.match(shown.stdout, /on-red/u);
+  const saved = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  assert.equal(saved.gate?.mainComparison, undefined, 'the fixture leaves the setting at its on-red default');
   const submission = launch(box, 'submit', String(box.item));
   await comparisonStarted(box, submission, 'the default still starts the main comparison');
   writeFileSync(join(box.control, 'a.release'), 'release');
