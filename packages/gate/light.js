@@ -28,6 +28,8 @@ export function sourcePreparationFields(value) {
  * read as an unknown trailer it left every red submit gate unaccounted, so no failure could ever be compared with
  * main and red-on-main cases always went back to the builder (#3794). It reports time only, never a failure.
  */
+/** Node's own runtime warnings (an experimental-feature notice and its trace hint) print after the TAP summary and say nothing about test results. */
+const NODE_WARNING = /^\(node:\d+\) (?:\[[A-Z0-9_]+\] )?[A-Za-z]*Warning: |^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)$/u;
 const RUN_TESTS_PHASES = /^run-tests: phases (?:[a-z]+ \d+\.\ds, )+total \d+\.\ds$/u;
 
 /**
@@ -89,7 +91,7 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
   if (nativeLeaves && outcomes && (outcomes.filter(row => !row.passed && !row.skipped).length !== leaves.length
     || leaves.some(row => !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name && !outcome.passed && !outcome.skipped)))) return null;
   // Only the controller's authenticated component may name a native diagnostic invocation.
-  const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || RUN_TESTS_PHASES.test(line) || nativeLines.has(line));
+  const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || RUN_TESTS_PHASES.test(line) || NODE_WARNING.test(line) || nativeLines.has(line));
   return trailer ? nativeLeaves ? leaves.map(({ name, file }) => ({ name, file })) : actual : null;
 }
 
