@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/cells.json packages/codemap/data/plan/temporary-edges.json packages/codemap/src/io/cells/scripts/plan.js */
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** The plan writer keeps explicit migration contracts without retaining obsolete generated shards [C7,D3]. */
 import assert from 'node:assert/strict';

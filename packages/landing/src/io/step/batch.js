@@ -76,6 +76,7 @@ import { landOnTrunk } from './trunk.js';
 import { flakeRatchetBeforeGate } from './trunk.js';
 import { finishTrunk } from './publish.js';
 import { timedPhase } from '../timing.js';
+import { scanRidesRunner } from '../scan.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
@@ -90,6 +91,7 @@ function requireParallelGateAdmission(root, config) {
  * packages/codemap/data/plan/cells.json on base or in the merge has no placement rules to enforce, so the check passes there.
  */
 export async function placedMerge(state, items) {
+  if (scanRidesRunner(state)) return true; // the runner job checks a named batch's placement beside its static checks [C7,#5559]
   if (!existsSync(join(state.root, 'packages/codemap/data/plan/cells.json')) || !existsSync(join(state.batch.root, 'packages/codemap/data/plan/cells.json'))) return true;
   const { unplanned, readPlan, addedPlacementProblems } = await import('../../../../codemap/index.js');
   const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
@@ -146,6 +148,8 @@ async function preflightLanding(options, trunk, branch) {
   }
   // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
   if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait, landingPorts: options.landingPorts });
+  // A named landing is the coordinator's own call: it relands, defers and selects nothing else [C7,#5559].
+  if (options.named) return { publishHold };
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
@@ -197,7 +201,7 @@ export async function land(options) {
     } }));
   let failed = false;
   try {
-    await lease.assertHeld();
+    await lease.assertHeld(); await lease.guard(controller); // The guardian stops a gate this command can no longer own.
     invalidateGitFacts(); // The holder may have moved main while this command waited.
     /** Bind each batch transition to this acknowledged grant, never to an optimistic local result. */
     const write = async (operation, args) => {
@@ -209,7 +213,7 @@ export async function land(options) {
     /** Relay catch-up can change proof or trunk facts while a renewal awaits its receipt. */
     const checkLease = async () => { await lease.assertHeld(); invalidateGitFacts(); };
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
-      adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
+      ...(options.named ? { named: options.named } : {}), adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     /** A batch with no progress for the stall limit is recorded blocked; its items stay verified for the next batch. */
     const onStall = async ({ batch, description }) => {
@@ -223,7 +227,11 @@ export async function land(options) {
     // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
     if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
-  } catch (error) { failed = true; throw error; }
+  } catch (error) {
+    failed = true;
+    // A gate stopped by the guardian's loss fails on its own; the loss is the cause.
+    throw controller.signal.aborted && controller.signal.reason?.code === 'LAND_WORKER' ? controller.signal.reason : error;
+  }
   finally {
     try { await lease.release(); }
     catch (error) {
@@ -286,10 +294,13 @@ export function crashRefusal(error) {
  * End the batch blocked after any refusal or crash in a landing step (merge, gate, diagnose, trunk, publish), so the next
  * batch starts and no restart adopts and gates it again. Only a lost lease keeps it, since another worker owns the batch then;
  * a landing fault such as BOARD_BUSY is a Refused like any other and blocks it too (its items stay verified).
+ * The exception is LAND_DIAGNOSTIC on a multi-item batch with no named failure, which stays adoptable so the third unnamed red splits it [C7,#2858].
  * Why: FLAKE_RATCHET escaped with the batch still gating and killed the worker 50 times on 5 Nov [C7,#3188].
  */
 export async function blockAfterRefusal(state, error) {
-  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST';
+  // A multi-item batch whose gate named no failing file stays adoptable: its unnamed-red count is what makes the third red split the items [C7,#2858].
+  const splittable = error?.code === 'LAND_DIAGNOSTIC' && (state.batch.items?.length ?? 0) > 1 && !(state.batch.failures ?? []).length;
+  const refused = error instanceof Refused && !['LAND_LEASE_LOST', 'LAND_WORKER'].includes(error.code) && !splittable;
   if ((refused || isCrash(error)) && ['merging', 'gating', 'ready', 'trunk'].includes(state.batch.state)) await save(state, { state: 'blocked' });
 }
 
@@ -358,7 +369,7 @@ export async function returnStaleVerdicts(board, selected, write, say) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts, spawnRefresh }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts, spawnRefresh, named = null }) {
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
@@ -387,12 +398,14 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', testDefectHoldMessage(testDefects));
-  if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
+  if ((!dryRun || due) && !adopt && !unfinished && !named && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
   if (!dryRun && !adopt) await releaseClearedRepeatHolds(root, board, trunk, write, onWait);
-  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
+  if (named && !landsOnTrunk(config)) throw new Refused('LAND_NAMED', 'a named landing moves the local trunk; set landing.publish to "separate" or land the items through the ordinary train');
+  const selected = candidates(board, root, trunk.commit, named ? named.length : landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [], named });
+  if (named) requireNamedLandable(board, named, selected);
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
@@ -456,6 +469,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       ...(environment ? { environment } : {}),
       candidates: selected.ready.map(landingEntry),
       items: selected.ready.map(landingEntry), conflicts: [], blocked: selected.blocked,
+      ...(named ? { external: true } : {}),
       state: 'merging', owner, pid: process.pid, host: landingHost(), logPath: join(directory, 'logs', 'batch.log'), revision: 0 };
     batch = await write('recordLandingBatch', [{ agentId: 'coordinator', batch }]);
     mkdirSync(directory, { recursive: true });
@@ -475,7 +489,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       const initialItems = (state.batch.candidates ?? state.batch.items)
         .filter((entry) => !state.culprits.some((culprit) => culprit.id === entry.id && culprit.commit === entry.commit));
       if (!existsSync(state.batch.root)) throw new Refused('LAND_WORKTREE', `the recorded landing worktree is missing at ${state.batch.root}; restore it before adopting`);
-      if (state.config.landing?.parallel === true) {
+      if (state.config.landing?.parallel === true && !state.batch.external) {
         await parallelLanding(state, initialItems);
         await returnMergeConflicts(state);
         return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map(entry => entry.id) : [],
@@ -552,6 +566,22 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   await returnMergeConflicts(state);
   return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map((entry) => entry.id) : [],
     conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
+}
+
+/**
+ * Refuse a named landing that names an item the board does not have, or one already merged or withdrawn.
+ * Why: a typo in an id list must stop the whole call before a worktree exists; a held or stacked item is not this
+ * refusal, it comes back in the batch's blocked list as for any landing [C7,#5559].
+ */
+function requireNamedLandable(board, named, selected) {
+  const known = new Set([...selected.ready.map(item => item.item_id), ...selected.blocked.map(entry => entry.id)]);
+  const missing = named.filter(({ id }) => !known.has(id));
+  if (!missing.length) return;
+  const reasons = missing.map(({ id }) => {
+    const item = store.getItem(board, id);
+    return `#${id} ${item ? (item.item_merged_commit ? 'is already merged' : `is ${item.item_status}`) : 'does not exist'}`;
+  });
+  throw new Refused('LAND_NAMED', `cannot land ${reasons.join('; ')}`, 'name only items on the board that are not merged or withdrawn');
 }
 
 /** Lift only automatic repeat holds whose bound refusal context changed or exact case now passes on main. */

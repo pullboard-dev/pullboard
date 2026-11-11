@@ -1,18 +1,7 @@
 {
   "version": 1,
   "cell": "git",
-  "baseSha256": "15512bf489ef5a0c5262dbc17e7c795c7bca8f8f7b61dc9121cc1594448daf13",
-  "metrics": {
-    "boundaries": {
-      "remove": [
-        "src/pr-proof-graph.js->packages/git/index.js",
-        "src/pr-publish.js->packages/git/index.js"
-      ],
-      "allowances": {
-        "packages/github/src/io/pr/graph.js->packages/git/index.js": 1,
-        "packages/github/src/io/pr/publish.js->packages/git/index.js": 1
-      }
-    }
-  },
-  "sha256": "56be55a9b35321c32bc857fe7dc85bcd352b4efe67733277ab68f1ea3a2bd074"
+  "baseSha256": "0355e2e6949e91cade9a20ee4e7d9eeab6a5567031c4c26e1e4cb252d1fb82ea",
+  "metrics": {},
+  "sha256": "58501c1f55ae7059800429e79ffbd14ad48c77f938616b46c3a5a46d3b85576b"
 }

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** A landing batch never fails on a case already red on its main base, and still fails on a case red only in the batch [B3,C7]. */
 import assert from 'node:assert/strict';
 import {

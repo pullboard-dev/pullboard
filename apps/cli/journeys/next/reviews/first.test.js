@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** next --take gives every eligible seat a green, unreserved review before any build [C7,#2992]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/commands/version.js packages/codemap/src/logic/imports.js packages/gate/index.js packages/gate/src/io/run/tests.js packages/gate/src/io/test/action/cache.js */
 /** Cell tool prerequisites use real committed graphs and the actual CLI catalogs [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -122,7 +122,7 @@ test('an installed cell resolver upgrade invalidates memo keys outside the candi
   const box = fixture(t);
   box.put('packages/sample/index.js', 'export const value = 1;\n');
   box.put('packages/sample/tests/value.test.js', "import '#sample';\n");
-  box.put('packages/gate/src/io/run/tests.js', 'export {};\n');
+  box.put('apps/cli/src/io/run/tests.js', 'export {};\n');
   box.put('src/test-action-reporter.js', 'export {};\n');
   const commit = box.commit();
   const tool = mkdtempSync(join(tmpdir(), 'pullboard-installed-cell-tool-'));

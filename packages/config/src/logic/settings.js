@@ -73,6 +73,12 @@ export function loadMachineSettings() {
   }
   if (value.gate?.loadAwareDispatch !== undefined && typeof value.gate.loadAwareDispatch !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.loadAwareDispatch must be true or false');
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
+  if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
+  }
+  if (value.gate?.mainComparison !== undefined && !['on-red', 'off'].includes(value.gate.mainComparison)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.mainComparison in ${file} must be "on-red" or "off"`);
+  }
   const timingRunner = value.gate?.timingRunner;
   if (timingRunner !== undefined && timingRunner !== false && (typeof timingRunner !== 'string' || !timingRunner.trim() || timingRunner.trim() !== timingRunner)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.timingRunner in ${file} must be "auto", a registered runner host, or false`);

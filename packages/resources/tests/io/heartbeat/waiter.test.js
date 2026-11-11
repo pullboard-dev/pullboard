@@ -19,13 +19,13 @@ function fixture(t) {
 }
 
 /** Pause a genuine live waiter between admission passes without retaining a SQLite writer. */
-async function waiting(box, agent) {
+async function waiting(box, agent, name) {
   let entered;
   let resume;
   const ready = new Promise(resolve => { entered = resolve; });
   const barrier = new Promise(resolve => { resume = resolve; });
   const stopped = new Error('private waiter stopped');
-  const result = box.take({ agent, onWait: async () => {
+  const result = box.take({ agent, ...(name ? { name } : {}), onWait: async () => {
     entered();
     await barrier;
     throw stopped;
@@ -100,4 +100,21 @@ test('a resumed gate cannot resurrect a removed arrival or release-order ticket 
       throw observed;
     } }), error => error === observed);
   } finally { await fresh.stop(); holder.release(); }
+});
+
+const PIN = 'repo-fd803180-source-pin';
+test('a stuck non-gate pin line clears: stale head is swept, a fresh waiter is admitted, and the swept owner rejoins at the back [C7]', async t => {
+  const box = fixture(t);
+  const holder = await box.take({ agent: 'holder', name: PIN });
+  const orphan = await waiting(box, 'orphan', PIN);
+  let fresh;
+  try {
+    inPool(box, db => db.prepare('UPDATE waiter SET heartbeat = ? WHERE agent = ?').run(Date.now() - 20 * 60_000, 'orphan'));
+    holder.release();
+    fresh = await box.take({ agent: 'fresh', name: PIN, onWait: () => assert.fail('stale orphan must not block the line') });
+    inPool(box, db => assert.equal(db.prepare('SELECT COUNT(*) AS n FROM waiter WHERE agent = ?').get('orphan').n, 0));
+    const rejoin = await waiting(box, 'orphan', PIN);
+    inPool(box, db => assert.deepEqual(db.prepare('SELECT agent FROM waiter ORDER BY ticket').all().map(r => r.agent), ['orphan']));
+    await rejoin.stop();
+  } finally { fresh?.release(); holder.release(); await orphan.stop(); }
 });

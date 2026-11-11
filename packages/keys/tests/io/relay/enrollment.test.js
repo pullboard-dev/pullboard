@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/person/light.js packages/person/src/logic/vault.js */
 /** Real root-key recovery; the PRF input is synthetic, not a WebAuthn ceremony [H15]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

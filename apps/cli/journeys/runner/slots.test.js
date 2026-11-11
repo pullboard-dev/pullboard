@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The CLI lists runner slots from each runner's own measured cores and memory behind gate.measuredSlots [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

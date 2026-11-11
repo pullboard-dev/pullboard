@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Additional browser options retain CLI types, enrollment idempotence and cancellation [H15,H17]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

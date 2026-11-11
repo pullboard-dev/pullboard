@@ -129,8 +129,8 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   }
 }
 
-/** Exercise AFTER-only public install, deadline and guard behavior through real Git/SQLite reviews. */
-export async function privateReviewRunnerEdges(t, e2e) {
+/** Exercise AFTER-only public install, deadline and guard behavior through real Git/SQLite reviews; `from`/`to` pick a slice of the nine cases so a file stays under its time budget. */
+export async function privateReviewRunnerEdges(t, e2e, from = 0, to = undefined) {
   /** Build a Node command without relying on the controller shell's quoting rules. */
   const node = source => 'node -e ' + shellQuote(source);
   const cases = [
@@ -144,7 +144,7 @@ export async function privateReviewRunnerEdges(t, e2e) {
     { name: 'an applied guard must turn the restored green check red', install: '', check: 'node web/guard.cjs', guard: 'web/guard.cjs:1-1', marker: 'GUARD_RESTORED_GREEN', applied: true },
     { name: 'successful install cleanup does not shorten a long check', install: node("console.log('INSTALL_DRAINED')"), check: node("setTimeout(()=>console.log('LONG_CHECK_FINISHED'),31000)"), marker: 'LONG_CHECK_FINISHED' },
   ];
-  for (const edge of cases) await t.test(edge.name, async () => {
+  for (const edge of cases.slice(from, to)) await t.test(edge.name, async () => {
     const box = e2e.project('true');
     const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
     config.check = { install: edge.install, timeout: edge.timeout ?? '2m' };

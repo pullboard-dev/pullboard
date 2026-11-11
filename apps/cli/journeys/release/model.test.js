@@ -419,9 +419,9 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(selected.code, 0, selected.err || selected.out);
     assert.ok(selected.out.includes('1 item is held by coordinator'), selected.out); // next folds held reasons to a count; the full reason stays in --json below
     const freeId = JSON.parse(available.out).item.item_id;
-    assert.equal(box.run(second.path, 'release', String(freeId), '--reason', 'BLOCKED').code, 0);
+    assert.equal(box.run(second.path, 'release', String(freeId), '--reason', 'INELIGIBLE').code, 0);
     const selectedJson = box.run(second.path, 'next', '--build', '--json');
-    // The seat just released the other item, so release cooldown keeps it from this seat and only the held item's count folds into the refusal.
+    // An INELIGIBLE release is never offered back to the releasing seat, even when nothing else is open (a plain cooldown falls back to it, #3014), so only the held item's count folds into the refusal.
     const selectedError = JSON.parse(selectedJson.out).error;
     assert.equal(selectedError.code, 'NOTHING_FREE');
     assert.ok(selectedError.message.includes('1 item is held by coordinator'), selectedError.message);

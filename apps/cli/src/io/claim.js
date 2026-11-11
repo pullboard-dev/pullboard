@@ -78,13 +78,8 @@ export function currentReworkRoutingPolicy(ctx, board) {
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
 async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, agentSessionDigest()); return result; }
 
-/**
- * Whether the board's committed relay.outbox setting queues moves while the relay is down (#922, H21).
- * Why: absent means enabled for existing boards; an explicit false is the shared opt-out.
- */
-export function relayOutboxSetting(root) {
-  try { return configFromSource(coordinatorFile(root, CONFIG_FILE).stdout).relay?.outbox !== false; } catch { return false; }
-}
+export { relayOutboxSetting } from './relay-outbox.js';
+import { relayOutboxSetting } from './relay-outbox.js';
 
 const LAPSE_MAINTENANCE = new WeakSet();
 
@@ -278,7 +273,7 @@ export async function claimOrdered(ctx, board, args) {
   }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
-  // The claiming session's declared model caps its seat's route, so a Haiku in a strong seat cannot claim strong work (#3678).
+  // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
   const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;

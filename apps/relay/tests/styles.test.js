@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/src/io/browser/page.js */
 /** @pullboard-test-loads apps/relay/src/io/browser/page.js */
 /** The relay browser page serves the view's composed stylesheet [C7,#3202]. */
 import assert from 'node:assert/strict';

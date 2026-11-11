@@ -150,7 +150,9 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required for rare lifecycle routes');
   const box = machine();
-  const demo = project(box, 'lifecycle-native-rare');
+  // The api lane gives the companion author and owner seat a lane other than the builder's.
+  const demo = project(box, 'lifecycle-native-rare', undefined,
+    { lanes: { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } } });
   // @pullboard-board-file journey: this private native board supplies the real receipts compared with its authenticated HTTP state and Chrome chart.
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   let view, chrome;
@@ -176,7 +178,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
         await chrome.waitFor('data?.project?.root === ' + JSON.stringify(demo.repo));
         return JSON.parse(await chrome.stable('JSON.stringify(data.project)'));
       } });
-    assert.equal(Object.keys(native).length, 6, 'each rare/state family has its own real native receipt');
+    assert.equal(Object.keys(native).length, 7, 'each rare/state family has its own real native receipt');
     const complete = await readNativeProject();
     for (const [route, count] of Object.entries(ordinary.expected)) {
       assert.equal(complete.moveCounts[route], count, 'the same native board retains its ordinary route: ' + route);
@@ -201,7 +203,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
       assert.ok(words.includes('1 updated after submission: In review to In review'));
       assert.ok(words.includes('1 updated after submission: Verified to In review'));
       const kept = await chrome.stable('document.querySelector(".lifecycle-notes").textContent');
-      assert.ok(kept.includes('2 updated while building'), width + ': both claimed patch self loops are shown');
+      assert.ok(kept.includes('3 updated while building'), width + ': all three claimed patch self loops are shown');
       for (const phrase of ['2 let go', '1 moved to a stronger agent', '1 check re-frozen', '1 went idle', '1 checks re-frozen while building']) {
         assert.ok(kept.includes(phrase), width + ': the same board renders ordinary return count ' + phrase);
       }

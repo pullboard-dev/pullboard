@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** @pullboard-world-pin: clause 3 reads the shipped submit caller to prove it passes the tooling key. */
 /** A rerun of the same candidate reads back the analysis parts already recorded for its main, source and tooling [C7]. */
 import { test } from 'node:test';
@@ -36,7 +36,7 @@ function countingRunner(box) {
 /** The request one part sends: pinned commits and data only. */
 function partRequest(box, part) {
   return { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'fixture criterion',
-    staticChecks: '', ...(box.tooling ? { tooling: box.tooling } : {}), config: { affectedTests: 'node packages/gate/src/io/run/tests.js' }, readCutItems: () => [{ item_id: 7 }], parts: [part] };
+    staticChecks: '', ...(box.tooling ? { tooling: box.tooling } : {}), config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, readCutItems: () => [{ item_id: 7 }], parts: [part] };
 }
 
 /** Run every analysis part for one attempt, as the submit gate does, and return the elapsed milliseconds and each result. */

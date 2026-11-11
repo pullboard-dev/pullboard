@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Exercise the real registered-runner flake ledger with an isolated committed source [C7]. */
 import assert from 'node:assert/strict';
 import {

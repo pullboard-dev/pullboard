@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js */
 /** A trunk test-defect hold follows its repair item's live status, and the lander's refusal names the item and status [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

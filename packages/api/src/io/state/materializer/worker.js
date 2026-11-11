@@ -53,6 +53,10 @@ function codeStamp(formats) {
     }
   };
   for (const top of ['apps', 'packages', 'src']) walk(join(CODE_ROOT, top));
+  // The release version and notes come from these two files and sit in every built state, so a new release must miss.
+  for (const name of ['package.json', 'CHANGELOG.md']) {
+    try { const stat = statSync(join(CODE_ROOT, name)); hash.update(`${name}:${stat.size}:${stat.mtimeMs}\n`); } catch { /* An install without the file has nothing to stamp. */ }
+  }
   return hash.digest('hex');
 }
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/src/io/cell/scripts/lints.js packages/codemap/src/io/cells/scripts/plan.js packages/codemap/data/baselines/lints/index.json */
 /** @pullboard-test-input ** */
 import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/handoff/dispatcher.js */
 /**
  * The handoff dispatcher's lock proves its loop is alive, an error out of the loop frees it, and a dispatcher in a
  * private machine home never touches ~/.pullboard or sweeps a board that never queued there [C7].

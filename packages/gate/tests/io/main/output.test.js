@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Timing profiles parse the caller's unchanged TAP or JUnit output [C7,V10]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/index.js apps/runner/src/io/private/check/worker.js packages/gate/src/io/browser/guard.js */
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).

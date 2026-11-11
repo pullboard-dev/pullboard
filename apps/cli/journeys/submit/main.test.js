@@ -23,12 +23,12 @@ const bar = { criterion: "1. greet names the visitor, proved by 'greets by first
 /** A base-main comparison in which each listed file ran red with these cases and signatures. */
 function comparison(files) {
   return { main: MAIN, files: files.map(({ file, cases }) => ({ file, result: cases.length ? 'red' : 'green',
-    failures: cases.map(([name, signature]) => ({ file, name, signature })) })) };
+    failures: cases.map(([name, signature, firstError]) => ({ file, name, signature, ...(firstError ? { firstError } : {}) })) })) };
 }
 
-test('clause 1: a submit whose only reds are neighbouring cases base main also fails by file and case name passes, though their details differ [C7]', () => {
-  const failures = [{ file: 'test/other.test.js', name: 'lists the board', signature: 'at /tmp/checkout-1/x.js:10 timeout 4012ms' }];
-  const main = comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'at /tmp/checkout-9/x.js:10 timeout 3990ms']] }]);
+test('clause 1: a submit whose only reds are neighbouring cases base main also fails by file and case name passes, though their run details differ [C7]', () => {
+  const failures = [{ file: 'test/other.test.js', name: 'lists the board', signature: 'at /tmp/checkout-1/x.js:10 timeout 4012ms', firstError: 'expected 2 lines' }];
+  const main = comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'at /tmp/checkout-9/x.js:10 timeout 3990ms', 'expected 2 lines']] }]);
   assert.equal(ownCase(failures[0], bar), false, 'the case is outside the criterion and check');
   assert.deepEqual(proofMainFailures(failures, main, MAIN, bar), { main: MAIN, failures }, 'the red is accounted for as known main');
 });
@@ -45,6 +45,17 @@ test('clause 2: a red in a case the criterion or check names still needs the exa
   assert.equal(proofMainFailures([own, neighbour], both, MAIN, bar), null);
 });
 
+test('clause 1b: a neighbouring case with another assertion than main, or two cases sharing a title, stays red [C7,V4]', () => {
+  const failure = { file: 'test/other.test.js', name: 'lists the board', signature: 'a', firstError: 'expected 2 lines' };
+  const main = (firstError) => comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'b', firstError]] }]);
+  assert.deepEqual(proofMainFailures([failure], main('expected 2 lines'), MAIN, bar), { main: MAIN, failures: [failure] });
+  assert.equal(proofMainFailures([failure], main('expected 3 lines'), MAIN, bar), null, 'the same title with another assertion is the item\'s regression');
+  assert.equal(proofMainFailures([{ ...failure, firstError: undefined }], main(undefined), MAIN, bar), null, 'a case with no assertion to compare never passes by name alone');
+  const twin = { ...failure, file: 'test/second.test.js' };
+  const both = comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'b', 'expected 2 lines']] }, { file: 'test/second.test.js', cases: [['lists the board', 'b', 'expected 2 lines']] }]);
+  assert.equal(proofMainFailures([failure, twin], both, MAIN, bar), null, 'matching by title is ambiguous, so submit refuses');
+});
+
 test('clause 3: a red in a case base main passes stays red [C7]', () => {
   const failures = [{ file: 'test/other.test.js', name: 'lists the board', signature: 'x' }];
   assert.equal(proofMainFailures(failures, comparison([{ file: 'test/other.test.js', cases: [] }]), MAIN, bar), null, 'main ran the file green');
@@ -52,10 +63,10 @@ test('clause 3: a red in a case base main passes stays red [C7]', () => {
   assert.equal(proofMainFailures(failures, { ...comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'x']] }]), main: 'b'.repeat(40) }, MAIN, bar), null, 'a comparison at another main proves nothing');
 });
 
-test('clause 1: a real submit queues green when its only red is a neighbouring case main also fails by name, though its details differ [C7]', { timeout: 240_000 }, t => {
-  // Main fails 'shared failure [G1]' in test/inherited.test.js with 1 !== 2. This candidate leaves the case red but with 1 !== 3,
-  // so its failure details differ from main's. The item's criterion and check ('test -f change.txt') never name that file or case.
-  const box = fixture(t, { candidate: source('shared failure [G1]', 3) });
+test('clause 1: a real submit queues green when its only red is a neighbouring case main also fails by name, though its run details differ [C7]', { timeout: 240_000 }, t => {
+  // Main fails 'shared failure [G1]' in test/inherited.test.js with 1 !== 2. This candidate leaves the case red with the same assertion,
+  // from another checkout. The item's criterion and check ('test -f change.txt') never name that file or case.
+  const box = fixture(t, { candidate: source('shared failure [G1]', 2) });
   const result = cli(box, box.builder, 'submit', String(box.item));
   assert.equal(result.status, 0, `a neighbouring known-main red must not refuse the submit: ${result.stdout}${result.stderr}`);
   const report = JSON.parse(result.stdout);

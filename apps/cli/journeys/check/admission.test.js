@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Coordinator-authored frozen timing reaches real submit/review leases and durable receipts [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
