@@ -864,7 +864,7 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   await restoreInventories();
   const laterA = await timing.wait('submit stack item A after B has a lost reply', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
   const afterLaterA = relay.uploads.length;
-  assert.equal(laterA.status, 0, laterA.stderr);
+  assert.equal(laterA.status, 0, laterA.stderr || JSON.stringify(laterA.document?.error ?? laterA.document).slice(0, 1500));
   assert.equal(laterA.document.commit, firstRecoveryCommit);
   await timing.wait('sync clone A to recover stacked submission B', () => cli(clones[0], envs[0], 'status'));
   const afterStackRecovery = relay.uploads.length;
