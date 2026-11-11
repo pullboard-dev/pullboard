@@ -74,5 +74,6 @@ test('PROFILE fixed overhead of submit with instant checks [V4,C7]', { timeout: 
     const setup = Date.now() - t0;
     const { result, wallMs } = submit(box, 'green' + delay + Math.random());
     console.error('PROFILE delay=' + delay + ' setup=' + setup + ' submitWall=' + wallMs + ' code=' + result.code);
+    console.error('PROFILE stages ' + (result.out + result.err).split('\n').filter(l => /submit [a-z ]+: [0-9.]+s/u.test(l)).join(' | '));
   }
 });
