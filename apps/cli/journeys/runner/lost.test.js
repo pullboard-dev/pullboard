@@ -167,7 +167,8 @@ ${executionServicesSource(gate)}
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
     import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
     let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
-      { executionServices,remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
+      // The retried dispatch gets a full startup budget; the option shortens it to the stand-in's boot budget.
+      { executionServices,remote:true,runnerWaitMs:${STAND_IN_BOOT_BUDGET_MS},onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
     const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
     const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
