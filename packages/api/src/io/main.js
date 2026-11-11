@@ -94,7 +94,7 @@ import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { runnerDispatchMode } from '../../../config/index.js';
-import { jobQueueCall } from '../../../jobs/index.js';
+import { jobQueueCall } from './jobs.js';
 import { personRequestStatuses } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';

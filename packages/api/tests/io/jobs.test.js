@@ -1,30 +1,52 @@
-/** A local board serves its runner job queue on loopback through API v1, only under gate.runnerDispatch pull [P7]. */
+/** The board API serves its runner job queue on loopback, only under gate.runnerDispatch pull [P7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { apiHttpBox } from '../../../../apps/cli/tests/fixtures/api.js';
+import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { runnerDispatchMode } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
-import { offerJob } from '../../../jobs/index.js';
+import { createApiHandler } from '../../index.js';
+import { jobQueueCall } from '../../index.js';
+import { offerJob } from '../../index.js';
 
-test('clauses 1-3: over the loopback API a runner claims by capability, a rival gets nothing, and its receipt lands under the job [P7]', { timeout: 60_000 }, // budget: hang ceiling for a private init and API start, not a throughput claim.
-async (t) => {
-  const box = await apiHttpBox(t);
-  assert.match(box.origin, /^http:\/\/127\.0\.0\.1:\d+$/u, 'a local board serves on loopback');
-  const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
-  const db = new DatabaseSync(file);
-  t.after(() => db.close());
+/** The renderer the API takes as a port: a refusal becomes its public error body. */
+function refusalDocument(error) {
+  return { error: { code: error.code ?? 'INTERNAL', message: String(error.message) } };
+}
+
+test('clauses 1-3: over the loopback API a runner claims by capability, a rival gets nothing, and its receipt lands under the job [P7]', async (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-api-');
+  const home = join(root, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const db = cellBoard(t, join(root, 'board.sqlite')).db;
   offerJob(db, { id: 'gate:http', kind: 'gate', needs: ['node22'] });
-  const jobs = body => box.call(box.path + '/jobs', body);
+  // The local adapter's jobs port, as packages/api/src/io/main.js wires it: the machine's dispatch mode decides.
+  const handler = createApiHandler({ refusalDocument,
+    authenticate: () => ({ local: true }),
+    board: (id) => ({ id }),
+    jobs: (board, body) => jobQueueCall(db, body, { mode: runnerDispatchMode() }),
+  });
+  const server = createServer(handler);
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { handler.close(); server.close(done); server.closeIdleConnections(); }));
+  const jobs = async (body) => {
+    const response = await fetchFresh(`http://127.0.0.1:${server.address().port}/api/v1/boards/fixture/jobs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: response.status, document: await response.json() };
+  };
 
   const off = await jobs({ action: 'claim', runner: 'r-a', capabilities: ['node22'] });
   assert.deepEqual([off.status, off.document.error.code], [400, 'JOBS_NOT_PULL'], 'the controller path never serves the queue');
   assert.equal(jobView(db, 'gate:http').leaseOwner, null);
 
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' } });
+  fixtureMachineSettings(home, { gate: { runnerDispatch: 'pull' } });
   assert.equal((await jobs({ action: 'claim', runner: 'r-thin', capabilities: [] })).document.claim, null, 'a runner without node22 takes nothing');
   const won = await jobs({ action: 'claim', runner: 'r-a', capabilities: ['node22', 'browser'] });
   assert.equal(won.status, 200);

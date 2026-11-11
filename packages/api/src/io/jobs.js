@@ -1,16 +1,16 @@
-/** The board's runner job queue: offer a job with the capabilities it needs, claim by capability, renew, release, post a receipt [P7]. */
+/** The board's runner job queue, served by the board API and kept out of the runner worker's import graph: offer a job with the capabilities it needs, claim by capability, renew, release, post a receipt [P7]. */
 import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { timingSafeEqual } from 'node:crypto';
-import { Refused } from '../../../kernel/light.js';
-import { LEASE_MS } from '../logic/rules.js';
-import { atomically } from './store.js';
-import { createJob } from './store.js';
-import { jobView } from './store.js';
-import { writeStep } from './store.js';
-import { finishJob } from './lease.js';
-import { releaseLease } from './lease.js';
-import { renewLease } from './lease.js';
+import { Refused } from '../../../kernel/index.js';
+import { LEASE_MS } from '../../../jobs/index.js';
+import { atomically } from '../../../jobs/index.js';
+import { createJob } from '../../../jobs/index.js';
+import { jobView } from '../../../jobs/index.js';
+import { writeStep } from '../../../jobs/index.js';
+import { finishJob } from '../../../jobs/index.js';
+import { releaseLease } from '../../../jobs/index.js';
+import { renewLease } from '../../../jobs/index.js';
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
