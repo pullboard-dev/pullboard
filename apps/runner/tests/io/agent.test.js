@@ -162,7 +162,7 @@ test('a runner at or above its core count takes no new job, says why, and pulls 
 });
 
 test('an agent records the digest of its own script, and a start with another digest hands over without losing a running job [C7,#5590]', async t => {
-  const { root, start, agentPid } = machine(t, `${FAST} PULLBOARD_AGENT_IDLE_SECONDS=30`);
+  const { root, start, agentPid } = machine(t, `${FAST} PULLBOARD_AGENT_IDLE_SECONDS=30 PULLBOARD_AGENT_WANTED_SECONDS=60`);
   mkdirSync(join(root, 'queue'), { recursive: true });
   assert.match(agentVersion(), /^[0-9a-f]{16}$/);
   enqueue(root, 'long', { command: 'sleep 3; echo finished' });
