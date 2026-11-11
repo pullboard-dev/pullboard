@@ -1188,11 +1188,18 @@ function scenario(name, play) {
   });
 }
 
-/** The shouts tab ready to read: the board's shouts loaded and the feed laid out. */
-async function openShouts(chrome, count) {
+/**
+ * The shouts tab ready to read: the board's shouts loaded and one conversation open, since the feed lists
+ * conversations first and draws the shout cards only inside the one opened (the shouts without an item are 'none').
+ */
+async function openShouts(chrome, count, key = 'none') {
   await chrome.waitFor(`typeof data !== 'undefined' && data?.project?.shouts?.length >= ${count}`);
   await openTab(chrome, 'shouts');
-  await chrome.waitFor(`!!document.querySelector('[data-pane=shouts]:not([hidden]) #feed .shout')`);
+  const feed = `[data-pane=shouts]:not([hidden]) #feed`;
+  const row = `${feed} [data-shout-thread=${JSON.stringify(key)}]`;
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(`${feed} .conversation-heading, ${row}`)})`);
+  if (!(await chrome.stable(`!!document.querySelector(${JSON.stringify(`${feed} .conversation-heading`)})`))) await press(chrome, q(row));
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(`${feed} .shout`)})`);
 }
 
 scenario('a long shout folds and stays open across a refresh', async ({ Given, When, Then, And, open, layouts }) => {
