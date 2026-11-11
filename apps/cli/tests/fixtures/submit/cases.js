@@ -48,7 +48,7 @@ function fixture() {
   const toolRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   const scanner = testClosures(toolRoot).closures.get('packages/gate/tests/io/board/baseline/guard.test.js');
   assert.ok(scanner?.files, scanner?.reason || 'the actual board-file scanner needs a complete committed closure');
-  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/')) });
+  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/') && file !== 'packages/gate/tests/io/board/baseline/guard.test.js') });
   put(box.repo, 'packages/gate/tests/io/board/baseline/guard.test.js', [
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",
