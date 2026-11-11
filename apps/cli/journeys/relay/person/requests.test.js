@@ -59,7 +59,7 @@ const DECLINE_FLOW_CLI_CHILDREN = [
   { command: ['add'], snapshotUploads: 0 },
   { command: ['relay', 'on'], snapshotUploads: 1 },
   { command: ['status'], snapshotUploads: 4 },
-  { command: ['answer'], snapshotUploads: 1 },
+  { command: ['answer'], snapshotUploads: 0 }, // The reasonless decline is refused before any change, so it publishes no checkpoint.
   { command: ['answer'], snapshotUploads: 1 },
   { command: ['resume'], snapshotUploads: 0 }, // Resume reads indexed health; scheduled sentinel run publishes new findings (#1042).
 ];
