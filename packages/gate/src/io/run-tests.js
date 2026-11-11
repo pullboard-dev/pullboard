@@ -422,7 +422,7 @@ function landingWorkerCommandMatchesFile(processInfo, file) {
 }
 
 /** The spellings `ps` may print for an argument: raw, octal-escaped (macOS), or '?' per control character (Linux). */
-function psSpellings(argument) { // DIAG
+function psSpellings(argument) {
   const control = /[\u0000-\u001f\u007f]/gu;
   return [argument, argument.replace(control, c => `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`), argument.replace(control, '?')];
 }
@@ -458,7 +458,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
     if (recording || !child || typeof child.once !== 'function') return;
     child.once('spawn', () => {
       if (!Number.isInteger(child.pid)) return;
-      process.stderr.write(`G8 spawn ${process.pid} ${Date.now()} ${file ?? 'parent'} ${JSON.stringify(child.spawnargs?.slice(0, 3))}\n`); recording = true;
+      recording = true;
       try {
         const byPid = new Map(landingProcessTable().map(processInfo => [processInfo.pid, processInfo]));
         const parent = byPid.get(process.pid);
@@ -506,7 +506,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         if (record.attempt !== attempt || record.parentPid !== process.pid
             || ack.attempt !== attempt || ack.parentPid !== process.pid || ack.pid !== record.pid
             || !['bound', 'drained', 'unverified'].includes(ack.status)) continue;
-        process.stderr.write(`G8 ack ${ack.status}\n`); pending.delete(recordPath);
+        pending.delete(recordPath);
         renameSync(`${recordPath}.ack`, `${recordPath}.acked`);
       }
     } catch { /* An unreadable acknowledgement retains worker custody. */ }
@@ -542,7 +542,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         const temporary = `${recordPath}.tmp`;
         writeFileSync(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
         renameSync(temporary, recordPath);
-        process.stderr.write(`G8 announced ${child.pid} ${Date.now()}\n`); pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
+        pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
         if (!poll) poll = setInterval(pollAcks, 25);
       } catch (error) {
         announcementFailureDeadline ??= Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS;
@@ -886,8 +886,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       }
       const worker = workerByPid.get(receipt.parentPid);
       const candidate = current.get(receipt.pid);
-      process.stderr.write(`G8 bind ${receipt.pid} worker=${worker?.pid} cand=${candidate?.pid} ppid=${candidate?.ppid} state=${candidate?.state} match=${candidate ? landingChildCommandMatchesSpawn(candidate, receipt) : 'na'} roots=${workerRoots.map(r => r.pid)} parentPid=${receipt.parentPid}
-`); if (!worker || !candidate || candidate.ppid !== worker.pid || candidate.state.startsWith('Z')
+      if (!worker || !candidate || candidate.ppid !== worker.pid || candidate.state.startsWith('Z')
           || !Number.isInteger(candidate.pgid) || !candidate.started
           || !landingChildCommandMatchesSpawn(candidate, receipt)) { unsettledChild = true; cleanupUnverifiedFiles.add(receipt.file); continue; }
       // Capture ownership before acknowledging. The worker cannot exit/reparent this child first.
