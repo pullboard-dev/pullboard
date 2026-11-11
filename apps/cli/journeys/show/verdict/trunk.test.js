@@ -56,7 +56,7 @@ test('page is built', () => {
 });
 `);
   const config = JSON.parse(String(execGitShow(box)));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...(config.verify ?? {}), ...(setting === undefined ? {} : { unrelatedTrunkMoves: setting }) } }, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, lanes: { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'test/', 'packages/gate/src/io/run/'] } }, verify: { ...(config.verify ?? {}), ...(setting === undefined ? {} : { unrelatedTrunkMoves: setting }) } }, null, 2));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with a recorded landing [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
