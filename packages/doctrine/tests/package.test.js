@@ -114,35 +114,75 @@ function dynamicAt(source, at, word = 'import') {
   }
 }
 
-/** A whole-word createRequire, the one way a module here makes a require-style loader. */
-const CREATE_REQUIRE = /(?<![\p{ID_Continue}$\u200c\u200d#])createRequire(?![\p{ID_Continue}$\u200c\u200d])/gu;
+/** One identifier, Unicode letters included. */
+const NAME = '[\\p{ID_Start}$_][\\p{ID_Continue}$\\u200c\\u200d]*';
+
+/** A pattern for the whole word `word`, with its regular-expression characters escaped. */
+function wholeWord(word) {
+  return `(?<![\\p{ID_Continue}$\\u200c\\u200d#])${word.replace(/[$.*+?^()[\]{}|\\]/gu, '\\$&')}(?![\\p{ID_Continue}$\\u200c\\u200d])`;
+}
+
+/** The module that makes require-style loaders, by either of its names. */
+const MODULE = `(?:'(?:node:)?module'|"(?:node:)?module")`;
+
+/**
+ * Every way a source can spell the createRequire factory [P3]: the bare word; each local name a
+ * static import or a destructuring gives it (`{ createRequire as cr }`, `{ createRequire: cr }`); and
+ * a property read on any binding of the whole module (`import * as m`, `import m`, `const m = await
+ * import('node:module')`, `const m = process.getBuiltinModule('module')`), as `m.createRequire`,
+ * `m?.createRequire` or `m['createRequire']`. Any other bracket read on such a binding is computed.
+ *
+ * @param {string} source
+ * @returns {{factories: RegExp[], computed: number}}
+ */
+function requireFactories(source) {
+  const names = new Set(['createRequire']);
+  for (const [, alias] of source.matchAll(new RegExp(`(?<![\\p{ID_Continue}$\\u200c\\u200d#])createRequire\\s*(?:as\\s+|:\\s*)(${NAME})`, 'gu'))) names.add(alias);
+  const modules = new Set();
+  for (const [, clause] of source.matchAll(new RegExp(`import\\s+([^'";]*?)\\s*from\\s*${MODULE}`, 'gu'))) {
+    for (const [, name] of clause.matchAll(new RegExp(`(?:^|\\*\\s*as\\s+)(${NAME})`, 'gu'))) modules.add(name);
+  }
+  for (const [, name] of source.matchAll(new RegExp(`(?:const|let|var)\\s+(${NAME})\\s*=\\s*(?:await\\s+import|(?:process\\s*\\.\\s*)?getBuiltinModule)\\s*\\(\\s*${MODULE}`, 'gu'))) modules.add(name);
+  const factories = [...names].map((name) => new RegExp(wholeWord(name), 'gu'));
+  let computed = 0;
+  for (const name of modules) {
+    factories.push(new RegExp(`${wholeWord(name)}\\s*(?:\\?\\.|\\.)\\s*createRequire(?![\\p{ID_Continue}$\\u200c\\u200d])|${wholeWord(name)}\\s*(?:\\?\\.)?\\s*\\[\\s*(?:'createRequire'|"createRequire")\\s*\\]`, 'gu'));
+    for (const read of source.matchAll(new RegExp(`${wholeWord(name)}\\s*(?:\\?\\.)?\\s*\\[`, 'gu'))) {
+      if (!/^\[\s*(['"])createRequire\1\s*\]/u.test(source.slice(read.index + read[0].length - 1))) computed += 1;
+    }
+  }
+  return { factories, computed };
+}
 
 /**
  * What each source loads through createRequire [P3]. A require-style call is invisible to V8's
  * import list, so it is read like import(...): a loader bound as `const name =
- * createRequire(import.meta.url)` loads its plain string argument, and any other argument, any other
- * use of that name, or createRequire called any other way is COMPUTED. Words are matched in the
- * text, not confirmed as code: the scan errs toward a false alarm, never a miss.
+ * factory(import.meta.url)` loads its plain string argument, and any other argument, any other
+ * use of that name, or the factory called any other way is COMPUTED. The factory is found under any
+ * name requireFactories knows. Words are matched in the text, not confirmed as code: the scan errs
+ * toward a false alarm, never a miss.
  *
  * @param {string} source
  * @returns {string[]}
  */
 function requiresIn(source) {
-  const found = [];
-  for (const { index } of source.matchAll(CREATE_REQUIRE)) {
-    if (pastGap(source, index + 'createRequire'.length)[0] !== '(') continue;
-    const binding = /(?:const|let|var)\s+([\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*)\s*=\s*$/u.exec(source.slice(0, index));
-    const own = /^import\s*\.\s*meta\s*\.\s*url\s*\)/u.test(pastGap(pastGap(source, index + 'createRequire'.length), 1));
-    if (!binding || !own) {
-      found.push(COMPUTED);
-      continue;
-    }
-    const name = binding[1];
-    const declared = binding.index + binding[0].indexOf(name, binding[0].search(/\s/u));
-    const uses = new RegExp(`(?<![\\p{ID_Continue}$\\u200c\\u200d#])${name.replaceAll('$', '\\$')}(?![\\p{ID_Continue}$\\u200c\\u200d])`, 'gu');
-    for (const use of source.matchAll(uses)) {
-      if (use.index === declared) continue;
-      found.push(pastGap(source, use.index + name.length)[0] === '(' ? dynamicAt(source, use.index, name) : COMPUTED);
+  const { factories, computed } = requireFactories(source);
+  const found = Array.from({ length: computed }, () => COMPUTED);
+  for (const factory of factories) {
+    for (const { index, 0: word } of source.matchAll(factory)) {
+      if (pastGap(source, index + word.length)[0] !== '(') continue;
+      const binding = new RegExp(`(?:const|let|var)\\s+(${NAME})\\s*=\\s*$`, 'u').exec(source.slice(0, index));
+      const own = /^import\s*\.\s*meta\s*\.\s*url\s*\)/u.test(pastGap(pastGap(source, index + word.length), 1));
+      if (!binding || !own) {
+        found.push(COMPUTED);
+        continue;
+      }
+      const name = binding[1];
+      const declared = binding.index + binding[0].indexOf(name, binding[0].search(/\s/u));
+      for (const use of source.matchAll(new RegExp(wholeWord(name), 'gu'))) {
+        if (use.index === declared) continue;
+        found.push(pastGap(source, use.index + name.length)[0] === '(' ? dynamicAt(source, use.index, name) : COMPUTED);
+      }
     }
   }
   return found;
@@ -252,6 +292,16 @@ test('the import scan finds a package however it is imported, and nothing that i
     "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); const other = load;": ['node:module', COMPUTED],
     "import { createRequire } from 'node:module'; createRequire(import.meta.url)('left-pad');": ['node:module', COMPUTED],
     "import { createRequire } from 'node:module'; const load = createRequire(elsewhere);": ['node:module', COMPUTED],
+    "import { createRequire as cr } from 'node:module'; const load = cr(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import { createRequire as cr } from 'module'; const load = cr(import.meta.url); load(name);": ['module', COMPUTED],
+    "import * as m from 'node:module'; const load = m.createRequire(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import m from 'node:module'; const load = m?.createRequire(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import m from 'node:module'; const load = m['createRequire'](import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import m from 'node:module'; const key = 'createRequire'; const load = m[key](import.meta.url);": ['node:module', COMPUTED],
+    "import m from 'node:module'; const { createRequire: cr } = m; const load = cr(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "const m = await import('node:module'); const load = m.createRequire(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "const m = process.getBuiltinModule('module'); const load = m.createRequire(import.meta.url); load('left-pad');": ['left-pad'],
+    "import { isBuiltin } from 'node:module'; const text = 'no loader'; isBuiltin('fs');": ['node:module'],
   };
   const found = importsIn(Object.keys(forms));
   const set = (names) => [...new Set(names)].sort();
