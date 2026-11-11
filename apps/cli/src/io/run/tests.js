@@ -8,6 +8,6 @@ await startRunTests({
   services: {
     landing: () => import('../../../../../packages/landing/index.js'),
     runners: () => import('../../../../../packages/runners/index.js'),
-    gateSlotServices: () => import('../../../../../packages/gate/index.js'),
+    gateSlotServices: () => import('../../../../lib/light.js'),
   },
 });

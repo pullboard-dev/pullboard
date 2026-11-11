@@ -40,13 +40,6 @@ import {
 } from '../entry.js';
 
 /** Run `pullboard join` and return its exit code. */
-/**
- * Whether a model is a small, light-route model: a claude-haiku-* model or gpt-6-luna.
- * A seat on such a model joins the light route unless it names --route, so it never claims strong work.
- */
-export function lightModel(model) {
-  return /^claude-haiku-/u.test(String(model ?? '')) || model === 'gpt-6-luna';
-}
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const folder = itemFolderSeat(ctx.info.root);
