@@ -2,15 +2,7 @@ import { requireLandingCompanions } from '../guards.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
-import { assignEngineNumbers } from '../../../../state/index.js';
-import { placeLandingNewFiles } from '../history.js';
-import { placeLandingHistory } from '../history.js';
-import { GENERATED_DOC_PATHS } from '../../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../../merge/index.js';
-import { writeFormatTable } from '../../../../state/index.js';
-import { refreshLandingDocs } from '../docs.js';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
@@ -22,6 +14,10 @@ import { checkLandingMessages } from '../../logic/message.js';
 import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
 import { scanRidesRunner } from '../scan.js';
+import { amendLandingEngines } from '../derive.js';
+import { deriveOnRunner } from './derive.js';
+import { commitDerived } from './derive.js';
+import { deriveRidesRunner } from './derive.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { landingHooks } from './selection.js';
@@ -90,6 +86,7 @@ export async function mergeGroup(state, items) {
   const resolutions = [];
   // A per-item landing merges the reviewed commit with repository hooks off: they ran when the item was built [C7,#2901].
   const hooks = landingHooks(state.config);
+  const onRunner = deriveRidesRunner(state);
   for (const entry of items) {
     await state.checkLease();
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
@@ -134,8 +131,8 @@ export async function mergeGroup(state, items) {
       for (const change of gateRenames) state.say(`spec ${change.row}: gate ${change.from} -> ${change.to}`);
     }
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
-    const engines = amendLandingEngines(batch.root, hooks);
-    for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
+    // A named batch derives once after its last merge, on a runner (below), so the coordinator spends no CPU on it [C7,#5568].
+    if (!onRunner) for (const engine of amendLandingEngines(batch.root, hooks).assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
     const first = firstContainingCommit(batch.root, checked);
     const commit = proven ? checked : item.item_commit;
     merged.push({ id: item.item_id, commit, ...(checked !== commit ? { reviewedCommit: checked } : {}), merge: first });
@@ -143,6 +140,7 @@ export async function mergeGroup(state, items) {
   // The paths the landing itself writes after the item merges (badge counts, lowered doctrine counts): data the board
   // derives, never an item's change, so a submit receipt still answers for a tree that differs only there [C7,#3685].
   const landingWrites = new Set();
+  if (merged.length && onRunner) for (const file of await commitDerived(state, merged, hooks)) landingWrites.add(file);
   if (merged.length) {
     const changed = state.landingPorts.writeBadges(batch.root, state.landingPorts.badgeCounts(state.board));
     for (const file of changed) landingWrites.add(file);
@@ -179,26 +177,7 @@ export async function mergeGroup(state, items) {
   return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 
-/** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
-export function amendLandingEngines(root, hooks = []) {
-  const engines = assignEngineNumbers(root);
-  if (existsSync(join(root, 'packages/state/src/io/formats')) && existsSync(join(root, 'docs', 'formats.md'))
-    && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-  refreshLandingDocs(root);
-  const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
-  for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
-  if (engines.files.length) {
-    // Canonical rule placement accepts only staged regular files, including this just-generated history.
-    git(root, ['add', '--', ...engines.files]);
-    const placed = placeLandingHistory(root, engines.files);
-    if (placed.length) git(root, ['add', '--', ...placed]);
-  }
-  // Any other new file the plan lacks is placed by rule in this same merge, so main's cells-plan check never goes red (#3443).
-  const newFiles = placeLandingNewFiles(root);
-  if (newFiles.length) git(root, ['add', '--', ...newFiles]);
-  if (engines.files.length || newFiles.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
-  return engines;
-}
+export { amendLandingEngines };
 
 /** Validate and snapshot process-local providers before any landing admission or worker action. */
 export function landingOperations(ports) {
