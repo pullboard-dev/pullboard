@@ -7,6 +7,9 @@ import { dirname } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
+import { jobBlobsPending } from "./blobs.js";
+import { migrateJobBlobs } from "./blobs.js";
+import { compactBoard } from "./blobs.js";
 import {
   SCHEMA,
   SCHEMA_VERSION,
@@ -151,6 +154,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
         ensureAdditiveIndexes(db);
         recordSchemaStamp(db, SCHEMA_DIGEST);
       }, { reviewPolicy: false });
+      if (standing !== 'drifted') settleJobBlobs(db, onDiagnostic);
       if (standing === 'drifted') { warmCounters = false; reportDrift(file, onDiagnostic); }
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
@@ -176,6 +180,23 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }
     throw boardNotWritable(file, boardBusyError(file, startedAt, error));
   }
+}
+
+/**
+ * Run the one-time job blob move and the compaction it earns, never failing the open: a board that cannot do either now
+ * (busy, no disk room) opens as it is and tries again on a later open.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {((line: string) => void) | undefined} onDiagnostic
+ */
+function settleJobBlobs(db, onDiagnostic) {
+  try {
+    if (!jobBlobsPending(db)) return;
+    const moved = migrateJobBlobs(db);
+    if (moved.moved || moved.pruned) onDiagnostic?.(`job payloads: ${moved.moved} moved to blobs, ${moved.pruned} old copies pruned`);
+    const compact = compactBoard(db);
+    if (compact.compacted) onDiagnostic?.(`board compacted: ${compact.before} to ${compact.after} bytes`);
+  } catch (error) { onDiagnostic?.(`job payload move deferred: ${error?.message ?? error}`); }
 }
 
 /**

@@ -343,7 +343,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'Runner-only work needs a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
-    ? executionServices.landing.captureReleaseQueue(root, item) : undefined;
+    ? await executionServices.landing.captureReleaseQueue(root, item) : undefined;
   tracker.mark('queuedAt');
   const admissionStart = Date.now();
   let lease = await takeResource({
