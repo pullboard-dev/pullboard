@@ -167,7 +167,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
       const persistedFailures = recorded.detail.submissionProof.knownMainFailures;
       assert.equal(persistedFailures.main, report.gate.knownMainFailures.main);
       assert.deepEqual(persistedFailures.failures,
-        report.gate.knownMainFailures.failures.map(({ file, name, signature, item }) => ({ file, name, signature, item })));
+        report.gate.knownMainFailures.failures.map(({ file, name, signature, item, firstError, stable, stableData }) => ({ file, name, signature, item, firstError, stable, stableData })));
     }
     const all = mainReceipts(box);
     // Since #3166 a pinned run fills a content-keyed record, so the second pinned run of the same inputs is served from the first: a once, b once.
