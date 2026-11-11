@@ -54,6 +54,7 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
     ...(command ? ['--wake', executable] : []), '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   at += staleBy;
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   assert.equal(getItem(board, item).item_status, 'submitted');

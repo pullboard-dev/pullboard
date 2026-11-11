@@ -32,7 +32,7 @@ const TRUNK = 'b'.repeat(40);
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
-  const board = openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(':memory:', { now: () => new Date(at) });
   // These controls prove replay of the former first-refusal policy, not the current rejection rule.
   board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
@@ -181,7 +181,7 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
   applyEngineMove(f.board, { ...move, engine: REJECT_OPEN_ENGINE - 1 }, receipt);
   applyEngineMove(f.board, { ...move, engine: REJECT_OPEN_ENGINE - 1 }, receipt);
   assert.equal(store.recentShouts(f.board).filter(row => row.shout_text.includes('waits for you')).length, 1);
-  const replica = openBoard(join(f.directory, 'replica.sqlite'), { now: () => new Date('2026-01-01T00:05:00Z') });
+  const replica = openBoard(':memory:', { now: () => new Date('2026-01-01T00:05:00Z') });
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   replica.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
@@ -248,7 +248,7 @@ test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => 
   assert.throws(() => signBar(f.board, id, { agentId: f.other, revision: before.revision, digest: before.digest, note: 'stale' }), error => error.code === 'BAR_SIGN_STALE');
   signReady(f, id);
   claim(f, id, f.builder);
-  const replica = openBoard(join(f.directory, 'ready-replica.sqlite'));
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   replica.executionEngineVersion = REJECT_OPEN_ENGINE - 1;

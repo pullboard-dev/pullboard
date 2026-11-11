@@ -30,7 +30,7 @@ function counted(box, cwd, extraEnv, args) {
   writeFileSync(loader, "import { appendFileSync } from 'node:fs';\nexport async function load(url, ctx, next) { appendFileSync(process.env.COUNT_FILE, url + '\\n'); return next(url, ctx); }\n");
   writeFileSync(preload, "import { register } from 'node:module';\nregister('./count-loader.mjs', import.meta.url);\n");
   rmSync(counts, { force: true });
-  const bin = join(box.dir, 'bin', 'pullboard');
+  const bin = join(box.dir, 'bin/pullboard');
   const shim = readFileSync(bin, 'utf8').match(/exec "([^"]+)" "([^"]+)"/u);
   const env = { ...box.env, ...extraEnv, COUNT_FILE: counts, NODE_OPTIONS: `--import ${preload}` };
   const result = runFixtureChild(shim[1], [shim[2], 'hook', ...args], { cwd, env, encoding: 'utf8' });

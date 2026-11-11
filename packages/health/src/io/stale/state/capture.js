@@ -23,7 +23,7 @@ import { machineStalled } from '../../../logic/stall.js';
 import { claimFolderActive } from '../../claim/activity.js';
 import { claimFolderCommitAt } from '../../claim/activity.js';
 import { redReturnLeaseHolds } from '../../../../../store/index.js';
-import { submitGateInFlight } from '../../../../../store/index.js';
+import { itemWorkInFlight } from '../../../../../store/index.js';
 import { itemPinned } from '../../../../../store/index.js';
 import { PINNED_CLAIM_RELEASE_MS } from '../../../../../store/index.js';
 import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../../../state/light.js';
@@ -144,8 +144,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   const stall = machineStalled({ claimed: snapshot.claims.length, quiet: snapshot.claims.filter(quietSeat).length, gapMs: ctx.sweepGapMs ?? 0 });
   if (stall) ctx.machineStall = { ...stall, observedAt: at.toISOString() };
   snapshot.claims = snapshot.claims.flatMap(row => {
-    // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
-    if (submitGateInFlight(board, byId.get(row.id))) return [];
+    // A queued or running gate or proof run is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
+    if (itemWorkInFlight(board, byId.get(row.id))) return [];
     const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && dependencyWaiters(board, row.id).length;
     if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
