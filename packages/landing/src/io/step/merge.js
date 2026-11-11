@@ -141,7 +141,8 @@ export async function mergeGroup(state, items) {
   // derives, never an item's change, so a submit receipt still answers for a tree that differs only there [C7,#3685].
   const landingWrites = new Set();
   if (merged.length && onRunner) for (const file of await commitDerived(state, merged, hooks)) landingWrites.add(file);
-  if (merged.length) {
+  // A named batch writes its badge documents inside the runner job (above); only the local path writes them here [C7,#5583].
+  if (merged.length && !onRunner) {
     const changed = state.landingPorts.writeBadges(batch.root, state.landingPorts.badgeCounts(state.board));
     for (const file of changed) landingWrites.add(file);
     if (changed.length) {
@@ -162,7 +163,7 @@ export async function mergeGroup(state, items) {
   let doctrineCounts = [];
   const beforeDoctrine = headCommit(batch.root);
   try {
-    if (merged.length) doctrineCounts = await tightenLandingDoctrine(batch.root, state.config, { onWait: state.onWait });
+    if (merged.length) doctrineCounts = await tightenLandingDoctrine(batch.root, state.config, { onWait: state.onWait, measured: onRunner ? state.measuredRules : undefined });
   } catch (error) {
     await save(state, { state: 'blocked', items: merged, conflicts, tip: headCommit(batch.root), doctrineCounts: [] });
     throw error;
@@ -184,5 +185,6 @@ export function landingOperations(ports) {
   const names = ['badgeCounts', 'writeBadges', 'flakeLedger', 'flakeSource', 'observeNativeFailure', 'quarantineWaivers', 'parseProcessCensus',
     'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns', 'landingFlakeRatchet'];
   if (!names.every(name => typeof ports?.[name] === 'function')) throw new TypeError('landing needs explicit canonical operation ports');
-  return Object.freeze(Object.fromEntries(names.map(name => [name, ports[name]])));
+  // badgeDocuments is optional: without it the runner job is handed no badge documents and the coordinator writes them itself [C7,#5583].
+  return Object.freeze(Object.fromEntries([...names, ...(typeof ports.badgeDocuments === 'function' ? ['badgeDocuments'] : [])].map(name => [name, ports[name]])));
 }

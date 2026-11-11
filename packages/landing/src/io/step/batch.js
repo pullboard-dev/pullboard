@@ -201,7 +201,7 @@ export async function land(options) {
     } }));
   let failed = false;
   try {
-    await lease.assertHeld();
+    await lease.assertHeld(); await lease.guard(controller); // The guardian stops a gate this command can no longer own.
     invalidateGitFacts(); // The holder may have moved main while this command waited.
     /** Bind each batch transition to this acknowledged grant, never to an optimistic local result. */
     const write = async (operation, args) => {
@@ -227,7 +227,11 @@ export async function land(options) {
     // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
     if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
-  } catch (error) { failed = true; throw error; }
+  } catch (error) {
+    failed = true;
+    // A gate stopped by the guardian's loss fails on its own; the loss is the cause.
+    throw controller.signal.aborted && controller.signal.reason?.code === 'LAND_WORKER' ? controller.signal.reason : error;
+  }
   finally {
     try { await lease.release(); }
     catch (error) {
@@ -290,10 +294,13 @@ export function crashRefusal(error) {
  * End the batch blocked after any refusal or crash in a landing step (merge, gate, diagnose, trunk, publish), so the next
  * batch starts and no restart adopts and gates it again. Only a lost lease keeps it, since another worker owns the batch then;
  * a landing fault such as BOARD_BUSY is a Refused like any other and blocks it too (its items stay verified).
+ * The exception is LAND_DIAGNOSTIC on a multi-item batch with no named failure, which stays adoptable so the third unnamed red splits it [C7,#2858].
  * Why: FLAKE_RATCHET escaped with the batch still gating and killed the worker 50 times on 5 Nov [C7,#3188].
  */
 export async function blockAfterRefusal(state, error) {
-  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST';
+  // A multi-item batch whose gate named no failing file stays adoptable: its unnamed-red count is what makes the third red split the items [C7,#2858].
+  const splittable = error?.code === 'LAND_DIAGNOSTIC' && (state.batch.items?.length ?? 0) > 1 && !(state.batch.failures ?? []).length;
+  const refused = error instanceof Refused && !['LAND_LEASE_LOST', 'LAND_WORKER'].includes(error.code) && !splittable;
   if ((refused || isCrash(error)) && ['merging', 'gating', 'ready', 'trunk'].includes(state.batch.state)) await save(state, { state: 'blocked' });
 }
 
