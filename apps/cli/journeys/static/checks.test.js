@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { styleSources } from '../../../../codemap/index.js';
-import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
-import { blobOid } from '../../../src/io/static/cache.js';
-import { fileCache } from '../../../src/io/static/cache.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { styleSources } from '../../../../packages/codemap/index.js';
+import { STATIC_TREE_CHECKS } from '../../../../packages/gate/src/io/static/registry.js';
+import { blobOid } from '../../../../packages/gate/src/io/static/cache.js';
+import { fileCache } from '../../../../packages/gate/src/io/static/cache.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 
 const importStyle = STATIC_TREE_CHECKS.find(check => check.name === 'import-style');
 
