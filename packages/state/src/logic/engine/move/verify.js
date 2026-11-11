@@ -10,7 +10,7 @@ export function prepareAfter(board, values, { ports }) {
  * Replay a verdict with the move's implied-fact ids and the verify policy it was judged under [V4,H16,B4,R2].
  *
  * A bar frozen by the previous release pins its verify policy, and replay keeps reading it (N-1). A bar-only
- * freeze pins none, so the policy the move sealed is the one replay re-judges with.
+ * freeze pins none: the submit pins it, so a policy change mid-review applies only to the next submit.
  */
 export function replayArgs(board, args, { move, store }) {
   // Implied facts take their ids from the sealed move, so every replica writes the same ones.
@@ -22,7 +22,10 @@ export function replayArgs(board, args, { move, store }) {
   catch { throw new Refused('NO_POLICY', 'the frozen verify policy is invalid; ask the coordinator to refreeze this item before verifying it'); }
   const capturedPolicy = frozen?.policy;
   const pinned = capturedPolicy !== undefined;
-  const captured = pinned ? capturedPolicy?.verify : { policy: options?.policy, family: options?.familyPolicy };
+  let submitted = null;
+  try { submitted = JSON.parse(item.item_verify_policy ?? 'null')?.verify ?? null; } catch { submitted = null; }
+  // A bar-only freeze takes the verify rules its submit pinned; a submit sealed before that pin takes the verdict's own.
+  const captured = pinned ? capturedPolicy?.verify : submitted ?? { policy: options?.policy, family: options?.familyPolicy };
   if (!options || typeof options !== 'object' || Array.isArray(options) ||
       (pinned && (capturedPolicy?.version !== 1 || !/^[0-9a-f]{40,64}$/.test(capturedPolicy.commit ?? ''))) ||
       !['any', 'coordinator'].includes(captured?.policy) || !['off', 'prefer', 'require'].includes(captured?.family)) {
