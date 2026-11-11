@@ -6,6 +6,13 @@
  */
 export const LANDING_FAULT_CODES = Object.freeze(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'LAND_RUNNER_FAULT', 'POLICY_SNAPSHOT_STALE']);
 
+/**
+ * Refusals that end a landing whose batch another wake must finish: the lease was lost (its renewal missed the deadline,
+ * or the guardian stopped the worker). The batch is kept for adoption, so the lander logs it and reloads, never crashing.
+ * Why: an uncaught LAND_LEASE_LOST killed the automatic lander and stalled landing until the next command (#5770) [C7].
+ */
+export const LANDING_ADOPT_REFUSALS = Object.freeze(new Set(['LAND_LEASE_LOST', 'LAND_WORKER']));
+
 /** A new accepted main may repair diagnostics or executor admission, never an attributed item defect [B35,C7]. */
 export function retryableLandingRefusal(code) {
   return code === 'LAND_DIAGNOSTIC' || code === 'SLOT_DB_LOCKED' || code === 'POLICY_SNAPSHOT_STALE' || code === 'LAND_GATE_TIMEOUT' || code === 'LAND_RUNNER_FAULT'
