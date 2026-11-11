@@ -212,6 +212,7 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   /** Count real write-capable native connections, while leaving every production guard active. */
   const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
     writers++;
+    // @pullboard-board-file journey: a spy counts the writers the real command opens on the board file.
     return native.openBoard(...args);
   } });
   /** Poll through the actual native CLI, with its normal reader and reservation authority. */
@@ -242,6 +243,7 @@ test('clause 1: two idle next --verify polls with nothing to review open zero bo
   /** Count write-capable native connections while every production guard stays active. */
   const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
     writers++;
+    // @pullboard-board-file journey: a spy counts the writers the real command opens on the board file.
     return native.openBoard(...args);
   } });
   /** Poll through the actual native CLI. */
