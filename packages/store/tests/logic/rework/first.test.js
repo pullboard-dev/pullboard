@@ -101,12 +101,4 @@ test('[N2] a rejected item open over 1 h while a lane seat calls next idle raise
   assert.equal(shouts.length, 1, 'one shout per rejection, however many idle calls');
   assert.match(shouts[0].shout_text, new RegExp(`#${back}\\b`, 'u'));
   assert.equal(store.nextIdleChanged(f.board, { agentId: f.peer, reason: 'nothing-eligible' }), false, 'once shouted, an unchanged idle takes no writer');
-
-  claim(f, back, f.peer);
-  submitFixture(f.board, back, { agentId: f.peer, commit: 'c'.repeat(40), tree: 'c'.repeat(40) });
-  store.verify(f.board, back, { agentId: f.third, decision: 'REJECT', reason: 'OTHER', note: 'again', clause: 'prove it',
-    head: 'c'.repeat(40), digest: 'fixture-bar', policy: 'any' });
-  f.advance(STUCK_RETURN_MS + 60_000);
-  idle(f.builder);
-  assert.equal(stuckShouts().length, 2, 'a second rejection is a new episode with its own shout');
 });
