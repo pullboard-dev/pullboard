@@ -32,7 +32,7 @@ const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
  * Archive accepted main from the runner checkout's own Git objects, then run one entry from that archive.
  * Why: the runner's checkout is the candidate; its files are data the trusted entry reads, never code it loads.
  */
-const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+export const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -75,7 +75,7 @@ process.exitCode = status;
  * The analysis entry, written into main's archive: every step imports main's modules, the candidate is the checked tree.
  * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
-const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
+export const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
 import * as cellsCache from './packages/codemap/src/io/cells/scripts/cache.js';
@@ -212,7 +212,7 @@ process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n')
  * The doctrine hold's child entry: it imports accepted main's doctrine module from the archive and holds the candidate
  * checkout, printing one result line; a Refused keeps its code, message and machinery identity [C7].
  */
-const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
+export const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const say = value => process.stdout.write('PULLBOARD_DOCTRINE_RESULT ' + JSON.stringify(value) + '\\n');
 try {
