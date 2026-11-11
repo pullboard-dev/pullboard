@@ -2216,7 +2216,6 @@
     "api->git",
     "api->store",
     "apps/lib->store",
-    "store->apps/lib/src",
     "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",

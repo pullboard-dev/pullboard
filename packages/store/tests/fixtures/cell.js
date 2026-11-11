@@ -2,8 +2,8 @@
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { closeBoard } from '../../../../apps/lib/src/logic/native.js';
-import { openBoard } from '../../../../apps/lib/src/logic/native.js';
+import { closeBoard } from '../../../../apps/lib/board.js';
+import { openBoard } from '../../../../apps/lib/board.js';
 import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
