@@ -101,11 +101,13 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
   const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict), allowCancelled });
+  process.stderr.write(`PROBE-FS acc=${failures ? failures.length : failures} stages=${JSON.stringify((run.stages??[]).map(x => ({ s: x.status, o: x.output?.length, id: x.testOutcomeRunId, p: x.pipeline?.map(y => ({ s: y.status, o: y.output?.length, id: y.testOutcomeRunId })) })))} green=${run.isGreen}\n`);
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
   const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
     .filter(row => !allowCancelled || !row.lines.some(line => /^failureType:\s*['"]?cancelledByParent['"]?\s*$/u.test(line)))
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
+  process.stderr.write(`PROBE-FS details=${details.length} failures=${failures.length}\n`);
   if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => {
