@@ -502,6 +502,10 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   const entries = acceptedPair(helpers, box, false, true);
+  // Main moves after the submits, so landing cannot reuse a submit receipt proven on the older base (BASE_MOVED) and runs its real gate.
+  const moved = helpers.commitFile(box, box.repo, 'web/moved.txt', 'moved\n', 'chore: move main after the submit receipts');
+  assert.equal(moved.status, 0, moved.stderr);
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   writeFileSync(callsFile, '');
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   const wakeFile = join(directory, 'wake.json');
