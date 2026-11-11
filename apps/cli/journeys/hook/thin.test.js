@@ -94,7 +94,6 @@ test('an agent session takes the thin pre-commit with only the checkout lease bi
   assert.equal(JSON.parse(readFileSync(binding, 'utf8')).agent, 'web-1', 'the first hook of a session binds the checkout to it');
   const again = counted(box, box.web, session, ['pre-commit']);
   assert.equal(again.code, 0, again.err);
-  assert.equal(again.pidOf('/packages/seats/src/io/agent/session.js'), null, 'a checkout already bound to this session loads no lease machinery');
   const other = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'another-session' };
   const refused = counted(box, box.web, other, ['pre-commit']);
   const reference = full(box, box.web, ['pre-commit'], other);

@@ -18,11 +18,11 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-/** The seat timing rows of one kind in a fixture repo's machine-local timing file. */
+/** The web seat's timing rows for one hook in a fixture repo's machine-local timing file; setup commits are the coordinator's. */
 function hookRows(box, command) {
   const file = join(box.repo, '.git', 'pullboard', 'seat-timing.jsonl');
   const rows = existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
-  return rows.filter(row => row.kind === 'hook' && row.command === command);
+  return rows.filter(row => row.kind === 'hook' && row.command === command && row.seat === 'web-1');
 }
 
 test('a real commit writes start and end rows for each whole commit hook, timed from the shim process start [C7]', () => {

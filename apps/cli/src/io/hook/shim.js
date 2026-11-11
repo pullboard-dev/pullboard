@@ -39,6 +39,15 @@ export function descendants(root) {
   return found;
 }
 
+/**
+ * The hook's environment: marked as shimmed, and, when a staged static check is named, with the VM modules it needs
+ * through NODE_OPTIONS, so the hook process and a composed child of it can run that check in process.
+ */
+function hookEnv(env) {
+  const options = env.PULLBOARD_HOOK_STATIC ? `${env.NODE_OPTIONS ?? ''} --experimental-vm-modules --disable-warning=ExperimentalWarning`.trim() : env.NODE_OPTIONS;
+  return { ...env, [HOOK_SHIM_ENV]: '1', ...(options === undefined ? {} : { NODE_OPTIONS: options }) };
+}
+
 /** Whether this command line is a commit hook the shim should wrap, and is not already inside one. */
 export function wantsHookShim(args, env) {
   return args[0] === 'hook' && SHIMMED_HOOKS.includes(args[1]) && !env[HOOK_SHIM_ENV];
@@ -58,7 +67,7 @@ export function runHookShim(entry, args, { cwd, env, stderr, timeoutMs = HOOK_TI
   const base = { version: 1, id: randomUUID(), seat: binding?.seat ?? null, item: binding?.item ?? null, kind: 'hook', command: `hook ${hook}`, pid: process.pid, start: startedAt };
   if (binding) appendSeatTiming(binding.file, { ...base, phase: 'start' });
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [entry, ...args], { cwd, env: { ...env, [HOOK_SHIM_ENV]: '1' }, stdio: 'inherit' });
+    const child = spawn(process.execPath, [entry, ...args], { cwd, env: hookEnv(env), stdio: 'inherit' });
     let timedOut = false;
     let settled = false;
     /** Signal the hook and every process it started, a composed child included, deepest first; any may be gone. */
