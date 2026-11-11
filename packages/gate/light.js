@@ -23,7 +23,7 @@ export function sourcePreparationFields(value) {
 }
 
 /**
- * The test runner's own phase-timing line (packages/gate/src/io/run/tests.js testRunPhaseClock), written to stderr as it exits.
+ * The test runner's own phase-timing line (apps/cli/src/io/run/tests.js testRunPhaseClock), written to stderr as it exits.
  * Why: a gate stage merges stderr into its output, so this line follows TAP's final count on every run-tests stage;
  * read as an unknown trailer it left every red submit gate unaccounted, so no failure could ever be compared with
  * main and red-on-main cases always went back to the builder (#3794). It reports time only, never a failure.

@@ -17,7 +17,7 @@ import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/chil
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
 const TREE = 'c'.repeat(40);
 const COMMIT = 'd'.repeat(40);
-const COMMAND = 'node packages/gate/src/io/run/tests.js ';
+const COMMAND = 'node apps/cli/src/io/run/tests.js ';
 
 /** Own a private machine home, so the default shard pass store is this test's alone. */
 function machine(t) {

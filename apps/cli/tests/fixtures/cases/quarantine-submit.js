@@ -33,8 +33,8 @@ export function fixture(t, deterministic = false, companion = false) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
-  config.gate = 'node packages/gate/src/io/run/tests.js test/alternating.test.mjs';
-  config.affectedTests = 'node packages/gate/src/io/run/tests.js';
+  config.gate = 'node apps/cli/src/io/run/tests.js test/alternating.test.mjs';
+  config.affectedTests = 'node apps/cli/src/io/run/tests.js';
   delete config.submitGate;
   delete config.submitDeferAbove;
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');

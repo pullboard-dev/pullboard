@@ -108,7 +108,7 @@ test('clause 2: a record-only run consults no green, so a census sample still ru
 test('clause 2: a record-only command asks for its own greens back and sends none out [C7]', async () => {
   const scratch = scratchEnv();
   try {
-    const command = `${RECORD_ONLY_PREFIX} node packages/gate/src/io/run/tests.js './${FILE}'`;
+    const command = `${RECORD_ONLY_PREFIX} node apps/cli/src/io/run/tests.js './${FILE}'`;
     const previous = process.env.PULLBOARD_TEST_RESULT_STORE;
     process.env.PULLBOARD_TEST_RESULT_STORE = scratch.store;
     try {
