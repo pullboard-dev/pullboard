@@ -72,11 +72,13 @@ export async function runPulled(root, command, options, ports = {}) {
     let submitted, readyAt = null, serving = null, serveFailure = null, finished = false;
     try {
       submitted = await call('--submit', { root, command, options: plainOptions, parentPid: process.pid }, { root, runner: options.runner, signal });
+      // The job exists on the runner only now: a status mirror that began earlier may not list it, and is never read as a lost job.
+      const queuedAt = Date.now();
       custody.job(submitted.recovery);
       const finish = extra => call('--finish', { id: submitted.id, readyAt, ...extra }, { root, runner: options.runner });
       const waitRunnerJob = ports.waitRunnerJob ?? defaultWait;
       const end = await waitRunnerJob({
-        runner: options.runner, id: submitted.id, signal: local.signal, startedAt: dispatchStart, parentPid: process.pid,
+        runner: options.runner, id: submitted.id, signal: local.signal, startedAt: queuedAt, parentPid: process.pid,
         startupDeadline: submitted.startupDeadline, ceilingMs: submitted.ceilingMs,
         /** One observation per fresh mirror: the lease before READY, the source and item always. */
         observe() {
