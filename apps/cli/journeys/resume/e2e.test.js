@@ -7,6 +7,7 @@ import {
   runFixtureExecFile as execFileSync,
   startFixtureChild as spawn,
   runFixtureChild as spawnSync,
+  runFixtureChildAsync,
 } from '../../tests/fixtures/child.js';
 import {
   chmodSync,
@@ -108,7 +109,7 @@ test('a slow tour names its slowest steps [N10]', () => {
   assert.match(slowest, /git commit -q -m "feat\(app\)[^;]*? ([0-9]{5,}) ms/u, 'the slowed commit is named with its time');
 });
 
-test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', () => {
+test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', async () => {
   const box = sandbox();
   const plainEnv = { ...box.env, TMPDIR: box.dir };
   delete plainEnv.NO_COLOR;
@@ -125,7 +126,21 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
   assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Scripted\) \| review-1 \(Scripted\) \|/);
 
-  const forced = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1' }, encoding: 'utf8' });
+  // The four variant tours are independent of each other and of the timed plain run above, so they share one wall-clock window.
+  const hooks = join(box.dir, 'ambient-hooks');
+  mkdirSync(hooks);
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho ambient hook ran >&2\nexit 1\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  const ambient = { ...plainEnv, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
+  const empty = join(box.dir, 'empty');
+  mkdirSync(empty);
+  const tour = (env) => runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env });
+  const [forced, noColor, isolated, stopped] = await Promise.all([
+    tour({ ...plainEnv, FORCE_COLOR: '1' }),
+    tour({ ...plainEnv, FORCE_COLOR: '1', NO_COLOR: '1' }),
+    tour(ambient),
+    tour({ ...plainEnv, PATH: empty }),
+  ]);
   assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
   assert.match(forced.stdout, /\u001b\[1m1  The person approved one spec row\. The coordinator files it as work\.\u001b\[0m/);
   assert.match(forced.stdout, /\u001b\[36mcoordinator \(unknown\)\u001b\[0m \$/);
@@ -136,7 +151,6 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(forced.stdout, /\u001b\[32m[^\n]*verified #1: CRITERION_MET/);
   assert.match(forced.stdout, /\u001b\[32m[^\n]*# pass 2/);
 
-  const noColor = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1', NO_COLOR: '1' }, encoding: 'utf8' });
   assert.equal(noColor.status, 0, `${noColor.stdout}${noColor.stderr}`);
   assert.doesNotMatch(noColor.stdout, /\u001b\[/, 'NO_COLOR wins even if the environment could otherwise force color');
   const normalizeTourRoot = (text) => text
@@ -150,16 +164,7 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
 
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
   assert.match(box.git(repo, 'log', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
-  const hooks = join(box.dir, 'ambient-hooks');
-  mkdirSync(hooks);
-  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho ambient hook ran >&2\nexit 1\n');
-  chmodSync(join(hooks, 'pre-commit'), 0o755);
-  const ambient = { ...plainEnv, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
-  const isolated = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: ambient, encoding: 'utf8' });
   assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
-  const empty = join(box.dir, 'empty');
-  mkdirSync(empty);
-  const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, PATH: empty }, encoding: 'utf8' });
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });
