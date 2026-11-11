@@ -1,6 +1,6 @@
 /** @pullboard-module-loads apps/lib/index.js packages/gate/src/io/main/audit/state.js packages/gate/src/io/run/receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/landing/audit.js apps/lib/index.js packages/gate/index.js packages/gate/src/io/browser/guard.js packages/gate/tests/fixtures/budgets.js */
 import { executionServicesSource } from '../../gate/execution.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A runner registered with no browser slots runs browser-free test files and never browser-bound ones [C7]. */
 import { executionServicesSource } from '../../gate/execution.js';
 import { copyPackageFiles } from '../../../../../../packages/runners/index.js';

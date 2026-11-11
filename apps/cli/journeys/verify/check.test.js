@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/codemap/data/plan/path-map/store.json packages/store/index.js packages/store/src/io/board/capture.js packages/store/src/io/board/ports.js packages/store/src/io/receipts.js packages/store/src/logic/board/receipts.js packages/store/src/logic/known/main/reworks.js */
 /** The frozen check outcome travels with accepts without changing the board schema [V19,V8]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /**
  * Submit proves its frozen item check and the import closure its change can reach; only a full
  * selection can stand in for the project gate, which still runs at landing [V4,C7,V16].
