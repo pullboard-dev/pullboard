@@ -17,6 +17,7 @@ import { removeSandboxes } from '../../../tests/fixtures/submit/handoff.js';
 import { openBoard } from '../../../../lib/index.js';
 import * as nativeBoard from '../../../../lib/index.js';
 import { recoverInfrastructureHandoffs } from '../../../src/io/submit/handoff.js';
+import { RUNNING_RELAUNCH_LIMIT } from '../../../src/io/submit/handoff.js';
 import { loadConfig } from '../../../../../packages/config/index.js';
 import { writeBoardCommand } from '../../../../../packages/store/index.js';
 import { randomUUID } from 'node:crypto';
@@ -111,7 +112,7 @@ async function killWorker(box, job, { spend = true } = {}) {
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
   // Relaunching a dead running gate comes first (#3995); a worker that keeps dying has spent that budget before the sweep ends it.
-  if (spend) spendDriverRelaunches(box.boardFile, job.id);
+  if (spend) spendDriverRelaunches(box.boardFile, job.id, RUNNING_RELAUNCH_LIMIT);
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
 }
 
