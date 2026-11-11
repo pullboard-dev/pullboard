@@ -5146,7 +5146,7 @@
     },
     "apps/cli/src/io/run/tests.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "apps/cli/tests/fixtures/init/shards.js": {
       "cells": 1,
