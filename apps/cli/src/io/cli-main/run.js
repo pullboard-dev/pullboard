@@ -308,7 +308,8 @@ async function runMain(argv, streams) {
       }
       catch (error) { if (error !== LANDING_IDLE) io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
-    if (maintenanceAfterCommand) {
+    // A runner job's processes die with the job, so no timer is scheduled and the scheduler is never loaded [C7].
+    if (maintenanceAfterCommand && !process.env.PULLBOARD_RUNNER_JOB) {
       try { await (await import('../worktree/maintenance/scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err((await import('../worktree/maintenance/diagnostics.js')).maintenanceTimerWarning(error)); }
     }

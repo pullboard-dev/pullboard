@@ -72,7 +72,7 @@ import {
   minimumMoveEngine,
   declaredMoveActor,
   withMoveNextSteps,
-} from '../../../../../packages/moves/index.js';
+} from '../../../../../packages/moves/light.js';
 import {
   activeViewAgents,
   viewProofSummary,
