@@ -1,19 +1,28 @@
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { REVIEW_FAMILY_SEAT_ENGINE } from '../../../state/light.js';
-/** Retain an item's frozen family authority when selecting and reserving its reviewer [V1,H16]. */
-export function frozenFamilyPolicy(item, fallback) {
+/**
+ * The verify rules an item is reviewed under: a previous-release freeze's pinned ones, else the ones its submit pinned [V1,H16,B4,R2].
+ *
+ * Why per submit: a reviewer rule must not change mid-review, yet a policy commit must reach the next submit.
+ */
+export function pinnedVerify(item) {
   try {
-    const family = JSON.parse(item.item_frozen ?? '{}')?.policy?.verify?.family;
-    return ['off', 'prefer', 'require'].includes(family) ? family : fallback;
-  } catch { return fallback; }
+    const legacy = JSON.parse(item.item_frozen ?? '{}')?.policy;
+    if (legacy) return legacy.verify ?? null;
+    return JSON.parse(item.item_verify_policy ?? 'null')?.verify ?? null;
+  } catch { return null; }
 }
 
-/** The coordinator's claim-time snapshot is the only threshold authority [V1,H16]. */
+/** Retain an item's pinned family authority when selecting and reserving its reviewer [V1,H16]. */
+export function frozenFamilyPolicy(item, fallback) {
+  const family = pinnedVerify(item)?.family;
+  return ['off', 'prefer', 'require'].includes(family) ? family : fallback;
+}
+
+/** The pinned threshold is the only threshold authority [V1,H16]. */
 export function frozenRelaxAt(item) {
-  try {
-    const value = JSON.parse(item.item_frozen ?? '{}')?.policy?.verify?.familyRelaxAt;
-    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
-  } catch { return undefined; }
+  const value = pinnedVerify(item)?.familyRelaxAt;
+  return Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
 /** The active seats with no live review of their own: the reviewers a witness says could not take the queue [V1,H16]. */
