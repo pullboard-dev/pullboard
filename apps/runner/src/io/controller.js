@@ -24,6 +24,9 @@ function isRunnerControllerEntry() {
 /** A pulled job's short submit, serve-need or finish process: it carries the private-check policy only, never a lease or a watch [C7,#5465]. */
 const pullMode = PULL_MODES.includes(process.argv[3]) ? process.argv[3] : null;
 
-if (isRunnerControllerEntry()) (pullMode ? servePullController(pullMode, { privateCheckEnvelope, privateCheckPhases })
+// The runner agent's start command lives beside the worker; a controller without it still serves, and its jobs wait for an agent started by hand.
+const agent = pullMode === '--submit' ? await import('./agent.js').catch(() => null) : null;
+
+if (isRunnerControllerEntry()) (pullMode ? servePullController(pullMode, { privateCheckEnvelope, privateCheckPhases, agentStart: root => agent?.runnerAgentStartCommand(root) })
   : serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob }))
   .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });

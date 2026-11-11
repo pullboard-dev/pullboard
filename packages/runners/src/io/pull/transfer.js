@@ -17,8 +17,11 @@ export function pullRoot(runner) {
 /** The ssh options of a job's own launch, minus its host and remote command: the same credential-free policy. */
 export function sshOptions(args) { return args.slice(0, -2); }
 
-/** Shell that publishes one job whole: built under a temporary name, then renamed into the queue. */
-export function enqueueScript(runner, id, row) {
+/**
+ * Shell that publishes one job whole: built under a temporary name, then renamed into the queue. `agent` is a shell
+ * command that starts the runner's agent unless one lives (the first enqueue starts it, so a runner needs no setup).
+ */
+export function enqueueScript(runner, id, row, agent = '') {
   const root = pullRoot(runner);
   return [
     'set -e', 'umask 077', `R=${root}`,
@@ -29,6 +32,7 @@ export function enqueueScript(runner, id, row) {
     `printf '%s\\n' ${shellWord(JSON.stringify(row.row))} > "$d/row.json"`,
     ': > "$d/wanted"',
     `mv "$d" "$R/queue/${id}"`,
+    ...(agent ? [agent] : []),
   ].join('\n');
 }
 

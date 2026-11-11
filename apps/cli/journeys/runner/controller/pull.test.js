@@ -23,7 +23,7 @@ function miniAgentSource(ssh, runnerHome) {
     const runnerRoot = join(${JSON.stringify(runnerHome)}, '.pullboard-runner');
     const home = process.env.PULLBOARD_MACHINE_HOME;
     export function miniAgent(onWait) {
-      return async function waitRunnerJob({ id, check, onNeed, onReady, signal }) {
+      return async function waitRunnerJob({ id, observe, onNeed, onReady, signal }) {
         const job = JSON.parse(readFileSync(join(home, 'runner-jobs', id + '.json'), 'utf8'));
         const queued = join(runnerRoot, 'queue', id), running = join(runnerRoot, 'running', id), done = join(runnerRoot, 'done', id);
         mkdirSync(join(runnerRoot, 'running'), { recursive: true }); mkdirSync(join(runnerRoot, 'done'), { recursive: true });
@@ -41,7 +41,7 @@ function miniAgentSource(ssh, runnerHome) {
             if (line === 'PULLBOARD_RUNNER_READY ' + id && !readySeen) { readySeen = true; onReady(); onWait(job); }
             if (line.startsWith('PULLBOARD_RUNNER_RESULT ' + id + ' ')) receipt = true;
             if (line.startsWith('PULLBOARD_RUNNER_NEED ' + id + ' ') && !needSeen) {
-              needSeen = true; onNeed(line.slice(('PULLBOARD_RUNNER_NEED ' + id + ' ').length));
+              needSeen = true; onNeed(id, line.slice(('PULLBOARD_RUNNER_NEED ' + id + ' ').length));
               const feed = setInterval(() => {
                 if (!existsSync(join(running, 'source.pack.ready'))) return;
                 clearInterval(feed); createReadStream(join(running, 'source.pack')).pipe(child.stdin);
@@ -51,13 +51,13 @@ function miniAgentSource(ssh, runnerHome) {
         });
         const ended = new Promise(resolve => child.once('close', (code, killed) => resolve({ code, signal: killed })));
         let stopped = null;
-        const tick = setInterval(() => { const found = check(); if (found && !stopped) { stopped = found; child.kill('SIGTERM'); } }, 200);
-        signal?.addEventListener('abort', () => { stopped ??= { reason: 'canceled' }; child.kill('SIGTERM'); }, { once: true });
+        const tick = setInterval(() => { const found = observe({}, {}); if (found && !stopped) { stopped = { end: found.end, finishReason: found.finishReason, cancellation: found.cancellation, unavailable: found.unavailable }; child.kill('SIGTERM'); } }, 200);
+        signal?.addEventListener('abort', () => { stopped ??= { end: 'canceled', finishReason: 'canceled' }; child.kill('SIGTERM'); }, { once: true });
         const exit = await ended;
         clearInterval(tick);
         writeFileSync(join(running, 'out.bin'), Buffer.concat(out)); writeFileSync(join(running, 'control.log'), Buffer.concat(err));
         renameSync(running, done);
-        return stopped ?? { reason: receipt ? 'result' : 'ssh-exit', exit };
+        return stopped ?? (receipt ? { end: 'result', finishReason: null, job: { exit } } : { end: 'ssh-exit', finishReason: 'ssh-exit', job: { exit } });
       };
     }
   `;

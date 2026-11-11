@@ -63,7 +63,7 @@ export async function submitJob(payload, ports) {
       startupDeadline: startupDeadline(payload.options, request.phaseAt.start), ceilingMs: runCeilingMs(request.spec),
       readyTimeoutMs: request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs ?? null, parentPid: payload.parentPid, item: String(payload.options.metadata?.item ?? '') };
     const sent = await sshBurst({ args: request.args, env: request.env }, enqueueScript(request.runner, job.id, { command: request.args.at(-1),
-      row: { version: 1, id: job.id, recovery: request.spec.recovery, toolingSha256: request.spec.tooling.sha256, enqueuedAt: Date.now(), rawOutput: Boolean(request.rawOutputPath) } }), { input: request.frame });
+      row: { version: 1, id: job.id, recovery: request.spec.recovery, toolingSha256: request.spec.tooling.sha256, enqueuedAt: Date.now(), rawOutput: Boolean(request.rawOutputPath) } }, ports.agentStart?.(request.runner.root ?? '') ?? ''), { input: request.frame });
     if (!burstOk(sent)) throw runnerFailure(request, { status: sent.status, signal: sent.signal, error: sent.error, stderr: sent.stderr }, 'enqueue');
     writeJob(job);
     return { id: job.id, recovery: job.spec.recovery, host: request.runner.host, toolingSha: request.spec.tooling.sha256, reusedRuntime: job.reusedRuntime,

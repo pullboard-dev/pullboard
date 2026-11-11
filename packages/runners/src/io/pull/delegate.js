@@ -75,30 +75,33 @@ export async function runPulled(root, command, options, ports = {}) {
       const finish = extra => call('--finish', { id: submitted.id, readyAt, ...extra }, { root, runner: options.runner });
       const { waitRunnerJob } = ports.waitRunnerJob ? ports : await import('./wait.js');
       const end = await waitRunnerJob({
-        id: submitted.id, signal: local.signal,
-        /** One observation per tick: the lease before READY, the source and item always. */
-        check() {
-          if (serveFailure) return { reason: 'canceled' };
+        runner: options.runner, id: submitted.id, signal: local.signal, startedAt: dispatchStart, parentPid: process.pid,
+        startupDeadline: submitted.startupDeadline, ceilingMs: submitted.ceilingMs,
+        /** One observation per fresh mirror: the lease before READY, the source and item always. */
+        observe() {
           const cancellation = watch();
-          if (cancellation) return { reason: 'source-changed', cancellation };
+          if (cancellation) return { end: 'source-changed', finishReason: 'source-changed', cancellation };
           if (readyAt === null) {
-            try { const unavailable = custody.unavailable(); if (unavailable?.host === submitted.host) return { reason: 'unavailable', unavailable }; } catch { /* An unknown lease observation cannot stop the job. */ }
+            try { const unavailable = custody.unavailable(); if (unavailable?.host === submitted.host) return { end: 'unavailable', finishReason: 'unavailable', unavailable }; } catch { /* An unknown lease observation cannot stop the job. */ }
           }
           return null;
         },
-        onNeed(inventory) { serving ??= call('--serve-need', { id: submitted.id, inventory }, { root, runner: options.runner }).catch(failure => { serveFailure = failure; local.abort(); }); },
+        onNeed: (id, inventory) => {
+          serving ??= call('--serve-need', { id, inventory }, { root, runner: options.runner }).catch(failure => { serveFailure = failure; throw failure; });
+          return serving;
+        },
         onReady() {
           readyAt = Date.now();
           recordRuntimeHeld(submitted.host, submitted.toolingSha);
           try { custody.ready(submitted.readyTimeoutMs ?? undefined); } catch (failure) { serveFailure = failure; local.abort(); }
         },
-        probe: identity => (ports.probeRunnerJob ?? probeRunnerJob)(options.runner, identity, { signal: local.signal }),
       });
-      await serving;
+      await serving?.catch(() => {});
       if (readyAt === null && submitted.reusedRuntime) forgetRuntimeHeld(submitted.host, submitted.toolingSha);
-      const reason = signal?.aborted || serveFailure ? 'canceled' : end.reason;
+      // A waiter's own fault or a failed pack upload ends the job as canceled; the fault is what the caller sees.
+      const reason = signal?.aborted || serveFailure || end.end === 'error' ? 'canceled' : end.end === 'result' ? 'result' : end.finishReason;
       finished = true;
-      const result = await finish({ reason, exit: end.exit, owner: end.owner, unavailable: end.unavailable, cancellation: end.cancellation }).catch(failure => { if (serveFailure) throw serveFailure; throw failure; });
+      const result = await finish({ reason, exit: end.job?.exit, unavailable: end.unavailable, cancellation: end.cancellation }).catch(failure => { throw serveFailure ?? end.error ?? failure; });
       if (serveFailure) throw serveFailure;
       return result;
     } catch (failure) {
