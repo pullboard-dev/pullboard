@@ -97,10 +97,14 @@ async function seedBookkeeping(box, alpha) {
     assert.equal(JSON.parse(store.events(board).findLast(event => event.event_kind === 'gate-run').event_detail).run.id, receipt.id, 'the gate event retains its actual receipt identity');
   } finally { store.closeBoard(board); }
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
-  box.run(alpha.repo, 'show', '3'); // Deliver any completed native background baseline receipt before observing history.
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
+    // The fixture has no registered runner, so the background baseline stays pending; complete it through the real store call.
+    const pending = store.getItem(held, 1).item_check_baseline;
+    assert.equal(pending.result, 'pending', 'the fixture baseline waits for a runner');
+    store.completeCheckBaseline(held, 1, { agentId: 'coordinator', expected: pending,
+      baseline: { command: pending.command, main: pending.main, result: 'green', seconds: 1 } });
     store.board_recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
     const kinds = new Set(store.events(held).map(event => event.event_kind));
     for (const kind of ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item']) {
