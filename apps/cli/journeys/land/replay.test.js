@@ -25,7 +25,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 /** Exercise landing replay, hook headers and publish against real private Git worktrees [B3,R3,H16]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { sandbox, project, commitFile } = e2e;
+const { sandbox, project, commitFile, waitFor } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('landing records replay identically with native sender and engine boundaries [B3,R3,H16]', (t) => {
