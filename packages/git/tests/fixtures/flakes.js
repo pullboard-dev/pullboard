@@ -171,7 +171,7 @@ export function checkedItem(box) {
     if (previous === null) unlinkSync(settings); else writeFileSync(settings, previous);
   }
   assert.equal(added.code, 0, JSON.stringify(added.document));
-  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
+  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), `baseline setup finished before the measured check: ${JSON.stringify(added.document.item.item_check_baseline)}`);
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
   writeFileSync(box.counter, '');
   return added.document.item.item_id;

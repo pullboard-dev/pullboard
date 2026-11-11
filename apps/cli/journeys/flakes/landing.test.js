@@ -62,7 +62,7 @@ function readyLanding(t, rerun) {
 test('enabled landing retains its original red without a second diagnostic or first legacy defect [C7,H16]', t => {
   const box = readyLanding(t, true);
   const result = box.cli('land');
-  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(result.code, 1, JSON.stringify(result.document)); // a batch whose every candidate is a culprit exits 1 (#4265)
   assert.equal(result.document.batch.state, 'blocked');
   assert.deepEqual(result.document.landed, []);
   assert.deepEqual(result.document.flakes, [], 'typed observations do not file a first-sighting legacy landing_flake');
@@ -120,7 +120,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
   // Changed today with the landing rerun change: an interrupted landing has run the target once by this point.
   assert.equal(targetRuns(box), 1, 'the real interrupted landing completed only its original run');
   const adopted = box.cli('land', '--adopt');
-  assert.equal(adopted.code, 0, JSON.stringify(adopted.document));
+  assert.equal(adopted.code, 1, JSON.stringify(adopted.document)); // the adopted batch ends blocked with every candidate a culprit
   assert.equal(adopted.document.batch.state, 'blocked');
   assert.equal(targetRuns(box), 1, 'normal adoption consumes the retained original, never a confidence rerun');
   // Changed today: the retained pair is red beside a red original, so the ledger holds it as stable-red, not a flake sighting.
@@ -131,7 +131,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
 test('landing with reruns off keeps its original red and runs nothing further [C7,H16]', t => {
   const box = readyLanding(t, false);
   const result = box.cli('land');
-  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(result.code, 1, JSON.stringify(result.document)); // a batch whose every candidate is a culprit exits 1 (#4265)
   // Changed today with the landing rerun change: a red landing with reruns off stays blocked, files no legacy defect and runs the target once.
   assert.equal(result.document.batch.state, 'blocked');
   assert.deepEqual(result.document.landed, []);
