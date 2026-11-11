@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/store/src/io/board.js packages/codemap/src/io/map.js apps/cli/src/io/commands/map.js apps/cli/src/io/commands/merged.js apps/cli/src/io/commands/index.js apps/cli/src/io/commands/next.js apps/cli/src/io/commands/claim.js packages/codemap/src/io/slice.js apps/cli/src/io/main.js apps/cli/src/io/help.js apps/cli/src/logic/help.js src/land.js packages/config/src/io/templates.js apps/cli/tests/fixtures/board/submit.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

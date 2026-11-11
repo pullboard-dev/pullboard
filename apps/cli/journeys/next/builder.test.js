@@ -47,6 +47,7 @@ test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]
   const build = box.add('web', 'Buildable work for the Haiku seat');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     store.claim(board, review, { agentId: author.agent, lane: 'web', leaseMs: HOUR, freeze: FREEZE });

@@ -39,7 +39,7 @@ async function startRevocation(box, revocations, id) {
 
 /** Capture approval inbox responses in Chrome while returning every genuine response unchanged. */
 async function observeApprovals(chrome) {
-  await chrome.evaluate(`(() => {
+  await chrome.stable(`(() => {
     const original = window.fetch.bind(window);
     window.__approvalObservations = [];
     window.__approvalRelayResponses = [];
@@ -85,7 +85,7 @@ async function observeApprovals(chrome) {
 
 /** Hold the real WebCrypto decrypt result for one authenticated approval, then delegate unchanged. */
 async function holdNextApprovalDecrypt(chrome) {
-  await chrome.evaluate(`(() => {
+  await chrome.stable(`(() => {
     const subtle = crypto.subtle;
     const original = subtle.decrypt.bind(subtle);
     window.__approvalDecrypt = { armed: true, started: false, release: null };
@@ -102,7 +102,7 @@ async function holdNextApprovalDecrypt(chrome) {
 
 /** Hold one real completed authorize response while allowing the browser to poll other rows. */
 async function holdAuthorizeResponse(chrome, requestId) {
-  await chrome.evaluate(`(() => {
+  await chrome.stable(`(() => {
     const original = window.fetch.bind(window);
     window.__authorizeGate = { id: ${JSON.stringify(requestId)}, started: false, release: null };
     window.fetch = async (input, init) => {
@@ -121,7 +121,7 @@ async function holdAuthorizeResponse(chrome, requestId) {
 
 /** Hold genuine inbox responses while a refused completion's still-visible card is inspected. */
 async function holdApprovalInboxResponses(chrome) {
-  await chrome.evaluate(`(() => {
+  await chrome.stable(`(() => {
     const original = window.fetch;
     let release;
     const released = new Promise(resolve => { release = resolve; });
@@ -146,12 +146,12 @@ async function holdApprovalInboxResponses(chrome) {
 async function approve(chrome, requestId, command) {
   await assert.doesNotReject(() => chrome.waitFor(`document.querySelector('#phone-approve-${requestId}') !== null`),
     'the delivered approval becomes a visible card');
-  await chrome.evaluate(`(() => {
+  await chrome.stable(`(() => {
     window.__approvalDiagnosticRequest = ${JSON.stringify(requestId)};
     window.__approvalRelayResponses = [];
     window.__approvalLastActionResponse = null;
   })()`);
-  await chrome.evaluate(`document.querySelector('#phone-approve-${requestId}').click()`);
+  await chrome.click(`document.querySelector('#phone-approve-${requestId}')`);
   const result = await command.done;
   assert.equal(result.code, 0, 'one real phone tap completes its native approval command');
   await waitForApprovalCardRemoval(chrome, requestId);
@@ -165,13 +165,13 @@ async function waitForApprovalCardRemoval(chrome, requestId, timeoutMs) {
   } catch (error) {
     let page;
     try {
-      const relaySnapshot = await chrome.evaluate(`(() => {
+      const relaySnapshot = await chrome.stable(`(() => {
         const lastRelayResponses = (window.__approvalRelayResponses ?? []).slice(-8).map(entry => ({ ...entry }));
         const lastActionResponse = window.__approvalLastActionResponse ? { ...window.__approvalLastActionResponse } : null;
         window.__approvalFailureRelayResponses = lastRelayResponses;
         return { observedAt: new Date().toISOString(), entries: lastRelayResponses, lastActionResponse };
       })()`);
-      const observation = await chrome.evaluate(`(() => {
+      const observation = await chrome.stable(`(() => {
         const card = document.querySelector('.phone-approval[data-request="${requestId}"]');
         const button = card?.querySelector('button');
         return {
@@ -268,15 +268,15 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   const firstToken = await issueToken(box, 'approval-key-load');
   const keyLoad = await startRevocation(box, native, firstToken.id);
   const deviceId = JSON.parse(readFileSync(join(process.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).devices[0].deviceId;
-  const deliveredDuringKeyLoad = await chrome.evaluate(`fetch('/api/v1/devices/${deviceId}/approvals', {
+  const deliveredDuringKeyLoad = await chrome.stable(`fetch('/api/v1/devices/${deviceId}/approvals', {
     credentials: 'same-origin', cache: 'no-store', headers: { 'x-pullboard-engine': '${ENGINE_VERSION}' }
   }).then(response => response.json()).then(document => ({ status: document.version,
     row: document.approvals.find(value => value.context.id === '${keyLoad.context.id}')?.context.id ?? null }))`);
   assert.equal(deliveredDuringKeyLoad.row, keyLoad.context.id,
     'the actual authenticated inbox response delivers the row while wrapped-key loading is paused');
-  await chrome.evaluate('window.__keyLoadGate.release()');
+  await chrome.stable('window.__keyLoadGate.release()');
   await chrome.waitFor(`document.querySelector('#phone-approve-${keyLoad.context.id}') !== null`);
-  const keyLoadPolls = await chrome.evaluate('window.__approvalObservations');
+  const keyLoadPolls = await chrome.stable('window.__approvalObservations');
   assert.ok(keyLoadPolls.some(poll => poll.ids.includes(keyLoad.context.id)), 'the real inbox response includes the approval received during key loading');
   await approve(chrome, keyLoad.context.id, keyLoad.command);
   await chrome.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: preloadScript.identifier });
@@ -284,7 +284,7 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   // Keep the actual same-origin phone key, and exercise the production approval installer directly
   // so a temporarily missing publisher key can be released without the cockpit's separate refresh.
   await chrome.navigate(box.origin + '/relay/browser-devices.js');
-  await chrome.evaluate(`(async () => {
+  await chrome.stable(`(async () => {
     document.body.innerHTML = '<main></main>';
     const module = await import('/relay/browser-devices.js');
     window.__approvalDocumentAt = async (path, options = {}) => {
@@ -303,9 +303,9 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   const missingToken = await issueToken(box, 'approval-missing-key');
   const missingKey = await startRevocation(box, native, missingToken.id);
   await chrome.waitFor(`window.__approvalObservations.some(poll => poll.ids.includes('${missingKey.context.id}'))`);
-  assert.equal(await chrome.evaluate(`document.querySelector('#phone-approve-${missingKey.context.id}') === null`), true,
+  assert.equal(await chrome.stable(`document.querySelector('#phone-approve-${missingKey.context.id}') === null`), true,
     'a genuine delivered row cannot render until its actual publisher key is available');
-  await chrome.evaluate('window.__approvalKeys[window.__publisher] = window.__publisherKey');
+  await chrome.stable('window.__approvalKeys[window.__publisher] = window.__publisherKey');
   await approve(chrome, missingKey.context.id, missingKey.command);
 
   // Hold the actual approval decrypt, after the genuine inbox response but before card creation.
@@ -313,19 +313,19 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   const secondToken = await issueToken(box, 'approval-render');
   const render = await startRevocation(box, native, secondToken.id);
   await chrome.waitFor('window.__approvalDecrypt?.started === true', 20_000, 'the real sealed approval is being decrypted before rendering'); // budget: hang ceiling for the deliberately held approval-decrypt stage handshake; no throughput claim.
-  assert.equal(await chrome.evaluate(`document.querySelector('#phone-approve-${render.context.id}') === null`), true,
+  assert.equal(await chrome.stable(`document.querySelector('#phone-approve-${render.context.id}') === null`), true,
     'the card is not asserted before actual decryption finishes');
-  assert.ok((await chrome.evaluate('window.__approvalObservations')).some(poll => poll.ids.includes(render.context.id)),
+  assert.ok((await chrome.stable('window.__approvalObservations')).some(poll => poll.ids.includes(render.context.id)),
     'the browser received this row before its rendering work completed');
   const revokedDeviceId = await enrollProtocolPhone(box);
   const renderLater = await startRevocation(box, native, revokedDeviceId);
-  assert.equal(await chrome.evaluate(`document.querySelector('#phone-approve-${renderLater.context.id}') === null`), true,
+  assert.equal(await chrome.stable(`document.querySelector('#phone-approve-${renderLater.context.id}') === null`), true,
     'the second row arrives while the first genuine decrypt is held');
-  await chrome.evaluate('window.__approvalDecrypt.release()');
+  await chrome.stable('window.__approvalDecrypt.release()');
   await approve(chrome, render.context.id, render.command);
   await approve(chrome, renderLater.context.id, renderLater.command);
 
-  const deliveredIds = await chrome.evaluate('window.__approvalObservations.flatMap(poll => poll.ids)');
+  const deliveredIds = await chrome.stable('window.__approvalObservations.flatMap(poll => poll.ids)');
   for (const context of [missingKey.context, render.context, renderLater.context]) {
     assert.ok(deliveredIds.includes(context.id), 'every actual inbox row observed by Chrome becomes its own approval card');
   }
@@ -342,14 +342,14 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
     const earlier = await startRevocation(box, native, thirdToken.id);
     await chrome.waitFor(`document.querySelector('#phone-approve-${earlier.context.id}') !== null`);
     await holdAuthorizeResponse(chrome, earlier.context.id);
-    await chrome.evaluate(`document.querySelector('#phone-approve-${earlier.context.id}').click()`);
+    await chrome.click(`document.querySelector('#phone-approve-${earlier.context.id}')`);
     await chrome.waitFor('window.__authorizeGate?.started === true', 20_000, 'the first real approval is in flight'); // budget: hang ceiling for the deliberately held authorize-response stage handshake; no throughput claim.
     const second = await startRevocation(box, native, deviceId);
     assert.equal(second.context.action, 'revoke-device');
     await chrome.waitFor(`document.querySelector('#phone-approve-${second.context.id}') !== null`);
-    assert.ok((await chrome.evaluate('window.__approvalObservations')).some(poll => poll.ids.includes(second.context.id)),
+    assert.ok((await chrome.stable('window.__approvalObservations')).some(poll => poll.ids.includes(second.context.id)),
       'a later approval reaches the page while it handles an earlier one');
-    await chrome.evaluate('window.__authorizeGate.release()');
+    await chrome.stable('window.__authorizeGate.release()');
     const earlierResult = await earlier.command.done;
     assert.equal(earlierResult.code, 0);
     await chrome.waitFor(`document.querySelector('#phone-approve-${earlier.context.id}') === null`);
@@ -368,7 +368,7 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
   const approval = await startRevocation(box, native, token.id);
   const selector = `.phone-approval[data-request="${approval.context.id}"]`;
   await chrome.waitFor(`document.querySelector('#phone-approve-${approval.context.id}') !== null`);
-  await chrome.evaluate(`(() => {
+  await chrome.stable(`(() => {
     window.__approvalDiagnosticRequest = ${JSON.stringify(approval.context.id)};
     window.__approvalRelayResponses = [];
     window.__approvalLastActionResponse = null;
@@ -380,11 +380,11 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
     await chrome.waitFor('window.__approvalInboxHold?.started === true', undefined,
       'a real inbox response is held before the completion changes the card lifetime');
     box.server.refuseNextAcceptedApprovalCompletionResponse();
-    await chrome.evaluate(`document.querySelector('#phone-approve-${approval.context.id}').click()`);
+    await chrome.click(`document.querySelector('#phone-approve-${approval.context.id}')`);
     const nativeResult = await approval.command.done;
     assert.equal(nativeResult.code, 0, 'the native command receives and executes the sealed completion before the phone gets its refusal');
     await chrome.waitFor(`window.__approvalLastActionResponse?.status === 403 && document.querySelector(${JSON.stringify(selector)})?.querySelector('p')?.textContent.startsWith('Approval failed: ')`, 30_000, 'the phone retains the card and renders the actual completion refusal'); // budget: 30s hang ceiling for native completion, one phone poll and refusal render; no speed assertion.
-    const observed = await chrome.evaluate(`(() => ({
+    const observed = await chrome.stable(`(() => ({
       action: window.__approvalLastActionResponse,
       card: (() => { const node = document.querySelector(${JSON.stringify(selector)}); return {
         present: Boolean(node), text: node?.querySelector('p')?.textContent ?? null,
@@ -413,7 +413,7 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
     assert.equal(JSON.parse(completed.response.toString('utf8')).error?.code, 'REVIEWER_COMPLETE_REFUSED',
       'the relay response body records the refusal after its completion side effect');
   } finally {
-    await chrome.evaluate('window.__approvalInboxHold?.finish()');
+    await chrome.stable('window.__approvalInboxHold?.finish()');
   }
 });
 

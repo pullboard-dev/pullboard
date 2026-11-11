@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** A verdict made stale by a main change returns to its lane at once: withdrawn, reopened with no owner, recorded [B3,C7]. */
 import assert from 'node:assert/strict';
 import {

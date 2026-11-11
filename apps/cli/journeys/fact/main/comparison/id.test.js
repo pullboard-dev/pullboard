@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A runner main comparison uses the repository's own runner cache id and sends only missing objects, with no clone [C7]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';

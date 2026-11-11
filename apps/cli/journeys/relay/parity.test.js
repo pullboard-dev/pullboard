@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/src/logic/browser/pages.js packages/pages/src/logic/relay/presentation.js */
 import { browserModules } from '../../../relay/index.js';
 import { presentationShout } from '../../../../packages/pages/light.js';
 import { presentationShout as nodePresentationShout } from '../../../../packages/pages/index.js';

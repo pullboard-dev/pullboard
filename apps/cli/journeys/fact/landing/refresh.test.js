@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input docs-tree */
 import { test } from 'node:test';
 import { runLandingDocsRefresh } from '../../../tests/fixtures/landing/refresh.js';

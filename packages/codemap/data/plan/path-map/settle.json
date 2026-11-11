@@ -81,5 +81,7 @@
   "packages/landing/tests/io/main/red/cache.test.js": "apps/cli/journeys/red/content-cache.test.js",
   "packages/landing/tests/io/main/red.test.js": "apps/cli/journeys/red/main-red.test.js",
   "apps/cli/tests/io/resident/board.test.js": "apps/cli/journeys/resident/board.test.js",
-  "packages/gate/tests/io/test/tier/selection.test.js": "apps/cli/journeys/test/tier-selection.test.js"
+  "packages/gate/tests/io/test/tier/selection.test.js": "apps/cli/journeys/test/tier-selection.test.js",
+  "packages/gate/src/io/slot/services.js": "apps/lib/src/io/slot/services.js",
+  "packages/gate/src/io/scripts/release.js": "packages/landing/src/io/scripts/release.js"
 }

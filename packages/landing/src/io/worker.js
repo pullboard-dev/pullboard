@@ -1,5 +1,8 @@
 /** Stop a landing's owned process group, and fence each physical Git action on the landing lease [Q1,Q3,C7]. */
+import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { invalidateGitFacts } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -70,3 +73,89 @@ export function assertWorkerFence(board, fence, root) {
   return holder;
 }
 import { assertLandingLease } from '../../../store/index.js';
+import { landingLeaseState } from '../../../store/index.js';
+import { DatabaseSync } from 'node:sqlite';
+
+/** The environment name of the token a landing's timed gate workers carry on their command line, for its guardian to find them by. */
+export const CUSTODY_ENV = 'PULLBOARD_LANDING_CUSTODY';
+
+/** Pids of the live timed gate workers carrying a landing's token; the random token is their identity, so a reused pid never matches. */
+function registeredGates(token) {
+  return new Promise(resolve => execFile('/bin/ps', ['-axww', '-o', 'pid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } }, (error, stdout) => {
+    resolve(error ? [] : stdout.split('\n').flatMap(line => {
+      const match = /^\s*(\d+) (.*)$/u.exec(line);
+      return match && match[2].includes(`--landing-custody=${token}`) && Number(match[1]) !== process.pid ? [Number(match[1])] : [];
+    }));
+  }));
+}
+
+/**
+ * Stop every timed gate worker of one landing and wait until each has drained or is gone.
+ * SIGTERM first: the worker's own handler drains its descendants and process groups; SIGKILL only after 20 s.
+ * Why: the gate runs in its own process groups, so a dead landing command left it running beside the next landing [Q1,Q3,B3].
+ */
+export async function stopRegisteredGates(token, { pause = ms => new Promise(resolve => setTimeout(resolve, ms)), limitMs = 20_000 } = {}) {
+  const end = Date.now() + limitMs;
+  let signal = 'SIGTERM';
+  for (let live = await registeredGates(token); live.length; live = await registeredGates(token)) {
+    if (Date.now() >= end) signal = 'SIGKILL';
+    for (const pid of live) { try { process.kill(-pid, signal); } catch { try { process.kill(pid, signal); } catch { /* Gone already. */ } } }
+    await pause(100);
+  }
+}
+
+/**
+ * Start the independent guardian of one landing: a process of its own that stops the landing's gate workers when
+ * the landing command dies or its lease deadline passes unrenewed, and is itself watched by the command.
+ * Returns its pid, a deadline sender, and `end()` for a normal finish; `onDeath` runs when the guardian dies first.
+ */
+export function startGuardian({ onDeath, boardFile = null, leaseToken = null }) {
+  const token = randomUUID();
+  const code = `import(${JSON.stringify(import.meta.url)}).then(module => module.guardianMain(${JSON.stringify(token)}, ${JSON.stringify({ boardFile, leaseToken })}))`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', code], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+  let ended = false;
+  let draining = null;
+  // Refuse first: the stopped gate then fails into an aborted landing, so its fall-out cannot block the batch or name itself the cause.
+  child.once('exit', () => { if (ended) return; onDeath(); draining = stopRegisteredGates(token).catch(() => {}); });
+  process.env[CUSTODY_ENV] = token;
+  return {
+    pid: child.pid,
+    /** Resolves once a guardian death has finished stopping the gates, so the landing never releases before they are gone. */
+    settle: () => draining,
+    deadline(at) { if (child.connected) child.send({ deadline: at }); },
+    end() {
+      ended = true;
+      delete process.env[CUSTODY_ENV];
+      if (child.connected) child.send({ end: true }, () => {});
+    },
+  };
+}
+
+/**
+ * True when the board no longer shows this landing as the holder, or shows its lease past its deadline. It reads the lease the
+ * way the fence does (the local heartbeat over the shared record), so an aged lease stops the gate as well as a late IPC deadline.
+ */
+export function leaseLapsed(boardFile, leaseToken, now = Date.now()) {
+  let db;
+  try {
+    db = new DatabaseSync(boardFile, { readOnly: true });
+    const holder = landingLeaseState({ db }).holder;
+    return !holder || holder.token !== leaseToken || Date.parse(holder.until) <= now;
+  } catch { return false; } // An unreadable or busy board proves nothing; the IPC deadline and channel still guard.
+  finally { try { db?.close(); } catch { /* Already closed. */ } }
+}
+
+/** The guardian process body: stop the landing's gate workers when the command's channel closes, the deadline lapses, or the board's lease has. */
+export function guardianMain(token, { boardFile = null, leaseToken = null } = {}) {
+  let deadline = Infinity;
+  let finishing = false;
+  /** Stop the gates once, then leave. */
+  const act = () => { if (finishing) return; finishing = true; void stopRegisteredGates(token).finally(() => process.exit(0)); };
+  process.on('message', message => {
+    if (message?.end) { finishing = true; process.exit(0); }
+    if (Number.isFinite(message?.deadline)) deadline = message.deadline;
+  });
+  process.on('disconnect', act);
+  setInterval(() => { if (Date.now() >= deadline) act(); }, 250);
+  if (boardFile && leaseToken) setInterval(() => { if (!finishing && leaseLapsed(boardFile, leaseToken)) act(); }, 1000);
+}

@@ -2,7 +2,7 @@
  * Per-test-file results keyed by their inputs: a green result whose inputs did not change is reused, not run again [C7].
  *
  * A test file's action key hashes the file, its transitive import closure (src/affected-tests.js), the non-JS files it
- * declares or names, packages/gate/src/io/run/tests.js, package.json, the Node version and the declared environment. The store sits in
+ * declares or names, apps/cli/src/io/run/tests.js, package.json, the Node version and the declared environment. The store sits in
  * the repository's common git dir, so every worktree on the machine shares it, and every write is a rename, so
  * concurrent runs never read half an entry. Only a green result is reused; a red one marks its key for good, since the
  * same inputs once failing makes a later pass a flake. A missing or unreadable entry runs the file.
@@ -51,6 +51,7 @@ import {
   TEST_RESULT_STORE_ENV,
   TEST_RESULT_VERSION,
   storeTestResult,
+  selectedTestResults,
   validTestResult,
   validTestTap,
   testResultOutcomes,
@@ -58,9 +59,13 @@ import {
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
+// PULLBOARD_TEST_REUSE=record: run every file, never consult a stored green, but record each green (a census or main
+// comparison is a fresh sample that still feeds the store). =0 neither consults nor records.
+export const TEST_REUSE_RECORD = 'record';
+export const RECORD_ONLY_PREFIX = `PULLBOARD_TEST_REUSE=${TEST_REUSE_RECORD}`;
 const VERSION = TEST_RESULT_VERSION;
 const MODULE = /\.[cm]?js$/u;
-const RUNNER_INPUTS = ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
+const RUNNER_INPUTS = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'PULLBOARD_TEST_REAL', 'PULLBOARD_ADAPTER_AUDIT', 'TZ', 'LANG', 'LC_ALL'];
 // Options that choose how a run reports or splits files, never what a file proves.
@@ -372,6 +377,7 @@ function pruneRuns(store) {
  */
 export async function planTestActions(root, args, { fullSuite, landing = false, listFiles, env = process.env, write = text => process.stdout.write(text) }) {
   const keep = { args, files: null, done: false };
+  const recordOnly = env.PULLBOARD_TEST_REUSE === TEST_REUSE_RECORD;
   // Selection options remain in the action key: a partial proof cannot stand in for a whole file.
   if (env[TEST_ACTIONS_ENV] || env.PULLBOARD_TEST_REUSE === '0' || args.some(arg => /^--test[-_]reporter(?:[-_]destination)?(?:=|$)/u.test(arg))) return keep;
   let store, commit, keys, selectors;
@@ -394,7 +400,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const reusedTestOutcomes = [];
   const run = [];
   for (const file of selectors) {
-    const entry = reusableResult(store, file.key);
+    const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
       || env[TEST_RESULT_REQUEST_ENV] && !completedTestResult(entry)) { run.push(file); account.push(ranAccount(store, file)); continue; }
@@ -425,6 +431,58 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const reused = new Set(selectors.filter(file => !run.includes(file)).map(file => file.selector));
   if (fullSuite) return { args: [...args, ...run.map(file => file.selector)], files: run.map(file => file.selector), done: false, reusedTestOutcomes };
   return { args: args.filter(arg => !reused.has(arg)), files: null, done: false, reusedTestOutcomes };
+}
+
+/**
+ * Before any queueing: which of these test files already have a recorded green under the same inputs, and which must
+ * run. A file is reused when its input key (import closure and inputs at `commit`) has a stored pass that a runner
+ * completed under the runner's own context (declared environment TZ=UTC, LANG=C and `tooling`, the sha of the
+ * tooling the runner executes), has full TAP outcomes and no red mark. A file with no key, no such green or a read
+ * error runs: reuse is an optimization, never a reason to skip. Pass `runtimes` ({ node, platform, arch } rows) to
+ * accept only greens from those runtimes; omitted, a green from any runner runtime counts.
+ *
+ * Why: the runner reuses after the file already queued and a slot was held; a commit that changes one test's key
+ * still waited for all 1,586 (10 Nov). The census never consults this (PULLBOARD_TEST_REUSE=record).
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {string[]} files repository paths of test files
+ * @param {string} tooling the runner tooling sha256 (spec.tooling.sha256)
+ * @param {{ env?: NodeJS.ProcessEnv, runtimes?: Array<{ node: string, platform: string, arch: string }> | null }} [options]
+ * @returns {Promise<{ reused: Map<string, { entry: object, key: string }>, run: string[] }>}
+ */
+export async function preQueueReuse(root, commit, files, tooling, { env = process.env, runtimes = null } = {}) {
+  const reused = new Map();
+  const everything = { reused, run: [...files] };
+  if (!/^[0-9a-f]{64}$/u.test(tooling ?? '') || !files.length || env.PULLBOARD_TEST_REUSE === '0' || env[TEST_ACTIONS_ENV]) return everything;
+  try {
+    const runnerEnv = Object.fromEntries(Object.entries(env).filter(([name]) => !DECLARED_ENVIRONMENT.includes(name) && name !== 'PULLBOARD_TEST_CACHE_TOOLING'));
+    Object.assign(runnerEnv, { TZ: 'UTC', LANG: 'C', PULLBOARD_TEST_CACHE_TOOLING: tooling });
+    const expected = JSON.stringify(executionContext(runnerEnv).environment);
+    const gitEnv = Object.fromEntries(Object.entries(env).filter(([name]) => !name.startsWith('GIT_')));
+    const keys = await testActionKeys(root, { commit, env: runnerEnv, files, maintain: false });
+    const store = testResultStore(root, gitEnv);
+    for (const file of files) {
+      const inputKey = keys.get(file)?.inputKey;
+      if (!inputKey) continue;
+      for (const candidate of selectedTestResults(store, [inputKey])) {
+        if (candidate.status !== 'pass' || candidate.file !== file || !completedTestResult(candidate)
+          || JSON.stringify(candidate.context.environment) !== expected
+          || runtimes && !runtimes.some(row => row.node === candidate.context.node && row.platform === candidate.context.platform && row.arch === candidate.context.arch)) continue;
+        const entry = reusableResult(store, candidate.key);
+        if (!entry || entry.inputKey !== inputKey || !testResultOutcomes(entry)) continue;
+        reused.set(file, { entry, key: entry.key });
+        break;
+      }
+    }
+  } catch { return everything; }
+  return { reused, run: files.filter(file => !reused.has(file)) };
+}
+
+/** The receipt text for reused files: each file's key line, and its stored TAP when `tap` is set. */
+export function reuseReceipt(reused, { tap = false } = {}) {
+  return [...reused].map(([file, { entry, key }]) => `# reused ${key} from ${entry.stage} ${entry.commit} (${file})\n`
+    + (tap ? `${entry.tap.lines.join('\n')}\n# pass ${entry.tap.counts.passed}\n# fail ${entry.tap.counts.failed}\n# skipped ${entry.tap.counts.skipped}\n` : '')).join('');
 }
 
 /** The [path, blob] pairs of a closure. */

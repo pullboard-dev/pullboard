@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/handoff/dispatcher.js packages/resources/index.js packages/resources/src/io/handoff/worker/detach.js */
 /** @pullboard-world-pin copies the shipped detach entry point into the captured tooling the dispatcher is relaunched from. */
 /** Ordinary board commands revive captured launches without duplicating live dispatchers [C7]. */
 import assert from 'node:assert/strict';

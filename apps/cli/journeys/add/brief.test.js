@@ -12,6 +12,7 @@ function addWith(t, check) {
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = 'Default route brief fixture';
+  isolated.env.PULLBOARD_FIXTURE_ROUTES = 'board';
   const box = helpers.project('true', isolated);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Small correction', '--criterion', 'the handler returns the canonical result [test]', '--check', check, '--json');
   assert.equal(added.code, 0, added.err + added.out);

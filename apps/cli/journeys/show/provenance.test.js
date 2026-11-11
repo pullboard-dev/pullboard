@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Native provenance rejects borrowed evidence and keeps unknown facts explicit [C7,H16]. */
 import assert from 'node:assert/strict';
 import {
@@ -185,7 +185,7 @@ test('runtime capture binds the admitted file to its closed actual worker [C7,H1
   box.git(box.repo, 'commit', '-q', '-m', 'test: record the actual admitted test file');
   const capture = captureTestRuntimes(box.env);
   t.after(() => capture.finish());
-  const result = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../../packages/gate/src/io/run/tests.js', import.meta.url)), file],
+  const result = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url)), file],
     { cwd: box.repo, env: capture.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   const children = capture.finish();
@@ -197,7 +197,7 @@ test('runtime capture binds the admitted file to its closed actual worker [C7,H1
   writeFileSync(outside, "require('node:test')('external selected worker [G1]',()=>{});\n");
   const externalCapture = captureTestRuntimes(box.env);
   t.after(() => externalCapture.finish());
-  const externalRun = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../../packages/gate/src/io/run/tests.js', import.meta.url)), outside],
+  const externalRun = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url)), outside],
     { cwd: box.repo, env: externalCapture.env, encoding: 'utf8' });
   assert.equal(externalRun.status, 0, externalRun.failure || externalRun.stderr || externalRun.stdout);
   const external = externalCapture.finish();
@@ -218,7 +218,7 @@ test('timed shell proof records the actual command child rather than the timeout
   assert.equal(result.testRuntimes, null, 'custody preloads cannot prove an opaque custom command has no synchronous descendants');
   const selected = join(directory, 'selected-runtime.test.cjs');
   writeFileSync(selected, program + "require('node:test')('selected actual timed worker [G1]',()=>{});\n");
-  const runner = fileURLToPath(new URL('../../../../packages/gate/src/io/run/tests.js', import.meta.url));
+  const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
   const admitted = runShell(directory, `${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} ${JSON.stringify(selected)}`,
     { timeoutMs: 5_000, captureRuntimes: true }); // budget: the same bounded real custody path now runs an admitted selected worker.
   assert.equal(admitted.isGreen, true, admitted.output);

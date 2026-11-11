@@ -7,6 +7,7 @@ export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
+export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
 export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
 export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
@@ -85,6 +86,7 @@ export { INFRASTRUCTURE_CODES, RERUNNABLE_RUNNER_REFUSALS, INFRASTRUCTURE_RETRY_
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/io/queued/red.js';
 export { redReturnLeaseHolds } from './src/logic/red/return.js';
 export { submitGateInFlight } from './src/logic/red/return.js';
+export { itemWorkInFlight } from './src/logic/red/return.js';
 export { ITEM_STAGES, itemStage, stageCounts } from './src/logic/item/stage.js';
 export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/logic/pinned.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/logic/rework.js';

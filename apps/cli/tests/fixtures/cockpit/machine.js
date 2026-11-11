@@ -37,7 +37,7 @@ const scratch = [];
 const MACHINE_MODEL = 'Test Model';
 
 after(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const SPEC = `# Demo spec
@@ -151,4 +151,4 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
-export { BIN, scratch, SPEC, machine, project };
+export { BIN, scratch, SPEC, MACHINE_MODEL, machine, project };

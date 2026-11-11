@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/spec/src/logic/row/replacement.js */
 /** @pullboard-test-loads packages/spec/src/logic/row/replacement.js */
 /** One person-facing obligation builder across sessions and transports [N26,A9]. */
 import assert from 'node:assert/strict';

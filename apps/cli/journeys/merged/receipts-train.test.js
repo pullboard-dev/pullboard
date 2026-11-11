@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';

@@ -1,8 +1,7 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** Durable B0: driveOnce runs a whole submit gate with the hand-off worker's own sections and result [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   privateFixtureFiles,
@@ -48,10 +47,9 @@ function candidateRepo() {
   return { repo: files.root, commit: runFixtureGit(['-C', files.root, 'rev-parse', 'HEAD']) };
 }
 
-/** Open a fresh real board file and hand its SQLite handle to the body. */
+/** Open a fresh in-memory board and hand its SQLite handle to the body. */
 async function withBoard(body) {
-  const files = privateFixtureFiles('pullboard-b0-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

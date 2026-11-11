@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/browser/admission.js packages/gate/src/io/run/tests.js */
 /** Test files on one machine never outnumber its cores, and the longest files start first [C7]. */
 import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { safeFixtureDiagnostic } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { startFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -30,23 +31,23 @@ import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../../resources/index.js';
 
-const runner = fileURLToPath(new URL('../../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 // Keep generated launch code as data: this classifier test never launches the browser it describes.
 const browserFixtureSource = ["// pullboard: browser\nimport { spawn } from 'node:child_process';\nspawn('Google", " Chrome');\n"].join('');
 
 test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
-  mkdirSync(join(root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'packages/gate/src/io/run/tests.js'), "throw new Error('classification must not execute the runner');\n");
+  writeFileSync(join(root, 'apps/cli/src/io/run/tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\nthrow new Error('classification must not execute tests');\n");
   writeFileSync(join(root, 'test/browser.test.js'), browserFixtureSource);
   const admission = new URL('../../../src/io/browser/admission.js', import.meta.url).href;
   const gate = new URL('../../../index.js', import.meta.url).href;
   const commands = [
-    ['browser', 'out=$(node packages/gate/src/io/run/tests.js test/browser.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', true],
+    ['browser', 'out=$(node apps/cli/src/io/run/tests.js test/browser.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', true],
     ['unknown', 'eval "$CHECK"', true],
-    ['core', 'out=$(node packages/gate/src/io/run/tests.js test/core.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', false],
+    ['core', 'out=$(node apps/cli/src/io/run/tests.js test/core.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', false],
   ];
   const source = `import { checkNeedsBrowser } from ${JSON.stringify(admission)};
 import { withGateSlot } from ${JSON.stringify(gate)};
@@ -84,15 +85,15 @@ process.stdout.write(JSON.stringify(decisions));`;
 
 test('shell admission preserves opaque suffixes and the existing short-slot boundary [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
-  mkdirSync(join(root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'packages/gate/src/io/run/tests.js'), "throw new Error('classification must not execute the runner');\n");
+  writeFileSync(join(root, 'apps/cli/src/io/run/tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\n");
   writeFileSync(join(root, 'test/browser.test.js'), browserFixtureSource);
   /** Build the coordinator's literal saved-exit and fail/skip wrapper without executing it. */
   const capture = (file, quote = "'", slashes = 1) => {
     const print = `printf ${quote}%s${'\\'.repeat(slashes)}n${quote} "$out"`;
-    return `out=$(node packages/gate/src/io/run/tests.js ${file} 2>&1); rc=$?; ${print}; bad=$(${print} | grep -E '^# (fail|skipped) [1-9]'); [ "$rc" -eq 0 ] && [ -z "$bad" ] && ${print} | grep -Eq '^[[:space:]]*ok [0-9]+ - .*fixture'`;
+    return `out=$(node apps/cli/src/io/run/tests.js ${file} 2>&1); rc=$?; ${print}; bad=$(${print} | grep -E '^# (fail|skipped) [1-9]'); [ "$rc" -eq 0 ] && [ -z "$bad" ] && ${print} | grep -Eq '^[[:space:]]*ok [0-9]+ - .*fixture'`;
   };
   const core = capture('test/core.test.js');
   const commands = [
@@ -137,6 +138,9 @@ function fixture(t, cores) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureChild('git', ['init', '-q'], { cwd: root });
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  // The runner reads its policy from the checkout's committed HEAD, so the fixture needs one commit.
+  runFixtureGit(['add', 'package.json'], { cwd: root });
+  runFixtureGit(['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], { cwd: root });
   const machine = join(root, '.machine');
   mkdirSync(machine);
   // Four gate slots, so the four runs overlap and only the file pool can hold them to the cores.

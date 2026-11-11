@@ -33,7 +33,7 @@ function project(t) {
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env: ENV });
   const write = (dir, path, text) => { mkdirSync(join(dir, path, '..'), { recursive: true }); writeFileSync(join(dir, path), text); };
   write(main, 'package.json', JSON.stringify({ private: true, type: 'module' }));
-  write(main, 'packages/gate/src/io/run/tests.js', '// The fixture names the test runner path an explicit check runs.\n');
+  write(main, 'apps/cli/src/io/run/tests.js', '// The fixture names the test runner path an explicit check runs.\n');
   write(main, 'web/feature.js', "import { shared } from './shared.js';\nexport const feature = shared + 'base';\n");
   write(main, 'web/shared.js', "export const shared = 'shared-';\n");
   write(main, 'web/other.js', "export const other = 'base';\n");
@@ -56,7 +56,7 @@ function project(t) {
     return git(main, 'rev-parse', 'HEAD');
   };
   const proof = (extra = {}) => ({ id: 1816, proofCommit, proved: claimHead, item: { item_claim_head: claimHead },
-    check: `${process.execPath} packages/gate/src/io/run/tests.js test/feature.test.js`, readTrunk: () => ({ commit: git(main, 'rev-parse', 'main') }), ...extra });
+    check: `${process.execPath} apps/cli/src/io/run/tests.js test/feature.test.js`, readTrunk: () => ({ commit: git(main, 'rev-parse', 'main') }), ...extra });
   return { main, work, git, land, proof, claimHead, proofCommit };
 }
 
