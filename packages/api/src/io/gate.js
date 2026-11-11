@@ -1,7 +1,12 @@
-/** A posted gate-job receipt becomes its item's gate result on the board: green submits the item for review, red hands it back to its builder [P7]. */
+/**
+ * A posted runner job receipt applied to the board: a gate's receipt becomes its item's gate result (green submits it for
+ * review, red hands it back to its builder), and a landing's receipt marks its items merged at the pushed commit [P7].
+ */
 import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
+import { LANDING_JOB_KIND } from './landing.js';
 
+const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
@@ -90,5 +95,37 @@ export function applyGateReceipt(board, { job, receipt }) {
  * @param {Parameters<typeof jobQueueCall>[2]} options
  */
 export function boardJobQueueCall(board, body, options) {
-  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyGateReceipt(board, posted) });
+  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted) });
+}
+
+/** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
+export function applyJobReceipt(board, posted) {
+  const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
+  if (kind === 'gate') return applyGateReceipt(board, posted);
+  if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  return { applied: false, outcome: 'recorded' };
+}
+
+/**
+ * Mark each item a landed receipt names merged at the trunk commit the runner pushed: the items it merged and those
+ * trunk already held. An item no longer accepted and unmerged is left as it is. Any other outcome (a conflict, a red
+ * check, a busy trunk) changes no item; the items stay accepted for the next landing.
+ *
+ * @param {any} board
+ * @param {{ job: string, receipt: Record<string, any> }} posted
+ * @returns {{ applied: boolean, outcome: string, merged?: number[] }}
+ */
+export function applyLandingReceipt(board, { job, receipt }) {
+  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
+  const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
+  const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
+  const merged = [];
+  for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
+    if (!named.has(id)) continue;
+    const item = store.getItem(board, id);
+    if (item?.item_status !== 'verified' || item.item_merged_commit) continue;
+    store.merged(board, id, { agentId: 'coordinator', commit: receipt.trunk, note: `landed by runner job ${job}` });
+    merged.push(id);
+  }
+  return { applied: merged.length > 0, outcome: 'landed', merged };
 }

@@ -16,6 +16,7 @@ import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { join } from 'node:path';
 import {
   computeRunnerSlots,
   effectiveRunner,
@@ -58,7 +59,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), once: values.once === true, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
@@ -155,4 +156,10 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
   const hosted = await createHostedItemFolder(runner, { itemId, origin: env.PULLBOARD_ITEM_FOLDER_ORIGIN?.trim() || commonDir,
     branch, ...(hooksPath ? { hooksPath } : {}) });
   return `${hosted.host}:${hosted.folder}`;
+}
+
+/** A pulled land job, run in the runner's own landing checkout under its cache: merge, check, push trunk by compare-and-swap [P7]. */
+async function landJobHandler(claim, { cache, renew }) {
+  const { runLandingJob } = await import('../../../../../packages/landing/index.js');
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew });
 }
