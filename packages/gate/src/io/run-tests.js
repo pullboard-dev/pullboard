@@ -1176,9 +1176,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   if (fullSuite) {
     let files;
     try {
-      files = isGitWorkTree(process.cwd(), env)
-        ? trackedDefaultTestFiles(process.cwd(), env)
-        : null;
+      files = trackedDefaultTestFiles(process.cwd(), env);
     }
     catch (error) {
       process.stderr.write(`run-tests: could not list tracked test files: ${error.message}\n`);
