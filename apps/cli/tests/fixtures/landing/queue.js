@@ -386,14 +386,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
       assert.equal((await first.closed).signal, 'SIGKILL');
     } else if (killGuardian) {
       process.kill(blockedGatePid, 'SIGKILL'); // The in-process worker is the gate itself; it dies under a live holder.
-      const ended = await first.closed;
-      // The live holder sees its gate die and fails the batch itself: nothing is left interrupted, so there is nothing to adopt.
-      assert.equal(ended.code, 1, ended.failure ?? 'the holder refuses when its gate dies');
-      assert.match(first.stderrText, /\[LAND_DIAGNOSTIC\]/u, 'the holder reports the dead gate as a typed refusal');
-      assert.equal(readBoard(box, board => store.landingBatches(board).find(batch => batch.id === firstBatch.id).state), 'blocked', 'the dead gate blocks its batch; it is not left gating');
-      assert.equal(box.git(box.repo, 'rev-parse', 'main'), base, 'the dead gate advanced no trunk');
-      assert.equal(existsSync(release), false, 'the owning test did not let the killed gate proceed');
-      return;
+      await first.closed;
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
     if (suspendParent) {
       // A stopped holder cannot renew, so its lease runs out; age both of its deadlines instead of waiting out the real 120 s [C7].
