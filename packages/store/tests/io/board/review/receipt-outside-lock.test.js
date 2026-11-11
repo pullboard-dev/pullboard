@@ -3,17 +3,21 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../../../../index.js';
+import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
 import { fixture } from '../../../fixtures/dispatch.js';
 
 test('clause 1: a verdict on an item whose gate has no receipt is refused with no BEGIN IMMEDIATE [B3,C7]', t => {
   const box = fixture(t);
   const id = box.add('Gate still pending');
-  box.submit(id);
-  const item = store.getItem(box.board, id);
-  const tree = box.git(box.root, 'rev-parse', `${item.item_commit}^{tree}`);
+  box.claim(id);
+  const commit = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+  const tree = box.git(box.root, 'rev-parse', `${commit}^{tree}`);
+  const claimed = store.getItem(box.board, id);
   store.writeBoardCommand(box.board, 'queueSubmitHandoff', [id, { agentId: box.seats.builder.id, job: randomUUID(),
-    main: box.git(box.root, 'rev-parse', 'HEAD'), commit: item.item_commit, tree, executionCommit: item.item_commit,
-    executionTree: tree, digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], box.seats.builder.id);
+    main: box.git(box.root, 'rev-parse', 'HEAD'), commit, tree, executionCommit: commit,
+    executionTree: tree, digest: claimed.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], box.seats.builder.id);
+  submitFixture(box.board, id, { agentId: box.seats.builder.id, commit, tree });
+  const item = store.getItem(box.board, id);
   const statements = [];
   const exec = box.board.db.exec.bind(box.board.db);
   box.board.db.exec = sql => { statements.push(String(sql)); return exec(sql); };
