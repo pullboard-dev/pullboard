@@ -24,11 +24,12 @@ function rootWord(runner) { return runner?.root ? pullWord(runner.root) : '"$HOM
  * The job folder is built as queue/.tmp-<id> and renamed whole, so a runner never sees half a row; a frame that
  * is not exactly `frameBytes` long (a dropped connection) is removed instead of renamed.
  * @param {{ root?: string }} runner The runner record.
- * @param {{ id: string, frameBytes: number, agent?: string }} job The job id, the exact frame length, and an optional
- *   shell snippet that starts the runner agent (it must be safe to run when an agent already lives).
+ * @param {{ id: string, frameBytes: number, command?: string, agent?: string }} job The job id, the exact frame length
+ *   (the frame lands as `input`, the worker's stdin), the remote command the agent runs (lands as `command`), and an
+ *   optional shell snippet that starts the runner agent (it must be safe to run when an agent already lives).
  * @returns {string} The POSIX script.
  */
-export function enqueueScript(runner, { id, frameBytes, agent = '' }) {
+export function enqueueScript(runner, { id, frameBytes, command = '', agent = '' }) {
   pullJobId(id);
   if (!Number.isSafeInteger(frameBytes) || frameBytes < 0) throw new Error('invalid pull frame length');
   return `set -e
@@ -43,10 +44,10 @@ rm -rf "$T"
 mkdir "$T"
 IFS= read -r ROW
 printf '%s\\n' "$ROW" > "$T/row.json"
-cat > "$T/frame"
-N=$(wc -c < "$T/frame" | tr -d ' ')
+cat > "$T/input"
+N=$(wc -c < "$T/input" | tr -d ' ')
 if [ "$N" != ${frameBytes} ]; then rm -rf "$T"; echo "frame was cut short" >&2; exit 3; fi
-: > "$T/wanted"
+${command ? `printf '%s\\n' ${pullWord(command)} > "$T/command"\n` : ''}: > "$T/wanted"
 mv "$T" "$R/queue/${id}"
 ${agent ? `( ${agent}\n) </dev/null >/dev/null 2>&1 &\n` : ''}echo "queued ${id}"
 `;

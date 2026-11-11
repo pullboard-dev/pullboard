@@ -140,7 +140,7 @@ function retryContract(box) {
   const stages = join(box.dir, 'retry-stages.jsonl');
   writeFileSync(stages, '');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true }, runners: [box.runner] }));
+  writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnerDispatch: 'controller' }, runners: [box.runner] }));
   const source = `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 import {RunnerDropped} from ${JSON.stringify(sourceURL('packages/runners/index.js'))};

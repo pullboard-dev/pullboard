@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Doctrine sources, check wording and person-review states are visible in real Chrome [D1,N26]. */
 import assert from 'node:assert/strict';

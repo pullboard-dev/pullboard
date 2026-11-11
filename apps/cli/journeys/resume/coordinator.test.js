@@ -252,9 +252,19 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   }
 
   // More than the normal recent-shout window must not hide typed evidence from resume.
-  for (let index = 0; index < 45; index += 1) {
-    const noise = box.run(box.repo, 'shout', 'person', `noise ${index}: #${activeId} integrated at ${descendant}`);
-    assert.equal(noise.code, 0, noise.err || noise.out);
+  // One shout goes through the CLI; the other 44 copy its row, since a CLI start per shout dominated this case's run time.
+  const noise = box.run(box.repo, 'shout', 'person', `noise 0: #${activeId} integrated at ${descendant}`);
+  assert.equal(noise.code, 0, noise.err || noise.out);
+  const noiseDb = new DatabaseSync(boardFile);
+  try {
+    const columns = noiseDb.prepare('PRAGMA table_info(shout)').all().map(column => column.name).filter(name => name !== 'shout_id');
+    const template = noiseDb.prepare('SELECT * FROM shout WHERE shout_text LIKE ? ORDER BY shout_id DESC LIMIT 1').get('noise 0:%');
+    const insert = noiseDb.prepare(`INSERT INTO shout (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
+    for (let index = 1; index < 45; index += 1) {
+      insert.run(...columns.map(name => (name === 'shout_text' ? `noise ${index}: #${activeId} integrated at ${descendant}` : template[name])));
+    }
+  } finally {
+    noiseDb.close();
   }
   const currentSpec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(box.repo, 'SPEC.md'), currentSpec.replace('The first feature works.', 'The first feature works differently.'));

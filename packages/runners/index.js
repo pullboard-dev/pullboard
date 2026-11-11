@@ -29,7 +29,9 @@ export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./s
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/io/module/parser.js";
 export { runnerPackageReader, runnerPackage, workerBundleBytes } from "./src/io/package.js";
 export { captureRunnerTooling, currentRunnerTooling } from "./src/io/tooling/snapshot.js";
-export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/io/main.js";
+export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, servePullController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/io/main.js";
+export { runPulled } from './src/io/pull/delegate.js';
+export { PULL_MODES } from './src/io/pull/serve.js';
 export { packText, commitWork, runItems } from "./src/io/run.js";
 /** Private runner checkout reuse behind the runner cell's front door [C7,P3]. */
 export { hostedItemFolderPath, hostedFolderScript, runOnRunnerShell, createHostedItemFolder, runInHostedItemFolder, returnHostedBranch, pushHostedItemBranch } from './src/io/worktree.js';
