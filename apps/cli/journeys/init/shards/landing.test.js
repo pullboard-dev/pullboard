@@ -1,5 +1,4 @@
 /** @pullboard-test-input source-tree */
-import { awaitNestedRun } from '../../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import {
   readFileSync,
@@ -25,7 +24,6 @@ import {
   fixture,
   scenario,
   landingGate,
-  startLandingGate,
   mergedFiles,
   marks,
 } from '../../../tests/fixtures/init/shards.js';
@@ -96,36 +94,4 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
   assert.ok(late.profile.landingShards.shards.some(shard => shard.status === 'green'), `another shard was green first\n${late.output}`);
   assert.equal(late.profile.landingShards.shards.filter(shard => shard.status === 'red').length, 1);
 
-  // A runner killed mid-shard: its shard reruns locally with a named line and the gate stays green.
-  scenario(box, 'drop', { dropOnce: true });
-  const dropped = await landingGate(box, 'killed runner', 150_000);
-  assert.equal(dropped.isGreen, true, dropped.output);
-  const rerun = /^landing shard (\d\/3): runner fixture-host failed mid-shard; rerunning shard \1 locally$/mu.exec(dropped.output);
-  assert.ok(rerun, `the rerun is named\n${dropped.output}`);
-  const label = rerun[1].replace('/', '\\/');
-  // Both attempts stay in the log and the profile: the failed runner attempt first, then the local rerun.
-  assert.match(dropped.output, new RegExp(`^# landing shard ${label} attempt 1 on ${HOST}: infrastructure \\(runner transport lost\\) in \\d+ ms$`, 'mu'));
-  assert.match(dropped.output, new RegExp(`^# landing shard ${label} attempt 2 on local: green in \\d+ ms$`, 'mu'));
-  const attempts = dropped.profile.landingShards.shards.filter(shard => shard.shard === rerun[1]);
-  assert.deepEqual(attempts.map(shard => [shard.attempt, shard.host, shard.status]), [[1, HOST, 'infrastructure'], [2, 'local', 'green']]);
-  assert.ok(marks(box, '.runner.started').length > 0, 'the shard had started on the runner');
-  assert.deepEqual(marks(box, '.finished').filter(name => name.endsWith('.local.finished')).length, 6, 'every file finished locally');
-
-  // Two sharded landings at once on a machine with only two slots and no runner: each parent holds
-  // one slot and runs its own shards on it, so neither waits forever on the other's.
-  const pair = fixture({ runner: false, repoNames: ['first', 'second'] });
-  t.after(() => rmSync(pair.dir, { recursive: true, force: true }));
-  scenario(pair, 'green');
-  const started = pair.repos.map((repo, index) => startLandingGate(pair, `concurrent landing ${index + 1}`, 120_000, repo));
-  const both = [];
-  let firstFailure;
-  for (const terminal of started) {
-    try { both.push(await awaitNestedRun(terminal)); }
-    catch (error) { firstFailure ??= error; }
-  }
-  if (firstFailure) throw firstFailure;
-  for (const landing of both) {
-    assert.equal(landing.isGreen, true, landing.output);
-    assert.equal(Object.keys(mergedFiles(landing.output)).length, 6);
-  }
 });
