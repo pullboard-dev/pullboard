@@ -41,7 +41,7 @@ const fixture = repo();
 
 /** Open a real board file and hand its SQLite handle to the body. */
 async function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

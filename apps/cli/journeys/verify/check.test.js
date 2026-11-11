@@ -201,6 +201,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
     const { repo, web } = project(box);
     const historical = submitted(box, repo, web, 'Historical accept');
     const common = box.git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+    // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
     try {
       const item = store.getItem(board, historical.id);
@@ -220,6 +221,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
 
 /** Read the verdicts of one item from the repo's board, opening it read-only for the assertion. */
 function verdictsOf(repo, id) {
+  // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.verdictsFor(board, id); }
   finally { store.closeBoard(board); }

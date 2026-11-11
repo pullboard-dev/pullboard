@@ -59,7 +59,7 @@ test('[V1,B3] parent discovery reads only matching own runtime metadata and agre
 test('[V1,B3] ordered parent registration survives replay and board export without local session records', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-parent-replay-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const boards = ['source', 'replica', 'imported'].map(name => openBoard(join(root, `${name}.sqlite`)));
+  const boards = ['source', 'replica', 'imported'].map(name => openBoard(':memory:'));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const [source, replica, imported] = boards;
   const move = prepareEngineMove(source, 'register', [{ lane: 'web', path: '/fixture/child', parentDigest: parentSessionDigest('parent-P'), sessionDigest: parentSessionDigest('child-C') }]);
@@ -83,7 +83,7 @@ test('[V1,B3] an unknown-parent primary session and its child cannot review each
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   runFixtureGit(['add', 'pullboard.json'], { cwd: root });
   runFixtureGit(['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture policy'], { cwd: root });
-  const board = openBoard(join(root, '.git', 'board.sqlite'));
+  const board = openBoard(':memory:');
   board.gitRoot = root;
   t.after(() => store.closeBoard(board));
   const primary = store.register(board, { lane: 'web', path: root, family: 'fixture-builder', session: 'primary-R' });

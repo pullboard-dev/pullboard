@@ -49,6 +49,7 @@ test('queue preparation retries a real peer commit and still bounds continuous c
   const box = fixture(t);
   // @pullboard-board-file locking: a second native connection commits while source sealing is outside BEGIN.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  // @pullboard-board-file journey: a second native connection to the fixture board file the real CLI wrote
   const peer = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const item = getItem(board, box.id);
@@ -84,6 +85,7 @@ test('queue preparation retries a real peer commit and still bounds continuous c
 });
 
 /** The board a queued-hand-off test drives directly, opened once here so the raw-board count does not grow. */
+// @pullboard-board-file journey: a second native connection to the fixture board file the real CLI wrote
 const queueBoard = box => openBoard(box.boardFile, undefined, { gitRoot: box.web });
 
 test('clause 1: a queued red returned to its builder writes submitOutcome with the refusal code and its pipelineCause on the same renew event [C7,V4]', t => {
