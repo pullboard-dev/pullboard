@@ -1515,7 +1515,7 @@
     "raw-board": 5,
     "model": 3
   },
-  "apps/cli/tests/fixtures/child.js": {
+  "packages/gate/tests/fixtures/child.js": {
     "tempdir": 1
   },
   "apps/cli/journeys/move/copier.test.js": {
