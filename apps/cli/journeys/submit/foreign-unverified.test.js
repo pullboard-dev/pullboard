@@ -47,7 +47,7 @@ test('clause 1: [V1,V17,C7] a head that merges in another unverified item commit
   box.git(box.web, 'checkout', '-q', '--detach', base);
   assert.equal(box.run(box.web, 'claim', String(second)).code, 0);
   commitFile(box, 'web/second.txt', 'second submission');
-  box.git(box.web, 'merge', '-q', '--no-ff', '-m', 'merge the seat head', firstCommit);
+  box.git(box.web, 'merge', '-q', '--no-ff', '--no-edit', firstCommit);
   const refused = box.run(box.web, 'submit', String(second), '--json');
   assert.equal(refused.code, 1, refused.out + refused.err);
   const error = JSON.parse(refused.out).error;
@@ -69,8 +69,19 @@ test('clause 2: [V1,V17,C7] the ITEM_PATCH_SOURCE refusal says to keep the item 
   const item = add(box, 'Patched submission');
   assert.equal(box.run(box.web, 'claim', String(item)).code, 0);
   commitFile(box, 'web/patched.txt', 'patched submission');
-  writeFileSync(join(box.dir, 'x.patch'), 'x\n');
-  const result = box.run(box.repo, 'patch', 'attach', String(item), join(box.dir, 'x.patch'), '--key', 'k', '--author', 'web-1', '--source', '0'.repeat(40), '--json');
+  const author = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
+  const patch = [
+    'diff --git a/web/patchable.js b/web/patchable.js',
+    'new file mode 100644',
+    'index 0000000..e69de29',
+    '--- /dev/null',
+    '+++ b/web/patchable.js',
+    '@@ -0,0 +1 @@',
+    '+export const patched = true;',
+    '',
+  ].join('\n');
+  writeFileSync(join(box.dir, 'x.patch'), patch);
+  const result = box.run(box.repo, 'patch', 'attach', String(item), join(box.dir, 'x.patch'), '--key', 'k', '--author', author, '--source', '0'.repeat(40), '--json');
   const text = result.out + result.err;
   assert.match(text, /item folder branch/u);
   assert.match(text, /never merge the seat checkout head/u);
