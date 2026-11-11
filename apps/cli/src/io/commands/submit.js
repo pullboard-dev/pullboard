@@ -777,7 +777,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         const owned = split.clear.failures.filter(row => !missing.some(red => red.file === row.file));
         proofKnown = owned.length ? linkKnownMainReworks({ main: matched.main, failures: owned }, rows(), id) : null;
       }
-    } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
+    } catch (probe) { process.stderr.write('PROBE-COMPARE ' + (probe?.stack ?? probe) + '\n'); /* Unavailable exact-main proof never authorizes a red submission. */ }
   }
   // The proof is judged like the check: a case an open Main red repair's own check fails on this main is known main (#2594).
   let proofMainRed = [];
