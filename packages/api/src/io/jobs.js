@@ -214,12 +214,16 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now() 
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
  *
+ * A receipt newly recorded is handed to `onReceipt`, which applies it to the board (a gate's result to its item); its
+ * answer rides back as `applied`. An apply that refuses leaves the receipt recorded and says why, so a runner's retried
+ * post never records it twice [P7].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {Record<string, any>} body
- * @param {{ mode: string, now?: number, trunk?: () => string | null }} options - mode is the machine's gate.runnerDispatch.
+ * @param {{ mode: string, now?: number, trunk?: () => string | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, job, token, receipt } = body ?? {};
   if (action === 'claim') {
@@ -229,6 +233,11 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, now });
-  if (action === 'receipt') return postReceipt(db, { job, runner, token, receipt, now });
+  if (action === 'receipt') {
+    const posted = postReceipt(db, { job, runner, token, receipt, now });
+    if (!posted.recorded || !onReceipt) return posted;
+    try { return { ...posted, applied: onReceipt(posted) }; }
+    catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
+  }
   throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, release or receipt');
 }

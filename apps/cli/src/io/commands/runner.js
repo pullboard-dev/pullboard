@@ -16,6 +16,7 @@ import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { join } from 'node:path';
 import {
   computeRunnerSlots,
   effectiveRunner,
@@ -52,13 +53,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   }
   if (first === 'serve') {
     // A pull runner: only outbound HTTPS to the board and git fetches from its trunk remote, no ssh in [P7].
-    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory'].includes(key))) {
-      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>]');
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once'].includes(key))) {
+      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--once]');
     }
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
@@ -155,4 +156,10 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
   const hosted = await createHostedItemFolder(runner, { itemId, origin: env.PULLBOARD_ITEM_FOLDER_ORIGIN?.trim() || commonDir,
     branch, ...(hooksPath ? { hooksPath } : {}) });
   return `${hosted.host}:${hosted.folder}`;
+}
+
+/** A pulled land job, run in the runner's own landing checkout under its cache: merge, check, push trunk by compare-and-swap [P7]. */
+async function landJobHandler(claim, { cache, renew }) {
+  const { runLandingJob } = await import('../../../../../packages/landing/index.js');
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew });
 }
