@@ -363,7 +363,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       if (one.span === other.span) assert.equal(one.y, other.y, 'equal-span returns share their declared level');
       else if (one.span > other.span) assert.ok(one.y < other.y, 'longer returns clear shorter return levels');
     }
-    assert.match(await styleOf(view), /\n\.flow \.edge\.back \{ stroke: var\(--reject\); stroke-dasharray: 5 4; \}/, 'dashed');
+    assert.match(await styleOf(view), /\n\.flow \.edge\.back \{ stroke: var\(--mark-back\); stroke-dasharray: 5 4; \}/, 'dashed');
 
     // No word comes within two units of another, a box it is not in, or a route.
     const texts = textBoxes(svg);
