@@ -24,12 +24,13 @@ export function submissionItemValues(board, found, { agentId, commit, tree, file
  * Why the tooling tree: landing and review reuse a submit's proof only when its tooling tree is the one that judges
  * them (RFC 0007 SC7); dropped here, every receipt read as TOOLING_CHANGED and no proof was ever reused [C7,#3685].
  */
-export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion }) {
+export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, policy = null, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion }) {
   const criterionDigest = engineVersion >= 9 ? getItem(board, id).item_frozen_digest : null;
   logEvent(board, agentId, 'submit', id, {
     commit,
     tree,
     ...(policyCommit ? { policyCommit } : {}),
+    ...(policy ? { policy: { commit: policy.commit, digest: policy.digest } } : {}),
     ...(criterionDigest ? { criterionDigest } : {}),
     ...(note === undefined ? {} : { note: note.trim() }),
     ...(recordedProof ? { submissionProof: recordedProof } : {}), ...(infra ? { infra } : {}),

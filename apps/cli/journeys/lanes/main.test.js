@@ -153,52 +153,31 @@ function reassignedPathFixture() {
   return { box, before, trunkPolicy };
 }
 
-test('refreeze picks up a lane change made after the claim [V2,L3]', () => {
+test('a lane change made after the claim applies to the next submit with no refreeze [V2,L3,B4]', () => {
   const { box, before, trunkPolicy } = reassignedPathFixture();
-  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), 'api', ['api/shared.js'],
-    'a landed lane change does not silently widen the frozen claim');
-  const refreshed = box.run(box.repo, 'refreeze', '1');
-  assert.equal(refreshed.code, 0, refreshed.err);
-  const refrozen = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
-  const originalFreeze = JSON.parse(before.item_frozen);
-  const currentFreeze = JSON.parse(refrozen.item_frozen);
-  assert.equal(currentFreeze.policy, undefined, 'the refreeze holds the bar alone, no policy pin [B4]');
-  assert.deepEqual(currentFreeze, originalFreeze,
-    'a lane-only policy change keeps the criterion, title, check and cited rows unchanged');
-  assert.equal(refrozen.item_status, 'open');
-  const lifted = box.run(box.repo, 'hold', '1', '--off');
-  assert.equal(lifted.code, 0, lifted.err + lifted.out);
-  const reclaimed = box.run(box.web, 'claim', '1');
-  assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
   const submitted = box.run(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  assert.equal(JSON.parse(submitted.out).waitingOwner, undefined, 'live policy gives web the reassigned path; nothing waits on api');
   const item = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(item.item_status, 'submitted');
-  assert.equal(item.item_frozen_digest, refrozen.item_frozen_digest, 'reclaim and submission keep the bar digest');
+  assert.equal(item.item_frozen_digest, before.item_frozen_digest, 'the lane change left the bar unchanged');
+  assert.equal(JSON.parse(item.item_verify_policy).commit, trunkPolicy, 'the submit pinned the live policy commit');
 });
 
-test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
-  const { box, before, trunkPolicy } = reassignedPathFixture();
+test('a renewed claim submits under the live lane policy, never NO_POLICY [V2,L3,B4]', () => {
+  const { box, before } = reassignedPathFixture();
   const renewed = box.run(box.web, 'claim', '1');
   assert.equal(renewed.code, 0, renewed.err);
-  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), 'api', ['api/shared.js'],
-    'submission still enforces the old ownership until an explicit coordinator refreeze');
-  const lifted = box.run(box.repo, 'hold', '1', '--off');
-  assert.equal(lifted.code, 0, lifted.err + lifted.out);
-  // A changed lane policy is not a bar change: the re-claim succeeds and keeps the bar bytes [B4].
-  const reclaim = box.run(box.web, 'claim', '1');
-  assert.equal(reclaim.code, 0, reclaim.err + reclaim.out);
-  assert.doesNotMatch(reclaim.err + reclaim.out, /NO_POLICY/u);
-  const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
-  assert.equal(reclaimed.item_frozen, before.item_frozen, 'the re-claim keeps the criterion bytes');
-  assert.equal(reclaimed.item_frozen_digest, before.item_frozen_digest);
-  assert.equal(JSON.parse(reclaimed.item_frozen).policy, undefined);
-  assert.notEqual(trunkPolicy, before.item_claim_head);
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  assert.doesNotMatch(submitted.out + submitted.err, /NO_POLICY/u);
+  const item = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  assert.equal(item.item_status, 'submitted');
+  assert.equal(item.item_frozen, before.item_frozen);
 });
 
-test('submit and patch attach share frozen ownership and move together on refreeze [L2,L3,V2,V4]', () => {
-  const { box, before, trunkPolicy } = reassignedPathFixture();
-  const previous = before.item_claim_head;
+test('submit and patch attach read the same live ownership [L2,L3,V2,V4,B4]', () => {
+  const { box } = reassignedPathFixture();
   const author = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
   const patchFile = join(box.dir, 'ownership.patch');
   writeFileSync(patchFile, [
@@ -210,31 +189,13 @@ test('submit and patch attach share frozen ownership and move together on refree
     '+patched',
     '',
   ].join('\n'));
-  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), 'api', ['api/shared.js']);
-  const deniedAttach = box.run(box.repo, 'patch', 'attach', '1', patchFile,
-    '--key', 'ownership', '--author', author, '--json');
-  assert.equal(deniedAttach.code, 1, deniedAttach.err + deniedAttach.out);
-  const error = JSON.parse(deniedAttach.out).error;
-  assert.equal(error.code, 'OUTSIDE_LANE');
-  assert.ok(error.message.includes(previous), 'the refusal names the frozen ownership commit');
-  assert.ok(error.message.includes("api/shared.js (api's)"), 'the old policy owns the exact path');
-  const unchanged = JSON.parse(box.run(box.repo, 'patch', 'list', '1', '--json').out);
-  assert.deepEqual(unchanged.patches, [], 'rejected ownership writes no companion');
-  const refrozen = box.run(box.repo, 'refreeze', '1', '--json');
-  assert.equal(refrozen.code, 0, refrozen.err + refrozen.out);
-  const lifted = box.run(box.repo, 'hold', '1', '--off');
-  assert.equal(lifted.code, 0, lifted.err + lifted.out);
-  const reclaimed = box.run(box.web, 'claim', '1', '--json');
-  assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
-  assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const item = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
-  assert.equal(item.item_status, 'submitted');
-  assert.equal(JSON.parse(item.item_frozen).policy, undefined, 'the bar carries no policy pin [B4]');
   const attached = box.run(box.repo, 'patch', 'attach', '1', patchFile,
     '--key', 'ownership', '--author', author, '--json');
   assert.equal(attached.code, 0, attached.err + attached.out);
-  assert.equal(JSON.parse(attached.out).changed, true, 'the same author now owns this path under the refrozen policy');
+  assert.equal(JSON.parse(attached.out).changed, true, 'the web author owns this path under the live policy');
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  assert.equal(JSON.parse(submitted.out).waitingOwner, undefined);
 });
 
 /** A web item that merged main, after which main changed the same foreign file again. */
