@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { GUARDS } from '../packages/state/src/core/machine-declaration.js';
+import { GUARDS } from '../packages/state/index.js';
 
 /** @pullboard-world-pin reads the shipped run guide to check it against the guard's refusal list. */
 const skill = readFileSync(new URL('../skills/pullboard-run/SKILL.md', import.meta.url), 'utf8');

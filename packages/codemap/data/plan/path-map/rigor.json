@@ -1,0 +1,13 @@
+{
+  "src/rigor-auto-apply.js": "packages/rigor/src/io/auto/apply.js",
+  "src/rigor-auto.js": "packages/rigor/src/io/auto.js",
+  "src/rigor-conflicts.js": "packages/rigor/src/io/conflicts.js",
+  "src/rigor-counter-state.js": "packages/rigor/src/logic/counter.js",
+  "src/rigor-counters.js": "packages/rigor/src/io/counters.js",
+  "src/rigor-draft.js": "packages/rigor/src/io/draft.js",
+  "src/rigor-notices.js": "packages/rigor/src/logic/notices.js",
+  "src/rigor-proof.js": "packages/rigor/src/io/proof.js",
+  "src/rigor-quality-draft.js": "packages/rigor/src/io/quality/draft.js",
+  "src/rigor-quality.js": "packages/rigor/src/io/quality.js",
+  "src/rigor-splits.js": "packages/rigor/src/io/splits.js"
+}

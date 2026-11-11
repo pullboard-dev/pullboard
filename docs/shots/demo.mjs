@@ -16,7 +16,7 @@ import { themeVariants } from '../img/theme.mjs';
 import { AGENT_SHELL_MARKERS } from '../../packages/kernel/index.js';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
-const BIN = join(ROOT, 'bin', 'pullboard.js');
+const BIN = join(ROOT, 'apps', 'cli', 'pullboard.js');
 const OUTPUT = fileURLToPath(new URL('./', import.meta.url));
 /** Every board image is captured in both themes, so GitHub can show the one that matches the reader. */
 const THEMES = ['light', 'dark'];

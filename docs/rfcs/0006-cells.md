@@ -280,7 +280,7 @@ The undecided design items R3, R8, R41, R43 and R46 have no approved row.
 
 ## Note on moves behind shims
 
-During a move behind shims, each old source path re-exports through the cell's `packages/<cell>/index.js`, never a moved leaf directly. Keep that front door and its package reachable from a production app. `node bin/cells-plan.js --moved <cell>` checks the shim targets and production reachability before the move is submitted. This note sits outside the approved body; it applies [R62] and changes no row.
+During a move behind shims, each old source path re-exports through the cell's `packages/<cell>/index.js`, never a moved leaf directly. Keep that front door and its package reachable from a production app. `node packages/codemap/src/io/cells/scripts/plan.js --moved <cell>` checks the shim targets and production reachability before the move is submitted. This note sits outside the approved body; it applies [R62] and changes no row.
 
 ## Amendment, 31 October 2026: local sealing
 

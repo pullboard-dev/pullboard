@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
   runFixtureChild as spawnSync,
-} from '../../../test/fixture-child.js';
+} from '../../../apps/cli/tests/fixtures/child.js';
 import { once } from 'node:events';
 import {
+  existsSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -22,6 +23,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { repoPath } from '../../kernel/light.js';
 
 const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -215,56 +217,70 @@ test('the import scan finds a package however it is imported, and nothing that i
 });
 
 /**
- * The two source-directory loaders import only a discovered file beneath their declared local URL.
- * Normalize that exact relative discovery expression, not arbitrary computed imports; recursively
- * scanning their leaves below keeps a package import in any discovered module visible to P3.
+ * Every deliberate computed loader is declared here, by file and by its exact expression; an
+ * undeclared computed import, or a declared file with a second one, still fails the scan. Two are
+ * source-directory loaders that import a discovered file beneath their local URL; the rest load a
+ * caller-selected module (a reporter, a tool, a worker port, a checker) or a guard at a runtime
+ * path. Each declared expression is normalized to a relative import; recursively scanning their
+ * leaves below keeps a package import in any discovered module visible to P3.
  */
+const LOADERS = {
+  'packages/moves/src/io/registry.js': ['import(new URL(file, directory).href)'],
+  'apps/cli/src/io/commands/index.js': ['import(new URL(file, FOLDER).href)'],
+  'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
+  'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
+  'apps/view/src/io/page/actions.js': ['import(configuredTransportModule)'],
+  'packages/api/src/io/state/materializer/worker.js': ['import(workerData.portsModule)'],
+  'packages/codemap/src/io/freeze.js': ['import(pathToFileURL(checker).href)'],
+  'packages/doctrine/src/io/fast.js': ["import(pathToFileURL(join(root, 'packages/gate/src/io/scan.js')).href)", 'import(pathToFileURL(join(root, script)).href)'],
+  'packages/gate/src/io/run-tests.js': ["import(reporter.startsWith('.') || reporter.startsWith('/')\n    ? pathToFileURL(resolve(reporter)).href : reporter)", 'import(moduleSpecifier)', 'import(guard.href)'],
+};
 function packageSource(file, source) {
-  const loaders = {
-    [join(ROOT, 'packages', 'moves', 'src', 'shell', 'move-registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
-    [join(ROOT, 'src', 'commands', 'index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
-  };
-  const loader = loaders[file];
-  return loader ? source.replace(loader[0], loader[1]) : source;
+  let text = source;
+  for (const expression of LOADERS[file.startsWith(ROOT) ? file.slice(ROOT.length + 1) : file] ?? []) text = text.replace(expression, "import('./')");
+  return text;
 }
 
 /** Parse one edited source control using exactly the package discovery policy. */
 function importsForPackageFile(file, source) { return importsIn([packageSource(file, source)])[0]; }
 
 test('every import is a node: built-in or a relative file [P3]', () => {
-  const files = [
-    ...readdirSync(join(ROOT, 'src'), { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => join(ROOT, 'src', name)),
-    join(ROOT, 'bin', 'pullboard.js'),
-  ];
-  const moveDirectory = join(ROOT, 'packages', 'moves', 'src', 'core', 'moves');
+  const files = [join(ROOT, 'apps/cli/pullboard.js')];
+  for (const group of ['apps', 'packages']) {
+    for (const cell of readdirSync(join(ROOT, group))) {
+      const source = join(ROOT, group, cell, 'src');
+      if (!existsSync(source)) continue;
+      files.push(...readdirSync(source, { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => repoPath(ROOT, `${group}/${cell}/src/${name}`)));
+    }
+  }
+  const moveDirectory = join(ROOT, 'packages/moves/src/logic/moves');
   const moveFiles = readdirSync(moveDirectory).filter(name => name.endsWith('.js'));
-  files.push(...moveFiles.map(name => join(moveDirectory, name)));
   assert.ok(moveFiles.length > 0, 'all discovered move modules remain inside the no-dependencies scan');
   const found = importsIn(files.map(file => packageSource(file, readFileSync(file, 'utf8'))));
   files.forEach((file, index) => {
     for (const target of found[index]) assert.ok(target.startsWith('node:') || target.startsWith('.'), `${file} imports ${target}`);
   });
   const seen = found.flat().length;
-  assert.ok(seen > 50, `the scan found ${seen} imports in src/ and bin/; expected every file's`);
+  assert.ok(seen > 50, `the scan found ${seen} imports in apps and packages; expected every file's`);
 });
 
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
-  const file = join(ROOT, 'packages', 'moves', 'src', 'shell', 'move-registry.js');
+  const file = join(ROOT, 'packages/moves/src/io/registry.js');
   const source = readFileSync(file, 'utf8');
   const site = 'import(new URL(file, directory).href)';
   assert.ok(source.includes(site), 'the constrained discovery site is present');
   assert.ok(importsForPackageFile(file, source.replace(site, "import('left-pad')")).includes('left-pad'));
   assert.ok(importsForPackageFile(file, source.replace(site, 'import(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source + '\nvoid import(otherTarget);').includes(COMPUTED), 'a second computed import has no exemption');
-  assert.ok(importsForPackageFile(join(ROOT, 'src', 'moves', 'seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
+  assert.ok(importsForPackageFile(join(ROOT, 'packages/moves/src/logic/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
 });
 
 test('the installable package includes the single inherited doctrine file [D1]', () => {
   const packed = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(packed.status, 0, packed.stderr);
   const files = JSON.parse(packed.stdout)[0].files.map(file => file.path);
-  assert.equal(files.filter(file => file === 'packages/doctrine/src/shell/standard-doctrine.md').length, 1);
-  assert.ok(files.includes('packages/doctrine/src/shell/doctrine.js'));
+  assert.equal(files.filter(file => file === 'packages/doctrine/src/io/standard.md').length, 1);
+  assert.ok(files.includes('packages/doctrine/src/io/main.js'));
   assert.ok(files.includes('CHANGELOG.md'), 'resume release headlines require the shipped changelog');
 });
 

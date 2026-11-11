@@ -1,0 +1,10 @@
+[
+  "packages/verify/src/io/review/tier.js",
+  "apps/cli/journeys/show/review/tier.test.js",
+  "test/landing-selection-complete.test.js",
+  "packages/gate/tests/io/shards/landing/complete.test.js",
+  "apps/cli/journeys/runner/browser/decision.test.js",
+  "packages/gate/data/tests/tiers.json",
+  "packages/gate/data/tests/test-fixtures.json",
+  "packages/gate/data/baselines/test-waits-baseline.json"
+]

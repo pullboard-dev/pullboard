@@ -1,6 +1,6 @@
 /** Pages owns sealed relay snapshots, page transport, cache and presentation. */
-export { createRelayPageCache, snapshotSourceId } from './src/shell/relay-page-cache.js';
-export { pagedSnapshotRequest, relaySnapshotRequest } from './src/shell/relay-page-client.js';
-export { writePagedSnapshot } from './src/core/relay-page-writer.js';
-export { presentationDigest, relayPresentation, relayPresentationShout, relaySnapshot } from './src/shell/relay-presentation.js';
-export * from './core.js';
+export { createRelayPageCache, snapshotSourceId } from './src/io/relay/cache.js';
+export { pagedSnapshotRequest, relaySnapshotRequest } from './src/io/relay/client.js';
+export { writePagedSnapshot } from './src/logic/relay/writer.js';
+export { presentationDigest, relayPresentation, relayPresentationShout, relaySnapshot } from './src/io/relay/presentation.js';
+export * from './light.js';

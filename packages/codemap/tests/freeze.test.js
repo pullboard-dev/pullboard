@@ -8,14 +8,14 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { fixture } from '../../../test/cells-plan-fixture.js';
-import { git } from '../../../test/cells-plan-fixture.js';
-import { freeze } from '../src/shell/freeze.js';
-import { joinModules } from '../src/shell/freeze.js';
-import { parseTable } from '../src/shell/freeze.js';
-import { pathRewriter } from '../src/shell/freeze.js';
+import { fixture } from '../../landing/tests/fixtures/plan.js';
+import { git } from '../../landing/tests/fixtures/plan.js';
+import { freeze } from '../src/io/freeze.js';
+import { joinModules } from '../src/io/freeze.js';
+import { parseTable } from '../src/io/freeze.js';
+import { pathRewriter } from '../src/io/freeze.js';
 
-const SCRIPT = fileURLToPath(new URL('../src/shell/freeze.js', import.meta.url));
+const SCRIPT = fileURLToPath(new URL('../src/io/freeze.js', import.meta.url));
 const TABLE = [
   'package.json\tpackage.json',
   'bin/tool.js\tapps/tool/main.js',

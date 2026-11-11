@@ -1,0 +1,11 @@
+{
+  "src/dispatch-health.js": "packages/sentinels/src/io/dispatch.js",
+  "src/gone-claims.js": "packages/sentinels/src/logic/gone.js",
+  "src/health-sentinel.js": "packages/sentinels/src/io/findings.js",
+  "src/rejected-work-return.js": "packages/sentinels/src/io/returns.js",
+  "src/sentinel-command.js": "packages/sentinels/src/io/command.js",
+  "src/sentinel-cpu.js": "packages/sentinels/src/io/cpu.js",
+  "src/sentinel-runner.js": "packages/sentinels/src/io/runner.js",
+  "src/sentinels.js": "packages/sentinels/src/io/main.js",
+  "src/serve-sentinel.js": "packages/sentinels/src/io/serve.js"
+}

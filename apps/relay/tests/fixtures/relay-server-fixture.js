@@ -11,7 +11,7 @@ import { createAuthHandler } from '../../index.js';
 import { createRelayAuth } from '../../index.js';
 import { createRelayHandler } from '../../index.js';
 import { createGitHubClient } from '../../index.js';
-import { githubFixture } from '../../../../test/relay-fixture.js';
+import { githubFixture } from '../../../cli/tests/fixtures/relay.js';
 import { SEALED_SNAPSHOT_BYTES } from '../../../../packages/link/index.js';
 
 /**

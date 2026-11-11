@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "reads": [
+    {
+      "file": "apps/cli/journeys/show/review/eligibility.test.js",
+      "line": 458,
+      "expression": "join(box.repo, 'pullboard.json')",
+      "kind": "config",
+      "why": "Coordinator51298: reads the generated private e2e project configuration before committing vendor aliases; it does not copy repository source."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "src/flake-command.js": "packages/flakes/src/io/command.js",
+  "src/flakes.js": "packages/flakes/src/io/main.js",
+  "src/native-flake-cli.js": "packages/flakes/src/io/native/cli.js",
+  "src/native-flake-receipts.js": "packages/flakes/src/io/native/receipts.js",
+  "src/native-flakes.js": "packages/flakes/src/io/native.js",
+  "src/quarantine.js": "packages/flakes/src/io/quarantine.js"
+}

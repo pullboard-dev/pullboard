@@ -1,0 +1,10 @@
+{
+  "name": "CLI JSON envelope",
+  "order": 10,
+  "version": {
+    "kind": "catalog",
+    "file": "packages/config/src/logic/json.js"
+  },
+  "source": "`JSON_SHAPES.version` in `packages/config/src/logic/json.js`",
+  "upgrade": "Keep optional fields additive within version 1; bump the envelope version for incompatible command/export shapes."
+}

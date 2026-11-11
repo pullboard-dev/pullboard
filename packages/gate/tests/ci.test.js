@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/gate.yml'), 'utf8');
@@ -103,7 +103,7 @@ test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Lin
     assert.match(text, /\n {10}node-version: \$\{\{ matrix\.node \}\}\n/, `${name} sets up the matrix's Node`);
     assert.match(text, /\n {10}fetch-depth: 0\n/, `${name} checks out full history, which spec check reads`);
     assert.doesNotMatch(text, /check-signoffs|Signed-off-by/u, `${name} requires no sign-off: the DCO is dropped`);
-    assert.equal([...text.matchAll(/\n {6}- run: node bin\/pullboard\.js spec check(?=\n)/gu)].length, 1,
+    assert.equal([...text.matchAll(/\n {6}- run: node apps\/cli\/pullboard\.js spec check(?=\n)/gu)].length, 1,
       `${name} checks the spec exactly once in every matrix job`);
     assert.ok(text.includes('npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}'),
       `${name} forwards its native shard to the test runner`);

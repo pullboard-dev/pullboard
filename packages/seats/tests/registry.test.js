@@ -1,8 +1,8 @@
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../../test/fixture-child.js';
-import { reportFixtureChildFailure } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
+import { startFixtureChild as spawn } from '../../../apps/cli/tests/fixtures/child.js';
+import { reportFixtureChildFailure } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
 import { performance } from 'node:perf_hooks';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -144,7 +144,7 @@ function startNode(args, env) {
 async function runRegistryBurst(sandbox, label, roots, forgotten, env) {
   const barrier = join(sandbox, `${label}.start`);
   const worker = `import { existsSync } from 'node:fs';
-import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../../seats/index.js', import.meta.url).href)};
+import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
 const [operation, root, barrier] = process.argv.slice(1);
 console.log('ready');
 while (!existsSync(barrier)) await new Promise((resolve) => setTimeout(resolve, 1));

@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: node bin/pullboard.js spec check
+      - run: node apps/cli/pullboard.js spec check
       - run: npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}
 
   hosted-shapes:
@@ -86,10 +86,10 @@ jobs:
             echo "::error::Chrome is required for the view performance measurement"
             exit 1
           fi
-          node test/cockpit/perf/run.mjs --seed main-ci-n40 --size 3000 --projects 8 --runs 5 --idle 30 --live-every 5 > artifacts/performance/harness-output.txt
+          node apps/cli/tests/fixtures/cockpit/perf/run.mjs --seed main-ci-n40 --size 3000 --projects 8 --runs 5 --idle 30 --live-every 5 > artifacts/performance/harness-output.txt
       - name: Report fixed budgets and idle observations
         if: always()
-        run: node bin/check-perf-budgets.js artifacts/performance/harness-output.txt artifacts/performance
+        run: node packages/gate/src/io/check/budgets.js artifacts/performance/harness-output.txt artifacts/performance
       - uses: actions/upload-artifact@v4
         if: always()
         with:

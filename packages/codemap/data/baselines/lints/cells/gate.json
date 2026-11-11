@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "cell": "gate",
+  "baseSha256": "ba29652e0c3b4b90b0cf18b6c089d68db54a2c67159ab83e9ee6cccf213d1957",
+  "metrics": {
+    "boundaries": {
+      "remove": [
+        "src/pr-publish.js->src/gate.js"
+      ],
+      "allowances": {
+        "packages/github/src/io/pr/publish.js->src/gate.js": 1
+      }
+    }
+  },
+  "sha256": "161ee0c69e93ac2ffb8f582e8bf791ffe5b4802eda22a25523b1d569c0dd419c"
+}

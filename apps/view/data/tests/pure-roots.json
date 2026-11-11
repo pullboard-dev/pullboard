@@ -1,0 +1,21 @@
+{
+  "roots": [
+    "apps/view/tests/logic/activity/model/sentences.test.js",
+    "apps/view/tests/logic/agent/floor/model.test.js",
+    "apps/view/tests/logic/panel/model/pure.test.js",
+    "apps/view/tests/logic/hosted/render.test.js",
+    "apps/view/tests/io/dashboard/model.test.js",
+    "apps/view/tests/logic/render/dashboard.test.js",
+    "apps/view/tests/logic/render/group.test.js",
+    "apps/view/tests/logic/home.test.js",
+    "apps/view/tests/logic/lifecycle/chart.test.js",
+    "apps/view/tests/logic/needs/actions.test.js",
+    "apps/view/tests/logic/needs/summary/data.test.js",
+    "apps/view/tests/logic/pipeline/model.test.js",
+    "apps/view/tests/logic/summary/roadmap/pure.test.js",
+    "apps/view/tests/logic/component.test.js",
+    "apps/view/tests/logic/segmented.test.js",
+    "apps/view/tests/logic/render/verdict.test.js",
+    "apps/view/tests/logic/main.test.js"
+  ]
+}

@@ -1,9 +1,9 @@
 /** Named configuration front door preserving original bindings [C7,CD60]. */
-export { configFromSource, loadConfig, environmentProblem } from './core.js';
+export { configFromSource, loadConfig, environmentProblem } from './light.js';
 export {
   commandDocs,
   declaredCommandShapes,
-} from './src/shell/command-declaration-read.js';
+} from './src/io/declaration.js';
 export {
   CONFIG_FILE,
   COORDINATOR,
@@ -17,13 +17,13 @@ export {
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
-} from './src/shell/config.js';
+} from './src/io/main.js';
 export {
   JSON_SHAPES,
-} from './src/core/json.js';
+} from './src/logic/json.js';
 export {
   settingsInventory,
-} from './src/shell/settings-inventory.js';
+} from './src/io/settings/inventory.js';
 export {
   loadMachineSettings,
   declaredMachineSlots,
@@ -32,7 +32,7 @@ export {
   DEFAULT_RUNNER_WAIT_MS,
   validateRunnerWaitMs,
   validRunnerCpuLoad,
-} from './src/core/settings-read.js';
+} from './src/logic/settings.js';
 export {
   gateQueueSettings,
   browserFreeChecksEnabled,
@@ -46,6 +46,7 @@ export {
   setWorkerBudget,
   setGateRunnerWaitMs,
   browserByLaunchEnabled,
+  runnerDispatchMode,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   memoryFloorMB,
@@ -63,7 +64,7 @@ export {
   recordRunnerMeasurement,
   removeRunner,
   machineSettingsFile,
-} from './src/shell/settings.js';
+} from './src/io/settings.js';
 export {
   AGENTS_START,
   AGENTS_END,
@@ -76,28 +77,28 @@ export {
   claudeLoopRules,
   codexLoopRules,
   BOARD_PROOF_GUIDANCE,
-} from './src/shell/templates.js';
+} from './src/io/templates.js';
 export {
   releaseHeadlinesBetween,
-} from './src/shell/release-headlines.js';
+} from './src/io/headlines.js';
 export {
   VERSION,
-} from './src/core/release-version.js';
+} from './src/logic/version.js';
 export {
   gitSyncFiles,
   readGitSyncMarker,
   gitSyncMarkerLinked,
   gitSyncRecoveryNeeded,
   readGitSyncRepairs,
-} from './src/shell/git-sync-files.js';
+} from './src/io/git/sync.js';
 export {
   SETTING_DESCRIPTIONS,
   CLI_SETTABLE,
   describeSetting,
-} from './src/shell/settings-descriptions.js';
+} from './src/io/settings/descriptions.js';
 export {
   knownConfigKeys,
-} from './src/shell/config-forward-compat.js';
+} from './src/io/compat.js';
 export {
   exitRulesDefaults,
   exitRulesConfigProblems,
@@ -121,11 +122,11 @@ export {
   usageDollars,
   localUsage,
   dollarText,
-} from './pure.js';
+} from './browser.js';
 export {
   maintenanceDefaults,
   maintenanceConfigProblems,
   maintenanceDurations,
-} from './src/core/worktree-maintenance-config.js';
+} from './src/logic/maintenance.js';
 
-export { clauseInspectionEnabled, setClauseInspection } from './src/shell/settings.js';
+export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';

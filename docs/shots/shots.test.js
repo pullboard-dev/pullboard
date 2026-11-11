@@ -88,12 +88,12 @@ test('the demo board declares every agent\'s model [I11,I13]', () => {
     const source = fileURLToPath(ROOT);
     const root = join(fixture, 'repo');
     mkdirSync(root);
-    for (const directory of ['apps', 'packages', 'src', 'bin', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
-    for (const file of ['test/chrome-fixture.js', 'test/chrome-graceful-shutdown.js', 'test/chrome-launch-args.js', 'test/fixture-child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
+    for (const directory of ['apps', 'packages', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
+    for (const file of ['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/chrome/shutdown.js', 'apps/cli/tests/fixtures/chrome/args.js', 'apps/cli/tests/fixtures/child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
     const shims = join(fixture, 'bin');
     mkdirSync(shims);
     const pullboard = join(shims, 'pullboard');
-    writeFileSync(pullboard, `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'bin/pullboard.js')}" "$@"\n`);
+    writeFileSync(pullboard, `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'apps/cli/pullboard.js')}" "$@"\n`);
     chmodSync(pullboard, 0o755);
     const env = { ...process.env, PATH: [shims, process.env.PATH].filter(Boolean).join(delimiter) };
     delete env.PULLBOARD_MODEL;
@@ -154,17 +154,17 @@ test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }
   try {
     const root = join(fixture, 'repo');
     mkdirSync(root);
-    for (const directory of ['apps', 'packages', 'bin', 'src', 'skills', 'docs/shots', 'docs/img']) {
+    for (const directory of ['apps', 'packages', 'skills', 'docs/shots', 'docs/img']) {
       cpSync(join(source, directory), join(root, directory), { recursive: true });
     }
     mkdirSync(join(root, 'test'));
-    for (const file of ['package.json', 'CHANGELOG.md', 'test/chrome-fixture.js', 'test/chrome-graceful-shutdown.js', 'test/chrome-launch-args.js', 'test/fixture-child.js']) {
+    for (const file of ['package.json', 'CHANGELOG.md', 'apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/chrome/shutdown.js', 'apps/cli/tests/fixtures/chrome/args.js', 'apps/cli/tests/fixtures/child.js']) {
       cpSync(join(source, file), join(root, file));
     }
     const shims = join(fixture, 'bin');
     mkdirSync(shims);
     const pullboard = join(shims, 'pullboard');
-    writeFileSync(pullboard, `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'bin/pullboard.js')}" "$@"\n`);
+    writeFileSync(pullboard, `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'apps/cli/pullboard.js')}" "$@"\n`);
     chmodSync(pullboard, 0o755);
     for (const image of images) rmSync(join(root, 'docs/shots', image), { force: true });
     const observationPath = join(fixture, 'capture-observation.json');

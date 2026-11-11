@@ -1,7 +1,0 @@
-{
-  "src/relay-device-keys.js": "packages/keys/src/core/relay-device-keys.js",
-  "src/relay-key.js": "packages/keys/src/shell/relay-key.js",
-  "src/relay-pairing-client.js": "packages/keys/src/shell/relay-pairing-client.js",
-  "src/relay-person-enrollment.js": "packages/keys/src/shell/relay-person-enrollment.js",
-  "test/relay-pairing-options.test.js": "packages/keys/tests/relay-pairing-options.test.js"
-}

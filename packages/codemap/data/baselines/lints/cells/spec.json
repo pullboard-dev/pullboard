@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "cell": "spec",
+  "baseSha256": "ba29652e0c3b4b90b0cf18b6c089d68db54a2c67159ab83e9ee6cccf213d1957",
+  "metrics": {
+    "boundaries": {
+      "remove": [],
+      "allowances": {
+        "packages/github/src/io/pr/publish.js->src/reference-lines.js": 1
+      }
+    }
+  },
+  "sha256": "da2ff80850955e55a738e967e74978586881de9cd494e221c27e62104a5734e0"
+}

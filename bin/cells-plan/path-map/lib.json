@@ -1,5 +1,0 @@
-{
-  "src/index.js": "apps/lib/src/core/index.js",
-  "src/native-board.js": "apps/lib/src/core/native-board.js",
-  "src/relay-checkpoint-worker.js": "apps/lib/src/shell/relay-checkpoint-worker.js"
-}

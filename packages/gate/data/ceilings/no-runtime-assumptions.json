@@ -1,0 +1,209 @@
+{
+  "adapters": [
+    "apps/runner/",
+    "packages/runners/",
+    "packages/sandbox/",
+    "packages/gate/src/io/run-tests.js",
+    "docs/"
+  ],
+  "baseline": {
+    "apps/cli/src/io/commands/shadow-batch.js": {
+      "binSh": 1
+    },
+    "apps/cli/src/io/commands/verify.js": {
+      "nodeTest": 1
+    },
+    "apps/cli/src/io/commands/view.js": {
+      "darwin": 1
+    },
+    "apps/cli/src/io/submit.js": {
+      "testFile": 1
+    },
+    "apps/cli/src/io/submit/gate.js": {
+      "binSh": 1
+    },
+    "apps/cli/src/io/submit/handoff.js": {
+      "binSh": 1
+    },
+    "apps/cli/src/io/tour.js": {
+      "testFile": 3,
+      "nodeTest": 6,
+      "binSh": 1
+    },
+    "apps/cli/src/logic/help/receipts.js": {
+      "nodeTest": 1
+    },
+    "apps/view/src/io/coverage.js": {
+      "testFile": 35
+    },
+    "apps/view/src/logic/roles.js": {
+      "testFile": 115
+    },
+    "docs/tools/guarded-docs-refresh.js": {
+      "testFile": 1,
+      "nodeTest": 1
+    },
+    "packages/codemap/src/io/cell/lint/inventory.js": {
+      "testFile": 1
+    },
+    "packages/codemap/src/io/cells/placement.js": {
+      "testFile": 2
+    },
+    "packages/codemap/src/io/map.js": {
+      "testFile": 3
+    },
+    "packages/codemap/src/logic/discovery.js": {
+      "testFile": 1
+    },
+    "packages/codemap/src/logic/path/map/operands.js": {
+      "nodeTest": 2
+    },
+    "packages/commits/src/io/hooks.js": {
+      "binSh": 1,
+      "darwin": 1
+    },
+    "packages/config/src/io/main.js": {
+      "testFile": 4,
+      "nodeTest": 1
+    },
+    "packages/gate/src/io/board/baseline.js": {
+      "testFile": 144
+    },
+    "packages/gate/src/io/browser/admission.js": {
+      "testFile": 1
+    },
+    "packages/gate/src/io/check/baseline.js": {
+      "binSh": 1
+    },
+    "packages/gate/src/io/clone.js": {
+      "darwin": 1
+    },
+    "packages/gate/src/io/gui/admission.js": {
+      "testFile": 2
+    },
+    "packages/gate/src/io/gui/session.js": {
+      "darwin": 1
+    },
+    "packages/gate/src/io/journal/source.js": {
+      "darwin": 1
+    },
+    "packages/gate/src/io/main/audit/economics.js": {
+      "testFile": 1
+    },
+    "packages/gate/src/io/red.js": {
+      "testFile": 1
+    },
+    "packages/gate/src/io/refusal/floor.js": {
+      "testFile": 2
+    },
+    "packages/gate/src/io/submit.js": {
+      "nodeTest": 1
+    },
+    "packages/gate/src/io/tap.js": {
+      "testFile": 1,
+      "nodeTest": 1
+    },
+    "packages/gate/src/io/test/concurrency.js": {
+      "darwin": 1
+    },
+    "packages/gate/src/io/test/economics.js": {
+      "nodeTest": 2
+    },
+    "packages/gate/src/io/test/file/dispatch.js": {
+      "testFile": 1,
+      "nodeTest": 1
+    },
+    "packages/gate/src/io/test/placement.js": {
+      "nodeTest": 1
+    },
+    "packages/gate/src/io/test/run.js": {
+      "testFile": 1
+    },
+    "packages/gate/src/io/test/tier/selection.js": {
+      "nodeTest": 2
+    },
+    "packages/gate/src/io/timed.js": {
+      "binSh": 1
+    },
+    "apps/cli/src/io/static/view.js": {
+      "testFile": 2
+    },
+    "packages/gate/src/io/watchdog.js": {
+      "nodeTest": 1
+    },
+    "packages/gate/src/logic/preload.js": {
+      "nodeTest": 3
+    },
+    "packages/git/src/io/check/definition.js": {
+      "binSh": 1
+    },
+    "packages/git/src/io/launch/ratchet.js": {
+      "testFile": 1
+    },
+    "packages/keys/src/io/relay.js": {
+      "darwin": 1
+    },
+    "packages/landing/src/io/prune.js": {
+      "darwin": 1
+    },
+    "packages/landing/src/io/step/diagnose.js": {
+      "nodeTest": 1
+    },
+    "packages/landing/src/io/step/failures.js": {
+      "testFile": 1
+    },
+    "packages/landing/src/io/step/gate.js": {
+      "nodeTest": 1
+    },
+    "packages/landing/src/io/train/repoints.js": {
+      "testFile": 2,
+      "nodeTest": 1
+    },
+    "packages/resources/src/io/admission/memory.js": {
+      "darwin": 1
+    },
+    "packages/rigor/src/io/proof.js": {
+      "nodeTest": 4,
+      "binSh": 1
+    },
+    "packages/rigor/src/io/quality.js": {
+      "nodeTest": 1
+    },
+    "packages/sentinels/src/io/cpu.js": {
+      "darwin": 2
+    },
+    "packages/sentinels/src/io/runner.js": {
+      "binSh": 2
+    },
+    "packages/spec/src/io/ruling.js": {
+      "testFile": 6
+    },
+    "packages/store/src/io/board/submit.js": {
+      "testFile": 1
+    },
+    "packages/transport/src/io/ssh.js": {
+      "binSh": 1
+    },
+    "packages/verify/light.js": {
+      "testFile": 1,
+      "nodeTest": 1
+    },
+    "packages/verify/src/io/check/accept.js": {
+      "testFile": 2,
+      "nodeTest": 1
+    },
+    "packages/verify/src/io/check/widen.js": {
+      "testFile": 1
+    },
+    "packages/verify/src/io/review/packet.js": {
+      "testFile": 5
+    },
+    "packages/verify/src/io/review/tier.js": {
+      "testFile": 56
+    },
+    "packages/verify/src/io/rule/proof/coverage.js": {
+      "testFile": 1,
+      "nodeTest": 1
+    }
+  }
+}

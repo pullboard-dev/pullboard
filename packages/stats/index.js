@@ -1,30 +1,30 @@
-export { carryingCapacity } from './src/core/carrying-capacity.js';
-export { readCarryingCapacity } from './src/shell/carrying-capacity-read.js';
+export { carryingCapacity } from './src/logic/carrying.js';
+export { readCarryingCapacity } from './src/io/carrying.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
-export { workFreeReleases, readWorkFreeReleases } from './src/core/work-free-releases.js';
-export { buildTimeStats, buildTimeLines } from './src/core/stats-build-time.js';
+export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
+export { buildTimeStats, buildTimeLines } from './src/logic/build/time.js';
 export {
   nativeToolCallIds,
   nativeLastPrompt,
-} from './src/core/exit-rules-calls.js';
+} from './src/logic/exit/rules/calls.js';
 export {
   repeatedExitFailure,
   exitRulesDecision,
   contextCeiling,
   exitContextDecision,
-} from './src/core/exit-rules-policy.js';
+} from './src/logic/exit/rules/policy.js';
 export {
   replayHistory,
   observedCapacity,
   replayObservations,
-} from './src/core/flow-replay-history.js';
+} from './src/logic/flow/replay/history.js';
 export {
   replayFlow,
-} from './src/core/flow-replay.js';
+} from './src/logic/flow/replay.js';
 export {
   emptyReportCounter,
   appendReportCounter,
-} from './src/core/flow-report-counter.js';
+} from './src/logic/flow/report/counter.js';
 export {
   FLOW_REPORT_VERSION,
   reportEvent,
@@ -39,7 +39,7 @@ export {
   indexReportItem,
   recordReportPolicy,
   projectReport,
-} from './src/core/stats-flow-report.js';
+} from './src/logic/flow/report.js';
 export {
   WINDOW_STAGES,
   newWindowTrace,
@@ -54,7 +54,7 @@ export {
   projectWindowComparison,
   comparisonLines,
   flowWindowBounds,
-} from './src/core/stats-flow-window.js';
+} from './src/logic/flow/window.js';
 export {
   roleOf,
   moveFlowItem,
@@ -65,44 +65,44 @@ export {
   flowLines,
   flowReportLines,
   flowAlertLine,
-} from './src/core/stats-flow.js';
+} from './src/logic/flow.js';
 export {
   sinceDate,
   eventCounts,
   proofStats,
-} from './src/shell/stats.js';
+} from './src/io/main.js';
 export {
   CAPACITY_VERSION,
   emptyCapacityCounter,
   appendCapacityCounter,
-} from './src/core/capacity-counter.js';
+} from './src/logic/capacity/counter.js';
 export {
   fitCapacity,
   planCapacity,
   capacityLines,
-} from './src/core/capacity-model.js';
+} from './src/logic/capacity/model.js';
 export {
   capacityAtRead,
   readCapacity,
-} from './src/shell/capacity-read.js';
+} from './src/io/capacity.js';
 export {
   refreshCapacity,
-} from './src/core/capacity-store.js';
+} from './src/logic/capacity/refresh.js';
 export {
   publishUsage,
   checkpointAfterMove,
-} from './src/shell/cost-checkpoint.js';
+} from './src/io/cost/checkpoint.js';
 export {
   USAGE_CHECKPOINT_ENV,
   drainUsageCheckpoints,
   usageDueDirectory,
-} from './src/shell/cost-due.js';
+} from './src/io/cost/due.js';
 export {
   usageCheckpoint,
-} from './src/shell/cost-ledger.js';
+} from './src/io/cost/ledger.js';
 export {
   nativeUsage,
-} from './src/shell/cost-provider.js';
+} from './src/io/cost/provider.js';
 export {
   USAGE_BATCH_LIMIT,
   UNKNOWN_USAGE_REASONS,
@@ -113,47 +113,47 @@ export {
   publicUsage,
   unknownInputSplit,
   hasInputSplit,
-} from './src/shell/cost-read.js';
+} from './src/io/cost/usage.js';
 export {
   sessionSource,
   sessionSnapshot,
   usageDifference,
-} from './src/shell/cost-session.js';
+} from './src/io/cost/session.js';
 export {
   sharedBefore,
   sharedAfter,
-} from './src/shell/cost-shared-ledger.js';
+} from './src/io/cost/shared/ledger.js';
 export {
   sharedSessionTotals,
   recordSharedUsage,
   publicSharedSessions,
-} from './src/shell/cost-shared.js';
+} from './src/io/cost/shared.js';
 export {
   sanitizedUsage,
   recordUsage,
   costTotals,
   budgetState,
   storedSeatUsage,
-} from './src/shell/cost.js';
+} from './src/io/cost.js';
 export {
   recordUsageBatch,
-} from './src/shell/cost-usage-batch.js';
+} from './src/io/cost/batch.js';
 export {
   pipelineLimit,
   pipelineStats,
   pipelineLines,
   pipelinePerHour,
   pipelinePerHourLines,
-} from './src/core/stats-pipeline.js';
+} from './src/logic/pipeline.js';
 export {
   moveTranscripts,
   movesStats,
   movesLines,
-} from './src/core/stats-moves.js';
+} from './src/logic/moves.js';
 export {
   wilson,
   costAnalytics,
-} from './src/shell/cost-analytics.js';
+} from './src/io/cost/analytics.js';
 export {
   TIME_PHASES,
   timeWindowDays,
@@ -161,22 +161,22 @@ export {
   timeLines,
   checkpointLine,
   weeklyDue,
-} from './src/core/stats-time.js';
+} from './src/logic/time.js';
 export {
   readTimeHistory,
   appendTimeCheckpoint,
-} from './src/shell/time-history.js';
+} from './src/io/time/history.js';
 
-export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise } from './src/core/coordinator-actions.js';
-export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/shell/coordinator-actions.js';
+export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise } from './src/logic/actions.js';
+export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/io/actions.js';
 
-export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
-export { buildCalibration } from './src/core/build-calibration.js';
-export { isProofAgent, proofAgentIds } from './src/shell/stats.js';
+export { recordTimeCheckpoint } from './src/io/time/checkpoint.js';
+export { buildCalibration } from './src/logic/build/calibration.js';
+export { isProofAgent, proofAgentIds } from './src/io/main.js';
 
-export { barStats } from './src/core/bar-stats.js';
-export { idleSkipMinutes } from './src/core/idle-skip-minutes.js';
-export { LEDGER_HOPS, LEDGER_VERSION, itemLedger, ledgerLines, pipelineLedger, tile } from './src/core/pipeline-ledger.js';
-export { foldText, newFold } from './src/core/session-activity.js';
-export { readSessions } from './src/shell/session-logs.js';
-export { readPipelineLedger } from './src/shell/pipeline-ledger-read.js';
+export { barStats } from './src/logic/bar.js';
+export { idleSkipMinutes } from './src/logic/idle.js';
+export { LEDGER_HOPS, LEDGER_VERSION, itemLedger, ledgerLines, pipelineLedger, tile } from './src/logic/pipeline/ledger.js';
+export { foldText, newFold } from './src/logic/activity.js';
+export { readSessions } from './src/io/logs.js';
+export { readPipelineLedger } from './src/io/ledger.js';

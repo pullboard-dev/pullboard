@@ -1,0 +1,8 @@
+{
+  "src/doctrine-checks.js": "packages/doctrine/src/io/checks.js",
+  "src/doctrine-rulings.js": "packages/doctrine/src/io/rulings.js",
+  "src/doctrine.js": "packages/doctrine/src/io/main.js",
+  "src/main-criterion-facts.js": "packages/doctrine/src/io/main-criterion-facts.js",
+  "src/standard-doctrine.md": "packages/doctrine/src/io/standard.md",
+  "test/package.test.js": "packages/doctrine/tests/package.test.js"
+}

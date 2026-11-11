@@ -11,21 +11,18 @@ const skills = readdirSync(skillsDirectory, { withFileTypes: true })
 /** Return the run skill's lean-loop section, from its heading to the next heading. */
 function leanLoop() {
   const run = skills.find(skill => skill.name === 'pullboard-run').text;
-  const start = run.indexOf('\n## The lean loop\n');
-  assert.notEqual(start, -1, 'the run skill has a lean-loop section');
+  const start = run.indexOf('\nYou are the coordinator');
+  assert.notEqual(start, -1, 'the run skill opens with the coordinator rules');
   const end = run.indexOf('\n## ', start + 1);
   return run.slice(start, end < 0 ? run.length : end).replace(/\s+/gu, ' ');
 }
 
 test('clause 1: the skills teach the no-wait loop [N31]', () => {
   const section = leanLoop();
-  assert.match(section, /Claim, then build in your own worktree/u, 'claim and own worktree');
-  assert.match(section, /Never build or run commands in the main checkout/u, 'builders stay out of the main checkout');
-  assert.match(section, /Commit and `pullboard submit <id>` at once/u, 'commit and submit at once');
-  assert.match(section, /The gate is the proof, so run no test first/u, 'the gate is the proof, no test first');
-  assert.match(section, /Never run a sleep loop around the board/u, 'no sleep loop');
-  assert.match(section, /`pullboard next --wait 30`/u, 'the board does the waiting');
-  assert.match(section, /match the Speed section of AGENTS\.md/u, 'matches AGENTS.md');
+  assert.match(section, /Builders build lane items in their own worktrees\. Never you\./u, 'builders build in their own worktrees, never the coordinator');
+  assert.match(section, /Never wait\. The board holds the state; you act on what it reports\./u, 'the board does the waiting');
+  const run = skills.find(skill => skill.name === 'pullboard-run').text.replace(/\s+/gu, ' ');
+  assert.match(run, /Builders never wait: submit queues the gate and returns, and they run `pullboard next` at once\./u, 'builders submit and move on');
 });
 
 test('clause 2: no shipped skill teaches a sleep loop, a status poll or a main-checkout build [N31]', () => {

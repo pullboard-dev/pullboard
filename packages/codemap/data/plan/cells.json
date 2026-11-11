@@ -1,0 +1,2318 @@
+{
+  "version": 1,
+  "item": 1473,
+  "rfc": "docs/rfcs/0006-cells.md",
+  "base": "b068c560b665790d78507a0db598cf9d130e9232",
+  "seed": {
+    "source": "pullboard-research/2026-10-26-cells/dryrun/raw/map.json",
+    "sha256": "cfd97ccc7a130179d9166536653ffb96301bbb21f0c50d248b8aca4e4d53cb7e",
+    "paths": 789,
+    "tests": 116
+  },
+  "names": {
+    "relay-client": "link",
+    "relay-outbox": "outbox",
+    "relay-keys": "keys",
+    "relay-page": "pages",
+    "runner-client": "runners",
+    "app:relay-server": "app:relay"
+  },
+  "cells": [
+    {
+      "order": 1,
+      "name": "kernel",
+      "file": "packages/codemap/data/plan/01-kernel.json"
+    },
+    {
+      "order": 2,
+      "name": "git",
+      "file": "packages/codemap/data/plan/02-git.json"
+    },
+    {
+      "order": 3,
+      "name": "codemap",
+      "file": "packages/codemap/data/plan/03-codemap.json"
+    },
+    {
+      "order": 4,
+      "name": "queue",
+      "file": "packages/codemap/data/plan/04-queue.json"
+    },
+    {
+      "order": 5,
+      "name": "jobs",
+      "file": "packages/codemap/data/plan/05-jobs.json"
+    },
+    {
+      "order": 6,
+      "name": "pin",
+      "file": "packages/codemap/data/plan/06-pin.json"
+    },
+    {
+      "order": 7,
+      "name": "receipt",
+      "file": "packages/codemap/data/plan/07-receipt.json"
+    },
+    {
+      "order": 8,
+      "name": "transport",
+      "file": "packages/codemap/data/plan/08-transport.json"
+    },
+    {
+      "order": 9,
+      "name": "drive",
+      "file": "packages/codemap/data/plan/09-drive.json"
+    },
+    {
+      "order": 10,
+      "name": "land",
+      "file": "packages/codemap/data/plan/10-land.json"
+    },
+    {
+      "order": 11,
+      "name": "resources",
+      "file": "packages/codemap/data/plan/11-resources.json"
+    },
+    {
+      "order": 12,
+      "name": "config",
+      "file": "packages/codemap/data/plan/12-config.json"
+    },
+    {
+      "order": 13,
+      "name": "mcp",
+      "file": "packages/codemap/data/plan/13-mcp.json"
+    },
+    {
+      "order": 14,
+      "name": "state",
+      "file": "packages/codemap/data/plan/14-state.json"
+    },
+    {
+      "order": 15,
+      "name": "seats",
+      "file": "packages/codemap/data/plan/15-seats.json"
+    },
+    {
+      "order": 16,
+      "name": "roadmap",
+      "file": "packages/codemap/data/plan/16-roadmap.json"
+    },
+    {
+      "order": 17,
+      "name": "spec",
+      "file": "packages/codemap/data/plan/17-spec.json"
+    },
+    {
+      "order": 18,
+      "name": "commits",
+      "file": "packages/codemap/data/plan/18-commits.json"
+    },
+    {
+      "order": 19,
+      "name": "items",
+      "file": "packages/codemap/data/plan/19-items.json"
+    },
+    {
+      "order": 20,
+      "name": "stats",
+      "file": "packages/codemap/data/plan/20-stats.json"
+    },
+    {
+      "order": 21,
+      "name": "merge",
+      "file": "packages/codemap/data/plan/21-merge.json"
+    },
+    {
+      "order": 22,
+      "name": "verify",
+      "file": "packages/codemap/data/plan/22-verify.json"
+    },
+    {
+      "order": 23,
+      "name": "store",
+      "file": "packages/codemap/data/plan/23-store.json"
+    },
+    {
+      "order": 24,
+      "name": "sandbox",
+      "file": "packages/codemap/data/plan/24-sandbox.json"
+    },
+    {
+      "order": 25,
+      "name": "doctrine",
+      "file": "packages/codemap/data/plan/25-doctrine.json"
+    },
+    {
+      "order": 26,
+      "name": "person",
+      "file": "packages/codemap/data/plan/26-person.json"
+    },
+    {
+      "order": 27,
+      "name": "activity",
+      "file": "packages/codemap/data/plan/27-activity.json"
+    },
+    {
+      "order": 28,
+      "name": "pages",
+      "file": "packages/codemap/data/plan/28-pages.json"
+    },
+    {
+      "order": 29,
+      "name": "keys",
+      "file": "packages/codemap/data/plan/29-keys.json"
+    },
+    {
+      "order": 30,
+      "name": "blueprints",
+      "file": "packages/codemap/data/plan/30-blueprints.json"
+    },
+    {
+      "order": 31,
+      "name": "link",
+      "file": "packages/codemap/data/plan/31-link.json"
+    },
+    {
+      "order": 32,
+      "name": "api",
+      "file": "packages/codemap/data/plan/32-api.json"
+    },
+    {
+      "order": 33,
+      "name": "outbox",
+      "file": "packages/codemap/data/plan/33-outbox.json"
+    },
+    {
+      "order": 34,
+      "name": "gate",
+      "file": "packages/codemap/data/plan/34-gate.json"
+    },
+    {
+      "order": 35,
+      "name": "runners",
+      "file": "packages/codemap/data/plan/35-runners.json"
+    },
+    {
+      "order": 36,
+      "name": "landing",
+      "file": "packages/codemap/data/plan/36-landing.json"
+    },
+    {
+      "order": 37,
+      "name": "sync",
+      "file": "packages/codemap/data/plan/37-sync.json"
+    },
+    {
+      "order": 38,
+      "name": "shouts",
+      "file": "packages/codemap/data/plan/38-shouts.json"
+    },
+    {
+      "order": 39,
+      "name": "health",
+      "file": "packages/codemap/data/plan/39-health.json"
+    },
+    {
+      "order": 40,
+      "name": "moves",
+      "file": "packages/codemap/data/plan/40-moves.json"
+    },
+    {
+      "order": 41,
+      "name": "sentinels",
+      "file": "packages/codemap/data/plan/41-sentinels.json"
+    },
+    {
+      "order": 42,
+      "name": "rigor",
+      "file": "packages/codemap/data/plan/42-rigor.json"
+    },
+    {
+      "order": 43,
+      "name": "github",
+      "file": "packages/codemap/data/plan/43-github.json"
+    },
+    {
+      "order": 44,
+      "name": "flakes",
+      "file": "packages/codemap/data/plan/44-flakes.json"
+    },
+    {
+      "order": 45,
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/45-app-view.json"
+    },
+    {
+      "order": 46,
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/46-app-runner.json"
+    },
+    {
+      "order": 47,
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/47-app-cli.json"
+    },
+    {
+      "order": 48,
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/48-app-lib.json"
+    },
+    {
+      "order": 49,
+      "name": "app:relay",
+      "file": "packages/codemap/data/plan/49-app-relay.json"
+    }
+  ],
+  "stays": [
+    {
+      "path": "src/index.js",
+      "reason": "rule 6 shim (#2393): package.json exports '.' names this file, and its restricted public namespace differs from apps/lib/index.js"
+    },
+    {
+      "path": "src/native-board.js",
+      "reason": "rule 6 shim (#2393): released and linked installs load the board by this path (loadNativeBoard and copied-package fixtures), and link, app:view and app:cli importers would need a mechanical repoint"
+    },
+    {
+      "path": "packages/codemap/src/io/cell/scripts/lints.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/plan/cuts.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/scripts/plan.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/check-baseline.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/check/budgets.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/check/signoffs.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/board/baseline.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/board/files.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/catch.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/file/size.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/launches.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/scan.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/test/inputs.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/test/names.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/main-audit.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/pullboard.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/scripts/release.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/run/tests.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/source-advance.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/static-style-checks.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "docs/tools/update-formats.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/verify-release-receipt.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "docs/tools/case-study.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "docs/tools/case-study/durations.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "docs/tools/case-study/events.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "docs/tools/case-study/report.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "docs/tools/case-study/structure.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/move/tool.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/move.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "packages/gate/src/io/sizes.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "apps/cli/src/io/static/view.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "bin/landing-candidate.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "apps/runner/src/io/controller.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)",
+      "owner": "app:runner"
+    },
+    {
+      "path": "apps/runner/src/io/shell.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)",
+      "owner": "app:runner"
+    },
+    {
+      "path": "bin/update-docs.js",
+      "reason": "bin/ stays in place during the move (dry run section 1)"
+    },
+    {
+      "path": "src/git-sync-format.js",
+      "reason": "Retired by #1619: consolidated into packages/commits/src/logic/board.js; no source remains for the sync move."
+    },
+    {
+      "path": "packages/gate/src/io/board/write.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/door.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/scripts/cache.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/src/io/engine/metadata.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/src/io/engine/numbers.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/src/logic/move/constants.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/152.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/legacy.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/153.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/154.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/155.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/156.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/157.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/158.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/159.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/160.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/161.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/162.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/163.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/164.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/165.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/166.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/167.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/168.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/169.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/170.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/171.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/172.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/173.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/174.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/175.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/176.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/177.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/178.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/179.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/180.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/181.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/182.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/183.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/184.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/185.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/186.json",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "packages/state/data/history/187.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/shims.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/188.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/189.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/190.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/191.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/192.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/193.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/194.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/automatic-landing.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/journeys/settings/clauses.test.js",
+      "reason": "frozen item2050 native check entry; exercises the canonical state front door"
+    },
+    {
+      "path": "packages/state/data/history/195.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/196.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "docs/tools/guarded-docs-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/197.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/placement.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/198.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/199.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/200.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/201.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/202.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/203.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/204.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/205.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/206.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/207.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/208.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/209.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/relay/src/io/deploy/Dockerfile",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)"
+    },
+    {
+      "path": "apps/relay/src/io/deploy/server.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)",
+      "owner": "app:relay"
+    },
+    {
+      "path": "apps/relay/src/io/deploy/smoke.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)",
+      "owner": "app:relay"
+    },
+    {
+      "path": "apps/relay/src/io/deploy/README.md",
+      "reason": "Railway deploy checklist stays beside the deployed apps/relay/src/io/deploy/Dockerfile (#1592)"
+    },
+    {
+      "path": "packages/state/data/history/210.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/relay.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/211.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/test/waits.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/test/fixtures.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/src/io/current.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/src/io/ports/process.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/src/io/resident/board.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/src/io/resident/client.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/changed/scripts/static.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/static/registry.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/src/io/hook/composed.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "commits"
+    },
+    {
+      "path": "packages/state/data/history/212.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/213.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/214.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/215.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/216.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/217.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/218.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/219.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/220.json",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "packages/state/data/history/221.json",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "packages/state/data/history/222.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/handoff-worker-dispatcher.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "resources"
+    },
+    {
+      "path": "packages/state/data/history/223.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/224.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/snapshots.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/backlog.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/cells/git.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/225.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/226.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/227.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/228.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/229.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/230.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/231.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/cli/src/io/resident/socket.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/232.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/234.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/235.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/236.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/237.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/238.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/239.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/240.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/241.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/resources/src/io/handoff/worker/detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/242.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/243.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/slot/services.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/244.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "apps/lib/src/io/drive/worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/check/cla.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/edges.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/assumptions.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/sync/spawn.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/245.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/246.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/247.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/state/data/history/248.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/codemap/src/io/shims.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "codemap"
+    },
+    {
+      "path": "packages/state/data/history/249.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/matrix.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/board/budget.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "gate"
+    },
+    {
+      "path": "packages/landing/src/io/merged/scripts/followup.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "landing"
+    },
+    {
+      "path": "packages/state/data/history/250.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "packages/gate/src/io/test/cells.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    }
+  ],
+  "retired": [
+    {
+      "cell": "store",
+      "row": [
+        "src/board-read.js",
+        "packages/store/src/shell/board-read.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "src/person-authority-schema.js",
+        "packages/person/src/logic/person-authority-schema.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "activity",
+      "row": [
+        "src/activity-delivery-store.js",
+        "packages/activity/src/logic/activity-delivery-store.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "activity",
+      "row": [
+        "src/activity-feed.js",
+        "packages/activity/src/logic/activity-feed.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "activity",
+      "row": [
+        "src/activity-news.js",
+        "packages/activity/src/logic/activity-news.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-exceptions.js",
+        "packages/landing/src/logic/landing-exceptions.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-lease.js",
+        "packages/landing/src/logic/landing-lease.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-local-lease.js",
+        "packages/landing/src/logic/landing-local-lease.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-test-defect-history.js",
+        "packages/landing/src/logic/landing-test-defect-history.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-test-defects.js",
+        "packages/landing/src/logic/landing-test-defects.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "shouts",
+      "row": [
+        "src/inbox-store.js",
+        "packages/shouts/src/logic/inbox-store.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "shouts",
+      "row": [
+        "src/shout-audience.js",
+        "packages/shouts/src/logic/shout-audience.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "shouts",
+      "row": [
+        "src/worker-inbox.js",
+        "packages/shouts/src/logic/worker-inbox.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/conditional-holds.js",
+        "packages/health/src/logic/stale/state/conditional-holds.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/health-receipts.js",
+        "packages/health/src/logic/stale/state/health-receipts.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/recurring-jobs.js",
+        "packages/health/src/logic/stale/state/recurring-jobs.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/release-claim.js",
+        "packages/health/src/logic/stale/state/release-claim.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-claim-release.js",
+        "packages/health/src/logic/stale/state/stale-claim-release.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-state-maintenance.js",
+        "packages/health/src/logic/stale/state/stale-state-maintenance.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-state-policy.js",
+        "packages/health/src/logic/stale/state/stale-state-policy.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "health",
+      "row": [
+        "src/stale-state-store.js",
+        "packages/health/src/logic/stale/state/stale-state-store.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "rigor",
+      "row": [
+        "src/rigor-auto-source.js",
+        "packages/rigor/src/logic/rigor-auto-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "rigor",
+      "row": [
+        "src/rigor-source.js",
+        "packages/rigor/src/logic/rigor-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "rigor",
+      "row": [
+        "src/rigor.js",
+        "packages/rigor/src/logic/rigor.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "seats",
+      "row": [
+        "src/agent-proof-guidance.js",
+        "packages/seats/src/core/agent-proof-guidance.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/handoff-state.js",
+        "packages/items/src/logic/handoff-state.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/ruling-owner.js",
+        "packages/items/src/logic/ruling-owner.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/submission-size.js",
+        "packages/items/src/logic/submission-size.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "src/submit-admission.js",
+        "packages/items/src/logic/submit-admission.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "verify",
+      "row": [
+        "src/proof-event-detail.js",
+        "packages/verify/src/core/proof-event-detail.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "src/board-link-format.js",
+        "packages/store/src/core/board-link-format.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "src/board-reference.js",
+        "packages/store/src/core/board-reference.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "src/relay-activation.js",
+        "packages/link/src/logic/relay/relay-activation.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "src/relay-canary-config.js",
+        "packages/link/src/logic/relay/relay-canary-config.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "outbox",
+      "row": [
+        "src/relay-sender.js",
+        "packages/outbox/src/logic/relay-sender.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/check-mask.js",
+        "packages/gate/src/logic/check-mask.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "src/runner-registration.js",
+        "packages/runners/src/logic/runner-registration.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-collection-report.js",
+        "packages/landing/src/logic/landing-collection-report.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/manual-landing-failure-quoted.js",
+        "packages/landing/src/logic/manual-landing-failure-quoted.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "moves",
+      "row": [
+        "src/move-implies.js",
+        "packages/moves/src/logic/move-implies.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:view",
+      "row": [
+        "src/view-port.js",
+        "apps/view/src/io/view-port.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/changelog.js",
+        "apps/cli/src/shell/changelog.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/first-refusal-window.js",
+        "apps/cli/src/logic/first-refusal-window.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/help-version.js",
+        "apps/cli/src/logic/help-version.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "src/machine-home.js",
+        "packages/config/src/io/machine-home.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "src/runner-recovery.js",
+        "packages/runners/src/io/runner-recovery.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:view",
+      "row": [
+        "src/needs.js",
+        "apps/view/src/logic/needs.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "api",
+      "row": [
+        "src/api-moves.js",
+        "packages/api/src/logic/api-moves.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-call-values.js",
+        "packages/gate/src/logic/browser-call-values.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-launch-source.js",
+        "packages/gate/src/logic/browser-launch-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-source-files.js",
+        "packages/gate/src/shell/browser-source-files.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "src/plan-merge-engine.js",
+        "packages/state/src/shell/plan-merge-engine.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-origin.js",
+        "apps/cli/src/shell/submit-handoff-origin.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-seal.js",
+        "apps/cli/src/shell/submit-handoff-seal.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/next-step-defaults.js",
+        "apps/cli/src/logic/next-step-defaults.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/landing-stage-composition.test.js",
+        "packages/gate/tests/landing-stage-composition.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/io/blueprint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/flow-report.test.js",
+        "packages/stats/tests/flow-report.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-actors.test.js",
+        "packages/stats/tests/stats-actors.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-flow.test.js",
+        "packages/stats/tests/stats-flow.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-compare.test.js",
+        "packages/stats/tests/stats-compare.test.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-build-time.test.js",
+        "packages/stats/tests/stats-build-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-time.test.js",
+        "packages/stats/tests/stats-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/config.test.js",
+        "packages/config/tests/config.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/lanes.test.js",
+        "packages/config/tests/lanes.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/registry.test.js",
+        "packages/config/tests/registry.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/bar-corrections.test.js",
+        "packages/state/tests/bar-corrections.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/decision-queue.test.js",
+        "packages/state/tests/decision-queue.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/file-growth-notice.test.js",
+        "packages/state/tests/file-growth-notice.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flakes-ledger.test.js",
+        "packages/state/tests/flakes-ledger.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flow-submit-size.test.js",
+        "packages/state/tests/flow-submit-size.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/implies.test.js",
+        "packages/state/tests/implies.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/item-hold.test.js",
+        "packages/state/tests/item-hold.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/landing-waiver-replay.test.js",
+        "packages/state/tests/landing-waiver-replay.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/machine-home.test.js",
+        "packages/state/tests/machine-home.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestone-limit.test.js",
+        "packages/state/tests/milestone-limit.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestones.test.js",
+        "packages/state/tests/milestones.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/registry-merge.test.js",
+        "packages/state/tests/registry-merge.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "test/runner-slots-measured.test.js",
+        "packages/runners/tests/runner-slots-measured.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/exit-rules.test.js",
+        "apps/cli/tests/exit-rules.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/worktree-maintenance-scheduler.test.js",
+        "apps/cli/tests/worktree-maintenance-scheduler.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-approval-delivery.test.js",
+        "packages/state/tests/relay-approval-delivery.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-key-file.test.js",
+        "packages/state/tests/relay-key-file.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/check-baseline-worker.test.js",
+        "packages/state/tests/logic/engines/check-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/engine-replay.test.js",
+        "packages/state/tests/io/engine/replay.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/exchange.test.js",
+        "packages/state/tests/logic/engines/grant-engine/exchange.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/merged.test.js",
+        "packages/state/tests/io/engine/merged.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-activation.test.js",
+        "packages/state/tests/logic/relay/activation.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-browser-fixture.test.js",
+        "packages/state/tests/logic/relay/activation/browser.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-client-fixture.test.js",
+        "packages/state/tests/logic/relay/activation/client.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/reopen.test.js",
+        "packages/state/tests/logic/engine/move/reopen.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/review-grant-replay.test.js",
+        "packages/state/tests/logic/engines/review-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/review-queue-replay.test.js",
+        "packages/state/tests/logic/engines/queue-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/settings.test.js",
+        "packages/state/tests/logic/engines/settings-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/team-engine.test.js",
+        "packages/state/tests/logic/engines/grant-engine/team.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/team-grants.test.js",
+        "packages/state/tests/logic/engines/grant-engine/grants.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/check-baseline-delivery.test.js",
+        "packages/gate/tests/io/check/baseline/delivery.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/check.test.js",
+        "packages/gate/tests/io/check/baseline.test.js",
+        "seed"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "path": "src/relay-checkpoint-worker.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/check-baseline.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/landing-candidate.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/main-audit.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/source-advance.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/pullboard.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/update-docs.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/cli-hook-work.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/static-style-checks.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/verify-release-receipt.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/automatic-landing.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/handoff-worker-dispatcher.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "cell": "app:cli"
+    }
+  ],
+  "engineStays": [
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/src/io/engine/metadata.js",
+        "packages/state/src/shell/engine-metadata.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/src/io/engine/numbers.js",
+        "packages/state/src/shell/engine-numbers.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/src/logic/move/constants.js",
+        "packages/state/src/core/move-engine-constants.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/152.json",
+        "packages/state/src/shell/move-history/152.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/legacy.json",
+        "packages/state/src/shell/move-history/legacy.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/153.json",
+        "packages/state/src/shell/move-history/153.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/154.json",
+        "packages/state/src/shell/move-history/154.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/155.json",
+        "packages/state/src/shell/move-history/155.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/156.json",
+        "packages/state/src/shell/move-history/156.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/157.json",
+        "packages/state/src/shell/move-history/157.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/158.json",
+        "packages/state/src/shell/move-history/158.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/159.json",
+        "packages/state/src/shell/move-history/159.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/160.json",
+        "packages/state/src/shell/move-history/160.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/161.json",
+        "packages/state/src/shell/move-history/161.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/162.json",
+        "packages/state/src/shell/move-history/162.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/163.json",
+        "packages/state/src/shell/move-history/163.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/164.json",
+        "packages/state/src/shell/move-history/164.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/165.json",
+        "packages/state/src/shell/move-history/165.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/166.json",
+        "packages/state/src/shell/move-history/166.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/167.json",
+        "packages/state/src/shell/move-history/167.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/168.json",
+        "packages/state/src/shell/move-history/168.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/169.json",
+        "packages/state/src/shell/move-history/169.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/170.json",
+        "packages/state/src/shell/move-history/170.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/171.json",
+        "packages/state/src/shell/move-history/171.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/172.json",
+        "packages/state/src/shell/move-history/172.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/173.json",
+        "packages/state/src/shell/move-history/173.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/174.json",
+        "packages/state/src/shell/move-history/174.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/175.json",
+        "packages/state/src/shell/move-history/175.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/176.json",
+        "packages/state/src/shell/move-history/176.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/177.json",
+        "packages/state/src/shell/move-history/177.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/178.json",
+        "packages/state/src/shell/move-history/178.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/179.json",
+        "packages/state/src/shell/move-history/179.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/180.json",
+        "packages/state/src/shell/move-history/180.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/181.json",
+        "packages/state/src/shell/move-history/181.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/182.json",
+        "packages/state/src/shell/move-history/182.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/183.json",
+        "packages/state/src/shell/move-history/183.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/184.json",
+        "packages/state/src/shell/move-history/184.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/185.json",
+        "packages/state/src/shell/move-history/185.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "packages/state/data/history/186.json",
+        "packages/state/src/shell/move-history/186.json",
+        "rule"
+      ]
+    }
+  ],
+  "allowedEdges": [
+    "apps/cli->apps/relay",
+    "apps/cli->state",
+    "apps/lib->apps/runner",
+    "apps/lib->transport",
+    "(root)->gate",
+    "(root)->seats",
+    "apps/cli->kernel",
+    "gate->jobs",
+    "drive->jobs",
+    "drive->kernel",
+    "resources->jobs",
+    "resources->git",
+    "codemap->git",
+    "codemap->kernel",
+    "gate->codemap",
+    "runners->config",
+    "runners->verify",
+    "landing->verify",
+    "verify->kernel",
+    "verify->state",
+    "runners->kernel",
+    "runners->resources",
+    "runners->transport",
+    "activity->store",
+    "(root)->apps/cli",
+    "(root)->apps/lib",
+    "(root)->apps/view",
+    "(root)->sandbox",
+    "apps/cli->doctrine",
+    "apps/cli->gate",
+    "apps/cli->seats",
+    "apps/cli->items",
+    "apps/cli->landing",
+    "apps/cli->apps/runner",
+    "apps/cli->apps/lib",
+    "apps/cli->pin",
+    "apps/cli->drive",
+    "api->git",
+    "api->store",
+    "apps/lib->store",
+    "apps/lib->apps/view",
+    "blueprints->store",
+    "doctrine->git",
+    "doctrine->store",
+    "doctrine->codemap",
+    "gate->store",
+    "gate->kernel",
+    "gate->git",
+    "gate->resources",
+    "gate->drive",
+    "gate->config",
+    "gate->seats",
+    "github->store",
+    "items->git",
+    "items->kernel",
+    "items->store",
+    "items->queue",
+    "queue->kernel",
+    "keys->store",
+    "landing->git",
+    "landing->pin",
+    "landing->store",
+    "landing->store/src",
+    "landing->resources",
+    "landing->runners",
+    "link->store",
+    "merge->git",
+    "outbox->store",
+    "pages->store",
+    "person->store",
+    "sandbox->store",
+    "seats->git",
+    "sentinels->store",
+    "sentinels->kernel",
+    "apps/cli->sentinels",
+    "apps/cli->config",
+    "apps/cli->resources",
+    "state->store",
+    "stats->store",
+    "stats->jobs",
+    "stats->resources",
+    "apps/cli->stats",
+    "apps/cli->queue",
+    "sync->store",
+    "apps/cli->kernel",
+    "apps/cli->git",
+    "apps/cli->codemap",
+    "health->state",
+    "moves->state",
+    "moves->doctrine",
+    "moves->gate",
+    "moves->git",
+    "moves->kernel",
+    "moves->person",
+    "moves->sandbox",
+    "moves->spec",
+    "moves->store",
+    "moves->verify",
+    "moves->health",
+    "moves->activity",
+    "moves->items",
+    "moves->seats",
+    "moves->landing",
+    "moves->roadmap",
+    "moves->config",
+    "moves->link",
+    "rigor->state",
+    "sandbox->state",
+    "sandbox->items",
+    "sandbox->config",
+    "sandbox->git",
+    "commits->kernel",
+    "sandbox->commits",
+    "rigor->store",
+    "(root)->store",
+    "spec->kernel",
+    "gate->spec",
+    "(root)->doctrine",
+    "(root)->codemap",
+    "(root)->landing",
+    "person->doctrine",
+    "blueprints->doctrine",
+    "health->doctrine",
+    "rigor->doctrine",
+    "runners->doctrine",
+    "apps/lib->doctrine",
+    "store->items",
+    "store->resources",
+    "store->git",
+    "store->jobs",
+    "github->items",
+    "link->kernel",
+    "apps/relay->link",
+    "apps/relay->kernel",
+    "apps/relay->apps/lib",
+    "apps/relay->outbox",
+    "apps/relay->keys",
+    "apps/relay->seats"
+  ]
+}

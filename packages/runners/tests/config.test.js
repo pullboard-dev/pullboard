@@ -22,12 +22,12 @@ test('parallel candidate landing is opt-in and accepts only boolean settings [B3
 test('the moved config command declarations retain their root and stay out of the real runner capsule [C7,O5]', () => {
   const root = dirname(fileURLToPath(new URL('../../../package.json', import.meta.url)));
   const capsule = runnerPackage(root);
-  assert.equal(capsule.entry, 'src/runner-worker.js');
-  // The declaration reader reads apps/cli/src/shell/command-docs at import, and that directory is not a shipped runner file.
-  for (const reader of ['packages/config/src/shell/command-declaration-read.js', 'packages/config/src/core/json.js', 'packages/config/index.js']) {
-    assert.ok(!Object.hasOwn(capsule.files, reader), `the worker closure must not import ${reader}; it would die reading apps/cli/src/shell/command-docs`);
+  assert.equal(capsule.entry, 'apps/runner/src/io/scripts/worker.js');
+  // The declaration reader reads apps/cli/src/io/command-docs at import, and that directory is not a shipped runner file.
+  for (const reader of ['packages/config/src/io/declaration.js', 'packages/config/src/logic/json.js', 'packages/config/index.js']) {
+    assert.ok(!Object.hasOwn(capsule.files, reader), `the worker closure must not import ${reader}; it would die reading apps/cli/src/io/command-docs`);
   }
-  assert.ok(Object.hasOwn(capsule.files, 'packages/config/src/shell/config.js'), 'the worker still reaches config through its shell module');
+  assert.ok(Object.hasOwn(capsule.files, 'packages/config/src/io/main.js'), 'the worker still reaches config through its shell module');
   assert.ok(Object.hasOwn(capsule.files, 'package.json'), 'the root anchor is a real shipped file');
   const explicit = commandDocs(root);
   assert.ok(explicit.length > 0, 'the actual independent command declarations are read');

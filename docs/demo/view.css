@@ -144,7 +144,7 @@ a.ghost { color: var(--ink); }
  * theme toggle in its own header; the sidebar, tabs and status line wait until there is a board to list. A note over
  * a list is one quiet card. Every big button, command box and "or" box is 60 px tall; the GitHub button is dark. */
 .open-board .shell, .hosted-page.boardless .shell { display: block; }
-/* A request waiting for the person on this device (relay/browser-devices.js #phone-approvals) is never hidden behind a screen. */
+/* A request waiting for the person on this device (apps/relay/src/io/deploy/browser-devices.js #phone-approvals) is never hidden behind a screen. */
 .open-board .side, .open-board .top, .open-board .status, .open-board main > :not(#local-note):not(#phone-approvals), .hosted-page.boardless .side { display: none !important; }
 .open-board main { padding: 0; }
 .open-board #local-note { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; min-height: 100dvh; }

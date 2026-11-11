@@ -1,0 +1,375 @@
+{
+  "docs/shots/capture-browser.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/watch/main.test.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/baseline/check.test.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/io/browser/admission/resources.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/journeys/red/main-red.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/confirmation.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/setup/once.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/agents/session.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/spec/changes.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/person/credential.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/runner/deadline.test.js": {
+    "sleep": 5
+  },
+  "apps/cli/journeys/submit/lease.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/approval.test.js": {
+    "sleep": 1
+  },
+  "apps/relay/tests/approval-revoke.test.js": {
+    "sleep": 1
+  },
+  "apps/relay/tests/relay-browser-fixture.test.js": {
+    "sleep": 2
+  },
+  "apps/relay/tests/relay-client-fixture.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/verify/check.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/shout/http.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/milestone/api.test.js": {
+    "poll": 1,
+    "sleep": 1
+  },
+  "apps/cli/journeys/view/background.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/queue/busy.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/fact/board/busy.test.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/parser.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/check-baseline.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/fixtures/clone.js": {
+    "sleep": 3
+  },
+  "apps/cli/tests/fixtures/chrome.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/io/clone.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/chrome/shutdown.js": {
+    "sleep": 1,
+    "poll": 1
+  },
+  "apps/cli/journeys/export/addresses.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/agents/main.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/hold/demo.test.js": {
+    "sleep": 0
+  },
+  "apps/cli/journeys/merged/dashboard.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/harness.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/shout/fixture.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/withdraw/items.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/journey/routes.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/init/origin.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/cockpit/perf/run.mjs": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/perf/speed.mjs": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/signin.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/shout/shouts.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/spec/cockpit.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/stable.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/stable.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/digest/main.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/e2e.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/view/e2e.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/runners.js": {
+    "sleep": 1,
+    "poll": 1
+  },
+  "apps/cli/journeys/flow/api.test.js": {
+    "sleep": 3
+  },
+  "packages/gate/tests/fixtures/p95.js": {
+    "poll": 1
+  },
+  "packages/gate/tests/io/main/admission.test.js": {
+    "sleep": 5
+  },
+  "apps/cli/journeys/gate/profile.test.js": {
+    "sleep": 4
+  },
+  "apps/cli/journeys/health/sentinel/background.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/hosted/browsers.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/hosted/shapes.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/shout/journeys.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/init/known/main/output.test.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/land/main.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/journeys/init/shards.test.js": {
+    "poll": 1,
+    "sleep": 4
+  },
+  "apps/cli/journeys/gate/landing/stop.test.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/io/watchdog.test.js": {
+    "poll": 1
+  },
+  "apps/cli/tests/fixtures/main/audit/cases.js": {
+    "poll": 1,
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/main/audit/project.js": {
+    "poll": 1,
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/main/moved.js": {
+    "poll": 1,
+    "sleep": 1
+  },
+  "apps/cli/journeys/lifecycle/merge.test.js": {
+    "poll": 1,
+    "sleep": 1
+  },
+  "apps/cli/journeys/gate/main-red-lock.test.js": {
+    "poll": 1,
+    "sleep": 1
+  },
+  "apps/cli/journeys/next/deadline.test.js": {
+    "sleep": 1
+  },
+  "packages/runners/tests/io/package/files.test.js": {
+    "poll": 3,
+    "sleep": 2
+  },
+  "apps/cli/journeys/tool-build/pinned.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/timeout.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/relay/agent.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/browser/client.test.js": {
+    "sleep": 2
+  },
+  "apps/relay/tests/logic/browser/stream.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/browser.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/journeys/relay/checkpoint.test.js": {
+    "sleep": 6
+  },
+  "apps/cli/tests/fixtures/relay/client.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/relay/deploy.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/local/first/key.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/local/first.test.js": {
+    "sleep": 2,
+    "poll": 1
+  },
+  "apps/cli/journeys/relay/pairing/options.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/relay-pairing.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/person/page.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/journeys/relay/heartbeat.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/setup.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/ssh.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/relay/studio.js": {
+    "sleep": 1
+  },
+  "apps/relay/tests/fixtures/study/browser.study.js": {
+    "sleep": 1
+  },
+  "packages/pages/tests/fixtures/study.js": {
+    "sleep": 1
+  },
+  "packages/gate/tests/fixtures/resources/verify.js": {
+    "sleep": 1
+  },
+  "packages/runners/tests/io/run/tests.test.js": {
+    "sleep": 14
+  },
+  "apps/cli/tests/fixtures/runner/browser/free.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/runner/capacity.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/runner/drain.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/runner/lost.js": {
+    "sleep": 1,
+    "poll": 1
+  },
+  "apps/cli/tests/fixtures/runner/orphan.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/runner/paired/rerun.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/runner/death.js": {
+    "sleep": 1,
+    "poll": 1
+  },
+  "apps/cli/tests/fixtures/runner/group.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/runner/ssh.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/runner/runners/isolation.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/scenarios/runners.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/runner/runners/cleanup.test.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/sentinels/main.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/journeys/ship/command.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/submit/compare.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/scenarios/team.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/view/port.test.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/webkit.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/worktree/maintenance/lifecycle.js": {
+    "poll": 2,
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/worktree/maintenance/scheduler.js": {
+    "poll": 2,
+    "sleep": 3
+  },
+  "apps/relay/tests/fixtures/relay-server-fixture.js": {
+    "sleep": 2
+  },
+  "apps/cli/tests/fixtures/gate/resource.js": {
+    "sleep": 3
+  },
+  "apps/cli/journeys/resources/main.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/tests/fixtures/resources/pool.js": {
+    "poll": 2,
+    "sleep": 5
+  },
+  "packages/runners/tests/io/run/tests/filexit.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/tests/fixtures/cockpit/lane.js": {
+    "sleep": 1
+  },
+  "apps/relay/tests/fixtures/relay-phone-fixture.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/relay/main-pairing.test.js": {
+    "sleep": 2
+  }
+}

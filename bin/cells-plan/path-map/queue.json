@@ -1,5 +1,0 @@
-{
-  "src/queue-order.js": "packages/queue/src/core/queue-order.js",
-  "src/queue-settings.js": "packages/queue/src/shell/queue-settings.js",
-  "src/routing-capacity.js": "packages/queue/src/core/routing-capacity.js"
-}

@@ -4,9 +4,9 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cellProject } from '../../../../test/cell-fixture.js';
-import { closeCellBoard } from '../../../../test/cell-fixture.js';
-import { openCellBoard } from '../../../../test/cell-fixture.js';
+import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
 import { relayServerFixture } from './relay-server-fixture.js';
 import { relayIo } from '../../../../packages/link/index.js';
 import { relayOn } from '../../../../packages/link/index.js';
@@ -29,7 +29,7 @@ import { scheduleCheckpoint } from '../../../../packages/outbox/index.js';
 import { uncertainUploadFailure } from '../../../../packages/outbox/index.js';
 import { withOutboxGuard } from '../../../../packages/outbox/index.js';
 
-const CHECKPOINT_WORKER = fileURLToPath(new URL('../../../lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
+const CHECKPOINT_WORKER = fileURLToPath(new URL('../../../lib/src/io/worker/checkpoint/relay.js', import.meta.url));
 const ENVIRONMENT = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN'];
 
 /**
@@ -37,9 +37,10 @@ const ENVIRONMENT = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_RELA
  * that signs in and links the board through relayOn. The process environment points at the project's private homes until the test ends.
  *
  * @param {import('node:test').TestContext} t
+ * @param {{ pollMs?: number, accountStorageBytes?: number, host?: string }} [options] - Passed to the relay fixture.
  * @returns {Promise<{ root: string, boardFile: string, origin: string, server: object, io: object, link: (name?: string) => Promise<object>, readLink: () => object, readKey: () => string }>}
  */
-export async function relayDirectFixture(t) {
+export async function relayDirectFixture(t, options = {}) {
   const project = cellProject(t);
   const root = project.repo;
   assert.equal(project.tryGit(root, 'remote', 'add', 'origin', 'git@github.com:fixture/repository.git').status, 0, 'the project names the repository the relay knows');
@@ -47,7 +48,7 @@ export async function relayDirectFixture(t) {
   for (const name of ENVIRONMENT) delete process.env[name];
   Object.assign(process.env, { PULLBOARD_HOME: project.env.PULLBOARD_HOME, PULLBOARD_MACHINE_HOME: project.env.PULLBOARD_MACHINE_HOME });
   t.after(() => { for (const [name, value] of Object.entries(saved)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; } });
-  const server = await relayServerFixture(t, { scratch: project.dir });
+  const server = await relayServerFixture(t, { ...options, scratch: project.dir });
   const io = relayIo({
     personChannel: 'view', openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure,
     decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck,
@@ -60,7 +61,7 @@ export async function relayDirectFixture(t) {
   const readLink = () => JSON.parse(readFileSync(linkFile, 'utf8'));
   const keyFile = id => join(project.env.PULLBOARD_HOME, 'relay-keys', id + '.key');
   return {
-    root, boardFile: project.boardFile, origin: server.origin, server, io, linkFile, readLink,
+    ...server, root, boardFile: project.boardFile, server, io, linkFile, readLink,
     readKey() { const id = readLink().board; assert.ok(existsSync(keyFile(id)), 'the device key is saved'); return readFileSync(keyFile(id), 'utf8').trim(); },
     /** Sign in through the relay's device flow and link the board, with no CLI. */
     link(name) { return relayOn(root, server.origin, io, { quiet: true, ...(name === undefined ? {} : { name }) }); },

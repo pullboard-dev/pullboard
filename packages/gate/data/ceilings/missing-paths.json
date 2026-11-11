@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "total": 7,
+  "files": {
+    "apps/cli/journeys/fact/checks.test.js": 1,
+    "apps/cli/journeys/gate/workflows.test.js": 1,
+    "apps/cli/journeys/help/main.test.js": 1,
+    "apps/cli/journeys/verify/store-bodies.test.js": 2,
+    "packages/doctrine/tests/package.test.js": 1,
+    "packages/runners/src/io/source/scan.js": 1
+  }
+}

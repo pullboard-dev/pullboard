@@ -1,0 +1,190 @@
+{
+  "version": 2,
+  "metrics": {
+    "boundaries": {
+      "count": 7247,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-001.json",
+          "sha256": "76098067ea87af4d8253a77d6c12a15c54eed42604833861d0d3e0ff8e243a42"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-002.json",
+          "sha256": "8dfebb2ab249ffae404107ff816bd009867266e183a1e980c89a252ad4af81d8"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-003.json",
+          "sha256": "0e42a67f02830c6da48eeca50a3aa438a01feb9c5367c56a34679163f348f297"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-004.json",
+          "sha256": "cd40557c2e4ba8a6e4f236376f9208f43ce6c359dbaffbbf9ddcd806225dcd39"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-005.json",
+          "sha256": "248047285a618c51288aeba225016c2738269e424bdd2cf6321b702254a30ed8"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-006.json",
+          "sha256": "fc59f98f7b896927b52f568539b4b2bd02defff77764924e740c9fe4a77f9452"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-007.json",
+          "sha256": "a7743aac0bd676eaf32f809cf33391605c5f3f1b60c09825f0c102a58d48e3bb"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-008.json",
+          "sha256": "16f5b1c892b6a7f46e4a2e0ad630e5eb03bd1f2449a209cd9352dc55c0a5af7e"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-009.json",
+          "sha256": "db7f6bf11176bc2932b60d91497bbf72daf0f4f6b3d1254710f997711c28cfb3"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-010.json",
+          "sha256": "1aee14885743f6e01bb164197e19d2f242bb0747698a343a35e4f3bbbbb28cd9"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-011.json",
+          "sha256": "6d77abc9006740414c4ede3d8f25d1b0f95750beed91c2951510a45e3576bef4"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-012.json",
+          "sha256": "f3562f525dda852e28a0bdf8415acf8e4adb7251693e248837a6a3f7383de702"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-013.json",
+          "sha256": "222cf96cc94568c2bbf47cf875245e5c815df3845ec8a2a9a06e14728b663279"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-014.json",
+          "sha256": "cb0698240ffaad41818157eab056bb5b7c1ab3da49e1ad44e99b0cb96f3ff30b"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-015.json",
+          "sha256": "04ab88e9f5d4a1fdd2a9219cc3be2100234544f9be47f9c010b276e4362b2cb3"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-016.json",
+          "sha256": "96c475f4389f5d745f0b65dbfb2e5e32890dd1ee9a7b22b30838df253bb7f825"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-017.json",
+          "sha256": "eff3d1cafff27eaa9775c7cc11d152de6355c35470365f628d1f3d190468eb73"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-018.json",
+          "sha256": "1bea9994a163b5fdafa553d65ea75cc8ea08a67063fda2c1b78572bddaf671ee"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/boundaries-019.json",
+          "sha256": "b2b03d43f0c231a301d5f0a332e7130f9b934cf50cbfdd746381bdf92ec8aab6"
+        }
+      ]
+    },
+    "cycles": {
+      "count": 0,
+      "shards": []
+    },
+    "shims": {
+      "count": 16,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/shims-001.json",
+          "sha256": "dff37b017f3dd5ac335a6809a78758d49cd2d654416498ec515dfc724f91e4ca"
+        }
+      ]
+    },
+    "legacySource": {
+      "count": 1033,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/legacySource-001.json",
+          "sha256": "1b73582221bbea54abaabcc091c23232c177c9396fe425a0e0249dff598230d9"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/legacySource-002.json",
+          "sha256": "2d9ea3221cdc78233420e402f488b25481e6904f2b1cc82a7cd51fda56a496be"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/legacySource-003.json",
+          "sha256": "ab0dde1cc8af65e67f575151ba9cc4615d714e3d40c3f8c3f62d538654b61851"
+        }
+      ]
+    },
+    "fileSize": {
+      "count": 66395,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/fileSize-001.json",
+          "sha256": "58f8055e8fa4ec4ea9103d1f441cc5b1cdf3ef57a36a857cddcea47c445dd536"
+        }
+      ]
+    },
+    "strays": {
+      "count": 901,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/strays-001.json",
+          "sha256": "1521acc858156c21904da04ae45916fa4f055abd5ae2cc97f0326a1e8c33b36c"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/strays-002.json",
+          "sha256": "750f5fc7705f5da44c093878f8de361173b31c2827e7cca012308b81c232d06f"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/strays-003.json",
+          "sha256": "9517c2cd08937f0eb1b9ab851c0a68c4cf70ed99c8212304bfbbfee9f41c6e6b"
+        }
+      ]
+    },
+    "documents": {
+      "count": 0,
+      "shards": []
+    },
+    "unreachable": {
+      "count": 383,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/unreachable-001.json",
+          "sha256": "2b9f186dec4ca878062f1da6c4af438212172937dedd31498de96665bd80d177"
+        }
+      ]
+    },
+    "unreachablePackages": {
+      "count": 2,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/unreachablePackages-001.json",
+          "sha256": "979a3895238d2b9a43b8f7f587f57b69fb89e7591e0368698d8d590a6c01ba21"
+        }
+      ]
+    },
+    "unreachableExports": {
+      "count": 1176,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/unreachableExports-001.json",
+          "sha256": "dbb640457700d9900435e8d37fd0e3523b43d5b98026918872eda11a87296dad"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/unreachableExports-002.json",
+          "sha256": "f872a1bc5c31ea0884da707c0fe227ae48330b6c5f7d787dd65e5582406cf08a"
+        },
+        {
+          "file": "packages/codemap/data/baselines/lints/unreachableExports-003.json",
+          "sha256": "de47888a2562e57c96fe6448b938d489df1a646b7e792b7ed8ecbe884ef9ffd1"
+        }
+      ]
+    },
+    "unknown": {
+      "count": 162,
+      "shards": [
+        {
+          "file": "packages/codemap/data/baselines/lints/unknown-001.json",
+          "sha256": "7ca2045652db3e84fde7decd5ab0f1950ebc14e5120dd193c993cafdbf7ad2e5"
+        }
+      ]
+    }
+  }
+}

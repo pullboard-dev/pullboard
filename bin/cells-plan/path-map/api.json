@@ -1,6 +1,0 @@
-{
-  "src/api-delta-fields.js": "packages/api/src/core/api-delta-fields.js",
-  "src/api-http.js": "packages/api/src/shell/api-http.js",
-  "src/api.js": "packages/api/src/shell/api.js",
-  "test/shout-item-cli.test.js": "packages/api/tests/shout-item-cli.test.js"
-}

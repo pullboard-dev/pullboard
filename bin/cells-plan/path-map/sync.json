@@ -1,6 +1,0 @@
-{
-  "src/local-fetch.js": "packages/sync/src/shell/local-fetch.js",
-  "src/sync.js": "packages/sync/src/shell/sync.js",
-  "test/local-fetch.test.js": "packages/sync/tests/local-fetch.test.js",
-  "src/git-sync-repair.js": "packages/sync/src/shell/git-sync-repair.js"
-}

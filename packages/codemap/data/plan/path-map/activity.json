@@ -1,0 +1,7 @@
+{
+  "src/activity-delivery-cli.js": "packages/activity/src/io/delivery/cli.js",
+  "src/activity-delivery-read.js": "packages/activity/src/logic/delivery/read.js",
+  "src/activity-delivery.js": "packages/activity/src/logic/delivery.js",
+  "src/activity-inbox.js": "packages/activity/src/io/inbox.js",
+  "src/inbox-budget.js": "packages/activity/src/logic/budget.js"
+}
