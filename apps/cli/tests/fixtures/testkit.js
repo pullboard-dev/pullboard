@@ -16,8 +16,9 @@ import {
   runFixtureGit,
 } from './child.js';
 
-/** The model name fixture seats join with when a test passes `--model` itself. */
-export const FIXTURE_MODEL = 'Fixture Model';
+export { FIXTURE_MODEL } from './child.js';
+/** The model name fixture seats join with when a test passes `--model` itself: see FIXTURE_MODEL in child.js. */
+import { FIXTURE_MODEL } from './child.js';
 /** A second model name, so a later seat must register against the earlier one. */
 export const FIXTURE_MODEL_EARLIER = 'Earlier Fixture Model';
 
