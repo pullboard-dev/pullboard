@@ -59,7 +59,7 @@ let toolingTree;
  * The tree of the committed tooling this process runs, or null when it runs from no export. Why: a cached scan verdict
  * holds only for the rules that made it, and an export's tree names those rules exactly.
  */
-function scannerTree() {
+export function scannerTree() {
   if (toolingTree === undefined) {
     try { toolingTree = JSON.parse(readFileSync(TOOLING_MANIFEST, 'utf8')).tree; } catch { toolingTree = null; }
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(toolingTree ?? '')) toolingTree = null;
