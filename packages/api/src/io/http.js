@@ -264,7 +264,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
@@ -410,6 +410,11 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       if (req.method === 'POST' && route[2] === 'moves') {
         const moved = await adapter.move(board, await readBody(req), who);
         return json(res, moved.status, moved.body);
+      }
+      if (route[2] === 'jobs') {
+        // The runner job queue: a runner claims by capability, renews its lease and posts its receipt, all by POST [P7].
+        if (req.method !== 'POST' || typeof adapter.jobs !== 'function') throw new Refused('JOBS_NOT_AVAILABLE', 'POST one job queue call (claim, renew, release or receipt) to a board that serves its runner job queue');
+        return json(res, 200, await adapter.jobs(board, await readBody(req), who));
       }
       if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, await adapter.request(board, await readBody(req), who));
       return json(res, 400, refusal(new Refused('BAD_REQUEST', 'use GET for reads and POST for moves and requests')));

@@ -36,6 +36,27 @@ function validateBudget(budget, file) {
   }
 }
 
+/**
+ * Where `pullboard serve` listens: a literal IPv4 address of one of this machine's interfaces and a port. Off the
+ * loopback address the API needs the machine's board key, so runners on the network can pull jobs [P7,O5].
+ *
+ * @param {unknown} serve the serve value from the machine settings file
+ * @param {string} file the settings file named in any refusal
+ */
+export function validateServe(serve, file) {
+  if (serve === undefined) return;
+  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address and port; remove it to serve on loopback`);
+  }
+  const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
+  if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.1.98; remove it to serve on loopback`);
+  }
+  if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
+  }
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
@@ -76,6 +97,9 @@ export function loadMachineSettings() {
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
   }
+  if (value.gate?.submitAuthorization !== undefined && !['runner', 'local'].includes(value.gate.submitAuthorization)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.submitAuthorization in ${file} must be "runner" or "local"`);
+  }
   if (value.gate?.mainComparison !== undefined && !['on-red', 'off'].includes(value.gate.mainComparison)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.mainComparison in ${file} must be "on-red" or "off"`);
   }
@@ -86,6 +110,7 @@ export function loadMachineSettings() {
   if (value.inspection?.clauses !== undefined && typeof value.inspection.clauses !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `inspection.clauses in ${file} must be true or false`);
   }
+  validateServe(value.serve, file);
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
   validateBudget(value.budget, file);

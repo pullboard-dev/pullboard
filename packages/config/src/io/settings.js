@@ -1,11 +1,15 @@
 /** Machine-wide settings shared by every Pullboard checkout on this machine. */
 import {
+  chmodSync,
   mkdirSync,
+  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import {
   setResourceCapacity,
@@ -13,6 +17,7 @@ import {
 } from '../../../resources/index.js';
 import { validateRunner } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { validateServe } from '../logic/settings.js';
 export { loadMachineSettings };
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -26,6 +31,7 @@ import {
   readMachineSettingsFile,
 } from '../../../queue/index.js';
 import { machineSettingsFile } from '../../../resources/index.js';
+import { machineHome } from '../../../resources/index.js';
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };
@@ -133,11 +139,33 @@ export function mainComparisonMode() {
 }
 
 /**
+ * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
+ * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
+ * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
+ */
+export function submitAuthorizationMode() {
+  return loadMachineSettings().gate?.submitAuthorization === 'local' ? 'local' : 'runner';
+}
+
+/**
  * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
  * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
  */
 export function runnerDispatchMode() {
   return loadMachineSettings().gate?.runnerDispatch === 'pull' ? 'pull' : 'controller';
+}
+
+/**
+ * Where `pullboard serve` listens, from the machine's `serve` setting: loopback and a free port unless set; a flag
+ * given for either overrides the setting and is checked by the same rule [P7,O5,O6].
+ * @param {{ address?: string, port?: number }} [flags]
+ * @returns {{ address: string, port: number }}
+ */
+export function serveListen(flags = {}) {
+  const given = Object.fromEntries(Object.entries(flags).filter(([, value]) => value !== undefined));
+  validateServe(given, 'the command line');
+  const serve = loadMachineSettings().serve;
+  return { address: given.address ?? serve?.address ?? '127.0.0.1', port: given.port ?? serve?.port ?? 0 };
 }
 
 /**
@@ -368,4 +396,31 @@ export function removeRunner(host) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { drain: true });
+}
+
+/** Where the machine keeps its board key, the secret runners send when `pullboard serve` listens off loopback [P7,O5]. */
+export function boardKeyFile() {
+  return join(machineHome(), 'board.key');
+}
+
+/**
+ * Read this machine's board key, creating it on first use.
+ * Why a file and not a fresh secret per start: an installed runner keeps the board URL and key across board restarts.
+ *
+ * @returns {string}
+ */
+export function boardKey() {
+  const file = boardKeyFile();
+  let key;
+  try { key = readFileSync(file, 'utf8').trim(); }
+  catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    mkdirSync(machineHome(), { recursive: true, mode: 0o700 });
+    try { writeFileSync(file, `${randomBytes(24).toString('base64url')}\n`, { mode: 0o600, flag: 'wx' }); }
+    catch (raced) { if (raced.code !== 'EEXIST') throw raced; }
+    key = readFileSync(file, 'utf8').trim();
+  }
+  chmodSync(file, 0o600);
+  if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
+  return key;
 }
