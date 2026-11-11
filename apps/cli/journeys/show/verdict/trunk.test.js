@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A verdict survives a main move that touches nothing the review depends on (#928) [V4,C7]. */
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -68,6 +69,10 @@ test('page is built', () => {
   box.git(box.web, 'add', 'web/lib.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
   json(box.run(box.web, 'submit', '1', '--json'));
+  // A landing between submit and review changes the runner the check names, so the sealed submit proof is not reused and the frozen check runs here.
+  appendFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), '// an earlier landing\n');
+  box.git(box.repo, 'add', 'packages/gate/src/io/run/tests.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   json(fixtureJoin(box.run, reviewer, 'api', '--json'));
