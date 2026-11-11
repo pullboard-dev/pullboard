@@ -48,12 +48,12 @@ function fixture() {
   const toolRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   const scanner = testClosures(toolRoot).closures.get('packages/gate/tests/io/board/baseline/guard.test.js');
   assert.ok(scanner?.files, scanner?.reason || 'the actual board-file scanner needs a complete committed closure');
-  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/')) });
+  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/') && file !== 'packages/gate/tests/io/board/baseline/guard.test.js') });
   put(box.repo, 'packages/gate/tests/io/board/baseline/guard.test.js', [
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
-    "import { boardFileProblems } from '../../../../../packages/gate/src/io/board/files.js';",
+    "import { boardFileProblems } from '../../../../../../packages/gate/src/io/board/files.js';",
     "test('no growing file-board debt [G1]', () => {",
     '  const problems = boardFileProblems(process.cwd(), {});',
     "  assert.deepEqual(problems, [], problems.map(p => `${p.path}:${p.line}: ${p.text}`).join('\\n'));",

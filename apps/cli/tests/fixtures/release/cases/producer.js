@@ -78,7 +78,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   const home = join(dir, 'home'), machine = join(home, '.pullboard');
   for (const path of [box.repo, box.bin, box.marks, machine, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    gate: { browserByLaunch: true, browserFreeChecks: true } }));
+    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false } }));
   for (let i = 0; i < hosts; i++) {
     const host = `synthetic-release-host-${i + 1}`;
     const worker = { home: join(dir, host, 'home'), machine: join(dir, host, 'home', '.pullboard'), root: join(dir, host, 'worker') };
@@ -96,12 +96,12 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   // Installed tooling is complete, but its vendor documentation tests are not this project's eight cases.
   box.tool = join(box.repo, '.tooling');
   const shipped = copyPackageFiles(SOURCE, box.tool);
-  mkdirSync(join(box.repo, 'bin'));
-  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), `/** @pullboard-module-loads .tooling/bin/run-tests.js */
+  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), `/** @pullboard-module-loads .tooling/packages/gate/src/io/run/tests.js */
 /** Invoke the real installed dispatcher without replacing its arguments, output or verdict. */
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-const entry=fileURLToPath(new URL('../.tooling/bin/run-tests.js',import.meta.url));
+const entry=fileURLToPath(new URL('../../../../../.tooling/packages/gate/src/io/run/tests.js',import.meta.url));
 const child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});
 if(child.error)throw child.error;
 if(child.signal)process.kill(process.pid,child.signal);
@@ -132,7 +132,7 @@ import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gate/index.js';
-import {runnerExecutionServices} from './.tooling/src/runners.js';
+import {runnerExecutionServices} from './.tooling/packages/runners/index.js';
 import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/packages/gate/index.js';

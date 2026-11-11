@@ -14,6 +14,7 @@ import {
   resolve,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { blobOid } from '../static/cache.js';
 import {
   cellOf,
   importSpecifiers,
@@ -55,9 +56,9 @@ export function installsHooks(source) {
  * launches nothing [C7].
  */
 export function spawnsCli(source) {
-  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*bin\/pullboard\.js/gu)].map(m => m[1]);
+  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*(?:bin|apps\/cli)\/pullboard\.js/gu)].map(m => m[1]);
   for (const call of source.matchAll(SPAWN)) {
-    if (/bin\/pullboard\.js/u.test(call[1])) return true;
+    if (/(?:bin|apps\/cli)\/pullboard\.js/u.test(call[1])) return true;
     if (paths.some(name => new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u').test(call[1]))) return true;
   }
   return false;
@@ -174,25 +175,44 @@ export function cellTestReading(file, source, { pureHelpers = [], leaves = [], o
  *
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function impurePureHelpers(root, listing) {
+export function impurePureHelpers(root, listing, { cache = null } = {}) {
   const problems = [];
+  const facts = importFacts(root, cache);
   for (const path of Object.keys(pureHelperMap(listing.pureHelpers)).sort()) {
     if (!existsSync(resolve(root, path))) { problems.push({ path: LISTING, line: 1, text: `listed pure helper ${path} does not exist` }); continue; }
-    const reason = impurity(root, path);
+    const reason = impurity(root, path, facts);
     if (reason) problems.push({ path, line: 1, text: `listed as a pure helper but ${reason}` });
   }
   return problems;
 }
 
+/**
+ * What the helper walk needs of one file: its relative import specifiers and whether it launches the CLI or installs hooks.
+ * Read once per run, and kept by blob oid in `cache` when one is given, so the closure walk lexes only changed files [5564].
+ *
+ * @returns {(file: string) => { specifiers: string[], launches: boolean }}
+ */
+function importFacts(root, cache) {
+  const memo = new Map();
+  return file => {
+    if (!memo.has(file)) {
+      const source = readFileSync(resolve(root, file), 'utf8');
+      const read = () => ({ specifiers: importSpecifiers(source).map(row => row.specifier), launches: spawnsCli(source) || installsHooks(source) });
+      memo.set(file, cache ? cache.get(file, blobOid(source), read) : read());
+    }
+    return memo.get(file);
+  };
+}
+
 /** Why one helper is not pure, walking its full relative import closure, or null when it is. */
-function impurity(root, path) {
+function impurity(root, path, facts) {
   const seen = new Set([path]), queue = [path];
   for (let at = 0; at < queue.length; at++) {
     const file = queue[at];
     if (file !== path && CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
-    const source = readFileSync(resolve(root, file), 'utf8');
-    if (file.startsWith('test/') && (spawnsCli(source) || installsHooks(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
-    for (const { specifier } of importSpecifiers(source)) {
+    const { specifiers, launches } = facts(file);
+    if (file.startsWith('test/') && launches) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    for (const specifier of specifiers) {
       const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
     }
@@ -321,7 +341,7 @@ export function testCellsProblems(root, options = {}) {
   const current = testCellsReport(root, { ...options, listing });
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
-  problems.push(...impurePureHelpers(root, listing));
+  problems.push(...impurePureHelpers(root, listing, { cache: options.cache }));
   problems.push(...splitProblems(root, listing.splits));
   for (const row of current.rows.filter(entry => entry.kind === 'finding' && !listedFinding(listing, entry.file))) {
     for (const problem of row.problems) add(row.file, problem.line, `new test finding exceeds the ratchet: ${problem.text}`);

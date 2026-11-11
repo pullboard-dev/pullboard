@@ -36,7 +36,7 @@ test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]
   const joinFamily = (name, session, family = 'Haiku') => {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    const seat = box.json(box.runAs(session, root, 'join', 'web', '--family', family, '--model', family, '--json'));
+    const seat = box.json(box.runAs(session, root, 'join', 'web', '--family', family, '--model', family, '--route', 'strong', '--json'));
     return { ...seat, root };
   };
   const author = joinFamily('haiku-author', 'haiku-author-session');
@@ -47,6 +47,7 @@ test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]
   const build = box.add('web', 'Buildable work for the Haiku seat');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     store.claim(board, review, { agentId: author.agent, lane: 'web', leaseMs: HOUR, freeze: FREEZE });
@@ -58,7 +59,7 @@ test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]
   assert.equal(first.item.item_id, build, 'next moves on to buildable work');
   assert.notEqual(first.item.item_id, review);
 
-  const second = box.runAs('haiku-peer-session', peer.root, 'next', '--json');
+  const second = box.runAs('haiku-peer-session', peer.root, 'next', '--take', '--json');
   assert.notEqual(second.code, 0, 'a second ineligible seat has no work after the build claim');
   const refusal = JSON.parse(second.out).error;
   assert.equal(refusal.code, 'NOTHING_FREE');

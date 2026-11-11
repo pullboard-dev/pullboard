@@ -179,7 +179,7 @@ function freeBrowserSlots(db, runners, gui) {
 /**
  * The admission options for one more runner slot for the proof queue: runner-only, its own admission deadline, and a
  * wait callback only to end the request once the queue has closed. Why its own deadline: the shard inherited the
- * submit's captured runnerDeadlineAt (30 min on the MacBook), so a shard with no slot waited out the whole submit budget
+ * submit's captured runnerDeadlineAt (30 min on the laptop), so a shard with no slot waited out the whole submit budget
  * instead of SHARD_ADMIT_MS, while the gate's own shards held the browser slots it waited for (#3586, 7 Nov). Ending in
  * RUNNER_WAIT_DEADLINE only sends the request round to ask again; its batches stay on the queue for any lane.
  *

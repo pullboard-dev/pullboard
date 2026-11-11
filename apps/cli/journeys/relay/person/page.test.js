@@ -27,6 +27,8 @@ import {
   emptyPhoneFixture,
   emptyPhoneScreen,
 } from '../../../tests/fixtures/relay/phone.js';
+import { tapTouch } from '../../../tests/fixtures/cockpit/stable.js';
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
 const chromeOptions = { skip: !findChromeExecutable() && 'Chrome is not installed' };
 
@@ -142,7 +144,7 @@ async function phoneSetupState(read, message) {
 
 test('a phone with no readable board can tap its pending link and open that board [N26,H5,H17]', chromeOptions, async t => {
   const box = await relayClientFixture(t);
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   // Set the input device before navigation; resizing a page after its desktop startup cannot prove the phone path.
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
@@ -199,7 +201,7 @@ window.fetch = async (input, options) => {
   await chrome.navigate(box.origin);
   await chrome.waitFor(`document.querySelector(${JSON.stringify(selector)}) !== null && Array.isArray(data?.projects)`);
   await chrome.waitFor(settled(selector));
-  const before = await chrome.evaluate(`(() => {
+  const before = await chrome.stable(`(() => {
     const button = document.querySelector(${JSON.stringify(selector)});
     const rect = button.getBoundingClientRect();
     return { phone: document.documentElement.dataset.relayDevice, screen: document.documentElement.dataset.relayScreen,
@@ -210,21 +212,22 @@ window.fetch = async (input, options) => {
   assert.equal(before.listed, 0, 'no readable board can dismiss the first screen');
   assert.equal(run.child.exitCode, null, 'the native foreground command is still waiting for the person');
   assert.equal(before.shown, true, 'the pending native approval must be visible, not merely present under the hidden board shell');
-  await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
+  await chrome.stable(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
   await chrome.waitFor(settled(selector));
-  const point = await chrome.evaluate(`(() => {
+  const point = await chrome.stable(`(() => {
     const button = document.querySelector(${JSON.stringify(selector)}); const rect = button.getBoundingClientRect();
     const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
     return { x, y, hit: button.contains(document.elementFromPoint(x, y)) };
   })()`);
   assert.equal(point.hit, true, 'the actual input target is the approval button');
   const authorizations = box.calls.filter(call => call.path.endsWith('/authorize')).length;
-  await chrome.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: point.x, y: point.y }] }, 'touch the visible native approval');
-  await chrome.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }, 'release the single approval tap');
+  await tapTouch(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   const linked = await run.closed;
   assert.equal(linked.code, 0, 'the same foreground command finishes after one real phone tap');
+  await chrome.waitFor(`data?.root === ${JSON.stringify(proposal.context.board)} && !!document.querySelector('[data-tab=items]')`);
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor(`document.body.innerText.includes(${JSON.stringify(marker)}) && data?.root === ${JSON.stringify(proposal.context.board)}`);
-  assert.equal(await chrome.evaluate('document.documentElement.dataset.relayScreen ?? null'), null, 'the readable board replaces the first screen');
+  assert.equal(await chrome.stable('document.documentElement.dataset.relayScreen ?? null'), null, 'the readable board replaces the first screen');
   assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizations, 1, 'one tap authorizes exactly once');
 });
 
@@ -235,7 +238,7 @@ test('a phone draws its saved board while the approvals read never answers [N26,
   await box.link();
   const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -263,23 +266,22 @@ window.fetch = (input, options) => {
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.readyState === 'complete'");
   await chrome.waitFor("!!document.querySelector('[data-tab=items]')");
-  await chrome.evaluate("document.querySelector('[data-tab=items]').click(); true");
-  const panelOwnership = await chrome.send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: `(async () => {
+  await chrome.click("document.querySelector('[data-tab=items]')");
+  const panelOwnership = await chrome.stable(`(async () => {
     const { phoneApprovalStatus, placePhoneApprovals, forgetPhoneApprovals } = await import('/relay/browser-approval-card.js');
     const doc = document.implementation.createHTMLDocument('Private approval ownership');
     doc.body.innerHTML = '<main></main>';
     const panel = phoneApprovalStatus(doc, 'Private pending request');
     const button = doc.createElement('button'); let clicks = 0; button.onclick = () => clicks++; panel.append(button);
     doc.querySelector('main').replaceChildren(doc.createElement('section'));
-    const restored = placePhoneApprovals(doc); button.click();
+    const restored = placePhoneApprovals(doc); button.dispatchEvent(new MouseEvent('click'));
     const retained = restored === panel && doc.querySelector('main').contains(panel) && clicks === 1;
     forgetPhoneApprovals(doc);
     return { retained, released: panel.childNodes.length === 0 && placePhoneApprovals(doc) === null };
-  })()` });
-  assert.equal(Boolean(panelOwnership.exceptionDetails), false, 'the real approval component executes');
-  assert.deepEqual(panelOwnership.result?.value, { retained: true, released: true }, 'board redraw retains live handlers; access loss releases them');
+  })()`);
+  assert.deepEqual(panelOwnership, { retained: true, released: true }, 'board redraw retains live handlers; access loss releases them');
   // Seed a real non-extractable browser key without exporting it; the authenticated saved board is already readable.
-  const seeded = await chrome.send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: `(async () => {
+  const seeded = await chrome.stable(`(async () => {
     const { createDeviceKeys } = await import('/relay/device-keys.js');
     const { ENGINE_VERSION } = await import('/relay/engine.js');
     const identity = await (await fetch('/api/v1/devices/session', { headers: { 'x-pullboard-engine': String(ENGINE_VERSION) } })).json();
@@ -294,25 +296,24 @@ window.fetch = (input, options) => {
       transaction.oncomplete = resolve; transaction.onerror = transaction.onabort = () => reject(transaction.error);
     }); } finally { db.close(); }
     return true;
-  })()` });
-  assert.equal(Boolean(seeded.exceptionDetails), false, 'the synthetic private browser device is retained');
-  assert.equal(seeded.result?.value, true);
+  })()`);
+  assert.equal(seeded, true, 'the synthetic private browser device is retained');
   await chrome.navigate('about:blank');
   await chrome.navigate(box.origin);
   await chrome.waitFor('window.approvalsPending899 === true');
   await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(marker)}) && document.documentElement.dataset.relayScreen === undefined && document.body.innerText.includes('Checking requests from your computer')`, 3000, // budget: declared #899 three-second ceiling while the late request never answers.
     'readable board and pending guidance render while approvals remain pending');
-  assert.equal(await chrome.evaluate('window.approvalsPending899 === true'), true);
-  assert.ok((await chrome.evaluate('document.body.innerText')).includes(marker));
-  assert.ok((await chrome.evaluate('document.body.innerText')).includes('Checking requests from your computer'),
+  assert.equal(await chrome.stable('window.approvalsPending899 === true'), true);
+  assert.ok((await chrome.stable('document.body.innerText')).includes(marker));
+  assert.ok((await chrome.stable('document.body.innerText')).includes('Checking requests from your computer'),
     'the pending background read has visible guidance alongside the board');
   await chrome.waitFor("document.body.innerText.includes('Requests from your computer did not load')", 20_000, // budget: product fifteen-second I/O ceiling plus five seconds for native fixture scheduling.
     'an uncooperative request still reports its deadline');
-  assert.ok((await chrome.evaluate('document.body.innerText')).includes(marker), 'the board survives the background failure');
-  await chrome.evaluate('window.approvalsRecovered899 = true');
+  assert.ok((await chrome.stable('document.body.innerText')).includes(marker), 'the board survives the background failure');
+  await chrome.stable('window.approvalsRecovered899 = true');
   await chrome.waitFor("!document.querySelector('.phone-approval-status')", 3000, // budget: derived from one-second approvals polling plus two seconds for fixture scheduling.
     'a later successful poll clears the failure guidance');
-  assert.ok((await chrome.evaluate('document.body.innerText')).includes(marker), 'the board survives recovery too');
+  assert.ok((await chrome.stable('document.body.innerText')).includes(marker), 'the board survives recovery too');
 });
 
 test('a signed-in phone shows its first screen before a local probe can answer [N26,H5,H17]', chromeOptions, async t => {
@@ -322,7 +323,7 @@ test('a signed-in phone shows its first screen before a local probe can answer [
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -332,7 +333,7 @@ test('a signed-in phone shows its first screen before a local probe can answer [
   const origin = 'http://127.0.0.1:' + server.address().port;
   await chrome.navigate(origin);
   await chrome.waitFor("document.readyState === 'complete' && document.documentElement.dataset.relayDevice === 'phone'");
-  const first = await chrome.evaluate(`({
+  const first = await chrome.stable(`({
     screen: document.documentElement.dataset.relayScreen ?? null,
     visible: document.querySelector('#relay-screen h1')?.getClientRects().length > 0,
     text: document.body.innerText,
@@ -356,7 +357,7 @@ test('a phone keeps its screen and the reason while a saved board fails or waits
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -372,7 +373,7 @@ window.fetch = (input, options) => String(input).startsWith('http://127.0.0.1:48
     await chrome.navigate('about:blank');
     await chrome.navigate(origin);
     await chrome.waitFor(`document.querySelector('#relay-notice')?.textContent.includes(${JSON.stringify(expected)})`);
-    const shown = await chrome.evaluate(`({ text: document.body.innerText, screen: document.documentElement.dataset.relayScreen ?? null })`);
+    const shown = await chrome.stable(`({ text: document.body.innerText, screen: document.documentElement.dataset.relayScreen ?? null })`);
     assert.equal(shown.screen, 'share', 'an unreadable saved board cannot dismiss the phone screen');
     assert.ok(shown.text.includes(expected), 'the person can read the actual reason, not just hidden banner markup');
   }
@@ -413,7 +414,7 @@ test('a signed-out relay page keeps sign-in visible without starting relay reads
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const privateKey = readFileSync(box.keyFile, 'utf8').trim();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Page.enable', {});
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
@@ -427,9 +428,9 @@ test('a signed-out relay page keeps sign-in visible without starting relay reads
   assert.equal(calls.filter(call => call.method === 'GET' && call.path === '/').length, 1,
     'the anonymous shell does not reload');
   await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('a[href=\"/auth/github/start\"]')");
-  const loads = await chrome.evaluate("Number(sessionStorage.getItem('relayAnonymousDocumentCount') || 0)");
+  const loads = await chrome.stable("Number(sessionStorage.getItem('relayAnonymousDocumentCount') || 0)");
   const privateValues = [privateTitle, link.board, privateKey, link.token];
-  const retained = await chrome.evaluate(`({ html: document.documentElement.innerHTML,
+  const retained = await chrome.stable(`({ html: document.documentElement.innerHTML,
     local: JSON.stringify(localStorage), session: JSON.stringify(Object.fromEntries(
       Array.from({ length: sessionStorage.length }, (_, index) => {
         const key = sessionStorage.key(index); return [key, sessionStorage.getItem(key)];
@@ -437,7 +438,7 @@ test('a signed-out relay page keeps sign-in visible without starting relay reads
   assert.equal(loads, 1, 'the anonymous shell does not reload');
   assert.equal(calls.filter(call => call.method === 'GET' && call.path === '/api/v1/boards').length, 0,
     'the anonymous shell never starts relay board reads');
-  assert.equal(await chrome.evaluate("!!document.querySelector('a[href=\"/auth/github/start\"]')"), true,
+  assert.equal(await chrome.stable("!!document.querySelector('a[href=\"/auth/github/start\"]')"), true,
     'the original sign-in link remains available');
   assert.equal([retained.html, retained.local, retained.session].some(value => privateValues.some(secret => value.includes(secret))), false,
     'the anonymous page and its browser storage retain no private board or credential value');
@@ -453,7 +454,7 @@ test('a revoked relay session settles on sign-in without a reload loop [N26,H5,A
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const privateKey = readFileSync(box.keyFile, 'utf8').trim();
   const phone = await box.phoneSession();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Page.enable', {});
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
@@ -469,10 +470,10 @@ test('a revoked relay session settles on sign-in without a reload loop [N26,H5,A
   await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('a[href=\"/auth/github/start\"]')");
   // Budget: six seconds after reaching sign-in span a relay refresh interval.
   await new Promise(resolve => setTimeout(resolve, 6000));
-  const loads = await chrome.evaluate("Number(sessionStorage.getItem('relayRevokedDocumentCount') || 0)");
+  const loads = await chrome.stable("Number(sessionStorage.getItem('relayRevokedDocumentCount') || 0)");
   const calls = box.calls.slice(firstCall);
   const privateValues = [privateTitle, link.board, privateKey, link.token, phone.token];
-  const retained = await chrome.evaluate(`({ html: document.documentElement.innerHTML,
+  const retained = await chrome.stable(`({ html: document.documentElement.innerHTML,
     local: JSON.stringify(localStorage), session: JSON.stringify(Object.fromEntries(
       Array.from({ length: sessionStorage.length }, (_, index) => {
         const key = sessionStorage.key(index); return [key, sessionStorage.getItem(key)];
@@ -482,7 +483,7 @@ test('a revoked relay session settles on sign-in without a reload loop [N26,H5,A
     'the authenticated page redirects once to the signed-out entry');
   assert.equal(calls.filter(call => call.method === 'GET' && call.path === '/api/v1/boards').length, 1,
     'the invalidated session produces no repeated board listings');
-  assert.equal(await chrome.evaluate("!!document.querySelector('a[href=\"/auth/github/start\"]') && !!document.querySelector('#relay-notice')"), true,
+  assert.equal(await chrome.stable("!!document.querySelector('a[href=\"/auth/github/start\"]') && !!document.querySelector('#relay-notice')"), true,
     'the signed-out notice and original sign-in link remain visible');
   assert.equal([retained.html, retained.local, retained.session].some(value => privateValues.some(secret => value.includes(secret))), false,
     'the signed-out page and browser storage retain no private board or credential value');
@@ -542,32 +543,32 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   const box = await relayClientFixture(t);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
   await chrome.waitFor('typeof data !== "undefined" && !!data?.project && !!transport');
-  const capability = await chrome.evaluate('({readOnly,requests,snapshot})');
+  const capability = await chrome.stable('({readOnly,requests,snapshot})');
   assert.deepEqual(capability, { readOnly: true, requests: true, snapshot: false });
   const before = (await box.cli('export')).document;
   const callsBefore = box.calls.length;
-  const direct = await chrome.evaluate(`api(boardPath(view.root) + '/moves', {verb:'claim',item:1}).then(() => 'allowed', error => error.message)`);
+  const direct = await chrome.stable(`api(boardPath(view.root) + '/moves', {verb:'claim',item:1}).then(() => 'allowed', error => error.message)`);
   assert.match(direct, /read-only view/);
   assert.equal(box.calls.slice(callsBefore).some(call => call.method === 'POST'), false, 'the generic direct move never reaches the relay');
-  await chrome.evaluate("document.querySelector('[data-tab=shouts]').click(); true");
+  await chrome.click("document.querySelector('[data-tab=shouts]')");
   await chrome.waitFor("document.querySelector('#shout-form')?.getClientRects().length > 0 && document.querySelector('#shout-text')?.getClientRects().length > 0");
-  const composer = await chrome.evaluate(`(() => {
+  const composer = await chrome.stable(`(() => {
     const form = document.querySelector('#shout-form'), text = document.querySelector('#shout-text'), send = document.querySelector('#shout-send');
     return { formVisible: form.getClientRects().length > 0, textVisible: text.getClientRects().length > 0,
       sendVisible: send.getClientRects().length > 0, sendEnabled: !send.disabled && !text.disabled };
   })()`);
   assert.deepEqual(composer, { formVisible: true, textVisible: true, sendVisible: true, sendEnabled: true },
     'read-only page provides usable visible shout controls');
-  await chrome.evaluate(`document.querySelector('#shout-to').value='coordinator'; document.querySelector('#shout-text').value='RELAY_PAGE_SEALED_SHOUT'; document.querySelector('#shout-form').requestSubmit(); true`);
+  await chrome.stable(`document.querySelector('#shout-to').value='coordinator'; document.querySelector('#shout-text').value='RELAY_PAGE_SEALED_SHOUT'; document.querySelector('#shout-form').requestSubmit(); true`);
   await chrome.waitFor('data.project.personRequests?.some(row => row.move?.args?.text === "RELAY_PAGE_SEALED_SHOUT")');
 
-  const request = await chrome.evaluate('data.project.personRequests.find(row => row.move?.args?.text === "RELAY_PAGE_SEALED_SHOUT")');
+  const request = await chrome.stable('data.project.personRequests.find(row => row.move?.args?.text === "RELAY_PAGE_SEALED_SHOUT")');
   assert.equal(request.status, 'waiting');
   assert.deepEqual(request.move, { verb: 'shout', args: { to: 'coordinator', text: 'RELAY_PAGE_SEALED_SHOUT' } });
   assert.equal(box.calls.some(call => call.method === 'POST' && call.path === `/api/v1/boards/${link.board}/requests`), true);
@@ -602,20 +603,20 @@ test('an actual exported snapshot and local read-only page refuse all seven pers
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
   const origin = 'http://127.0.0.1:' + server.address().port;
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   for (const [path, exported] of [['/', true], ['/readonly', false]]) {
     await chrome.navigate(origin + path);
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project');
-    assert.deepEqual(await chrome.evaluate('({snapshot,requests,readOnly})'), { snapshot: exported, requests: false, readOnly: !exported });
-    const refusals = await chrome.evaluate(`(async () => {
+    assert.deepEqual(await chrome.stable('({snapshot,requests,readOnly})'), { snapshot: exported, requests: false, readOnly: !exported });
+    const refusals = await chrome.stable(`(async () => {
       const actions=[['add',{lane:'web',title:'refused'}],['shout',{to:'coordinator',text:'refused'}],['answer',{id:1,text:'refused'}],['hold',{lane:'web',reason:'refused'}],['release',{lane:'web'}],['spec-approve',{ids:'G1'}],['spec-decline',{ids:'G1',reason:'refused'}]];
       const results=[];
       for(const [command,args] of actions) results.push(await act(command,args));
       return results;
     })()`);
     assert.deepEqual(refusals, Array(7).fill(false), 'all seven handlers refuse without the requests capability');
-    assert.match(await chrome.evaluate(`api(boardPath(view.root)+'/moves',{verb:'shout',args:{to:'coordinator',text:'refused'}}).then(()=>'allowed',error=>error.message)`), /read-only/);
+    assert.match(await chrome.stable(`api(boardPath(view.root)+'/moves',{verb:'shout',args:{to:'coordinator',text:'refused'}}).then(()=>'allowed',error=>error.message)`), /read-only/);
   }
   assert.equal((await box.cli('export')).document.tables.shout.some(row => row.shout_text === 'refused'), false);
 });

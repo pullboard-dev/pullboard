@@ -45,8 +45,8 @@ import { trackedDefaultTestFiles } from './test/selection.js';
 import { shardArguments } from './test/selection.js';
 import { testSelectionPatterns } from './test/selection.js';
 import { narrowsSelection } from './test/selection.js';
-import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
-import { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
+import { AGENT_SHELL_MARKERS } from '../../../kernel/light.js';
+import { SSH_SHELL_MARKERS } from '../../../kernel/light.js';
 import { isWorkerProcessIdentityTimeout } from '../../../drive/light.js';
 import { workerProcessIdentityQuery } from '../../../drive/light.js';
 import { parseWorkerProcessIdentity } from '../../../drive/light.js';
@@ -421,6 +421,12 @@ function landingWorkerCommandMatchesFile(processInfo, file) {
   return false;
 }
 
+/** The spellings `ps` may print for an argument: raw, octal-escaped (macOS), or '?' per control character (Linux). */
+function psSpellings(argument) {
+  const control = /[\u0000-\u001f\u007f]/gu;
+  return [argument, argument.replace(control, c => `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`), argument.replace(control, '?')];
+}
+
 /** Match an announced ChildProcess spawn to the fresh command line without trusting its PID alone. */
 function landingChildCommandMatchesSpawn(processInfo, receipt) {
   const command = processInfo.command.trimEnd();
@@ -431,13 +437,15 @@ function landingChildCommandMatchesSpawn(processInfo, receipt) {
   if (!exactExecutable && (!executable || basename(executable[1] ?? executable[2] ?? executable[3]) !== basename(spawnFile ?? ''))) return false;
   return receipt.spawnArgs.slice(1).every(argument => {
     if (typeof argument !== 'string' || !argument) return false;
-    let offset = command.indexOf(argument);
-    while (offset !== -1) {
-      const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
-      const afterIndex = offset + argument.length;
-      const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
-      if (before && after) return true;
-      offset = command.indexOf(argument, offset + 1);
+    for (const spelling of psSpellings(argument)) {
+      let offset = command.indexOf(spelling);
+      while (offset !== -1) {
+        const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
+        const afterIndex = offset + spelling.length;
+        const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
+        if (before && after) return true;
+        offset = command.indexOf(spelling, offset + 1);
+      }
     }
     return false;
   });
@@ -1012,7 +1020,13 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
         if (data.file && error && !['testAborted', 'subtestsFailed'].includes(error.failureType)
             && !failureDiagnostics.has(data.file)) failureDiagnostics.set(data.file, data);
       }
-      for (const reporter of reporters) reporter.write(event);
+      for (const [index, reporter] of reporters.entries()) {
+        // Node 22's human coverage tree reserves `file` as a key and crashes on a directory with that name.
+        // The independent audit reporter and every custom reporter still receive the complete native event.
+        if (env.PULLBOARD_AUDIT_COVERAGE_REPORTER && event.type === 'test:coverage'
+          && ['tap', 'spec'].includes(reporterEntries[index].reporter)) continue;
+        reporter.write(event);
+      }
     });
     stream.on('end', endReporters);
     let streamClosed = false;
@@ -1162,9 +1176,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   if (fullSuite) {
     let files;
     try {
-      files = isGitWorkTree(process.cwd(), env)
-        ? trackedDefaultTestFiles(process.cwd(), env)
-        : null;
+      files = trackedDefaultTestFiles(process.cwd(), env);
     }
     catch (error) {
       process.stderr.write(`run-tests: could not list tracked test files: ${error.message}\n`);
@@ -1186,7 +1198,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
     ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
-  process.stdout.write(formatTestOutcomes(timing.id, result.testOutcomes));
+  process.stderr.write(formatTestOutcomes(timing.id, result.testOutcomes));
   timing.complete(result, explicitTestFiles(selectedArgs), performance.now() - attemptAt);
   return selectedTestResult(result, env.PULLBOARD_TEST_SELECTION, patterns, explicitTestFiles(selectedArgs));
 }
@@ -1239,7 +1251,7 @@ async function main(args) {
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
-  process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
+  process.stderr.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
   const { testsNeedGui } = await import('./gui/admission.js');
   let guiFiles;
@@ -1269,7 +1281,7 @@ async function main(args) {
     const fileTimes = shardLabel ? join(sandbox, 'landing-file-times.jsonl') : '';
     // Observe leftovers around the whole execution, including failed cases; never remove clones.
     const cloneCheck = browser && process.platform === 'darwin'
-      ? await import('../../index.js') : null;
+      ? await import('./clone.js') : null;
     let clonesBefore;
     if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
     try {
@@ -1298,8 +1310,11 @@ async function main(args) {
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
     if ((process.env[LANDING_RUN_ENV] === '1' || ordinaryShards) && !shardLabel) {
-      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments, freeRunnerSlots } = await import('../../index.js');
-      let count = ordinaryShards ? freeRunnerSlots() : landingShardCount(process.cwd());
+      // Direct modules, not the barrel: the barrel loads main.js, and an ordinary run never needs it (only a landing counts shards there).
+      const [{ landingShardOptions, landingFanOutFiles }, { nativeFileArguments }, { freeRunnerSlots }] = await Promise.all([
+        import('./test/selection.js'), import('./test/file/dispatch.js'), import('./shards/proof.js'),
+      ]);
+      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../index.js')).landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
       shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
@@ -1472,7 +1487,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
   if (!landingWorker) cleanupWatchdog = installTestWatchdog();
-  if (process.env.NODE_TEST_CONTEXT === 'child-v8') installTestChildDrain({
+  if (process.env.NODE_TEST_CONTEXT === 'child-v8' && !landingWorker) installTestChildDrain({ // the landing parent owns and signals the leftovers; waiting here holds the run
     sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
     onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
   });

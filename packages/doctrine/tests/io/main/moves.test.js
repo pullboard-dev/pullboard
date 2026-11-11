@@ -48,14 +48,14 @@ function repo() {
 /** Move files into the app cell as a cells move does, recording each in the path map, and commit. */
 function cellMove(box, moves) {
   mkdirSync(join(box.root, 'apps/view/src/shell'), { recursive: true });
-  mkdirSync(join(box.root, 'bin/cells-plan/path-map'), { recursive: true });
+  mkdirSync(join(box.root, 'packages/codemap/data/plan/path-map'), { recursive: true });
   const map = {};
   for (const { from, to, body } of moves) {
     rmSync(join(box.root, from));
     writeFileSync(join(box.root, to), body);
     map[from] = to;
   }
-  writeFileSync(join(box.root, 'bin/cells-plan/path-map/view.json'), JSON.stringify(map, null, 2) + '\n');
+  writeFileSync(join(box.root, 'packages/codemap/data/plan/path-map/view.json'), JSON.stringify(map, null, 2) + '\n');
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'refactor(cells): move the view cell');
   return git(box.root, 'rev-parse', 'HEAD');

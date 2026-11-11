@@ -46,7 +46,7 @@ test(scenario === 'unreadable item status'
     ${executionServicesSource(gate)}
     const root = ${JSON.stringify(sourceRoot)}, requests = ${JSON.stringify(requests)};
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
-      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
+      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000, runnerDispatch: 'controller' },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 1 }]
     }));
     const cleanup = new AbortController();
@@ -73,7 +73,7 @@ test(scenario === 'unreadable item status'
     const initialProblems = runnerLeaseHealth().filter(row=>row.problem);
     const children = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split(String.fromCharCode(10))
       .map(line => line.trim().split(/ +/u))
-      .filter(row => Number(row[1]) === process.pid && row.slice(2).join(' ').includes('runner-controller.js'))
+      .filter(row => Number(row[1]) === process.pid && row.slice(2).includes('--pullboard-runner-controller'))
       .map(row => Number(row[0]));
     let observation;
     ${scenario === 'unreadable item status' ? `
@@ -176,7 +176,7 @@ test('health names the actual holder past a declared execution deadline and leav
     import { controllerDeadline, overdueRunnerLeases } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/resources/index.js')).href)};
     ${executionServicesSource(gate)}
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({gateSlots:0,browserSlots:0,
-      gate:{runnersFirst:true,runnersOnly:true,runnerWaitMs:30000},runners:[{host:${JSON.stringify(HOST)},node:${JSON.stringify(process.execPath)},slots:1,browser:1}]}));
+      gate:{runnersFirst:true,runnersOnly:true,runnerWaitMs:30000,runnerDispatch:'controller'},runners:[{host:${JSON.stringify(HOST)},node:${JSON.stringify(process.execPath)},slots:1,browser:1}]}));
     const result = await withGateSlot(${JSON.stringify(box.repo)}, async lease => {
       const unbounded = controllerDeadline(lease.runMetadata.resourceOwner, process.pid);
       unbounded.ready(undefined);

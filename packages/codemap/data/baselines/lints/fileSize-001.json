@@ -67,7 +67,6 @@
     "apps/cli/tests/fixtures/chrome.js": 156,
     "test/chrome-fixture.test.js": 206,
     "apps/cli/journeys/shout/activity.test.js": 134,
-    "apps/cli/journeys/export/addresses.test.js": 131,
     "apps/cli/journeys/agents/main.test.js": 44,
     "apps/cli/journeys/hold/demo.test.js": 1228,
     "apps/cli/tests/fixtures/cockpit/harness.js": 786,

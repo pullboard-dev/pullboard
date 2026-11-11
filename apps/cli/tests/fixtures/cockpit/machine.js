@@ -24,7 +24,11 @@ import {
 } from 'node:path';
 import { after } from 'node:test';
 import { disableFixtureBackgroundView } from './view.js';
-import { joinFixtureSeat } from '../testkit.js';
+import {
+  fixtureAddRoute,
+  fixtureJoinRoute,
+  joinFixtureSeat,
+} from '../testkit.js';
 import { withoutPullboardEnv } from '../e2e.js';
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
@@ -33,7 +37,7 @@ const scratch = [];
 const MACHINE_MODEL = 'Test Model';
 
 after(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const SPEC = `# Demo spec
@@ -70,6 +74,8 @@ function machine() {
   const invocations = [];
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
   const runWithEnv = (cwd, commandEnv, ...args) => {
+    fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
+    fixtureAddRoute(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: commandEnv, encoding: 'utf8' });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
@@ -120,7 +126,7 @@ function machine() {
  * A project registered on the machine: a repo set up by `pullboard init`, one web lane, and a
  * worktree joined to it as web-1. `extra` adds to its pullboard.json, such as products.
  */
-function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } = {}) {
+function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, joinSeat = true } = {}) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
@@ -141,7 +147,7 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } =
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
   // The seat joins on the strong route so it can claim the strong fixture items.
-  joinFixtureSeat(box, web, 'web');
+  if (joinSeat) joinFixtureSeat(box, web, 'web', { model: MACHINE_MODEL });
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 

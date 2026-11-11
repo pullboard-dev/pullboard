@@ -61,7 +61,7 @@ function fixture() {
   git(repo, 'init', '-q', '-b', 'main');
   assert.equal(run(repo, 'init').code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
-    gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
+    gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', landing: { manualOverride: true },
     lanes: { web: { owns: ['web/'], specs: ['G1', 'G2'] } },
   }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
@@ -117,7 +117,7 @@ function addAndClaim(box, cwd, title, row) {
 function submitFile(box, cwd, id, row, path, text, subject) {
   write(cwd, path, text);
   const head = commit(box.git, cwd, `feat(web): ${subject} [${row}]`);
-  const submitted = box.run(cwd, 'submit', String(id));
+  const submitted = box.run(cwd, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   return head;
 }
@@ -213,6 +213,9 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   const reviewBuilder = addBuilder(box, 'review-builder');
   const reviewId = addAndClaim(box, reviewBuilder, 'Review item', 'G2');
   submitFile(box, reviewBuilder, reviewId, 'G2', 'web/review.txt', 'review\n', 'submit review item');
+  const conflictBeforeResume = box.run(box.repo, 'show', String(conflictId), '--json');
+  assert.equal(conflictBeforeResume.code, 0, conflictBeforeResume.err || conflictBeforeResume.out);
+  assert.equal(JSON.parse(conflictBeforeResume.out).item_status, 'verified', 'fixture retains the accepted receipt for resume');
 
   const open = box.run(cleanBuilder, 'shout', 'coordinator', 'Need a decision on the next build.', '--kind', 'question', '--decision');
   assert.equal(open.code, 0, open.err || open.out);
@@ -249,9 +252,19 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   }
 
   // More than the normal recent-shout window must not hide typed evidence from resume.
-  for (let index = 0; index < 45; index += 1) {
-    const noise = box.run(box.repo, 'shout', 'person', `noise ${index}: #${activeId} integrated at ${descendant}`);
-    assert.equal(noise.code, 0, noise.err || noise.out);
+  // One shout goes through the CLI; the other 44 copy its row, since a CLI start per shout dominated this case's run time.
+  const noise = box.run(box.repo, 'shout', 'person', `noise 0: #${activeId} integrated at ${descendant}`);
+  assert.equal(noise.code, 0, noise.err || noise.out);
+  const noiseDb = new DatabaseSync(boardFile);
+  try {
+    const columns = noiseDb.prepare('PRAGMA table_info(shout)').all().map(column => column.name).filter(name => name !== 'shout_id');
+    const template = noiseDb.prepare('SELECT * FROM shout WHERE shout_text LIKE ? ORDER BY shout_id DESC LIMIT 1').get('noise 0:%');
+    const insert = noiseDb.prepare(`INSERT INTO shout (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
+    for (let index = 1; index < 45; index += 1) {
+      insert.run(...columns.map(name => (name === 'shout_text' ? `noise ${index}: #${activeId} integrated at ${descendant}` : template[name])));
+    }
+  } finally {
+    noiseDb.close();
   }
   const currentSpec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(box.repo, 'SPEC.md'), currentSpec.replace('The first feature works.', 'The first feature works differently.'));

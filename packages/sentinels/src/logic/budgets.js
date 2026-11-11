@@ -133,7 +133,7 @@ function holderSourceFiles(command) {
   const cli = /\bbin\/pullboard\.js\s+([a-z][a-z-]*)/u.exec(text);
   if (cli) files.push(`apps/cli/src/io/commands/${cli[1]}.js`);
   for (const match of text.matchAll(/(?:^|[\s/])((?:bin|apps|packages|src)\/[\w./-]+\.m?js)(?=\s|$)/gu)) {
-    if (match[1] !== 'apps/cli/pullboard.js' && !match[1].includes('/tests/')) files.push(match[1]);
+    if (!['apps/cli/pullboard.js', 'bin/pullboard.js'].includes(match[1]) && !match[1].includes('/tests/')) files.push(match[1]);
   }
   return [...new Set(files)];
 }

@@ -579,8 +579,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       entry.claimed = false;
       entry.localOnly = true;
       acquire(entry);
-    } else if ((status === 'refused' || status === 'infrastructure') && !release && !stop.aborted && entry.attempts.length < 3) {
-      // One runner refusing or dropping a shard is that runner's fault, not the batch's: the shard queues again and
+    } else if (status === 'infrastructure' && !release && !stop.aborted && entry.attempts.length < 3) {
+      // One runner dropping a shard is that runner's fault, not the batch's; a refusal (changed source, unknown code) fails with no retry: the shard queues again and
       // the pool hands it to an available runner. Why: one RUNNER_UNAVAILABLE stopped every other shard and blocked an
       // 8-item batch with no test red at all [C7].
       write(`landing shard ${entry.label}: runner ${record.host} ${status}${record.reason ? ` (${record.reason})` : ''}; queuing shard ${entry.label} again (attempt ${entry.attempts.length + 1})\n`);
@@ -719,7 +719,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       }) }) + '\n');
   }
   write(`# landing timing: every shard settled at +${sinceStart()} s\n`);
-  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
+  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), text => process.stderr.write(text));
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
   return { isGreen, balance, full: fullScope && shards.every(entry => entry.attempts.at(-1)?.collectionComplete === true),

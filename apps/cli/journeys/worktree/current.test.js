@@ -2,17 +2,21 @@
 import assert from 'node:assert/strict';
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -58,8 +62,11 @@ async function project(t, { predates = false } = {}) {
   const root = join(dir, 'repo');
   mkdirSync(join(root, 'bin'), { recursive: true });
   mkdirSync(join(root, '.githooks'));
-  // The entry and every bin module it imports, so the fixture runs the real start-up path.
-  for (const file of [...ENTRY_FILES, '.githooks/pre-commit', 'package.json']) copyFileSync(join(SOURCE, file), join(root, file));
+  // The entry and its modules retain their source paths in the fixture.
+  for (const file of [...ENTRY_FILES, '.githooks/pre-commit', 'package.json']) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    copyFileSync(join(SOURCE, file), join(root, file));
+  }
   if (predates) {
     // The first commit is the entry as it was before the handover existed.
     const entry = join(root, 'apps/cli/pullboard.js'), source = readFileSync(entry, 'utf8');
@@ -69,7 +76,13 @@ async function project(t, { predates = false } = {}) {
     rmSync(join(root, 'apps/cli/src/io/current.js'));
   }
   // The hook launcher runs the staged static checks before the entry, so their folder is linked too.
-  for (const folder of ['src', 'packages', 'apps', 'bin/checks']) symlinkSync(join(SOURCE, folder), join(root, folder));
+  function linkRemaining(relative) {
+    const destination = join(root, relative);
+    if (!existsSync(destination)) return symlinkSync(join(SOURCE, relative), destination);
+    if (!statSync(destination).isDirectory()) return;
+    for (const name of readdirSync(join(SOURCE, relative))) linkRemaining(join(relative, name));
+  }
+  for (const folder of ['src', 'packages', 'apps', 'bin/checks']) linkRemaining(folder);
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'PULLBOARD_OWN_CLI'));
   Object.assign(env, { PULLBOARD_RESIDENT: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Current fixture', GIT_AUTHOR_EMAIL: 'current@example.invalid',
@@ -89,6 +102,7 @@ async function project(t, { predates = false } = {}) {
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize current-cli fixture');
   const worktree = join(dir, 'web');
   git(root, 'worktree', 'add', '-q', worktree, '-b', 'web/one');
+  // @pullboard-board-file journey: seed the board file the current CLI opens
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock, { gitRoot: root });
   const seat = register(board, { lane: 'web', path: worktree, family: 'Fixture Vendor' });
   closeBoard(board);

@@ -1,13 +1,13 @@
-import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { readGateReceipt } from '../../../../../packages/gate/index.js';
 import { receiptStore } from '../../../../../packages/gate/index.js';
 import { testClosures } from '../../../../../packages/gate/index.js';
 import { context } from '../entry.js';
+import { gitExecFileSync } from '../../../../../packages/git/light.js';
 
 /** Run a read-only Git query, returning null when history is unavailable. */
 function git(root, ...args) {
-  try { return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }).trimEnd(); }
+  try { return gitExecFileSync(args, { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }).trimEnd(); }
   catch { return null; }
 }
 

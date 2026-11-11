@@ -25,7 +25,7 @@ const ANCHOR = /import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SPREAD_ENV = /\.\.\.\s*process\s*\.\s*env\b/gu;
 const SPAWNS_CLI = /pullboard\.js/u; // a file that names the CLI entry spawns it
-const POLICY_FILE = /pullboard\.json|SPEC\.md|cells-plan\.json|settings\.json/u;
+const POLICY_FILE = /pullboard\.json|SPEC\.md|cells-plan\.json|packages\/codemap\/data\/plan\/cells\.json|settings\.json/u;
 const WRITE_FILE = /(?<![\w$])writeFileSync\s*\(/gu;
 const RAW_BOARD = /(?<![\w$])openBoard\s*\(|(?<![\w$])(?:store|board)\s*\.\s*(?:addItem|register|submit)\s*\(/gu;
 const FIXTURE_SUBJECT = /\/\/\s*fixture-subject:\s*addItem\b/u; // a store unit test of addItem itself
@@ -135,9 +135,14 @@ export function fixtureSites(source, path) {
   return found.sort((left, right) => left.line - right.line || left.kind.localeCompare(right.kind));
 }
 
-/** Scan every test file under the root as text; nothing is imported or run. */
-export function fixtureReport(root) {
-  return walk(root, TEST_SOURCE).flatMap(path => fixtureSites(readText(root, path), path));
+/**
+ * Scan every test file under the root as text; nothing is imported or run.
+ *
+ * @param {string} root
+ * @param {{ sitesOf?: (path: string, text: string) => ReturnType<typeof fixtureSites> }} [options] - `sitesOf` lets a caller answer a file's sites from a cache keyed by its text.
+ */
+export function fixtureReport(root, { sitesOf = (path, text) => fixtureSites(text, path) } = {}) {
+  return walk(root, TEST_SOURCE).flatMap(path => sitesOf(path, readText(root, path)));
 }
 
 /** Count sites per file and kind, so removing one kind cannot pay for another. */
@@ -182,11 +187,11 @@ function baseText(root, base, path) {
  *
  * @param {string} root
  * @param {string | URL} [ceilingsPath]
- * @param {{ base?: string | null, read?: (root: string, base: string, path: string) => string | null }} [options]
+ * @param {{ base?: string | null, read?: (root: string, base: string, path: string) => string | null, sitesOf?: (path: string, text: string) => ReturnType<typeof fixtureSites> }} [options]
  */
-export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText } = {}) {
+export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText, sitesOf } = {}) {
   const committed = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
-  const problems = fixtureReport(root);
+  const problems = fixtureReport(root, sitesOf ? { sitesOf } : {});
   let ceilings = committed;
   if (base && fixtureGrowth(problems, committed).length) {
     ceilings = { ...committed };

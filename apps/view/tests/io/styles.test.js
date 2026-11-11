@@ -8,14 +8,14 @@ import { composeViewStyles as composerModule } from '../../src/io/styles.js';
 
 const SHELL = new URL('../../src/io/', import.meta.url);
 const MARKER = /\/\* @pullboard-([\w-]+)-styles \*\//gu;
-const STYLESHEETS = { dashboard: 'dashboard', 'items-row': 'item-rows', stage: 'stage' };
+const STYLESHEETS = { dashboard: 'dashboard', 'items-row': 'item/rows', stage: 'stage' };
 
 test('clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns view.css with every @pullboard-*-styles marker replaced by its stylesheet [C7,#3020]', () => {
-  assert.equal(composeViewStyles, composerModule, 'apps/view/index.js re-exports the composer from src/shell/view-styles.js');
-  const source = readFileSync(new URL('view.css', SHELL), 'utf8');
+  assert.equal(composeViewStyles, composerModule, 'apps/view/index.js re-exports the composer from src/io/styles.js');
+  const source = readFileSync(new URL('main.css', SHELL), 'utf8');
   const markers = [...source.matchAll(MARKER)].map(match => match[1]);
   assert.deepEqual([...markers].sort(), Object.keys(STYLESHEETS).sort(), 'view.css holds one marker for each stylesheet');
-  const expected = source.replace(MARKER, (_marker, name) => readFileSync(new URL(`view/${STYLESHEETS[name]}.css`, SHELL), 'utf8').trimEnd());
+  const expected = source.replace(MARKER, (_marker, name) => readFileSync(new URL(`${STYLESHEETS[name]}.css`, SHELL), 'utf8').trimEnd());
   assert.equal(composeViewStyles(), expected, 'each marker is replaced in place by its stylesheet, nothing else changes');
 });
 

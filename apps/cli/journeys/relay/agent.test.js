@@ -3,6 +3,7 @@
 import { viewApiPorts } from '../../../view/index.js';
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 
 import assert from 'node:assert/strict';
 import {
@@ -61,12 +62,13 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 after(cleanupFixtureChildren);
 
 /** Invoke one real CLI command and retain only redacted child diagnostics on failure. */
 function runCli(root, env, cli, args) {
-  return runFixtureChildAsync(process.execPath, [cli, ...args, '--json'], { cwd: root, env }).then((result) => {
+  return runFixtureChildAsync(process.execPath, [cli, ...fixtureJoinRoute(args, env.PULLBOARD_MODEL), '--json'], { cwd: root, env }).then((result) => {
     if (result.error) throw new Error(result.failure);
     try { return { code: result.status, document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, failure: result.failure }; }
     catch { throw new Error(result.failure ?? result.context); }
@@ -128,7 +130,7 @@ async function approvePhoneProposal(box, chrome, proposal) {
   } catch (error) {
     let page = { capture: 'unavailable' };
     try {
-      page = await chrome.evaluate(`(() => {
+      page = await chrome.stable(`(() => {
         const panel = document.getElementById('phone-approvals');
         let boardKeyKnown = false;
         try { boardKeyKnown = Object.hasOwn(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') || '{}'), ${JSON.stringify(proposal.publisher)}); } catch {}
@@ -136,7 +138,7 @@ async function approvePhoneProposal(box, chrome, proposal) {
           panelError: (panel?.getAttribute('data-error') || '').slice(0, 200),
           cards: panel?.children.length ?? 0, boardKeyKnown,
           signIn: Boolean(document.querySelector('a[href="/auth/github/start"]')) };
-      })()`, 'redacted phone approval failure capture', 1000);
+      })()`);
     } catch { /* Preserve the original failure when the renderer cannot answer diagnostics. */ }
     const inboxPath = '/api/v1/devices/' + proposal.device + '/approvals';
     const inbox = box.transit.findLast(row => row.method === 'GET' && row.path === inboxPath);
@@ -151,14 +153,14 @@ async function approvePhoneProposal(box, chrome, proposal) {
       inboxReads: box.calls.filter(row => row.method === 'GET' && row.path === inboxPath).length });
     throw error;
   }
-  const card = await chrome.evaluate(`(() => {
+  const card = await chrome.stable(`(() => {
     const node = document.querySelector(${JSON.stringify(selector)});
     return { text: node.querySelector('p')?.textContent, action: node.querySelector('button')?.textContent };
   })()`);
   assert.match(card.text, /revoke/u);
   assert.match(card.text, new RegExp(proposal.target));
   assert.equal(card.action, 'Approve revocation', 'the paired phone presents an explicit revocation action');
-  await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).querySelector('button').click(); true`);
+  await chrome.click(`document.querySelector(${JSON.stringify(selector)}).querySelector('button')`);
 }
 
 /** Run Git in a private fixture and keep all diagnostics credential-free. */
@@ -255,7 +257,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   });
   const pending = await waitFor(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile, 'utf8')).pending,
     'foreground setup publishes a one-use phone enrollment');
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const phone = await box.phoneSession();
   assert.equal((await chrome.send('Network.setCookie', {

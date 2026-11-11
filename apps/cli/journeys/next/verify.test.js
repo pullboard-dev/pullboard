@@ -28,6 +28,7 @@ import {
 } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { requireSessionIndependence } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const HOUR = 3_600_000;
@@ -110,6 +111,19 @@ test('[C7,P4] next --verify with nothing submitted yet says the builder is still
   assert.equal(store.getItem(box.board, id).item_review_by, box.reviewerId, 'a submitted item is reserved as before');
 });
 
+test('next --verify with nothing free suggests a command next accepts [C7]', async (t) => {
+  const box = await project(t);
+  const idle = await run(box, box.reviewer, ['next', '--verify']);
+  assert.equal(idle.code, 1);
+  const said = idle.stdout + idle.stderr;
+  assert.match(said, /NOTHING_FREE/u);
+  const suggested = said.match(/To keep looking: pullboard (next[^\n]*)/u);
+  assert.ok(suggested, `the refusal names a command: ${said}`);
+  assert.doesNotMatch(suggested[1], /--take/u, 'the suggestion never mixes --take with --verify');
+  const again = await run(box, box.reviewer, suggested[1].trim().split(/\s+/u));
+  assert.doesNotMatch(again.stdout + again.stderr, /USAGE/u, 'next accepts the command it suggested');
+});
+
 test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -177,6 +191,7 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   store.claim(box.board, id, { agentId: second, lane: 'web', leaseMs: HOUR,
     freeze: () => ({ text: 'fixture criterion', digest: createHash('sha256').update('fixture criterion').digest('hex') }) });
   submitFixture(box.board, id, { agentId: second, commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });
+  requireSessionIndependence(box.reviewer);
   const sibling = await run(box, box.reviewer, ['next', '--verify']);
   assert.equal(sibling.code, 1, sibling.stdout + sibling.stderr);
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'a sibling never reserves its parent’s submission');
@@ -197,6 +212,7 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   /** Count real write-capable native connections, while leaving every production guard active. */
   const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
     writers++;
+    // @pullboard-board-file journey: a spy counts the writers the real command opens on the board file.
     return native.openBoard(...args);
   } });
   /** Poll through the actual native CLI, with its normal reader and reservation authority. */
@@ -227,6 +243,7 @@ test('clause 1: two idle next --verify polls with nothing to review open zero bo
   /** Count write-capable native connections while every production guard stays active. */
   const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
     writers++;
+    // @pullboard-board-file journey: a spy counts the writers the real command opens on the board file.
     return native.openBoard(...args);
   } });
   /** Poll through the actual native CLI. */
