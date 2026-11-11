@@ -100,7 +100,7 @@ test('a landing that rewrites a file the review judged refuses acceptance and ke
   const { box, verdict, json } = reviewWithLanding(t, { setting: true, landing: 'web/lib.js' });
   assert.notEqual(verdict.code, 0);
   const error = JSON.parse(verdict.out).error;
-  assert.equal(error.code, 'VERDICT_TRUNK_MOVED');
+  assert.equal(error.code, 'MERGE_CONFLICT');
   assert.match(error.message, /web\/lib\.js/u);
   assert.equal(json(box.run(box.repo, 'show', '1', '--json')).item_status, 'submitted');
 });
