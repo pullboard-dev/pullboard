@@ -362,6 +362,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       assert.ok(await chrome.stable("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
       await checkLayout(width, 'items, Needs you and detail');
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
+        if (tab === 'spec') console.log('PROBE', width, await chrome.stable(`JSON.stringify((()=>{const e=document.querySelector('[data-tab="spec"]');const r=e&&e.getBoundingClientRect();const chain=[];for(let n=e;n;n=n.parentElement)chain.push(n.tagName+'#'+n.id+'.'+n.className+':'+getComputedStyle(n).display+':'+n.hidden);return {r:r&&[r.width,r.height],vis:e&&getComputedStyle(e).visibility,chain,body:document.body.className}})())`));
         await click(`[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
         if (tab === 'spec') {
