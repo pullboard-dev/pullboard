@@ -1,4 +1,4 @@
-/** Three linked replicas recover a lost stacked submit and refuse a receipt-missing descriptor and agree on the final order [H3,H16,V1,V17]. */
+/** Three linked replicas recover a lost stacked submit and agree on the final order [H3,H16,V1,V17]. */
 import { cleanupFixtureChildren } from '../../../tests/fixtures/child.js';
 import {
   after,
@@ -13,7 +13,7 @@ import {
 
 after(cleanupFixtureChildren);
 
-test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas recover a lost stacked submit and refuse a receipt-missing descriptor', { timeout: 200_000 }, async (t) => {
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas recover a lost stacked submit', { timeout: 200_000 }, async (t) => {
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);

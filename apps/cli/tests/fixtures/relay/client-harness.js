@@ -804,10 +804,10 @@ export async function recoverReplicaOutcomes(fixture, timing, restoreInventories
   await restoreOutboxDefault();
 }
 
-/** Recover a lost stacked submit reply and refuse a receipt-missing descriptor under the legacy ACK policy. */
+/** Recover a lost stacked submit reply under the legacy ACK policy. */
 export async function recoverStackedSubmits(fixture, timing, restoreInventories = () => {}) {
   const { scratch, clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
-  timing.begin('stacked-submit recovery', 'recover lost stacked submit replies and refuse a receipt-missing descriptor across all replicas');
+  timing.begin('stacked-submit recovery', 'recover lost stacked submit replies across all replicas');
   await timing.wait('establish the legacy approval baseline before the stacked scenarios', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for stack recovery'));
   const restoreOutboxDefault = await enterLegacyAckPolicy(fixture);
   // One main checkout coordinates at a time (E19, #347): clone C takes the coordinator before it adds.
@@ -825,35 +825,31 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   await timing.wait('sync all worktrees before recovered-stack scenarios', () => Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status'))));
 
   // A lost submit reply is already an outcome, even if another item becomes stacked while this
-  // replica is behind. A third, receipt-missing recovered descriptor still takes the fresh guard.
+  // replica is behind.
   const stackBrief = join(scratch, 'recovered-stack-brief.md');
   writeFileSync(stackBrief, 'Files: web/\nTest: only an exact durable receipt bypasses the fresh stack guard.\n');
   const stackedA = (await timing.wait('add the first recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack A', '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
   const stackedB = (await timing.wait('add the second recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack B', '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
-  const freshB = (await timing.wait('add the receipt-missing recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Receipt-missing recovered stack', '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
   await timing.wait('claim recovered-stack item B on worktree A', () => cli(worktrees[0], envs[0], 'claim', String(stackedB)));
   await timing.wait('claim recovered-stack item A on worktree B', () => cli(worktrees[1], envs[1], 'claim', String(stackedA)));
-  await timing.wait('claim receipt-missing stack item on worktree C', () => cli(worktrees[2], envs[2], 'claim', String(freshB)));
 
   writeFileSync(join(worktrees[1], 'web', 'recovery-a.txt'), 'the first submitted commit\n');
   gitAt(worktrees[1], envs[1], 'add', 'web/recovery-a.txt');
   gitAt(worktrees[1], envs[1], 'commit', '-q', '-m', 'test: create first recovery commit [G1]');
   const firstRecoveryCommit = gitAt(worktrees[1], envs[1], 'rev-parse', 'HEAD');
-  for (const candidate of [worktrees[0], worktrees[2]]) {
-    const env = candidate === worktrees[0] ? envs[0] : envs[2];
+  for (const candidate of [worktrees[0]]) {
+    const env = envs[0];
     gitAt(candidate, env, 'fetch', '-q', worktrees[1], firstRecoveryCommit);
     gitAt(candidate, env, 'merge', '--no-ff', '-m', 'test: merge first recovery candidate [G1]', firstRecoveryCommit);
   }
   for (const [candidate, env, file, body, title] of [
     [worktrees[0], envs[0], 'web/recovery-b.txt', 'the lost-ack candidate\n', 'recovered B'],
-    [worktrees[2], envs[2], 'web/recovery-fresh.txt', 'the receipt-missing candidate\n', 'fresh B'],
   ]) {
     writeFileSync(join(candidate, file), body);
     gitAt(candidate, env, 'add', file);
     gitAt(candidate, env, 'commit', '-q', '-m', `test: create ${title} candidate [G1]`);
   }
   const recoveredStackCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
-  const freshStackCommit = gitAt(worktrees[2], envs[2], 'rev-parse', 'HEAD');
 
   const beforeRecoveredStack = relay.uploads.length;
   relay.dropNextReply({ offline: true, operation: 'submit', item: stackedB, key, boardId });
@@ -886,6 +882,37 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   assert.match(originalOutcome.gate.report, /recovered the original submission/u);
   await assertOriginalOutcomeDelivery(relay.uploads.slice(beforeOutcomeRetry), key, boardId, stackOwnerB);
   assert.equal(relay.uploads.length, beforeOutcomeRetry + 1);
+  await restoreOutboxDefault();
+}
+
+/** Refuse a receipt-missing recovered descriptor stacked on an unverified submission under the legacy ACK policy. */
+export async function refuseReceiptMissingStack(fixture, timing, restoreInventories = () => {}) {
+  const { scratch, clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
+  timing.begin('receipt-missing stack refusal', 'refuse a receipt-missing recovered descriptor stacked on an unverified submission');
+  await timing.wait('establish the legacy approval baseline before the receipt-missing scenario', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for receipt-missing stack'));
+  const restoreOutboxDefault = await enterLegacyAckPolicy(fixture);
+  await timing.wait('sync all worktrees before the receipt-missing scenario', () => Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status'))));
+  const stackBrief = join(scratch, 'receipt-missing-stack-brief.md');
+  writeFileSync(stackBrief, 'Files: web/\nTest: only an exact durable receipt bypasses the fresh stack guard.\n');
+  const addArgs = (title) => ['add', 'web', title, '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'];
+  const stackedA = (await timing.wait('add the unverified stack base item', () => cli(clones[0], envs[0], ...addArgs('Relay receipt-missing stack A')))).item.item_id;
+  const freshB = (await timing.wait('add the receipt-missing recovered-stack item', () => cli(clones[0], envs[0], ...addArgs('Receipt-missing recovered stack')))).item.item_id;
+  await timing.wait('claim the stack base item on worktree B', () => cli(worktrees[1], envs[1], 'claim', String(stackedA)));
+  await timing.wait('claim receipt-missing stack item on worktree C', () => cli(worktrees[2], envs[2], 'claim', String(freshB)));
+  writeFileSync(join(worktrees[1], 'web', 'recovery-a.txt'), 'the first submitted commit\n');
+  gitAt(worktrees[1], envs[1], 'add', 'web/recovery-a.txt');
+  gitAt(worktrees[1], envs[1], 'commit', '-q', '-m', 'test: create first recovery commit [G1]');
+  const firstRecoveryCommit = gitAt(worktrees[1], envs[1], 'rev-parse', 'HEAD');
+  gitAt(worktrees[2], envs[2], 'fetch', '-q', worktrees[1], firstRecoveryCommit);
+  gitAt(worktrees[2], envs[2], 'merge', '--no-ff', '-m', 'test: merge first recovery candidate [G1]', firstRecoveryCommit);
+  writeFileSync(join(worktrees[2], 'web/recovery-fresh.txt'), 'the receipt-missing candidate\n');
+  gitAt(worktrees[2], envs[2], 'add', 'web/recovery-fresh.txt');
+  gitAt(worktrees[2], envs[2], 'commit', '-q', '-m', 'test: create fresh B candidate [G1]');
+  const freshStackCommit = gitAt(worktrees[2], envs[2], 'rev-parse', 'HEAD');
+  await restoreInventories();
+  const baseSubmit = await timing.wait('submit the stack base item', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
+  assert.equal(baseSubmit.status, 0, baseSubmit.stderr);
+  assert.equal(baseSubmit.document.commit, firstRecoveryCommit);
 
   await timing.wait('sync clone C before checking its fabricated receiptless descriptor', () => cli(clones[2], envs[2], 'status'));
   const freshLinkFile = join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json');
