@@ -32,7 +32,7 @@ const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
  * Archive accepted main from the runner checkout's own Git objects, then run one entry from that archive.
  * Why: the runner's checkout is the candidate; its files are data the trusted entry reads, never code it loads.
  */
-const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+export const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -75,7 +75,7 @@ process.exitCode = status;
  * The analysis entry, written into main's archive: every step imports main's modules, the candidate is the checked tree.
  * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
-const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
+export const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
 import * as cellsCache from './packages/codemap/src/io/cells/scripts/cache.js';
@@ -132,6 +132,22 @@ try {
     child.stdin.end(JSON.stringify({ module: pathToFileURL(join(tools, 'packages/doctrine/index.js')).href, root, options: input.doctrine.options }));
   })) : null;
   doctrineRun?.catch(() => {});
+  // Authorization and source: the item's lane ownership of every changed path, read from accepted main's sandbox [C7,#5674].
+  // A lane refusal is data the controller routes after proof, as it does locally; anything this main cannot answer
+  // comes back as skipped, so the controller checks it at home rather than refusing the builder for the runner.
+  if (selected('authorization') && input.authorization) await part('authorization', () => step('authorization', async () => {
+    const sandbox = await import('./packages/sandbox/index.js').catch(() => null);
+    if (typeof sandbox?.submissionPaths !== 'function') { result.authorization = { skipped: 'accepted main lacks submissionPaths' }; return; }
+    let mechanical = [];
+    try {
+      const paths = sandbox.submissionPaths(root, input.authorization.item, input.source, { mainCommit: input.main, dependencies: [], onMechanicalPaths: found => { mechanical = found; } });
+      result.authorization = { paths, mechanical, ownership: null };
+    } catch (error) {
+      if (error?.code === 'OUTSIDE_LANE' && Array.isArray(error.paths)) result.authorization = { mechanical, ownership: { message: String(error.message).replace(/^\\[\\w+\\] /u, ''), paths: error.paths, policy: error.policy ?? null } };
+      else if (error?.name === 'Refused') throw error;
+      else result.authorization = { skipped: String(error?.message ?? error).slice(0, 2000) };
+    }
+  }));
   if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
   // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
   const staticRun = selected('static') && input.staticChecks ? part('static', () => step('static', () => new Promise(resolve => {
@@ -196,7 +212,7 @@ process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n')
  * The doctrine hold's child entry: it imports accepted main's doctrine module from the archive and holds the candidate
  * checkout, printing one result line; a Refused keeps its code, message and machinery identity [C7].
  */
-const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
+export const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const say = value => process.stdout.write('PULLBOARD_DOCTRINE_RESULT ' + JSON.stringify(value) + '\\n');
 try {
@@ -307,6 +323,7 @@ function readAnalysisResult(file, keys, cuts) {
     if (saved?.version !== 1 || saved.main !== main || saved.source !== source || saved.tooling !== tooling || saved.cuts !== cuts
       || !value || value.main !== main || value.source !== source || value.refusal || value.infra || value.refused
       || Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused) || keys.doctrine && !Array.isArray(value.doctrine)
+      || keys.authorization && (!value.authorization || value.authorization.skipped)
       || typeof saved.directory !== 'string' || typeof saved.sha256 !== 'string') return null;
     return saved;
   } catch { return null; }
@@ -335,7 +352,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}) };
+    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
@@ -350,9 +367,10 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');
   }
-  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection', ...(doctrine ? ['doctrine'] : [])];
+  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection', ...(doctrine ? ['doctrine'] : []), ...(request.authorization ? ['authorization'] : [])];
   const red = name => value.outcomes?.[name]?.refused;
-  if (parts.includes('cells') && !red('cells') && !value.cells || doctrine && parts.includes('doctrine') && !red('doctrine') && !Array.isArray(value.doctrine) || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))) {
+  if (parts.includes('cells') && !red('cells') && !value.cells || doctrine && parts.includes('doctrine') && !red('doctrine') && !Array.isArray(value.doctrine) || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))
+    || parts.includes('authorization') && !red('authorization') && !value.authorization) {
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   // A part that refused is never recorded: its next attempt runs it fresh.

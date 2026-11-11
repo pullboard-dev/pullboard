@@ -43,3 +43,4 @@ export { committedRunnerController, archivedToolingSource } from './src/io/tooli
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/tooling/dirty.js';
 export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/io/handoff/capacity.js';
 export { staleDispatcherTools, dispatcherPass, handOver } from './src/io/handoff/handover.js';
+export { installRunnerService, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';

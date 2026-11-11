@@ -92,8 +92,10 @@ for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happen
   const spans = readGateSpans(gateSpanFolder(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')), { since: 0, now: Date.now() });
   const phases = new Set(spans.filter(span => Number(span.item) === Number(box.id)).map(span => span.phase));
   assert.ok(phases.has('authorization'), 'the whole stage is still one span');
-  for (const step of ['claim-check', 'trunk-merge', 'freezer-digest', 'changed-lines', 'preflight-record', 'item-patches']) {
+  for (const step of ['claim-check', 'trunk-merge', 'freezer-digest', 'changed-lines', 'preflight-record', 'item-patches', 'submission-paths']) {
     assert.ok(phases.has(`authorization-${step}`), `authorization-${step} is recorded as its own sub-span; saw ${[...phases].join(', ')}`);
   }
+  // With no runner registered the lane ownership check stays on this machine, as before #5674 [C7].
+  assert.equal(phases.has('authorization-runner'), false, 'no runner job recorded the authorization check');
   for (const span of spans.filter(row => row.phase.startsWith('authorization-'))) assert.ok(Number.isInteger(span.ms) && span.ms >= 0, `${span.phase} carries its own milliseconds`);
 });

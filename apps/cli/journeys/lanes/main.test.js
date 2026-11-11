@@ -162,10 +162,8 @@ test('refreeze picks up a lane change made after the claim [V2,L3]', () => {
   const refrozen = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
   const originalFreeze = JSON.parse(before.item_frozen);
   const currentFreeze = JSON.parse(refrozen.item_frozen);
-  assert.equal(currentFreeze.policy.commit, trunkPolicy,
-    'explicit refreeze captures the coordinator trunk policy rather than the candidate or first claim');
-  assert.notEqual(currentFreeze.policy.commit, originalFreeze.policy.commit);
-  assert.deepEqual({ ...currentFreeze, policy: originalFreeze.policy }, originalFreeze,
+  assert.equal(currentFreeze.policy, undefined, 'the refreeze holds the bar alone, no policy pin [B4]');
+  assert.deepEqual(currentFreeze, originalFreeze,
     'a lane-only policy change keeps the criterion, title, check and cited rows unchanged');
   assert.equal(refrozen.item_status, 'open');
   const lifted = box.run(box.repo, 'hold', '1', '--off');
@@ -176,8 +174,7 @@ test('refreeze picks up a lane change made after the claim [V2,L3]', () => {
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const item = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(item.item_status, 'submitted');
-  assert.equal(JSON.parse(item.item_frozen).policy.commit, trunkPolicy,
-    'reclaim and submission retain the explicitly refreshed policy');
+  assert.equal(item.item_frozen_digest, refrozen.item_frozen_digest, 'reclaim and submission keep the bar digest');
 });
 
 test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
@@ -188,19 +185,20 @@ test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
     'submission still enforces the old ownership until an explicit coordinator refreeze');
   const lifted = box.run(box.repo, 'hold', '1', '--off');
   assert.equal(lifted.code, 0, lifted.err + lifted.out);
-  // A changed lane policy refuses a new claim instead of silently refreshing the frozen one.
+  // A changed lane policy is not a bar change: the re-claim succeeds and keeps the bar bytes [B4].
   const reclaim = box.run(box.web, 'claim', '1');
-  assert.equal(reclaim.code, 1, reclaim.err + reclaim.out);
-  assert.match(reclaim.err + reclaim.out, /NO_POLICY/u);
+  assert.equal(reclaim.code, 0, reclaim.err + reclaim.out);
+  assert.doesNotMatch(reclaim.err + reclaim.out, /NO_POLICY/u);
   const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
-  assert.equal(reclaimed.item_frozen, before.item_frozen, 'the refused claim keeps the first claim policy and criterion bytes');
+  assert.equal(reclaimed.item_frozen, before.item_frozen, 'the re-claim keeps the criterion bytes');
   assert.equal(reclaimed.item_frozen_digest, before.item_frozen_digest);
-  assert.notEqual(JSON.parse(reclaimed.item_frozen).policy.commit, trunkPolicy);
+  assert.equal(JSON.parse(reclaimed.item_frozen).policy, undefined);
+  assert.notEqual(trunkPolicy, before.item_claim_head);
 });
 
 test('submit and patch attach share frozen ownership and move together on refreeze [L2,L3,V2,V4]', () => {
   const { box, before, trunkPolicy } = reassignedPathFixture();
-  const previous = JSON.parse(before.item_frozen).policy.commit;
+  const previous = before.item_claim_head;
   const author = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
   const patchFile = join(box.dir, 'ownership.patch');
   writeFileSync(patchFile, [
@@ -232,7 +230,7 @@ test('submit and patch attach share frozen ownership and move together on refree
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const item = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
   assert.equal(item.item_status, 'submitted');
-  assert.equal(JSON.parse(item.item_frozen).policy.commit, trunkPolicy);
+  assert.equal(JSON.parse(item.item_frozen).policy, undefined, 'the bar carries no policy pin [B4]');
   const attached = box.run(box.repo, 'patch', 'attach', '1', patchFile,
     '--key', 'ownership', '--author', author, '--json');
   assert.equal(attached.code, 0, attached.err + attached.out);
