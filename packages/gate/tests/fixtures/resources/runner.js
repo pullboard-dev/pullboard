@@ -215,11 +215,25 @@ process.exit(lines.length?1:0);
     const id = added.item.item_id;
     succeeded(box.run(box.web, 'claim', String(id)));
     succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
+    // A doctrine rise refuses only once its machinery trial has passed (#2611): a probe item records the rule's identity
+    // in report mode, the fixture ledger is aged past twenty clean gates, and the item under test is then refused.
+    const probe = JSON.parse(succeeded(fixtureAdd(box.run, box.repo, 'web', 'Doctrine trial probe', '--specs', 'G1',
+      '--criterion', 'The probe records the doctrine trial.', '--check', 'true', '--wait', '--json')).out).item.item_id;
+    const folder = JSON.parse(succeeded(box.run(box.web, 'claim', String(probe), '--json')).out).itemFolder;
+    assert.equal(helpers.commitFile(box, folder, 'web/a.txt', 'TODO old\nTODO probe\n', 'feat(web): probe rising count [G1]').status, 0);
+    succeeded(box.run(folder, 'submit', String(probe), '--wait', '--no-next', '--json'));
+    const ledgerFile = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+    const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'));
+    const trials = Object.values(ledger.codes).filter(row => row.code === 'RATCHET_ROSE');
+    assert.ok(trials.length, 'the probe recorded the doctrine trial');
+    ledger.gates = 20;
+    for (const row of trials) row.start = 0;
+    writeFileSync(ledgerFile, JSON.stringify(ledger) + '\n');
     rmSync(marker, { force: true });
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
     const rose = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
-    assert.notEqual(rose.code, 0, `${rose.err}\n${rose.out.slice(0, 400)}\n${JSON.stringify(JSON.parse(rose.out).gate?.activity ?? null).slice(0, 1500)}`);
+    assert.notEqual(rose.code, 0, rose.out);
     assert.equal(JSON.parse(rose.out).error.code, 'RATCHET_ROSE', `${rose.err}\n${rose.out}`);
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
