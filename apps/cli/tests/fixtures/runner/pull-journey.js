@@ -51,7 +51,7 @@ export function definePullJourney(count) {
     const sampler = setInterval(() => {
       const waiting = readyJobs();
       if (waiting < 1) return;
-      try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
+      try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller$'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
     const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => settle(runPulled(root, command, {
