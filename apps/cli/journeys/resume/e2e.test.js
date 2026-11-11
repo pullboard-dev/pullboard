@@ -34,7 +34,7 @@ const {
 } = e2e;
 
 /** Assert and remove only the outer command's exact final text action; retain every body byte. */
-function withoutAction(text, action = 'pullboard next --take') {
+function withoutAction(text, action = 'pullboard next') {
   const footer = `next: ${action}\n`;
   assert.ok(text.endsWith('\n' + footer), 'the intended final action is present');
   return text.slice(0, -footer.length);

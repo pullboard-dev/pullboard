@@ -132,7 +132,7 @@ test('every wait pullboard suggests names its unit and fits one ten-minute tool 
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
-  assert.match(box.run(box.web, 'next').err, /To keep looking: pullboard next --wait 9 \(minutes; give the command a ten-minute timeout\)/);
+  assert.match(box.run(box.web, 'next').err, /To keep looking: pullboard next --take/);
   assert.match(box.run(box.web, 'resume').out, /next: pullboard next --wait 9 \(minutes\); 1 in your lane waits on other work/);
   box.run(box.repo, 'hold', 'web', '--reason', 'G1 is changing');
   assert.match(box.run(box.web, 'resume').out, /next: pullboard next --wait 9 \(minutes\); the lane hold must lift/);
