@@ -384,8 +384,8 @@ async function thirtyThousandBoard(t) {
   try {
     // These are synthetic native fixture moves in one normal board transaction, never owner-board edits.
     store.atomic(native, () => {
-      for (let index = 0; index < 900; index++) store.addItem(native, {
-        by: 'coordinator', lane: box.lane, title: index === 899 ? currentMarker : 'Retained current work ' + index, route: 'strong',
+      for (let index = 0; index < 450; index++) store.addItem(native, {
+        by: 'coordinator', lane: box.lane, title: index === 449 ? currentMarker : 'Retained current work ' + index, route: 'strong',
       });
       oldest = store.shout(native, { from: 'coordinator', to: 'all', text: oldestMarker, lanes: [box.lane] });
       // Incompressible retained history proves several times the old cap in actual uploaded cipher bytes.
@@ -401,7 +401,7 @@ async function thirtyThousandBoard(t) {
     assert.equal(store.allShouts(native)[0].shout_id, oldest, 'the addressed marker really is this board\'s oldest shout');
   } finally { store.closeBoard(native); }
   const before = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
-  assert.ok(before.tables.event.length >= 30_000 && before.tables.event.length < 32_000, 'event count ' + before.tables.event.length);
+  assert.ok(before.tables.event.length >= 30_000 && before.tables.event.length < 31_000, 'event count ' + before.tables.event.length);
   assert.ok(gzipSync(Buffer.from(JSON.stringify(before))).byteLength > LEGACY_RELAY_THRESHOLD * 3, 'even compressed whole-board state is several times the old limit');
   const uploadedStatus = await box.cli('status');
   assert.equal(uploadedStatus.code, 0, 'the actual opted-in CLI publishes through bounded pages');
