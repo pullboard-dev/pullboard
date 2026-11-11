@@ -73,7 +73,9 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
     url: box.origin, httpOnly: true, sameSite: 'Lax' });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encodedKey);
+  try {
   await chrome.waitFor('typeof transport !== "undefined" && !!transport && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initial) + ')');
+  } catch (error) { throw new Error(error.message + ' PROBE ' + JSON.stringify(await chrome.evaluate('({url: location.href.slice(0,60), transport: typeof transport, chain: document.querySelector("#chain")?.textContent.slice(0,200), body: document.body.innerText.slice(0,400), notice: document.querySelector("#relay-notice")?.textContent}))')), { cause: error }); }
   /** Count real document loads to detect a hidden recovery reload. */
   const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
   /** Count real authorized SSE connections, independently of the page polling timer. */
