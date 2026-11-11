@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
+import { repoPath } from '../../../../packages/kernel/light.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import '../../tests/fixtures/main/audit/cases.js';
 import '../../../../packages/gate/tests/io/main/audit/attribution.test.js';
@@ -755,7 +756,6 @@ test('a shard the landing stops blames none of its aborted in-flight files [C7,V
   const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
   const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
 import {withGateSlot} from ${JSON.stringify(gateUrl)};
-import { repoPath } from '../../../../packages/kernel/light.js';
 ${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
 await withGateSlot(process.cwd(),async lease=>{
  const child=spawn(process.execPath,['packages/gate/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/2'},stdio:['ignore','pipe','pipe']});
