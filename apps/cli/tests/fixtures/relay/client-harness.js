@@ -252,6 +252,17 @@ export function seedDoctrine(seed) {
   }
 }
 
+/** Kill every process still holding a file open under scratch so its removal cannot race a detached writer. */
+function stopScratchWriters(scratch) {
+  const holders = spawnSync('lsof', ['-t', '+D', scratch], { encoding: 'utf8' });
+  for (const line of String(holders.stdout ?? '').split('\n')) {
+    const pid = Number(line);
+    if (Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid) {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* It exited between listing and kill. */ }
+    }
+  }
+}
+
 /** Create the same three real linked replicas for each independently budgeted scenario. */
 export async function threeReplicaFixture(t, timing) {
   timing.begin('cloning three replicas', 'create the isolated seed repo, three clones, and their linked worktrees');
@@ -302,6 +313,7 @@ export async function threeReplicaFixture(t, timing) {
         if (Number.isSafeInteger(pid) && pid > 1) process.kill(pid, 'SIGKILL');
       } catch { /* No sender, or it already exited. */ }
     }
+    stopScratchWriters(scratch);
     rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   });
   gitAt(seed, envs[0], 'init', '-q', '-b', 'main');
