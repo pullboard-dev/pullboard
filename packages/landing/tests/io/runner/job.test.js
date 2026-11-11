@@ -137,7 +137,9 @@ test('clause 2: a racing duplicate of a landing finds its item on trunk and push
     return { ok: true };
   } });
   assert.equal(rival.outcome, 'landed');
-  assert.deepEqual([first.outcome, first.landed, first.already, first.trunk], ['landed', [], [3], rival.trunk]);
+  // Merged within the same second, both runners build the identical merge commit, so the duplicate's push is a no-op;
+  // otherwise its retry finds #3 on trunk. Either way it reports #3 once and trunk holds one merge of it.
+  assert.deepEqual([first.outcome, [...first.landed, ...first.already], first.trunk], ['landed', [3], rival.trunk]);
   assert.equal(box.tip(), rival.trunk, 'trunk keeps the one landing');
   assert.equal(git(box.root, ['--git-dir', box.remote, 'rev-list', '--count', '--merges', 'main']), '1', 'one merge of #3, not two');
 });
