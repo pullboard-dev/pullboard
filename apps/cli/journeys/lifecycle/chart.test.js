@@ -203,7 +203,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
       assert.ok(words.includes('1 updated after submission: In review to In review'));
       assert.ok(words.includes('1 updated after submission: Verified to In review'));
       const kept = await chrome.stable('document.querySelector(".lifecycle-notes").textContent');
-      assert.ok(kept.includes('2 updated while building'), width + ': both claimed patch self loops are shown');
+      assert.ok(kept.includes('3 updated while building'), width + ': all three claimed patch self loops are shown');
       for (const phrase of ['2 let go', '1 moved to a stronger agent', '1 check re-frozen', '1 went idle', '1 checks re-frozen while building']) {
         assert.ok(kept.includes(phrase), width + ': the same board renders ordinary return count ' + phrase);
       }
