@@ -55,6 +55,9 @@ New to doctrine? Read [Lesson 1: Doctrine](https://pullboard.dev/tutorials/doctr
 - G3 [approved, must] This repo's hooks run the source in this checkout. | gate: .githooks
 - G4 [draft, aim] We aim to give every outside issue and pull request a first reply within 7 days. | gate: review
 
+## F · Flow
+- F1 [approved, must] No bottlenecks except the person's intent. Ready work never waits on a seat, a reviewer pool, a screening step or the coordinator. Unowned ready work goes to a free seat within minutes. A submission gets an eligible reviewer within minutes. A question that is not the person's to answer is decided by whoever holds that authority, while the asker keeps working. The only thing allowed to wait is what the person wants. | gate: review
+
 ## S · Security
 - S1 [approved, must] No secrets and no env files in git; test fixtures build fake secrets at run time. | gate: pre-commit secret scan
 - S2 [approved, must] The board never stores source code, only ids, commits and digests. | gate: review
