@@ -119,8 +119,8 @@ function mainAdvanceFixture(t) {
   writeFileSync(join(box.repo, 'web/feature.js'), "export const feature = 'base';\n");
   writeFileSync(join(box.repo, 'web/other.js'), "export const other = 'independent';\n");
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('independent feature [G1]',()=>assert.equal(other,'independent'));\n");
-  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
-  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), [
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), [
     "import {spawnSync} from 'node:child_process';",
     "const env={...process.env};delete env.NODE_TEST_CONTEXT;",
     "const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});",
@@ -137,13 +137,13 @@ function mainAdvanceFixture(t) {
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   // The web lane owns the runner and the test, so claiming the item is not a cross-ownership refusal [C7,#2650].
   const lanes = { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'packages/gate/src/io/run/', 'test/'] } };
-  writeFileSync(configFile, JSON.stringify({ ...config, lanes, gate: 'node packages/gate/src/io/run/tests.js test/feature.test.js',
-    affectedTests: 'node packages/gate/src/io/run/tests.js', submit: { handoff: true } }) + '\n');
+  writeFileSync(configFile, JSON.stringify({ ...config, lanes, gate: 'node apps/cli/src/io/run/tests.js test/feature.test.js',
+    affectedTests: 'node apps/cli/src/io/run/tests.js', submit: { handoff: true } }) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const id = document(fixtureAdd(box.run, box.repo, 'web', 'Queued proof across accepted main', '--specs', 'G1',
-    '--criterion', 'The captured feature is item.', '--check', 'node packages/gate/src/io/run/tests.js test/feature.test.js', '--wait', '--json')).item.item_id;
+    '--criterion', 'The captured feature is item.', '--check', 'node apps/cli/src/io/run/tests.js test/feature.test.js', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', "export const feature = 'item';\n", 'feat(web): captured implementation [G1]').status, 0);
   document(box.run(box.repo, 'bar', 'ready', 'on', '--json'));
