@@ -2588,6 +2588,9 @@
     "hand-policy": 1,
     "tempdir": 1
   },
+  "apps/cli/tests/fixtures/relay/sealed-client.js": {
+    "raw-board": 2
+  },
   "apps/cli/tests/fixtures/relay/client.js": {
     "tempdir": 3,
     "env-spread": 1
@@ -2751,9 +2754,6 @@
   },
   "apps/cli/journeys/relay/snapshot/size.test.js": {
     "raw-board": 3
-  },
-  "apps/cli/journeys/relay/snapshot/size/phone.test.js": {
-    "raw-board": 2
   },
   "apps/relay/tests/io/quota.test.js": {
     "tempdir": 1
