@@ -38,7 +38,7 @@ async function publishAcceptedInventories(fixture) {
   }
 }
 
-test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas recover lost replies once', { timeout: 200_000 }, async (t) => { // 45 recovery/final-order CLI spawns at the captured ~4s per recovery wait, plus 20s for fixture setup; excludes the preceding 170s claims.
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas recover lost replies once', { timeout: 120_000 }, async (t) => { // 45 recovery/final-order CLI spawns at the captured ~4s per recovery wait, plus 20s for fixture setup; excludes the preceding 170s claims.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
