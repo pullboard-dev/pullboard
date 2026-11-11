@@ -357,9 +357,12 @@
     "raw-board": 6,
     "tempdir": 1
   },
-  "apps/cli/journeys/engine/reopen.test.js": {
-    "raw-board": 22,
-    "tempdir": 4
+  "packages/moves/tests/reopen.test.js": {
+    "tempdir": 3,
+    "raw-board": 4
+  },
+  "apps/cli/journeys/reopen/command.test.js": {
+    "raw-board": 2
   },
   "packages/store/tests/review-grant-replay.test.js": {
     "raw-board": 6
@@ -1459,7 +1462,7 @@
     "raw-board": 7
   },
   "apps/cli/journeys/resume/e2e.test.js": {
-    "hand-policy": 8
+    "hand-policy": 5
   },
   "apps/cli/tests/fixtures/e2e.js": {
     "repo-read": 1,
@@ -1837,8 +1840,12 @@
     "model": 7
   },
   "apps/cli/journeys/shout/journeys.test.js": {
-    "tempdir": 3,
-    "raw-cli": 4
+    "tempdir": 2,
+    "raw-cli": 1
+  },
+  "apps/cli/journeys/shout/shouts/scenarios.test.js": {
+    "tempdir": 1,
+    "raw-cli": 3
   },
   "apps/cli/journeys/gate/kernel.test.js": {
     "raw-board": 1
@@ -3977,5 +3984,8 @@
     "tempdir": 1,
     "hand-policy": 2,
     "env-spread": 1
+  },
+  "apps/cli/journeys/resume/e2e-more.test.js": {
+    "hand-policy": 3
   }
 }
