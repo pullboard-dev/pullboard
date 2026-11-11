@@ -4,9 +4,9 @@
  * process run commands with the same capabilities, so both compose them here [C7].
  */
 
-/** Load the native board only when a command asks for it. */
+/** Load the native board only when a command asks for it; the CLI process opens boards and reads ports, so it skips the library barrel's workers (gate, landing) [C7]. */
 export function loadNativeBoard() {
-  return import('../../../../lib/index.js');
+  return import('../../../../lib/light.js').then(light => light.nativeBoard);
 }
 
 /** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */

@@ -1,3 +1,4 @@
+/** @pullboard-module-loads apps/lib/src/logic/native/ports.js */
 import { createRequire } from 'node:module';
 import * as store from '../../../../packages/store/index.js';
 import {

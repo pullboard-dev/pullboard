@@ -1,8 +1,8 @@
 {
   "whoami": 1726,
-  "show 1": 1535,
+  "show 1": 1368,
   "list": 1726,
   "next": 1658,
   "test --status x": 1704,
-  "hook commit-msg": 1537
+  "hook commit-msg": 1535
 }
