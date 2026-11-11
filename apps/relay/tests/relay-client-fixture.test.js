@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { ENGINE_VERSION } from '../../../../../packages/state/src/io/machine.js';
-import { relayClientFixture } from '../../../tests/fixtures/relay/client.js';
+import { ENGINE_VERSION } from '../../../packages/state/index.js';
+import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
 
 const PRODUCTION_POLL_MS = 200;
 const WINDOW_MS = 2_000;
@@ -38,7 +38,7 @@ async function streamPolls(box) {
 }
 
 test("the relay client fixture polls at the relay's production interval by default [H5,C7]", async t => {
-  const box = await relayClientFixture(t);
+  const box = await relayDirectFixture(t);
   await box.link();
   const polls = await streamPolls(box);
   const ceiling = Math.ceil(WINDOW_MS / PRODUCTION_POLL_MS) + 3;
@@ -47,7 +47,7 @@ test("the relay client fixture polls at the relay's production interval by defau
 });
 
 test('a relay client fixture case can ask for a faster poll by name [H5,C7]', async t => {
-  const box = await relayClientFixture(t, { pollMs: 20 });
+  const box = await relayDirectFixture(t, { pollMs: 20 });
   await box.link();
   const polls = await streamPolls(box);
   assert.ok(polls > Math.ceil(WINDOW_MS / PRODUCTION_POLL_MS) + 3, `a 20 ms poll asked for by name polls faster than the default: ${polls} polls in ${WINDOW_MS} ms`);

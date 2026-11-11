@@ -20,6 +20,8 @@ import {
   fileFixtureItem,
   joinFixtureSeat,
 } from '../../tests/fixtures/testkit.js';
+import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -95,8 +97,12 @@ function liveFolderBoard() {
   return { box, a, b, holder, claimer, folder, before: binding(box, folder) };
 }
 
-test('clause 1: a seat holding an item whose folder another live session holds is handed a different item in its own item folder by plain pullboard next, never its seat checkout, through the real next path [B3,C7]', () => {
+test('clause 1: a seat holding an item whose folder another live session holds is handed a different item in its own item folder by plain pullboard next, never its seat checkout, through the real next path [B3,C7]', async t => {
   const { box, a, b, claimer, folder, before } = liveFolderBoard();
+  const marker = join(box.dir, 'folder-process-ready');
+  const child = runFixtureChildAsync(process.execPath, ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ready'); setInterval(() => {}, 1000);`], { cwd: folder, env: box.env });
+  t.after(async () => { child.child.kill('SIGTERM'); await child; });
+  await waitForCondition(() => existsSync(marker), 'the live folder process starts', { signal: AbortSignal.timeout(10_000) }); // Budget: runaway ceiling for the owned process to start.
   as(box, 'session-b', () => {
     const claimed = box.run(claimer.root, 'claim', a);
     assert.match(`${claimed.out}\n${claimed.err}`, /ITEM_FOLDER_SESSION_LIVE/u);

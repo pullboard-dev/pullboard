@@ -2,27 +2,27 @@
 /** In-memory engine replay coverage for sealed review-skipped snapshots [Q1,V15,H3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
+import * as store from '../index.js';
+import { openCellBoard as openBoard } from './fixtures/cell.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../../packages/store/index.js';
+} from '../index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../../../../packages/state/src/io/engine.js';
-import { ENGINE_VERSION } from '../../../../packages/state/src/io/machine.js';
-import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/agent-grant-engine.js';
-import { appliedSequence } from '../../../../packages/state/src/io/engine.js';
-import { replayHistoricalSeatMove } from '../../tests/fixtures/seats.js';
+} from '../../state/index.js';
+import { ENGINE_VERSION } from '../../state/index.js';
+import { AGENT_GRANT_ENGINE } from '../../state/index.js';
+import { appliedSequence } from '../../state/index.js';
+import { replayHistoricalSeatMove } from '../../../apps/cli/tests/fixtures/seats.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { unpackRelease } from '../../tests/fixtures/release/archive.js';
-import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
 const RENEW_AT = '2026-10-08T12:00:30.000Z';

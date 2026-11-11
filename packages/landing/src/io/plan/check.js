@@ -46,7 +46,7 @@ function checkFromObjects(root, commit, env) {
 /** Refuse a failed plan check run, naming its unplaced or stale paths; a passing run returns. */
 function judgePlanRun(run, commit) {
   if (run.status === 0) return;
-  const lines = `${run.stderr}\n${run.stdout}`.split('\n').filter(line => /^(not in packages\/codemap\/data\/plan\.json:|stale plan row|.*(CELLS_|retired historical))/u.test(line));
+  const lines = `${run.stderr}\n${run.stdout}`.split('\n').filter(line => /^(not in packages\/codemap\/data\/plan\/cells\.json:|stale plan row|.*(CELLS_|retired historical))/u.test(line));
   const unplaced = lines.filter(line => line.startsWith('not in packages/codemap/data/plan/cells.json:')).map(line => line.slice(line.indexOf(':') + 1).trim());
   const detail = unplaced.length ? `unplaced paths: ${unplaced.join(', ')}` : (lines.join('; ') || run.stderr.trim().split('\n').pop() || 'the check failed');
   throw new Refused('LAND_PLAN_UNPLACED', `${commit.slice(0, 12)} fails the cells-plan check (${detail}); place each path with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), commit it, and record that commit`);
