@@ -251,22 +251,3 @@ test('a gate command with npm flags counts as opaque [S1,A1,A2]', async (t) => {
     } finally { await api.close(); }
   }
 });
-
-test('debug probe of rule coverage [S1,A1,A2]', async (t) => {
-  const box = fixture();
-  t.after(() => store.closeBoard(box.board));
-  seedRun(box, { head: box.original });
-  seedRun(box, { command: 'true' });
-  seedRun(box, { green: false, days: 2, failures: [{ file: 'test/both.test.js', name: 'both' }] });
-  seedRun(box, { green: false, main: box.original, failures: [{ file: 'test/unproven.test.js', name: 'b' }] });
-  seedRun(box);
-  const out = {};
-  const info = () => ({ last: JSON.parse(box.board.db.prepare("select meta_value from board_meta where meta_key like '%proof-stats:v2:summary'").get()?.meta_value ?? '{"data":{}}').data.last,
-    max: box.board.db.prepare('select max(event_id) m from event').get().m });
-  out.a = info();
-  const r = box.run(box.root, 'status', '--json');
-  out.status = JSON.parse(r.out).ruleCounts;
-  out.b = info();
-  out.kinds = box.board.db.prepare('select event_id,event_kind,event_by from event order by event_id desc limit 6').all();
-  assert.fail('DBGOUT ' + JSON.stringify(out));
-});
