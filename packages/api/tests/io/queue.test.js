@@ -23,7 +23,7 @@ test('clause 1: a runner claims only a job whose needs it has, and a second clai
   assert.equal(claimJob(db, { runner: 'r-plain', capabilities: ['node22'], now: 10 }), null, 'a runner without browser takes nothing');
   assert.equal(claimJob(db, { runner: 'r-full', capabilities: ['browser', 'node22', 'os:linux'], kinds: ['land'], now: 10 }), null, 'a kind filter skips other kinds');
   const won = claimJob(db, { runner: 'r-full', capabilities: ['browser', 'node22', 'os:linux'], now: 10 });
-  assert.deepEqual({ ...won, token: typeof won.token }, { job: 'gate:1', kind: 'gate', needs: ['browser', 'node22'], attempt: 1, leaseUntil: 10 + LEASE_MS, token: 'string' });
+  assert.deepEqual({ ...won, token: typeof won.token }, { job: 'gate:1', kind: 'gate', needs: ['browser', 'node22'], run: [], item: null, candidate: null, base: null, attempt: 1, leaseUntil: 10 + LEASE_MS, token: 'string' });
   assert.equal(claimJob(db, { runner: 'r-rival', capabilities: ['browser', 'node22'], now: 10 + LEASE_MS }), null, 'a lease ending now is still live');
   const view = jobView(db, 'gate:1');
   assert.deepEqual([view.leaseOwner, view.attempt, view.step], ['r-full', 1, 'claimed']);
