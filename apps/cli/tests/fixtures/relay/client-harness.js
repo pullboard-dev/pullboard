@@ -4,6 +4,7 @@ import { withApiCommandEnvironment } from '../api.js';
 import { apiBoardOpeners } from '../board.js';
 import assert from 'node:assert/strict';
 import {
+  cleanupFixtureChildren,
   runFixtureChild as spawnSync,
   runFixtureChildAsync,
   runFixtureGit,
@@ -293,7 +294,10 @@ export async function threeReplicaFixture(t, timing) {
     return resolve(root, gitAt(root, env, 'rev-parse', '--git-common-dir'));
   }
 
-  t.after(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }));
+  t.after(async () => {
+    await cleanupFixtureChildren(); // live fixture children would keep writing into scratch during the removal
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  });
   gitAt(seed, envs[0], 'init', '-q', '-b', 'main');
   writeFileSync(join(seed, 'pullboard.json'), JSON.stringify({
     gate: 'true', lanes: { web: { owns: ['web/'], specs: ['G'] } },
@@ -957,7 +961,9 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
   assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
   assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
-  assert.equal(await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status')), beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+  const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
+  if (afterFreshRefusal !== beforeFreshRefusal) console.error('DIAG', JSON.stringify((await relayUploadSummary(relay.uploads.slice(beforeFreshRefusal), key, boardId))));
+  assert.equal(afterFreshRefusal, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
   const freshAfter = store.openBoard(replicaFiles[2]);
   try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
   finally { store.closeBoard(freshAfter); }
