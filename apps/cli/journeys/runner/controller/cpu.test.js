@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js */
 /** A controller waiting on its remote job sleeps on events, uses almost no CPU, and still reports the job's result [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

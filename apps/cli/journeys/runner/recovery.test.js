@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/gate/drive.js apps/lib/src/io/handoff/dispatcher.js packages/resources/src/io/handoff/worker/detach.js */
 /** @pullboard-world-pin copies the shipped detach entry point into the captured tooling the recovery check relaunches from. */
 /** No board command runs dispatcher recovery inline; a background job owns it and still relaunches a dead dispatcher [C7]. */
 import assert from 'node:assert/strict';

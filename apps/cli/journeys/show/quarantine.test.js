@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/codemap/data/plan/cells.json */
 /** Actual private Submit cycles retain raw reds while repeated native pairs acquire quarantine authority [C7,H16]. */
 import assert from 'node:assert/strict';
 import {

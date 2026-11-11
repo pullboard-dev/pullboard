@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/child.js packages/gate/index.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js packages/landing/index.js packages/resources/index.js */
 /** Actual entry points obey private machine policy before starting any local body [C7,Q1]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
