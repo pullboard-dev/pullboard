@@ -357,9 +357,12 @@
     "raw-board": 6,
     "tempdir": 1
   },
-  "apps/cli/journeys/engine/reopen.test.js": {
-    "raw-board": 22,
-    "tempdir": 4
+  "packages/moves/tests/reopen.test.js": {
+    "tempdir": 3,
+    "raw-board": 4
+  },
+  "apps/cli/journeys/reopen/command.test.js": {
+    "raw-board": 2
   },
   "packages/store/tests/review-grant-replay.test.js": {
     "raw-board": 6
