@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js packages/resources/index.js */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { repoPath } from '../../../../packages/kernel/light.js';
 import assert from 'node:assert/strict';

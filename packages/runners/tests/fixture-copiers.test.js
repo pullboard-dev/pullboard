@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Manifest copies retain moved runtime files and reject executable hand copiers [C7]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

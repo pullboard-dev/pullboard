@@ -1,5 +1,4 @@
 /** @pullboard-test-loads apps/cli/pullboard.js */
-/** @pullboard-test-input source-tree */
 /** Timer diagnostics preserve native scheduling and report actual failures [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

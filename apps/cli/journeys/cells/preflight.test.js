@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The trusted cells checker accepts coordinator-approved plan stays and served URLs, never a real deletion [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';

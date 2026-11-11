@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/check/signoffs.js */
 /** A fresh board's real installed hook accepts only its live claimed item as a temporary citation [I1,N26]. */
 import assert from 'node:assert/strict';
 import {

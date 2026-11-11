@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/45-app-view.json packages/codemap/data/plan/cells.json */
 /** Real public submits distinguish merged main rows from a builder's own foreign edits [L3,C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

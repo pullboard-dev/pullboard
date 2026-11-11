@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/verify/machine.test.js packages/landing/src/io/step/batch.js packages/landing/src/io/step/trunk.js */
 /** Only an item's own red reopens it: batch-wide, foreign-file and infrastructure landing failures reopen nothing [C7,#2967]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

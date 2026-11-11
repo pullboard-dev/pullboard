@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/person/src/logic/enrollment.js */
 /** Independent person-root enrollment and opaque account envelopes [H15]. */
 import assert from 'node:assert/strict';
 import {

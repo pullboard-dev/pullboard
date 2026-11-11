@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** One hung test file never stops a landing gate: it is red on its own, and every other file still runs [C7,#3167]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

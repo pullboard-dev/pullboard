@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/sandbox/src/io/trusted/policy.js */
 /** Deferred landing of a large affected selection at submit (C7). */
 import assert from 'node:assert/strict';
 import {

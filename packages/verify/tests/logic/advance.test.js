@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/worker.js packages/codemap/data/plan/46-app-runner.json */
 /** Two loaded copies of the runner worker's front door each own their handles, timers and flags [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

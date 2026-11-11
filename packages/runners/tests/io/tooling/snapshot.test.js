@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/runners/index.js */
 /** @pullboard-test-loads packages/runners/src/shell/runner-tooling-snapshot.js packages/runners/src/shell/runner-package.js packages/runners/src/shell/runner-module-parser.js packages/runners/src/shell/runner-module-parser-worker.js */
 /** The tooling snapshot reads the controller and worker entries of a 0.9.3 tree, and of a tree after the move [C7,V32]. */
 import assert from 'node:assert/strict';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Real child commands cannot carry a caller's repository into a private Git fixture [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

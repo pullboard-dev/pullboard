@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
 import { copyPackageFiles } from '../../../index.js';
 import { toolSourcePath } from '../../../index.js';

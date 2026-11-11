@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js */
 /** Gate owns the test-run shard orchestration; runner and landing steps arrive as injected services [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
