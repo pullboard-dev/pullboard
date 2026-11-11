@@ -203,6 +203,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
         // These old writers predate clause-inspection fields; retain their actual wire shape.
         delete move.args[1].clausePolicyCommit;
         delete move.args[1].inspectClauses;
+        delete move.args[1].strictRenames; // also newer than these writers: it would lift the move's minimum engine to 221
         move.engine = scenario === 'admission engine' ? SUBMIT_ADMISSION_ENGINE : SUBMIT_ADMISSION_ENGINE - 1;
       }
       const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });

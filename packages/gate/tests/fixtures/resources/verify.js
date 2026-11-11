@@ -61,7 +61,7 @@ export function verificationProject(t, { checked = false } = {}) {
   sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
   const project = helpers.project('true', sandbox);
   const marker = join(project.dir, 'verification-check-ran');
-  const check = ': checked-input.txt; printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
+  const check = ': checked-input.txt ; printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
   const added = fixtureAdd(project.run, project.repo, 'web', 'Private admission boundary', '--specs', 'G1',
     '--criterion', 'The real frozen verification keeps its public boundary.',
     ...(checked ? ['--check', check] : []), '--wait', '--json');
