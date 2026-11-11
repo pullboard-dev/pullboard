@@ -276,7 +276,7 @@ test('unknown imports and broad inputs fall back explicitly, while an all-test c
   assert.equal(dynamic.full, true, 'a non-literal dynamic import fails closed');
   assert.match(dynamic.reason, /dynamic|compute|select/i);
 
-  for (const path of ['packages/gate/src/io/run/tests.js', 'package.json', 'package-lock.json']) {
+  for (const path of ['apps/cli/src/io/run/tests.js', 'package.json', 'package-lock.json']) {
     const broad = selectAffectedTests(box.root, { base, commit, changed: [path] });
     assert.equal(broad.full, true, `${path} requires the full gate`);
     assert.ok(broad.reason, `${path} explains the fallback`);

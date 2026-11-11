@@ -37,7 +37,7 @@ const scratch = [];
 const MACHINE_MODEL = 'Test Model';
 
 after(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const SPEC = `# Demo spec

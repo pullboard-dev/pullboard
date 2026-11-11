@@ -70,8 +70,11 @@ export function assertNewestMainRedRouting(t) {
     newer, 'another seat claim cannot suppress the actual held claim');
   assert.throws(() => f.claim(repair, f.seats.newer), error => error.code === 'ONE_CLAIM', 'planning never grants claim authority');
   store.editItem(f.board, other, { agentId: 'coordinator', brief: 'Files: web/repair.js' });
-  assert.equal(mainRedBuildRouting(f.board, { priority: [repair], caller: f.seats.older }), null,
-    'a different occupied claim still blocks the shared repair');
+  // Since 9abe146a9e [C7] open work that only overlaps another claim is claimable (claim warns, never refuses),
+  // so a different occupied claim no longer blocks the shared repair: the newest build is still asked to release.
+  assert.deepEqual(mainRedBuildRouting(f.board, { priority: [repair], caller: f.seats.older })?.releaseRequest,
+    { seat: f.seats.newer, item: newer, repair, path: '/private/routing-newer' },
+    'a different occupied claim only overlaps the shared repair; it does not block the release request');
 }
 
 /** Exercise default next and next --take against an actually measured red private main. */

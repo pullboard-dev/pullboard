@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { testWaitReport } from '../../../../packages/gate/src/io/test/waits.js';
 import { blobOid } from '../../../../packages/gate/src/io/static/cache.js';
 import { fileCache } from '../../../../packages/gate/src/io/static/cache.js';
+import { cellRows } from '../../../../packages/gate/src/io/static/cache.js';
+import { cellScopedKey } from '../../../../packages/gate/src/io/static/cache.js';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 
 /** A tree with two test files: one sleeps between probes, one is clean. */
@@ -55,4 +57,52 @@ test('clause 1: a rule version or tooling change invalidates the cached rows [C7
 
 test('clause 1: a blob oid is git\'s own object id [C7,#5564]', () => {
   assert.equal(blobOid('hello\n'), 'ce013625030ba8dba906f756967f9e9ca394464a');
+});
+
+/** Three cells in memory: `b` imports `a`, `c` imports nothing; any file holding BAD is a finding. */
+function cellSources(overrides = {}) {
+  const files = {
+    'packages/a/index.js': 'export const a = 1;\n',
+    'packages/b/index.js': "import { a } from '../a/index.js';\nexport const b = a;\n",
+    'packages/c/index.js': 'export const c = 3;\n',
+    ...overrides,
+  };
+  return Object.entries(files).map(([file, source]) => ({ file, source }));
+}
+
+/** A compute that records which files it was handed, and finds BAD in them. */
+function badRows(seen) {
+  return reach => { seen.push(reach.map(row => row.file)); return reach.filter(row => row.source.includes('BAD')).map(row => ({ file: row.file, line: 1, text: 'bad' })); };
+}
+
+test('clause 1: cell-partitioned rows equal a full run, and a change reruns only the cells that read it [C7,#5564]', () => {
+  const edgeCache = fileCache({ name: 'cell-edges', version: 1, tooling: 't', home: null });
+  const cache = fileCache({ name: 'rows', version: 1, tooling: 't', home: null });
+  const seen = [];
+  const full = sources => sources.filter(row => row.source.includes('BAD')).map(row => ({ file: row.file, line: 1, text: 'bad' }));
+  const first = cellSources({ 'packages/a/index.js': 'export const a = BAD;\n' });
+  assert.deepEqual(cellRows({ sources: first, edgeCache, cache, compute: badRows(seen) }), full(first));
+  assert.equal(cache.misses, 3, 'a cold cache computes every cell');
+  seen.length = 0;
+  assert.deepEqual(cellRows({ sources: first, edgeCache, cache, compute: badRows(seen) }), full(first));
+  assert.equal(seen.length, 0, 'an unchanged tree computes nothing');
+  const changed = cellSources({ 'packages/a/index.js': 'export const a = BAD;\n', 'packages/c/index.js': 'export const c = BAD;\n' });
+  assert.deepEqual(cellRows({ sources: changed, edgeCache, cache, compute: badRows(seen) }), full(changed));
+  assert.deepEqual(seen.flat(), ['packages/c/index.js'], 'only cell c, which imports nothing, was handed to the check');
+  seen.length = 0;
+  const imported = cellSources({ 'packages/a/index.js': 'export const a = 2;\n', 'packages/c/index.js': 'export const c = BAD;\n' });
+  assert.deepEqual(cellRows({ sources: imported, edgeCache, cache, compute: badRows(seen) }), full(imported));
+  assert.ok(seen.flat().includes('packages/b/index.js'), 'cell b imports the changed cell a, so it is rerun with it');
+  assert.ok(!seen.flat().includes('packages/c/index.js'), 'cell c reads neither, so it is not rerun');
+});
+
+test('clause 1: a scoped key moves only with the cells it reads and the cells they import [C7,#5564]', () => {
+  const edgeCache = fileCache({ name: 'cell-edges', version: 1, tooling: 't', home: null });
+  const keyOf = (sources, cells) => cellScopedKey(sources, cells, { edgeCache, paths: false });
+  const base = cellSources();
+  const touchedC = cellSources({ 'packages/c/index.js': 'export const c = 4;\n' });
+  const touchedA = cellSources({ 'packages/a/index.js': 'export const a = 5;\n' });
+  assert.equal(keyOf(base, ['b']), keyOf(touchedC, ['b']));
+  assert.notEqual(keyOf(base, ['b']), keyOf(touchedA, ['b']));
+  assert.notEqual(keyOf(base, ['c']), keyOf(touchedC, ['c']));
 });
