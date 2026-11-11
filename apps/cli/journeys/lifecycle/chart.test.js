@@ -176,7 +176,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
         await chrome.waitFor('data?.project?.root === ' + JSON.stringify(demo.repo));
         return JSON.parse(await chrome.stable('JSON.stringify(data.project)'));
       } });
-    assert.equal(Object.keys(native).length, 6, 'each rare/state family has its own real native receipt');
+    assert.equal(Object.keys(native).length, 7, 'each rare/state family has its own real native receipt');
     const complete = await readNativeProject();
     for (const [route, count] of Object.entries(ordinary.expected)) {
       assert.equal(complete.moveCounts[route], count, 'the same native board retains its ordinary route: ' + route);

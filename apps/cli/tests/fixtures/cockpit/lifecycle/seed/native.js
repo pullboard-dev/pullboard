@@ -34,6 +34,7 @@ export async function seedRareLifecycleJourneys({ board, journeys, readProject }
     ['patch', ['item_patch_attach']],
     ['verifiedPatch', ['item_patch_attach']],
     ['claimedPatch', ['claim', 'item_patch_attach', 'item_patch_remove', 'submit']],
+    ['objected', ['item_patch_attach', 'item_patch_object']],
   ];
   const observed = {};
   for (const [name, kinds] of requirements) {
@@ -88,8 +89,8 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
   const reviewers = new Map();
   /** Keep the coordinator on main while a genuinely registered independent seat checks exact source. */
   const reviewerFor = root => {
-    if (!reviewers.has(root)) reviewers.set(root, json(root, 'worktree', 'web', '--model', 'Lifecycle reviewer fixture').path);
-    return reviewers.get(root);
+    if (!reviewers.has(root)) reviewers.set(root, json(root, 'worktree', 'web', '--model', 'Lifecycle reviewer fixture'));
+    return reviewers.get(root).path;
   };
   /** Independently verify from the submitted source through its registered native reviewer. */
   const accept = (root, id, head) => {
@@ -99,10 +100,10 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       'The actual frozen fixture command passed.', '--no-next');
   };
   /** Generate exact native companion bytes from a clean private Git index, then restore that index. */
-  const patchFile = key => {
-    const file = 'docs/' + key + '.txt';
+  const patchFile = (key, dir = 'docs') => {
+    const file = dir + '/' + key + '.txt';
     assert.equal(box.git(demo.repo, 'status', '--porcelain'), '', 'the private author index starts clean');
-    mkdirSync(join(demo.repo, 'docs'), { recursive: true });
+    mkdirSync(join(demo.repo, dir), { recursive: true });
     writeFileSync(join(demo.repo, file), key + '\n');
     box.git(demo.repo, 'add', file);
     const bytes = box.git(demo.repo, 'diff', '--cached', '--binary') + '\n';
@@ -253,6 +254,21 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       for (const [key, delta] of [['claimed>claimed:patch-claimed', 2], ['claimed>submitted:submit', 1], ['claimed>submitted:patch', 0]]) {
         assert.equal((countsAfter[key] ?? 0) - (countsBefore[key] ?? 0), delta, 'native claimed-patch journey exact delta: ' + key);
       }
+      return id;
+    },
+    /** The owning lane objects inside the window to a companion the builder recorded at Submit, reopening the item. */
+    objected: async () => {
+      const id = add(demo.repo, 'Owner objects to a recorded companion');
+      box.git(demo.web, 'switch', '-q', demo.baseBranch);
+      json(demo.web, 'claim', String(id));
+      commit(demo.web, 'web/objected-proof.js', 'export const objected = true;\n', 'feat(web): real objected companion source');
+      const owner = reviewerFor(demo.repo);
+      const patch = patchFile('objected-lifecycle-companion', 'web');
+      json(demo.web, 'submit', String(id), '--companion', patch.path, '--key', 'objected-lifecycle-route',
+        '--author', reviewers.get(demo.repo).agent, '--wait', '--no-next');
+      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'submitted');
+      json(owner, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
+      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'open');
       return id;
     },
   };
