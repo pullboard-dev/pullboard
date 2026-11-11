@@ -1877,7 +1877,7 @@
   "packages/landing/tests/logic/land/why.test.js": {
     "raw-board": 4
   },
-  "apps/cli/journeys/land/main.test.js": {
+  "apps/cli/journeys/land/replay.test.js": {
     "hand-policy": 1
   },
   "packages/landing/tests/logic/batch/history.test.js": {

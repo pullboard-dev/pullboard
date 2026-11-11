@@ -7,7 +7,7 @@ import { assertParallelLanding } from '../../tests/fixtures/land/parallel.js';
 import { assertParallelCliLease } from '../../tests/fixtures/land/parallel.js';
 import { assertParallelNestedGate } from '../../tests/fixtures/land/parallel.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
-/** Parallel landing against real private Git worktrees [B3,V4,Q1,Q3]. */
+/** Exercise parallel landing against real private Git worktrees [B3,V4,Q1,Q3]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;

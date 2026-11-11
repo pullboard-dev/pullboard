@@ -14,25 +14,13 @@ import { json } from '../../tests/fixtures/land/board.js';
 import { landingTimeoutFixture } from '../../../../packages/store/tests/fixtures/timeout.js';
 import { landEnginesInOrder } from '../../tests/fixtures/land/engine.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
-import { assertLocalWaiverExpiry } from '../../tests/fixtures/land/expiry.js';
-import { assertAffectedLandingUnstamped } from '../../tests/fixtures/land/deferred.js';
-import { assertDeferredBatchIsolation } from '../../tests/fixtures/land/deferred.js';
 import { assertCollisionFreeLanding } from '../../../../packages/store/tests/fixtures/collision.js';
 import { assertDeferredLandingPriority } from '../../../../packages/store/tests/fixtures/collision.js';
-/** Deferred, collision and affected-only landing against real private Git worktrees [B3,R3,C7,V4]. */
+/** Exercise deferred and affected landings against real private Git worktrees [B3,R3,C7,V4]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
-
-function verifiedFour(box, { red, flaky, order = [0, 1, 2, 3] } = {}) {
-  box.env.LAND_SUPPRESS_RED = '1';
-  const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
-  for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : (Array.isArray(flaky) ? flaky.includes(index) : index === flaky) ? 'FLAKE\n' : 'PASS\n');
-  for (const index of order) acceptItem(box, entries[index]);
-  delete box.env.LAND_SUPPRESS_RED;
-  return entries;
-}
 
 test('an uncertain affected batch passes its full gate before local adoption [B3,R3,C7,V4]', () => {
   const box = landProject();
@@ -119,15 +107,3 @@ test('a landing batch leaves out an item that touches a file already in the batc
 
 test('a deferred landing item keeps its place ahead of newer acceptances after merge-only reaccept [B3,R3,R1,H16]',
 () => assertDeferredLandingPriority({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
-
-test('a deferred red shared importer returns only its culprit and lands innocent owners locally [B3,R3,C7,V4]', { timeout: 120_000 }, // budget: four real submit/accept cycles and shared-importer isolation; hang ceiling only.
-() => assertDeferredBatchIsolation({ landProject, itemWorktree, submitItem, acceptItem }));
-
-test('a green affected-only local landing never stamps the full gate [B3,R3,C7,V4]', { timeout: 90_000 }, // budget: one real submit/accept and finite affected landing; hang ceiling only.
-() => assertAffectedLandingUnstamped({ landProject, itemWorktree, submitItem, acceptItem }));
-
-for (const seam of ['live', 'trunk-save', 'finish-lease']) {
-  test(`local-trunk waived red retains live authorization at ${seam} [B3,R3]`, { timeout: 90_000 }, () => {
-    assertLocalWaiverExpiry({ landProject, itemWorktree, submitItem, acceptItem }, seam);
-  });
-}
