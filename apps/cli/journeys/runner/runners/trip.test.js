@@ -327,8 +327,10 @@ test('a queued runner run finishes or fails by name within its deadline [C7]', {
     };
     // With the default deadlines a runner that never answers fails by name within about a minute.
     await heldAt('run', 'remote run', undefined, 60_000);
-    await heldAt('dispatch', 'dispatch', { dispatch: 3_000 }, 15_000);
     await heldAt('return', 'result return', { 'result return': 3_000 }, 15_000);
+    // Last: a dispatch that never started leaves its cleanup unverified, and the runner's only slot stays charged for
+    // it, so no later round trip on this one runner is admitted.
+    await heldAt('dispatch', 'dispatch', { dispatch: 3_000 }, 15_000);
   } finally {
     held?.release();
     if (previousHome === undefined) delete process.env.PULLBOARD_HOME;

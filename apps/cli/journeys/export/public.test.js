@@ -119,10 +119,10 @@ test('complete native batch hashes remain typed while private execution linkage 
   const id = '018fc314-57c9-7318-a11f-55a08a28a101', commit = 'a'.repeat(40), tree = 'b'.repeat(64);
   // Schema contract only: this literal carries no recorded gate or landing assurance.
   const batch = { version: 1, id, state: 'gating', base: commit, tip: tree,
-    root: '/Users/fixture/board', owner: id, logPath: '/Users/fixture/batch.log',
+    root: '/Users/example/board', owner: id, logPath: '/Users/example/batch.log',
     candidates: [{ id: 1, commit }], items: [{ id: 1, commit, reviewedCommit: tree, merge: tree }],
-    gateResults: [{ tree, affectedGate: 'c'.repeat(64), isGreen: false, logPath: '/Users/fixture/gate.log' }],
-    proof: { tree, logPath: '/Users/fixture/proof.log' },
+    gateResults: [{ tree, affectedGate: 'c'.repeat(64), isGreen: false, logPath: '/Users/example/gate.log' }],
+    proof: { tree, logPath: '/Users/example/proof.log' },
     invariantEvidence: { version: 1, gates: [{ commit, isGreen: false, submissions: [{ id: 1, commit }], failures: [], fileTimes: [] }],
       diagnostics: [{ commit, test: 'test/public.test.js', isGreen: false, wallMs: null }] } };
   const native = { events: { events: [{ event_kind: 'landing_batch', event_detail: JSON.stringify({ batch }) },
@@ -136,9 +136,9 @@ test('complete native batch hashes remain typed while private execution linkage 
   assert.equal(actual.items[0].reviewedCommit, tree); assert.equal(actual.gateResults[0].affectedGate, 'c'.repeat(64));
   assert.equal(actual.invariantEvidence.gates[0].submissions[0].commit, commit);
   assert.equal(JSON.parse(projected.events.events[1].event_detail).sha, tree);
-  assert.equal(batch.root, '/Users/fixture/board', 'native source metadata is unchanged');
+  assert.equal(batch.root, '/Users/example/board', 'native source metadata is unchanged');
   for (const changed of [{ ...batch, tip: 'a'.repeat(41) }, { ...batch, note: commit },
-    { ...batch, extra: { base: commit } }, { ...batch, note: '/Users/fixture/private-note' }]) {
+    { ...batch, extra: { base: commit } }, { ...batch, note: '/Users/example/private-note' }]) {
     assert.throws(() => publicSnapshot({ events: { events: [{ event_kind: 'landing_batch', event_detail: JSON.stringify({ batch: changed }) }] } }),
       /PUBLIC_EXPORT_BLOCKED/u, 'unknown prose and malformed typed fields never gain a hash or private-field exemption');
   }
@@ -158,8 +158,8 @@ test('retained object keys undergo the same public scan as their values [N26]', 
 
 test('home paths and chat session identifiers never survive public prose or keys [N26]', () => {
   const session = '018fc314-57c9-7318-a11f-55a08a28a101';
-  for (const [kind, text] of [['home path', '/Users/fixture-person/Code/project'],
-    ['home path', '/home/fixture-person/project'], ['chat or agent session id', session]]) {
+  for (const [kind, text] of [['home path', '/Users/example/Code/project'],
+    ['home path', '/home/example/project'], ['chat or agent session id', session]]) {
     for (const input of [{ note: text }, { state: { state: { items: [{ thread: [{ kind: 'fact', detail: { note: text } }] }] } } },
       { state: { state: { rowAgesAt: { [text]: 'a'.repeat(40) } } } }]) {
       assert.throws(() => publicSnapshot(input), error => error.code === 'PUBLIC_EXPORT_BLOCKED'
