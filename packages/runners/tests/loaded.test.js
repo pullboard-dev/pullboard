@@ -50,6 +50,16 @@ test('a job goes to the idle runner, never the one at 10x its cores [C7]', async
   } finally { lease.release(); }
 });
 
+test('with two runners free, the lower load per core wins even with less headroom in cores [C7,#5578]', async t => {
+  const project = box(t);
+  const small = { ...runner('four-core', 1), cores: 4 };
+  const big = runner('ten-core', 4);
+  const lease = await acquire(project, [small, big]);
+  try {
+    assert.equal(lease.runner.host, 'four-core', '1 of 4 cores is 0.25 per core, below 4 of 10 at 0.4, though 10 cores leave more headroom');
+  } finally { lease.release(); }
+});
+
 test('the 2 Nov loads: the runner with the most headroom wins and the overloaded one is skipped [C7]', async t => {
   const project = box(t);
   const loads = { '.56': 108, '.52': 16, '.53': 13, '.55': 4.9, '.54': 1.9, '.51': 1.4 };

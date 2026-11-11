@@ -14,6 +14,7 @@ import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner
 import { enqueueRunnerJob } from '../../../src/io/pull/enqueue.js';
 import { fetchRunnerFile } from '../../../src/io/pull/enqueue.js';
 import { uploadRunnerPack } from '../../../src/io/pull/enqueue.js';
+import { parseStatus } from '../../../src/io/pull/mirror.js';
 import { readRunnerMirror } from '../../../src/io/pull/mirror.js';
 import { refreshRunnerStatus } from '../../../src/io/pull/mirror.js';
 import { ackRunnerJob } from '../../../src/io/pull/mirror.js';
@@ -209,4 +210,15 @@ test('5468 clause 2: a runner that fails three refreshes is unreachable and ends
   controller.abort();
   await done;
   assert.deepEqual(needs, [['needy', 'QUJD']]);
+});
+
+test('5578 clause 1: the status mirror carries the agent load line, with the reason while it holds new jobs [C7]', () => {
+  const held = parseStatus('agent present\nload state=hold load=34.2 cores=10 at=1700000000\nend\n');
+  assert.equal(held.load.holding, true);
+  assert.equal(held.load.cores, 10);
+  assert.match(held.load.reason, /load 34\.2 is at or above its 10 cores/);
+  const open = parseStatus('agent present\nload state=ok load=3 cores=10 at=1700000000\nend\n');
+  assert.equal(open.load.holding, false);
+  assert.equal(open.load.reason, undefined);
+  assert.equal(parseStatus('agent absent\nend\n').load, undefined);
 });
