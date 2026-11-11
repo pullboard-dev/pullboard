@@ -126,4 +126,5 @@ test('clause 2: pullboard claim A on that seat still refuses ITEM_FOLDER_SESSION
   assert.match(all, /ITEM_FOLDER_SESSION_LIVE/u);
   assert.match(all, new RegExp(`${holder.id}'s live session`, 'u'), 'the refusal names the live session');
   assert.deepEqual(binding(box, folder), before, 'nothing was adopted');
+  assert.match(box.run(box.repo, 'show', a).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'refused before the move: A was never claimed (#5766)');
 });

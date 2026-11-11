@@ -294,6 +294,51 @@ export async function liveFolderRefusal(ctx, board, me, id) {
   return folder === path ? null : unfinishedFolderRefusal(folder, id);
 }
 
+/** The ITEM_FOLDER_DIRTY refusal for this seat's own item folder holding uncommitted files on a fresh claim. */
+function dirtyFolderRefusal(path, dirty) {
+  return new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
+}
+
+/** The files `git status` names in a folder, or null when git cannot read it. */
+function dirtyFiles(path) {
+  const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
+  return status.status === 0 ? status.stdout.split('\n').filter(Boolean).map(line => line.slice(3)) : null;
+}
+
+/**
+ * The folder refusal an explicit claim would meet, read before the move and without changing anything (#5766): a folder
+ * another live session holds, a protected or mid-merge prior folder, or this seat's own item folder dirty on a fresh claim.
+ * Why: the folder was opened after the claim committed, so 233 claims in 4 days were recorded while the command refused.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ id: string, lane: string }} me the seat about to claim
+ * @param {number} id the item
+ * @param {{ renewing?: boolean }} [options] a renewal keeps its own folder's uncommitted work
+ * @returns {Promise<Refused|null>}
+ */
+export async function claimFolderRefusal(ctx, board, me, id, { renewing = false } = {}) {
+  const live = await liveFolderRefusal(ctx, board, me, id);
+  if (live || renewing || me.id === 'coordinator' || itemFolderRunner()) return live;
+  const path = itemFolderPath(seatRoot(ctx, board, me), id);
+  if (!existsSync(path) || checkoutBranch(path) !== branch(me.lane, id)) return null;
+  const dirty = dirtyFiles(path);
+  return dirty?.length ? dirtyFolderRefusal(path, dirty) : null;
+}
+
+/**
+ * What claim says when the item folder refuses after the claim was recorded: the claim stands, so the command exits
+ * claimed with the folder's problem and a next step for it, never as a refusal the board contradicts (#5766).
+ *
+ * @param {Refused} error the folder refusal
+ * @param {number|string} id the item
+ * @returns {{ code: string, message: string, next: string }}
+ */
+export function claimedFolderProblem(error, id) {
+  const message = error.message.replace(/^\[[A-Z0-9_]+\]\s*/u, '');
+  return { code: error.code, message, next: error.next ?? `fix the item folder (${error.code}), then pullboard claim ${id} to open it` };
+}
+
 /** Whether two paths name one existing directory, however each was spelled. */
 function sameDirectory(first, second) {
   try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
@@ -344,10 +389,9 @@ async function openFolder(ctx, me, id, options = {}) {
   if (existsSync(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
     if (!options.renewed) {
-      const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
-      if (status.status !== 0) throw new Error(`cannot inspect item folder ${path}; preserve it and retry`);
-      const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
-      if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
+      const dirty = dirtyFiles(path);
+      if (!dirty) throw new Error(`cannot inspect item folder ${path}; preserve it and retry`);
+      if (dirty.length) throw dirtyFolderRefusal(path, dirty);
     }
     // The folder may still be bound to an ended session of this seat path: the claimer takes it over (#3679).
     const session = await import('../join.js');
