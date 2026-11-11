@@ -964,6 +964,10 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/tests/fixtures/relay/sealed-client.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "apps/cli/tests/fixtures/relay/setup.js": {
       "cells": 1,
       "deep": 0
