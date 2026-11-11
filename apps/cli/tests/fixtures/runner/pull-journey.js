@@ -35,7 +35,7 @@ export function definePullJourney(count) {
     ${executionServicesSource(gate)}
     const root = ${JSON.stringify(box.repo)};
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
-      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
+      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: ${30000 + count * 5000} },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: ${count}, browser: 1 }] }));
     const command = 'printf job-finished; sleep ${8 + count}; exit 3';
     const shaped = result => ({ exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), kind: result.executionReceipt?.kind, runner: result.executionRunner, ...(result.exitCode === undefined ? { odd: JSON.stringify(result).slice(0, 300) } : {}) });
