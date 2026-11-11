@@ -75,7 +75,7 @@ function checkProject(box, { releaseCheck = null } = {}) {
     ? `const fs = require('node:fs');\n(async () => {\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check start\\n');\n  while (!fs.existsSync(${JSON.stringify(releaseCheck)})) await new Promise(done => setTimeout(done, 10));\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n');\n  process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n})();\n`
     : `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n'); process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n`);
   if (releaseCheck) writeFileSync(releaseCheck, 'baseline runs without a hold\n');
-  const added = spawnSync(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Check item', '--specs', 'G1', '--route', 'light', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
+  const added = spawnSync(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Check item', '--specs', 'G1', '--route', 'mid', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(added.status, 0, added.stderr);
   assert.equal(spawnSync(process.execPath, [BIN, 'claim', '1'], { cwd: runner, env: box.env }).status, 0);
   if (releaseCheck) rmSync(releaseCheck, { force: true });
@@ -139,7 +139,11 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
   // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
-  const moved = spawnSync('git', ['commit', '-q', '--allow-empty', '-m', 'chore: move main'], { cwd: root, env: box.env, encoding: 'utf8' });
+  // The move reaches a file the item changed (same bytes, so it composes cleanly); a move elsewhere leaves the sealed receipt standing.
+  mkdirSync(join(root, 'web'));
+  writeFileSync(join(root, 'web', 'result.txt'), 'ready\n');
+  assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: root, env: box.env }).status, 0);
+  const moved = spawnSync('git', ['commit', '-q', '-m', 'chore: move main'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(moved.status, 0, moved.stderr);
   writeFileSync(box.events, '');
   const verifyRelease = join(box.dir, 'release-verify-holder');
@@ -205,7 +209,7 @@ test('a short check never waits behind whole suites [C7]', async () => {
     waiting.push(directory);
     await waitFor(() => directory.child.stderrText.includes('waiting for a gate slot:'), 'a directory run to queue');
     const queued = JSON.parse(pullboard(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
-    assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'focused']);
+    assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'seat-test']);
     assert.equal(queued[1].requestedSlot, undefined, 'a whole suite is never offered a short slot');
     assert.equal(queued[2].requestedSlot, undefined, 'a directory run is never offered a short slot');
     const shortRoot = shortProbeSuite(box, 'short-run');
@@ -220,11 +224,11 @@ test('a short check never waits behind whole suites [C7]', async () => {
     assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
     const gate = status.resources.find(resource => resource.name === 'gate');
     assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
-    assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['focused', 'short'], ['gate', 'gate'], ['gate', 'gate']],
+    assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
       'pool status names the slot each run holds');
     const text = pullboard(box, settingsRoot, ['resources']);
     const gateText = text.slice(text.indexOf('\ngate (machine'));
-    assert.equal((gateText.match(/held by .*\(short slot, focused\)/gu) ?? []).length, 1, 'the text status names the short slot');
+    assert.equal((gateText.match(/held by .*\(short slot, seat-test\)/gu) ?? []).length, 1, 'the text status names the short slot');
     assert.equal((gateText.match(/held by .*\(gate slot, gate, browser\)/gu) ?? []).length, 2, 'the text status names each gate slot');
     const reuse = wholeSuiteInheritance(box, settingsRoot, JSON.parse(readFileSync(short.marker, 'utf8')));
     assert.equal(reuse.stdout, 'SHORT_SLOT_FULL_SUITE', 'a whole suite cannot reuse a short lease from inside the short check');
