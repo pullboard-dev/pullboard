@@ -750,7 +750,7 @@ function rawGit(cwd, args, env) {
  * The working copy of a file whose Git blob identity this command already learned, when its bytes hash to that identity;
  * null when nothing was pinned or the copy differs. Why: identical bytes are the committed text, and a Git child costs more [C7].
  */
-function workingBytesMatchingPinnedBlob(cwd, revision, file) {
+export function pinnedWorkingText(cwd, revision, file) {
   const blobs = mainSourceBlobs(cwd);
   const oid = blobs && blobs.commit === revision ? { 'pullboard.json': blobs.config, 'DOCTRINE.md': blobs.doctrine }[file] : null;
   if (!oid) return null;
@@ -771,7 +771,7 @@ function workingBytesMatchingPinnedBlob(cwd, revision, file) {
  * @returns {string | null}
  */
 export function gitShowText(cwd, revision, file) {
-  const same = workingBytesMatchingPinnedBlob(cwd, revision, file);
+  const same = pinnedWorkingText(cwd, revision, file);
   if (same !== null) return same;
   const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
   return raw.status === 0 ? raw.stdout : null;

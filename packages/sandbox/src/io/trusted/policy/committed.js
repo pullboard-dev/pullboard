@@ -18,6 +18,7 @@ import {
   cleanGitEnvironment,
   mainCheckout,
   gitPath,
+  pinnedWorkingText,
   tryGit,
   repoInfo,
 } from '../../../../../git/light.js';
@@ -57,7 +58,8 @@ export function policyAt(root, commit) {
   const key = `${root}\0${commit}`;
   let source = POLICY_SOURCES.get(key);
   if (source === undefined) {
-    source = policyGit(root, ['show', commit + ':pullboard.json']);
+    // Bytes hashing to the blob identity this command already learned are the committed bytes, with no Git child [C7].
+    source = pinnedWorkingText(root, commit, 'pullboard.json') ?? policyGit(root, ['show', commit + ':pullboard.json']);
     POLICY_SOURCES.set(key, source);
     if (POLICY_SOURCES.size > POLICY_SOURCE_LIMIT) POLICY_SOURCES.delete(POLICY_SOURCES.keys().next().value);
   }

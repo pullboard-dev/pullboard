@@ -76,6 +76,9 @@ function looseObject(commonDir, oid) {
 /** Resolve the primary checkout's HEAD commit from loose or packed refs; undefined when Git must answer. */
 function primaryHead(commonDir) {
   try {
+    // A real refs/main-worktree/HEAD would outrank the pseudo-ref, so only Git can name the commit then.
+    if (existsSync(join(commonDir, 'refs', 'main-worktree', 'HEAD'))
+      || /^[a-f0-9]+ refs\/main-worktree\/HEAD$/mu.test(existsSync(join(commonDir, 'packed-refs')) ? readFileSync(join(commonDir, 'packed-refs'), 'utf8') : '')) return undefined;
     const head = readFileSync(join(commonDir, 'HEAD'), 'utf8').trim();
     if (/^[a-f0-9]{40}$/u.test(head)) return head;
     const name = /^ref: (refs\/.+)$/u.exec(head)?.[1];
