@@ -122,7 +122,7 @@ test('a worker missing READY yields to a free runner in the next admission cycle
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   const second = { ...box.runner, host: HOST + '-setup' };
   writeFileSync(settings, JSON.stringify({ ...configured, runners: [box.runner, second],
-    gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
+    gate: { ...configured.gate, timingRunner: false, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}

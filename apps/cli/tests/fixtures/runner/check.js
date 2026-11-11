@@ -86,6 +86,9 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   box.env.PATH = bin + ':' + box.env.PATH;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   for (const host of [HOST, HOST + '-setup']) document(box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1', '--json'));
+  // The first of two runners is kept for timed checks by default; the rotation under test needs both open to ordinary runs.
+  const machineSettings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), keptSettings = JSON.parse(readFileSync(machineSettings, 'utf8'));
+  writeFileSync(machineSettings, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false } }));
   document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
   document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
   const expectedHosts = [HOST, HOST + '-setup'];

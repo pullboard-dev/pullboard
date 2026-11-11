@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   mkdirSync,
   readFileSync,
+  writeFileSync,
 } from 'node:fs';
 import {
   join,
@@ -55,6 +56,9 @@ export async function runnerFirstPolicyCase(e2e) {
     const added = box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1');
     assert.equal(added.code, 0, `${host} is registered: ${added.err}`);
   }
+  // With two or more runners the first is kept for timed checks by default; rotation needs every runner open to ordinary runs.
+  const keptSettings = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  writeFileSync(settingsFile, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false } }));
   const first = box.run(box.repo, 'settings', 'gate.runnersFirst', 'on');
   assert.equal(first.code, 0, first.err);
   const browserZero = box.run(box.repo, 'settings', 'browserSlots', '0');
