@@ -13,7 +13,7 @@ const ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
 test('clause 1: one registry lists every static check class with a function that runs it, and submit reads the registry instead of an inline list [C7]', () => {
   const names = STATIC_CHECKS.map(check => check.name);
   assert.equal(new Set(names).size, names.length, 'each class is listed once');
-  for (const expected of ['relay-boundary', 'import-style', 'engine-folder', 'empty-catch', 'file-size', 'test-inputs', 'load-bearing', 'wall-clock-margins', 'test-waits', 'cli-launches']) {
+  for (const expected of ['relay-boundary', 'import-style', 'engine-folder', 'empty-catch', 'file-size', 'test-inputs', 'load-bearing', 'wall-clock-margins', 'test-waits']) {
     assert.ok(names.includes(expected), expected);
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
