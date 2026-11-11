@@ -34,14 +34,15 @@ function auditFixture(t) {
   }
   mkdirSync(join(root, 'test'), { recursive: true });
   for (const name of ['alpha', 'beta']) writeFileSync(join(root, `test/${name}.test.js`), `import { test } from 'node:test';\nimport '../packages/${name}/index.js';\ntest('${name} loads', () => {});\n`);
+  mkdirSync(join(root, 'apps/cli/journeys/verify'), { recursive: true });
   writeFileSync(join(root, 'apps/cli/journeys/verify/machine.test.js'), `import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import '../packages/alpha/index.js';
-import '../packages/beta/index.js';
+import '../../../../packages/alpha/index.js';
+import '../../../../packages/beta/index.js';
 const declared = new Set(['KNOWN_ALPHA', 'KNOWN_BETA']);
 test('every refusal a move raises today is declared on that move [M1]', () => {
-  const raised = ['alpha', 'beta'].flatMap(name => [...readFileSync(new URL('../packages/' + name + '/src/' + name + '.js', import.meta.url), 'utf8').matchAll(/new Refused\\('([A-Z_]+)'/g)].map(match => match[1]));
+  const raised = ['alpha', 'beta'].flatMap(name => [...readFileSync(new URL('../../../../packages/' + name + '/src/' + name + '.js', import.meta.url), 'utf8').matchAll(/new Refused\\('([A-Z_]+)'/g)].map(match => match[1]));
   assert.deepEqual(raised.filter(code => !declared.has(code)), []);
 });
 `);

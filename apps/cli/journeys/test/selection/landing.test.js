@@ -83,7 +83,9 @@ test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stri
 `);
   writeTestTiers(box.repo);
   commit(box, box.repo, 'test: alpha front door keeps its value [G1]');
-  const landed = json(box, box.repo, 'land', '--max', '1');
+  const blocked = box.run(box.repo, 'land', '--max', '1', '--json');
+  assert.equal(blocked.code, 1, 'a batch that a culprit blocks exits non-zero: ' + blocked.out + blocked.err);
+  const landed = JSON.parse(blocked.out);
   assert.deepEqual(landed.landed, [], JSON.stringify(landed));
   assert.ok(calls(box, 'contract').includes('contract:2'), 'landing ran the new contract on the merged tree');
   assert.ok(!json(box, box.repo, 'show', String(entry.id)).item_merged_commit, 'the change that breaks the contract never lands');
