@@ -3,15 +3,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../tests/fixtures/next/take.js';
 import { queueTestRun } from '../../../../packages/drive/index.js';
+import { workTestRun } from '../../../../packages/drive/index.js';
+import { captureLapsedClaims } from '../../../../packages/health/index.js';
 import { takeJob } from '../../../../packages/jobs/index.js';
 import { renewLease } from '../../../../packages/jobs/index.js';
 import { finishJob } from '../../../../packages/jobs/index.js';
 import { writeStep } from '../../../../packages/jobs/index.js';
 import {
   getItem,
+  heartbeatSeat,
   isHeld,
   itemWorkInFlight,
   itemsInStatus,
+  seatGone,
 } from '../../../../packages/store/index.js';
 
 /**
@@ -62,4 +66,45 @@ test('clause 2: a finished run ends the hold, a run holds only its own item, and
   writeStep(box.board.db, run.id, 'result', { green: true }, { now: box.clock.now().getTime() });
   finishJob(box.board.db, run.id, 'test-run:2');
   assert.equal(itemWorkInFlight(box.board, getItem(box.board, id)), false, 'a recorded result ends the hold');
+});
+
+test('clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run is live and frees it once the run lapses [B4,B28]', async t => {
+  const box = await fixture(t);
+  const seat = box.seats.actor;
+  const id = box.add('Held through the sweep');
+  const control = box.add('Control with no run', { brief: 'Files: web/control.js\nTest: a quiet seat without a run is swept.' });
+  box.claim(id, seat);
+  box.claim(control, box.seats.builder);
+  const ctx = { clock: box.clock, config: box.config, info: { root: box.root } };
+  const sweep = () => {
+    const snapshot = captureLapsedClaims(ctx, box.board, 'coordinator');
+    return snapshot ? snapshot.claims.map(claim => claim.id) : [];
+  };
+  const run = queueRunFor(box, seat);
+  box.advance(3 * 60_000);
+  assert.deepEqual(sweep(), [control], 'both seats are quiet over 2 minutes: only the claim with no run is swept');
+  takeJob(box.board.db, run.id, 'test-run:sweep', { now: box.clock.now().getTime(), leaseMs: 120_000 });
+  writeStep(box.board.db, run.id, 'running', {}, { now: box.clock.now().getTime() });
+  box.advance(60_000);
+  assert.equal(renewLease(box.board.db, run.id, 'test-run:sweep', { now: box.clock.now().getTime(), leaseMs: 120_000 }), true);
+  assert.equal(sweep().includes(id), false, 'a running proof run with a live lease keeps the quiet seat\'s claim');
+  box.advance(121_000);
+  assert.equal(sweep().includes(id), true, 'once the worker stops renewing, the sweep frees the claim');
+});
+
+test('clause 2: a running test-run worker beats its agent seat while it renews the job lease [B4,B28]', async t => {
+  const box = await fixture(t);
+  const seat = box.seats.actor;
+  const id = box.add('Beaten by a worker');
+  box.claim(id, seat);
+  const run = queueRunFor(box, seat);
+  box.advance(5 * 60_000);
+  assert.equal(seatGone(box.board, seat.id), true, 'the seat is quiet before the worker starts');
+  let beats = 0;
+  let enough;
+  const renewed = new Promise(done => { enough = done; });
+  await workTestRun(work => work(box.board), run.id, async () => { await renewed; return { green: true, files: ['a.test.js'] }; },
+    { renewMs: 5, beatSeat: board => { beats += 1; heartbeatSeat(board, seat.id); if (beats >= 2) enough(); } });
+  assert.ok(beats >= 2, 'the worker beat at start and on each lease renewal');
+  assert.equal(seatGone(box.board, seat.id), false, 'the beats keep the seat from reading gone');
 });
