@@ -416,7 +416,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     assert.equal(existsSync(release), false, 'the owning test did not let the abandoned gate proceed');
     const waiting = await second.closed;
     assert.equal(waiting.code, 1);
-    assert.match(second.stderrText, /LAND_ADOPT/u, 'a queued ordinary land preserves explicit interrupted-batch adoption');
+    assert.match(second.stderrText, /LAND_ADOPT/u, `a queued ordinary land preserves explicit interrupted-batch adoption; first exit ${first.exitCode} ${first.signalCode ?? ''}: ${first.stderrText.slice(-700)} | batch ${readBoard(box, board => store.landingBatches(board).map(batch => batch.state))}`);
     if (killParent) await interruptedBranchControls(box);
     rmSync(arm); // Future gates may run, but removing arm cannot unblock the old gate's release loop.
     const adopted = JSON.parse(run(box, box.repo, 'land', '--adopt', '--json'));
