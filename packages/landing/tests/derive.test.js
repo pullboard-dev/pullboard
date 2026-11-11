@@ -32,7 +32,6 @@ function repo(t) {
   put('package.json', '{"type":"module"}\n');
   put('packages/state/src/logic/engines/base-engine.js', 'export const BASE_ENGINE = 80;\n');
   put('packages/state/src/logic/engines/unassigned.js', 'export const unassignedEngine = () => 81;\n');
-  put('packages/state/data/history/legacy.json', '{"version":1}\n');
   sh('add', '-A');
   sh('commit', '-q', '-m', 'base');
   put(LEAF, "import { unassignedEngine } from './engine-next.js';\nexport const FEATURE_ENGINE = unassignedEngine();\n");
