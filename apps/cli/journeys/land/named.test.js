@@ -92,5 +92,5 @@ test('land --items refuses a non-coordinator, a missing id and a commit count th
   const mismatch = box.run(box.repo, 'land', '--items', `${entry.item},9999`, '--commit', entry.commit);
   assert.match(mismatch.err, /USAGE/u);
   const missing = box.run(box.repo, 'land', '--items', '9999', '--commit', entry.commit);
-  assert.match(missing.err, /LAND_NAMED/u);
+  assert.match(missing.err, /NO_ITEM/u);
 });
