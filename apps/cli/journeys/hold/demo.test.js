@@ -401,13 +401,14 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
             return {
               waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
-              waitingMetaLine: waitingMeta && (() => { const range = document.createRange(); range.selectNodeContents(waitingMeta.querySelector('.who')); return range.getClientRects()[0]?.height; })(),
+              waitingMetaLine: waitingMeta && Math.max(...[...waitingMeta.children].map(e => e.getBoundingClientRect().height)),
+              waitingMetaRows: waitingMeta && new Set([...waitingMeta.children].flatMap(e => { const range = document.createRange(); range.selectNodeContents(e); return [...range.getClientRects()].map(r => Math.round(r.top + r.height / 2)); }).map(y => Math.round(y / 6))).size,
               waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
               answerText: answerText && rect(answerText), button: button && rect(button),
             };
           })())`));
           assert.ok(asks.waitingHasNoAnswer, `${width}: the waiting ask is a conversation card without an Answer button`);
-          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
+          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1 && asks.waitingMetaRows === 1,
             `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
           assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
             `${width}: waiting ask text spans the card: ${JSON.stringify(asks)}`);
