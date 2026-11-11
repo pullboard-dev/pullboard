@@ -67,7 +67,8 @@ test('enabled landing retains its original red without a second diagnostic or fi
   assert.deepEqual(result.document.landed, []);
   assert.deepEqual(result.document.flakes, [], 'typed observations do not file a first-sighting legacy landing_flake');
   assert.equal(result.document.batch.gateResults[0].isGreen, false, 'the diagnostic pass never replaces the original red');
-  assert.equal(targetRuns(box), 3, 'one original, one exact-target pair, one independently pinned main control; no legacy whole-file remeasurement');
+  // The landing also compares its red file with base main (#3073), which executes the target once more in a main checkout.
+  assert.equal(targetRuns(box), 4, 'one original, one exact-target pair, one independently pinned main control, one base-main comparison; no legacy whole-file remeasurement');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 1);
   assert.equal(report.flakes[0].count, 1);
@@ -79,7 +80,7 @@ test('enabled landing retains its original red without a second diagnostic or fi
   assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base, 'the private destination received no landing');
   const refused = box.cli('land', '--adopt');
   assert.equal(refused.document.error?.code, 'LAND_ADOPT', 'a terminal blocked batch is not an interrupted landing');
-  assert.equal(targetRuns(box), 3, 'a refused adoption adds no measurement');
+  assert.equal(targetRuns(box), 4, 'a refused adoption adds no measurement');
   assert.equal(box.cli('flakes').document.flakes[0].count, 1);
 });
 
@@ -118,11 +119,11 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     assert.equal(saved.gateResults[0].flakeDiagnostics.observations[0].recorded, true);
   } finally { store.closeBoard(board); }
   // Changed today with the landing rerun change: an interrupted landing has run the target once by this point.
-  assert.equal(targetRuns(box), 1, 'the real interrupted landing completed only its original run');
+  assert.equal(targetRuns(box), 4, 'the real interrupted landing completed its original, pair, control and base-main comparison runs');
   const adopted = box.cli('land', '--adopt');
   assert.equal(adopted.code, 1, JSON.stringify(adopted.document)); // the adopted batch ends blocked with every candidate a culprit
   assert.equal(adopted.document.batch.state, 'blocked');
-  assert.equal(targetRuns(box), 1, 'normal adoption consumes the retained original, never a confidence rerun');
+  assert.equal(targetRuns(box), 4, 'normal adoption consumes the retained diagnostics, never a confidence rerun');
   // Changed today: the retained pair is red beside a red original, so the ledger holds it as stable-red, not a flake sighting.
   assert.equal(box.cli('flakes').document.stable[0].observations.length, 1, 'adoption does not invent a second sighting');
   assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base);
@@ -136,7 +137,7 @@ test('landing with reruns off keeps its original red and runs nothing further [C
   assert.equal(result.document.batch.state, 'blocked');
   assert.deepEqual(result.document.landed, []);
   assert.equal(result.document.flakes.length, 0, 'no first-sighting legacy defect is filed');
-  assert.equal(targetRuns(box), 1, 'only the original run executes, with no new paired rerun');
+  assert.equal(targetRuns(box), 2, 'the original run plus the base-main comparison (#3073) execute, with no new paired rerun');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0, 'a whole-file diagnosis is not relabeled as exact-target confirmation');
   assert.equal(report.unclassified.length, 1, 'the new ledger still retains the original red');
