@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
 import { firstRefusalArgs } from '../../../../items/index.js';
+import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { fixture } from '../../fixtures/dispatch.js';
 
 /**
@@ -97,6 +98,8 @@ test('clause 1: recording a reject with claim.returnToBoard releases the builder
 
 test('clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', t => {
   const box = fixture(t);
+  // This control proves replay of the former first-refusal policy, not the current rejection rule (#2779).
+  box.board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30 } });
   assert.equal(store.firstRefusal(box.board, id)?.builder, box.seats.builder.id);
   assert.notEqual(offered(box, box.seats.actor), id);
