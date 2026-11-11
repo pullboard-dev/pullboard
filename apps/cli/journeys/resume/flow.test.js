@@ -1,4 +1,6 @@
 /** Coordinator flow alerts, upgrade notes and shouts reuse the real Git/SQLite statistics and documented thresholds [N32,R1,R2]. */
+import { events as readStatsEvents } from '../../../../packages/store/index.js';
+import { counterProofStats as readStatsCounter } from '../../../../packages/verify/index.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
 import {
