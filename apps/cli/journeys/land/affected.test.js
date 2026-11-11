@@ -86,7 +86,8 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   if (waive) assert.equal(box.run(box.repo, 'land', '--waive', 'web/new-importer.test.js', '--until', '2099-01-01', '--reason', 'private exact affected-stage waiver').code, 0);
   process.stderr.write('# land-affected: land candidate with late importer\n');
   const outcome = box.run(box.repo, 'land', '--json');
-  assert.equal(outcome.code, 0, outcome.out + outcome.err);
+  // A blocked batch exits 1, a landed one 0 (#4265, #2858: a red-only landing exits 1).
+  assert.equal(outcome.code, waive && !opaque ? 0 : 1, outcome.out + outcome.err);
   const landing = JSON.parse(outcome.out);
   t.diagnostic(JSON.stringify({ landing, messages: outcome.err }));
   if (waive && !opaque) {
