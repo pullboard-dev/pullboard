@@ -50,8 +50,7 @@ const TREE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
  *
  * @param {string|null|undefined} tree - The candidate tree the shards run.
  * @param {string} command - The test command the shard files are appended to.
- * @param {{ folder?: string, now?: () => number, tooling?: string|null }} [options] - `tooling`, when given, is the runner
- *   tooling sha256 a reused pass must carry, so a pass from other tooling runs again.
+ * @param {{ folder?: string, now?: () => number, tooling?: string|null }} [options] - `tooling`: the runner tooling sha256 a reused pass must carry.
  * @returns {{ tree: string, file: string, tooling: string|null, read: () => object[], record: (pass: object) => void } | null}
  */
 export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now, tooling = null } = {}) {
@@ -99,8 +98,7 @@ function reusablePasses(passes, files, timingRunId) {
     const shardFiles = Array.isArray(pass?.files) ? pass.files : [];
     const run = pass?.run;
     if (!shardFiles.length || run?.isGreen !== true || shardFiles.some(file => !wanted.has(file) || taken.has(file))) continue;
-    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree) continue;
-    if (passes.tooling && run.executionSource?.tooling?.sha256 && run.executionSource.tooling.sha256 !== passes.tooling) continue;
+    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree || passes.tooling && run.executionSource?.tooling?.sha256 && run.executionSource.tooling.sha256 !== passes.tooling) continue;
     for (const file of shardFiles) taken.add(file);
     const rebind = typeof pass.timingRunId === 'string' && pass.timingRunId && timingRunId && pass.timingRunId !== timingRunId;
     reused.push({ files: [...shardFiles], run: rebind ? { ...run, output: String(run.output ?? '').replaceAll(pass.timingRunId, timingRunId) } : run });

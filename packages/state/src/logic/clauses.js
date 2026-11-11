@@ -69,7 +69,7 @@ const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
  * The test files a frozen check runs when it is one plain command naming them, such as `node <runner> a.test.js`; [] for
  * anything a test run cannot stand in for: shell syntax, a negation, or no test file at all.
  */
-export function checkTestFiles(check) {
+function checkTestFiles(check) {
   const text = String(check ?? '').trim();
   if (!text || SHELL_SYNTAX.test(text)) return [];
   return text.split(/\s+/u).filter(word => TEST_FILE.test(word)).map(word => word.replace(/^\.\//u, ''));

@@ -21,7 +21,7 @@ function toolingOf(run) {
 }
 
 /** The files command prefix the gate appends `./file` words to, from a runner command such as `node <runner>`. */
-export function filesCommandPrefix(runner) { return `${String(runner ?? '').trimEnd()} `; }
+function filesCommandPrefix(runner) { return `${String(runner ?? '').trimEnd()} `; }
 
 /**
  * The runner and test files of a frozen check that is exactly `<program> <runner script> <test files…>`, or null for any
