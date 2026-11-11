@@ -57,8 +57,9 @@ const CLOSERS = ')]}';
  */
 export function declaresSource(source) {
   for (const line of source.split(/\r?\n/u)) {
-    if (line === SOURCE_TREE_INPUT || NAMED_INPUTS.test(line)) return true;
+    if (line === SOURCE_TREE_INPUT) return true;
     if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return false; return true; }
+    if (NAMED_INPUTS.test(line)) return true;
     if (!DECLARATIONS.has(line)) return false;
   }
   return false;
