@@ -1,6 +1,7 @@
 /** Read the gate panel for one gate job or for every stalled one [C7]. */
 import { jobView } from "../store.js";
 import { viewOf } from "../../logic/view.js";
+import { readPayload } from "../blobs.js";
 import { gatePanelState } from "../../logic/panel.js";
 
 /**
@@ -30,7 +31,7 @@ export function stalledGates(db, { now = Date.now(), workerAlive } = {}) {
   catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
   const stalled = [];
   for (const row of rows) {
-    const view = viewOf(row, db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(row.job_id));
+    const view = viewOf(row, db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(row.job_id), text => readPayload(db, text));
     const panel = gatePanelState(view, now, { workerAlive });
     if (panel.stalled) stalled.push({ id: view.id, item: view.item, text: panel.text, ageMinutes: panel.ageMinutes });
   }

@@ -9,6 +9,11 @@ export { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker, recordRunner
 export { probeRunnerTransport } from "./src/io/probe.js";
 export { SOURCE_CACHE_CANDIDATES, pinSourceCacheJob, pruneSourceCache, restoreSourceTree, rememberSourceTree, checkSourceTagNames } from "./src/io/source/cache.js";
 export { runnerDeadlineRuns } from "./src/io/wait.js";
+export { waitRunnerJob, decideJob, BEAT_LOST_MS } from "./src/io/pull/wait.js";
+export { refreshRunnerStatus, readRunnerMirror, registerRunnerJob, requestRunnerCancel, ackRunnerJob, parseStatus, mirrorFile, MIRROR_INTERVAL_MS, MIRROR_UNREACHABLE_AFTER } from "./src/io/pull/mirror.js";
+export { enqueueRunnerJob, uploadRunnerPack, fetchRunnerFile } from "./src/io/pull/enqueue.js";
+export { enqueueScript, packScript, fetchScript, statusScript } from "./src/io/pull/scripts.js";
+export { runnerStatusDir, runnerSshArgs, runRunnerScript } from "./src/io/pull/ssh.js";
 export { readRunnerCapacities } from "./src/io/capacity.js";
 export { runnerUtilization, readRunnerUtilization } from "./src/io/utilization.js";
 export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, computeRunnerSlots, runnerIsComputed, effectiveRunner, effectiveRunners, RUNNER_MEASUREMENT_MS, refreshRunnerMeasurements } from "./src/io/slots.js";
