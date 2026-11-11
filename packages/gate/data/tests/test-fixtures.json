@@ -1122,9 +1122,19 @@
     "raw-board": 2
   },
   "apps/cli/journeys/inbox/projects.test.js": {
-    "hand-policy": 7,
-    "raw-cli": 17,
-    "tempdir": 4
+    "hand-policy": 2,
+    "raw-cli": 7,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/inbox/sidebar.test.js": {
+    "hand-policy": 4,
+    "raw-cli": 9,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/inbox/tabs.test.js": {
+    "hand-policy": 1,
+    "raw-cli": 1,
+    "tempdir": 1
   },
   "apps/cli/journeys/shout/prose.test.js": {
     "repo-read": 1,

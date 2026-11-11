@@ -92,12 +92,12 @@ test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy 
   assert.equal(box.run(box.web, 'claim', String(ids[1])).code, 0);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
-  // @pullboard-board-file journey: seed legacy item rows into the board the real CLI under test reads next.
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   let board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { submitFixture(board, ids[1], { agentId: 'web-1', commit, tree }); }
   finally { closeBoard(board); }
   assert.equal(box.run(secondBuilder, 'claim', String(ids[2])).code, 0);
-  // @pullboard-board-file journey: seed legacy item rows into the board the real CLI under test reads next.
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   const original = new Map([
     [ids[0], 'The named test passes [test]. The full suite passes as run by the submit gate.'],
@@ -136,6 +136,7 @@ test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy 
   const result = JSON.parse(sweep.out);
   assert.deepEqual(result.changed.map(row => row.id).sort((a, b) => a - b), ids.slice().sort((a, b) => a - b));
   assert.deepEqual(result.skipped, []);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const after = new Map(listItems(board, { all: true }).filter(item => ids.includes(item.item_id)).map(item => [item.item_id, item]));

@@ -224,7 +224,7 @@ test('view sign-in keeps its key and intents inside the authenticated machine vi
 import { request } from 'node:http';
 import { serveView } from ${JSON.stringify(serveModule)};
 import { main as nativeTestMain } from ${JSON.stringify(new URL('../../tests/fixtures/native.js', import.meta.url).href)};
-import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from ${JSON.stringify(new URL('../../../lib/index.js', import.meta.url).href)};
+import { nativeBoardPorts as nativeNativeBoardPorts, openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from ${JSON.stringify(new URL('../../../lib/index.js', import.meta.url).href)};
 import { refusalDocument } from ${JSON.stringify(new URL('../../index.js', import.meta.url).href)};
 import { HOSTED_ORIGIN } from ${JSON.stringify(viewModule)};
 import { updateRelayMachine } from ${JSON.stringify(machineModule)};
@@ -233,7 +233,7 @@ const observations = [];
 /** Return only safe HTTP observations; the outer native test makes every assertion itself. */
 function observe(actual, expected, why) { observations.push({actual,expected,why}); }
 const key = 'private-view-sign-in-fixture';
-const services = {runCommand:nativeTestMain,boardOpeners:{openBoard:nativeOpenBoard,openBoardForRead:nativeOpenBoardForRead},refusalDocument};
+const services = {runCommand:nativeTestMain,boardOpeners:{openBoard:nativeOpenBoard,openBoardForRead:nativeOpenBoardForRead,nativeBoardPorts:nativeNativeBoardPorts},refusalDocument};
 const view = await serveView({secret:key,...services});
 const other = await serveView({secret:key,...services});
 const scoped = await serveView({secret:key,...services,projectRoot:${JSON.stringify(box.root)}});
