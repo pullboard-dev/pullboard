@@ -401,7 +401,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
             return {
               waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
-              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta.querySelector('.who')).lineHeight),
+              waitingMetaLine: waitingMeta && (() => { const range = document.createRange(); range.selectNodeContents(waitingMeta.querySelector('.who')); return range.getClientRects()[0]?.height; })(),
               waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
               answerText: answerText && rect(answerText), button: button && rect(button),
             };
