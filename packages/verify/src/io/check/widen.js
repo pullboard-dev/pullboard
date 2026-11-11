@@ -6,6 +6,9 @@ import { ENGINE_VERSION } from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
 const RUNNER = 'node apps/cli/src/io/run/tests.js';
+/** Checks frozen before the launcher moved still name the old path, which forwards to the same launcher. */
+const FROZEN_RUNNER = 'node packages/gate/src/io/run/tests.js';
+const isRunner = (part) => [RUNNER, FROZEN_RUNNER].some((runner) => part === runner || part.startsWith(`${runner} `));
 const APPENDED = /^(?: [A-Za-z0-9_./-]+\.test\.js)+$/u;
 const PLAIN_PART = /^[A-Za-z0-9_ ./=-]+$/u;
 const REFUSAL = 'CHECK_WIDEN_REFUSED';
@@ -36,7 +39,7 @@ export function widenedCheckFiles(oldCheck, newCheck) {
       while (at < was.length && at < now.length && was[at] === now[at]) at += 1;
       const where = `the check differs at character ${offset + at + 1}`;
       if (tail === null || !APPENDED.test(tail)) throw refuse(where);
-      if (!(was === RUNNER || was.startsWith(`${RUNNER} `)) || !PLAIN_PART.test(was)) throw refuse(`${where}, in a part that is not a plain ${RUNNER} part`);
+      if (!isRunner(was) || !PLAIN_PART.test(was)) throw refuse(`${where}, in a part that is not a plain ${RUNNER} part`);
       if (/^-/u.test(was.split(' ').at(-1)) && was.split(' ').at(-1) !== '--test-force-exit') throw refuse(`${where}, after an option that may take the next word as its value`);
       for (const file of tail.slice(1).split(' ')) {
         if (present.has(file) || added.includes(file)) throw refuse(`${file} is already in the check`);

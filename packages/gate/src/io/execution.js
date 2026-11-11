@@ -581,7 +581,7 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
     throw new Refused('NO_POLICY', 'an exact main comparison needs clean source and its accepted focused test command');
   }
   const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
-  const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${word}`;
+  const command = `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${word}`;
   const started = performance.now();
   // Always awaited: a landing's failure diagnostics run this, and a blocking run stopped the landing lease's heartbeat [C7].
   const run = detailed ? await runProfiledShellAsync(root, command, { gateLease, waitMs, stages: true, pinnedSource })
@@ -620,7 +620,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       : auditBatchId === undefined && !releaseRequest ? mainPolicy(root) : policyAt(root, head);
     const store = receiptStore(root);
     const focusedWord = comparison && "'" + ('./' + comparison.path).replaceAll("'", "'\\''") + "'";
-    const expected = kind === 'main-red' ? comparison && `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${focusedWord}`
+    const expected = kind === 'main-red' ? comparison && `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${focusedWord}`
       : kind === 'suite' ? 'node apps/cli/src/io/run/tests.js --all'
       : auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
     if (expected !== config.gate || !head || !store

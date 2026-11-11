@@ -2306,6 +2306,7 @@
     "store->items",
     "store->resources",
     "store->git",
+    "store->jobs",
     "github->items",
     "link->kernel",
     "apps/relay->link",
