@@ -1,5 +1,4 @@
 import { addMilestone } from '../../../../../packages/store/index.js';
-/** @pullboard-test-input source-tree */
 /** Native Next reserves aged first reviews, never inventing reviewer eligibility [B26,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
