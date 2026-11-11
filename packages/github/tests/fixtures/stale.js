@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/tests/../../../gate/tests/fixtures/actions-stale-v11/* */
+/** @pullboard-test-input packages/gate/tests/fixtures/actions-stale-v11/* */
 /** Execute the pinned upstream processor with isolated REST/clock adapters, never GitHub. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

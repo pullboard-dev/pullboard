@@ -11,10 +11,7 @@ import {
   statSync,
   unlinkSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
-
-/** Loaded on first lock, after the resident has quieted node:sqlite's experimental notice. */
-let DatabaseSync = null;
+import { DatabaseSync } from 'node:sqlite';
 
 /** A path's file identity now, or null when nothing is there. */
 export function pathIdentity(path) {
@@ -41,7 +38,6 @@ export const LOCK_WAIT_MS = 250;
 export function lockPath(path) {
   let db = null;
   try {
-    DatabaseSync ??= createRequire(import.meta.url)('node:sqlite').DatabaseSync;
     db = new DatabaseSync(`${path}.lock`, { timeout: LOCK_WAIT_MS });
     db.exec('BEGIN EXCLUSIVE');
   } catch {
