@@ -148,7 +148,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
     const duringFirst = mainReceipts(box);
     assert.equal(duringFirst.length, 1, 'the completed submit retained one native exact-main receipt');
     assert.equal(duringFirst[0].command, createHash('sha256')
-      .update("PULLBOARD_TEST_REUSE=0 node test/runner.js './test/b.test.js'").digest('hex'));
+      .update("PULLBOARD_TEST_REUSE=record node test/runner.js './test/b.test.js'").digest('hex'));
     assert.equal(duringFirst[0].green, false);
     assert.deepEqual(duringFirst[0].failures, [{ file: 'test/b.test.js', name: 'b actual inherited assertion [G1]' }]);
     assert.ok(duringFirst[0].failureSignatures?.failures.length, 'the fresh native receipt carries a named failure signature');
@@ -172,7 +172,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
     const all = mainReceipts(box);
     // Since #3166 a pinned run fills a content-keyed record, so the second pinned run of the same inputs is served from the first: a once, b once.
     assert.equal(all.length, 2, `each distinct comparison was freshly retained once as an authentic main-red receipt: ${JSON.stringify(all.map(value => [value.command.slice(0, 8), value.green, value.failures?.map(row => row.file)]))}`);
-    const commandFor = name => createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 node test/runner.js './test/${name}.test.js'`).digest('hex');
+    const commandFor = name => createHash('sha256').update(`PULLBOARD_TEST_REUSE=record node test/runner.js './test/${name}.test.js'`).digest('hex');
     assert.deepEqual(all.map(value => value.command).sort(), [commandFor('a'), commandFor('b')].sort());
     assert.ok(all.every(value => value.environment.node === process.versions.node && value.environment.platform === process.platform));
     assertForgedGone(box);
