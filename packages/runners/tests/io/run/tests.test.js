@@ -380,7 +380,7 @@ test('green file waits for the injected observation', async () => {
   const result = runFixtureChild(process.execPath, [fixture.runner, 'test/shard-01.test.js'], {
     cwd: fixture.root, env, encoding: 'utf8', timeout: 15000,
   });
-  try { process.stderr.write('TRACEDUMP\n' + readFileSync(join(fixture.root, 'trace.log'), 'utf8').split('\n').filter(l => !/ps.*-axo/.test(l) || /W/.test(l)).join('\n') + '\nexists: ' + [ready, sampled, drained, childReady, childDrained].map(f => existsSync(f)).join(',') + '\n'); } catch (e) { process.stderr.write('TRACEFAIL ' + e + '\n'); }
+  try { process.stderr.write('TRACEDUMP\n' + readFileSync(join(fixture.root, 'trace.log'), 'utf8').split('\n').join('\n') + '\nexists: ' + [ready, sampled, drained, childReady, childDrained].map(f => existsSync(f)).join(',') + '\n'); } catch (e) { process.stderr.write('TRACEFAIL ' + e + '\n'); }
   assert.ok(existsSync(sampled), 'a live monitor observation failed once');
   assert.ok(existsSync(drained), 'the final ownership census failed once and was retried');
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
