@@ -1,7 +1,7 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -149,6 +149,7 @@ export function fixtureMachineSettings(machineHome, settings) {
  * @returns {void}
  */
 export function fixtureCellsPlan(repo, text) {
+  mkdirSync(join(repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(repo, 'packages/codemap/data/plan/cells.json'), text);
 }
 
@@ -306,4 +307,11 @@ export function rigorFixtureBoard(store) {
     note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
     digest: store.getItem(board, id).item_frozen_digest, policy: 'any' }); };
   return { root, board, submit, reject, close: () => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); } };
+}
+
+/** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
+export function requireSessionIndependence(dir) {
+  const file = join(dir, 'pullboard.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), review: { independence: 'session' } }, null, 2) + '\n');
+  runFixtureGit(['-c', 'core.hooksPath=/dev/null', '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'chore: ask for strict review independence'], { cwd: dir });
 }

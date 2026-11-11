@@ -72,5 +72,7 @@
   "apps/cli/journeys/relay/activation.test.js": "packages/store/tests/relay-activation.test.js",
   "apps/cli/journeys/engine/review.test.js": "packages/store/tests/review-grant-replay.test.js",
   "apps/cli/journeys/engine/queue.test.js": "packages/store/tests/review-queue-replay.test.js",
-  "apps/cli/journeys/engine/team.test.js": "packages/store/tests/team-engine.test.js"
+  "apps/cli/journeys/engine/team.test.js": "packages/store/tests/team-engine.test.js",
+  "apps/cli/journeys/relay/activation/browser.test.js": "apps/relay/tests/relay-browser-fixture.test.js",
+  "apps/cli/journeys/relay/activation/client.test.js": "apps/relay/tests/relay-client-fixture.test.js"
 }

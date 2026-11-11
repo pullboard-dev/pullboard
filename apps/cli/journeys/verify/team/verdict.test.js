@@ -43,7 +43,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   run(box, box.web, 'submit', '1');
   const reviewer = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-  run(box, reviewer, 'join', 'web');
+  run(box, reviewer, 'join', 'web', '--route', 'strong');
   run(box, reviewer, 'next', '--verify', '1');
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_review_by,
@@ -182,7 +182,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   }
   // A revert that restores the reviewed bytes now composes unchanged and reads fresh (96dd1fbad5, 60327df8ec); a further move still reads stale.
   box.git(mainEditor, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 0\nlater = 2\n', 'feat(web): move main caller again [G1]').status, 0);
+  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 1\nmain = 0\nlater = 2\n', 'feat(web): move main caller again [G1]').status, 0);
   box.git(box.repo, 'merge', '-q', '--no-ff', box.git(mainEditor, 'rev-parse', 'HEAD'), '-m', 'chore(merge): move main caller again [G1]');
   syncTrunk();
   assert.ok(items().every(item => item.item_verdict_state?.code === 'STALE_VERDICT'), 'a later move keeps an old review stale');
