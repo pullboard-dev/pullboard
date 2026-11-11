@@ -222,6 +222,7 @@
         "apps/cli/journeys/export/public.test.js",
         "apps/cli/journeys/fact/plan/state.test.js",
         "apps/cli/journeys/fact/snapshot.test.js",
+        "apps/cli/journeys/fact/snapshot/",
         "apps/cli/journeys/hold/demo.test.js",
         "apps/cli/journeys/inbox/projects.test.js",
         "apps/cli/journeys/init/browser.test.js",
@@ -236,6 +237,7 @@
         "apps/cli/journeys/init/scope.test.js",
         "apps/cli/journeys/init/speed.test.js",
         "apps/cli/journeys/lifecycle/chart.test.js",
+        "apps/cli/journeys/lifecycle/native.test.js",
         "apps/cli/journeys/lifecycle/returns.test.js",
         "apps/cli/journeys/merged/consistency.test.js",
         "apps/cli/journeys/merged/dashboard.test.js",
@@ -345,7 +347,10 @@
   },
   "shared": [
     "apps/cli/tests/fixtures/chrome.js",
-    "apps/cli/tests/fixtures/cockpit/harness.js"
+    "apps/cli/tests/fixtures/cockpit/harness.js",
+    "packages/gate/data/tests/test-fixtures.json",
+    "packages/gate/data/tests/test-journeys.json",
+    "packages/gate/data/tests/tiers.json"
   ],
   "commits": {
     "requireIds": [
