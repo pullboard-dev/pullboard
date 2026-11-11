@@ -169,6 +169,17 @@ test('[CR3] paths outside the repository are refused: absolute, "..", a leading 
   assert.deepEqual(report.clauses.map(c => c.refusal?.code), ['CLAUSE_PATH', 'CLAUSE_PATH', 'CLAUSE_PATH', 'CLAUSE_PATH', 'CLAUSE_PATH'], JSON.stringify(report.clauses, null, 2));
 });
 
+test('[CR3] a command whose script is a symlink out of the repository is refused', async t => {
+  const outside = owned(t, 'pullboard-clauses-outside-');
+  outside.write('measure.js', 'console.log(1);\n');
+  const repo = fixture(t, {}, root => {
+    rmSync(join(root, 'scripts', 'size.js'), { force: true });
+    symlinkSync(join(outside.root, 'measure.js'), join(root, 'scripts', 'size.js'));
+  });
+  const report = await clauses(repo, [['size runs [command]', 'node scripts/size.js']]);
+  assert.equal(report.clauses[0].refusal?.code, 'CLAUSE_PATH', JSON.stringify(report.clauses, null, 2));
+});
+
 test('[CR3] Node is pinned: a runner whose node reports another version is refused before any clause runs', async t => {
   const repo = fixture(t);
   await assert.rejects(clauses(repo, [['add returns the sum [test]', 'tests/add.test.js > adds two numbers']], { node: { version: 'v0.0.1' } }),

@@ -172,6 +172,7 @@ async function runNamedTest(root, file, name, ctx) {
 
 /** Run an allowlisted command in a copy; the pinned node stands in for a leading `node`. */
 function runCommand(words, root, ctx) {
+  for (const word of words.slice(1)) if (!word.startsWith('-')) assertInside(root, word, 'command path'); // A symlinked script is followed by node, so each path argument is resolved.
   const argv = words[0] === 'node' ? [ctx.node.path, ...words.slice(1)] : words;
   return launch(argv[0], argv.slice(1), { cwd: root, env: ctx.env, timeoutMs: ctx.timeoutMs });
 }
