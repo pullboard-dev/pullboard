@@ -19,6 +19,7 @@ function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-instructions-'));
   const file = join(directory, 'board.sqlite');
   const now = new Date('2026-11-02T12:00:00Z');
+  // @pullboard-board-file persistence: drafts must survive a reopen of the same file
   const board = openBoard(file, { now: () => new Date(now) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.board_ensureCoordinator(board, directory);
@@ -49,6 +50,7 @@ test('a repeated coordinator instruction drafts the mechanism that replaces it [
   box.send('all', 'Merge main again.');
   assert.equal(store.rowDrafts(box.board).length, 1, 'one durable draft per instruction kind');
   assert.deepEqual(store.rowDecisions(box.board), [], 'drafting grants no approval');
+  // @pullboard-board-file persistence: reopening the file proves the drafts are durable
   const reopened = openBoard(box.file, { now: () => new Date(box.now) });
   try {
     const needs = store.automaticRigorNeeds({ spec: [], practice: [] }, store.rowDrafts(reopened));
