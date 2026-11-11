@@ -5,6 +5,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -49,7 +50,8 @@ function cpuLoadShell(e2e, commonjs, stage) {
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
   const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
-  installSshStandIn({ bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, requests, nodeCommand: process.execPath });
+  const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
+  installSshStandIn({ ...standIn, requests });
   // The ordinary CLI registers its runner through this stand-in ssh, so it leads the box's own PATH; it starts with env node,
   // which a vanilla runner's PATH lacks, so the current node's folder follows it.
   box.env.PATH = `${bin}:${dirname(process.execPath)}:${box.env.PATH}`;
@@ -68,7 +70,7 @@ function cpuLoadShell(e2e, commonjs, stage) {
   command('settings', 'gate.runnersFirst', 'off');
   command('settings', 'gateSlots', '1');
   stage('runner-registered');
-  const shell = { box, env, requests, remoteHome, remoteMachineHome, command, probeFile };
+  const shell = { box, env, requests, standIn, remoteHome, remoteMachineHome, command, probeFile };
   kinds.set(commonjs, shell);
   return shell;
 }
@@ -79,8 +81,10 @@ export function cpuLoadFixture(e2e, { declaration = '{ cpuLoad: true }', binding
   const started = performance.now();
   /** Expose only bounded phase metadata so a timed-out diagnostic retains the last reached setup step. */
   const stage = phase => console.error('CPU_LOAD_STAGE ' + JSON.stringify({ fixture, phase, elapsedMs: Math.round(performance.now() - started) }));
-  const { box, env, requests, remoteHome, remoteMachineHome, command, probeFile } = cpuLoadShell(e2e, commonjs, stage);
-  rmSync(requests, { force: true }); // each case counts only its own requests on the shared stand-in
+  const { box, env, standIn, remoteHome, remoteMachineHome, command, probeFile } = cpuLoadShell(e2e, commonjs, stage);
+  // Each case counts its own requests: a fresh log for the stand-in, so a late call from an earlier case lands in the earlier log.
+  const requests = join(box.dir, `ssh-requests-${fixture}.jsonl`);
+  installSshStandIn({ ...standIn, requests });
   if (registrationHelper) {
     writeFileSync(join(box.repo, 'test/registrations.js'), registrationHelper === 'wrapper'
       ? "import { test, after } from 'node:test'; export { after }; export const launch = (...args) => test(...args);\n"
@@ -116,6 +120,8 @@ ${subtest ? '});' : ''}
   return {
     ...box, env, requests, remoteHome, remoteMachineHome, command,
     /** Count real completed SSH requests without treating a configured host as execution proof. */
+    /** Everything the stand-in recorded this case, for an assertion message. */
+    requestLog() { return readdirSync(box.dir).filter(name => name.startsWith(`ssh-requests-${fixture}.`)).map(name => `${name}: ${readFileSync(join(box.dir, name), 'utf8').trim().split('\n').length}`).join('; '); },
     requestsMade() { return existsSync(requests) ? readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : []; },
     /** Commit a harmless source change so the next public gate executes instead of reusing a green tree. */
     commitProbeChange() {

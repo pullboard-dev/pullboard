@@ -20,7 +20,7 @@ test('a declared CPU-load test runs only on a runner when one is registered [C7]
   const box = cpuLoadFixture(e2e);
   const remote = await box.runGate();
   assert.equal(remote.result.status, 0, remote.result.context);
-  assert.equal(box.requestsMade().length, 1, 'the declared CPU-load test dispatches to the registered runner even when local-first has a free slot');
+  assert.equal(box.requestsMade().length, 1, `the declared CPU-load test dispatches to the registered runner even when local-first has a free slot [${box.requestLog()}] ${remote.log.slice(-1500)}`);
   assert.ok(remote.executor?.liveLease, 'the test body reports an actual private resource holder');
   assert.equal(remote.executor.runnerExecution, true, 'worker execution is bound to the genuine inherited lease');
   assert.notEqual(remote.executor.cwd, box.repo, 'the declared test body never starts in the coordinator checkout');
