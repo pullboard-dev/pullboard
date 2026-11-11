@@ -190,7 +190,7 @@ test('clause 1: a plain test run loads no gate board or machine modules through 
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/io/slot.js')).href), 'ordinary admission actually ran');
   const edges = readFileSync(box.trace + '.edges', 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  const chain = target => { const out = []; let cur = target; for (let i = 0; i < 30 && cur; i++) { out.push(cur.replace(/^.*\/(checkout|pullboard-local)\//u, '')); const e = edges.find(x => x.to === cur && x.from); cur = e?.from; } return out.join(' <- '); };
+  const chain = target => { const out = []; let cur = target; for (let i = 0; i < 30 && cur; i++) { out.push(cur.replace(/^.*\/(checkout|pullboard-local)\//u, '')); const e = edges.find(x => x.to === cur && x.from); cur = e?.from; } return out.map(x => x.replace('packages/', 'P/').replace('src/io/', '')).join('<'); };
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `TRACE ${file} chain: ${chain(pathToFileURL(join(ROOT, file)).href)}`);
 });
 
