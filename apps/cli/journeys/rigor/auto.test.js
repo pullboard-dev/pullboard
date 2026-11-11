@@ -211,9 +211,7 @@ test('materialized Rigor advice uses the existing person decision and a decline 
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
     assert.equal(personNeedsState(box.root, { board: box.board }).rigorDrafts.some(entry => entry.id === ref), false);
     const fourth = box.submit('New item after decline'); box.reject(fourth);
-    assert.equal(store.rowDrafts(box.board).length, 2, 'a genuinely new item after the decision can reopen the question');
-    const newNeed = personNeedsState(box.root, { board: box.board }).rigorDrafts.find(entry => entry.kind === 'rigor-draft');
-    assert.ok(newNeed.evidence.items.some(item => item.id === fourth));
+    assert.equal(store.rowDrafts(box.board).length, 1, 'a declined key is not drafted again for a new item (GitHub #26)');
   } finally { box.close(); }
 });
 
