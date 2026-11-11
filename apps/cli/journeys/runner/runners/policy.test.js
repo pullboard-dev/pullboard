@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 test('clause 1: a browser-free check on a runner with no browser slots passes [C7]', { timeout: 180_000 }, t => browserFreeRunnerCheck(t, { cli, git })); // budget: two runner round trips and two local runs.
 test('an authenticated browser refusal retries on a remote browser lease [C7]', { timeout: 180_000 }, t => browserRefusalRetriesRunner(t, { cli, git })); // budget: two remote runner round trips.
 test('a fixture-child test without the browser declaration needs no browser [C7]', async () => {
-  const files = ['test/precommit-lane-merged-main.test.js'];
+  const files = ['packages/gate/tests/io/receipts.test.js'];
   assert.equal(await testsNeedBrowser(process.cwd(), files), false);
 });
 

@@ -493,7 +493,7 @@ test('clause 2: coordinator resume never reads the whole event history for rigor
     const plans = [];
     for (const line of readFileSync(box.log, 'utf8').split('\n').filter(Boolean)) {
       const row = JSON.parse(line);
-      if (!/resume-needs\.js|rigor-counters\.js/u.test(row.stack) || !/\bFROM event\b/iu.test(row.sql)) continue;
+      if (!/packages\/rigor\/src\/io\/counters\.js/u.test(row.stack) || !/\bFROM event\b/iu.test(row.sql)) continue;
       const bindings = row.sql.includes('?') ? [0] : []; // The only hot event parameter is the recorded integer cursor.
       const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${row.sql}`).all(...bindings).map(entry => entry.detail);
       plans.push({ sql: row.sql, plan });

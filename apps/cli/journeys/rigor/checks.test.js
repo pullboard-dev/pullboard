@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /**
- * Pullboard's first Rigor checks (D1, C7): bin/checks/ holds four scripts a doctrine row's
+ * Pullboard's first Rigor checks (D1, C7): packages/gate holds four scripts a doctrine row's
  * `gate: check` can count. Each prints one `path:line: text` line per problem, sorted, and exits 0
  * with none or 1 with some. The census is pinned to the main commit this item merged, so it never
  * goes stale as main moves; the live checkout is held to the format, the timing and, for file size,
@@ -58,7 +58,8 @@ const conflictE2e = createE2eHelpers();
 after(conflictE2e.cleanup);
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
-const CHECKS = ['file-size', 'test-names', 'empty-catch', 'test-inputs'];
+const CHECK_PATHS = { 'file-size': 'file/size.js', 'test-names': 'test/names.js', 'empty-catch': 'catch.js', 'test-inputs': 'test/inputs.js' };
+const CHECKS = Object.keys(CHECK_PATHS);
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-rigor-')));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -66,8 +67,8 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 const PINNED = '59a6e2b286ee852add0d68a659f1a1e6b3257c44';
 
 /** Today's over-cap files on the pinned main, with their line counts. */
-const PINNED_SIZES = { 'src/board.js': 2796, 'src/cli.js': 3794, 'src/cockpit.js': 3332, 'apps/cli/journeys/shout/http.test.js': 1991,
-  'apps/cli/journeys/milestone/api.test.js': 1958, 'apps/cli/journeys/hold/demo.test.js': 1719, 'packages/runners/tests/io/run/tests.test.js': 1672 };
+const PINNED_SIZES = { 'src/board.js': 2796, 'src/cli.js': 3794, 'src/cockpit.js': 3332, 'test/api-http.test.js': 1991,
+  'test/api.test.js': 1958, 'test/cockpit/demo.test.js': 1719, 'test/run-tests.test.js': 1672 };
 
 const NO_ID = 'test name has no spec row id: ';
 const BARE = 'empty catch names no reason: handle the error or say in a comment why it is ignored';
@@ -76,33 +77,33 @@ const UNDECLARED = 'reads source files without /** @pullboard-test-input source-
 /** Today's problems on the pinned main for the three checks that are not about size. */
 const PINNED_PROBLEMS = {
   'test-names': [
-    ['apps/cli/journeys/resume/board.test.js', 139, 'agents are numbered per lane; one coordinator; a worktree joins once'],
-    ['apps/cli/journeys/resume/board.test.js', 168, 'the coordinator follows the main checkout when the repo moves'],
-    ['apps/cli/journeys/resume/board.test.js', 286, 'submit needs your claim and finished children'],
-    ['apps/cli/journeys/resume/board.test.js', 353, 'under verify: coordinator, lane work is the coordinator\'s to verify'],
-    ['apps/cli/journeys/resume/board.test.js', 535, 'merged and withdraw are the coordinator\'s, and only for the right states'],
-    ['apps/cli/journeys/hooks/main.test.js', 116, 'comments are dropped; merges, reverts and fixups are exempt'],
-    ['apps/cli/journeys/hooks/main.test.js', 122, 'opt-in rules: filler words, emoji, co-author trailers'],
-    ['apps/cli/journeys/hooks/main.test.js', 129, 'blocked paths: env files by name, examples allowed, patterns with a slash mat...'],
-    ['apps/cli/journeys/hooks/main.test.js', 139, 'secrets are named by kind and place, never echoed'],
+    ['test/board.test.js', 139, 'agents are numbered per lane; one coordinator; a worktree joins once'],
+    ['test/board.test.js', 168, 'the coordinator follows the main checkout when the repo moves'],
+    ['test/board.test.js', 286, 'submit needs your claim and finished children'],
+    ['test/board.test.js', 353, 'under verify: coordinator, lane work is the coordinator\'s to verify'],
+    ['test/board.test.js', 535, 'merged and withdraw are the coordinator\'s, and only for the right states'],
+    ['test/hooks.test.js', 116, 'comments are dropped; merges, reverts and fixups are exempt'],
+    ['test/hooks.test.js', 122, 'opt-in rules: filler words, emoji, co-author trailers'],
+    ['test/hooks.test.js', 129, 'blocked paths: env files by name, examples allowed, patterns with a slash mat...'],
+    ['test/hooks.test.js', 139, 'secrets are named by kind and place, never echoed'],
     ['test/lanes.test.js', 29, 'a lane may change its own paths and shared ones; the coordinator may change a...'],
     ['test/lanes.test.js', 55, 'config merges nested groups over the defaults, and leases read as durations'],
-    ['apps/cli/journeys/spec/main.test.js', 226, 'rows inside code fences are examples, not rows'],
-    ['apps/cli/journeys/spec/main.test.js', 251, 'bad status, bad tier and unknown fields are errors; long rows warn'],
-    ['apps/cli/journeys/spec/main.test.js', 262, 'cited ids must exist and must not be retired'],
-    ['apps/cli/journeys/view/main.test.js', 200, 'row text is escaped, so a row cannot inject markup'],
+    ['test/spec.test.js', 226, 'rows inside code fences are examples, not rows'],
+    ['test/spec.test.js', 251, 'bad status, bad tier and unknown fields are errors; long rows warn'],
+    ['test/spec.test.js', 262, 'cited ids must exist and must not be retired'],
+    ['test/view.test.js', 200, 'row text is escaped, so a row cannot inject markup'],
   ].map(([path, line, name]) => `${path}:${line}: ${NO_ID}${name}`),
   'empty-catch': [
-    ['src/api.js', 214], ['src/api.js', 222], ['src/board.js', 166], ['src/board.js', 224], ['apps/runner/src/io/scripts/worker.js', 1190],
-    ['apps/cli/journeys/withdraw/items.test.js', 1159], ['apps/cli/journeys/land/main.test.js', 170], ['apps/cli/journeys/land/main.test.js', 172], ['apps/cli/journeys/land/main.test.js', 673],
-    ['apps/cli/journeys/land/main.test.js', 760], ['apps/cli/journeys/land/main.test.js', 762], ['apps/cli/journeys/land/main.test.js', 906], ['test/runners.test.js', 1250],
+    ['src/api.js', 214], ['src/api.js', 222], ['src/board.js', 166], ['src/board.js', 224], ['src/runner-worker.js', 1190],
+    ['test/cockpit/items.test.js', 1159], ['test/land.test.js', 170], ['test/land.test.js', 172], ['test/land.test.js', 673],
+    ['test/land.test.js', 760], ['test/land.test.js', 762], ['test/land.test.js', 906], ['test/runners.test.js', 1250],
   ].map(([path, line]) => `${path}:${line}: ${BARE}`),
   'test-inputs': [
-    ['apps/cli/journeys/shout/http.test.js', 428], ['test/blueprint.test.js', 13], ['apps/cli/journeys/shout/layout.test.js', 146],
-    ['apps/cli/journeys/relay/cockpit.test.js', 131], ['apps/view/tests/doctrine.test.js', 28], ['apps/cli/journeys/verify/checks.test.js', 113],
-    ['apps/cli/journeys/gate/profile.test.js', 16], ['apps/cli/journeys/gate/main.test.js', 13], ['apps/cli/journeys/help/main.test.js', 33], ['test/resources.test.js', 131],
-    ['apps/cli/journeys/resume/flow.test.js', 27], ['packages/runners/tests/io/run/tests.test.js', 119], ['test/seal.test.js', 90], ['test/settings.test.js', 11],
-    ['apps/cli/journeys/test/resources.test.js', 86], ['apps/cli/tests/io/commands/test.test.js', 108],
+    ['test/api-http.test.js', 428], ['test/blueprint.test.js', 13], ['test/cockpit/layout.test.js', 146],
+    ['test/cockpit/relay.test.js', 131], ['test/doctrine.test.js', 28], ['test/e2e-private-checks.test.js', 113],
+    ['test/gate-profile.test.js', 16], ['test/gate.test.js', 13], ['test/help.test.js', 33], ['test/resources.test.js', 131],
+    ['test/resume-flow.test.js', 27], ['test/run-tests.test.js', 119], ['test/seal.test.js', 90], ['test/settings.test.js', 11],
+    ['test/test-resources.test.js', 86], ['test/test-runner.test.js', 108],
   ].map(([path, line]) => `${path}:${line}: ${UNDECLARED}`),
 };
 
@@ -121,7 +122,7 @@ function git(args, options = {}) {
  */
 function runCheck(name, { cwd = ROOT, root } = {}) {
   const started = performance.now();
-  const result = spawnSync(process.execPath, [join(ROOT, 'bin/checks', `${name}.js`), ...(root ? [root] : [])], { cwd, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [join(ROOT, 'packages/gate/src/io', CHECK_PATHS[name]), ...(root ? [root] : [])], { cwd, encoding: 'utf8' });
   const ms = performance.now() - started;
   return { status: result.status, lines: result.stdout.split('\n').filter(Boolean), stderr: result.stderr, ms };
 }
@@ -276,7 +277,8 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     const archive = git(['archive', '--format=tar', PINNED]);
     const unpacked = spawnSync('tar', ['-x', '-C', pinned], { input: archive });
     assert.equal(unpacked.status, 0, `tar: ${unpacked.stderr}`);
-    const expected = { 'file-size': sizeLines(PINNED_SIZES), ...PINNED_PROBLEMS };
+    const expected = Object.fromEntries(Object.entries({ 'file-size': sizeLines(PINNED_SIZES), ...PINNED_PROBLEMS })
+      .map(([name, lines]) => [name, sortedProblems(lines)]));
     assert.equal(Object.keys(PINNED_SIZES).length, 7, 'seven files are over the cap');
     assert.equal(Math.max(...Object.values(PINNED_SIZES)), PINNED_SIZES['src/cli.js'], 'the largest is src/cli.js');
     for (const name of CHECKS) {

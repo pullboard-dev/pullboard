@@ -139,7 +139,7 @@ test('warmed controller refuses changed policy bytes and a fresh run uses each n
   box.git(project, 'add', '-A');
   box.git(project, 'commit', '-q', '-m', 'test: controller policy project');
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home, machineHome, requests });
-  const policy = join(tooling, 'packages/gate/src/logic/policy.js');
+  const policy = join(tooling, 'packages/gate/src/logic/runner-source.js');
   const helper = join(tooling, 'packages/gate/src/logic/fixture-policy-epoch.js');
   const original = readFileSync(policy, 'utf8');
   const executed = join(box.dir, 'executed-policy.txt');
@@ -196,6 +196,7 @@ test('a shared tooling export is made once per commit and reused by later dispat
   process.env.TMPDIR = temp;
   t.after(() => { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; });
   mkdirSync(join(root, 'bin'));
+  mkdirSync(join(root, 'apps/runner/src/io'), { recursive: true });
   writeFileSync(join(root, 'apps/runner/src/io/controller.js'), '// controller one\n');
   box.git(root, 'init', '-q', '-b', 'main');
   box.git(root, 'add', '-A');

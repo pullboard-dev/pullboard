@@ -22,7 +22,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 
 const ROOT = resolve(import.meta.dirname, '../../../../..');
-const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'bin', 'docs', 'package.json', 'packages', 'skills', 'src'];
+const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'docs', 'package.json', 'packages', 'skills'];
 const dirs = [];
 after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });

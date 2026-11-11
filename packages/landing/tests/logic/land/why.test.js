@@ -45,7 +45,7 @@ test('clause 1: land --why names the last landing, the batch, its refusal, block
   const text = landWhyLines(why).join('\n');
   assert.match(text, /last landed: #12 at 2026-11-04T09:30/u);
   assert.match(text, /blocked: #24 STALE_VERDICT/u);
-  assert.match(text, /test\/machine\.test\.js :: boots \(also red on main\)/u);
+  assert.match(text, /apps\/cli\/journeys\/verify\/machine\.test\.js :: boots \(also red on main\)/u);
   assert.match(text, /test\/mine\.test\.js :: only here \(batch only\)/u);
 });
 

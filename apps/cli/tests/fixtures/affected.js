@@ -57,7 +57,7 @@ function source(expected) {
 }
 
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
-export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
+export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion = 'The change works.', cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
   // A background board writer can outlive its command by a moment; retry the ENOTEMPTY it races rather than fail the case [C7].
   t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
@@ -101,7 +101,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
   for (const [file, text] of Object.entries(extra)) put(root, file, text);
   box.main = commit(box, root);
   result = cli(box, root, 'add', 'core', 'Change behind a red affected case', '--specs', 'G1', '--route', 'mid',
-    '--criterion', 'The change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: affected known main');
+    '--criterion', criterion, '--check', check, '--brief', 'Files: change.txt, test/\nTest: affected known main');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   box.item = JSON.parse(result.stdout).item.item_id;
   result = cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');

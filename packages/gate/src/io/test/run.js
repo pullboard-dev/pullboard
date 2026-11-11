@@ -61,7 +61,7 @@ export async function runFullSuite(root, runner, executionServices) {
   const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('../main.js'), import('../execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('../admission/cpu/load.js');
-  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
+  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node packages/gate/src/io/run/tests.js --all' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
   { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), ...testRunnerAdmission(), kind: 'gate' });
   return result;
@@ -193,7 +193,7 @@ export async function localLoadStart({ read = loadavg, cores = availableParallel
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures, knownRed } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, diagnose = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures, knownRed } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -228,10 +228,10 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
       const stop = typeof say === 'function' ? announceTestRun(say, { host: lease.runner?.host, files: paths, ...timers }) : () => {};
       try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
     },
-      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), kind: 'test', onWait });
+      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full && !diagnose, agent, item, itemCheck: Boolean(item) && !diagnose, diagnostic: diagnose, kind: 'test', onWait });
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
-  const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
+  const result = { green: run.isGreen, output: diagnose && !run.isGreen ? readFileSync(summary.logPath, 'utf8') : renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: loadStart ? `${localReason()}; ${loadStart.note}` : localReason() }) };
   // A one-file run is a builder diagnosing its own red: main's run of that file waits for a second runner slot and
   // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).
@@ -239,7 +239,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   if (!run.isGreen && skipMain) result.mainSkipped = 'one file: add --compare-main to also run it on main';
   // A known red needs no main run: "is it red" is enough, and the candidate's own result is the proof [C7].
   const redFiles = !run.isGreen && compareMain && typeof knownRed === 'function' ? [...new Set((typeof failureSignatures === 'function' ? failureSignatures(run, run.executionRoot ?? root) : null)?.map(row => row.file) ?? paths)] : [];
-  const reasons = redFiles.map(knownRed);
+  const reasons = typeof knownRed === 'function' ? redFiles.map(knownRed) : [];
   const knownReds = redFiles.length > 0 && reasons.every(Boolean);
   if (knownReds) result.mainSkipped = reasons[0];
   if (!run.isGreen && !skipMain && !knownReds) {

@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads apps/relay/src/io/deploy/client.js packages/config/src/io/headlines.js */
+/** @pullboard-test-loads apps/relay/src/io/browser/client.js packages/config/src/io/headlines.js */
 /** Exercise the deploy smoke script against a private loopback relay [H5,H18]. */
 import assert from 'node:assert/strict';
 import {
@@ -830,7 +830,7 @@ async function servedRelayClient(t) {
     }
   }
   t.diagnostic(`served ${written.size} modules`);
-  return { written, module: await import(pathToFileURL(join(folder, 'apps/relay/src/io/deploy/client.js')).href) };
+  return { written, module: await import(pathToFileURL(join(folder, 'relay/client.js')).href) };
 }
 
 /** Install a browser page whose storage refuses every write and whose relay serves one sealed board. */
@@ -917,7 +917,7 @@ test('[H5,H15] an early pairing survives until the transport takes it when stora
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(snapshot)), { boardId: board, kind: 'snapshot', sequence: 0 })).toString('base64url');
   const page = refusingStoragePage(t, { hash: '#board=' + board + '&key=' + encodeBoardKey(key), board, sealed });
   const { written, module: { rememberPairing, createTransport } } = await servedRelayClient(t);
-  assert.ok([...written].some(path => /^\/relay\/m\/packages\/[^/]+\/core\.js$/u.test(path)), 'a moved package module is served at its repository path and loads beside the flat relay names');
+  assert.ok(written.has('/relay/m/packages/items/browser.js'), 'the moved items browser module is served at its repository path and loads beside the flat relay names');
 
   assert.equal(rememberPairing()?.board, board, 'the page reads its pairing link at start, before any transport exists');
   assert.equal(page.location.hash === '', true, 'reading the link strips its fragment from the address bar');

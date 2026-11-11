@@ -38,6 +38,9 @@ function fixture(t) {
   writeFileSync(join(commonDir, 'pullboard', 'board.sqlite'), '');
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
+  mkdirSync(join(tools, 'apps/lib/src/io/handoff'), { recursive: true });
+  mkdirSync(join(tools, 'packages/resources/src/io/handoff/worker'), { recursive: true });
   const directory = join(dir, 'jobs', 'job1');
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'request.json'), JSON.stringify({ job: 'job1' }) + '\n');

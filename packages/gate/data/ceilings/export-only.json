@@ -3,12 +3,9 @@
     "apps/runner/src/logic/stage.js",
     "packages/gate/src/logic/collection/env.js",
     "packages/gate/src/logic/wait.js",
-    "packages/git/light.js",
     "packages/landing/src/logic/batch/history.js",
     "packages/merge/src/io/train.js",
     "packages/person/src/io/pairing/limit.js",
-    "packages/state/src/logic/engine/metadata.js",
-    "apps/runner/src/io/scripts/worker.js",
-    "packages/runners/index.js"
+    "packages/state/src/logic/engine/metadata.js"
   ]
 }

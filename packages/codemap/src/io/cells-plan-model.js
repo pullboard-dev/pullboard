@@ -141,7 +141,7 @@ export function placePath(root, file, { cell, stay = false, part = 'shell', entr
     if (file.startsWith('bin/')) {
       if (!plan.stays.some(row => row.path === file)) plan.stays.push({ path: file, reason: 'process entry keeps its public executable path' });
     } else {
-      const target = `${destination.root}/src/${part}/${file.slice(file.indexOf('/') + 1)}`;
+      const target = `${destination.root}/src/${part === 'core' ? 'logic' : 'io'}/${file.slice(file.indexOf('/') + 1)}`;
       if (plan.cells.some(row => row.paths.some(([from, to]) => from !== file && to === target))) throw new Refused('CELLS_ENTRY', `entry target already belongs to another path: ${target}`);
       for (const row of plan.cells) {
         row.paths = row.paths.filter(([from]) => from !== file);
@@ -161,7 +161,7 @@ export function placePath(root, file, { cell, stay = false, part = 'shell', entr
   else {
     const entry = plan.cells.find(entry => entry.name === cell);
     if (!entry || file.startsWith('bin/')) throw new Refused('CELLS_UNPLACED', `choose an existing cell, or --stay for bin/: ${cell}`);
-    const target = `${entry.root}/src/${part}/${file.slice(file.indexOf('/') + 1)}`;
+    const target = `${entry.root}/src/${part === 'core' ? 'logic' : 'io'}/${file.slice(file.indexOf('/') + 1)}`;
     if (plan.cells.some(row => row.paths.some(([from, to]) => from === target || to === target))) throw new Refused('CELLS_UNPLACED', `the placement target already belongs to a path: ${target}`);
     entry.paths.push([file, target, 'rule']);
   }

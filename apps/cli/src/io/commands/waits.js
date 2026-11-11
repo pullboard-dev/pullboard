@@ -60,7 +60,7 @@ export async function run(io, { first, second, rest = [] } = {}) {
     const outcome = await recordWaits({ ...snapshot, budgets: { ...budgets, file: budgets.file && filing, reclaim: budgets.reclaim } }, {
       openKey: key => openWaitKey(board.db, key),
       fileItem: draft => ordered(ctx, board, 'addItem', [waitItemFields(draft, me.id)]),
-      shout: text => ordered(ctx, board, 'shout', [{ from: 'sentinel', to: COORDINATOR, lanes: [], text }]),
+      shout: text => ordered(ctx, board, 'shout', [{ from: 'sentinel', to: COORDINATOR, lanes: [], text, detail: { model: me.model ?? 'unknown' } }]),
       prunePools: scope => listResources({ scope, root: ctx.info.root }),
       release: async claim => {
         if (!filing || !claim.lastSeen) return false;

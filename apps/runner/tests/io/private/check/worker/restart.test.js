@@ -17,9 +17,9 @@ function observe(t, busy, reason = 'worker-unresponsive') {
   const bin = join(box.dir, 'probe-bin'), home = join(box.dir, 'remote-home');
   const root = join(home, '.pullboard-runner'), machineHome = join(home, '.pullboard');
   const worker = join(box.dir, 'worker'), requests = join(box.dir, 'requests.jsonl');
-  const hung = join(root, 'runtime', 'b'.repeat(64), 'src');
+  const hung = join(root, 'runtime', 'b'.repeat(64), 'apps/runner/src/io/scripts');
   for (const directory of [bin, worker, hung, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
-  writeFileSync(join(hung, 'runner-worker.js'), 'setInterval(() => {}, 60000);\n');
+  writeFileSync(join(hung, 'worker.js'), 'setInterval(() => {}, 60000);\n');
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: 1 });
   const url = name => pathToFileURL(join(import.meta.dirname, '../../../../../../..', name)).href;
   const script = `
@@ -40,7 +40,7 @@ function observe(t, busy, reason = 'worker-unresponsive') {
     db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');
     initializeRunnerRecovery(db);
     const identity = { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64), launchFence: 1 };
-    const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'src/runner-worker.js')], { stdio: 'ignore' });
+    const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'apps/runner/src/io/scripts/worker.js')], { stdio: 'ignore' });
     const exited = once(stale, 'exit');
     let ownerWitness;
     try {

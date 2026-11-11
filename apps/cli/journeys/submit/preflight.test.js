@@ -62,6 +62,7 @@ function preflightProject(t) {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'), '{}');
   mkdirSync(join(box.repo, 'packages/x/src'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/x/src/a.js'), 'export const a = 1;\n');
