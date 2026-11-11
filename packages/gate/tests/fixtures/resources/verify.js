@@ -54,14 +54,14 @@ export function checkProject(box) {
 }
 
 /** Submit a genuine private item and join a different reviewer before occupying its test pool. */
-export function verificationProject(t, { checked = false } = {}) {
+export function verificationProject(t, { checked = false, landed = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
   const project = helpers.project('true', sandbox);
   const marker = join(project.dir, 'verification-check-ran');
-  const check = ': checked-input.txt ; printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
+  const check = (landed ? ': checked-input.txt ; ' : '') + 'printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
   const added = fixtureAdd(project.run, project.repo, 'web', 'Private admission boundary', '--specs', 'G1',
     '--criterion', 'The real frozen verification keeps its public boundary.',
     ...(checked ? ['--check', check] : []), '--wait', '--json');
@@ -74,7 +74,7 @@ export function verificationProject(t, { checked = false } = {}) {
   const submitted = project.run(project.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const head = JSON.parse(submitted.out).commit;
-  if (checked) { // a landing after submit touches a file the check names, so the sealed submit proof is not reused and the check runs here
+  if (landed) { // a landing after submit touches a file the check names, so the sealed submit proof is not reused and the check runs here
     writeFileSync(join(project.repo, 'checked-input.txt'), 'an earlier landing\n');
     project.git(project.repo, 'add', 'checked-input.txt');
     project.git(project.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');

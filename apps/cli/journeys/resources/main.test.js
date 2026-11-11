@@ -405,7 +405,7 @@ test('a verification with no frozen check never enters the test queue [C7,V4]', 
 });
 
 test('a verification with a frozen check still waits for its slot [C7,V4]', async t => {
-  const { project, box, item, reviewer, marker } = verificationProject(t, { checked: true });
+  const { project, box, item, reviewer, marker } = verificationProject(t, { checked: true, landed: true });
   rmSync(marker, { force: true });
   const holder = worker(box, { agent: 'real-check-holder' });
   await acquired(holder);
