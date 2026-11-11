@@ -81,7 +81,7 @@ ${subtest ? '});' : ''}
     return JSON.parse(result.out);
   }
   // CommonJS conservatively needs browser admission; this private worker supplies a genuine browser slot.
-  command('runner', 'add', HOST, '--slots', '1', '--browser', commonjs ? '1' : '0');
+  command('runner', 'add', HOST, '--node', process.execPath, '--slots', '1', '--browser', commonjs ? '1' : '0');
   command('settings', 'gate.runnersFirst', 'off');
   command('settings', 'gateSlots', '1');
   stage('runner-registered');
