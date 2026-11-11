@@ -53,8 +53,12 @@ function sendState(req, res, text, tagged, validator = text, reportValidator) {
   res.end(text);
 }
 
-/** Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. */
-async function readBody(req, { maxBytes = BODY_BYTES } = {}) {
+/**
+ * Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. An upload (uploadRefusal)
+ * answers an oversize body with the structured BAD_UPLOAD size refusal: the measured bytes and the stated limit, so the
+ * machine can name the board instead of waiting on a plain BAD_REQUEST (#1196).
+ */
+async function readBody(req, { maxBytes = BODY_BYTES, uploadRefusal = false } = {}) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > PAIR_PACKAGE_BODY_BYTES) throw new TypeError('API body limit needs a positive safe integer within the shared request limit');
   if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] ?? ''))) throw new Refused('BAD_REQUEST', 'send an application/json object as the request body');
   const chunks = [];
@@ -62,6 +66,11 @@ async function readBody(req, { maxBytes = BODY_BYTES } = {}) {
   for await (const chunk of req) {
     size += chunk.length;
     if (size <= maxBytes) chunks.push(chunk);
+  }
+  if (size > maxBytes && uploadRefusal) {
+    const error = new Refused('BAD_UPLOAD', 'the upload body exceeds the relay limit; send a smaller snapshot');
+    error.snapshotLimit = { sealedBytes: size, limit: maxBytes };
+    throw error;
   }
   if (size > maxBytes) throw new Refused('BAD_REQUEST', 'the body exceeds ' + maxBytes + ' bytes; send one move or request at a time');
   let value;

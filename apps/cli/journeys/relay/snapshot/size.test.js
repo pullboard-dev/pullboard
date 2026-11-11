@@ -354,3 +354,42 @@ test('large compressible history uses bounded pages even when its whole encrypte
   const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   assert.equal(hash(restored.tables), hash(before.tables), 'paged encoding retains all compressible history too');
 });
+
+/** An upload whose JSON body passes the relay's request limit is refused with the measured bytes and limit, never a plain BAD_REQUEST (#1196). */
+test('clause 1: an upload over the request limit gets a structured size refusal with measured bytes and the stated limit [H5,H17]', { timeout: 180_000 }, async t => {
+  const box = await relayClientFixture(t);
+  box.legacySnapshotApi();
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  // Ciphertext beyond the decoded limit makes the base64 JSON body exceed the shared request limit.
+  const sealed = randomBytes(RELAY_LIMIT + 4_000_000).toString('base64url');
+  const body = JSON.stringify({ sequence: 1, sealed });
+  const measured = Buffer.byteLength(body);
+  assert.ok(measured > BODY_LIMIT, 'the request body is over the shared request limit');
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
+    method: 'PUT',
+    headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
+    body,
+  });
+  const document = await response.json();
+  assert.ok(response.status >= 400 && response.status < 500, 'the relay refuses the over-limit upload');
+  assert.equal(document.error.code, 'BAD_UPLOAD', 'the refusal is the structured upload refusal, not BAD_REQUEST');
+  assert.deepEqual(document.error.snapshotLimit, { sealedBytes: measured, limit: BODY_LIMIT }, 'the refusal states the measured bytes and the limit');
+});
+
+/** The refused over-limit upload leaves no stored snapshot and carries the board's measured size and limit for the page to name (#1196). */
+test('clause 2: a refused over-limit upload stores no snapshot and the refusal carries the size and limit the page names [H5,H17]', { timeout: 180_000 }, async t => {
+  const box = await relayClientFixture(t);
+  box.legacySnapshotApi();
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const path = box.origin + '/api/v1/boards/' + link.board + '/state';
+  const headers = { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' };
+  const body = JSON.stringify({ sequence: 1, sealed: randomBytes(RELAY_LIMIT + 4_000_000).toString('base64url') });
+  const refused = await (await fetch(path, { method: 'PUT', headers, body })).json();
+  assert.equal(refused.error.code, 'BAD_UPLOAD');
+  assert.ok(refused.error.snapshotLimit.sealedBytes > refused.error.snapshotLimit.limit, 'the refusal names the measured size above the stated limit');
+  const read = await fetch(path, { headers: { authorization: headers.authorization, 'x-pullboard-engine': headers['x-pullboard-engine'] } });
+  const document = await read.json().catch(() => ({}));
+  assert.ok(read.status === 404 || (document.state?.sequence !== 1 && (document.state?.sealed?.length ?? 0) < RELAY_LIMIT), 'no snapshot is stored from the refused bytes');
+});
