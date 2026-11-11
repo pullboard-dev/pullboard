@@ -20,7 +20,7 @@ import { storableText } from "./blobs.js";
  * @param {() => T} work
  * @returns {T}
  */
-function atomically(db, work) {
+export function atomically(db, work) {
   try {
     db.exec('BEGIN IMMEDIATE');
   } catch (error) {

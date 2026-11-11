@@ -133,6 +133,15 @@ export function mainComparisonMode() {
 }
 
 /**
+ * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
+ * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
+ * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
+ */
+export function submitAuthorizationMode() {
+  return loadMachineSettings().gate?.submitAuthorization === 'local' ? 'local' : 'runner';
+}
+
+/**
  * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
  * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
  */
