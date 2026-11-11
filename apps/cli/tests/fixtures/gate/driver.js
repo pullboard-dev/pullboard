@@ -4,6 +4,7 @@ import { admitGateDrive } from '../../../../../packages/drive/index.js';
 import { endGateDriveUnstarted } from '../../../../../packages/drive/index.js';
 import { readGateDrive } from '../../../../../packages/drive/index.js';
 import { recordGateDriveSpawn } from '../../../../../packages/drive/index.js';
+import { RUNNING_RELAUNCH_LIMIT } from '../../../src/io/submit/handoff.js';
 
 /**
  * Run `work` on a fixture's own board file and close it.
@@ -57,5 +58,22 @@ export function setDriverUnstarted(boardFile, job, { code, message }) {
   onBoard(boardFile, board => {
     const record = readGateDrive(board.db, job) ?? admitGateDrive(board.db, job, { owner: `test-driver:${job}` });
     endGateDriveUnstarted(board.db, job, { owner: record.owner, code, message });
+  });
+}
+
+/**
+ * Mark a dead driver's relaunch budget as spent, as the real relaunches that each died would leave it: the next
+ * sweep then ends the running gate as infrastructure instead of relaunching it (#3995). The dead process is kept.
+ *
+ * @param {string} boardFile
+ * @param {string} job - The hand-off job id.
+ */
+export function spendDriverRelaunches(boardFile, job) {
+  onBoard(boardFile, board => {
+    const record = readGateDrive(board.db, job);
+    // Admit at a time past the dead driver's lease, so the board takes the lease over without a release call.
+    const owner = `test-driver:${job}`;
+    admitGateDrive(board.db, job, { owner, relaunches: RUNNING_RELAUNCH_LIMIT, now: Date.now() + 10 * 60_000 });
+    recordGateDriveSpawn(board.db, job, { owner, pid: record.pid, started: record.started });
   });
 }

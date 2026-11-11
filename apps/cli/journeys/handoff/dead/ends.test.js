@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import {
   driverRecord,
   setDriverProcess,
+  spendDriverRelaunches,
 } from '../../../tests/fixtures/gate/driver.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -109,6 +110,8 @@ async function killWorker(box, job) {
   const owner = driverRecord(box.boardFile, job.id);
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
+  // Relaunching a dead running gate comes first (#3995); a worker that keeps dying has spent that budget before the sweep ends it.
+  spendDriverRelaunches(box.boardFile, job.id);
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
 }
 
