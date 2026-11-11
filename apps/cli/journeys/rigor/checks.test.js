@@ -414,6 +414,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
       'for (const file of pending.pop()) readFileSync(file, \'utf8\');',
       '',
     ].join('\n');
+    put(root, 'test/named.test.js', `/** @pullboard-test-input packages/kernel/src/logic/seal.js */\n${reader}`);
     put(root, 'test/declared.test.js', `/** @pullboard-test-input test-tree */\n/** @pullboard-test-input source-tree */\n${reader}`);
     put(root, 'test/fixture-copy.test.js', "import { readFileSync } from 'node:fs';\nconst copy = (lane) => readFileSync(join(lane, 'src/board.js'), 'utf8');\n");
     put(root, 'test/imports.test.js', "import { seal } from '../../../../packages/kernel/index.js';\nconst note = \"readFileSync(new URL('../src/a.js', import.meta.url))\";\n");
