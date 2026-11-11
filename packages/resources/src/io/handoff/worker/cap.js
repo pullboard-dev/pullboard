@@ -375,6 +375,56 @@ function waitingTickets() {
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
+/** The job id a ticket name belongs to, without its place number, urgent mark or state. */
+function ticketJob(name) { return name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, ''); }
+
+/** Where gates that refused as no longer serving their item are marked, one empty file per job. */
+function staleGatesDirectory() { return join(handoffQueueDirectory(), 'stale-gates'); }
+
+/** How long a stale-gate mark is kept: a requeue of the same dead job a day later is still dropped unstarted. */
+const STALE_GATE_KEEP_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Mark a job whose gate no longer serves its item and drop every ticket it holds, so no later pass, and no dispatcher
+ * started after this one, takes a slot or a board admission for it again. Why: on 11 Nov 46 such tickets were requeued by
+ * the worker-gone sweep and refused 328 times, one of them 31 times, while live gates waited [C7,#5727].
+ *
+ * @param {string} job - The job id whose gate refused GATE_STALE.
+ * @returns {number} How many tickets were dropped.
+ */
+function markStaleGate(job) {
+  try { mkdirSync(staleGatesDirectory(), { recursive: true, mode: 0o700 }); writeFileSync(join(staleGatesDirectory(), job), '', { mode: 0o600 }); }
+  catch (error) { logDispatcher(`stale gate ${job} not marked: ${error?.code ?? 'ERROR'} ${error?.message ?? error}; its tickets are still dropped`); }
+  return dropHandoffTicket(job);
+}
+
+/** Whether a job was marked as a gate that no longer serves its item. */
+function staleGate(job) { return /^[\w.-]+$/u.test(job) && existsSync(join(staleGatesDirectory(), job)); }
+
+/** Remove stale-gate marks older than a day; a failure is logged and never stops dispatch. */
+function pruneStaleGates(now = Date.now()) {
+  try {
+    for (const job of readdirSync(staleGatesDirectory())) {
+      const file = join(staleGatesDirectory(), job);
+      if (now - statSync(file).mtimeMs >= STALE_GATE_KEEP_MS) rmSync(file, { force: true });
+    }
+  } catch (error) { if (error?.code !== 'ENOENT') logDispatcher(`stale gate marks not pruned: ${error?.message ?? error}`); }
+}
+
+/** The dispatcher-idle spans, one JSON line each: { from, to, ms, live, cap, lastError } [C7,#5727]. */
+export function handoffDispatcherIdleLog() { return join(handoffQueueDirectory(), 'dispatcher-idle.jsonl'); }
+
+/**
+ * Record one span in which live tickets waited, fewer than the cap ran and nothing launched. Why: on 11 Nov 44% of gate
+ * wait hours were gates queued behind the dispatcher with free drivers, and nothing measured it [C7,#5727].
+ */
+function recordIdleSpan(span, to) {
+  const record = { from: new Date(span.from).toISOString(), to: new Date(to).toISOString(), ms: to - span.from, live: span.live, cap: span.cap, lastError: span.lastError };
+  try { appendFileSync(handoffDispatcherIdleLog(), JSON.stringify(record) + '\n', { mode: 0o600 }); }
+  catch { /* the span is still logged below */ }
+  logDispatcher(`dispatcher idle ${Math.round(record.ms / 1000)}s with ${record.live} live tickets and fewer than ${record.cap} workers running; last slot error ${record.lastError}`);
+}
+
 /**
  * Whether a job still holds a place in line, reserved or filled. Why: a queued job with neither a place nor a worker
  * record will never start, so the health sweep may end it instead of leaving its claim held for hours (#3121, #3153).
@@ -383,7 +433,7 @@ function waitingTickets() {
  * @returns {boolean}
  */
 export function handoffTicketWaiting(job) {
-  return waitingTickets().some(name => name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') === job);
+  return waitingTickets().some(name => ticketJob(name) === job);
 }
 
 /**
@@ -395,7 +445,7 @@ export function handoffTicketWaiting(job) {
 export function dropHandoffTicket(job) {
   let removed = 0;
   for (const name of waitingTickets()) {
-    if (name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') !== job) continue;
+    if (ticketJob(name) !== job) continue;
     rmSync(join(handoffQueueDirectory(), name), { force: true });
     removed += 1;
   }
@@ -651,12 +701,13 @@ function boundAfterResult(entry, now, graceMs) {
 function sweepFinished(running) {
   try {
     const protect = new Set([...running.values()].map(entry => entry.job));
-    for (const name of waitingTickets()) protect.add(name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, ''));
+    for (const name of waitingTickets()) protect.add(ticketJob(name));
     pruneFinishedHandoffs(handoffRoots(), { protect });
+    pruneStaleGates();
   } catch (error) { logDispatcher(`handoff folder sweep failed: ${error?.message ?? error}`); }
 }
 
-/** How long a dispatcher with queued tickets and no running worker may launch nothing before it logs why [C7,#3326]. */
+/** How long a dispatcher with live tickets and fewer than the cap running may launch nothing before it logs why [C7,#3326,#5727]. */
 export const HANDOFF_LAUNCH_STALL_MS = 120_000;
 
 /** Slot-pool errors that only mean "not this pass": the dispatcher logs them and tries again on its next pass [C7,#3326]. */
@@ -682,78 +733,98 @@ function passCapacity(capacity) {
  */
 async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweeps = { due() {}, soon() {} }, admission = NO_ADMISSION, onPass = () => {}, running = new Map()) {
   let wake = () => {};
-  let lastLaunchAt = Date.now();
   let lastError = 'none';
   let prunedAt = 0;
-  while (waitingTickets().length || running.size) {
-    // A locked slot database costs this renewal only: the lease is freed only when this process ends, never by age, so
-    // a missed renewal loses nothing, and the next pass renews again. Why: on 8 Nov a renewal that met a 10 s lock
-    // ended the dispatcher six times in 95 minutes (#3717) [C7].
-    try { lock.renew(); }
-    catch (error) {
-      if (!RETRIED_SLOT_ERRORS.has(error?.code)) throw error;
-      logDispatcher(`dispatcher lock not renewed: ${error.code} ${error.message}; retrying on the next pass`);
-    }
-    beatDispatcherHeartbeat();
-    // The dispatcher's job row is renewed from here too, so a wedged loop stops renewing both (#2990).
-    // A pass that asks to hand the machine over (a dispatcher on stale tooling) ends the drain; any other failure is logged.
-    try { onPass(); } catch (error) { if (error?.handOver) throw error; logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
-    // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
-    if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
-    // A worker that exited with no result is a dead gate: sweep now, so its gate ends and its retry starts in seconds.
-    if (exitedWithoutResult(running)) sweeps.soon();
-    sweeps.due();
-    releaseExited(running, releaseSlot);
-    for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
-    const cap = passCapacity(capacity);
-    const queued = waitingTickets().length;
-    if (running.size) lastLaunchAt = Date.now();
-    else if (queued && Date.now() - lastLaunchAt >= stallMs) {
-      logDispatcher(`no worker launched for ${Math.round((Date.now() - lastLaunchAt) / 1000)}s with ${queued} queued and cap ${cap}; last slot error ${lastError}; launching on this pass`);
-      lastLaunchAt = Date.now();
-    }
-    for (const name of waitingTickets()) {
-      // A live reservation holds its place: later submits wait behind it.
-      if (name.endsWith('.reserved')) { if (reservationAbandoned(name, startOf)) continue; break; }
-      let slot;
-      try {
-        slot = await takeSlot({ name: HANDOFF_WORKER_RESOURCE, capacity: cap, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
-          onWait() { throw new Refused('HANDOFF_WORKERS_FULL', 'every worker slot is busy'); } });
-      } catch (error) {
-        if (error.code === 'HANDOFF_WORKERS_FULL') break;
-        if (RETRIED_SLOT_ERRORS.has(error.code)) { lastError = error.code; logDispatcher(`worker slot not taken: ${error.code} ${error.message}; retrying on the next pass`); break; }
-        throw error;
-      }
-      const file = join(handoffQueueDirectory(), name);
-      let launch;
-      try { launch = JSON.parse(readFileSync(file, 'utf8')); }
-      catch (error) { slot.release(); throw new Refused('HANDOFF_QUEUE_SOURCE', `cannot read queued worker ${name}: ${error.message}; restore its ticket before dispatch`); }
-      let worker;
-      const startedAt = Date.now();
-      try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf, admission); }
+  // The open idle span: live tickets waited, a slot was free or unknown, and nothing launched (#5727).
+  let idle = null;
+  let stallLoggedAt = 0;
+  try {
+    while (waitingTickets().length || running.size) {
+      // A locked slot database costs this renewal only: the lease is freed only when this process ends, never by age, so
+      // a missed renewal loses nothing, and the next pass renews again. Why: on 8 Nov a renewal that met a 10 s lock
+      // ended the dispatcher six times in 95 minutes (#3717) [C7].
+      try { lock.renew(); }
       catch (error) {
-        slot.release();
-        // A gate whose last driver's lease is still live waits in line until that lease ends or lapses (2 minutes).
-        if (error.code === 'GATE_DRIVE_LEASED') continue;
-        // A board that could not record the admission keeps the ticket in line for the next pass; a stale gate never will serve, so it ends unstarted.
-        if (error.admission && error.code !== 'GATE_STALE') { lastError = error.code ?? 'ERROR'; logDispatcher(`gate ${launch.job} not admitted: ${error.code ?? 'ERROR'} ${error.message}; retrying on the next pass`); break; }
-        endUnstarted(file, name, launch, error, admission); continue;
+        if (!RETRIED_SLOT_ERRORS.has(error?.code)) throw error;
+        logDispatcher(`dispatcher lock not renewed: ${error.code} ${error.message}; retrying on the next pass`);
       }
-      rmSync(file);
-      // The worker holds its own slot from here: a dispatcher that exits for any reason leaves it held while the worker
-      // runs and freed when the worker ends, so a successor never starts a second set of workers beside the running ones.
-      try { if (!slot.handOver?.(worker.pid)) logDispatcher(`worker ${launch.job} slot kept by the dispatcher: the worker's start identity is unreadable`); }
-      catch (error) { logDispatcher(`worker ${launch.job} slot kept by the dispatcher: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
-      lastLaunchAt = Date.now();
-      rememberHandoffRoot(launch.directory);
-      started.push(launch.job);
-      const entry = { slot, job: launch.job, exited: false, worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 };
-      running.set(worker, entry);
-      // The exit handler only marks and wakes: the release runs in the loop, where a failure is caught and retried.
-      worker.once('close', () => { entry.exited = true; wake(); });
+      beatDispatcherHeartbeat();
+      // The dispatcher's job row is renewed from here too, so a wedged loop stops renewing both (#2990).
+      // A pass that asks to hand the machine over (a dispatcher on stale tooling) ends the drain; any other failure is logged.
+      try { onPass(); } catch (error) { if (error?.handOver) throw error; logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+      // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
+      if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
+      // A worker that exited with no result is a dead gate: sweep now, so its gate ends and its retry starts in seconds.
+      if (exitedWithoutResult(running)) sweeps.soon();
+      sweeps.due();
+      releaseExited(running, releaseSlot);
+      for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
+      const cap = passCapacity(capacity);
+      // Only live tickets count: a stale gate's ticket is dropped here, before any slot or admission (#5727).
+      let live = 0;
+      for (const name of waitingTickets()) {
+        if (!name.endsWith('.json')) continue;
+        if (staleGate(ticketJob(name))) { rmSync(join(handoffQueueDirectory(), name), { force: true }); logDispatcher(`ticket ${name} dropped: its gate no longer serves its item`); }
+        else live += 1;
+      }
+      if (idle && Date.now() - idle.from >= stallMs && Date.now() - stallLoggedAt >= stallMs) {
+        logDispatcher(`no worker launched for ${Math.round((Date.now() - idle.from) / 1000)}s with ${live} queued and cap ${cap}; last slot error ${lastError}; launching on this pass`);
+        stallLoggedAt = Date.now();
+      }
+      let launched = false;
+      let full = false;
+      for (const name of waitingTickets()) {
+        // A live reservation keeps its place number but never holds back a later ticket: a launch happens whenever
+        // fewer than the cap run (#5727). It starts first on the pass after its submit fills it.
+        if (name.endsWith('.reserved')) { reservationAbandoned(name, startOf); continue; }
+        if (staleGate(ticketJob(name))) continue;
+        let slot;
+        try {
+          slot = await takeSlot({ name: HANDOFF_WORKER_RESOURCE, capacity: cap, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
+            onWait() { throw new Refused('HANDOFF_WORKERS_FULL', 'every worker slot is busy'); } });
+        } catch (error) {
+          if (error.code === 'HANDOFF_WORKERS_FULL') { full = true; break; }
+          if (RETRIED_SLOT_ERRORS.has(error.code)) { lastError = error.code; logDispatcher(`worker slot not taken: ${error.code} ${error.message}; retrying on the next pass`); break; }
+          throw error;
+        }
+        const file = join(handoffQueueDirectory(), name);
+        let launch;
+        try { launch = JSON.parse(readFileSync(file, 'utf8')); }
+        catch (error) { slot.release(); throw new Refused('HANDOFF_QUEUE_SOURCE', `cannot read queued worker ${name}: ${error.message}; restore its ticket before dispatch`); }
+        let worker;
+        const startedAt = Date.now();
+        try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf, admission); }
+        catch (error) {
+          slot.release();
+          // A gate whose last driver's lease is still live waits in line until that lease ends or lapses (2 minutes).
+          if (error.code === 'GATE_DRIVE_LEASED') continue;
+          // A board that could not record the admission keeps the ticket in line for the next pass; a stale gate never will serve, so it ends unstarted.
+          if (error.admission && error.code !== 'GATE_STALE') { lastError = error.code ?? 'ERROR'; logDispatcher(`gate ${launch.job} not admitted: ${error.code ?? 'ERROR'} ${error.message}; retrying on the next pass`); break; }
+          endUnstarted(file, name, launch, error, admission);
+          // A gate that no longer serves its item never will: its first refusal drops every ticket it holds (#5727).
+          if (error.code === 'GATE_STALE') markStaleGate(launch.job);
+          continue;
+        }
+        rmSync(file);
+        // The worker holds its own slot from here: a dispatcher that exits for any reason leaves it held while the worker
+        // runs and freed when the worker ends, so a successor never starts a second set of workers beside the running ones.
+        try { if (!slot.handOver?.(worker.pid)) logDispatcher(`worker ${launch.job} slot kept by the dispatcher: the worker's start identity is unreadable`); }
+        catch (error) { logDispatcher(`worker ${launch.job} slot kept by the dispatcher: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+        launched = true;
+        rememberHandoffRoot(launch.directory);
+        started.push(launch.job);
+        const entry = { slot, job: launch.job, exited: false, worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 };
+        running.set(worker, entry);
+        // The exit handler only marks and wakes: the release runs in the loop, where a failure is caught and retried.
+        worker.once('close', () => { entry.exited = true; wake(); });
+      }
+      const waiting = waitingTickets().some(name => name.endsWith('.json') && !staleGate(ticketJob(name)));
+      if (waiting && !launched && !full) idle ??= { from: Date.now(), live, cap, lastError };
+      else if (idle) { recordIdleSpan({ ...idle, lastError }, Date.now()); idle = null; stallLoggedAt = 0; }
+      if (idle) Object.assign(idle, { live: Math.max(idle.live, live), lastError });
+      await new Promise(done => { wake = done; setTimeout(done, pollMs); });
     }
-    await new Promise(done => { wake = done; setTimeout(done, pollMs); });
-  }
+  } finally { if (idle) recordIdleSpan(idle, Date.now()); }
 }
 
 /** Whether a live dispatcher holds the machine's dispatcher lock. */
