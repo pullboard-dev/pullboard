@@ -104,6 +104,7 @@ function moduleObserver(box) {
     "import { appendFileSync } from 'node:fs';",
     'let trace;',
     'export function initialize(data) { trace = data.trace; }',
+    "export async function resolve(spec, context, nextResolve) { const r = await nextResolve(spec, context); appendFileSync(trace + '.edges', JSON.stringify({from:context.parentURL,to:r.url}) + '\\n'); return r; }",
     "export async function load(url, context, nextLoad) { const result = await nextLoad(url, context); appendFileSync(trace, JSON.stringify({pid:process.pid,url}) + '\\n'); return result; }",
   ].join('\n'));
   writeFileSync(probe, `import { register } from 'node:module';\nregister(${JSON.stringify(pathToFileURL(hook).href)}, { data: { trace: ${JSON.stringify(trace)} } });\n`);
@@ -188,7 +189,9 @@ test('clause 1: a plain test run loads no gate board or machine modules through 
   assert.match(child.stdout, /# pass 1\b/u);
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/io/slot.js')).href), 'ordinary admission actually ran');
-  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
+  const edges = readFileSync(box.trace + '.edges', 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  const chain = target => { const out = []; let cur = target; for (let i = 0; i < 30 && cur; i++) { out.push(cur.replace(/.*pullboard-local\//u, '')); const e = edges.find(x => x.to === cur && x.from); cur = e?.from; } return out.join(' <- '); };
+  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `TRACE ${file} chain: ${chain(pathToFileURL(join(ROOT, file)).href)}`);
 });
 
 test('clause 2: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
