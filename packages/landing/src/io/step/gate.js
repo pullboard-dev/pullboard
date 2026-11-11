@@ -377,9 +377,13 @@ async function runGateGroup(state, label, options) {
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
   let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
     generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
-  // T3 journeys are deferred to the landing batch by design: no submit ran them, so no submit receipt answers for them.
+  // T3 journeys are deferred to the landing batch by design: no submit ran them, so no submit receipt answers for the ones it did not run.
   // Why: a one-item bisect half reused its submit receipt, ran no journey and passed the item that broke it [C7,CS4,V4].
-  if (reuse.reuse && journeys?.length) reuse = { ...reuse, rerun: [...new Set([...(reuse.rerun ?? []), ...journeys])].sort() };
+  if (reuse.reuse && journeys?.length) {
+    const proved = new Set(state.batch.items.flatMap(entry => submitProofFiles(entry, id => store.events(state.board, { itemId: id })) ?? []));
+    const unproved = journeys.filter(file => !proved.has(file));
+    if (unproved.length) reuse = { ...reuse, rerun: [...new Set([...(reuse.rerun ?? []), ...unproved])].sort() };
+  }
   const receipts = reuse.items?.length > 1 ? `#${reuse.items.join(', #')}'s submit receipts` : `#${reuse.item}'s submit receipt`;
   if (reuse.reuse && reuse.rerun?.length) {
     // The proof answers for the rest of the plan; only the files main's commits reach since the submit run again [C7].
