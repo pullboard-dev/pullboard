@@ -1,5 +1,6 @@
 /** The board reads a light consumer needs, open read-only, the board id and the item list, without heavy imports [C7,V4]. */
 // Why a module of its own: query.js reaches verify, seats and items, so a light door exporting from it broke its cold-load budget.
+import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../../kernel/light.js';
@@ -179,3 +180,20 @@ export function readBoardSnapshot(db, clock = systemClock) {
 
 /** Supply exact discovered engine thresholds to read-only projections. */
 function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
+
+/**
+ * Whether the board file at `file` holds a verified item no merge has landed, or may (an unreadable board answers true).
+ * Why: the post-command landing wake loads the landing package only when something could be waiting to land [C7].
+ *
+ * @param {string} file
+ * @returns {boolean}
+ */
+export function landingMayWait(file) {
+  let db;
+  // No board file means nothing was ever accepted here.
+  if (!existsSync(file)) return false;
+  try {
+    db = openBoardReadOnly(file);
+    return db.prepare("SELECT 1 AS waiting FROM item WHERE item_status = 'verified' AND (item_merged_commit IS NULL OR item_merged_commit = '') LIMIT 1").get() !== undefined;
+  } catch { return true; } finally { try { db?.close(); } catch { /* Nothing more to release. */ } }
+}

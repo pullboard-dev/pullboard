@@ -77,7 +77,7 @@ async function bindCheckoutSession(io, positionals, values) {
   if (command === 'answer' && values.as === 'person') return;
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
-  return (await import('../entry.js')).bindWriteSession(io, positionals, values);
+  return (await import('../join.js')).bindWriteSession(io, positionals, values);
 }
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
@@ -247,7 +247,7 @@ async function runMain(argv, streams) {
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => {
-      if (!sync || !(await import('../../../../../packages/store/index.js')).syncMayAct(io.cwd)) return null;
+      if (!sync || !(await import('../../../../../packages/store/light.js')).syncMayAct(io.cwd)) return null;
       await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
       return import('../sync.js');
@@ -290,6 +290,9 @@ async function runMain(argv, streams) {
       const { info } = automaticLandingAfterCommand;
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
       try {
+        // Nothing loads for the wake unless a pending record exists or a verified item waits to land [C7].
+        if (!(existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))
+          || (await import('../../../../../packages/store/light.js')).landingMayWait(join(info.commonDir, 'pullboard', 'board.sqlite')))) throw LANDING_IDLE;
         const worker = await import('../../../../../packages/landing/index.js');
         // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
         const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
@@ -303,9 +306,10 @@ async function runMain(argv, streams) {
         const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../landing/automatic.js', import.meta.url), { woken });
         if (!recovered) await (await import('../landing/automatic.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
       }
-      catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
+      catch (error) { if (error !== LANDING_IDLE) io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
-    if (maintenanceAfterCommand) {
+    // A runner job's processes die with the job, so no timer is scheduled and the scheduler is never loaded [C7].
+    if (maintenanceAfterCommand && !process.env.PULLBOARD_RUNNER_JOB) {
       try { await (await import('../worktree/maintenance/scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err((await import('../worktree/maintenance/diagnostics.js')).maintenanceTimerWarning(error)); }
     }
@@ -340,6 +344,9 @@ if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
 }
+
+/** Thrown inside the landing wake when nothing could be waiting to land, so the wake loads nothing. */
+const LANDING_IDLE = new Error('landing idle');
 
 /** The trunk checkout the pending landing record names, or null when there is no readable record. */
 function landingJobRoot(commonDir) {
