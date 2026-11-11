@@ -2859,12 +2859,21 @@
     "model": 1
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "tempdir": 4,
-    "hand-policy": 6,
+    "tempdir": 2,
+    "hand-policy": 4,
+    "model": 2,
+    "raw-board": 5
+  },
+  "apps/cli/journeys/resume/flow/setup.test.js": {
+    "hand-policy": 1,
+    "model": 2,
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/resume/release.js": {
+    "tempdir": 1,
+    "hand-policy": 1,
     "repo-read": 1,
-    "env-spread": 1,
-    "model": 4,
-    "raw-board": 6
+    "env-spread": 1
   },
   "apps/cli/journeys/capacity/wake.test.js": {
     "model": 1,
