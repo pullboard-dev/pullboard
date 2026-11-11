@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { archiveMaintenanceWorktree } from '../../../../src/io/worktree/maintenance/archive.js';
+import { maintenanceArchiveMatches } from '../../../../src/io/worktree/maintenance/archive.js';
 import { archiveVolume } from '../../../../src/io/worktree/maintenance/archive.js';
 import { maintenanceGit } from '../../../../src/io/worktree/maintenance/archive.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
@@ -117,4 +118,81 @@ test('clause 1: a short archive volume still refuses and an unreadable one refus
   assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: short }), /ARCHIVE_WOULD_FILL_DISK.*free/);
   assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: () => { throw new Error('no statfs'); } }),
     /ARCHIVE_WOULD_FILL_DISK.*unknown/);
+});
+
+/** A dirty repository whose archive folder is a symlink to a directory with the given mode. */
+function symlinkedArchive(t, mode) {
+  const root = privateFixtureFiles('pullboard-archive-link-').root;
+  const repo = join(root, 'repo'), target = join(root, 'target');
+  fs.mkdirSync(repo);
+  fs.mkdirSync(target, { mode });
+  fs.chmodSync(target, mode);
+  maintenanceGit(repo, ['init', '-q', '-b', 'main']);
+  maintenanceGit(repo, ['config', 'user.name', 'Archive Fixture']);
+  maintenanceGit(repo, ['config', 'user.email', 'archive@example.invalid']);
+  fs.writeFileSync(join(repo, 'a.txt'), 'a\n');
+  maintenanceGit(repo, ['add', '.']); maintenanceGit(repo, ['commit', '-qm', 'fixture']);
+  fs.writeFileSync(join(repo, 'dirty.txt'), 'dirty\n');
+  const common = fs.realpathSync(join(repo, '.git'));
+  fs.mkdirSync(join(common, 'pullboard'));
+  fs.symlinkSync(target, join(common, 'pullboard', 'worktree-archives'));
+  return { repo, common, target };
+}
+const roomy = () => ({ freeBytes: 1024 ** 4, totalBytes: 1024 ** 4 });
+
+test('clause 1: a symlinked archive folder with a private target of the user is archived into and matches [C7,#5445]', t => {
+  const { repo, common, target } = symlinkedArchive(t, 0o700);
+  const archive = archiveMaintenanceWorktree(repo, common, { volume: roomy });
+  assert.ok(fs.existsSync(join(target, archive.manifest.id, 'manifest.json')));
+  assert.equal(maintenanceArchiveMatches(repo, archive), true);
+});
+
+test('clause 1: a symlinked archive folder whose target is not private is refused [C7,#5445]', t => {
+  const { repo, common } = symlinkedArchive(t, 0o755);
+  assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: roomy }), /not private/);
+});
+
+test('clause 1: a symlinked archive folder whose target another user owns is refused [C7,#5445]', t => {
+  const { repo, common } = symlinkedArchive(t, 0o700);
+  const saved = process.getuid;
+  process.getuid = () => saved.call(process) + 1;
+  t.after(() => { process.getuid = saved; });
+  assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: roomy }), /not private/);
+});
+
+/** An archive whose files read back with the modes and times a network share reports [C7,#5454]. */
+function shareArchive(t) {
+  const { repo, common, target } = symlinkedArchive(t, 0o700);
+  const archive = archiveMaintenanceWorktree(repo, common, { volume: roomy });
+  const directory = join(target, archive.manifest.id);
+  const blob = join(directory, 'blobs', archive.manifest.files[0].sha256);
+  return { repo, archive, directory, blob };
+}
+
+test('clause 1: an archive whose files read back with share-mapped modes and times still verifies [C7,#5454]', t => {
+  const { repo, archive, directory, blob } = shareArchive(t);
+  for (const file of [blob, join(directory, 'manifest.json'), join(directory, 'staged.patch')]) {
+    fs.chmodSync(file, 0o700);
+    fs.utimesSync(file, new Date(1e12), new Date(1e12));
+  }
+  assert.equal(maintenanceArchiveMatches(repo, archive), true);
+});
+
+test('clause 1: a changed archived file of the same size still fails verification [C7,#5454]', t => {
+  const { repo, archive, blob } = shareArchive(t);
+  const bytes = fs.readFileSync(blob);
+  fs.writeFileSync(blob, Buffer.alloc(bytes.length, 0x78));
+  assert.equal(maintenanceArchiveMatches(repo, archive), false);
+});
+
+test('clause 1: a truncated archived file still fails verification [C7,#5454]', t => {
+  const { repo, archive, blob } = shareArchive(t);
+  fs.truncateSync(blob, 1);
+  assert.equal(maintenanceArchiveMatches(repo, archive), false);
+});
+
+test('clause 1: an archive root that others can read still fails verification [C7,#5454]', t => {
+  const { repo, archive, directory } = shareArchive(t);
+  fs.chmodSync(directory, 0o755);
+  assert.equal(maintenanceArchiveMatches(repo, archive), false);
 });
