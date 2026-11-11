@@ -1,18 +1,19 @@
-/** @pullboard-test-input source-tree */
 /** A pulled runner job submits, serves its NEED, waits with no controller process and finishes through the unchanged result check [C7,#5465]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import { executionServicesSource } from '../../../tests/fixtures/gate/execution.js';
-import { HOST } from '../../../tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../tests/fixtures/runner/ssh.js';
-import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../e2e.js';
+import { runFixtureChild } from '../child.js';
+import { executionServicesSource } from '../gate/execution.js';
+import { HOST } from './ssh.js';
+import { installSshStandIn } from './ssh.js';
+import { fixtureAdd } from '../testkit.js';
 
-for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's'} return the controller path's result and leave no controller process while waiting [C7,#5465]`, { timeout: 170000 }, t => {
+/** Register the pull journey for `count` concurrent pulled jobs: one file each keeps every file under its time budget. */
+export function definePullJourney(count) {
+  test(`${count} pulled job${count === 1 ? '' : 's'} return the controller path's result and leave no controller process while waiting [C7,#5465]`, { timeout: 170000 }, t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -74,3 +75,4 @@ for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's
   assert.deepEqual(actual.records, [], 'the finished job\'s record is removed');
   assert.deepEqual(actual.runnerLeft, [0, 0, 0], 'the runner forgets the finished job');
 });
+}
