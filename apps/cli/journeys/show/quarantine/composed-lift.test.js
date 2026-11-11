@@ -8,17 +8,17 @@ import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 
 test('clause 1: twenty clean runs lift the quarantine two composed Submit pairs filed [C7,H16]', t => {
-  const box = fixture(t, false, true);
+  const T0=Date.now();const box = fixture(t, false, true);console.log('TIMING fixture',Date.now()-T0);
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
-  assert.equal(submit(box).code, 0); // the active quarantine lets the computed verdict through
+  console.log('TIMING firstsubmit',Date.now()-T0);assert.equal(submit(box).code, 0);console.log('TIMING secondsubmit',Date.now()-T0); // the active quarantine lets the computed verdict through
   const cleanIds = new Set();
   for (let index = 0; index < 20; index += 1) {
     writeFileSync(box.counter, 'run\n'); // The real next controlled body passes.
     const clean = box.cli('gate', '--landing', '--receipt');
     assert.equal(clean.code, 0, JSON.stringify(clean.document));
     assert.ok(clean.document.receiptId, 'each clean body produces fresh native receipt evidence');
-    cleanIds.add(clean.document.receiptId);
+    cleanIds.add(clean.document.receiptId);console.log('TIMING run',index,Date.now()-T0);
   }
   assert.equal(cleanIds.size, 20, 'twenty actual executions, never a reused green stamp');
   assert.equal(snapshot(box).quarantines[0].status, 'lifted', 'the Submit backfill files an ordinary quarantine, which the 20-clean-run release lifts (f562d717d8)');
