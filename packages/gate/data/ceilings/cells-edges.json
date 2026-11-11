@@ -1,9 +1,5 @@
 {
   "files": {
-    "apps/cli/src/io/static/checks.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "apps/cli/pullboard.js": {
       "cells": 2,
       "deep": 3
@@ -444,6 +440,10 @@
       "cells": 6,
       "deep": 0
     },
+    "apps/cli/src/io/gate/drive.js": {
+      "cells": 2,
+      "deep": 1
+    },
     "apps/cli/src/io/generated/declarations.js": {
       "cells": 1,
       "deep": 0
@@ -479,6 +479,18 @@
     "apps/cli/src/io/join.js": {
       "cells": 8,
       "deep": 0
+    },
+    "apps/cli/src/io/landing/advance.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/landing/audit.js": {
+      "cells": 6,
+      "deep": 2
+    },
+    "apps/cli/src/io/landing/automatic.js": {
+      "cells": 10,
+      "deep": 1
     },
     "apps/cli/src/io/lane.js": {
       "cells": 2,
@@ -558,6 +570,14 @@
     },
     "apps/cli/src/io/spec.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/static/checks.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "apps/cli/src/io/static/view.js": {
+      "cells": 1,
       "deep": 0
     },
     "apps/cli/src/io/submit.js": {
@@ -832,6 +852,10 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
+      "deep": 0
+    },
     "apps/cli/tests/fixtures/machine/rehome.js": {
       "cells": 1,
       "deep": 0
@@ -932,11 +956,19 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/tests/fixtures/relay/client-harness.js": {
+      "cells": 4,
+      "deep": 0
+    },
     "apps/cli/tests/fixtures/relay/client.js": {
       "cells": 2,
       "deep": 0
     },
     "apps/cli/tests/fixtures/relay/client/case/legacy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/client/inventories.js": {
       "cells": 1,
       "deep": 0
     },
@@ -1042,6 +1074,22 @@
     },
     "apps/cli/tests/fixtures/worktree/maintenance/scheduler.js": {
       "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/src/io/check/baseline.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/lib/src/io/drive/worker.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/lib/src/io/handoff/dispatcher.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/lib/src/io/landing/candidate.js": {
+      "cells": 5,
       "deep": 0
     },
     "apps/lib/src/io/main/audit.js": {
@@ -1251,6 +1299,10 @@
     "apps/runner/src/io/chrome.js": {
       "cells": 1,
       "deep": 1
+    },
+    "apps/runner/src/io/controller.js": {
+      "cells": 2,
+      "deep": 0
     },
     "apps/runner/src/io/custody.js": {
       "cells": 2,
@@ -1704,10 +1756,6 @@
       "cells": 2,
       "deep": 0
     },
-    "apps/lib/src/io/drive/worker.js": {
-      "cells": 4,
-      "deep": 0
-    },
     "packages/drive/src/logic/diagnose.js": {
       "cells": 1,
       "deep": 0
@@ -1778,10 +1826,6 @@
     },
     "packages/gate/src/io/check/budgets.js": {
       "cells": 1,
-      "deep": 0
-    },
-    "apps/lib/src/io/check/baseline.js": {
-      "cells": 3,
       "deep": 0
     },
     "packages/gate/src/io/check/signoffs.js": {
@@ -1955,14 +1999,6 @@
     "packages/gate/src/io/timed.js": {
       "cells": 1,
       "deep": 0
-    },
-    "apps/cli/src/io/static/view.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "apps/cli/src/io/gate/drive.js": {
-      "cells": 2,
-      "deep": 1
     },
     "packages/gate/src/logic/format.js": {
       "cells": 1,
@@ -2404,20 +2440,8 @@
       "cells": 4,
       "deep": 0
     },
-    "apps/cli/src/io/landing/advance.js": {
-      "cells": 7,
-      "deep": 0
-    },
-    "apps/cli/src/io/landing/automatic.js": {
-      "cells": 10,
-      "deep": 1
-    },
     "packages/landing/src/io/automatic/scheduler.js": {
       "cells": 3,
-      "deep": 0
-    },
-    "apps/lib/src/io/landing/candidate.js": {
-      "cells": 5,
       "deep": 0
     },
     "packages/landing/src/io/candidates.js": {
@@ -2471,10 +2495,6 @@
     "packages/landing/src/io/land/envelope.js": {
       "cells": 3,
       "deep": 0
-    },
-    "apps/cli/src/io/landing/audit.js": {
-      "cells": 6,
-      "deep": 2
     },
     "packages/landing/src/io/main/matches.js": {
       "cells": 3,
@@ -2785,6 +2805,10 @@
       "deep": 0
     },
     "packages/link/src/logic/relay/storage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/tests/fixtures/relay/reset.js": {
       "cells": 1,
       "deep": 0
     },
@@ -3116,10 +3140,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/lib/src/io/handoff/dispatcher.js": {
-      "cells": 6,
-      "deep": 0
-    },
     "packages/resources/src/io/home.js": {
       "cells": 1,
       "deep": 0
@@ -3205,10 +3225,6 @@
       "deep": 0
     },
     "packages/runners/src/io/capacity.js": {
-      "cells": 2,
-      "deep": 0
-    },
-    "apps/runner/src/io/controller.js": {
       "cells": 2,
       "deep": 0
     },

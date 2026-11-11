@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { DERIVE_ENGINES } from '../derive.js';
 import { DERIVE_PATCH } from '../derive.js';
 import { DERIVE_TREE } from '../derive.js';
+import { DERIVE_RULES } from '../derive.js';
 
 /** The value after `prefix` on the first output line carrying it, or null. */
 function lineValue(output, prefix) {
@@ -29,7 +30,10 @@ function lineValue(output, prefix) {
 export async function deriveOnRunner(state, { runChecks = state.guardServices?.runStaticChecks ?? runStaticChecks } = {}) {
   const root = state.batch.root;
   const tree = headTree(root);
-  const config = { ...state.config, staticChecks: `node packages/landing/src/io/derive.js --tree ${tree}` };
+  const badges = badgeDocuments(state);
+  const practice = /^[\w./-]+$/u.test(state.config.practice ?? '') ? ` --practice ${state.config.practice}` : '';
+  const flags = `${badges.length ? ` --badges ${Buffer.from(JSON.stringify(badges)).toString('base64')}` : ''} --doctrine${practice}`;
+  const config = { ...state.config, staticChecks: `node packages/landing/src/io/derive.js --tree ${tree}${flags}` };
   // A runner that cannot run the job (no script in an older base, a lost slot) is no reason to stall: the caller derives here instead.
   const ran = await runChecks(root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }).catch(() => null);
   const patch = lineValue(ran?.output, DERIVE_PATCH);
@@ -40,7 +44,17 @@ export async function deriveOnRunner(state, { runChecks = state.guardServices?.r
     if (applied.status !== 0 || git(root, ['write-tree']) !== expected) { git(root, ['reset', '--hard', '--quiet', 'HEAD']); return null; }
   }
   const engines = (lineValue(ran.output, DERIVE_ENGINES) ?? '').split(',').filter(Boolean).map(part => ({ name: part.split(':')[0], number: Number(part.split(':')[1]) }));
+  const counted = lineValue(ran.output, DERIVE_RULES);
+  state.measuredRules = counted === null ? undefined : JSON.parse(counted);
   return { assigned: engines };
+}
+
+/**
+ * The badge documents (path and text) this board's counts yield, from the badge port.
+ * Why: the runner has no board, so the coordinator hands it finished documents; the port stays the one author of their bytes [C7,#5583].
+ */
+export function badgeDocuments(state) {
+  return state.landingPorts?.badgeDocuments?.(state.landingPorts.badgeCounts(state.board)) ?? [];
 }
 
 /**
@@ -52,6 +66,9 @@ export async function commitDerived(state, merged, hooks) {
   const before = headCommit(root);
   let derived = await deriveOnRunner(state);
   if (!derived) {
+    // The coordinator writes the badge documents itself when no runner answered.
+    const written = state.landingPorts?.writeBadges(root, state.landingPorts.badgeCounts(state.board)) ?? [];
+    if (written.length) git(root, ['add', '--', ...written]);
     derived = stageLandingDerived(root).engines;
     state.say('the runner could not derive this batch; engine numbers and docs were built on the coordinator');
   }
