@@ -12,6 +12,7 @@ import { automaticLandingDirectory } from '../../../../../packages/landing/index
 import {
   retryableLandingRefusal,
   HELD_TRUNK_REFUSALS,
+  LANDING_ADOPT_REFUSALS,
   NOTHING_TO_LAND,
   landingWakeTrigger,
   nextLandingBackoff,
@@ -178,6 +179,7 @@ export async function bootstrapLandingWake(root, { schedule = scheduleAutomaticL
  * up to 5 minutes while the outcome repeats, recorded in the pending record through `onBackoff` and in the next attempt's
  * landing_lease event as backoffMs. While it waits it watches for an item becoming verified (an accept or a green gate)
  * and for a commit changing a held test file on the trunk, and either one wakes the next attempt at once.
+ * A lost lease (LAND_LEASE_LOST, LAND_WORKER) reloads within a second, and that wake adopts the batch it left [C7,#5770].
  * Why: on 6 Nov a held trunk restarted a crashing lander on every command, 124 landing leases in 10 minutes [C7].
  */
 export async function runLandingWake(root, { land = landAfterAcceptance, wait = pause, pollMs = 5000, now = Date.now, backoff = null,
@@ -213,6 +215,11 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   try { ran = await land(context(wakeIo(root))); }
   catch (error) {
     if (error.code === 'LAND_CODE_STALE') return handover();
+    // A lost lease keeps its batch: log it and reload, so the next wake adopts the batch and this process exits 0 (#5770).
+    if (LANDING_ADOPT_REFUSALS.has(error.code)) {
+      console.error(new Date().toISOString(), `landing stopped (${error.code}): ${error.message}; the next wake adopts its batch`);
+      return { reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic.js', import.meta.url) };
+    }
     if (HELD_TRUNK_REFUSALS.has(error.code)) {
       held = error.code;
       // The held refusal names what holds the trunk, so a stale hold reads back from worker.log (#3761).

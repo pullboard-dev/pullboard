@@ -1,16 +1,20 @@
 /** A dead landing lease holder is reclaimed by the next lander within the lease period [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { reclaimReason } from '../../src/io/resource.js';
 import { renewWithBackoff } from '../../src/io/resource.js';
 import { takeLandingResource } from '../../src/io/resource.js';
+import { renewGuardedHeartbeat } from '../../src/io/worker.js';
 import { retryableLandingRefusal } from '../../src/logic/retry.js';
 import { landingFault } from '../../src/io/step/diagnose.js';
 import * as store from '../../../store/index.js';
 import { register as registerSeat } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 /** A pid that certainly belongs to no running process: a child that already exited. */
 function deadPid() { return spawnSync(process.execPath, ['-e', '0']).pid; }
@@ -92,4 +96,59 @@ test('clause 1 (#5672): a lease renewal refused POLICY_SNAPSHOT_STALE retries in
   assert.equal(calls, 3);
   assert.deepEqual(waits, [100, 200]);
   await assert.rejects(renewWithBackoff(() => { throw new Refused('LAND_LEASE_LOST', 'lost'); }, { pausing: async () => {} }), { code: 'LAND_LEASE_LOST' });
+});
+
+/** A file board whose clock stands `behindMs` behind the wall clock, so a lease taken on it is due `LANDING_LEASE_MS - behindMs` from now. */
+function fileBoard(t, behindMs = 0) {
+  const { root } = privateFixtureFiles('pullboard-lease-');
+  const file = join(root, 'board.sqlite');
+  const at = Date.now() - behindMs;
+  const board = openCellBoard(file, { now: () => new Date(at) });
+  registerSeat(board, { lane: 'coordinator', path: '/renew/main' });
+  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  return { board, file };
+}
+
+/** Take a real landing lease on a board, handing every loss to `onLost`. */
+async function lease(board, onLost) {
+  return takeLandingResource({ board, branch: 'refs/heads/main', onLost, write: async (operation, args) => store[operation](board, ...args) });
+}
+
+test('clause 1 (#5770): the guardian renews a held lease heartbeat from its own process and never revives a lapsed or released one [C7]', async t => {
+  const { board, file } = fileBoard(t);
+  const lost = [];
+  const held = await lease(board, error => lost.push(error.code));
+  const token = held.fence.token;
+  try {
+    const before = Date.parse(held.assertCurrent().until);
+    const until = renewGuardedHeartbeat(file, token, Date.now() + 60_000);
+    assert.ok(until > before, 'the guardian moved the heartbeat past the deadline the lander last renewed');
+    assert.equal(Date.parse(store.landingLeaseState(board).holder.until), until, 'the board reads the renewed deadline');
+    assert.equal(renewGuardedHeartbeat(file, token, until + 1), null, 'a lapsed heartbeat is never revived');
+    assert.equal(renewGuardedHeartbeat(file, '0'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12)), null, 'another token renews nothing');
+  } finally { await held.release(); }
+  assert.equal(renewGuardedHeartbeat(file, token), null, 'a released lease is never revived');
+  assert.deepEqual(lost, []);
+});
+
+test('clause 1 (#5770): a lander whose event loop missed its renewals keeps the lease its guardian renewed; with no renewal the lease is lost through onLost, never thrown [C7]', async t => {
+  // The leases are due 1.5 s and 2 s from now, as if the lander's own 5 s heartbeat had been blocked for nearly 2 minutes.
+  const renewed = fileBoard(t, 118_500);
+  const kept = [];
+  const guarded = await lease(renewed.board, error => kept.push(error.code));
+  const starved = fileBoard(t, 118_000);
+  let starvedLost;
+  const lostOnce = new Promise(resolve => { starvedLost = resolve; });
+  const unguarded = await lease(starved.board, error => starvedLost(error.code));
+  try {
+    const until = renewGuardedHeartbeat(renewed.file, guarded.fence.token);
+    assert.ok(until, 'the guardian renewed the first lease');
+    // The watchdog confirms the board's renewed deadline instead of declaring the loss.
+    await new Promise(resolve => { const stop = guarded.watchDeadline(at => { if (at === until) { resolve(); queueMicrotask(() => stop()); } }); });
+    assert.equal(await lostOnce, 'LAND_LEASE_LOST', 'an unrenewed lease past its deadline is lost through onLost');
+    assert.deepEqual(kept, [], 'the renewed lease was kept');
+  } finally {
+    await guarded.release();
+    await unguarded.release().catch(() => {});
+  }
 });
