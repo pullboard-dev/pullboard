@@ -5,9 +5,12 @@ import { closeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { renameSync } from 'node:fs';
 import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { basename } from 'node:path';
 import { delimiter } from 'node:path';
@@ -15,10 +18,12 @@ import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { lex } from '../../../../kernel/light.js';
 import { literalShellWords } from '../../../../kernel/light.js';
 import { blobOid } from './project-files.js';
 import { indexedFiles } from './project-files.js';
+import { repoInfo } from '../main.js';
 
 const binaries = new Map();
 
@@ -53,25 +58,25 @@ function localModule(file, specifier) {
 const contextWindow = 160;
 
 /** The code just before a literal; scanning the whole prefix per literal is quadratic in file length. */
-function literalContext(code, start) {
-  const window = code.slice(Math.max(0, start - contextWindow), start);
+function literalContext(code, start, size) {
+  const window = code.slice(Math.max(0, start - size), start);
   // A cut can leave half an identifier whose word boundary is false; the real match is never that long.
-  return start > contextWindow ? window.replace(/^[\w$]+/u, '') : window;
+  return start > size ? window.replace(/^[\w$]+/u, '') : window;
 }
 
 /** What a JavaScript source loads: null when it loads opaquely, else the local specifiers to follow in order. */
-function scanImports(source, strict) {
+export function scanImports(source, strict, size = contextWindow) {
   const { code, strings } = lex(source);
   const bindings = new Map();
   for (const value of strings) {
-    const binding = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*$/u.exec(literalContext(code, value.start));
+    const binding = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*$/u.exec(literalContext(code, value.start, size));
     if (binding && !value.text.includes('\\') && !value.text.includes('${')) bindings.set(binding[1], value.text);
   }
   const local = [];
   let calls = 0;
   let requires = 0;
   for (const value of strings) {
-    const prefix = literalContext(code, value.start);
+    const prefix = literalContext(code, value.start, size);
     const call = /\b(?:require|import)\s*\(\s*$/u.test(prefix);
     if (!call && !/\b(?:from|import)\s*$/u.test(prefix)) continue;
     if (call) { calls++; if (/\brequire\s*\(\s*$/u.test(prefix)) requires++; }
@@ -106,10 +111,45 @@ function firstLine(file) {
 }
 
 // Import edges by blob id: what a file loads depends only on its bytes, its name and how it is read, never on the checkout.
-// Kept for this process only, so the several checks one command fingerprints share one scan of each file.
+// Saved in the git directory, so the next command reads no unchanged file; `used` is what a save past the cap keeps.
 const edges = new Map();
+const used = new Set();
+const loaded = new Set();
+let added = 0;
 
-// For each result, the entries read from disk rather than the git index: the only ones a clean tree cannot vouch for.
+/** Pullboard's own checkout, whose git index vouches for its source as the project's does. */
+const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
+
+/** This repository's edge file, named by the scanner's bytes and Node (which decides builtins); merged once. */
+function loadEdges(project) {
+  try {
+    const name = createHash('sha256').update(process.version).update(readFileSync(fileURLToPath(import.meta.url)))
+      .update(readFileSync(fileURLToPath(new URL('../../../../kernel/src/logic/lex.js', import.meta.url)))).digest('hex');
+    const file = `${repoInfo(project).commonDir}/pullboard/import-edges-${name.slice(0, 16)}.json`;
+    if (!loaded.has(file)) {
+      loaded.add(file);
+      try {
+        for (const [key, value] of Object.entries(JSON.parse(readFileSync(file, 'utf8')))) {
+          if (value?.k === 'js' ? Array.isArray(value.local) && value.local.every(item => typeof item === 'string') : /^(?:sh|none|bad)$/u.test(value?.k)) edges.set(key, value);
+        }
+      } catch { added++; /* None yet, or unreadable: the save replaces it. */ }
+    }
+    return file;
+  } catch { return null; }
+}
+
+/** Save after a walk that scanned something new; a failed save only means the next command scans again. */
+function saveEdges(file) {
+  if (!file || !added) return;
+  added = 0;
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(`${file}.${process.pid}`, JSON.stringify(Object.fromEntries([...edges].filter(([key]) => edges.size < 16384 || used.has(key)))));
+    renameSync(`${file}.${process.pid}`, file);
+  } catch { /* As above. */ }
+}
+
+// For each result, the files a clean project tree cannot vouch for: those read from disk, and Pullboard's own by blob id.
 const unvouched = new WeakMap();
 
 /** The digest of one file the way the fingerprint takes it: project files by git blob id, others by content. */
@@ -122,44 +162,64 @@ function entryDigest(file, stat, inside, length) {
  * caller's clean-tree check; only the rest are read again. A result this module did not return is computed afresh.
  */
 export function definitionUnchanged(root, previous, commands, code) {
-  const rest = unvouched.get(previous);
-  if (!rest) {
+  const saved = unvouched.get(previous);
+  if (!saved) {
     const fresh = checkCommandDefinition(root, commands, code);
     return Boolean(fresh) && JSON.stringify(fresh) === JSON.stringify(previous);
   }
   try {
-    return rest.every(({ file, inside, length, digest }) => entryDigest(file, statSync(file, { bigint: true }), inside, length) === digest);
+    const index = saved.tool.entries.length ? indexedFiles(saved.tool.root) : null;
+    return saved.tool.entries.every(({ path, oid }) => index?.clean.get(path)?.oid === oid)
+      && saved.rest.every(({ file, inside, length, digest }) => entryDigest(file, statSync(file, { bigint: true }), inside, length) === digest);
   } catch { return false; }
 }
 
+/** The path of `file` under `base`, or undefined when it lies outside. */
+function under(base, file) {
+  const path = relative(base, file);
+  return path && !path.startsWith('..') && !isAbsolute(path) ? path : undefined;
+}
+
 /** Collect tracked project code plus literal external dependencies; opaque external loading misses the cache. */
-export function checkCommandDefinition(root, commands, codeFiles = []) {
+export function checkCommandDefinition(root, commands, codeFiles = [], { tool: toolRoot = TOOL_ROOT } = {}) {
   const files = new Map();
   const rest = [];
   const project = realpathSync.native(root);
-  let index;
-  /** The git index answer, asked once and only when a project file needs it. */
-  function tracked() {
-    if (index === undefined) index = indexedFiles(project);
-    return index;
+  const indexes = new Map();
+  /** The git index answer, asked once and only when a file there needs it. */
+  function tracked(base) {
+    if (!indexes.has(base)) indexes.set(base, indexedFiles(base));
+    return indexes.get(base);
   }
+  let tool = null;
+  try { tool = realpathSync.native(toolRoot); } catch { /* Read like any other files. */ }
+  // Inside the project, Pullboard is the project's own code.
+  if (tool === project || under(project, tool ?? '/') !== undefined) tool = null;
+  const toolEntries = [];
+  const store = loadEdges(project);
   /** Include actual bytes even for symlinks or files outside the checked Git tree. */
   function visit(input, strict = true, language = '') {
-    const given = relative(project, resolve(input));
+    const named = resolve(input);
+    const given = under(project, named);
+    const own = tool && given === undefined ? under(tool, named) : undefined;
     // A clean tracked regular file has no symlink above it, so its name is already its real path.
-    const file = !given.startsWith('..') && !isAbsolute(given) && tracked()?.clean.has(given) ? resolve(project, given) : realpathSync.native(input);
+    const file = given !== undefined && tracked(project)?.clean.has(given) ? resolve(project, given)
+      : own !== undefined && tracked(tool)?.clean.has(own) ? resolve(tool, own) : realpathSync.native(input);
     if (files.has(file)) return;
     if (files.size >= 8192) throw new Error('checker dependency closure is unbounded');
     const stat = statSync(file, { bigint: true });
     if (!stat.isFile()) throw new Error('checker input is not a regular file');
     const path = relative(project, file);
     const inside = !(path.startsWith('..') || isAbsolute(path));
-    const known = inside ? tracked()?.clean.get(path) : undefined;
-    const length = index?.length ?? 40;
+    const toolPath = !inside && tool ? under(tool, file) : undefined;
+    const known = inside ? tracked(project)?.clean.get(path) : toolPath !== undefined ? tracked(tool)?.clean.get(toolPath) : undefined;
+    const length = indexes.get(project)?.length ?? 40;
     let bytes;
     let digest;
-    if (known) digest = `git:${known.oid}`;
-    else {
+    if (known) {
+      digest = `git:${known.oid}`;
+      if (!inside) toolEntries.push({ path: toolPath, oid: known.oid });
+    } else {
       if (inside) { bytes = readFileSync(file); digest = `git:${blobOid(bytes, length)}`; }
       else digest = fileDigest(file, stat);
       rest.push({ file, inside, length, digest });
@@ -168,17 +228,18 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
     let text;
     const source = () => text ??= bytes ? bytes.toString('utf8') : readFileSync(file, 'utf8');
     const flags = [/\.sh$/u.test(file), /\.[cm]?js$/u.test(file), /\.(?:py|rb|pl|php|ts|mjscript)$/u.test(file)].map(Number).join('');
-    const key = inside ? `${digest}:${strict ? 1 : 0}:${language}:${flags}` : null;
+    const key = digest.startsWith('git:') ? `${digest}:${strict ? 1 : 0}:${language}:${flags}` : null;
     let record = key ? edges.get(key) : undefined;
+    if (record) used.add(key);
     if (!record) {
-      const line = text === undefined && !bytes ? firstLine(file) : source().split('\n', 1)[0];
+      const line = text === undefined && !bytes && flags[1] !== '1' ? firstLine(file) : source().split('\n', 1)[0];
       if (language === 'sh' || flags[0] === '1' || /^#![^\n]*\b(?:ba|da|z)?sh\b/u.test(line)) record = { k: 'sh' };
       else if (language !== 'js' && flags[1] !== '1' && !/^#![^\n]*\bnode\b/u.test(line)) record = /^#!/u.test(line) || flags[2] === '1' ? { k: 'bad' } : { k: 'none' };
       else {
         const local = scanImports(source(), strict);
         record = local ? { k: 'js', local } : { k: 'bad' };
       }
-      if (key) edges.set(key, record);
+      if (key) { edges.set(key, record); used.add(key); added++; }
     }
     if (record.k === 'bad') throw new Error('checker uses an opaque or unsupported loader');
     if (record.k === 'sh') {
@@ -216,7 +277,7 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
     for (const command of commands) commandFiles(literalShellWords(command));
     for (const file of codeFiles) visit(file, false);
     const result = [...files.values()].sort((left, right) => left.path.localeCompare(right.path));
-    unvouched.set(result, rest);
+    unvouched.set(result, { rest, tool: { root: tool, entries: toolEntries } });
     return result;
-  } catch { return null; }
+  } catch { return null; } finally { saveEdges(store); }
 }
