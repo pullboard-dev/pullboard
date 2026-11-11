@@ -8,7 +8,7 @@
 import { audit } from './harness.mjs';
 
 const COMMON_DIR = ['apps/cli/journeys/list/board.test.js', 'the board lives in the git common dir'];
-const RACE = ['apps/cli/journeys/spec/e2e.test.js', 'two agents racing for one item'];
+const RACE = ['apps/cli/journeys/spec/e2e/next.test.js', 'two agents racing for one item'];
 const LEASE = ['apps/cli/journeys/resume/board.test.js', 'a claim is a lease'];
 const SHOUTS = ['apps/cli/journeys/resume/board.test.js', 'shouts reach a lane, an agent or all'];
 const BRIEF_EDIT = ['apps/cli/journeys/resume/board.test.js', 'an item carries a brief; editing it'];
