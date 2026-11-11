@@ -194,6 +194,7 @@ test('clause 1: a plain test run loads no gate board or machine modules through 
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `TRACE ${file} chain: ${chain(pathToFileURL(join(ROOT, file)).href)}`);
 });
 
+function chain2(target, box) { const edges = readFileSync(box.trace + '.edges', 'utf8').trim().split('\n').map(l => JSON.parse(l)); const out = []; let cur = target; for (let i = 0; i < 30 && cur; i++) { out.push(cur.replace(/^.*\/(checkout|pullboard-local)\//u, '').replace('packages/', 'P/').replace('src/io/', '')); const e = edges.find(x => x.to === cur && x.from); cur = e?.from; } return out.join('<'); }
 test('clause 2: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
 () => {
   const box = fixture({ currentReleaseFirst: true });
@@ -203,7 +204,7 @@ test('clause 2: a plain run retains lazy modules with current-release-first queu
   assert.match(child.stdout, /# pass 1\b/u);
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/io/slot.js')).href), 'ordinary policy-enabled admission actually ran');
-  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy with currentReleaseFirst on`);
+  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `TRACE ${file} chain: ${chain2(pathToFileURL(join(ROOT, file)).href, box)}`);
 });
 
 test('the actual test-file preload loads no gate board or machine modules [C7,V4]', { timeout: 90_000 }, // budget: one private Node test-file process with ordinary preload and watchdog; hang ceiling only.
