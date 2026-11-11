@@ -18,20 +18,21 @@ import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
+import { lex } from '../../../kernel/index.js';
 import { runRunnerScript } from './pull/ssh.js';
 import { pullWord } from './pull/scripts.js';
 
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The runner-side program: runner serve on its own, without the CLI. */
-export const SERVICE_ENTRY = 'packages/drive/src/io/service.js';
+export const SERVICE_ENTRY = 'apps/cli/src/io/runner/service.js';
 /** The launchd label, so a reinstall replaces the one service and --remove finds it. */
 export const SERVICE_LABEL = 'dev.pullboard.runner-serve';
-// Budget: the service is one entry and the few files it imports; anything near this means the closure took in the CLI.
-const SERVICE_BYTES = 2 * 1024 ** 2;
+// Budget: the service and what it imports through the drive and landing front doors is about 8 MB; double that is a runaway closure.
+const SERVICE_BYTES = 16 * 1024 ** 2;
 // Budget: one ssh writes a few files and asks launchd to load them; a minute covers a slow login shell and retries.
 const INSTALL_MS = 60_000;
-// A static import, re-export or literal dynamic import: the string after `from`, `import` or `import(`.
-const SPECIFIER = /(?:\bfrom|\bimport)\s*\(?\s*(['"])([^'"\n]+)\1/gu;
+// A string the lexer reads right after `from`, `import` or `import(` is an import; strings and comments elsewhere never count.
+const IMPORT_BEFORE = /(?:\bfrom|\bimport\s*\(?)\s*$/u;
 
 /**
  * The service entry and every repo file it imports, by repo path. Only Node built-ins may be imported from outside the
@@ -51,9 +52,11 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
     const text = readFileSync(posix.join(root, path), 'utf8');
     files[path] = text;
     bytes += Buffer.byteLength(text);
-    if (bytes > SERVICE_BYTES) throw new Refused('RUNNER_SERVICE_SIZE', `the runner service reaches over ${SERVICE_BYTES} bytes of imports from ${entry}; keep ${entry} free of the CLI`);
-    for (const match of text.matchAll(SPECIFIER)) {
-      const specifier = match[2];
+    if (bytes > SERVICE_BYTES) throw new Refused('RUNNER_SERVICE_SIZE', `the runner service reaches over ${SERVICE_BYTES} bytes of imports from ${entry}; import less from ${entry}`);
+    const { code, strings } = lex(text);
+    for (const string of strings) {
+      if (!IMPORT_BEFORE.test(code.slice(Math.max(0, string.start - 24), string.start))) continue;
+      const specifier = string.text;
       if (specifier.startsWith('node:')) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
         throw new Refused('RUNNER_SERVICE_IMPORT', `${path} imports ${specifier}; the runner service may import only node: built-ins and repo files`);
