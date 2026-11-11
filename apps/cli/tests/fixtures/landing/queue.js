@@ -300,6 +300,7 @@ function landingPolicyCalls(box, batches, records) {
 
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
+  const t0 = Date.now();
   const sandbox = helpers.sandbox({ declareFamilies: policyAfterFirst });
   const arm = join(sandbox.dir, 'landing-armed');
   const entered = join(sandbox.dir, 'landing-entered');
@@ -387,6 +388,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     } else if (killGuardian) {
       process.kill(holder.guardianPid, 'SIGKILL'); // This exact PID came from this private command's bound guardian.
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
+    const stage = label => console.error('FENCE_STAGE ' + label + ' ' + JSON.stringify({ at: Date.now() - t0, firstExit: first.exitCode, secondExit: second.exitCode }));
+    stage('stopped');
     if (suspendParent) {
       // A stopped holder cannot renew, so its lease runs out; age both of its deadlines instead of waiting out the real 120 s [C7].
       readBoard(box, board => {
@@ -401,6 +404,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
         }
       });
     }
+    stage('aged');
     try {
       await helpers.waitFor(() => !running(holder.guardianPid) && !running(blockedGatePid), 'the guardian and blocked gate stop without releasing their marker',
         suspendParent ? LANDING_LEASE_MS + 60_000 : 8_000); // Budget: actual lease expiry (LANDING_LEASE_MS) plus owned-process drain, stretched for a loaded runner; not a speed threshold.
@@ -410,8 +414,10 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
         firstExit: first.exitCode, secondExit: second.exitCode, batchState: batch.state, revision: batch.revision, releaseExists: existsSync(release) });
       throw error;
     }
+    stage('drained');
     if (suspendParent) {
       const successor = await second.closed;
+      stage('successor-closed');
       assert.equal(successor.code, 0, successor.failure ?? 'the queued adopter lands only after the previous gate is dead');
       assert.equal(existsSync(release), false, 'no test release made the old gate look drained');
       assert.equal(readBoard(box, board => store.landingBatches(board).at(-1).state), 'landed');
