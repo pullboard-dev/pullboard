@@ -42,3 +42,24 @@ test('a gate left from an older head never hides an item whose head moved on [C7
   const reasons = nextFor(board, { agentId: 'web-2', lane: 'web' });
   assert.equal(reasons.item?.item_id, id, `a green job at another head still offers the item: ${reasons.reasons.join(' | ')}`);
 });
+
+test('clause 1: next holds back an open item whose gate worker died at its head and frozen bar (#3325) [C7]', t => {
+  const board = fixtureBoard(t);
+  const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'dead worker' });
+  board.db.prepare('UPDATE item SET item_frozen_digest = ? WHERE item_id = ?').run('d'.repeat(64), id);
+  observe(board, id, { state: 'infrastructure', digest: 'd'.repeat(64), error: { code: 'SUBMIT_HANDOFF_DEAD' } });
+  const next = nextFor(board, { agentId: 'web-2', lane: 'web' });
+  assert.equal(next.item, null, next.reasons.join(' | '));
+  assert.ok(next.reasons.includes(`#${id}: gate SUBMIT_HANDOFF_DEAD at ${HEAD.slice(0, 12)}; nothing to build`), next.reasons.join(' | '));
+});
+
+test('clause 2: an infrastructure stop under an older frozen bar no longer holds the item back (#3325) [C7]', t => {
+  for (const code of ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD']) {
+    const board = fixtureBoard(t);
+    const id = addItem(board, { by: 'coordinator', lane: 'web', title: `refrozen ${code}` });
+    board.db.prepare('UPDATE item SET item_frozen_digest = ? WHERE item_id = ?').run('n'.repeat(64), id);
+    observe(board, id, { state: 'infrastructure', digest: 'o'.repeat(64), error: { code } });
+    const next = nextFor(board, { agentId: 'web-2', lane: 'web' });
+    assert.equal(next.item?.item_id, id, `${code}: ${next.reasons.join(' | ')}`);
+  }
+});
