@@ -16,6 +16,11 @@ import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { installRunnerService } from '../../../../../packages/runners/index.js';
+import { serviceBoard } from '../../../../../packages/runners/index.js';
+import { boardKey } from '../../../../../packages/config/index.js';
+import { boardKeyFile } from '../../../../../packages/config/index.js';
+import { existsSync } from 'node:fs';
 import {
   computeRunnerSlots,
   effectiveRunner,
@@ -62,6 +67,23 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
+  }
+  if (first === 'install-serve') {
+    // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
+    const usage = 'pullboard runner install-serve <ssh-host> --board <board-url> [--key <board-key>] | pullboard runner install-serve <ssh-host> --remove';
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'board', 'key', 'remove'].includes(key))
+      || (values.remove ? values.board !== undefined || values.key !== undefined : typeof values.board !== 'string')) throw new Refused('USAGE', usage);
+    const runner = (loadMachineSettings().runners ?? []).find(entry => entry.host === second);
+    if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${second} is not registered`, 'run pullboard runner add <ssh-host>');
+    // The key: the flag, the URL's own ?k=, the runner environment's variable, or this machine's board key when it serves the board.
+    const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? process.env.PULLBOARD_BOARD_KEY
+      ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
+    const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
+    io.result?.({ service });
+    if (values.remove) { io.say(`removed runner serve from ${runner.host}`); return 0; }
+    io.say(`installed runner serve on ${runner.host} as launchd agent ${service.label}, restarting on exit; log ${service.log}`);
+    if (!service.loaded) io.say(`launchd did not load it now (no login session?); it starts at the next login, or run on the runner: launchctl bootstrap gui/$(id -u) ${service.plist}`);
+    return service.loaded ? 0 : 1;
   }
   if (first === 'remove') {
     if (!second || second.trim() !== second || rest.length || Object.keys(values).some(key => key !== 'json')) {

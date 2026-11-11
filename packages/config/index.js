@@ -49,6 +49,7 @@ export {
   setGateRunnerWaitMs,
   browserByLaunchEnabled,
   runnerDispatchMode,
+  serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
   viewBackgroundEnabled,
@@ -134,3 +135,4 @@ export {
 } from './src/logic/maintenance.js';
 
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
+export { boardKey, boardKeyFile } from './src/io/settings.js';

@@ -33,6 +33,7 @@ const MACHINE_DEFAULTS = {
   'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
   'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.runnerDispatch': 'controller', 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'inspection.clauses': false,
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], 'landing.pools': [],
+  'serve.address': '127.0.0.1', 'serve.port': 0,
 };
 const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false,

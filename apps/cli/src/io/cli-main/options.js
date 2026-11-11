@@ -24,6 +24,8 @@ const OPTIONS = {
   off: { type: 'boolean' },
   stale: { type: 'boolean' },
   port: { type: 'string' },
+  address: { type: 'string' },
+  board: { type: 'string' },
   slots: { type: 'string' },
   browser: { type: 'string' },
   'new-browser': { type: 'boolean' },
@@ -193,8 +195,8 @@ export function parseCommandArgs(argv) {
     ...(['add', 'edit', 'submit', 'done', 'test'].includes(command) ? { wait: { type: 'boolean' } } : {}),
     ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
   };
-  // Flow consumes a history file; show retains its existing boolean --history switch.
-  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : options;
+  // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
+  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
   if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
   return parsed;
