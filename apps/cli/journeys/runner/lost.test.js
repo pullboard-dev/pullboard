@@ -146,10 +146,10 @@ ${executionServicesSource(gate)}
   assert.equal(result.waits.length, 0, 'failover admits in the next cycle instead of waiting for another budget');
   assert.equal(result.notices[0].host, box.runner.host);
   assert.match(result.notices[0].reason, /worker did not become ready/u);
-  assert.deepEqual(result.held, [{ host: box.runner.host, detail: 'WORKER_UNRESPONSIVE' }], 'free capacity never certifies the failed worker');
+  assert.deepEqual(result.held, [], 'a runner that answers SSH and Node stays in service rather than held (#3738)');
 });
 
-test('an SSH-healthy host whose worker misses READY stays held after the admission deadline [C7]', t => {
+test('an SSH-healthy host whose worker misses READY twice stays in service and only that job wait is refused (#3738) [C7]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
   const before = readFileSync(ssh, 'utf8');
@@ -162,35 +162,24 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
-  const recovery = pathToFileURL(join(import.meta.dirname, '../../../../packages/resources/index.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
-    import {recoverUnavailableRunners} from ${JSON.stringify(recovery)};
     import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
     let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
       { executionServices,remote:true,onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
     const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
     const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
-    const held=db.prepare('SELECT * FROM runner_unavailable').get();
-    let automaticProbes=0;
-    // The first automatic probe falls due 1000 ms after the failure is recorded; asking one tick before it keeps this a
-    // statement about SSH health alone instead of a race against how slowly a loaded host boots the health probe.
-    const recovered=await recoverUnavailableRunners(db,[${JSON.stringify(box.runner)}],{now:held.probe_after-1,
-      probe:async()=>{automaticProbes++;return {healthy:true};}});
-    const remaining=db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n;
+    const held=db.prepare('SELECT * FROM runner_unavailable').all().length;
     const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;
-    console.log(JSON.stringify({code,attempts,health:health.healthy,detail:held?.detail,
-      reason:held?JSON.parse(held.failure).original.reason:null,recovered,automaticProbes,remaining,leases}));db.close();`);
+    console.log(JSON.stringify({code,attempts,health:health.healthy,held,leases}));db.close();`);
   assert.equal(result.code, 'RUNNER_WAIT_DEADLINE', 'disabled local capacity is never invented as a fallback');
-  assert.equal(result.attempts, 1, 'the timed-out job gets neither another dispatch nor a substitute health retry');
+  // Each start is one SSH call: a worker dispatch or its confirming probe. One miss, a healthy probe, one retry, a second
+  // miss and a second probe make four; the old rule stopped after the first miss with one dispatch and one start.
+  assert.ok(result.attempts >= 4, `the first missed READY is confirmed healthy and retried once (${result.attempts} SSH starts)`);
   assert.equal(result.health, true, 'a real standalone configured Node process answers on this same host');
-  assert.equal(result.detail, 'WORKER_UNRESPONSIVE');
-  assert.equal(result.reason, 'admission-deadline');
-  assert.equal(result.recovered, false, 'SSH health does not prove worker readiness recovered');
-  assert.equal(result.automaticProbes, 0);
-  assert.equal(result.remaining, 1);
+  assert.equal(result.held, 0, 'a runner that answers SSH and Node is never held for a missed READY (#3738)');
   assert.equal(result.leases, 0, 'the failed run leaves no private holder or waiter');
 });
 
