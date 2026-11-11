@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/blueprints/data/blueprints/*.json */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

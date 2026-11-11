@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /** A complete selected Node run lets an exact-main red land only after later work runs [B3,C7]. */
 import assert from 'node:assert/strict';
 import {
