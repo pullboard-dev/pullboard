@@ -15,6 +15,7 @@ import { readlinkSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { statfsSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -199,6 +200,17 @@ export function maintenanceSnapshot(root, { includeMetadata = false } = {}) {
     dirty: Boolean(stagedBuffer.length || unstagedBuffer.length || files.length) };
 }
 
+/**
+ * The archive folder itself may be a symlink to another volume, but only to a directory this user owns with no group or other access [C7].
+ * Its children are never followed: any deeper symlink still refuses.
+ */
+function privateArchiveBase(path) {
+  const link = lstatSync(path);
+  const state = link.isSymbolicLink() ? statSync(path) : link;
+  const owner = typeof process.getuid === 'function' ? process.getuid() : state.uid;
+  return state.isDirectory() && state.uid === owner && !(state.mode & 0o077);
+}
+
 /** Only real private directories in this repository may contain recovery artifacts. */
 function archiveDirectory(common, id) {
   let directory = realpathSync(common);
@@ -206,6 +218,10 @@ function archiveDirectory(common, id) {
     directory = join(directory, name);
     try { mkdirSync(directory, { mode: 0o700 }); }
     catch (error) { if (error.code !== 'EEXIST' || name === id) throw error; }
+    if (name === 'worktree-archives') {
+      if (!privateArchiveBase(directory)) throw new Error('maintenance archive directory is not private');
+      continue;
+    }
     const state = lstatSync(directory);
     if (!state.isDirectory() || state.isSymbolicLink() || name !== 'pullboard' && (state.mode & 0o077))
       throw new Error('maintenance archive directory is not private');
@@ -319,11 +335,13 @@ export function maintenanceArchiveMatches(root, archive) {
     const { directory, manifest } = archive;
     if (directory !== resolve(manifest.common, 'pullboard', 'worktree-archives', manifest.id)
       || !/^[a-f0-9-]{36}$/u.test(manifest.id) || manifest.root !== root || manifest.version !== 1) return false;
-    for (const path of [join(manifest.common, 'pullboard', 'worktree-archives'), directory, join(directory, 'blobs')]) {
+    const base = join(manifest.common, 'pullboard', 'worktree-archives');
+    if (!privateArchiveBase(base)) return false;
+    for (const path of [directory, join(directory, 'blobs')]) {
       const state = lstatSync(path);
       if (!state.isDirectory() || state.isSymbolicLink() || state.mode & 0o077) return false;
     }
-    const observed = localPath(realpathSync(manifest.common), relative(manifest.common, join(directory, 'manifest.json')));
+    const observed = localPath(realpathSync(base), join(manifest.id, 'manifest.json'));
     const info = regularFile(observed.target, { privateFile: true });
     if (info.size > MAX_OBSERVATION_BYTES) return false;
     const stored = manifest;
