@@ -2520,7 +2520,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/io/main/red/cache.test.js",
+      "file": "apps/cli/journeys/red/content-cache.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -2529,7 +2529,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/io/main/red.test.js",
+      "file": "apps/cli/journeys/red/main-red.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2564,7 +2564,7 @@
       ],
       "reasons": [
         "board: packages/config/src/io/settings/inventory.js",
-        "browser: packages/landing/tests/io/main/red.test.js",
+        "browser: apps/cli/journeys/red/main-red.test.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
         "runner: packages/gate/src/io/run/tests.js",
@@ -20324,7 +20324,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/imports/edits.test.js",
+      "file": "apps/cli/journeys/imports/cross-lane-edits.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30612,7 +30612,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/affected/graph/cache/lock.test.js",
+      "file": "apps/cli/journeys/gate/main-red-lock.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34400,7 +34400,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/receipts.test.js",
+      "file": "apps/cli/journeys/gate/receipts.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -40701,13 +40701,13 @@
       ]
     },
     {
-      "file": "apps/cli/tests/io/resident/board.test.js",
+      "file": "apps/cli/journeys/resident/board.test.js",
       "tier": "T3",
       "packages": [
         "."
       ],
       "reasons": [
-        "board: apps/cli/tests/io/resident/board.test.js",
+        "board: apps/cli/journeys/resident/board.test.js",
         "process: apps/cli/src/io/resident/client.js"
       ]
     },

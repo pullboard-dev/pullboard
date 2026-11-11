@@ -138,7 +138,7 @@ test('normalization never accounts for process failures, missing summaries or ca
 
 /** One TAP failure block whose message and stack name a runner job directory outside any temporary root. */
 function jobBlock(job, fn = 'assertLinked') {
-  const checkout = `/home/vanilla/.pullboard-runner/jobs/${job}/checkout`;
+  const checkout = `/home/example/.pullboard-runner/jobs/${job}/checkout`;
   return `not ok 1 - real device sign-in links the board
   ---
   duration_ms: 1.5
@@ -146,7 +146,7 @@ function jobBlock(job, fn = 'assertLinked') {
   location: '${checkout}/apps/cli/journeys/relay/device.test.js:30:1'
   failureType: 'testCodeFailure'
   error: |-
-    real device sign-in links the board; state in /home/vanilla/.pullboard-runner/jobs/${job}/state/board.json
+    real device sign-in links the board; state in /home/example/.pullboard-runner/jobs/${job}/state/board.json
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   operator: 'strictEqual'
@@ -157,7 +157,7 @@ function jobBlock(job, fn = 'assertLinked') {
 }
 
 test('failures carry a stable signature that survives different runner job directories while the raw one moves [C7]', () => {
-  const run = (job, fn) => retainedRun([jobBlock(job, fn)], `/home/vanilla/.pullboard-runner/jobs/${job}/checkout`)[0];
+  const run = (job, fn) => retainedRun([jobBlock(job, fn)], `/home/example/.pullboard-runner/jobs/${job}/checkout`)[0];
   const first = run('r7k2m9');
   const second = run('x3p8q1');
   const other = run('x3p8q1', 'assertSeated');

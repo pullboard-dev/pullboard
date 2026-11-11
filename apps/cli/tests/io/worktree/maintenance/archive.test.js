@@ -4,7 +4,10 @@ import { test } from 'node:test';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { archiveMaintenanceWorktree } from '../../../../src/io/worktree/maintenance/archive.js';
+import { archiveVolume } from '../../../../src/io/worktree/maintenance/archive.js';
 import { maintenanceGit } from '../../../../src/io/worktree/maintenance/archive.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { scheduleWorktreeMaintenance } from '../../../../src/io/worktree/maintenance/scheduler.js';
 
 /** A primary checkout with maintenance enabled, a stub timer binary and one linked worktree. */
@@ -65,4 +68,53 @@ test('clause 2: a real registration failure in the main checkout is still thrown
     fs.mkdirSync(primary.info.commonDir);
     await assert.rejects(() => scheduleWorktreeMaintenance(primary), error => error.maintenanceStage === 'lookup' && /repository changed/u.test(error.message));
   });
+});
+
+/** Fake statfs that records the path it was asked about. */
+function fakeStatfs(seen, free = 100) {
+  return path => { seen.push(path); return { bavail: free, bsize: 1, blocks: 1000 }; };
+}
+
+test('clause 1: the space check measures the volume a symlinked archive directory points to [C7,#5444]', t => {
+  const root = privateFixtureFiles('pullboard-archive-volume-').root;
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const common = join(root, 'git'), elsewhere = join(root, 'elsewhere');
+  fs.mkdirSync(join(common, 'pullboard'), { recursive: true });
+  fs.mkdirSync(elsewhere);
+  fs.symlinkSync(elsewhere, join(common, 'pullboard', 'worktree-archives'));
+  const seen = [];
+  const space = archiveVolume(common, fakeStatfs(seen, 777));
+  assert.deepEqual(seen, [elsewhere]);
+  assert.equal(space.freeBytes, 777);
+  assert.equal(space.totalBytes, 1000);
+});
+
+test('clause 1: without a symlink the space check measures the archive directory or its nearest parent [C7,#5444]', t => {
+  const root = privateFixtureFiles('pullboard-archive-volume-').root;
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const common = join(root, 'git');
+  fs.mkdirSync(common);
+  const seen = [];
+  archiveVolume(common, fakeStatfs(seen));
+  fs.mkdirSync(join(common, 'pullboard', 'worktree-archives'), { recursive: true });
+  archiveVolume(common, fakeStatfs(seen));
+  assert.deepEqual(seen, [common, join(common, 'pullboard', 'worktree-archives')]);
+});
+
+test('clause 1: a short archive volume still refuses and an unreadable one refuses as unknown [C7,#5444]', t => {
+  const root = privateFixtureFiles('pullboard-archive-volume-').root;
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const repo = join(root, 'repo');
+  fs.mkdirSync(repo);
+  maintenanceGit(repo, ['init', '-q', '-b', 'main']);
+  maintenanceGit(repo, ['config', 'user.name', 'Archive Fixture']);
+  maintenanceGit(repo, ['config', 'user.email', 'archive@example.invalid']);
+  fs.writeFileSync(join(repo, 'a.txt'), 'a\n');
+  maintenanceGit(repo, ['add', '.']); maintenanceGit(repo, ['commit', '-qm', 'fixture']);
+  fs.writeFileSync(join(repo, 'dirty.txt'), 'dirty\n');
+  const common = fs.realpathSync(join(repo, '.git'));
+  const short = () => ({ freeBytes: 1024, totalBytes: 1024 ** 4 });
+  assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: short }), /ARCHIVE_WOULD_FILL_DISK.*free/);
+  assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: () => { throw new Error('no statfs'); } }),
+    /ARCHIVE_WOULD_FILL_DISK.*unknown/);
 });
