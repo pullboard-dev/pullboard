@@ -260,14 +260,13 @@ test('debug probe of rule coverage [S1,A1,A2]', async (t) => {
   seedRun(box, { green: false, days: 2, failures: [{ file: 'test/both.test.js', name: 'both' }] });
   seedRun(box, { green: false, main: box.original, failures: [{ file: 'test/unproven.test.js', name: 'b' }] });
   seedRun(box);
-  const v = await import('../../../../packages/verify/index.js');
-  const g = await import('../../../../packages/git/index.js');
   const out = {};
-  const rows = loadSpec(box.root, { spec: 'SPEC.md' }).rows;
-  out.counts = ruleProofCounts(box.root, box.board, rows);
-  out.trunk = g.trunkRevisionReader(g.repoInfo(box.root))();
-  out.head = box.head;
-  out.fp = v.proofCoverageFingerprint();
-  out.keys = box.board.db.prepare("select meta_key, substr(meta_value,1,200) v from board_meta where meta_key like '%rule-%'").all();
+  const info = () => ({ last: JSON.parse(box.board.db.prepare("select meta_value from board_meta where meta_key like '%proof-stats:v2:summary'").get()?.meta_value ?? '{"data":{}}').data.last,
+    max: box.board.db.prepare('select max(event_id) m from event').get().m });
+  out.a = info();
+  const r = box.run(box.root, 'status', '--json');
+  out.status = JSON.parse(r.out).ruleCounts;
+  out.b = info();
+  out.kinds = box.board.db.prepare('select event_id,event_kind,event_by from event order by event_id desc limit 6').all();
   assert.fail('DBGOUT ' + JSON.stringify(out));
 });
