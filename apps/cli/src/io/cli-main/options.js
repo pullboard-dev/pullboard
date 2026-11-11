@@ -49,6 +49,7 @@ const OPTIONS = {
   out: { type: 'string' },
   watch: { type: 'boolean' },
   'runner-only': { type: 'boolean' },
+  withdraw: { type: 'string' },
   after: { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },
