@@ -30,7 +30,8 @@ function lightContext(io) {
  * @returns {Promise<number>}
  */
 export async function runThinHook(args, streams) {
-  const io = commandOutput(args, streams, { nextActions: false });
+  const io = commandOutput(args, streams, { nextActions: false,
+    loadRefusal: async () => (await import('../../logic/step/words.js')).refusalDocument });
   io.hookContext = lightContext;
   io.gateWaitReporter = () => () => {};
   try {

@@ -43,12 +43,12 @@ function runnerFixture(t) {
 
 const RESULT = id => `PULLBOARD_RUNNER_RESULT ${id} e30=\n`;
 
-test('5468 clause 1: enqueue builds the whole row (row.json, frame, wanted) or none, and refuses a duplicate id [C7]', async t => {
+test('5468 clause 1: enqueue builds the whole row (row.json, input, wanted) or none, and refuses a duplicate id [C7]', async t => {
   const f = runnerFixture(t);
   const frame = Buffer.from([0, 1, 2, 10, 255, 10, 7]);
   await enqueueRunnerJob(f.runner, { id: 'j-1', row: { recovery: { request: 'r' }, rawOutput: false }, frame }, { ssh: f.ssh, dir: f.dir });
   const folder = join(f.root, 'queue', 'j-1');
-  assert.deepEqual(readFileSync(join(folder, 'frame')), frame);
+  assert.deepEqual(readFileSync(join(folder, 'input')), frame);
   const row = JSON.parse(readFileSync(join(folder, 'row.json'), 'utf8'));
   assert.equal(row.version, 1);
   assert.equal(row.id, 'j-1');
