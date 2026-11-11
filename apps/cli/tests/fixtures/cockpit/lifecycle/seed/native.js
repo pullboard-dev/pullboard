@@ -54,7 +54,8 @@ export async function seedRareLifecycleJourneys({ board, journeys, readProject }
     const total = Object.entries(project.moveCounts).filter(([key]) => key.endsWith(':' + verb)).reduce((sum, [, n]) => sum + n, 0);
     assert.equal(total, expected, 'actual native projected rare count: ' + verb);
   }
-  assert.equal(project.moveCounts['claimed>claimed:patch-claimed'], 2, 'claimed attach and remove retain two actual self loops');
+  // Two from the claimed attach and remove, one from the companion the objected journey records at its Submit.
+  assert.equal(project.moveCounts['claimed>claimed:patch-claimed'], 3, 'claimed attach, remove and the Submit companion retain three actual self loops');
   const claimed = project.items.find(item => item.id === observed.claimedPatch.id);
   assert.ok(claimed, 'the exact claimed-patch item is in the live projection');
   assert.equal(claimed.status, 'submitted', 'the later real Submit is preserved');
