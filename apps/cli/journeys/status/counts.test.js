@@ -251,3 +251,16 @@ test('a gate command with npm flags counts as opaque [S1,A1,A2]', async (t) => {
     } finally { await api.close(); }
   }
 });
+
+test('debug probe of rule coverage [S1,A1,A2]', async (t) => {
+  const box = fixture();
+  t.after(() => store.closeBoard(box.board));
+  seedRun(box);
+  const out = {};
+  out.cov = (await import('../../../../packages/verify/index.js')).committedRuleCoverage(box.root, box.head);
+  out.counters = box.board.db.prepare("select meta_key from board_meta where meta_key like '%rule%'").all().map(r => r.meta_key);
+  out.root = box.board.db.prepare("SELECT agent_path FROM agent WHERE agent_id='coordinator'").get()?.agent_path;
+  out.boxroot = box.root;
+  out.metaCount = box.board.db.prepare("select count(*) c from board_meta").get().c;
+  assert.fail('DBGOUT ' + JSON.stringify(out));
+});
