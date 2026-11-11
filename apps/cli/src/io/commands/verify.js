@@ -160,12 +160,14 @@ import { retryReviewCommit } from '../../../../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
 
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
 export async function knownMainCheck(root, check, { main, item, items, mainRedItems = items, onWait, onMeasuredReceipt, runnerAdmission }) {
+  if (mainComparisonMode() === 'off') return null; // gate.mainComparison off: a red check is red [C7,#5565].
   if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
   const viaMainRedRepairs = failures => {
     // The submit rule: a case an open Main red repair's own check fails on this main never fails a re-run (#2610).

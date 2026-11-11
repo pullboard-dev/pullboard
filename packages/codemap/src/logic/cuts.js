@@ -65,13 +65,14 @@ export function importCuts(plan) {
  */
 export function cutBrief(group, check) {
   const head = `Import-cut plan for ${group.cell}, from committed packages/codemap/data/plan/cells.json and its shards (#1593).`;
-  const files = `Files potentially touched (importer plus provider endpoints; retain ownership coordination):\n${group.files.map(file => `- ${file}`).join('\n')}`;
-  const tail = `Check: ${check}. Add focused behavior regressions for changed ports or extracted definitions; the full suite remains mandatory.`;
+  // Labelled sections the routing check reads (Files:, Test:); Files comes last before Test so no prose lands inside it.
+  const files = `Files:\n${group.files.map(file => `- ${file}`).join('\n')}`;
+  const tail = `Test: ${check} passes. Add focused behavior regressions for changed ports or extracted definitions; the full suite remains mandatory.`;
   const full = `Imports to remove and implementation strategy (each recorded occurrence appears once):\n${group.edges.map(edge => `- [${edge.id}] ${edge.from} -> ${edge.to}: ${edge.how}`).join('\n')}`;
   const strategies = [...new Set(group.edges.map(edge => edge.how))];
   const compact = `Imports to remove (each recorded occurrence appears once; strategy by letter):\n${strategies.map((how, index) => `${String.fromCharCode(65 + index)}: ${how}`).join('\n')}\n${group.edges.map(edge => `- [${edge.id}] ${edge.from} -> ${edge.to} (${String.fromCharCode(65 + strategies.indexOf(edge.how))})`).join('\n')}`;
   const pointer = `Imports to remove: all ${group.edges.length} occurrences, each with its strategy, are printed by node packages/codemap/src/io/cells/scripts/plan.js --cuts ${group.cell}.`;
-  for (const body of [[head, files, full, tail], [head, files, compact, tail], [head, files, pointer, tail], [head, pointer, tail]]) {
+  for (const body of [[head, full, files, tail], [head, compact, files, tail], [head, pointer, files, tail], [head, pointer, tail]]) {
     const brief = body.join('\n\n');
     if (brief.length <= BRIEF_LIMIT) return brief;
   }

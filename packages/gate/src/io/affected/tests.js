@@ -2,6 +2,9 @@
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
+import { isSourceCellLine } from './inputs.js';
+import { readsChangedCell } from './inputs.js';
+import { sourceCellPrefixes } from './inputs.js';
 import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
@@ -34,7 +37,7 @@ const DOC = /^docs\/.+\.md$/u;
 const TEST_TREE_INPUT = '/** @pullboard-test-input test-tree */';
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
 const COMMAND_REGISTRY = 'apps/cli/src/io/commands/index.js';
-const GLOBAL = new Set(['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
+const GLOBAL = new Set(['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
 function declaredInputs(source, paths) {
@@ -43,6 +46,7 @@ function declaredInputs(source, paths) {
   for (const line of declarations) {
     const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
     if (!match) return null;
+    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return null; continue; }
     for (const value of match[1].trim().split(/\s+/u)) {
       if (['source-tree', 'test-tree', 'docs-tree'].includes(value)) continue;
       if (value.startsWith('/') || value.split('/').some(part => !part || part === '..' || part === '.')) return null;
@@ -410,7 +414,7 @@ function closuresInGraph(graph) {
     const reached = new Set(entries.filter(path => graph.blobs.has(path)));
     for (const path of reached) {
       let dependencies = forward.get(path) ?? [];
-      if (withoutSelectedRunnerModules && ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'].includes(path)) {
+      if (withoutSelectedRunnerModules && ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'].includes(path)) {
         // These two ** declarations admit caller-selected reporters and test files. The caller
         // refuses custom reporters and keys each selected test's own complete closure. Keep every literal import and URL guard, and all other modules'
         // conservative discovery edges; ordinary affected-test selection still follows **.
@@ -548,7 +552,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unknownRoots = [before, after].map(graph => unknownRootTests(graph, path => TEST.test(path)));
     const unknownRoot = path => codeChanged && unknownRoots.some(roots => roots.has(path));
     const rootReason = path => (unknownRoots[1].has(path) ? unknownRoots[1] : unknownRoots[0]).reasonOf(path);
-    const selected = files.filter(path => reached.has(path) || unknownRoot(path)
+    const cellReads = path => changedSourceInput && [before, after].some(graph => readsChangedCell(headerLines(graph.modules.get(path) ?? ''), changed));
+    const selected = files.filter(path => reached.has(path) || unknownRoot(path) || cellReads(path)
       || (changedTestInput && (before.testTreeReaders.has(path) || after.testTreeReaders.has(path)))
       || (changedSourceInput && (before.sourceTreeReaders.has(path) || after.sourceTreeReaders.has(path))));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };

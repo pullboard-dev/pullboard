@@ -37,8 +37,8 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/inbox/projects.test.js",
-      "line": 324,
+      "file": "apps/cli/journeys/inbox/sidebar.test.js",
+      "line": 44,
       "expression": "join(brokenThree.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -142,8 +142,8 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/show/quarantine.test.js",
-      "line": 24,
+      "file": "apps/cli/tests/fixtures/cases/quarantine-submit.js",
+      "line": 33,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."

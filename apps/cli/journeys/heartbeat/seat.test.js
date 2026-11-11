@@ -41,6 +41,7 @@ function fixture(t, start, { adopted = false } = {}) {
   git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'root');
   const clock = manualClock(start);
   const file = join(directory, 'board.sqlite');
+  // @pullboard-board-file persistence: the heartbeat command and a child process reopen this exact board file.
   const board = openBoard(file, clock);
   t.after(() => { stopSeatKeepalive(); store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: join(directory, 'main') });

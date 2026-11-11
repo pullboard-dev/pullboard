@@ -53,7 +53,7 @@ async function landingUnderSlot(t, runnerExecution) {
 import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(root, 'apps/cli/tests/fixtures/child.js')).href)};
 const lease = await takeResource({ name: 'gate', scope: 'machine', root: ${JSON.stringify(root)}, capacity: 1, remote: false, runnerExecution: ${runnerExecution} });
 try {
-  const result = runFixtureChild(process.execPath, [${JSON.stringify(join(root, 'packages/gate/src/io/run/tests.js'))}, ${JSON.stringify(file)}], { cwd: ${JSON.stringify(root)}, env: { ...process.env, ...gateSlotEnvironment(lease) }, encoding: 'utf8', timeout: 60000 });
+  const result = runFixtureChild(process.execPath, [${JSON.stringify(join(root, 'apps/cli/src/io/run/tests.js'))}, ${JSON.stringify(file)}], { cwd: ${JSON.stringify(root)}, env: { ...process.env, ...gateSlotEnvironment(lease) }, encoding: 'utf8', timeout: 60000 });
   process.stdout.write(JSON.stringify({ status: result.status, stdout: result.stdout, stderr: result.stderr }));
 } finally { lease.release(); }\n`);
     const outer = runFixtureChild(process.execPath, [driver], { cwd: root, env, encoding: 'utf8', timeout: 90_000 });

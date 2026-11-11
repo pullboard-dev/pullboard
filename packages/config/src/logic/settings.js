@@ -76,6 +76,9 @@ export function loadMachineSettings() {
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
   }
+  if (value.gate?.mainComparison !== undefined && !['on-red', 'off'].includes(value.gate.mainComparison)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.mainComparison in ${file} must be "on-red" or "off"`);
+  }
   const timingRunner = value.gate?.timingRunner;
   if (timingRunner !== undefined && timingRunner !== false && (typeof timingRunner !== 'string' || !timingRunner.trim() || timingRunner.trim() !== timingRunner)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.timingRunner in ${file} must be "auto", a registered runner host, or false`);

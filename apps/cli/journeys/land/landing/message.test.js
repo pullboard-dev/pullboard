@@ -162,7 +162,7 @@ test('a docs-only item lands green after both selected shard files complete with
   const log = join(box.dir, 'completed-docs-shard');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
+  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
   config.lanes.web.owns = ['docs/'];
   writeFileSync(configFile, JSON.stringify(config));
   mkdirSync(join(box.repo, 'test'), { recursive: true });

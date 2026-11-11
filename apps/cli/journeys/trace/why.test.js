@@ -26,6 +26,7 @@ function traceLines(repo) {
 
 test('clause 1: --why and PULLBOARD_WHY are ignored for behaviour and stored in the call trace line [C7]', () => {
   const box = e2e.project('true');
+  // @pullboard-board-file journey: seed the board file the real CLI traces from
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Why me', criterion: 'The file is committed.' });
   store.closeBoard(board);

@@ -59,7 +59,7 @@ function fixture() {
   git(repo, 'init', '-q', '-b', 'main');
   assert.equal(run(repo, 'init').code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
-    lanes: { web: { owns: ['web/', 'packages/gate/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G1'] } } }, null, 2));
+    lanes: { web: { owns: ['web/', 'apps/cli/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   mkdirSync(join(repo, 'web'));
   writeFileSync(join(repo, 'web', 'shared.txt'), 'base\n');
@@ -82,7 +82,7 @@ test('clause 1: a web seat files an item whose check names test files its lane o
   assert.equal(filed.code, 0, JSON.stringify(filed.doc));
   const shown = JSON.parse(box.run(box.repo, 'show', String(filed.doc.item.item_id), '--json').out);
   assert.equal(shown.item_check, 'node --test web/a.test.js');
-  const second = add(box, box.web, 'web', 'node packages/gate/src/io/run/tests.js web/b.test.js && node packages/gate/src/io/run/tests.js web/c.test.js');
+  const second = add(box, box.web, 'web', 'node apps/cli/src/io/run/tests.js web/b.test.js && node apps/cli/src/io/run/tests.js web/c.test.js');
   assert.equal(second.code, 0, JSON.stringify(second.doc));
 });
 

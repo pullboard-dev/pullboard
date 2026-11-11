@@ -37,7 +37,7 @@ test('a green dot-reporter gate records both selected files and accepts with its
   let box;
   t.after(() => helpers.cleanup());
   box = helpers.project('true');
-  const runner = `${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'))} --test-reporter=dot`;
+  const runner = `${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'))} --test-reporter=dot`;
   const check = `node -e "if (!require('node:fs').readFileSync('packages/alpha/index.js', 'utf8').includes('value = 2')) process.exit(1)"`;
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   const config = { ...helpers.CONFIG, gate: runner, affectedTests: runner, submitGate: 'landing',

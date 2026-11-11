@@ -13,6 +13,7 @@ import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import { adoptLocalSession } from '../../../../../packages/seats/index.js';
 import { localSeatSessionDigest } from '../../../../../packages/seats/index.js';
 import { existsSync } from 'node:fs';
@@ -91,8 +92,9 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
-  // A signed person's waiver is the one landing command that stays open while the board owns landing [#3675].
-  if (values.waive === undefined) requireManualLanding(mainPolicy(ctx.info.root).config);
+  // A signed person's waiver and the coordinator's named landing stay open while the board owns landing [#3675,#5559].
+  const named = values.items !== undefined || values.commit !== undefined ? namedLanding(ctx.info.root, values) : null;
+  if (values.waive === undefined && !named) requireManualLanding(mainPolicy(ctx.info.root).config);
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
   if (values.waive !== undefined) {
     const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'land-waive', args: { waive: String(values.waive), until: String(values.until ?? ''), reason: String(values.reason ?? '') } });
@@ -105,9 +107,31 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (values.until !== undefined || values.reason !== undefined || values.max !== undefined && (!/^[1-9][0-9]*$/u.test(values.max) || !Number.isSafeInteger(Number(values.max)))) throw new Refused('USAGE', 'use --max with a positive item count, or --waive with --until and --reason');
-  const result = await executeBoardLanding(ctx, board, io, values);
+  const result = await executeBoardLanding(ctx, board, io, values, named);
   return !values['dry-run'] && !result.landed?.length && result.culprits?.length ? 1 : 0;
 });
+}
+
+/**
+ * Read `--items 1,2 --commit <sha>,<sha>` into the named landing: each item with the proven commit it lands as.
+ * Why: the coordinator lands work proven outside the board's verify step (the blitz lander's job) through the same
+ * train as any landing, so the lease, guards, detached worktree and compare-and-swap of main apply to it too [C7,#5559].
+ *
+ * @param {string} root
+ * @param {Record<string, unknown>} values - The parsed options.
+ * @returns {{ id: number, commit: string }[]}
+ */
+function namedLanding(root, values) {
+  const usage = 'pullboard land --items <id>[,<id>...] --commit <sha>[,<sha>...] [--dry-run]; one commit per item, in order, and no other landing option';
+  if (typeof values.items !== 'string' || typeof values.commit !== 'string' || values.adopt || values.due || values.replay || values.waive !== undefined || values.max !== undefined) throw new Refused('USAGE', usage);
+  const ids = values.items.split(',');
+  const commits = values.commit.split(',');
+  if (ids.length !== commits.length || ids.some(id => !/^[1-9][0-9]*$/u.test(id)) || new Set(ids).size !== ids.length) throw new Refused('USAGE', usage);
+  return ids.map((id, index) => {
+    const resolved = tryGit(root, ['rev-parse', '--verify', '--quiet', `${commits[index]}^{commit}`]);
+    if (resolved.status !== 0 || !resolved.stdout.trim()) throw new Refused('LAND_NAMED', `commit ${commits[index]} for item #${id} is not a commit in this repository`, 'fetch it or name its full sha');
+    return { id: Number(id), commit: resolved.stdout.trim() };
+  });
 }
 
 /**
@@ -162,7 +186,7 @@ async function rebindAdoptedLanding(board, root) {
 }
 
 /** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
-export async function executeBoardLanding(ctx, board, io, values = {}) {
+export async function executeBoardLanding(ctx, board, io, values = {}, named = null) {
   if (!values['dry-run'] && codeIsFromMain()) {
     const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     await (await import('../../../../../packages/gate/index.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
@@ -176,7 +200,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
   const landOnce = async () => land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     runBatch: values['dry-run'] ? undefined : await landingBatchRunner(progress),
     write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner,
-    maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
+    ...(named ? { named } : {}), maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
   let result;
   // A real landing records a span per step, read back by pullboard gate-health [C7].
   if (!values['dry-run']) openLandingSpans({ commonDir: ctx.info.commonDir });

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,10 +15,18 @@ import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
+import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
-function mergedPlacement(t) {
-  const box = plannedProject(t, { companionLanes: true });
+async function mergedPlacement(t) {
+  const box = await plannedProject(t, { companionLanes: true });
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  // The board's model table determines fixture seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
+  writeFileSync(configPath, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-qm', 'chore: route placement fixture');
   const view = join(box.dir, 'merged-placement-view');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view');
@@ -41,6 +50,7 @@ function mergedPlacement(t) {
   box.git(box.repo, 'add', 'packages/codemap/data/plan');
   box.git(box.repo, 'commit', '-q', '-m', 'feat(view): accept an independent main placement [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
+  await publishAcceptedCells(t, box.repo, main.trim(), box.env.PULLBOARD_MACHINE_HOME);
   const mainRow = readPlan(box.repo).cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === mainFile);
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'],
     { cwd: view, env: box.env, encoding: 'utf8' });
@@ -55,12 +65,12 @@ function mergedPlacement(t) {
     'the merged main source is unchanged');
   const paths = readPlan(view).cells.find(cell => cell.name === 'app:view').paths;
   assert.ok(paths.findIndex(row => row[0] === ownFile) < paths.findIndex(row => row[0] === mainFile));
-  rmSync(box.marker);
+  rmSync(box.marker, { force: true });
   return { ...box, view, id, main, mainFile };
 }
 
-test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', t => {
-  const box = mergedPlacement(t);
+test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', async t => {
+  const box = await mergedPlacement(t);
   const submitted = success(box, box.view, 'submit', String(box.id));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real gate ran after ownership admitted the composed source');
@@ -68,11 +78,13 @@ test('a view item merges a main-owned plan change and submits its unchanged main
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), box.main, 'submit does not rewrite accepted main');
 });
 
-test('a builder editing the accepted main row itself still fails public submit before its gate [L3,C7,V4]', t => {
-  const box = mergedPlacement(t);
+test('a builder editing the accepted main row itself still fails public submit before its gate [L3,C7,V4]', async t => {
+  const box = await mergedPlacement(t);
   const plan = readPlan(box.view);
   const row = plan.cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === box.mainFile);
-  row[1] = row[1].replace('/shell/', '/core/');
+  // Placement targets use io/logic since cdd6fdd706; the old shell/core swap silently edited nothing.
+  row[1] = row[1].replace('/io/', '/logic/');
+  assert.match(row[1], /\/logic\//u, 'the accepted main row really changes');
   writePlan(box.view, plan);
   box.git(box.view, 'add', 'packages/codemap/data/plan');
   // A private commit-tree object models an externally authored bad commit; it claims no successful hook or proof.
@@ -80,12 +92,17 @@ test('a builder editing the accepted main row itself still fails public submit b
   const invalid = box.git(box.view, 'commit-tree', box.git(box.view, 'write-tree'), '-p', parent,
     '-m', 'fixture: unauthorized foreign-row edit');
   box.git(box.view, 'reset', '--hard', invalid);
-  const refused = box.run(box.view, 'submit', String(box.id), '--no-next', '--json');
-  assert.equal(refused.code, 1, refused.out + refused.err);
-  assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE');
-  assert.match(refused.out, /dashboard\.css/);
-  assert.equal(existsSync(box.marker), false, 'no gate runs for the unauthorized foreign edit');
-  assert.equal(success(box, box.view, 'show', String(box.id)).item_status, 'claimed');
+  // Ownership routing (814a7def2a): proved foreign paths wait on their owner instead of refusing OUTSIDE_LANE; the builder is freed.
+  const submitted = box.run(box.view, 'submit', String(box.id), '--no-next', '--json');
+  assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  const waiting = JSON.parse(submitted.out).waitingOwner;
+  assert.deepEqual(waiting.owners, ['core']);
+  assert.equal(waiting.paths.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
+  assert.equal(existsSync(box.marker), true, 'the gate runs green first; only then do foreign paths wait on their owner');
+  const item = success(box, box.view, 'show', String(box.id));
+  assert.equal(item.item_status, 'open');
+  assert.equal(item.item_commit, null, 'owner waiting is not a submission');
+  assert.match(item.item_hold_reason, /^waiting on ownership /u);
 });
 
 /** Probe row authority only; these synthetic blobs are not native claim or execution evidence. */
