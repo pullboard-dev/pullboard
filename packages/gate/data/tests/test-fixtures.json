@@ -1505,10 +1505,10 @@
   "packages/gate/tests/logic/test/source/edits.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/show/quarantine.test.js": {
+  "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
     "model": 1,
     "hand-policy": 1,
-    "raw-board": 3
+    "raw-board": 1
   },
   "packages/flakes/tests/logic/ratchet.test.js": {
     "tempdir": 2,
