@@ -339,7 +339,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     for (const width of [375, 1280]) {
       if (width === 1280) {
         box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision');
-        await chrome.waitFor("document.querySelector('#needs').innerText.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in Needs; no throughput claim.
+        await chrome.waitFor("document.querySelector('#feed').textContent.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in the shout feed; no throughput claim.
       }
       await setViewport(width);
       await click('[data-tab="items"]');
