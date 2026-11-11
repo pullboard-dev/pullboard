@@ -1016,7 +1016,7 @@ test('a refresh keeps the draft and focus in a pending Spec question Answer box 
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await chrome.waitFor("view.row.spec === 'G1' && !!document.querySelector('#spec-detail form[data-spec-answer=\"G1\"]')");
-    await chrome.stable("(() => { const box = document.querySelector('#spec-answer-G1'); box.focus(); box.value = 'Postgres, half typed'; })()");
+    await chrome.stable("(() => { const box = document.querySelector('#spec-answer-G1'); box.focus(); box.value = 'Postgres, half typed'; box.dispatchEvent(new Event('input', { bubbles: true })); })()");
     await chrome.stable('render()'); // the refresh every poll runs
     const kept = JSON.parse(await chrome.stable(`JSON.stringify({
       value: document.querySelector('#spec-answer-G1')?.value,

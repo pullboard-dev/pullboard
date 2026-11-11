@@ -50,7 +50,7 @@ const DETAIL = `(() => {
     title: detail.querySelector('h2')?.innerText ?? null,
     waiting: detail.querySelector('.detail-wait')?.textContent ?? null,
     busy: !!detail.querySelector('[aria-busy]'),
-    criterion: part('Criterion')?.querySelector('.text').innerText ?? null,
+    criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
     check: part('Check') ? [part('Check').querySelector('code').textContent, part('Check').querySelector('.chip').textContent] : null,
     brief: part('Brief')?.querySelector('.text').innerText ?? null,
     verdicts: [...detail.querySelectorAll('.verdict')].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
