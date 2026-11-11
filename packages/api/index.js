@@ -4,4 +4,4 @@ export { createApiHandler, applyStateDelta, apiStatus, apiRefusal, apiJson, read
 export { apiBoards, apiBoardListing, executeMove, createLocalApiHandler, createStateSnapshots, serveApi, projectItemState, codeAt } from "./src/io/main.js";
 export { offerJob, openJob, claimJob, jobRequest, renewJob, releaseJob, postReceipt, jobQueueCall, queueDraining, boardQueueMode } from "./src/io/jobs.js";
 export { LANDING_JOB_KIND, offerLandingJob, openLandingJob } from "./src/io/landing.js";
-export { applyGateReceipt, applyJobReceipt, applyLandingReceipt, boardJobQueueCall, failingParts } from "./src/io/gate.js";
+export { applyGateReceipt, applyJobReceipt, applyLandingReceipt, boardJobQueueCall, compareGateWithMain, failingParts, provideMainComparison } from "./src/io/gate.js";

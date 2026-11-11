@@ -23,6 +23,8 @@ import { inventoryCommits } from './remote.js';
 
 /** The line a gate job prints its receipt on, the last line of its output; runner serve reads the same prefix. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
+/** Budget: the most failing cases a red phase names in its receipt, so a receipt stays under the queue's size cap. */
+const PHASE_CASES = 100;
 /** The capabilities a runner needs to take a gate job. */
 const GATE_NEEDS = ['node22'];
 
@@ -40,9 +42,20 @@ import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
+// Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
+let light = null;
+try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
+/** A red phase's failing cases by file and name, or null when its output does not account for every failure. */
+const failingCases = (status, text) => {
+  let rows = null;
+  try { rows = status === 1 && light?.tapFailures ? light.tapFailures(text, root) : null; } catch { rows = null; }
+  if (!Array.isArray(rows) || !rows.length || rows.length > ${PHASE_CASES} || rows.some(row => !row?.file || !row.name)) return null;
+  return rows.map(({ file, name }) => ({ file, name: String(name).slice(0, 500) }));
+};
 const input = JSON.parse(readFileSync(0, 'utf8'));
-const receipt = { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [] };
+const receipt = { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment: { node: process.versions.node, platform: process.platform, arch: process.arch } };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
@@ -59,7 +72,7 @@ else {
   if (ownership) refusals.push({ part: 'authorization', code: 'OUTSIDE_LANE', message: ownership.message, paths: ownership.paths });
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
-    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, admission: analysis.admission ?? null };
+    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   if (!refusals.length && !receipt.analysis.infra) {
     // Only the proof's test runner comes from accepted main; the test files and the frozen check are the candidate's own.
     const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
@@ -67,7 +80,8 @@ else {
       if (!command) continue;
       const ran = timed(role, () => spawnSync(role === 'proof' ? runner(command) : command, { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] }));
       const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
-      receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')) });
+      receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
+        ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8')) } : {}) });
     }
   }
 }
