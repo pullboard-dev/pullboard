@@ -2763,9 +2763,6 @@
   "apps/relay/tests/version.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/relay/main.test.js": {
-    "tempdir": 1
-  },
   "packages/git/tests/archive.test.js": {
     "tempdir": 1
   },
@@ -3931,5 +3928,8 @@
   "apps/cli/tests/fixtures/landing/receipts.js": {
     "raw-board": 3,
     "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/relay/auth.js": {
+    "tempdir": 1
   }
 }
