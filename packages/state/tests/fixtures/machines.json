@@ -83,6 +83,8 @@
         { "from": "infrastructure", "to": "queued", "trigger": "a retry under a new id, up to INFRASTRUCTURE_RETRY_LIMIT (3)", "at": "packages/store/src/io/submit/handoff/retry.js:retryStoppedHandoff" },
         { "from": "queued", "to": "ended", "trigger": "the item is withdrawn", "at": "packages/store/src/io/submit/handoff/retry.js:endWithdrawnHandoff" },
         { "from": "running", "to": "ended", "trigger": "the item is withdrawn; the running driver is not told", "at": "packages/store/src/io/submit/handoff/retry.js:endWithdrawnHandoff" },
+        { "from": "queued", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
+        { "from": "running", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator; the running driver is not told", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "legacy leased row only: the fallback finds its item no longer submitted at its commit", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
         { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" }
       ],
