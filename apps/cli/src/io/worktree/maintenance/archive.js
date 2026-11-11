@@ -55,9 +55,15 @@ function paths(bytes) {
 }
 
 /** Compare inode and observation metadata, not just length or a path that can be reused. */
-function sameFile(a, b) {
-  return ['dev', 'ino', 'mode', 'size', 'mtimeMs', 'ctimeMs'].every(key => a[key] === b[key]);
+function sameFile(a, b, keys = ['dev', 'ino', 'mode', 'size', 'mtimeMs', 'ctimeMs']) {
+  return keys.every(key => a[key] === b[key]);
 }
+
+/**
+ * Identity of an archive file on a network share: the share maps modes (0600 reads back 0700) and commits times lazily
+ * (lstat and fstat of a fresh file disagree), so only inode and size are trusted there; the sha256 proves the bytes [C7,#5454].
+ */
+const ARCHIVE_IDENTITY = ['dev', 'ino', 'size'];
 
 /** Refuse symlink parents and remember their identities for a post-read check. */
 function localPath(root, path) {
@@ -83,14 +89,13 @@ function localPath(root, path) {
 /** Hash or copy a regular file with a fixed one-MiB buffer, never following its final symlink. */
 function regularFile(path, { destination, privateFile = false } = {}) {
   if (!Number.isInteger(NOFOLLOW)) throw new Error('maintenance needs no-follow file observation');
-  const before = lstatSync(path);
-  if (!before.isFile() || before.isSymbolicLink() || !Number.isSafeInteger(before.size) || before.size < 0
-    || privateFile && (before.mode & 0o077)) throw new Error('invalid maintenance archive file');
+  const before = lstatSync(path), same = privateFile ? ARCHIVE_IDENTITY : undefined;
+  if (!before.isFile() || before.isSymbolicLink() || !Number.isSafeInteger(before.size) || before.size < 0) throw new Error('invalid maintenance archive file');
   const fd = openSync(path, constants.O_RDONLY | NOFOLLOW);
   let output;
   try {
     const opened = fstatSync(fd);
-    if (!opened.isFile() || !sameFile(before, opened)) throw new Error('archive file identity changed');
+    if (!opened.isFile() || !sameFile(before, opened, same)) throw new Error('archive file identity changed');
     if (destination) output = openSync(destination, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | NOFOLLOW, 0o600);
     const buffer = Buffer.allocUnsafe(CHUNK_BYTES), hash = createHash('sha256');
     let size = 0, count;
@@ -104,7 +109,7 @@ function regularFile(path, { destination, privateFile = false } = {}) {
         offset += written;
       }
     }
-    if (size !== opened.size || !sameFile(opened, fstatSync(fd)) || !sameFile(opened, lstatSync(path)))
+    if (size !== opened.size || !sameFile(opened, fstatSync(fd), same) || !sameFile(opened, lstatSync(path), same))
       throw new Error('archive file changed while being read');
     if (output !== undefined) fsyncSync(output);
     return { type: 'file', mode: opened.mode & 0o7777, sha256: hash.digest('hex'), size };
@@ -339,7 +344,8 @@ export function maintenanceArchiveMatches(root, archive) {
     if (!privateArchiveBase(base)) return false;
     for (const path of [directory, join(directory, 'blobs')]) {
       const state = lstatSync(path);
-      if (!state.isDirectory() || state.isSymbolicLink() || state.mode & 0o077) return false;
+      if (!state.isDirectory() || state.isSymbolicLink() || state.mode & 0o077
+        || typeof process.getuid === 'function' && state.uid !== process.getuid()) return false;
     }
     const observed = localPath(realpathSync(base), join(manifest.id, 'manifest.json'));
     const info = regularFile(observed.target, { privateFile: true });
