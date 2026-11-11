@@ -91,10 +91,10 @@ test('clause 1: the agent session is the nearest ancestor that is not the shell 
   const agent = fakeAgent(t);
   // The agent opens a shell for one command, the way Claude's Bash tool and Codex both do; `; true` keeps the shell from exec'ing away.
   const probe = `import(${JSON.stringify(BEATER)}).then(m => process.stdout.write(JSON.stringify(m.agentSession({ env: {} }))))`;
-  // The probe is a plain node child, not a test child, so it prints its own stdout.
-  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
-  const shell = spawnSync('/bin/sh', ['-c', `env "${process.execPath}" -e '${probe}'; true`], { encoding: 'utf8', env });
+  // The probe is a plain node child with a bare environment, not a test child, so it prints its own stdout.
+  const shell = spawnSync('/bin/sh', ['-c', `env "${process.execPath}" -e '${probe}'; true`], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
   assert.equal(shell.status, 0, shell.stderr);
+  assert.notEqual(shell.stdout, '', `the probe printed its session: ${shell.stderr}`);
   // The probe's own parent chain: sh (shell) -> this test process. The test process stands in for the agent here.
   assert.equal(JSON.parse(shell.stdout).pid, process.pid, 'the shell and env are skipped; the first other ancestor is the session');
   const table = new Map([[40, { ppid: 30, start: 'x', comm: '-zsh' }], [30, { ppid: 20, start: 'y', comm: '/usr/bin/timeout' }],
