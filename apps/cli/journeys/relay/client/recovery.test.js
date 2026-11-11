@@ -54,7 +54,7 @@ async function publishAcceptedInventories(fixture) {
    */
   const restore = async () => {
     const tree = mainTree();
-    if (tree !== stashedTree) await publishFirst(tree);
+    if (tree !== stashedTree) { const at = Date.now(); await publishFirst(tree); process.stderr.write('[wait-diag] ' + (Date.now() - at) + ' rewarm\n'); }
     for (const env of fixture.envs) cpSync(stash, join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'), { recursive: true, force: true });
   };
   await restore();
