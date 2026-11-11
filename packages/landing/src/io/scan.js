@@ -43,7 +43,8 @@ export async function scanLanding(root, base, tip) {
   return rows;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** Run as a runner job: print the rows, exit 1 when any; no top-level await so require() can load this module. */
+async function main() {
   const flag = name => process.argv[process.argv.indexOf(name) + 1];
   const result = await scanLanding(process.cwd(), flag('--base'), flag('--tip'));
   if (result === SCAN_UNAVAILABLE) process.stdout.write(`${SCAN_UNAVAILABLE}\n`);
@@ -52,3 +53,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode = result.length ? 1 : 0;
   }
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
