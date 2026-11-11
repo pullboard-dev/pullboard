@@ -1086,6 +1086,12 @@ function submitSpecAnswer(event) {
   decideRow('spec', 'spec-answer', { ids: row, answer: form.elements.answer.value }, form);
 }
 $('spec-detail').addEventListener('submit', submitSpecAnswer);
+/** Remember the Answer box's draft and focus so a refresh that rewrites the pane puts both back (N27). */
+function keepSpecDraft(event) {
+  const box = event.target.closest?.('[data-spec-answer] input');
+  if (box) view.specDraft = { id: box.id, value: box.value, focus: event.type !== 'focusout' || !box.isConnected };
+}
+for (const type of ['input', 'focusin', 'focusout']) $('spec-detail').addEventListener(type, keepSpecDraft);
 $('spec-decline-form').addEventListener('keydown', trapFocus);
 // The row the dialog named is declined, with its reason, on the board it was opened on and only there.
 $('spec-decline-form').addEventListener('submit', (event) => {

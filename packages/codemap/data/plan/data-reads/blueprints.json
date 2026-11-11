@@ -653,71 +653,71 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 354,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 72,
       "expression": "join(mainRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 360,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 78,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 475,
+      "file": "apps/cli/journeys/submit/gate/selection/landing.test.js",
+      "line": 47,
       "expression": "join(mainRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 506,
+      "file": "apps/cli/journeys/submit/gate/selection/landing.test.js",
+      "line": 78,
       "expression": "join(candidateOnly.box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 601,
+      "file": "apps/cli/journeys/submit/gate/selection/invariants.test.js",
+      "line": 77,
       "expression": "join(acceptedRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 607,
+      "file": "apps/cli/journeys/submit/gate/selection/invariants.test.js",
+      "line": 83,
       "expression": "join(trusted.box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 182,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 44,
       "expression": "resolve(box.root, log)",
       "kind": "marker",
       "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 424,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 142,
       "expression": "stamp",
       "kind": "marker",
       "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 587,
+      "file": "apps/cli/journeys/submit/gate/selection/invariants.test.js",
+      "line": 63,
       "expression": "mandatory.marker",
       "kind": "marker",
       "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 634,
+      "file": "apps/cli/journeys/submit/gate/selection/invariants.test.js",
+      "line": 110,
       "expression": "named.marker",
       "kind": "marker",
       "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."

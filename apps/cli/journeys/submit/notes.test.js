@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-journey Native long-note expansion and full-hash copy in Timeline, Needs you, and Items [N26]. */
 import assert from 'node:assert/strict';
