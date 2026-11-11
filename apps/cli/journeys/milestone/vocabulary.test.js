@@ -55,7 +55,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   box.run(alpha.web, 'claim', '11');
   box.run(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
   box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11');
+  box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
   const reviewer = join(box.dir, 'stage-vocabulary-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/stage-vocabulary-reviewer', reviewer, 'main');
   box.run(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
