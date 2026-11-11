@@ -9,29 +9,29 @@
       "why": "Reads the fixture's own submit comparison cache that the command under test wrote; generated test-result data, not cli source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 172,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 44,
       "expression": "resolve(box.root, log)",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
       "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
-      "line": 106,
+      "line": 142,
       "expression": "stamp",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
-      "line": 269,
+      "file": "apps/cli/journeys/submit/gate/selection/invariants.test.js",
+      "line": 63,
       "expression": "mandatory.marker",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
-      "line": 316,
+      "file": "apps/cli/journeys/submit/gate/selection/invariants.test.js",
+      "line": 110,
       "expression": "named.marker",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
