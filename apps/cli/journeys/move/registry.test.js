@@ -208,6 +208,8 @@ if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta
         if(specifier==='node:child_process')throw Error('move declarations load a process launcher');
         if(specifier.startsWith('node:'))continue;
         if(!specifier.startsWith('.'))throw Error('unknown move import '+specifier);
+        // A JSON module is data: it must parse and imports nothing, so the walk ends there.
+        if(specifier.endsWith('.json')){JSON.parse(readFileSync(fileURLToPath(new URL(specifier,level[index])),'utf8'));continue;}
         pending.push(new URL(specifier,level[index]).href);
       }
     }
@@ -285,7 +287,10 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
       assert.notEqual(specifier, 'node:child_process', 'move declarations load no process launcher');
       if (specifier.startsWith('node:')) continue;
       assert.ok(specifier.startsWith('.'), 'move imports are native or relative');
-      pending.push(new URL(specifier, pathToFileURL(join(root, bodies[index].path))).href);
+      const target = new URL(specifier, pathToFileURL(join(root, bodies[index].path)));
+      // A JSON module (packages/items/src/logic/vendors.json) is data: it must parse and imports nothing, so the walk ends there.
+      if (specifier.endsWith('.json')) { JSON.parse(readFileSync(fileURLToPath(target), 'utf8')); continue; }
+      pending.push(target.href);
     }
   }
 });

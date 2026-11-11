@@ -27,6 +27,10 @@ const TAIL_BYTES = 4096;
 // Budget: one job runs at most an hour unless the caller sets its own ceiling.
 const CEILING_MS = 3_600_000;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+/** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
+export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
+// Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
+const RECEIPT_LINE_BYTES = 60 * 1024;
 
 /** A refusal by code, as the CLI reports it: what failed and what to do next. Kept local so this runner-side file stays free of other cells. */
 class Refused extends Error {
@@ -91,29 +95,56 @@ function git(cwd, args) {
   });
 }
 
-/**
- * Fetch one commit from the trunk remote into the runner's cache and check it out in a fresh folder.
- * Why a fetch by id first: protocol v2 serves any reachable commit, so a runner takes only what the job names; a
- * remote that refuses that falls back to fetching its branches.
- *
- * @returns {Promise<{ ok: true, folder: string } | { ok: false, reason: string }>}
- */
-export async function checkoutCandidate(cache, trunk, commit, name) {
-  if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
-  if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
+/** Open the runner's bare object cache, creating it on first use; null with git's words when it cannot. */
+async function objectStore(cache) {
   const store = join(cache, 'git');
   if (!existsSync(join(store, 'HEAD'))) {
     mkdirSync(store, { recursive: true });
     const init = await git(store, ['init', '-q', '--bare']);
-    if (init.status !== 0) return { ok: false, reason: init.stderr };
+    if (init.status !== 0) return { store: null, reason: init.stderr };
   }
-  if ((await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status !== 0) {
-    const byId = await git(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, commit]);
-    if (byId.status !== 0) {
-      const heads = await git(store, ['fetch', '-q', '--no-tags', '--', trunk, '+refs/heads/*:refs/remotes/trunk/*']);
-      if (heads.status !== 0) return { ok: false, reason: heads.stderr || byId.stderr };
-    }
-    if ((await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status !== 0) return { ok: false, reason: `trunk remote has no commit ${commit}` };
+  return { store, reason: null };
+}
+
+/**
+ * Make one commit present in the runner's object cache, fetching it from the trunk remote when missing.
+ * Why a fetch by id first: protocol v2 serves any reachable commit, so a runner takes only what the job names; a
+ * remote that refuses that falls back to fetching its branches.
+ *
+ * @returns {Promise<string | null>} null once the commit is present, else why it is not.
+ */
+async function fetchCommit(store, trunk, commit) {
+  if (!SHA.test(String(commit ?? ''))) return `the job names no commit (${commit})`;
+  if ((await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) return null;
+  if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
+  const byId = await git(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, commit]);
+  if (byId.status !== 0) {
+    const heads = await git(store, ['fetch', '-q', '--no-tags', '--', trunk, '+refs/heads/*:refs/remotes/trunk/*']);
+    if (heads.status !== 0) return heads.stderr || byId.stderr;
+  }
+  return (await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0 ? null : `trunk remote has no commit ${commit}`;
+}
+
+/**
+ * Fetch one commit from the trunk remote into the runner's cache and check it out in a fresh folder. Every commit in
+ * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
+ * from its checkout's own objects) finds them there.
+ *
+ * @param {string} cache
+ * @param {string} trunk
+ * @param {string} commit
+ * @param {string} name
+ * @param {string[]} [also]
+ * @returns {Promise<{ ok: true, folder: string } | { ok: false, reason: string }>}
+ */
+export async function checkoutCandidate(cache, trunk, commit, name, also = []) {
+  if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
+  if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
+  const { store, reason } = await objectStore(cache);
+  if (!store) return { ok: false, reason };
+  for (const wanted of [commit, ...also.filter(sha => sha !== commit)]) {
+    const missing = await fetchCommit(store, trunk, wanted);
+    if (missing) return { ok: false, reason: missing };
   }
   const folder = join(cache, 'work', name);
   rmSync(folder, { recursive: true, force: true });
@@ -129,29 +160,57 @@ async function dropCheckout(cache, folder) {
 }
 
 /**
- * Run a job's argv in its checkout, in its own process group so a lost lease or the ceiling stops all of it.
+ * Run a job's argv in its checkout, in its own process group so a lost lease or the ceiling stops all of it. `input`,
+ * when given, is written to its stdin. The last stdout line starting with `receiptLine` is kept whole, apart from the
+ * output tail, so a receipt longer than the tail still reaches the board.
  *
- * @returns {{ done: Promise<{ status: number | null, signal: string | null, outputSha256: string, outputBytes: number, tail: string }>, stop: () => void }}
+ * @param {string[]} argv
+ * @param {string} cwd
+ * @param {{ ceilingMs?: number, env?: NodeJS.ProcessEnv, input?: string | null, receiptLine?: string | null }} [options]
+ * @returns {{ done: Promise<{ status: number | null, signal: string | null, outputSha256: string, outputBytes: number, tail: string, line: string | null }>, stop: () => void }}
  */
-export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env } = {}) {
-  const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null } = {}) {
+  const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const digest = createHash('sha256');
-  let bytes = 0, tail = Buffer.alloc(0);
+  let bytes = 0, tail = Buffer.alloc(0), partial = '', line = null;
   const take = chunk => {
     digest.update(chunk); bytes += chunk.length;
     tail = Buffer.concat([tail, chunk]); if (tail.length > TAIL_BYTES) tail = tail.subarray(tail.length - TAIL_BYTES);
   };
-  child.stdout.on('data', take); child.stderr.on('data', take);
+  /** Keep the newest whole stdout line that starts with the receipt prefix; longer than a receipt may be is not one. */
+  const scan = chunk => {
+    if (receiptLine === null) return;
+    const rows = (partial + chunk.toString('utf8')).split('\n');
+    partial = rows.pop();
+    if (partial.length > RECEIPT_LINE_BYTES) partial = '';
+    for (const row of rows) if (row.startsWith(receiptLine)) line = row;
+  };
+  child.stdout.on('data', chunk => { take(chunk); scan(chunk); }); child.stderr.on('data', take);
+  if (input !== null) { child.stdin.on('error', () => { /* a job that exits before reading its input is judged by its exit */ }); child.stdin.end(input); }
   const stop = () => { try { process.kill(-child.pid, 'SIGTERM'); } catch { /* already gone */ } };
   const ceiling = setTimeout(stop, ceilingMs);
   const done = new Promise(resolve => {
     child.on('error', error => { take(Buffer.from(String(error.message))); });
     child.on('close', (status, signal) => {
       clearTimeout(ceiling);
-      resolve({ status, signal, outputSha256: digest.digest('hex'), outputBytes: bytes, tail: tail.toString('utf8') });
+      if (receiptLine !== null && partial.startsWith(receiptLine)) line = partial;
+      resolve({ status, signal, outputSha256: digest.digest('hex'), outputBytes: bytes, tail: tail.toString('utf8'), line });
     });
   });
   return { done, stop };
+}
+
+/**
+ * The receipt a gate job posts: the gate's own PULLBOARD_GATE_RECEIPT line, parsed, beside the run's exit and output
+ * digest. A gate that printed no such line is red with what its output ended on, never a green guess.
+ */
+function gateReceipt(result, commit, durationMs) {
+  let gate = null;
+  try { gate = result.line ? JSON.parse(result.line.slice(GATE_RECEIPT.length)) : null; } catch { gate = null; }
+  if (!gate || typeof gate !== 'object' || Array.isArray(gate)) {
+    gate = { version: 1, green: false, error: `the gate job printed no ${GATE_RECEIPT.trim()} line (exit ${result.status ?? result.signal}): ${result.tail.slice(-2000)}` };
+  }
+  return { status: result.status, signal: result.signal, commit, outputSha256: result.outputSha256, outputBytes: result.outputBytes, durationMs, gate };
 }
 
 /**
@@ -169,10 +228,13 @@ export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env } 
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
  * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number }} [options.timing]
+ * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
+ *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
+ *   result is the receipt; renew extends the lease and reads false once another runner holds the job.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[] }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {} }) {
+  once = false, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {} }) {
   const endpoint = boardEndpoint(board, key);
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS } = timing;
@@ -188,6 +250,29 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       catch (error) { if (!(error instanceof BoardUnreachable)) throw error; await backoff(error); }
     }
   };
+  /** Run a handled kind in this process and post its result as the receipt; a lost lease posts nothing. */
+  const handled = async (claim, held) => {
+    const renew = async () => {
+      try { return (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
+      catch (error) { return error instanceof BoardUnreachable; }
+    };
+    let receipt;
+    try { receipt = await handlers[claim.kind](claim, { cache, renew }); }
+    catch (error) {
+      // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
+      say(`releasing ${claim.job}: ${error?.message ?? error}`);
+      await reliably({ action: 'release', ...held }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
+      return { outcome: 'released' };
+    }
+    try {
+      await reliably({ action: 'receipt', ...held, receipt });
+      say(`posted ${claim.job}: ${receipt?.outcome ?? 'done'}`);
+      return { outcome: 'posted', receipt };
+    } catch (error) {
+      if (error.code !== 'JOB_LEASE_MOVED' && error.code !== 'RUNNER_STOPPED') throw error;
+      return { outcome: 'lost' };
+    }
+  };
   while (!signal?.aborted) {
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities }); }
@@ -196,8 +281,28 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (!claim) { await sleep(idleMs); continue; }
     const held = { job: claim.job, runner: id, token: claim.token };
     say(`claimed ${claim.job} (attempt ${claim.attempt}) at ${claim.candidate}`);
-    const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`);
-    if (!checkout.ok || !claim.run?.length) {
+    if (Object.hasOwn(handlers, claim.kind)) {
+      const outcome = await handled(claim, held);
+      jobs.push({ job: claim.job, ...outcome });
+      if (once) break;
+      continue;
+    }
+    // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [];
+    if (!run.length) {
+      let asked;
+      try { asked = await reliably({ action: 'request', ...held }); }
+      catch (error) { if (error.code === 'RUNNER_STOPPED') break; if (error.code === 'JOB_LEASE_MOVED') { jobs.push({ job: claim.job, outcome: 'lost' }); if (once) break; continue; } throw error; }
+      const request = asked?.request;
+      if (Array.isArray(request?.run) && request.run.length) {
+        run = request.run;
+        input = JSON.stringify(request.input ?? null);
+        also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
+      }
+    }
+    const gate = claim.kind === 'gate' && input !== null;
+    const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, also);
+    if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${checkout.ok ? 'the job names nothing to run' : checkout.reason}`);
       if (checkout.ok) await dropCheckout(cache, checkout.folder);
@@ -207,7 +312,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       continue;
     }
     const started = Date.now();
-    const running = runJob(claim.run, checkout.folder, { ceilingMs });
+    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null });
     let lost = false;
     // Renew while the job runs. An unreachable board only skips a renewal; a moved lease stops the job.
     const renewer = setInterval(() => {
@@ -221,11 +326,12 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const result = await running.done.finally(() => clearInterval(renewer));
     await dropCheckout(cache, checkout.folder);
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); jobs.push({ job: claim.job, outcome: 'lost' }); if (once) break; continue; }
-    const receipt = { status: result.status, signal: result.signal, commit: claim.candidate, run: claim.run, outputSha256: result.outputSha256,
-      outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started };
+    const receipt = gate ? gateReceipt(result, claim.candidate, Date.now() - started)
+      : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
+        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started };
     try {
       await reliably({ action: 'receipt', ...held, receipt });
-      say(`posted ${claim.job}: exit ${result.status}`);
+      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}`);
       jobs.push({ job: claim.job, outcome: 'posted', receipt });
     } catch (error) {
       if (error.code !== 'JOB_LEASE_MOVED' && error.code !== 'RUNNER_STOPPED') throw error;

@@ -14,7 +14,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by claim, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
 import { barReadySetting } from "../bar/ready.js";
-import { firstRefusal } from "../../../../store/light.js";
+import { firstRefusal } from "../../../../store/browser.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
