@@ -19,8 +19,10 @@ import {
 import {
   fileFixtureItem,
   joinFixtureSeat,
+  withFixtureBoard,
 } from '../../tests/fixtures/testkit.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import * as store from '../../../../packages/store/index.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 const e2e = createE2eHelpers();
@@ -69,6 +71,17 @@ function binding(box, root) {
   return JSON.parse(readFileSync(join(resolve(root, box.git(root, 'rev-parse', '--git-dir')), 'pullboard-checkout-session.json'), 'utf8'));
 }
 
+/**
+ * Record `agent`'s claim on `id` straight on the board, as a claim that committed before its folder refused once left it.
+ * Why: claim now refuses a folder problem before the move (#5766), but boards still hold claims stranded that way.
+ */
+function strandedClaim(box, id, agent) {
+  const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: 'true', rows: [] }), digest: 'stranded' });
+  const head = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  // @pullboard-board-file journey: the CLI and this fixture share this private board.
+  withFixtureBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), board => store.claim(board, Number(id), { agentId: agent, lane: 'web', leaseMs: 3_600_000, head, freeze }));
+}
+
 /** Escape a path for a regular expression. */
 function literal(text) { return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'); }
 
@@ -106,7 +119,9 @@ test('clause 1: a seat holding an item whose folder another live session holds i
   as(box, 'session-b', () => {
     const claimed = box.run(claimer.root, 'claim', a);
     assert.match(`${claimed.out}\n${claimed.err}`, /ITEM_FOLDER_SESSION_LIVE/u);
-    assert.match(box.run(claimer.root, 'show', a).out, new RegExp(`^#${a}\\s+claimed ${claimer.id}\\b`, 'mu'), 'the refused claim left seat B holding A, as builders found it');
+    assert.match(box.run(claimer.root, 'show', a).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'the refusal came before the move (#5766)');
+    strandedClaim(box, a, claimer.id);
+    assert.match(box.run(claimer.root, 'show', a).out, new RegExp(`^#${a}\\s+claimed ${claimer.id}\\b`, 'mu'), 'seat B holds A, as builders found it');
     const shown = box.run(claimer.root, 'show', a).out;
     assert.doesNotMatch(shown, /continue building in this checkout/u, 'show names the item folder, not the seat checkout');
     assert.match(shown, new RegExp(`build and commit in its item folder ${literal(join(box.dir, `web-b-item-${a}`))}`, 'u'), shown);
