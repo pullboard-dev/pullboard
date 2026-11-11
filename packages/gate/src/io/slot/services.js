@@ -31,7 +31,7 @@ export async function gateSlotServices() {
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
     // The landing door (and its board reader) loads only when a run names an item to rank; an unplanned run reads no board [C7,V4].
     captureReleaseQueue: !policyOn ? () => undefined : async (root, item) => (item === undefined || item === null || item === ''
-      ? undefined : (await import('../../../../landing/light.js')).captureReleaseQueue(root, item)),
+      ? undefined : (await import('../../../../landing/index.js')).captureReleaseQueue(root, item)),
     constrainedLandingHost: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot never lands; use landingExecutionServices() from the landing front door for a landing'); },
     releaseExecutors: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot runs no release; use landingExecutionServices() from the landing front door for a release'); },
   });
