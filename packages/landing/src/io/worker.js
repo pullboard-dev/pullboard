@@ -79,7 +79,7 @@ export const CUSTODY_ENV = 'PULLBOARD_LANDING_CUSTODY';
 
 /** Pids of the live timed gate workers carrying a landing's token; the random token is their identity, so a reused pid never matches. */
 function registeredGates(token) {
-  return new Promise(resolve => execFile('/bin/ps', ['-axo', 'pid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } }, (error, stdout) => {
+  return new Promise(resolve => execFile('/bin/ps', ['-axww', '-o', 'pid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } }, (error, stdout) => {
     resolve(error ? [] : stdout.split('\n').flatMap(line => {
       const match = /^\s*(\d+) (.*)$/u.exec(line);
       return match && match[2].includes(`--landing-custody=${token}`) && Number(match[1]) !== process.pid ? [Number(match[1])] : [];
@@ -97,7 +97,7 @@ export async function stopRegisteredGates(token, { pause = ms => new Promise(res
   let signal = 'SIGTERM';
   for (let live = await registeredGates(token); live.length; live = await registeredGates(token)) {
     if (Date.now() >= end) signal = 'SIGKILL';
-    for (const pid of live) { try { process.kill(pid, signal); } catch { /* Gone already. */ } }
+    for (const pid of live) { try { process.kill(-pid, signal); } catch { try { process.kill(pid, signal); } catch { /* Gone already. */ } } }
     await pause(100);
   }
 }
