@@ -33,6 +33,7 @@ import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
 import { runGate } from '../../../../gate/index.js';
+import { stampGreen } from '../../../../gate/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
@@ -386,6 +387,8 @@ async function runGateGroup(state, label, options) {
     // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
     if (reuse.mainOwned) state.say(`gate ${label}: #${reuse.item}'s submit verdict is green with main-owned case(s): ${reuse.mainOwned.map(row => `${row.file} :: ${row.name}`).join('; ')}`);
     const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit, ...(reuse.items?.length > 1 ? { items: reuse.items } : {}), ...(reuse.mainOwned ? { mainOwned: reuse.mainOwned } : {}) } };
+    // The reused receipt covered the full configured gate, so the tree is stamped green as a gate run would, and pre-push accepts it.
+    if (config[VALUE_GATE] !== true) stampGreen(state.batch.root, tree);
     state.gates.set(tree, reused);
     return reused;
   }
