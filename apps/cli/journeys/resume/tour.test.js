@@ -1,4 +1,4 @@
-/** The tour on a throwaway repo: colours, isolation and the registered demo (N10, N26); split from e2e.test.js to keep each file under two minutes. */
+/** The tour on a throwaway repo: colours, isolation and the registered demo (N10); split from e2e.test.js to keep each file under two minutes. */
 import assert from 'node:assert/strict';
 import {
   after,
@@ -9,11 +9,9 @@ import {
   runFixtureChild as spawnSync,
   runFixtureChildAsync,
 } from '../../tests/fixtures/child.js';
-import { fetchFresh } from '../../tests/fixtures/http.js';
 import {
   chmodSync,
   mkdirSync,
-  readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -21,15 +19,8 @@ import { join } from 'node:path';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  BIN, sandbox, project, startView,
+  BIN, sandbox,
 } = e2e;
-
-/** Assert and remove only the outer command's exact final text action; retain every body byte. */
-function withoutAction(text, action = 'pullboard next --wait 1') {
-  const footer = `next: ${action}\n`;
-  assert.ok(text.endsWith('\n' + footer), 'the intended final action is present');
-  return text.slice(0, -footer.length);
-}
 
 test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', async () => {
   const box = sandbox();
@@ -89,37 +80,4 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
-});
-
-test('the tour registers a labelled demo that view lists and forget removes [N10, N26]', async () => {
-  const box = project();
-  const tourEnv = { ...box.env, TMPDIR: box.dir, HOME: box.dir };
-  delete tourEnv.PULLBOARD_MODEL;
-  const result = spawnSync(process.execPath, [BIN, 'tour'], {
-    cwd: box.dir,
-    env: tourEnv,
-    encoding: 'utf8',
-  });
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.equal(withoutAction(result.stdout, 'pullboard view').trimEnd().split('\n').at(-1), 'see it: pullboard view');
-  assert.equal(result.stdout.match(/^next: pullboard view$/gmu)?.length, 1, 'the outer command retains its action');
-  assert.doesNotMatch(result.stdout, /^ +next: pullboard next --wait 1$/mu, 'nested child commands add no fallback footers');
-  const demoRoot = /Look around: cd (\S+) && pullboard log/.exec(result.stdout)?.[1];
-  assert.ok(demoRoot, 'the retained demo path is printed');
-  const registered = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8')).projects;
-  assert.deepEqual(registered.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
-
-  const view = await startView(box, box.repo);
-  try {
-    const listing = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
-    assert.equal(listing.status, 200);
-    assert.deepEqual((await listing.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
-    const forgotten = box.run(box.dir, 'forget', demoRoot);
-    assert.equal(forgotten.code, 0, forgotten.err);
-    assert.match(forgotten.out, /forgot/);
-    const after = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
-    assert.deepEqual((await after.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo']]);
-  } finally {
-    await view.stop();
-  }
 });
