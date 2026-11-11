@@ -200,7 +200,7 @@
     "tempdir": 2,
     "env-spread": 1
   },
-  "apps/cli/journeys/red/main-red.test.js": {
+  "apps/cli/tests/fixtures/red/main-red.js": {
     "tempdir": 2,
     "env-spread": 1,
     "model": 2
