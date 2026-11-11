@@ -17,12 +17,12 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { readGateReceipt } from '../../../../../index.js';
-import { runFixtureChild } from '../../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild } from '../../../../../../../apps/cli/tests/fixtures/child.js';
+import { readGateReceipt } from '../../../../packages/gate/index.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { startFixtureChild } from '../../tests/fixtures/child.js';
 
-const BIN = join(import.meta.dirname, '../../../../../../../apps/cli/pullboard.js');
+const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Write only one private fixture's source or synchronization file. */
 function put(root, file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }

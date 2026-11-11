@@ -74,5 +74,12 @@
   "apps/cli/journeys/engine/queue.test.js": "packages/store/tests/review-queue-replay.test.js",
   "apps/cli/journeys/engine/team.test.js": "packages/store/tests/team-engine.test.js",
   "apps/cli/journeys/relay/activation/browser.test.js": "apps/relay/tests/relay-browser-fixture.test.js",
-  "apps/cli/journeys/relay/activation/client.test.js": "apps/relay/tests/relay-client-fixture.test.js"
+  "apps/cli/journeys/relay/activation/client.test.js": "apps/relay/tests/relay-client-fixture.test.js",
+  "packages/gate/tests/io/affected/graph/cache/lock.test.js": "apps/cli/journeys/gate/main-red-lock.test.js",
+  "packages/gate/tests/io/receipts.test.js": "apps/cli/journeys/gate/receipts.test.js",
+  "packages/gate/tests/io/imports/edits.test.js": "apps/cli/journeys/imports/cross-lane-edits.test.js",
+  "packages/landing/tests/io/main/red/cache.test.js": "apps/cli/journeys/red/content-cache.test.js",
+  "packages/landing/tests/io/main/red.test.js": "apps/cli/journeys/red/main-red.test.js",
+  "apps/cli/tests/io/resident/board.test.js": "apps/cli/journeys/resident/board.test.js",
+  "packages/gate/tests/io/test/tier/selection.test.js": "apps/cli/journeys/test/tier-selection.test.js"
 }

@@ -42,7 +42,7 @@ function fixture(t) {
   const source = resolve(import.meta.dirname, '../../../..');
   const executables = join(dir, 'executables');
   mkdirSync(executables);
-  writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/bin/pullboard.js" "$@"\n`);
+  writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
   copyPackageFiles(source, root);

@@ -271,8 +271,10 @@ function nextPick(ctx, board, values, ports) {
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
-  const picked = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? own : store.nextFor(board, { ...selection,
+  // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
+  const elsewhere = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+  const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';
