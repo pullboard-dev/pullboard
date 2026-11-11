@@ -219,6 +219,7 @@ test('owning open upgrades an old indexless board once without changing native d
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-activation-index-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'board.sqlite');
+  // @pullboard-board-file migration: the file is reopened through each activation step
   let board = openBoard(file);
   let document;
   let version;
@@ -237,6 +238,7 @@ test('owning open upgrades an old indexless board once without changing native d
     assert.equal(read.current, true, 'old indexless boards remain readable at the same native schema version');
     assert.equal(read.db.prepare("SELECT 1 FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get(), undefined);
   } finally { read.db.close(); }
+  // @pullboard-board-file migration: the file is reopened through each activation step
   board = openBoard(file, undefined, { isMain: false });
   try {
     assert.equal(board.db.prepare("SELECT 1 FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get(), undefined,
@@ -254,6 +256,7 @@ test('owning open upgrades an old indexless board once without changing native d
     assert.equal(board.db.prepare("SELECT 1 FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get(), undefined,
       'the fallback remains read-only and does not refuse or install an index');
   } finally { store.closeBoard(board); }
+  // @pullboard-board-file migration: the file is reopened through each activation step
   board = openBoard(file);
   try {
     assert.ok(board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='board_meta_grant_activation_v2'").get(),
@@ -264,6 +267,7 @@ test('owning open upgrades an old indexless board once without changing native d
   const stamped = openBoardForRead(file);
   try { assert.equal(stamped.current, true, 'installation and the actual index-shape stamp commit together'); }
   finally { stamped.db.close(); }
+  // @pullboard-board-file migration: the file is reopened through each activation step
   board = openBoard(file);
   try {
     assert.equal(board.db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get().n, 1);
