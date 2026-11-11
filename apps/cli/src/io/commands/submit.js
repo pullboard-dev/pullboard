@@ -755,6 +755,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let proofMatched = null;
   let proofUnowned = [];
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
+  process.stderr.write('PROBE-GATE failures=' + Boolean(failures) + ' base=' + mainFailureBase + ' companion=' + (failures ? companionAllowsMain(failures) : 'na') + '\n');
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
       const compareStart = Date.now();
@@ -763,6 +764,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
+      process.stderr.write('PROBE-CMP base=' + mainFailureBase + ' failures=' + JSON.stringify(failures).slice(0,400) + ' cmp=' + JSON.stringify(comparison).slice(0,1500) + '\n');
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
       const matched = proofMainFailures(failures, comparison, mainFailureBase, { criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? held.item_criterion ?? '', check: frozenCheck(held) });
