@@ -1324,19 +1324,19 @@ scenario('answering a decision moves it out of Decision needed and marks its car
   await layouts(async ({ at }) => {
     let id;
     await Given('a decision under Decision needed', async () => {
-      id = await chrome.stable(`Number(document.querySelector('#decisions .shout')?.dataset.shoutId)`);
-      assert.ok(id > 0, 'an ask waits above the feed');
-      assert.deepEqual(JSON.parse(await chrome.stable(`JSON.stringify([document.querySelector('#decisions .head')?.textContent, document.querySelector('#feed #shout-${id} .band')?.textContent])`)), ['Decision needed', 'Decision needed']);
+      id = await chrome.stable(`Number(document.querySelector('#feed .shout .answer')?.closest('.shout').id.replace('shout-', ''))`);
+      assert.ok(id > 0, 'an ask waits in the feed with its Answer');
+      assert.equal(await chrome.stable(`document.querySelector('#feed #shout-${id} .band')?.textContent`), 'Decision needed');
     });
     await When('the person presses its Answer', async () => {
-      await press(chrome, q(`#decisions .shout[data-shout-id="${id}"] .answer`));
+      await press(chrome, q(`#feed #shout-${id} .answer`));
       await chrome.waitFor(`!${q('#answering')}.hidden && document.activeElement === ${q('#shout-text')}`);
     });
     await And('types an answer and presses Enter', async () => {
       await typeText(chrome, `Yes, at ${at}.`);
       await pressKey(chrome, 'Enter');
     });
-    await Then('the decision leaves Decision needed', () => chrome.waitFor(`!document.querySelector('#decisions .shout[data-shout-id="${id}"]') && data.project.shouts.some((s) => s.shout_answers === ${id} && s.shout_text === ${JSON.stringify(`Yes, at ${at}.`)}) && ${q('#answering')}.hidden`, 15_000)); // budget: hang ceiling for the answer to be recorded and shown; no throughput claim.
+    await Then('the decision leaves Decision needed', () => chrome.waitFor(`!document.querySelector('#feed #shout-${id} .answer') && data.project.shouts.some((s) => s.shout_answers === ${id} && s.shout_text === ${JSON.stringify(`Yes, at ${at}.`)}) && ${q('#answering')}.hidden`, 15_000)); // budget: hang ceiling for the answer to be recorded and shown; no throughput claim.
     await And('its card in the feed says it is answered', async () => {
       const band = JSON.parse(await chrome.stable(`JSON.stringify((() => { const b = document.querySelector('#feed #shout-${id} .band'); return b && [b.classList.contains('done'), b.textContent]; })())`));
       assert.ok(band?.[0] && band[1].startsWith('Answered'), `the card's band says answered: ${JSON.stringify(band)}`);
