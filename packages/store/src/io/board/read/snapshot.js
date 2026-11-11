@@ -5,6 +5,8 @@ import {
 } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { CANTOPEN_RETRY_MS } from "./light.js";
+import { readBoardSnapshot } from "./light.js";
+import { systemClock } from "./light.js";
 import { openBoardReadOnly as openReadOnlyLight } from "./light.js";
 import { boardBusyError } from "../access.js";
 import { boardIsCurrent } from "../migrate.js";
@@ -19,13 +21,6 @@ import { Refused } from "../../../../../kernel/index.js";
 import { ENGINE_REGISTRY } from "../../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 
-/** Supply exact discovered engine thresholds to read-only projections. */
-function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: ENGINE_REGISTRY['submit-handoff'] }; }
-
-/** Attach the native read-only engine thresholds to an existing observation snapshot. */
-export function readBoardSnapshot(db, clock = systemClock) {
-  return { db, clock, enginePorts: Object.freeze({ submitHandoffEngines }) };
-}
 
 let heldReadConnection = null;
 
@@ -39,10 +34,6 @@ export function holdReadConnections(provider) {
   heldReadConnection = provider;
 }
 
-/**
- * The clock the board reads, real unless a test passes its own.
- */
-export const systemClock = { now: () => new Date() };
 
 /**
  * Open an existing board for a command that only reads: read-only, with no write lock and no
@@ -62,6 +53,8 @@ export function openBoardReadOnly(file, options = {}) {
   return openReadOnlyLight(file, { busyError: (path, startedAt, error) => boardBusyError(path, startedAt, error), ...options });
 }
 export { CANTOPEN_RETRY_MS };
+export { readBoardSnapshot };
+export { systemClock };
 
 /**
  * Read the persisted event format without migrating it, so integrity checks enforce the same

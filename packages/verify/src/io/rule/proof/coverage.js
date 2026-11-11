@@ -5,13 +5,28 @@ import { tryGit } from '../../../../../git/index.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
 const FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:[cm]?js|cts)$/u;
 
+let runnerFile = null;
+
+/**
+ * Name the installed canonical test runner file. The composition root above verify supplies it, so this package never imports the runner's cell.
+ * Until it is named, coverage stays unknown (never guessed) and the fingerprint differs from any bound reader's.
+ */
+export function bindProofRunner(file) {
+  runnerFile = typeof file === 'string' && file ? file : null;
+}
+
+/** The installed runner's bytes, or null while no runner is bound or it cannot be read. */
+function runnerBytes() {
+  try { return runnerFile === null ? null : readFileSync(runnerFile); } catch { return null; }
+}
+
 /** Bind cached interpretation to installed parser and canonical runner bytes, independent of reader runtime. */
 export function proofCoverageFingerprint() {
   const hash = createHash('sha256').update('rule-coverage-source-v2');
   // The hashed names keep their historical spelling; each literal URL names the file where it now lives.
   hash.update('./coverage.js').update(readFileSync(new URL('./coverage.js', import.meta.url)));
   hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../../../kernel/src/logic/words.js', import.meta.url)));
-  hash.update('../bin/run-tests.js').update(readFileSync(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url)));
+  hash.update('../bin/run-tests.js').update(runnerBytes() ?? 'runner-unbound');
   return hash.digest('hex');
 }
 
@@ -71,7 +86,8 @@ function includedFiles(root, commit, command, tracked, depth = 0, context = {}) 
   if (words[1] === '--test') return selectedFiles(words.slice(2), tracked, false);
   if (words[1]?.replace(/^\.\//u, '') === 'packages/gate/src/io/run/tests.js' && tracked.has('packages/gate/src/io/run/tests.js')) {
     const source = tryGit(root, ['show', `${commit}:packages/gate/src/io/run/tests.js`]);
-    if (source.status !== 0 || source.stdout !== readFileSync(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url), 'utf8')) return [];
+    const installed = runnerBytes();
+    if (source.status !== 0 || installed === null || source.stdout !== installed.toString('utf8')) return [];
     return selectedFiles(words.slice(2), tracked, true);
   }
   return [];

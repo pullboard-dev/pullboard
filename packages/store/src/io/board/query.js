@@ -284,27 +284,16 @@ export function laneHolds(board) {
 
 export { rowDecisions } from "../../../../spec/index.js";
 
-/** The board's recorded row drafts, oldest first, without loading its mutation engine. */
-export function rowDrafts(board) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('row_drafts');
-  return row ? JSON.parse(row.meta_value) : [];
-}
+import { agentAt } from './read/light.js';
+import { rowDrafts } from './read/light.js';
+export { agentAt };
+export { rowDrafts };
 
 /**
  * The SQL that picks an agent's unread shouts: to it, to its lane, or to all, from anyone else.
  */
 export const UNREAD_SQL = UNREAD_SHOUT_SQL;
 
-/**
- * The agent registered for a worktree path, if any.
- *
- * @param {any} board
- * @param {string} path
- * @returns {any}
- */
-export function agentAt(board, path) {
-  return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
-}
 
 /** Check membership without reading display-only presence sidecars inside a writer. */
 export function hasAgent(board, id) {
