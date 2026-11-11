@@ -105,6 +105,8 @@ test('clause 2: the upgrade moves oversized payloads, keeps only the newest cell
   assert.equal(storedResult(old), undefined);
   assert.deepEqual(jobView(board.db, 'cells-inventory:t3').steps[0].payload, bodies[2]);
   assert.deepEqual(jobView(board.db, 'gate-drive:x').steps[0].payload, collected);
+  assert.equal(compactBoard(board.db).compacted, false, 'a small board is not worth a rewrite');
+  assert.equal(compactBoard(board.db, { minFreeBytes: 1 }).compacted, true);
   assert.ok(statSync(file).size < before / 2, `${statSync(file).size} bytes after, ${before} before`);
   assert.deepEqual(migrateJobBlobs(board.db), { moved: 0, pruned: 0, bytes: 0 }, 'a second run finds nothing to do');
 });
