@@ -1,7 +1,8 @@
 /** Keep recorded refusal bytes independent of improvements to current recovery guidance [H16]. */
-import { Refused } from '../../../../kernel/browser.js';
+import { Refused } from '../../../../kernel/light.js';
+import { RECORDED_GENERIC_NEXT } from '../defaults.js';
 
-export const RECORDED_GENERIC_NEXT = 'Run pullboard help, correct the reported problem, and retry the command.';
+export { RECORDED_GENERIC_NEXT };
 
 /** Preserve the original refusal envelope used by ordered moves and sealed request receipts. */
 export function recordedRefusal(error) {
