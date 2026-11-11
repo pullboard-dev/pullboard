@@ -64,6 +64,7 @@ function metaHandoffs(board) {
 
 test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
   const { box, id, commit } = claimed(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const options = queue(box, board, id, commit);
@@ -89,6 +90,7 @@ test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
 
 test('clause 1: a retried job is the record submitHandoff reads, not the job it replaced [C7]', (t) => {
   const { box, id, commit } = claimed(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const first = queue(box, board, id, commit);
@@ -111,6 +113,7 @@ test('clause 1: a retried job is the record submitHandoff reads, not the job it 
 
 test('clause 1: a hand-off record an older release left in board_meta moves onto its gate job [C7]', (t) => {
   const { box, id } = claimed(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const older = { id: randomUUID(), commit: 'a'.repeat(40), agentId: getItem(board, id).item_owner, state: 'green' };

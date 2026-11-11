@@ -183,8 +183,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         // The approved entry keeps identity and time/state above its held item, with extra holds on hover.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Fixture Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
-        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Fixture Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
+        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
+        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
         assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -200,7 +200,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await shoutsAt(chrome, 1280, 'light');
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Fixture Model)×', 'web-1', [['web-1', 'coordinator and you']]],
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1', 'coordinator and you']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.

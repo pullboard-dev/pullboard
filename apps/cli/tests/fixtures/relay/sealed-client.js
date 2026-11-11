@@ -31,6 +31,7 @@ import { readSealedDescriptor } from '../../../../../packages/pages/index.js';
 import { relaySnapshot } from '../../../../../packages/pages/index.js';
 import { relayClientFixture } from './client.js';
 import { startChrome } from './browser.js';
+import { stableChrome } from '../cockpit/stable.js';
 
 /** Open actual sealed checkpoints, accepting compressed and released legacy JSON snapshots. */
 export async function openCheckpoint(box, snapshot) {
@@ -263,7 +264,7 @@ export async function thirtyThousandBoard(t) {
  */
 export async function openOnPhone(t, { box, link, heldPage, currentMarker }, { holdStateMs = 0 } = {}) {
   const loadBefore = loadavg()[0];
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -309,13 +310,13 @@ export async function openOnPhone(t, { box, link, heldPage, currentMarker }, { h
     await chrome.waitFor('Number.isFinite(window.__phoneTiming?.firstBoardPaint) && typeof transport !== "undefined" && !!transport?.historyProgress', 120_000, 'bounded current board paints before all history'); // budget: generous hang ceiling for a starved harness to observe the paint under gate load (a 30 s wait expired with the page painted at 646 ms); the frozen #903 3000ms bar is asserted on the page-measured firstBoardPaint.
   } catch (error) {
     // Record what the page itself reached, so a miss reads as a page measurement rather than a runner timeout (#953).
-    const page = await chrome.evaluate(`({ ...window.__phoneTiming, sinceNavigationMs: performance.now(), readyState: document.readyState,
+    const page = await chrome.stable(`({ ...window.__phoneTiming, sinceNavigationMs: performance.now(), readyState: document.readyState,
       transport: typeof transport, historyProgress: typeof transport?.historyProgress, chain: Boolean(document.querySelector('#chain')), tabs: [...document.querySelectorAll('[data-tab]')].map(b => b.dataset.tab + ':' + b.getAttribute('aria-selected')).join(), chainText: (document.querySelector('#chain')?.textContent ?? '').slice(0, 160), chainHeight: document.querySelector('#chain')?.getBoundingClientRect().height, hasMarker: document.body.textContent.includes('${currentMarker}'), loading: document.body?.classList.contains('loading') })`).catch(() => null);
     t.diagnostic(JSON.stringify({ phonePageAtTimeout: page }));
     error.message += '; the page reached ' + JSON.stringify(page);
     throw error;
   }
-  const first = await chrome.evaluate(`({ ...__phoneTiming, phone: document.documentElement.dataset.relayDevice, progress: transport.historyProgress('${link.board}') })`);
+  const first = await chrome.stable(`({ ...__phoneTiming, phone: document.documentElement.dataset.relayDevice, progress: transport.historyProgress('${link.board}') })`);
   return { chrome, first: { ...first, loadBefore } };
 }
 

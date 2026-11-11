@@ -29,6 +29,12 @@ export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
     if (batch.state !== 'pushed' && !(batch.state === 'trunk' && (board.executionEngineVersion ?? ENGINE_VERSION) >= LOCAL_LANDING_ENGINE)) throw new Refused('LAND_NOT_PUSHED', 'record a successful push before landing receipts; run pullboard land --adopt');
     for (const entry of batch.items) {
       const item = itemById(board, entry.id);
+      if (batch.external) {
+        // A named landing of commits proven elsewhere: the receipt is a forced merge, whatever the item's status [C7,#5559].
+        if (item.item_merged_commit && item.item_merged_commit !== entry.merge) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} already has another landing receipt; read pullboard show ${entry.id}`);
+        if (!item.item_merged_commit) merged(board, entry.id, { agentId, commit: entry.merge, forced: 'landed by the coordinator through pullboard land --items' });
+        continue;
+      }
       if (item.item_commit !== entry.commit || item.item_status !== 'verified') {
         throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch was gated; rebuild its landing`);
       }

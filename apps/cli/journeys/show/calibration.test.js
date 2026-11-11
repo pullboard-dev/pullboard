@@ -17,10 +17,10 @@ test('an inferred one-file light item moves to mid after its matched seat releas
   const lightSeat = box.dir + '/light-seat';
   box.git(box.repo, 'worktree', 'add', '-q', lightSeat, '-b', 'web/light-seat');
   assert.match(fixtureJoin(box.run, lightSeat, 'web', '--route', 'light').out, /joined as web-/u);
-  const itemResult = fixtureAdd(box.run, box.repo, 'web', 'Small calibration item', '--criterion', 'Update the one-file helper', '--check', 'node --test apps/cli/journeys/show/calibration.test.js', '--specs', 'G1', '--json');
+  const itemResult = fixtureAdd(box.run, box.repo, 'web', 'Small calibration item', '--criterion', 'Update the one-file helper', '--check', 'node --test apps/cli/journeys/show/calibration.test.js', '--specs', 'G1', '--route', 'mid', '--json'); // a bare fixture add files strong (dbb187a273), so the mid start is named
   assert.equal(itemResult.code, 0, itemResult.out + itemResult.err);
   const id = JSON.parse(itemResult.out).item.item_id;
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_route, 'mid', 'undiagnosed work starts at mid');
+  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_route, 'mid', 'work added at mid stays mid until diagnosed');
   const diagnosis = box.run(box.repo, 'fact', String(id), 'diagnosis',
     'Files: web/calibration.js Change: update the one-file helper Test case: route calibration chooses the matched seat', '--json');
   assert.equal(diagnosis.code, 0, diagnosis.out + diagnosis.err);

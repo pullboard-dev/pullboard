@@ -149,6 +149,7 @@ test('verify accepts an identical owned main red and records its exact case [V4,
 test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
   const box = fixture(t, { main: 1, candidate: 2 });
   fileMainRed(box);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     const tree = runFixtureGit(['rev-parse', `${box.head}^{tree}`], { cwd: box.builder, env: box.env }).trim();

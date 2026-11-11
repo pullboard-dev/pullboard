@@ -32,6 +32,7 @@ const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCo
 function fixture(t, { item = true, now } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-report-cache-'));
   // The board sits where the native CLI keeps it, inside a repository with committed policy, so submit can seal it.
+  // @pullboard-board-file journey: the board sits where the native CLI keeps it so submit can seal it
   const board = openBoard(repositoryBoardFile(root), now ? { now } : undefined);
   store.register(board, { lane: 'coordinator', path: root });
   if (item) store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Known open history' });

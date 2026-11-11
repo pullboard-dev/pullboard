@@ -19,6 +19,7 @@ function fileBoard(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-lock-hold-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'board.sqlite');
+  // @pullboard-board-file locking: a second connection must not block on the first
   const board = openBoard(file);
   t.after(() => store.closeBoard(board));
   for (let n = 0; n < 40; n += 1) store.addItem(board, { by: 'coordinator', lane: 'core', title: `Load item ${n}` });
@@ -35,6 +36,7 @@ test('a board whose counters are current opens for writing while another process
   holder.exec('PRAGMA busy_timeout = 0; BEGIN IMMEDIATE');
   try {
     const started = performance.now();
+    // @pullboard-board-file locking: a second connection must not block on the first
     const other = openBoard(file);
     const elapsed = performance.now() - started;
     store.closeBoard(other);
@@ -79,11 +81,12 @@ test('a counter rebuild on open and a board import derive no capacity forecast u
   const { dir, file, board } = fileBoard(t);
   const snapshot = exportBoard(board);
   board.db.prepare('DELETE FROM board_meta WHERE meta_key IN (?, ?)').run('local:proof-stats:v2:summary', 'local:proof-stats:v2:capacity-snapshot');
+  // @pullboard-board-file persistence: reopening rebuilds the missing counters from the file
   const reopened = openBoard(file);
   t.after(() => store.closeBoard(reopened));
   assert.notEqual(derived(reopened, 'summary'), null, 'opening rebuilt the missing counters');
   assert.equal(derived(reopened, 'capacity-snapshot'), null, 'the rebuild on open left the forecast to background maintenance');
-  const replica = openBoard(join(dir, 'replica.sqlite'));
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, snapshot);
   assert.notEqual(derived(replica, 'summary'), null, 'the import rebuilt its counters');
