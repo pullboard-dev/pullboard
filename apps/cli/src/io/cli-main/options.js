@@ -179,10 +179,11 @@ const OPTIONS = {
 /** Resolve command-specific switches before parsing their ambiguous global string forms. */
 export function parseCommandArgs(argv) {
   let command;
+  // Runner's --remove is a switch where other commands give it a value, so the command is found under either form.
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
-    for (const take of [{ type: 'boolean' }, OPTIONS.take]) {
+    for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
