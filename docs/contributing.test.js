@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input CONTRIBUTING.md docs/contributing-runbook.md .github/pull_request_template.md .github/ISSUE_TEMPLATE/feature_request.md CLA.md SECURITY.md CODE_OF_CONDUCT.md */
 /** The approved contribution wording and the maintainers' complete safe intake path [I11]. */
 import assert from 'node:assert/strict';
