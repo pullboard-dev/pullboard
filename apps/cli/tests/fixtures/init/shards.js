@@ -183,6 +183,9 @@ process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, collectAllComplete:
   child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
   child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
   const closed = new Promise(resolveClose => child.once('close', (status, signal) => resolveClose({ status, signal })));
+  // DIAG-TEMP
+  const diag = spawn('/bin/sh', ['-c', `while sleep 10; do echo DIAG; ls ${box.markers} | tr '\\n' ' '; echo; ps -eo pid,ppid,pgid,etime,command | grep -E '${box.dir}|pullboard-landing' | grep -v grep | cut -c1-240; done`], { stdio: ['ignore', 2, 2] });
+  closed.then(() => diag.kill());
   // Deadline cancellation stays inside the helper, never outside a raced loan promise.
   const terminal = (async () => {
     let timer;
