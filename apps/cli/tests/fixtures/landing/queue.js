@@ -389,8 +389,9 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     } else if (killGuardian) {
       process.kill(holder.guardianPid, 'SIGKILL'); // This exact PID came from this private command's bound guardian.
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
+    let authorityEnds = 0;
     if (suspendParent) {
-      // A stopped holder cannot renew, so its lease runs out; age both of its deadlines instead of waiting out the real 120 s [C7].
+      // A stopped holder cannot renew, so its lease runs out; age both of its deadlines for the queue, so the adopter need not wait out the real 120 s [C7].
       readBoard(box, board => {
         const past = new Date(Date.now() - 1000).toISOString();
         const lease = store.landingLeaseState(board).holder;
@@ -398,6 +399,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
         assert.equal(marks.length, 2, 'the stopped holder has its shared lease and its local heartbeat');
         for (const { meta_key: key, meta_value: value } of marks) {
           const record = JSON.parse(value);
+          authorityEnds = Math.max(authorityEnds, Date.parse(key === 'landing_lease' ? record.holder.until : record.until));
           if (key === 'landing_lease') record.holder.until = past; else record.until = past;
           board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(record), key);
         }
@@ -417,6 +419,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
       assert.equal(successor.code, 0, successor.failure ?? 'the queued adopter lands only after the previous gate is dead');
       assert.equal(existsSync(release), false, 'no test release made the old gate look drained');
       assert.equal(readBoard(box, board => store.landingBatches(board).at(-1).state), 'landed');
+      // The stopped process still holds its real in-memory deadline: it learns its authority is gone only once that time passes.
+      await helpers.waitFor(() => Date.now() > authorityEnds + 2000, 'the stopped owner\'s own authority deadline passes', 130_000); // budget: ceiling of the real 120 s authority window the stopped process still holds; no speed target.
       first.kill('SIGCONT');
       assert.equal((await first.closed).code, 1, 'the resumed old holder cannot use its expired generation');
       assert.match(first.stderrText, /\[LAND_LEASE_LOST\]/u, 'the resumed owner reports its typed authority refusal');
