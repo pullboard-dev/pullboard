@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { git } from '../../../../packages/git/index.js';
 import { gitChildEnv } from '../../../../packages/git/index.js';
 import { mainCheckout } from '../../../../packages/git/index.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+import { Refused } from '../../../../packages/kernel/light.js';
 import { trunkRef } from '../../../../packages/sandbox/index.js';
 
 /**
