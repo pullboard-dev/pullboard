@@ -17,7 +17,7 @@ export function submittedClaimsFallback(claims, pending) {
 }
 
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
-import { boardBusyError } from '../../../../../packages/store/light.js';
+import { busyRefusal } from '../../../../../packages/store/light.js';
 import { openBoardReadOnly } from '../../../../../packages/store/light.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/light.js';
 import { readBoardSnapshot } from '../../../../../packages/store/light.js';
@@ -27,8 +27,8 @@ import { checkLoosening } from '../../../../../packages/doctrine/index.js';
 
 /** The thin hook entry reads its clock from here, so only this module names the store [H24]. */
 export { systemClock as hookClock };
-const hookRead = hookReader({ openBoardReadOnly, boardBusyError, readBoardSnapshot });
-const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
+const hookRead = hookReader({ openBoardReadOnly, boardBusyError: busyRefusal, readBoardSnapshot });
+const approvedRowPorts = { boardBusyError: busyRefusal, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../../../../packages/commits/index.js';
 import * as store from '../../../../../packages/store/light.js';
 import { pendingCommitSignoffProblem } from '../../../../../packages/commits/index.js';

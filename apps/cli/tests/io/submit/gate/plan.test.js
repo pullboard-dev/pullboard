@@ -53,6 +53,17 @@ test('a runner plan bound to the pinned commits is used with its admission, so t
   assert.deepEqual(acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/b.test.js'] }), { plan: analysis.plan, admission: analysis.admission });
 });
 
+test('clause 1: a plan that leaves out a call-adjacent file the frozen check already runs completely is accepted [C7,H24]', () => {
+  const check = 'node packages/gate/src/io/run/tests.js test/c.test.js';
+  assert.deepEqual(acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'], check }), { plan: analysis.plan, admission: analysis.admission });
+});
+
+test('clause 2: a plan that leaves out a call-adjacent file the check does not run completely is still refused [C7,H24]', () => {
+  const filtered = 'node packages/gate/src/io/run/tests.js test/c.test.js --test-name-pattern x';
+  assert.throws(() => acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'], check: filtered }), { code: 'RUNNER_RESULT_INVALID', message: /test\/c\.test\.js/u });
+  assert.throws(() => acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'], check: 'node tests.js test/d.test.js' }), { code: 'RUNNER_RESULT_INVALID' });
+});
+
 test('clause 1: submit passes the accepted runner plan and admission to runSubmitGate without invoking local planning [C7,H24]', () => {
   let received;
   const runSubmitGate = (root, config, options) => { received = { root, config, options }; return 'gate'; };
