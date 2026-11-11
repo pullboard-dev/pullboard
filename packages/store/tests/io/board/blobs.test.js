@@ -89,7 +89,6 @@ test('clause 2: the upgrade moves oversized payloads, keeps only the newest cell
   const collected = { sections: body('c', 100) };
   board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, 0, ?, 0)')
     .run('gate-drive:x', 'collected', JSON.stringify(collected));
-  board.db.prepare("DELETE FROM board_meta WHERE meta_key = 'job_blobs:1'").run();
   const file = project.boardFile;
   board.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   const before = statSync(file).size;
@@ -109,6 +108,7 @@ test('clause 2: the upgrade moves oversized payloads, keeps only the newest cell
   assert.equal(compactBoard(board.db, { minFreeBytes: 1 }).compacted, true);
   assert.ok(statSync(file).size < before / 2, `${statSync(file).size} bytes after, ${before} before`);
   assert.deepEqual(migrateJobBlobs(board.db), { moved: 0, pruned: 0, bytes: 0 }, 'a second run finds nothing to do');
+  assert.ok(board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key = 'job_blobs:1'").get(), 'the move leaves its mark');
 });
 
 test('clause 2: a pruned inventory is produced again and the new result replaces the stub [C7]', async (t) => {
@@ -121,6 +121,12 @@ test('clause 2: a pruned inventory is produced again and the new result replaces
   assert.equal(produced.state, 'produced');
   assert.deepEqual(produced.result, { fresh: true });
   assert.deepEqual(storedResult(jobView(db, 'cells-inventory:old')).result, { fresh: true });
+});
+
+test('clause 2: a board with nothing to move takes no mark, so it stays importable [C7]', (t) => {
+  const { db } = boardOf(t);
+  assert.deepEqual(migrateJobBlobs(db), { moved: 0, pruned: 0, bytes: 0 });
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key = 'job_blobs:1'").get().n, 0);
 });
 
 test('clause 2: compaction waits for room and for the write lock, and changes nothing otherwise [C7]', (t) => {

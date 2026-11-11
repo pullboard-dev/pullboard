@@ -23,7 +23,12 @@ const COMPACT_MIN_FREE_BYTES = 64 * 1024 * 1024;
  */
 export function jobBlobsPending(db) {
   if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return false;
-  return !db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get(BLOBS_MIGRATED_KEY) || freeBytes(db) >= COMPACT_MIN_FREE_BYTES;
+  return freeBytes(db) >= COMPACT_MIN_FREE_BYTES || (!migrated(db) && Boolean(db.prepare('SELECT 1 FROM job_step WHERE length(job_step_payload) > ? LIMIT 1').get(BLOB_THRESHOLD_BYTES)));
+}
+
+/** True when the move already ran on this board. */
+function migrated(db) {
+  return Boolean(db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get(BLOBS_MIGRATED_KEY));
 }
 
 /** Bytes in the file's free pages. */
@@ -45,7 +50,7 @@ function freeBytes(db) {
 export function migrateJobBlobs(db) {
   const report = { moved: 0, pruned: 0, bytes: 0 };
   const dir = blobDirOf(db);
-  if (!dir || db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get(BLOBS_MIGRATED_KEY)) return report;
+  if (!dir || migrated(db)) return report;
   const newest = db.prepare(`SELECT MAX(s.job_step_id) AS id FROM job_step s JOIN job j ON j.job_id = s.job_step_job
     WHERE j.job_kind = ? AND s.job_step_name = ?`).get(INVENTORY_KIND, RESULT_STEP).id;
   const inventory = db.prepare(`SELECT 1 FROM job_step s JOIN job j ON j.job_id = s.job_step_job
@@ -65,7 +70,8 @@ export function migrateJobBlobs(db) {
       if (old) report.pruned += 1; else report.moved += 1;
     }
   }
-  db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(BLOBS_MIGRATED_KEY, JSON.stringify({ ...report, at: new Date().toISOString() }));
+  // A board with nothing to move takes no mark: a fresh board must stay importable into (it needs an empty board_meta).
+  if (report.moved || report.pruned) db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(BLOBS_MIGRATED_KEY, JSON.stringify({ ...report, at: new Date().toISOString() }));
   return report;
 }
 
