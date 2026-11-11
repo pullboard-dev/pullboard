@@ -6,5 +6,5 @@ import {
   test,
 } from '../../../../tests/fixtures/scenarios/team.js';
 
-test('clause 1: a suspended landing owner is fenced before the queued adopter runs [Q1,Q3]', { timeout: 170_000 }, // budget: queue authority aged for the adopter, then the stopped owner's own deadline before its fencing on resume; no speed target.
+test('clause 1: a suspended landing owner is fenced before the queued adopter runs [Q1,Q3]', { timeout: 150_000 }, // budget: the stopped owner's aged authority, its fencing on resume and adoption; no speed target.
   async t => landingQueueCase(t, helpers, { suspendParent: true }));
