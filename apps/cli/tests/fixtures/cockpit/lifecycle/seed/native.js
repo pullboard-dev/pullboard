@@ -175,7 +175,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       box.git(demo.repo, 'config', `url.file://${outside.origin}.insteadOf`, 'https://github.com/fixture/project.git');
       try {
         const filed = fixtureJSON(outside, demo.repo, 'intake', outside.pull.html_url, '--lane', 'web',
-          '--criterion', 'The contributed module parses.', '--check', 'node --check apps/relay/src/io/deploy/outside.js');
+          '--route', 'strong', '--criterion', 'The contributed module parses.', '--check', 'node --check apps/relay/src/io/deploy/outside.js');
         const id = filed.item.item_id;
         assert.equal(filed.item.item_commit, outside.commit);
         assert.equal(filed.item.item_tree, outside.tree);
