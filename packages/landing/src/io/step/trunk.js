@@ -46,6 +46,10 @@ import { namedFailures } from './diagnose.js';
 import { returnRefusedItem } from './diagnose.js';
 import { landingFault } from './diagnose.js';
 import { landingSpan } from '../../../../resources/index.js';
+import { requireLandingModuleResolution } from '../guards.js';
+import { SCAN_UNAVAILABLE } from '../scan.js';
+import { scanRidesRunner } from '../scan.js';
+import { externalGuards } from './external.js';
 
 /** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
 function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
@@ -63,7 +67,10 @@ export function landingProof(gate, waived) {
  * A green submit gate that already ran exactly this merged tree, for the batch's one item at its frozen bar, or null
  * [C7,#2902]. Why: when main has not moved since the item's gate, landing re-ran the same tests on the same bytes.
  */
-export function provenTreeGate(board, items, tree) {
+export function provenTreeGate(board, items, tree, { external = false } = {}) {
+  // A coordinator's named landing names commits it proved elsewhere: every item of the batch rides on that proof, and
+  // only the static checks and the CLI smoke run on the merged tree, on the runners [C7,#5559].
+  if (external && tree) return { isGreen: true, tree, failures: [], logPath: null, externalProof: items.map(entry => entry.id) };
   if (items.length !== 1 || !tree) return null;
   const item = store.getItem(board, items[0].id);
   const job = submitHandoff(board, items[0].id);
@@ -87,6 +94,20 @@ export function landingSmoke(services) {
   return services.runLandingCliSmoke ?? smokeCandidate;
 }
 
+/** The static command with the landing scan chained on, so both run as one runner job; null when there is no static command. */
+function withLandingScan(state) {
+  const command = state.config.staticChecks.trim();
+  const scan = `node packages/landing/src/io/scan.js --base ${state.batch.base} --tip ${headCommit(state.batch.root)}`;
+  return { config: { ...state.config, staticChecks: `${command} && ${scan}` } };
+}
+
+/** When the runner's checkout could not carry the scan, run it here once; a runner's own scan answered otherwise. */
+async function finishLandingScan(state, ran) {
+  if (!ran || ran.reused || !String(ran.output ?? '').includes(SCAN_UNAVAILABLE)) return;
+  await requireLandingModuleResolution(state.batch.root, state.batch.base, headCommit(state.batch.root));
+  state.say?.('the runner could not scan this batch; module resolution ran on the coordinator');
+}
+
 /**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
@@ -96,12 +117,18 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   const runChecks = services.runStaticChecks ?? runStaticChecks;
   const smoke = landingSmoke(services);
   const runGate = services.gateGroup ?? gateGroup;
-  const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root));
+  const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root), { external: state.batch.external === true });
   if (proven) {
-    await landingSpan('static', () => runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
+    // A named batch's module-resolution parse and plan check ride in the same runner job as the static checks, so the coordinator scans nothing [C7,#5559].
+    const scanned = proven.externalProof && scanRidesRunner(state) ? withLandingScan(state) : null;
+    const config = scanned?.config ?? state.config;
+    const ran = await landingSpan('static', () => runChecks(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
+    if (scanned) await finishLandingScan(state, ran);
     await smoke(state.batch.root, { record: true });
-    state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
+    state.say?.(proven.externalProof
+      ? `${proven.externalProof.map(id => `#${id}`).join(', ')}: proven elsewhere by the coordinator; the static checks and smoke ran on the runners, no tests rerun`
+      : `#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
     return proven;
   }
   // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
@@ -259,7 +286,9 @@ export async function landOnTrunk(state) {
   await save(state, { state: 'gating', tip: headCommit(state.batch.root) });
   let gate;
   try {
-    gate = await quickGuards(state);
+    gate = state.batch.external ? await externalGuards(state, quickGuards) : await quickGuards(state);
+    if (!gate) { await save(state, { state: 'blocked', culprits: state.culprits }); return; }
+    if (gate.interaction) throw new Refused('LAND_INTERACTION', 'the individually green items fail the static checks together; nothing lands; inspect the batch’s static rows');
     if (!accepted(state, gate) && singleItemLanding(state)) {
       // One item's red sends that item alone back to open with the evidence; no bisection, no trunk hold [C7,#2901].
       // A complete gate had its known-main account: what remains red is the one item's, in any file [C7].
@@ -303,7 +332,7 @@ export async function landOnTrunk(state) {
   for (const entry of state.batch.items) {
     const item = store.getItem(state.board, entry.id);
     requireOutsideOwner(state.board, item);
-    if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
+    if (!state.batch.external && (item.item_status !== 'verified' || item.item_commit !== entry.commit)) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   gate = await landingSpan('follow trunk', () => followMovedTrunk(state, gate));
   if (!gate) return; // The rebuilt tree was red and its one item went back to its builder.
