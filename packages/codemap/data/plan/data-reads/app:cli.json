@@ -10,28 +10,28 @@
     },
     {
       "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 182,
+      "line": 172,
       "expression": "resolve(box.root, log)",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 424,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 106,
       "expression": "stamp",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 587,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 269,
       "expression": "mandatory.marker",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection.test.js",
-      "line": 634,
+      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "line": 316,
       "expression": "named.marker",
       "kind": "marker",
       "why": "Reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
