@@ -17,7 +17,7 @@ import {
   resourceAgent,
   withBoardRead,
 } from '../entry.js';
-import { readStdin } from '../support.js';
+import { readStdin } from '../hook/stdin.js';
 import {
   headCommit,
   headTree,
