@@ -21,7 +21,7 @@ async function stalledCommand(chrome, pending) {
   await assert.rejects(
     chrome.stable('new Promise(() => {})'),
     error => {
-      assert.match(error.message, /Runtime\.evaluate/);
+      assert.match(error.message, /Runtime[.]evaluate/);
       const elapsed = /timed out after (\d+)ms/u.exec(error.message);
       assert.ok(elapsed, 'the diagnostic reports the measured elapsed time');
       assert.ok(Number(elapsed[1]) >= 15000, 'the command does not time out before its configured deadline'); // budget: declared CDP commandTimeoutMs is 15000 in both fixtures; the timeout may not precede that deadline.
