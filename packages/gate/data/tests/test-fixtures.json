@@ -1671,6 +1671,9 @@
   "packages/commits/tests/io/revert.test.js": {
     "tempdir": 1
   },
+  "packages/api/tests/io/state/materializer/stamp.test.js": {
+    "tempdir": 1
+  },
   "apps/cli/journeys/init/refresh.test.js": {
     "tempdir": 3,
     "repo-read": 1
