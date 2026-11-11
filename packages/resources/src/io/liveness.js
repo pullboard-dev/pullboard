@@ -1,8 +1,11 @@
 /** A gate holder whose process is gone or replaced is freed and its captured request re-run once; the OS decides [C7]. */
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
 
 /** Set in the environment of a re-dispatched request so its own holder is never requeued a second time. */
@@ -30,9 +33,9 @@ function recordLiveness(db, kind, row, detail = '') {
  * @param {{ token: string, name: string, pid: number, item: string, request: string, relaunched: number }} row - The holder row to free.
  * @param {Array<object>} relaunches - Collects the requests to re-dispatch after the transaction commits.
  */
-function freeHolder(db, row, relaunches) {
+function freeHolder(db, row, relaunches, why = 'process gone, or its PID now names another process') {
   db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
-  recordLiveness(db, 'freed', row, 'process gone, or its PID now names another process');
+  recordLiveness(db, 'freed', row, why);
   if (!row.request) {
     recordLiveness(db, 'reopen', row, 'no captured request; the item reopens to its holder through next');
     return;
@@ -61,8 +64,10 @@ function freeHolder(db, row, relaunches) {
  */
 export function reclaimHolders(db, now, probes) {
   const relaunches = [];
-  for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched FROM holder').all()) {
+  for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder').all()) {
     if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
+    // A source-cache pin never expires, so a live orphan whose job directory is gone is freed here (#5593).
+    if (sourceCacheJobGone(row)) { freeHolder(db, row, relaunches, 'source-cache pin whose owning job directory is gone'); continue; }
     // An unreadable identity, or one read from a different source than the recorded start, is unknown, not proof of
     // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
     const gone = identity => identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started));
@@ -72,6 +77,20 @@ export function reclaimHolders(db, now, probes) {
     }
   }
   return relaunches;
+}
+
+/**
+ * Whether a source-cache holder belongs to a runner job whose directory under <runner root>/jobs no longer exists.
+ * The worker names its pins pullboard-ssh-(pin|cache|return)-<job id> and creates <job id>-* before taking any of them.
+ *
+ * @param {{ kind: string, agent: string, repo: string }} row - A holder row.
+ * @returns {boolean} True only on definite evidence; any unreadable state keeps the holder.
+ */
+export function sourceCacheJobGone({ kind, agent, repo }) {
+  const id = kind === 'source-cache' ? /^pullboard-ssh-(?:pin|cache|return)-(.+)$/u.exec(agent)?.[1] : null;
+  if (!id || !isAbsolute(repo) || !existsSync(join(repo, 'jobs'))) return false;
+  try { return !readdirSync(join(repo, 'jobs')).some(name => name.startsWith(`${id}-`)); }
+  catch { return false; }
 }
 
 /**

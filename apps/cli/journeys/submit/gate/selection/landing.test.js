@@ -44,9 +44,9 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
         `appendFileSync(process.env.FULL_SUITE_MARKER, '${name}\\n');`,
       ].join('\n') + '\n');
     }
-    put(box.root, 'packages/gate/src/io/run/tests.js', 'export const version = 1;\n');
+    put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
     commitAll(box, 'chore(core): prepare landing-gate fixture');
-    box = builderRepo(box, ['packages/gate/src/io/run/tests.js']);
+    box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
     const check = `node -e "require('node:fs').appendFileSync(process.env.ITEM_CHECK_MARKER, 'check\\n')"`;
     assert.equal(box.coordinator('add', 'build', 'Landing gate fixture', '--check', check).code, 0);
     assert.equal(box.run('claim', '1').code, 0);
@@ -63,7 +63,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   runFixtureGit(['add', 'pullboard.json'], { cwd: mainRoot, env: optedIn.box.env });
   runFixtureGit(['commit', '-q', '-m', 'feat(config): defer full suite to landing [G1]'], { cwd: mainRoot, env: optedIn.box.env });
   optedIn.box.git('merge', '--no-edit', 'main');
-  put(optedIn.box.root, 'packages/gate/src/io/run/tests.js', 'export const version = 2;\n');
+  put(optedIn.box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
   commitAll(optedIn.box, 'feat(core): change global source [G1]');
 
   const deferred = optedIn.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
@@ -91,7 +91,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   const candidateConfig = JSON.parse(readFileSync(join(candidateOnly.box.root, 'pullboard.json'), 'utf8'));
   candidateConfig.submitGate = 'landing';
   put(candidateOnly.box.root, 'pullboard.json', JSON.stringify(candidateConfig));
-  put(candidateOnly.box.root, 'packages/gate/src/io/run/tests.js', 'export const version = 2;\n');
+  put(candidateOnly.box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
   commitAll(candidateOnly.box, 'feat(core): try candidate-only deferral [G1]');
   const ordinary = candidateOnly.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.equal(ordinary.code, 0, ordinary.err);

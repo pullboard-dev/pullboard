@@ -40,7 +40,7 @@ function cpuLoadShell(e2e, commonjs, stage) {
   if (kinds.has(commonjs)) return kinds.get(commonjs);
   stage('project-start');
   const probeFile = `cpu-probe.test.${commonjs ? 'cjs' : 'js'}`;
-  const box = e2e.project(`node packages/gate/src/io/run/tests.js test/${probeFile}`, undefined, { withWorktree: false });
+  const box = e2e.project(`node apps/cli/src/io/run/tests.js test/${probeFile}`, undefined, { withWorktree: false });
   stage('project-ready');
   const bin = join(box.dir, 'ssh-bin');
   const remoteHome = join(box.dir, 'runner-home');

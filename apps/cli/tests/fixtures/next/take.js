@@ -71,7 +71,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   /** Run only real, isolated Git with the private hook executable. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), verify: { policy, family },
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), verify: { policy, family }, review: { independence: 'session' },
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }));
   writeFileSync(join(root, 'SPEC.md'), `# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: ${mainRed ? 'test/main-red.test.js' : 'true'}\n${mainRed ? '- G2 [approved, must] Other work keeps its evidence. | gate: true\n' : ''}`);
   if (mainRed) {
@@ -114,8 +114,9 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
       brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options,
       route: wanted === 'light' ? 'mid' : wanted });
     if (wanted === 'light') {
+      // The diagnosis names the item's own files, so a disjoint brief stays disjoint from other claims' diagnoses.
       store.appendFact(board, id, { agentId: seats.builder.id, kind: 'diagnosis',
-        text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.' });
+        text: `${options.brief?.match(/^Files:.*$/mu)?.[0] ?? 'Files: web/dispatch.js'}\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.` });
       if (store.getItem(board, id).item_route !== 'light') store.editItem(board, id, { agentId: 'coordinator', route: 'light', reason: 'Private light dispatch fixture' });
     }
     return id;

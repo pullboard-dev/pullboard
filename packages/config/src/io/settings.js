@@ -125,6 +125,14 @@ export function browserByLaunchEnabled() {
 }
 
 /**
+ * Whether a red gate is compared with main: `on-red` (default) or `off` [C7,#5565]. Anything but an exact `off` compares,
+ * so a damaged value keeps the safe behaviour; `off` makes a red gate plain red.
+ */
+export function mainComparisonMode() {
+  return loadMachineSettings().gate?.mainComparison === 'off' ? 'off' : 'on-red';
+}
+
+/**
  * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
  * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
  */

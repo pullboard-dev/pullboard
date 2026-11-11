@@ -16,8 +16,9 @@ import {
   runFixtureGit,
 } from './child.js';
 
-/** The model name fixture seats join with when a test passes `--model` itself. */
-export const FIXTURE_MODEL = 'Fixture Model';
+export { FIXTURE_MODEL } from './child.js';
+/** The model name fixture seats join with when a test passes `--model` itself: see FIXTURE_MODEL in child.js. */
+import { FIXTURE_MODEL } from './child.js';
 /** A second model name, so a later seat must register against the earlier one. */
 export const FIXTURE_MODEL_EARLIER = 'Earlier Fixture Model';
 
@@ -262,7 +263,7 @@ export function fixtureJoinRoute(args, defaultModel) {
   if (args[0] !== 'join' || args.some(arg => arg === '--route' || arg.startsWith('--route='))) return args;
   const flag = args.findIndex(arg => arg === '--model' || arg.startsWith('--model='));
   const model = flag < 0 ? defaultModel : args[flag].startsWith('--model=') ? args[flag].slice(8) : args[flag + 1];
-  if (!/^claude-haiku-/u.test(String(model ?? '')) && model !== 'gpt-6-luna') args.push('--route', 'strong');
+  if (!/haiku/iu.test(String(model ?? '')) && model !== 'gpt-6-luna') args.push('--route', 'strong');
   return args;
 }
 

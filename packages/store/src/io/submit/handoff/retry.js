@@ -83,7 +83,9 @@ export function handoffServes(board, itemId, handoffId) {
  * submitted the item at the head that hand-off submitted and only the stored result remains.
  * Why: the gate's own submit move marks the item submitted while the hand-off still reads running, until
  * completeSubmitHandoff stores the result, so a driver that asked only handoffServes would end its finished gate
- * stale and never record it. Only a driver already running its gate asks this; admitting or resuming a driver still
+ * stale and never record it. The same holds for a gate that went green on paths another lane owns: its submit move
+ * releases the claim into an ownership wait for this source, so that wait also keeps the driver recording (#5524).
+ * Only a driver already running its gate asks this; admitting or resuming a driver still
  * needs handoffServes, since startSubmitHandoff refuses a running hand-off whose item is no longer claimed (#4073).
  *
  * @param {any} board - An open board.
@@ -96,8 +98,11 @@ export function handoffGateCurrent(board, itemId, handoffId) {
   const handoff = submitHandoff(board, itemId);
   if (!handoff || handoff.id !== handoffId || !['queued', 'running'].includes(handoff.state) || !handoff.commit) return false;
   const item = board.db.prepare('SELECT item_status, item_built_by, item_frozen_digest, item_commit FROM item WHERE item_id = ?').get(itemId);
-  return item?.item_status === 'submitted' && item.item_built_by === handoff.agentId
-    && item.item_frozen_digest === handoff.digest && item.item_commit === handoff.commit;
+  if (item?.item_status === 'submitted' && item.item_built_by === handoff.agentId
+    && item.item_frozen_digest === handoff.digest && item.item_commit === handoff.commit) return true;
+  // A gate that went green on foreign paths released the claim into an owner wait for this very source; only its result remains.
+  const wait = ownershipWaitForJob(board, handoffId);
+  return Boolean(wait && wait.agentId === handoff.agentId && wait.commit === handoff.commit && wait.digest === handoff.digest);
 }
 
 /**
