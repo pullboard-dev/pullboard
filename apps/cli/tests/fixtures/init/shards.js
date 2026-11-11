@@ -89,13 +89,17 @@ child.once('close', (code, signal) => { process.exitCode = signal ? 128 : (code 
 /** A fixture test file: it marks where it ran and behaves as the current mode file says. */
 export function fixtureTestFile(name, { markers, mode }) {
   return `import { test } from 'node:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 const name = ${JSON.stringify(name)};
 const host = process.cwd().includes('worker-home') ? 'runner' : 'local';
 const mode = existsSync(${JSON.stringify(mode)}) ? readFileSync(${JSON.stringify(mode)}, 'utf8').trim() : 'green';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('fixture file ' + name, async () => {
   writeFileSync(${JSON.stringify(markers)} + '/' + name + '.' + host + '.started', '');
+  // The dropped runner must receive a shard before the local slots can take them all: hold local files until it started one.
+  if (mode === 'drop' && host === 'local') {
+    for (let waited = 0; waited < 60_000 && !readdirSync(${JSON.stringify(markers)}).some(file => file.endsWith('.runner.started')); waited += 100) await sleep(100);
+  }
   if (mode === 'collect-all' && (name === 'a' || name === 'b')) throw new Error('collect-all deliberate failure ' + name);
   if (mode === 'collect-all') {
     if (process.env.PULLBOARD_LANDING_COLLECT_ALL !== undefined || process.env.PULLBOARD_LANDING_COLLECTION_ID !== undefined) throw new Error('collect-all marker leaked into test child');
