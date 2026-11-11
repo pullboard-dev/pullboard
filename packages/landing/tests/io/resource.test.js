@@ -140,6 +140,8 @@ test('clause 1 (#5770): a lander whose event loop missed its renewals keeps the 
   let starvedLost;
   const lostOnce = new Promise(resolve => { starvedLost = resolve; });
   const unguarded = await lease(starved.board, error => starvedLost(error.code));
+  // The lease's watchdog timers are unref'd, as in the lander; this keeps the test process alive while they run.
+  const alive = setInterval(() => {}, 1000);
   try {
     const until = renewGuardedHeartbeat(renewed.file, guarded.fence.token);
     assert.ok(until, 'the guardian renewed the first lease');
@@ -148,6 +150,7 @@ test('clause 1 (#5770): a lander whose event loop missed its renewals keeps the 
     assert.equal(await lostOnce, 'LAND_LEASE_LOST', 'an unrenewed lease past its deadline is lost through onLost');
     assert.deepEqual(kept, [], 'the renewed lease was kept');
   } finally {
+    clearInterval(alive);
     await guarded.release();
     await unguarded.release().catch(() => {});
   }
