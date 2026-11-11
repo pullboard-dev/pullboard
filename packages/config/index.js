@@ -71,6 +71,8 @@ export {
   specTemplate,
   practiceTemplate,
   renderAgentsBlock,
+  renderCoordinatorGuide,
+  COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
   plainGateWords,
   claudeLoopRules,

@@ -242,9 +242,7 @@ test('a fresh init tells the person and the agent how to start [I9,I1]', t => {
   assert.match(initialized.stdout, /To commit Pullboard's files: pullboard init --yes/u, 'init gives one setup-only confirmation command');
 
   const agents = readFileSync(join(box.root, 'AGENTS.md'), 'utf8');
-  const section = agents.slice(agents.indexOf('## A new board'), agents.indexOf('## Working here: pullboard'));
-  assert.equal(section, '## A new board\n\nOn a board that is not set up, run `pullboard resume` first. The coordinator walks the person through its setup steps; every other seat sends the setup decisions to the coordinator as described in Talk.\n\n', 'AGENTS.md routes new-board setup decisions through the coordinator');
-  assert.doesNotMatch(section, /\b(?:spec|lanes|gates)\b/iu, 'the first setup guidance uses plain words');
+  assert.match(agents, /^## Pullboard$/mu, 'AGENTS.md carries the approved Pullboard section');
 });
 
 test('init summarizes setup before one final next step [I1,I2,B26]', t => {

@@ -1,4 +1,5 @@
 /**
+ * @pullboard-world-pin reads this repo's own AGENTS.md and README.md to prove init writes the approved text byte for byte.
  * End to end on real repos: init, the coordinator's resume and spec check (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2). The board, lane and gate-slot journeys live in e2e-board and e2e-gate-slot so each file stays under two minutes.
  */
 import assert from 'node:assert/strict';
@@ -17,6 +18,7 @@ import { parseSpec } from '../../../../packages/spec/index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -48,6 +50,11 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.ok(agents.startsWith('# Mine\n\nkeep me\n'));
   assert.equal(agents.split('<!-- pullboard:start -->').length, 2);
   assert.equal(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
+  // The block is the approved text in this repo's own AGENTS.md, byte for byte [P1].
+  const approved = readFileSync(new URL('../../../../AGENTS.md', import.meta.url), 'utf8');
+  const between = (text) => text.slice(text.indexOf('<!-- pullboard:start -->'), text.indexOf('<!-- pullboard:end -->'));
+  assert.equal(between(agents), between(approved), 'a fresh setup writes the approved pullboard block');
+  assert.ok(readFileSync(join(repo, 'COORDINATOR.md'), 'utf8').includes('Coordinator'), 'a fresh setup writes the coordinator guide');
   assert.equal(box.git(repo, 'config', '--get', 'core.hooksPath'), '.githooks');
   for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(existsSync(join(repo, '.githooks', hook)));
   const doctrine = readFileSync(join(repo, 'DOCTRINE.md'), 'utf8');
@@ -116,6 +123,9 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.git(repo, 'config', 'user.email', 'agent@example.com');
   const initialized = fresh.run(repo, 'init', '--verbose', '--yes');
   assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
+  const joined = joinFixtureSeat(fresh, repo, 'coordinator');
+  assert.equal(joined.code, 0, joined.out);
+  assert.match(joined.out, /read COORDINATOR\.md before you route anything/, 'join coordinator tells the coordinator to read the guide');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal(next(fresh, repo), firstSetup.command);

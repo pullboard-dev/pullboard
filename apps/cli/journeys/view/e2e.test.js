@@ -509,10 +509,6 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   assert.equal(readFileSync(join(repo, 'PRACTICE.md'), 'utf8'), legacy);
   assert.equal(readFileSync(join(repo, 'ways.md'), 'utf8'), ways);
   let agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
-  assert.match(agents, /PB1 \(standard 1\)/);
-  assert.match(agents, /PB2 \(repo\) \[fact\] Delete only after team review/);
-  assert.match(agents, /PB8 \(repo\) \[wont\] This fixture stores only generated data/);
-  assert.doesNotMatch(agents, /PB2 \(standard 1\)/);
   const shown = box.run(repo, 'spec', '--json');
   assert.equal(shown.code, 0, shown.out);
   const document = JSON.parse(shown.out);
@@ -529,11 +525,10 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   writeFileSync(join(repo, 'ways.md'), updatedWays);
   const refreshed = box.run(repo, 'init', '--verbose');
   assert.equal(refreshed.code, 0, refreshed.err);
-  assert.match(refreshed.out, /updated the pullboard section/);
+  assert.match(refreshed.out, /kept AGENTS.md/, 'the approved block does not depend on the doctrine, so a doctrine edit leaves it as it was');
   agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
   assert.ok(agents.startsWith('# Owner guidance\n\nKeep this prefix.\n'));
   assert.ok(agents.endsWith('\nKeep this footer.\n'));
-  assert.match(agents, /PB2 \(repo\).*Delete only after pair review/);
   assert.equal(agents.split('<!-- pullboard:start -->').length, 2);
   assert.equal(box.run(repo, 'init').code, 0);
   assert.equal(readFileSync(join(repo, 'AGENTS.md'), 'utf8'), agents, 'managed guidance refresh is idempotent');
