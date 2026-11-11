@@ -482,6 +482,8 @@ function stageFlowBoard(box, alpha) {
   for (const id of [2, 3, 4, 5]) at(100, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item ' + id, specIds: ['G1'], criterion: 'Known flow' }));
   claim(3, 110); claim(4, 110); claim(5, 110);
   submit(4, 115); submit(5, 115); review(5, 117, 119);
+  // One recent shout gives the Shouts feed a run of rows to name Today, which the unchanged-refresh criterion renames at midnight.
+  at(119, board => store.shout(board, { from: 'web-1', to: 'all', text: 'Flow fixture is live.', lanes: ['web'] }));
   for (const n of [2, 3]) box.run(join(box.dir, 'flow-builder-' + n), 'heartbeat');
 }
 
