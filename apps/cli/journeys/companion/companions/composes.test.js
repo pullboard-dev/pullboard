@@ -61,6 +61,7 @@ function fixture({ fixer = false, companion = true } = {}) {
     'web/real.js': 'export const value = 1;\n',
     'web/shim.js': "export * from './real.js';\n",
     'web/tests/real.js': 'export const unread = 1;\n',
+    'web/data/tests/guard.json': '{}\n',
     'api/journeys/unread.js': 'export const unread = 1;\n',
     'api/serve.js': SHIM_IMPORT,
     'apps/cli/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
@@ -69,7 +70,8 @@ function fixture({ fixer = false, companion = true } = {}) {
       + "if (process.env.PB_PROBE) (await import('node:fs')).writeFileSync(process.env.PB_PROBE, JSON.stringify({ dir: import.meta.dirname,"
         + " real: (await import('node:fs')).existsSync(new URL('../../web/real.js', import.meta.url)),"
         + " unread: (await import('node:fs')).existsSync(new URL('../../web/tests/real.js', import.meta.url))"
-        + " || (await import('node:fs')).existsSync(new URL('../../api/journeys/unread.js', import.meta.url)) }));\n"
+        + " || (await import('node:fs')).existsSync(new URL('../../api/journeys/unread.js', import.meta.url)),"
+        + " data: (await import('node:fs')).existsSync(new URL('../../web/data/tests/guard.json', import.meta.url)) }));\n"
       + "await import('../../api/serve.js');\n"
       + (fixer ? "if (process.env.PULLBOARD_HOOK_COMPOSED === '1') (await import('node:fs')).writeFileSync(process.env.PB_CHECKED_OUT, "
         + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
@@ -250,4 +252,5 @@ test('with a companion patch the composed tree holds the code and leaves tests a
   assert.match(seen.dir, /pullboard-hook-/u, 'the entry ran from the composed copy');
   assert.equal(seen.real, true, 'the code the check loads is written');
   assert.equal(seen.unread, false, 'tests are not written');
+  assert.equal(seen.data, true, 'a data folder named tests is written: the CLI reads its files when it loads');
 });
