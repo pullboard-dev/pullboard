@@ -107,9 +107,10 @@ function itemLeaseFixture(t, helpers) {
     const gate = helpers.holdingGate({ dir: folder });
     // Baseline measurement is setup, not the queued CLI under test. Measure it directly to avoid
     // four additional CLI/worker startups while preserving a real completed baseline for each item.
-    const baseline = checkBaseline(box.repo, gate.command, { main: box.git(box.repo, 'rev-parse', 'main') });
+    const named = `${gate.command} lease-input.txt`; // the gate ignores the extra word; naming a repo file lets a later landing defeat proof reuse
+    const baseline = checkBaseline(box.repo, named, { main: box.git(box.repo, 'rev-parse', 'main') });
     const id = store.addItem(box.board, { by: 'coordinator', lane: 'web', title: `Queued lease ${number}`,
-      specIds: ['G1'], criterion: 'The queued command retains only its own live item lease.', check: gate.command, checkBaseline: baseline });
+      specIds: ['G1'], criterion: 'The queued command retains only its own live item lease.', check: named, checkBaseline: baseline });
     assert.notEqual(store.getItem(box.board, id).item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
     box.ids.push(id); box.gates.push(gate);
     if (number < 4) {
@@ -126,6 +127,10 @@ function itemLeaseFixture(t, helpers) {
       }
     }
   }
+  // A landing between submit and review touches a file the check names, so the sealed submit proof is not reused and a real check queues.
+  writeFileSync(join(box.repo, 'lease-input.txt'), 'an earlier landing\n');
+  box.git(box.repo, 'add', 'lease-input.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   box.reviewers = [];
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   for (const number of [1, 2]) {
