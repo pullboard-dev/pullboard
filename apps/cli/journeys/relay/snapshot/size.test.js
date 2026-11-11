@@ -298,7 +298,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     }
     return { projectionHash: await digest(document.state), tablesHash: await digest(native.tables),
       observedAt: native.presentation.state.observedAt, displayedObservedAt: document.state.observedAt };
-  })()`, 'hash browser projection and native snapshot');
+  })()`);
   const { observedAt, displayedObservedAt, ...browserHashes } = browserRead;
   assert.equal(displayedObservedAt, observedAt, 'the browser retains the authenticated checkpoint observation');
   const clock = Date.parse(observedAt);

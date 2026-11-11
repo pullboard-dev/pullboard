@@ -161,7 +161,7 @@ async function installRequestTransport(chrome, timing = null) {
   timing?.begin('page transport readiness', relayWorkBudgetMs());
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
   assert.equal(await chrome.stable(`(() => { window.__personRequestTransport = transport;
-    return window.__personRequestTransport === transport; })()`, 'use real person request transport'), true,
+    return window.__personRequestTransport === transport; })()`), true,
     'fixture commands use the page-owned transport and its single stream queue');
   timing?.finish();
 }

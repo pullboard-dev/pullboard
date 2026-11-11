@@ -83,8 +83,7 @@ async function keepTerminalConfirmation(t, decision) {
     const lateResponse = JSON.parse(lateStatus.response.toString('utf8'));
     assert.equal(lateResponse.error?.code, 'OAUTH_EXPIRED', 'the in-flight request reaches the real handler after CLI flow consumption');
     const statusRequestsAfterLateResponse = confirmationStatusRequestCount(box);
-    await chrome.stable(`new Promise(resolve => setTimeout(resolve, ${CONFIRMATION_POLL_INTERVAL_MS * 2}))`,
-      'wait through one full confirmation polling cadence after CLI flow consumption');
+    await chrome.stable(`new Promise(resolve => setTimeout(resolve, ${CONFIRMATION_POLL_INTERVAL_MS * 2}))`);
     assert.equal(await chrome.stable('document.querySelector("#status").textContent'), terminalText,
       'a late expired-flow status response and later polling cadence preserve the terminal message');
     assert.equal(await chrome.stable('document.querySelector("#confirm").hidden && document.querySelector("#decline").hidden'), true,

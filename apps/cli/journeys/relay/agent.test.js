@@ -138,7 +138,7 @@ async function approvePhoneProposal(box, chrome, proposal) {
           panelError: (panel?.getAttribute('data-error') || '').slice(0, 200),
           cards: panel?.children.length ?? 0, boardKeyKnown,
           signIn: Boolean(document.querySelector('a[href="/auth/github/start"]')) };
-      })()`, 'redacted phone approval failure capture', 1000);
+      })()`);
     } catch { /* Preserve the original failure when the renderer cannot answer diagnostics. */ }
     const inboxPath = '/api/v1/devices/' + proposal.device + '/approvals';
     const inbox = box.transit.findLast(row => row.method === 'GET' && row.path === inboxPath);

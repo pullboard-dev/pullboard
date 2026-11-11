@@ -43,7 +43,7 @@ async function pairedTransport(chrome, box, title) {
 async function installTransport(chrome) {
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
   assert.equal(await chrome.stable(`(() => { window.__personOutboxTransport = transport;
-    return window.__personOutboxTransport === transport; })()`, 'use real person outbox transport'), true,
+    return window.__personOutboxTransport === transport; })()`), true,
     'fixture commands use the page-owned transport and its single stream queue');
 }
 
