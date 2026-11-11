@@ -1,12 +1,12 @@
 /** Light runner and landing services for an ordinary gate slot, so a plain test run loads no gate, board or machine [C7,V4]. */
-import { localRunnerDescriptor } from '../../../../runners/index.js';
-import { sampleRunnerLoad } from '../../../../runners/index.js';
-import { carriedRunnerTrunk } from '../../../../runners/index.js';
-import { probeRunnerTransport } from '../../../../runners/index.js';
-import { effectiveRunners } from '../../../../runners/index.js';
-import { refreshRunnerMeasurements } from '../../../../runners/index.js';
+import { localRunnerDescriptor } from '../../../../runners/light.js';
+import { sampleRunnerLoad } from '../../../../runners/light.js';
+import { carriedRunnerTrunk } from '../../../../runners/light.js';
+import { probeRunnerTransport } from '../../../../runners/light.js';
+import { effectiveRunners } from '../../../../runners/light.js';
+import { refreshRunnerMeasurements } from '../../../../runners/light.js';
 import { gateQueueSettings } from '../../../../config/index.js';
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 
 /**
  * Build the execution services withGateSlot validates, loading only what it calls synchronously.
@@ -26,10 +26,12 @@ export async function gateSlotServices() {
     runOnRunnerAsync: async (...args) => (await front()).runOnRunnerAsync(...args),
     runOnRunner: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot dispatches remote runs itself; use runnerExecutionServices() from the runners front door for gate execution'); },
   });
-  const release = gateQueueSettings().currentReleaseFirst ? await import('../../../../landing/index.js') : null;
+  const policyOn = gateQueueSettings().currentReleaseFirst;
   const landing = Object.freeze({
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
-    captureReleaseQueue: release ? release.captureReleaseQueue : () => undefined,
+    // The landing door (and its board reader) loads only when a run names an item to rank; an unplanned run reads no board [C7,V4].
+    captureReleaseQueue: !policyOn ? () => undefined : async (root, item) => (item === undefined || item === null || item === ''
+      ? undefined : (await import('../../../../landing/index.js')).captureReleaseQueue(root, item)),
     constrainedLandingHost: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot never lands; use landingExecutionServices() from the landing front door for a landing'); },
     releaseExecutors: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot runs no release; use landingExecutionServices() from the landing front door for a release'); },
   });

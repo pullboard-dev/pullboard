@@ -7,6 +7,7 @@ export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
+export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
 export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
 export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
