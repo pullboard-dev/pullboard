@@ -277,6 +277,7 @@ test('importing the runners package spawns nothing and pins no tooling; the firs
   const installed = join(directory, 'installed');
   copyPackageFiles(ROOT, installed);
   mkdirSync(join(installed, 'test'), { recursive: true });
+  mkdirSync(join(installed, 'packages/gate/tests/fixtures'), { recursive: true });
   copyFileSync(join(ROOT, 'packages/gate/tests/fixtures/budgets.js'), join(installed, 'packages/gate/tests/fixtures/budgets.js'));
   const counter = join(directory, 'counter.mjs');
   writeFileSync(counter, SPAWN_COUNTER);
