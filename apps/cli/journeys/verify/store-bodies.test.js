@@ -17,7 +17,7 @@ import {
 import { test } from 'node:test';
 
 // Accepted main265b6e8 pins store bodies except relocation operands; re-pinned 11 Nov to the accepted bodies after the layout freeze repointed their imports to cell doors, and src/native-user-directory.js left the store for the gate cell.
-// Re-pinned 11 Nov (item 5541) after review: board-write-lock (2309c5a0b4), native-board-state (e8c0687eaf, 0c571b5a1d), board-shout-audience (1073997c5e, 2e3bcaf7c5).
+// Re-pinned 11 Nov (item 5541) after review: board-write-lock (2309c5a0b4), native-board-state (e8c0687eaf, 0c571b5a1d), board-shout-audience (1073997c5e, 2e3bcaf7c5), local-state (cd3f20584b, item 5487, behaviour kept).
 const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "43cff0e1fe6b69e3e06438f9842999ddca53d131e95ba935761bd12755a04e90",
   "src/known-main-autofile.js": "7e3b77ea7a14f8ddd28ae0cf6b94f17a012fa639223eb03216ae8c590610c9b8", "src/board-access.js": "be064e9e94d39ee5b3fd61495ab94df850c4eb1305dc82e51bad25a1c3c06b56",
@@ -37,7 +37,7 @@ const STORE_BODY_HASHES = {
   "src/board.js": "556da6307cb60450852ca298080c710713ee0b8c2aee72b614aa8b64dc531301", "src/companion.js": "079af68eb5eee8d2aecd90e60efec0c363d740f6ccd5dc6e56a3e6bd64c6427b",
   "src/dispatch-eligibility.js": "49b81b4f1de7a5280f5dee6a432fade8c0fd24689deaae2fdf8c455b0c0670ce", "src/exchange.js": "c0ec04a21d0bd036a8e00599b22b474b9f8ad2b89ee410576c0f7feeb71a202e",
   "src/history.js": "fa0fd97a765ad359c5965b98d323a99e7d8a50d0905acd58affea61cfb43dad8", "src/item-check-baseline.js": "6e353d9996bc281b605b23a076a4b6161339ff6ff7b4b3a8162b91ed0b6bcd37",
-  "src/known-main-reworks.js": "a5aad98f605c80efcc0aeb349ea8667f1c84424cbca8a8ff3876fc9de6705975", "src/local-state.js": "06fe20320b4ea99c757c5719e72a8e487bee988a4554ba446b14e2a6badaae55",
+  "src/known-main-reworks.js": "a5aad98f605c80efcc0aeb349ea8667f1c84424cbca8a8ff3876fc9de6705975", "src/local-state.js": "ee186411d057503ed3497f5f718aea3e025c873f2d6ba6811c361421e8d52cea",
   "src/main-red-build-routing.js": "b2350feb701160bfbc1b27d8a9330666394f4dbefda1e9da9ca00b9ea0753881", "src/memory-held.js": "3ddaf339187426ca0ab5ac0518409853ded5120b7d247b2788f463144c082c70",
   "src/native-board-state.js": "4a91c9fc2e2b0ab7f66c55e9ddd9df8a887af48caf336bec20b857e14b890770", "src/native-state-clock.js": "cf9fb8899caa4cfc789d2ae26d3c538dffbf0d779d731044e7dbeaffe75e3426",
   "src/outside-store.js": "d6267a06e55614b297c7d94439bb9257604fc4de3b677b65dd6dd612766c52db",
