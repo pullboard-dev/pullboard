@@ -15,6 +15,7 @@ import {
   unseal as openSealed,
 } from '../../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
+import { PROOF_RUN_ENGINE } from '../../../../../packages/state/light.js';
 
 /** Open actual sealed checkpoints, accepting compressed and released legacy JSON snapshots. */
 export async function openCheckpoint(box, snapshot) {
@@ -115,4 +116,38 @@ export async function blockedRecoveryFixture(box) {
   const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(future)), { boardId: box.id, kind: 'move', sequence: 1 })).toString('base64url');
   assert.equal((await box.call(box.path + '/moves', { method: 'POST', token: box.one.token, body: { sequence: 1, sealed } })).status, 200);
   return { future, sealed };
+}
+
+/** Preserve every SQLite value while normalizing row prototypes for JSON transport comparisons. */
+export function plainRows(rows) { return rows.map(row => ({ ...row })); }
+
+/** Normalize all exported tables without dropping columns or changing their order. */
+export function plainTables(tables) { return Object.fromEntries(Object.entries(tables).map(([name, rows]) => [name, plainRows(rows)])); }
+
+/**
+ * Write shouts the way a board upgraded from before the 400-character limit (#1109) holds them.
+ * Replay applies a move at its recorded engine, so this history stays as long as it was written.
+ */
+export function beforeShoutLimit(board, write) {
+  const recorded = Object.hasOwn(board, 'executionEngineVersion') ? board.executionEngineVersion : undefined;
+  board.executionEngineVersion = PROOF_RUN_ENGINE - 1;
+  try { return write(); } finally {
+    if (recorded === undefined) delete board.executionEngineVersion; else board.executionEngineVersion = recorded;
+  }
+}
+
+/** Authenticate one private fixture object's graph path without exposing credentials in diagnostics. */
+export function pagedReadContext(box, link, head, key) {
+  return { boardId: link.board, key, sequence: head.sequence,
+    /** Public HTTP still checks the principal's pinned root; only this device interprets the sealed directory. */
+    async get(id, parents) {
+      const response = await fetch(box.origin + '/api/v2/boards/' + link.board + '/objects/' + id
+        + '?pin=' + head.read.id + '&via=' + parents.join(','), {
+        headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
+      });
+      const document = await response.json();
+      assert.equal(response.status, 200, document.error?.message);
+      return Buffer.from(document.page.sealed, 'base64url');
+    },
+  };
 }

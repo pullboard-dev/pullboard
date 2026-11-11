@@ -2750,7 +2750,10 @@
     "raw-board": 2
   },
   "apps/cli/journeys/relay/snapshot/size.test.js": {
-    "raw-board": 5
+    "raw-board": 3
+  },
+  "apps/cli/journeys/relay/snapshot/size/phone.test.js": {
+    "raw-board": 2
   },
   "apps/relay/tests/io/quota.test.js": {
     "tempdir": 1
