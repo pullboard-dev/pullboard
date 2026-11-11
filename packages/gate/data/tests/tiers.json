@@ -2,6 +2,53 @@
   "version": 1,
   "files": [
     {
+      "file": "apps/cli/journeys/verify/store-bodies.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/drive",
+        "packages/gate",
+        "packages/git",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/landing",
+        "packages/link",
+        "packages/merge",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/receipt",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/runners",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/codemap/src/io/main-facts-cache.js",
+        "browser: packages/landing/src/io/smoke.js",
+        "cross-package: imports more than one package",
+        "process: packages/activity/src/io/shouts.js",
+        "runner: packages/gate/src/io/run-tests.js",
+        "unresolved: packages/doctrine/src/io/fast.js"
+      ]
+    },
+    {
       "file": "apps/cli/tests/exit-rules.test.js",
       "tier": "T3",
       "packages": [
