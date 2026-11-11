@@ -74,7 +74,7 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encodedKey);
   await chrome.waitFor('!!document.querySelector(\'[data-tab="items"]\') && typeof data === "object" && !!data?.project');
-  await chrome.click('document.querySelector(\'[data-tab="items"]\')'); // a person opens Items before the list is drawn, since pages open on the Dashboard.
+  await chrome.evaluate('document.querySelector(\'[data-tab="items"]\').click()'); // a person opens Items before the list is drawn, since pages open on the Dashboard.
   await chrome.waitFor('typeof transport !== "undefined" && !!transport && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initial) + ')');
   /** Count real document loads to detect a hidden recovery reload. */
   const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
