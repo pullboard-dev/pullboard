@@ -31,7 +31,9 @@ function runnerFixture(t) {
   for (const sub of [root, dir, bin, join(base, 'home')]) mkdirSync(sub, { recursive: true });
   const ssh = installSshStandIn({ bin, worker: base, home: join(base, 'home'), machineHome: join(base, 'machine'), requests });
   const runner = { host: HOST, root };
-  const calls = () => (existsSync(requests) ? readFileSync(requests, 'utf8').split('\n').filter(line => line.includes('"workerStarted":true')).length : 0);
+  /** Status refreshes are pull-aux ssh calls: the stand-in records them in <requests>.pull, apart from job dispatches. */
+  const pullLog = `${requests}.pull`;
+  const calls = () => (existsSync(pullLog) ? readFileSync(pullLog, 'utf8').split('\n').filter(line => line.includes('"workerStarted":true')).length : 0);
   /** Lay out one job folder as the runner agent would. */
   const job = (state, id, files = {}) => {
     const folder = join(root, state, id);

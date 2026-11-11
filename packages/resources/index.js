@@ -16,3 +16,4 @@ export { HANDOFF_FOLDER_KEEP_MS, handoffRoots, pruneFinishedHandoffs, rememberHa
 export { closeGateSpans, gateSpanCause, openGateSpans, recordGateSpan, recordRunnerDispatch } from './src/io/spans/gate.js';
 export { closeLandingSpans, landingSpan, landingSpanFolder, openLandingSpans, readLandingSpans, recordLandingSpan } from './src/io/spans/landing.js';
 export { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from './src/io/handoff/owner.js';
+export { sourceCacheJobGone } from './src/io/liveness.js';

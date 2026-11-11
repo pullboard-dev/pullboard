@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -11,8 +12,10 @@ import { utimesSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { agentVersion } from '../../src/io/agent.js';
 import { runnerAgentStartCommand } from '../../src/io/agent.js';
+import { sourceCacheJobGone } from '../../../../packages/resources/index.js';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { HOST } from '../../../cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../cli/tests/fixtures/runner/ssh.js';
@@ -186,4 +189,60 @@ test('an agent records the digest of its own script, and a start with another di
   assert.notEqual(agentPid(), first);
   assert.equal(readFileSync(join(root, 'agent.lock', 'version'), 'utf8').trim(), 'new-digest');
   assert.ok(!existsSync(join(root, 'wanted-version')));
+});
+
+/** Run a script in a child that stays alive on its own (it reads a stdin that never ends); resolves its stderr on demand. */
+function liveChild(t, source, env) {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', `process.stdin.resume();\n${source}`], { stdio: ['pipe', 'ignore', 'pipe'], env: { ...process.env, ...env } });
+  let stderr = '';
+  const heard = [];
+  child.stderr.on('data', chunk => { stderr += chunk; for (const wake of heard.splice(0)) wake(); });
+  const exited = new Promise(resolve => child.once('exit', code => resolve(code)));
+  /** Resolve once the child's stderr matches. */
+  const hears = pattern => new Promise(resolve => { const check = () => (pattern.test(stderr) ? resolve() : heard.push(check)); check(); });
+  t.after(() => { try { child.kill('SIGKILL'); } catch { /* Already gone. */ } });
+  return { exited, hears, stderr: () => stderr };
+}
+
+test('a worker whose job folder disappears ends itself within a minute, whatever it is doing [C7,#5593]', async t => {
+  const base = privateFixtureFiles('pb-orphan-').root;
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const folder = join(base, 'running-job');
+  mkdirSync(folder);
+  const orphan = pathToFileURL(join(import.meta.dirname, '../../src/io/worker/orphan.js')).href;
+  const { exited, hears, stderr } = liveChild(t, `import { watchJobFolder } from ${JSON.stringify(orphan)};
+    watchJobFolder({ workerId: 'job-1', transportDrop() { console.error('dropped'); } }, { graceMs: 200 });
+    console.error('watching');`, { PULLBOARD_QUEUE_JOB: folder });
+  await hears(/watching/);
+  rmSync(folder, { recursive: true });
+  await hears(/dropped/);
+  assert.match(stderr(), /PULLBOARD_RUNNER_ORPHAN job-1/);
+  assert.equal(await exited, 1, 'a worker stuck in cleanup is ended after its grace');
+});
+
+test('a source-cache pin is freed once its job directory is gone, even held by a live worker with a never-expiring beat [C7,#5593]', async t => {
+  const base = privateFixtureFiles('pb-pin-').root;
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const runnerRoot = join(base, 'runner');
+  const jobs = join(runnerRoot, 'jobs', 'job-1-abc');
+  mkdirSync(jobs, { recursive: true });
+  const pin = agent => ({ kind: 'source-cache', agent, repo: runnerRoot });
+  assert.equal(sourceCacheJobGone(pin('pullboard-ssh-cache-job-1')), false, 'a present job directory keeps its pin');
+  assert.equal(sourceCacheJobGone({ ...pin('pullboard-ssh-cache-job-1'), kind: 'gate' }), false, 'only source-cache pins are judged');
+  assert.equal(sourceCacheJobGone(pin('someone-else')), false, 'a holder that is not a runner job is never judged');
+  rmSync(jobs, { recursive: true });
+  assert.equal(sourceCacheJobGone(pin('pullboard-ssh-return-job-1')), true);
+  mkdirSync(jobs, { recursive: true });
+  const resources = pathToFileURL(join(import.meta.dirname, '../../../../packages/resources/index.js')).href;
+  const take = (agent, mark) => `import { takeResource } from ${JSON.stringify(resources)};
+    import { writeFileSync } from 'node:fs';
+    await takeResource({ name: 'repo-x', capacity: 1, scope: 'machine', root: ${JSON.stringify(runnerRoot)}, repo: ${JSON.stringify(runnerRoot)}, agent: ${JSON.stringify(agent)}, kind: 'source-cache' });
+    writeFileSync(${JSON.stringify(join(base, mark))}, 'x'); console.error('took');`;
+  const env = { PULLBOARD_MACHINE_HOME: join(base, 'home') };
+  const holder = liveChild(t, take('pullboard-ssh-cache-job-1', 'holder'), env);
+  await holder.hears(/took/);
+  rmSync(jobs, { recursive: true });
+  const next = liveChild(t, take('pullboard-ssh-pin-job-2', 'waiter'), env);
+  await next.hears(/took/);
+  assert.ok(existsSync(join(base, 'waiter')), 'the next job takes the freed pin while the orphan still lives');
 });

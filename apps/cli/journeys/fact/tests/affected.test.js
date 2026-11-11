@@ -106,7 +106,7 @@ test('an unread doc adds no tests and doc readers come from Git objects [V4,C7]'
   box.put('docs/unread.md','# No readers\n');
   const commit = box.commit();
   box.put('test/unrelated.test.js',"import {readFileSync} from 'node:fs'; readFileSync('docs/unread.md');\n");
-  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[]});
+  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[],reasons:{}});
   assert.deepEqual(selectAffectedTests(box.root,{base,commit,changed:['src/api.js','docs/unread.md']}).files,['test/api.test.js']);
 });
 
@@ -404,7 +404,8 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const box = graph(t);
   const sourceRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   // Real source modules declare committed data inputs too; copy their complete tracked source/input tree.
-  const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
+  // The runner reader imports the app launcher, which hands the gate engine its loaders, so the copy carries the launcher too.
+  const sourceInputs = packageFiles(sourceRoot).filter(path => path === 'apps/cli/src/io/run/tests.js' || (/^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path)));
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   box.put('apps/cli/journeys/spec/person.test.js', "import '../../../../src/config.js';\n");
