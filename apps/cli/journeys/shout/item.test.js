@@ -105,6 +105,7 @@ test('an unchanged inbox read never waits on the board write lock while another 
 
 test('a seat whose session spans many seats derives its family without a per-seat event scan [R2,N26]', () => {
   const box = fixtures.project('true');
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const seat = store.agentAt(board, box.web).agent_id;
