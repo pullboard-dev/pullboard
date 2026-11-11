@@ -720,6 +720,10 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/tests/fixtures/cases/registry.js": {
       "cells": 2,
       "deep": 0
