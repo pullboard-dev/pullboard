@@ -2089,5 +2089,497 @@
   },
   "apps/cli/journeys/worktree/start.test.js": {
     "launch": 27
+  },
+  "apps/cli/tests/door.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/cli-main/recovery.test.js": {
+    "launch": 2
+  },
+  "apps/cli/tests/io/commands/test.test.js": {
+    "launch": 8
+  },
+  "apps/cli/tests/io/disk/use.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/memo.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/resident/board.test.js": {
+    "launch": 2
+  },
+  "apps/cli/tests/io/resident/board/orphans.test.js": {
+    "launch": 5
+  },
+  "apps/cli/tests/io/submit/gate/job.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/submit/gate/large.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/submit/gate/overlap.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/submit/gate/runner.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/submit/remote.test.js": {
+    "launch": 3
+  },
+  "apps/cli/tests/io/verify.test.js": {
+    "launch": 1
+  },
+  "apps/lib/tests/durable/daemons.test.js": {
+    "launch": 2
+  },
+  "apps/lib/tests/durable/inventory.test.js": {
+    "launch": 1
+  },
+  "apps/lib/tests/env.test.js": {
+    "launch": 1
+  },
+  "apps/lib/tests/no/cli.test.js": {
+    "launch": 1
+  },
+  "apps/lib/tests/rebuild.test.js": {
+    "launch": 1
+  },
+  "apps/lib/tests/resume.test.js": {
+    "launch": 5
+  },
+  "apps/lib/tests/runner/cache.test.js": {
+    "launch": 2
+  },
+  "apps/lib/tests/runner/prune.test.js": {
+    "launch": 1
+  },
+  "apps/lib/tests/schema.test.js": {
+    "launch": 1
+  },
+  "apps/relay/journeys/server/stays.test.js": {
+    "launch": 1
+  },
+  "apps/relay/tests/io/journal.test.js": {
+    "launch": 1
+  },
+  "apps/relay/tests/io/retention.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/io/agent.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/io/chrome.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/io/chrome/process.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/io/orphans.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/io/private/check/worker/restart.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/recovery/idle.test.js": {
+    "launch": 1
+  },
+  "apps/runner/tests/recovery/self.test.js": {
+    "launch": 2
+  },
+  "packages/codemap/tests/freeze.test.js": {
+    "launch": 3
+  },
+  "packages/codemap/tests/io/cells/door.test.js": {
+    "launch": 1
+  },
+  "packages/codemap/tests/io/cells/door/app.test.js": {
+    "launch": 1
+  },
+  "packages/codemap/tests/io/cells/scripts/plan.test.js": {
+    "launch": 2
+  },
+  "packages/codemap/tests/logic/layout.test.js": {
+    "launch": 2
+  },
+  "packages/commits/tests/runner/scan/leak.test.js": {
+    "launch": 1
+  },
+  "packages/config/tests/io/compat.test.js": {
+    "launch": 2
+  },
+  "packages/config/tests/submit/infra.test.js": {
+    "launch": 1
+  },
+  "packages/doctrine/tests/hooks.test.js": {
+    "launch": 1
+  },
+  "packages/doctrine/tests/package.test.js": {
+    "launch": 2
+  },
+  "packages/drive/tests/scaled.test.js": {
+    "launch": 1
+  },
+  "packages/flakes/tests/io/native.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/ci.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/io/affected/graph/cache.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/assumptions.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/board/baseline/report.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/board/write/no.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/io/browser/admission/resources.test.js": {
+    "launch": 5
+  },
+  "packages/gate/tests/io/changed/scripts/static.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/io/check/scripts/baseline/failover.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/io/edges/checkpoint.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/edges/checks.test.js": {
+    "launch": 3
+  },
+  "packages/gate/tests/io/edges/history.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/io/edges/rule.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/edges/temporary.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/journal/preload/fixture.test.js": {
+    "launch": 7
+  },
+  "packages/gate/tests/io/journal/preload/ignored.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/journal/preload/refusal.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/io/main/admission.test.js": {
+    "launch": 15
+  },
+  "packages/gate/tests/io/main/audit/state.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/main/failures.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/main/output.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/main/resource.test.js": {
+    "launch": 4
+  },
+  "packages/gate/tests/io/main/wait.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/requeue/retry.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/requeue/unpins.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/requeue/valid.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/run/tests/enotempty.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/run/tests/options.test.js": {
+    "launch": 3
+  },
+  "packages/gate/tests/io/run/tests/selection.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/run/timing.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/scripts/release.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/scripts/seals.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/sizes.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/static/check/registry.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/static/style.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/test/account/receipts.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/test/action/memo.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/test/cleanup/background.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/test/isolation.test.js": {
+    "launch": 3
+  },
+  "packages/gate/tests/io/test/scripts/tiers.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/test/shards.test.js": {
+    "launch": 4
+  },
+  "packages/gate/tests/io/timing.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/watchdog.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/logic/budgets.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/logic/cap.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/logic/reporter/coverage.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/logic/test/source/edits.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/parser.test.js": {
+    "launch": 4
+  },
+  "packages/gate/tests/run-tests-timeout.test.js": {
+    "launch": 3
+  },
+  "packages/gate/tests/runner/pid.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/runner/probe.test.js": {
+    "launch": 2
+  },
+  "packages/gate/tests/slots.test.js": {
+    "launch": 4
+  },
+  "packages/gate/tests/stable.test.js": {
+    "launch": 2
+  },
+  "packages/git/tests/io/adapter.test.js": {
+    "launch": 1
+  },
+  "packages/git/tests/io/main.test.js": {
+    "launch": 1
+  },
+  "packages/items/tests/io/claim.test.js": {
+    "launch": 1
+  },
+  "packages/items/tests/io/criterion.test.js": {
+    "launch": 2
+  },
+  "packages/kernel/tests/logic/seal.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/derive.test.js": {
+    "launch": 2
+  },
+  "packages/landing/tests/door.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/hung.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/docs.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/history/rule.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/known/main/match.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/known/main/normalize.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/land/numbers.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/main/red/refresh/flight.test.js": {
+    "launch": 2
+  },
+  "packages/landing/tests/io/prune.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/resource.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/shards/filter.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/shards/nested.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/step/gate/affected.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/step/gate/reporter.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/io/test/policy/budget.test.js": {
+    "launch": 6
+  },
+  "packages/landing/tests/io/worker.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/logic/failures.test.js": {
+    "launch": 1
+  },
+  "packages/landing/tests/logic/hold/spec.test.js": {
+    "launch": 3
+  },
+  "packages/link/tests/io/relay/lock.test.js": {
+    "launch": 2
+  },
+  "packages/link/tests/logic/relay/poll.test.js": {
+    "launch": 1
+  },
+  "packages/moves/tests/reopen.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/admission/memory/latency.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/admission/memory/runner.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/handoff/recovery/unresponsive.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/handoff/worker/dispatcher/eperm.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/handoff/worker/dispatcher/function.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/handoff/worker/dispatcher/launcher.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/handoff/worker/dispatcher/locked.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/heartbeat/blocked.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/liveness.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/io/main/probe.test.js": {
+    "launch": 2
+  },
+  "packages/resources/tests/io/renewal.test.js": {
+    "launch": 2
+  },
+  "packages/resources/tests/io/runner/heal/drain.test.js": {
+    "launch": 1
+  },
+  "packages/resources/tests/once.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/cap.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/io/controller/generation.test.js": {
+    "launch": 2
+  },
+  "packages/runners/tests/io/leaked/heal.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/io/pack/clean.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/io/pack/flight.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/io/package/files.test.js": {
+    "launch": 12
+  },
+  "packages/runners/tests/io/probe.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/io/run/identity.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/io/run/reporter.test.js": {
+    "launch": 4
+  },
+  "packages/runners/tests/io/run/tests.test.js": {
+    "launch": 23
+  },
+  "packages/runners/tests/io/run/tests/filexit.test.js": {
+    "launch": 4
+  },
+  "packages/runners/tests/io/source/cache.test.js": {
+    "launch": 3
+  },
+  "packages/runners/tests/io/tooling/remote.test.js": {
+    "launch": 3
+  },
+  "packages/runners/tests/io/transport.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/lints.test.js": {
+    "launch": 5
+  },
+  "packages/runners/tests/logic/diagnostics/overflow.test.js": {
+    "launch": 2
+  },
+  "packages/runners/tests/logic/diagnostics/recovery.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/logic/urls.test.js": {
+    "launch": 2
+  },
+  "packages/runners/tests/refresh.test.js": {
+    "launch": 1
+  },
+  "packages/runners/tests/runner-controller.test.js": {
+    "launch": 3
+  },
+  "packages/runners/tests/style.test.js": {
+    "launch": 2
+  },
+  "packages/runners/tests/version.test.js": {
+    "launch": 8
+  },
+  "packages/seats/tests/io/checkout.test.js": {
+    "launch": 1
+  },
+  "packages/sentinels/tests/io/waits.test.js": {
+    "launch": 7
+  },
+  "packages/state/tests/io/engine/folder.test.js": {
+    "launch": 3
+  },
+  "packages/store/tests/io/board/write.test.js": {
+    "launch": 2
+  },
+  "packages/sync/tests/io/local.test.js": {
+    "launch": 1
+  },
+  "packages/verify/tests/logic/advance.test.js": {
+    "launch": 1
   }
 }

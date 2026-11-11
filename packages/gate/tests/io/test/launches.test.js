@@ -30,8 +30,10 @@ test('clause 1: a spawn of node or the CLI entry, a fixture child and a kit box 
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [1, 2, 3, 4, 5]);
 });
 
-test('clause 1: only files under apps/cli/journeys/ have launches counted [C7]', () => {
+test('clause 1: only test files under apps/ and packages/ have launches counted, the fixture kit and src files are not [C7]', () => {
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/tests/fixtures/e2e.js'), []);
+  assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/src/main.js'), []);
+  assert.equal(cliLaunchSites("spawnSync(process.execPath, [BIN]);", 'packages/gate/tests/io/x.test.js').length, 1);
   assert.equal(cliLaunchSites("box.run(cwd, 'show');", PATH).length, 1);
 });
 

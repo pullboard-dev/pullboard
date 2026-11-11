@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** CLI launches in journeys are a ceiling that only falls: convert to runCliInProcess, never add a process [C7]. */
+/** CLI launches in tests (journeys most) are a ceiling that only falls: convert to runCliInProcess, never add a process [C7]. */
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,7 @@ import { report } from '../scan.js';
 import { walk } from '../scan.js';
 
 const BASELINE_URL = new URL('../../../data/baselines/cli-launches.json', import.meta.url);
-const JOURNEY = /^apps\/cli\/journeys\/.*\.[cm]?js$/u;
+const JOURNEY = /^(?:apps|packages)\/.*\.test\.[cm]?js$/u; // every test file, journeys included; the fixture kit that holds the one spawn seam is not a test file
 const MESSAGE = 'launches the CLI or a node child process; call runCliInProcess or captureCommandInProcess from apps/cli/tests/fixtures/process.js';
 /** Direct child-process calls; a launch only when the call names node or the CLI entry (git, sh and tar calls are not). */
 const SPAWN = /(?<![\w$])(?:(?:[\w$]+\s*\.\s*)?(?:spawnSync|execFileSync|execFile|execSync|spawn|fork)|runFixtureChild|runFixtureChildAsync|startFixtureChild|runFixtureExecFile|runFixtureExec)\s*\(/gu;
@@ -31,12 +31,12 @@ function closingAt(code, open) {
 }
 
 /**
- * Find call sites in one journey file that start the CLI or a node child process, without running it.
+ * Find call sites in one test file (journeys first) that start the CLI or a node child process, without running it.
  *
  * Why: each launch costs ~1.1 s of startup and loads the runner; the in-process runner (item 1417) answers the same call.
  *
  * @param {string} source - Journey file text.
- * @param {string} path - Repo-relative path; only files under apps/cli/journeys/ have sites.
+ * @param {string} path - Repo-relative path; only test files under apps/ and packages/ have sites.
  * @returns {{ path: string, line: number, kind: string, text: string }[]} Sites in line order.
  */
 export function cliLaunchSites(source, path) {
@@ -53,7 +53,7 @@ export function cliLaunchSites(source, path) {
   return found.sort((left, right) => left.line - right.line);
 }
 
-/** Inspect every journey as text; `cache` keeps a file's sites by blob. */
+/** Inspect every test file as text; `cache` keeps a file's sites by blob. */
 export function cliLaunchReport(root, { cache = null } = {}) {
   return walk(root, JOURNEY).flatMap(path => {
     const text = readText(root, path);
@@ -71,7 +71,7 @@ export function cliLaunchCounts(problems) {
   return counts;
 }
 
-/** Sites past a file ceiling; a file with no ceiling, a new journey included, allows none. */
+/** Sites past a file ceiling; a file with no ceiling, a new test file included, allows none. */
 export function cliLaunchGrowth(problems, baseline) {
   const seen = {};
   return problems.filter(problem => {
