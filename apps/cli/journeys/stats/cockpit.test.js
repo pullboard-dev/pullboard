@@ -2,7 +2,7 @@
 /** @pullboard-test-gui */
 /** Cockpit stats checks, using the shared real-board fixtures [N26]. */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
-import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
+import { MACHINE_MODEL } from '../../tests/fixtures/cockpit/machine.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -150,7 +150,7 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
 
   const box = machine();
   const alpha = project(box, 'stats-count-words');
-  box.run(alpha.web, 'join', 'web', '--model', FIXTURE_MODEL, '--family', 'solo');
+  box.run(alpha.web, 'join', 'web', '--model', MACHINE_MODEL, '--family', 'solo');
   const crewOne = joinedAgent(box, alpha, 'stats-crew-one');
   const crewTwo = joinedAgent(box, alpha, 'stats-crew-two');
   const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
