@@ -104,6 +104,8 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // The rigor auto-draft switch reads pullboard.json to honor rigor.autoDraft; a missing or bad config keeps the default and never refuses release or reopen.
+  '../packages/store/src/io/board/shout.js#rigorAutoDraftOn': ['../packages/config/index.js#loadConfig'],
   // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
   '../apps/cli/src/io/claim.js#refreshesLanePolicy': ['../apps/cli/src/io/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
@@ -566,9 +568,10 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by submit but not declared there',
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
-  for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('../packages/store/src/logic/board/rigor/auto.js',
-      new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
+  // Since #5404 a decline is final for its key, so recordAutomaticRigorDrafts no longer reads decisions and the two decision-source
+  // readers left the move paths; the drafting entry itself is the one place the audit still reaches release, reopen and submit through.
+  for (const [file, head] of [['../packages/rigor/src/io/auto.js', /^export function recordAutomaticRigorDrafts\(board, trigger, shout\) \{$/m]]) {
+    const inHistoricalCaller = editedSource(file, head,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
