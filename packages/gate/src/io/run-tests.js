@@ -421,6 +421,12 @@ function landingWorkerCommandMatchesFile(processInfo, file) {
   return false;
 }
 
+/** The spellings `ps` may print for an argument: raw, octal-escaped (macOS), or '?' per control character (Linux). */
+function psSpellings(argument) { // DIAG
+  const control = /[\u0000-\u001f\u007f]/gu;
+  return [argument, argument.replace(control, c => `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`), argument.replace(control, '?')];
+}
+
 /** Match an announced ChildProcess spawn to the fresh command line without trusting its PID alone. */
 function landingChildCommandMatchesSpawn(processInfo, receipt) {
   const command = processInfo.command.trimEnd();
@@ -431,13 +437,15 @@ function landingChildCommandMatchesSpawn(processInfo, receipt) {
   if (!exactExecutable && (!executable || basename(executable[1] ?? executable[2] ?? executable[3]) !== basename(spawnFile ?? ''))) return false;
   return receipt.spawnArgs.slice(1).every(argument => {
     if (typeof argument !== 'string' || !argument) return false;
-    let offset = command.indexOf(argument);
-    while (offset !== -1) {
-      const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
-      const afterIndex = offset + argument.length;
-      const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
-      if (before && after) return true;
-      offset = command.indexOf(argument, offset + 1);
+    for (const spelling of psSpellings(argument)) {
+      let offset = command.indexOf(spelling);
+      while (offset !== -1) {
+        const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
+        const afterIndex = offset + spelling.length;
+        const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
+        if (before && after) return true;
+        offset = command.indexOf(spelling, offset + 1);
+      }
     }
     return false;
   });
@@ -498,7 +506,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         if (record.attempt !== attempt || record.parentPid !== process.pid
             || ack.attempt !== attempt || ack.parentPid !== process.pid || ack.pid !== record.pid
             || !['bound', 'drained', 'unverified'].includes(ack.status)) continue;
-        pending.delete(recordPath);
+        process.stderr.write(`G8 ack ${ack.status}\n`); pending.delete(recordPath);
         renameSync(`${recordPath}.ack`, `${recordPath}.acked`);
       }
     } catch { /* An unreadable acknowledgement retains worker custody. */ }
@@ -534,7 +542,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         const temporary = `${recordPath}.tmp`;
         writeFileSync(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
         renameSync(temporary, recordPath);
-        pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
+        process.stderr.write(`G8 announced ${child.pid} ${Date.now()}\n`); pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
         if (!poll) poll = setInterval(pollAcks, 25);
       } catch (error) {
         announcementFailureDeadline ??= Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS;
@@ -878,7 +886,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       }
       const worker = workerByPid.get(receipt.parentPid);
       const candidate = current.get(receipt.pid);
-      if (!worker || !candidate || candidate.ppid !== worker.pid || candidate.state.startsWith('Z')
+      process.stderr.write(`G8 bind ${receipt.pid} worker=${worker?.pid} cand=${candidate?.pid} ppid=${candidate?.ppid} state=${candidate?.state} match=${candidate ? landingChildCommandMatchesSpawn(candidate, receipt) : 'na'} roots=${workerRoots.map(r => r.pid)} parentPid=${receipt.parentPid}
+`); if (!worker || !candidate || candidate.ppid !== worker.pid || candidate.state.startsWith('Z')
           || !Number.isInteger(candidate.pgid) || !candidate.started
           || !landingChildCommandMatchesSpawn(candidate, receipt)) { unsettledChild = true; cleanupUnverifiedFiles.add(receipt.file); continue; }
       // Capture ownership before acknowledging. The worker cannot exit/reparent this child first.
