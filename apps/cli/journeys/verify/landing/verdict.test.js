@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /**
  * Landing applies the main-owned rule (#3534): a submit recorded green with its only reds owned by main is reused at
  * landing, and a landing gate red only in cases red at its main lands while a case green on main still fails it [C7,#3685].

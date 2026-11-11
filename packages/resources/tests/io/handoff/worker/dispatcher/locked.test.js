@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/gate/drive.js apps/lib/src/io/handoff/dispatcher.js */
 /** The gate dispatcher survives a locked slot database, and the gate workers it started survive any dispatcher exit [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

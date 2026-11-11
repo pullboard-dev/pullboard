@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** An agent-shell serve cannot record a person move [P6,B26]. */
 import { viewApiPorts } from '../../../../view/index.js';
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';

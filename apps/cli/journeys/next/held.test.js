@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Busy builders take starved reviews: a held claim no longer hides a review that waited past the limit [C7,N2,V1]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

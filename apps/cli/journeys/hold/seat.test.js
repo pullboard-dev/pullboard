@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Idle seats get actionable native queue guidance through CLI and session hooks [N2,I6]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

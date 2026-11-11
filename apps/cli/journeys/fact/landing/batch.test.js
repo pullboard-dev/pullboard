@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** Automatic landing drops a batch whose items already landed, and a dirty batch resets once then stops [B35,B3]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

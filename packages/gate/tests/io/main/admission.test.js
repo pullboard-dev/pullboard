@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/browser/admission.js packages/gate/src/io/run/tests.js */
 /** Test files on one machine never outnumber its cores, and the longest files start first [C7]. */
 import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';

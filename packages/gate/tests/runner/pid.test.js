@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js */
 /** The test runner names itself to the tests it starts, so a test finds its runner without parsing ps text [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Release and automatic next respect the seat's own lane and route [B3]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

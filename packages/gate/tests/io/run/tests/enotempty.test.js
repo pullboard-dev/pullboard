@@ -1,4 +1,5 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
+/** @pullboard-test-input apps/cli/src/io/run/tests.js */
 /** @pullboard-test-loads apps/cli/src/io/run/tests.js */
 /** The real runner waits for an owned late writer before its one sandbox removal [C7]. */
 import assert from 'node:assert/strict';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/gate/index.js packages/kernel/index.js packages/resources/index.js */
 /** A deleted admitted source stops its real controller before the fixture cleanup signal [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

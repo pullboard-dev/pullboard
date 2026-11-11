@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Real gate, item-check and verifier profiles parse emitted timings [C7,V10]. */
 import { copyFixtureRunner } from '../../../../packages/gate/tests/fixtures/copy.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';

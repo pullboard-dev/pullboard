@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js apps/lib/index.js packages/landing/index.js packages/store/index.js */
 /** Main-move retries preserve wake custody and never retry attributed failures [B35,C7,R3]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

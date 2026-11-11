@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/hook/work.js apps/cli/src/io/submit/handoff/worker.js */
 /** @pullboard-test-loads apps/cli/src/io/entry.js packages/store/src/io/board.js packages/store/src/io/board/indexes.js src/board-migrate.js apps/cli/src/io/context.js apps/cli/src/io/commands/status.js apps/cli/src/io/commands/show.js apps/cli/src/io/commands/list.js apps/cli/src/io/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';

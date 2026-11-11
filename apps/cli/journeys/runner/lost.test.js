@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { runnerLossHealth } from '../../src/logic/runner/loss.js';

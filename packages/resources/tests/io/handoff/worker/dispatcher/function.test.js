@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/handoff/dispatcher.js */
 /** The dispatcher joins existing capacity with a capacity function, and says why it died [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
