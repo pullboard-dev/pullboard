@@ -72,3 +72,27 @@ test('commitDerived derives on the coordinator when the runner could not answer 
   assert.match(readFileSync(join(root, LEAF), 'utf8'), /FEATURE_ENGINE = 81;/u);
   assert.match(said.join('\n'), /could not derive this batch/u);
 });
+
+test('the derive job writes the badge documents it is handed and counts held doctrine rules on the derived tree [C7,#5583]', async t => {
+  const { root, sh } = repo(t);
+  const { root: twin } = privateFixtureFiles('landing-derive-badges-');
+  runFixtureGit(['clone', '-q', root, twin], { cwd: root });
+  const docs = [{ path: 'docs/badges/items.json', text: '{"items":1}\n' }];
+  const ran = spawnSync(process.execPath, [DERIVE, '--tree', sh('rev-parse', 'HEAD^{tree}'), '--badges', Buffer.from(JSON.stringify(docs)).toString('base64'), '--doctrine'], { cwd: twin, encoding: 'utf8' });
+  rmSync(twin, { recursive: true, force: true });
+  assert.equal(ran.status, 0, ran.stderr);
+  const patch = Buffer.from(ran.stdout.split('\n').find(line => line.startsWith('LANDING_DERIVE_PATCH=')).slice(21), 'base64').toString('utf8');
+  assert.match(patch, /docs\/badges\/items\.json/u);
+  assert.match(patch, /FEATURE_ENGINE = 81/u);
+  // This repo has no doctrine file, so there are no held rules to count and no rules line is printed.
+  assert.doesNotMatch(ran.stdout, /LANDING_DERIVE_RULES=\[\{/u);
+});
+
+test('commitDerived hands the runner-counted doctrine rows to the landing and writes badges only in the job [C7,#5583]', async t => {
+  const { root, sh } = repo(t);
+  const output = `${runnerOutput(root, sh)}LANDING_DERIVE_RULES=[{"id":"D1","count":3,"found":2,"broken":null}]\n`;
+  const state = { batch: { root }, config: {}, say() {}, guardServices: { runStaticChecks: async () => ({ output }) },
+    board: {}, landingPorts: { badgeCounts: () => ({ items: 0 }), badgeDocuments: () => [], writeBadges: () => [] } };
+  await commitDerived(state, [{ id: 1, merge: sh('rev-parse', 'HEAD') }], []);
+  assert.deepEqual(state.measuredRules, [{ id: 'D1', count: 3, found: 2, broken: null }]);
+});
