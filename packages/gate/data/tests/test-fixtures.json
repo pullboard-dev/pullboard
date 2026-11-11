@@ -883,9 +883,16 @@
     "repo-read": 1
   },
   "apps/cli/journeys/export/addresses.test.js": {
-    "raw-cli": 5,
-    "tempdir": 4,
+    "raw-cli": 3,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/export/shouts.test.js": {
+    "tempdir": 1,
     "env-spread": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/addresses.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/view/tests/fixtures/cockpit/floor.js": {
     "model": 1
@@ -2383,7 +2390,7 @@
   "apps/cli/tests/fixtures/bridge.js": {
     "raw-board": 5
   },
-  "apps/cli/journeys/publish/bridge.test.js": {
+  "apps/cli/journeys/publish/proofs.test.js": {
     "raw-board": 3
   },
   "apps/cli/journeys/init/practice.test.js": {

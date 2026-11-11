@@ -1,5 +1,5 @@
 /** Advisory peak occupancy from retained physical receipts, never guessed idle capacity [C7]. */
-import { retainedReceipts } from '../../../gate/light.js';
+import { retainedReceipts } from '../../../gate/index.js';
 import { runnerStage } from '../logic/stage.js';
 import { readRunnerCapacities } from './capacity.js';
 
