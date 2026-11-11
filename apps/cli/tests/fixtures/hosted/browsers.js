@@ -43,6 +43,20 @@ export function hostedEngines() {
 function pageApi(evaluate) {
   return {
     evaluate,
+    /** Evaluate only once the loaded document has kept the same box and text length across two samples; a page that never settles fails, it is not retried. */
+    async stable(expression, timeoutMs = 10_000) {
+      const sample = `(() => { const box = document.documentElement.getBoundingClientRect(); return document.readyState === 'complete' && box.width > 0 && box.height > 0 ? [box.x, box.y, box.width, box.height, document.body?.innerText.length].join() : ''; })()`;
+      const end = Date.now() + timeoutMs;
+      let previous = '';
+      while (Date.now() < end) {
+        let current = '';
+        try { current = await evaluate(sample); } catch { /* A document mid-navigation answers on the next sample. */ }
+        if (current && current === previous) return evaluate(expression);
+        previous = current;
+        await pause(50);
+      }
+      throw new Error('the page never stopped changing before: ' + String(expression).slice(0, 120));
+    },
     /** Poll an expression until it is truthy and return its value, or null at the deadline. */
     async poll(expression, timeoutMs) {
       const end = Date.now() + timeoutMs;

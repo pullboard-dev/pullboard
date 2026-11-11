@@ -15,6 +15,7 @@ import {
   cliChildDeadlineMs,
 } from '../../../tests/fixtures/relay/client.js';
 import { legacyRelayClientFixture as relayClientFixture } from '../../../tests/fixtures/relay/client.js';
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
 /** Install only the private fixture's person cookie in the real browser. */
 async function signIn(chrome, box) {
@@ -41,7 +42,7 @@ async function pairedTransport(chrome, box, title) {
 /** Initialize the real transport on the currently loaded document. */
 async function installTransport(chrome) {
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
-  assert.equal(await chrome.evaluate(`(() => { window.__personOutboxTransport = transport;
+  assert.equal(await chrome.stable(`(() => { window.__personOutboxTransport = transport;
     return window.__personOutboxTransport === transport; })()`, 'use real person outbox transport'), true,
     'fixture commands use the page-owned transport and its single stream queue');
 }
@@ -78,7 +79,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   const text = 'PERSON_OUTBOX_PRIVATE_REQUEST_TEXT';
   assert.equal((await box.cli('add', box.lane, title)).code, 0);
   await box.link();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const link = await pairedTransport(chrome, box, title);
   const outboxPrefix = 'pullboard.relay.requests.v1.' + link.board + '.';
@@ -92,7 +93,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   try { interrupted = await chrome.pollTask(interruptedTask, relayWorkBudgetMs(), 'submit interrupted person request'); }
   catch (error) { interrupted = { code: error.code }; }
   assert.equal(interrupted.code, 'RELAY_UNAVAILABLE');
-  let outbox = await chrome.evaluate(`(() => {
+  let outbox = await chrome.stable(`(() => {
     const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter(key => key?.startsWith(${JSON.stringify(outboxPrefix)}));
     return keys.map(key => ({ key, record: JSON.parse(localStorage.getItem(key)) }));
   })()`);
@@ -115,7 +116,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   const receipt = state.state.personRequests.find(row => row.id === requestId);
   assert.equal(receipt?.status, 'waiting', 'a read flushes the saved request after the service recovers');
   assert.deepEqual(receipt.move, { verb: 'shout', args: { to: 'coordinator', text } });
-  outbox = await chrome.evaluate(`(() => Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+  outbox = await chrome.stable(`(() => Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
     .filter(key => key?.startsWith(${JSON.stringify(outboxPrefix)})))()`);
   assert.deepEqual(outbox, [], 'the relay acknowledgement removes the device outbox entry');
 

@@ -22,6 +22,7 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 const CLI = resolve(import.meta.dirname, '../../pullboard.js');
 const APPROVAL_TIMEOUT_MS = 90_000;
@@ -72,7 +73,7 @@ async function pairPhone(box, t) {
     if (!existsSync(machineFile)) return null;
     return JSON.parse(readFileSync(machineFile, 'utf8')).pending;
   }, 'foreground setup publishes a real one-use phone enrollment');
-  chrome = await startChrome();
+  chrome = await stableChrome(await startChrome());
   const session = await box.phoneSession();
   assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: session.token, url: box.origin,
     httpOnly: true, sameSite: 'Lax' })).success, true);
@@ -200,7 +201,7 @@ function approvedLinkScenario(t) {
       return { waited, stdout: early.stdout, stderr: early.stderr, code: early.code };
     }
 
-    await chrome.evaluate(`(() => {
+    await chrome.stable(`(() => {
       const notice = document.querySelector('#relay-notice');
       window.__noticeLog = [notice?.textContent ?? ''];
       new MutationObserver(() => window.__noticeLog.push(notice.textContent))
@@ -211,17 +212,17 @@ function approvedLinkScenario(t) {
     const released = new Promise(resolveRelease => { release = resolveRelease; });
     box.beforeNextSnapshot(async () => { held = true; await released; });
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+    await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await chrome.waitFor(`view.tab === "shouts" && document.querySelector('[data-pane="items"]').hidden`);
-    const documentOrigin = await chrome.evaluate('performance.timeOrigin');
+    const documentOrigin = await chrome.stable('performance.timeOrigin');
     const authorizeBefore = box.calls.filter(call => call.path.endsWith('/authorize')).length;
-    await chrome.evaluate(`document.querySelector(${JSON.stringify(button)}).click()`);
+    await chrome.click(`document.querySelector(${JSON.stringify(button)})`);
     await waitFor(() => held, 'the computer starts linking notes in the same run once the phone approves');
     let noticeBeforeKey = null;
     try {
       await chrome.waitFor(`(document.querySelector('#relay-notice')?.textContent ?? '').includes(${JSON.stringify(board.slice(0, 8))})
         || (document.querySelector('#relay-notice')?.textContent ?? '').includes('pair this browser')`);
-      noticeBeforeKey = await chrome.evaluate(`document.querySelector('#relay-notice').textContent`);
+      noticeBeforeKey = await chrome.stable(`document.querySelector('#relay-notice').textContent`);
     } finally { release(); }
     const finished = await run.done;
     const linkedAtExit = existsSync(join(notes, '.git/pullboard/relay.json'));
@@ -232,23 +233,23 @@ function approvedLinkScenario(t) {
     } catch { opened = false; }
     try { /* budget: hang ceiling for the bounded navigation transition the mobile counter observes; no approval retry. */ await chrome.waitFor(`data?.root === ${JSON.stringify(board)} && document.querySelector('#proj-name')?.textContent === 'notes'
       && document.body.innerText.includes(${JSON.stringify(notesTitle)})`, 6_000); } catch { /* The assertion below names a missed selection directly. */ }
-    const displayed = await chrome.evaluate(`({ root: data?.root, name: document.querySelector('#proj-name')?.textContent,
+    const displayed = await chrome.stable(`({ root: data?.root, name: document.querySelector('#proj-name')?.textContent,
       text: document.body.innerText })`);
     const visibleItems = [];
     for (const width of [390, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 });
-      visibleItems.push(await chrome.evaluate(`(() => {
+      visibleItems.push(await chrome.stable(`(() => {
         const pane = document.querySelector('[data-pane="items"]');
         const row = [...document.querySelectorAll('#chain [data-item]')].find(node => node.textContent.includes(${JSON.stringify(notesTitle)}));
         const rect = row?.getBoundingClientRect();
         return { width: innerWidth, tab: view.tab, visible: !pane.hidden && Boolean(rect && row.getClientRects().length && rect.height > 0 && rect.top < innerHeight && rect.bottom > 0) };
       })()`));
     }
-    const sameDocument = await chrome.evaluate('performance.timeOrigin') === documentOrigin;
+    const sameDocument = await chrome.stable('performance.timeOrigin') === documentOrigin;
     const rawKey = readFileSync(join(box.env.PULLBOARD_HOME, 'relay-keys', board + '.key'), 'utf8').trim();
     return {
       waited, code: finished.code, stdout: finished.stdout, stderr: finished.stderr, linkedAtExit, opened, noticeBeforeKey,
-      noticeLog: await chrome.evaluate('window.__noticeLog'), rawKey, targetBoard: board, notesTitle, displayed, visibleItems, sameDocument,
+      noticeLog: await chrome.stable('window.__noticeLog'), rawKey, targetBoard: board, notesTitle, displayed, visibleItems, sameDocument,
       taps: box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizeBefore,
     };
   })();

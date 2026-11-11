@@ -12,6 +12,8 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { findChromeExecutable } from '../../tests/fixtures/relay/browser.js';
 import { startChrome } from '../../tests/fixtures/relay/browser.js';
 import { enrollProtocolPhone } from '../../tests/fixtures/relay/enrollment.js';
+import { press } from '../../tests/fixtures/cockpit/stable.js';
+import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 const CONFIRMATION_PROMPT = 'After sign-in, confirm the link in your browser: ';
 const CONFIRMATION_POLL_INTERVAL_MS = 2000;
@@ -30,17 +32,14 @@ function linkedBoardCount(database) {
 
 /** Click a visible production confirmation button through real Chrome mouse input. */
 async function clickConfirmationButton(chrome, selector, label) {
-  const point = await chrome.evaluate(`(() => { const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; })()`);
-  await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y }, `move to ${label}`);
-  await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 }, `press ${label}`);
-  await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 }, `release ${label}`);
+  await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
 }
 
 /** Exercise a real terminal decision while a pre-decision status request remains in flight. */
 async function keepTerminalConfirmation(t, decision) {
   const box = await relayClientFixture(t);
   const heldStatus = box.holdNextConfirmationStatus();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   let running;
   try {
     running = box.startCli(['relay', 'on', '--url', box.origin], {
@@ -57,8 +56,8 @@ async function keepTerminalConfirmation(t, decision) {
     await heldStatus.started;
     await chrome.waitFor('document.querySelector("#confirm")?.hidden === false && document.querySelector("#decline")?.hidden === false',
       undefined, 'the real page enables the decision after GitHub sign-in');
-    assert.equal(await chrome.evaluate('location.hash === ""'), true, 'the page removes the one-use nonce from browser history');
-    assert.equal(await chrome.evaluate('document.querySelector("#intent").textContent'),
+    assert.equal(await chrome.stable('location.hash === ""'), true, 'the page removes the one-use nonce from browser history');
+    assert.equal(await chrome.stable('document.querySelector("#intent").textContent'),
       `Link ${basename(box.root)} from ${hostname()}?`, 'the real page displays the bound board and machine');
     assert.equal(linkedBoardCount(box.authDatabase), 0, 'opening the browser confirmation does not link a board');
 
@@ -84,11 +83,11 @@ async function keepTerminalConfirmation(t, decision) {
     const lateResponse = JSON.parse(lateStatus.response.toString('utf8'));
     assert.equal(lateResponse.error?.code, 'OAUTH_EXPIRED', 'the in-flight request reaches the real handler after CLI flow consumption');
     const statusRequestsAfterLateResponse = confirmationStatusRequestCount(box);
-    await chrome.evaluate(`new Promise(resolve => setTimeout(resolve, ${CONFIRMATION_POLL_INTERVAL_MS * 2}))`,
+    await chrome.stable(`new Promise(resolve => setTimeout(resolve, ${CONFIRMATION_POLL_INTERVAL_MS * 2}))`,
       'wait through one full confirmation polling cadence after CLI flow consumption');
-    assert.equal(await chrome.evaluate('document.querySelector("#status").textContent'), terminalText,
+    assert.equal(await chrome.stable('document.querySelector("#status").textContent'), terminalText,
       'a late expired-flow status response and later polling cadence preserve the terminal message');
-    assert.equal(await chrome.evaluate('document.querySelector("#confirm").hidden && document.querySelector("#decline").hidden'), true,
+    assert.equal(await chrome.stable('document.querySelector("#confirm").hidden && document.querySelector("#decline").hidden'), true,
       'terminal decisions leave both buttons hidden');
     assert.equal(confirmationStatusRequestCount(box), statusRequestsAfterLateResponse,
       'the terminal page sends no more status requests after the next polling cadence');
