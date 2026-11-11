@@ -46,19 +46,20 @@ test('clause 1: cellRepo commits pullboard.json and SPEC.md in a real Git repo w
 });
 
 test('clause 1: the cell fixture and its helpers import no CLI entry, no apps/cli module and not the library front door [C7]', () => {
-  const pending = ['cell-fixture.js'], seen = new Set();
+  const fixture = new URL('../../../../packages/store/tests/fixtures/cell.js', import.meta.url);
+  const pending = [fixture.href], seen = new Set();
   while (pending.length) {
     const name = pending.shift();
     if (seen.has(name)) continue;
     seen.add(name);
-    const source = readFileSync(new URL(name, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(name), 'utf8');
     assert.doesNotMatch(source, /import\s*\*\s*as\s+[\w$]+\s+from\s*['"][^'"]*\/index\.js['"]/u, `${name} takes a namespace of a front door`);
     for (const specifier of specifiers(source)) {
       for (const [label, pattern] of FORBIDDEN) assert.doesNotMatch(`'${specifier}'`, pattern, `${name} imports ${label}: ${specifier}`);
-      if (specifier.startsWith('./')) pending.push(specifier.slice(2));
+      if (/^\.\.?\//u.test(specifier) && specifier.includes('/tests/fixtures/') || specifier.startsWith('./')) pending.push(new URL(specifier, name).href);
     }
   }
-  assert.ok(seen.has('testkit-fixture.js') && seen.has('fixture-child.js'), [...seen].join(', '));
+  assert.ok([...seen].some(name => name.endsWith('/packages/gate/tests/fixtures/child.js')), [...seen].join(', '));
 });
 
 test('clause 2: cellSeat and cellItem leave the seat and item rows join and add leave, through the store moves [C7]', t => {
