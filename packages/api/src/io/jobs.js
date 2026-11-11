@@ -21,6 +21,8 @@ const SCAN_ROWS = 500;
 // Budget: a run is one short argv (a command and its test files), never a script body.
 const RUN_ARGS = 256;
 const RUN_ARG_BYTES = 4096;
+// Budget: a job's payload names its work (commits, refs, a sha); the code itself moves through git, never the board.
+const PAYLOAD_BYTES = 16 * 1024;
 
 /** The sha256 hex of a lease token: the board keeps only this, so its rows never hold a usable token. */
 function tokenHash(token) {
@@ -53,19 +55,21 @@ function runnerId(runner) {
  * Put a job on the queue with the capabilities a runner needs to take it. Offering an id that exists returns it as it
  * stands, so a retried offer never resets a job a runner already holds.
  *
- * @param {import('node:sqlite').DatabaseSync} db
- * The run is the argv a runner executes at the candidate commit [P7].
+ * The run is the argv a runner executes at the candidate commit [P7]. A payload, when given, is a small JSON object
+ * the claiming runner gets back with its claim: what to work on, such as a landing's items and expected trunk sha.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ id: string, kind: string, needs?: string[], run?: string[], item?: number | null, candidate?: string | null, base?: string | null, now?: number }} fields
+ * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], item = null, candidate = null, base = null, now = Date.now() }) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, now = Date.now() }) {
   const wanted = names(needs, 'needs');
   const argv = runArgv(run);
+  if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
+  if (payload !== null && Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_BYTES) throw new Refused('JOB_PAYLOAD', `a job payload is at most ${PAYLOAD_BYTES} bytes; name commits and refs, and let the runner fetch the code from git`);
   return atomically(db, () => {
     const job = createJob(db, { id, kind, item, candidate, base, now });
-    if (job.step === 'queued' && job.steps.length === 0) writeStep(db, id, 'offered', { needs: wanted, ...(argv.length ? { run: argv } : {}) }, { now });
+    if (job.step === 'queued' && job.steps.length === 0) writeStep(db, id, 'offered', { needs: wanted, ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }) }, { now });
     return jobView(db, id);
   });
 }
@@ -80,8 +84,8 @@ export function offerJob(db, { id, kind, needs = [], run = [], item = null, cand
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number }} request
- * @returns {{ job: string, kind: string, needs: string[], run: string[], item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
- *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7].
+ * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
+ *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
 export function claimJob(db, { runner, capabilities = [], kinds = null, now = Date.now(), leaseMs = LEASE_MS }) {
   runnerId(runner);
@@ -92,7 +96,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, now = Da
       ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
       WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY job.job_created, job.job_id LIMIT ?`).all(now, SCAN_ROWS);
     for (const row of open) {
-      const { needs = [], run = [] } = JSON.parse(row.job_step_payload);
+      const { needs = [], run = [], payload = null } = JSON.parse(row.job_step_payload);
       if (only && !only.has(row.job_kind)) continue;
       if (!needs.every(need => has.has(need))) continue;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
@@ -101,7 +105,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, now = Da
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       writeStep(db, row.job_id, 'claimed', { runner, capabilities: [...has], token: tokenHash(token) }, { seq: attempt, now });
-      return { job: row.job_id, kind: row.job_kind, needs, run, item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
+      return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
     }
     return null;
   });
