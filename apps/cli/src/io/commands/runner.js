@@ -15,7 +15,7 @@ import {
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
-import { serveRunner } from '../../../../../packages/jobs/index.js';
+import { serveRunner } from '../../../../../packages/drive/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,

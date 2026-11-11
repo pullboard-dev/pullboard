@@ -9,15 +9,15 @@ import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { apiHttpBox } from '../../../../apps/cli/tests/fixtures/api.js';
-import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
-import { configFromSource } from '../../../config/index.js';
-import { loadMachineSettings } from '../../../config/index.js';
-import { trunkRemote } from '../../../config/index.js';
-import { jobView } from '../../index.js';
-import { offerJob } from '../../../api/index.js';
-import { serveRunner } from '../../index.js';
-import { landingRemote } from '../../../landing/index.js';
+import { apiHttpBox } from '../../tests/fixtures/api.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { configFromSource } from '../../../../packages/config/index.js';
+import { loadMachineSettings } from '../../../../packages/config/index.js';
+import { trunkRemote } from '../../../../packages/config/index.js';
+import { jobView } from '../../../../packages/jobs/index.js';
+import { offerJob } from '../../../../packages/api/index.js';
+import { serveRunner } from '../../../../packages/drive/index.js';
+import { landingRemote } from '../../../../packages/landing/index.js';
 
 /**
  * A local board serving its job queue under pull, plus a trunk remote: a bare repository apart from the board host's
