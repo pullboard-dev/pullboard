@@ -67,7 +67,7 @@ async function adoptLegacy(directory, legacy, reachable) {
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024) throw new Error('source tree metadata is invalid');
   const value = JSON.parse(readFileSync(file, 'utf8'));
   if (value.version !== 1 || !SHA.test(value.commit) || !SHA.test(value.tree)) throw new Error('source tree metadata is invalid');
-  if (!(await reachable([value.commit])).length) return;
+  if (!(await reachable([{ commit: value.commit }])).length) return;
   const slot = join(directory, randomUUID());
   mkdirSync(slot, { mode: 0o700 });
   try {

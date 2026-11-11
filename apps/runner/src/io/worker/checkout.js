@@ -44,14 +44,18 @@ async function concurrently(reads) {
 const MAX_CACHE_PACKS = 8;
 
 /**
- * Consolidate a cache repo that has accumulated packs and keep a commit-graph, so ancestry reads stay cheap.
- * Runs only under the cache lease before a job reads the cache, never while a job is using it.
+ * Consolidate a cache repo that has accumulated packs and rewrite its commit-graph, so ancestry reads stay cheap.
+ * Runs only under the cache's capacity-1 lease before the job reads the cache, and only past the pack threshold:
+ * a first-ever graph write on a large real cache can outlast the transport's liveness window, so an ungraphed
+ * cache with few packs is left alone. A failure here never fails the job; the cache stays valid either way.
  */
 async function maintainSourceCache(S, cache, env) {
-  const packs = readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.pack')).length;
-  const graphed = existsSync(join(cache, 'objects', 'info', 'commit-graph')) || existsSync(join(cache, 'objects', 'info', 'commit-graphs'));
-  if (packs > MAX_CACHE_PACKS) await git(S, cache, ['repack', '-a', '-d', '-q'], env);
-  if (packs > MAX_CACHE_PACKS || !graphed) await git(S, cache, ['commit-graph', 'write', '--reachable', '--split'], env);
+  try {
+    const packs = readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.pack')).length;
+    if (packs <= MAX_CACHE_PACKS) return;
+    await git(S, cache, ['repack', '-a', '-d', '-q'], env);
+    await git(S, cache, ['commit-graph', 'write', '--reachable', '--split'], env);
+  } catch { /* Maintenance is an optimisation only. */ }
 }
 
 /**
