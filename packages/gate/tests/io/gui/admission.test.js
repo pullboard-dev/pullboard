@@ -57,7 +57,7 @@ function committedGuiFixture(t) {
   command('init', '-q');
   command('config', 'user.name', 'GUI fixture');
   command('config', 'user.email', 'gui@example.invalid');
-  mkdirSync(join(root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'apps/cli/src/io/run/tests.js'), '// Private classifier fixture; never executed.\n');
   writeFileSync(join(root, 'test/native.test.js'), '/** Ordinary test. */\n');

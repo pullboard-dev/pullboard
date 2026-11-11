@@ -32,7 +32,7 @@ async function withBusyRunner(action) {
   const marker = join(box.dir, 'executed');
   mkdirSync(join(box.repo, 'test'));
   mkdirSync(join(box.repo, 'bin'));
-  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'suite');\n`);
   writeFileSync(join(box.repo, 'test/ordinary.test.js'),
     `const {test}=require('node:test');test('ordinary case',()=>require('node:fs').writeFileSync(${JSON.stringify(marker)},'named'));\n`);

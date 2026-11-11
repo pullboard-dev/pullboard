@@ -37,7 +37,7 @@ const browserFixtureSource = ["// pullboard: browser\nimport { spawn } from 'nod
 
 test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
-  mkdirSync(join(root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'apps/cli/src/io/run/tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\nthrow new Error('classification must not execute tests');\n");
@@ -85,7 +85,7 @@ process.stdout.write(JSON.stringify(decisions));`;
 
 test('shell admission preserves opaque suffixes and the existing short-slot boundary [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
-  mkdirSync(join(root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'apps/cli/src/io/run/tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\n");

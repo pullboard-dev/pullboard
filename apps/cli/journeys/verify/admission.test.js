@@ -46,7 +46,7 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     config.lanes.web.owns = [...config.lanes.web.owns, 'packages/gate/', 'test/'];
     writeFileSync(configPath, JSON.stringify(config, null, 2));
-    mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+    mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
     mkdirSync(join(box.repo, 'test'));
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
     // A literal fixture runner executes the selected file, without importing the real project's test pool.
