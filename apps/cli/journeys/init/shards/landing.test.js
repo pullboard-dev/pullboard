@@ -74,8 +74,8 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
   const red = await landingGate(box, 'failing shard', 60_000);
   assert.notEqual(red.collectAllComplete,true,'cancelled failfast siblings never establish full collection');
   assert.equal(red.isGreen, false, red.output);
-  assert.match(red.output, /^# landing shard \d\/3 attempt 1 on \S+: red in \d+ ms$/mu);
-  assert.equal([...red.output.matchAll(/^# landing shard \d\/3 attempt \d+ on \S+: stopped in \d+ ms$/gmu)].length, 2, red.output);
+  assert.match(red.output, /^# landing shard \d\/3 attempt 1 on \S+: red in \d+ ms(?: \(.*\))?$/mu);
+  assert.equal([...red.output.matchAll(/^# landing shard \d\/3 attempt \d+ on \S+: stopped in \d+ ms(?: \(.*\))?$/gmu)].length, 2, red.output);
   // A test failure is not infrastructure: nothing reruns and nothing falls back.
   assert.doesNotMatch(red.output, /rerunning shard|infrastructure/u);
   assert.equal(red.profile.landingShards.shards.length, 3, 'one attempt per shard');

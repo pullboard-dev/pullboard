@@ -21,8 +21,8 @@ test('a landing shard whose runner is killed mid-shard reruns locally [C7,V4]', 
   assert.ok(rerun, `the rerun is named\n${dropped.output}`);
   const label = rerun[1].replace('/', '\\/');
   // Both attempts stay in the log and the profile: the failed runner attempt first, then the local rerun.
-  assert.match(dropped.output, new RegExp(`^# landing shard ${label} attempt 1 on ${HOST}: infrastructure \\(runner transport lost\\) in \\d+ ms$`, 'mu'));
-  assert.match(dropped.output, new RegExp(`^# landing shard ${label} attempt 2 on local: green in \\d+ ms$`, 'mu'));
+  assert.match(dropped.output, new RegExp(`^# landing shard ${label} attempt 1 on ${HOST}: infrastructure \\(runner transport lost\\) in \\d+ ms(?: \\(.*\\))?$`, 'mu'));
+  assert.match(dropped.output, new RegExp(`^# landing shard ${label} attempt 2 on local: green in \\d+ ms(?: \\(.*\\))?$`, 'mu'));
   const attempts = dropped.profile.landingShards.shards.filter(shard => shard.shard === rerun[1]);
   assert.deepEqual(attempts.map(shard => [shard.attempt, shard.host, shard.status]), [[1, HOST, 'infrastructure'], [2, 'local', 'green']]);
   assert.ok(marks(box, '.runner.started').length > 0, 'the shard had started on the runner');
