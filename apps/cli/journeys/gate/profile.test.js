@@ -331,10 +331,10 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
     assert.equal(statSync(profilePath).mode & 0o777, 0o600);
     assert.ok(existsSync(profilePath.slice(0, -'.profile.json'.length)), 'the corresponding sanitized raw log remains beside its profile');
   }
-  mkdirSync(join(box.repo, 'docs'), { recursive: true });
-  writeFileSync(join(box.repo, 'docs/review-context.md'), 'unrelated main context\n');
-  box.git(box.repo, 'add', 'docs/review-context.md');
-  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance unrelated review context');
+  // Main moves a file the check names, so the sealed submit proof cannot stand and the check runs again.
+  writeFileSync(join(box.repo, '.timed/fast.test.js'), "import { test } from 'node:test'; test('fast timing profile check', () => {}); // main context\n");
+  box.git(box.repo, 'add', '.timed/fast.test.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: advance a file the check names');
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
@@ -358,7 +358,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   } finally { store.closeBoard(reviewBoard); }
   assert.ok(checkedHead, 'the sealed fresh ACCEPT review names its actual checked composition');
   assert.notEqual(checkedHead, commit, 'unrelated main advancement produced a new composed commit');
-  assert.equal(box.git(review, 'show', `${checkedHead}:docs/review-context.md`).trim(), 'unrelated main context',
+  assert.equal(box.git(review, 'show', `${checkedHead}:.timed/fast.test.js`).includes('// main context'), true,
     'the checked composition includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
