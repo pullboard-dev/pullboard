@@ -2383,7 +2383,7 @@
   "apps/cli/tests/fixtures/bridge.js": {
     "raw-board": 5
   },
-  "apps/cli/journeys/publish/bridge.test.js": {
+  "apps/cli/journeys/publish/proofs.test.js": {
     "raw-board": 3
   },
   "apps/cli/journeys/init/practice.test.js": {
