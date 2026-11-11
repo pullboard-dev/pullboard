@@ -84,7 +84,7 @@ export function openFixtureBoard(box) {
 /** Read only this journey's real fixture board, shared with its actual native CLI processes. */
 export function snapshot(box) {
   const board = openFixtureBoard(box);
-  try { return { quarantines: flakeQuarantines(board), jobs: board.db.prepare("SELECT * FROM job WHERE job_kind = 'flake-diagnose'").all(), runs: gateRuns(board), items: store.listItems(board, { all: true }), admissions: store.events(board).filter(event => ['claim', 'renew'].includes(event.event_kind)).map(event => JSON.parse(event.event_detail).submitAdmission).filter(Boolean) }; }
+  try { return { quarantines: flakeQuarantines(board), jobs: board.db.prepare("SELECT * FROM job WHERE job_kind = 'flake-diagnose'").all(), steps: board.db.prepare("SELECT job_step_name AS name, substr(job_step_payload, 1, 1500) AS payload FROM job_step WHERE job_step_job LIKE 'flake-diagnose:%' ORDER BY job_step_seq").all(), runs: gateRuns(board), items: store.listItems(board, { all: true }), admissions: store.events(board).filter(event => ['claim', 'renew'].includes(event.event_kind)).map(event => JSON.parse(event.event_detail).submitAdmission).filter(Boolean) }; }
   finally { store.closeBoard(board); }
 }
 
