@@ -40,6 +40,7 @@
     "apps/cli/journeys/fact/tests/cpu.test.js": 1,
     "apps/cli/journeys/fact/tests/cpu-unreadable.test.js": 1,
     "apps/cli/journeys/fact/tests/cpu-registration.test.js": 1,
+    "apps/cli/journeys/fact/tests/cpu-registration-imports.test.js": 1,
     "apps/cli/journeys/fact/tests/cpu-registration-closure.test.js": 1,
     "apps/cli/journeys/health/blocks.test.js": 1,
     "apps/cli/journeys/hold/demo.test.js": 1,
