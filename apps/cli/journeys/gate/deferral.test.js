@@ -26,6 +26,7 @@ import {
   FIXTURE_MODEL,
 } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { fixtureCommittedPolicy } from '../../tests/fixtures/testkit.js';
 import { fixtureOpenBoard } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
@@ -60,6 +61,9 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: thirty tests import one source');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.env.DEFER_MARKER = join(box.dir, 'ran.log');
+  // The landing runs the deferred files on this machine: give the fixture its own gate and browser slots.
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1, gate: { memoryFloorMB: 0, timingRunner: false } });
   delete box.env.NODE_TEST_CONTEXT;
   const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
   /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
