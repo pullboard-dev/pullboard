@@ -144,3 +144,19 @@ test('#4633 clause 3: a change touching an unsealed cell or shared code is not c
   const shared = commit(root, { 'packages/alpha/src/core/a.js': 'export const a = 3;\n', 'lib/shared.js': 'export const shared = 2;\n' });
   assert.ok(selectTestTiers(root, { base: open, commit: shared }).journeys.includes('test/journey.test.js'), 'shared code is not a cell');
 });
+
+test('#5671 clause 1: a unit narrowed to a sealed cell passes the guard though a moved test unseals another package [C7]', t => {
+  const { root, base } = fixture(t);
+  const moved = 'apps/gamma/tests/moved.test.js';
+  const head = commit(root, { [moved]: 'import { g } from "../index.js";\nvoid g;\n', 'apps/gamma/src/shell/g.js': 'export const g = 2;\n', 'packages/beta/tests/b.test.js': 'import { b } from "../index.js";\nimport "../../../apps/gamma/index.js";\nvoid b;\n' });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.deepEqual(plan.units, [GAMMA_TEST, moved], 'selection narrows to the sealed cell\'s own tests');
+  assert.doesNotThrow(() => requireSealedSkips(root, plan), 'the narrowing to the sealed cell is accepted');
+});
+
+test('#5671 clause 1: an unsealed package still has to select its unit tests [C7]', t => {
+  const { root, base } = fixture(t, ['alpha']);
+  const head = commit(root, { 'packages/beta/src/core/b.js': 'export const b = 2;\n' });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.throws(() => requireSealedSkips(root, { ...plan, units: [] }), /TEST_SELECTION_INCOMPLETE|neither selected nor skipped/u);
+});
