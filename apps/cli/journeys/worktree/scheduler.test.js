@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -38,6 +39,7 @@ function enabledProject(t) {
 test('actual CLI registration failure prints stage and cause without changing its successful result [B3,C7,N26]', t => {
   const { box, directory } = enabledProject(t);
   writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o644 });
+  chmodSync(join(directory, 'timer.guard.sqlite'), 0o644); // the executing host's umask would otherwise narrow the mode written above
   const result = box.run(box.repo, 'status');
   assert.equal(result.code, 0, result.err || result.out);
   assert.match(result.err, /maintenance timer could not be registered; stage=register; Error: maintenance timer lock is not private/u);
