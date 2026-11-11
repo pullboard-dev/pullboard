@@ -251,7 +251,9 @@ import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit/wait.js';
-import { runPreflight } from '../submit/preflight.js';
+import { runStaticPreflight } from '../submit/preflight.js';
+import { requireStaticPreflight } from '../submit/preflight.js';
+import { changedSince } from '../submit/preflight.js';
 import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
@@ -608,6 +610,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const regeneratedFrom = toolRegenerationSource(root, commit);
   // Queue all captured sources before cell compilation; the bound worker runs the same checks and refusal path.
   if (pending || handoffEnabled) {
+    // The configured static check runs here, in the agent's checkout, so a red one never takes a runner trip (#5730).
+    if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
     const { enqueueSubmitHandoff } = await import('../submit/handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
@@ -872,15 +876,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-        if (!remoteMode && !companion && /\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-          const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
-          const report = await runPreflight(root, changed);
-          if (!report.ok) {
-            const lines = [];
-            reportPreflight(report, line => lines.push(line));
-            throw new Refused('GATE_RED', `preflight is red; no runner was queued. Fix the named source, commit, and submit again:\n${lines.join('\n')}`);
-          }
-        }
+        // A handoff worker's agent already ran this in its own checkout before queueing (#5730).
+        if (!remoteMode && !companion && !isSubmitHandoffWorker(ctx)) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
         settlePreflight.resolve();
         return placed;
       } catch (error) { settlePreflight.reject(error); throw error; }
@@ -1238,7 +1235,7 @@ async function preflightHere(ctx) {
   const { root } = ctx.info;
   const changed = tryGit(root, ['diff', '--name-only', '-z', 'refs/heads/main...HEAD']);
   const files = changed.status === 0 ? changed.stdout.split('\0').filter(Boolean) : [];
-  return reportPreflight(await runPreflight(root, files), line => ctx.io.say(line));
+  return reportPreflight(await runStaticPreflight(root, ctx.config.staticChecks, files, { timeoutMs: ctx.config.check?.timeoutMs }), line => ctx.io.say(line));
 }
 
 /** Run `pullboard submit` and return its exit code. */
