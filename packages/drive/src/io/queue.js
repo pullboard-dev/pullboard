@@ -143,15 +143,19 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
  * @param {(work: (board: any) => any) => any} withBoard
  * @param {string} id
  * @param {() => Promise<object>} work - The blocking run; resolves to the result payload.
- * @param {{ renewMs?: number }} [options]
+ * Each beat also calls `beatSeat`, so the queuing seat reads alive while its run is live, even on a remote runner where
+ * its own machine runs no test process; the stale sweep would otherwise free the claim after 2 quiet minutes [B28].
+ * The caller injects it because the drive cell does not import the store.
+ *
+ * @param {{ renewMs?: number, beatSeat?: (board: any) => void }} [options]
  * @returns {Promise<object>} The recorded result.
  */
-export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS } = {}) {
+export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, beatSeat = null } = {}) {
   const owner = `test-run:${process.pid}`;
   const taken = withBoard(board => takeJob(board.db, id, owner, { leaseMs: LEASE_MS }));
   if (!taken.taken) throw new Refused('TEST_RUN_TAKEN', `test run ${id} already has a live worker; read it with pullboard test --status ${id}`);
-  withBoard(board => writeStep(board.db, id, 'running', { pid: process.pid }));
-  const beat = setInterval(() => { try { withBoard(board => renewLease(board.db, id, owner)); } catch { /* the next beat retries */ } }, renewMs);
+  withBoard(board => { writeStep(board.db, id, 'running', { pid: process.pid }); beatSeat?.(board); });
+  const beat = setInterval(() => { try { withBoard(board => { renewLease(board.db, id, owner); beatSeat?.(board); }); } catch { /* the next beat retries */ } }, renewMs);
   let result;
   try { result = await work(); }
   catch (error) { result = { green: false, error: { code: error?.code ?? 'TEST_RUN_FAILED', message: String(error?.message ?? error) } }; }
