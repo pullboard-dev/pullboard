@@ -223,7 +223,7 @@ test("the history is a timeline of the item's states [N26]", async () => {
       ['tl-verified', 'coordinator passed it'],
       ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
-    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', 'claimed for', '', '', 'submitted for', 'sent back for', 'claimed for', 'claimed for', '', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
+    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', '', 'now', 'submitted for', 'sent back for', 'claimed for', '', '', 'now', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet') && !row.dot.includes('tl-fact')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
     assert.ok(done.every((row) => /^\d{1,2}:\d\d [AP]M$/.test(row.time)), 'every event keeps its time');
 
@@ -327,7 +327,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     // Each declared route retains its own move label and observed count.
     assert.deepEqual(Object.fromEntries(routes.map((route) => [route.pair, route.label])), {
       'open>claimed': 'claim 6',
-      'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
+      'claimed>open': 'patch-objected · release · lapse · escalate · refreeze (none yet)',
       'claimed>submitted': 'submit 3',
       'claimed>verified': 'submit-merge (none yet)',
       'open>verified': 'rehomeImport (none yet)',
