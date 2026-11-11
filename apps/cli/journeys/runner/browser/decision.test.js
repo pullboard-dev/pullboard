@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/relay/journeys/server/stays.test.js packages/gate/index.js packages/items/tests/io/criterion.test.js */
+/** @pullboard-test-input source-tree */
 /** @pullboard-module-loads packages/gate/index.js packages/runners/index.js packages/landing/index.js */
 /** Replay the frozen-check plus cockpit-proof file shapes from #2576 and #2521 on a real worker [C7]. */
 import assert from 'node:assert/strict';

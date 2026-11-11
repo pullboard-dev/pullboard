@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/init/perf.test.js apps/cli/tests/fixtures/cockpit/harness.js apps/cli/tests/fixtures/cockpit/perf/generate.mjs apps/cli/tests/fixtures/cockpit/perf/run.mjs apps/cli/tests/fixtures/view/link.js packages/gate/src/io/run/tests.js packages/resources/index.js */
+/** @pullboard-test-input source-tree */
 /** Exercise native test-file sharding through the production test runner [C7]. */
 import { copyPackageFiles } from '../../../index.js';
 import assert from 'node:assert/strict';

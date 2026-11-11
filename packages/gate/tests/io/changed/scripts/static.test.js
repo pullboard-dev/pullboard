@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/data/baselines/test-waits-baseline.json packages/gate/src/io/changed/scripts/static.js */
+/** @pullboard-test-input source-tree */
 /** The explicit staged checker runs the gate's changed-file static checks on staged files, so a static red never costs a gate run [C7]. */
 import assert from 'node:assert/strict';
 import { copyFileSync } from 'node:fs';

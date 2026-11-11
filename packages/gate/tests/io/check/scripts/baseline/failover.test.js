@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Real private queue admissions keep submit and review check retries off their caller [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
