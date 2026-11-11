@@ -184,6 +184,21 @@ for(const attempt of [1,2]) {
       'the actual private SSH stand-in executed the worker; this is no physical-fleet assurance');
   });
 
+  test('native verify reuses its sealed submit proof under either runner policy [C7,V4]', async t => {
+    for (const runnersOnly of [true, false]) await t.test(`runner-only ${runnersOnly} [C7,V4]`, child => {
+      const { project, item, reviewer, marker } = verificationProject(child, { checked: true });
+      assert.equal(readFileSync(marker, 'utf8'), 'check-ran', 'submit executed the real frozen check');
+      rmSync(marker, { force: true });
+      policy(project, runnersOnly);
+      const verified = succeeded(project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json'));
+      assert.equal(JSON.parse(verified.out).check, 'green');
+      assert.equal(existsSync(marker), false, 'the sealed proof requires no new local or remote body');
+    });
+  });
+}
+
+/** Install the doctrine case alone: its probe item and three submits need a file of their own to stay inside the time budget. */
+export function installRunnerOnlyDoctrineCase() {
   test('runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', () => {
     const box = helpers.project('true');
     const marker = join(box.dir, 'doctrine-bodies.jsonl');
@@ -259,17 +274,5 @@ process.exit(lines.length?1:0);
     assert.ok(receipts.some(row => row.privateCheck.phases.check.code === 3), 'the uncountable exit is retained rather than a passing empty count');
     assert.ok(receipts.every(row => row.runner === HOST && row.checkedSource.commit === row.executionSource.commit
       && row.checkedSource.tree === row.executionSource.tree && row.privateCheck.sourceUnchanged), 'all counted observations bind actual unchanged source');
-  });
-
-  test('native verify reuses its sealed submit proof under either runner policy [C7,V4]', async t => {
-    for (const runnersOnly of [true, false]) await t.test(`runner-only ${runnersOnly} [C7,V4]`, child => {
-      const { project, item, reviewer, marker } = verificationProject(child, { checked: true });
-      assert.equal(readFileSync(marker, 'utf8'), 'check-ran', 'submit executed the real frozen check');
-      rmSync(marker, { force: true });
-      policy(project, runnersOnly);
-      const verified = succeeded(project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json'));
-      assert.equal(JSON.parse(verified.out).check, 'green');
-      assert.equal(existsSync(marker), false, 'the sealed proof requires no new local or remote body');
-    });
   });
 }
