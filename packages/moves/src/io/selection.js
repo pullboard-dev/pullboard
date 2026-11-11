@@ -216,7 +216,8 @@ async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered)
   try {
     await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
     await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
-      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '')}; ${refusal.next ?? ''}`.trim() }]);
+      // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
+      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);
   } catch (error) {
     // A refused report must never stop the seat it only reports on.
     if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
