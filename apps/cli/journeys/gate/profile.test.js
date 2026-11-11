@@ -640,7 +640,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     assert.equal(gate.check.checked, true);
     assert.equal(gate.check.command, checkCommand);
     assert.equal(gate.reason === '', !scenario.full);
-    if (scenario.full) assert.deepEqual(gate.files, []);
+    // The check's own file is named by the bar, and a no-runner project's default runner does not match the check's runner prefix, so the proof names it too.
+    if (scenario.full) assert.deepEqual(gate.files, ['timed/check.test.js']);
     if (!scenario.full) assert.deepEqual(gate.files, ['web/affected.test.js']);
     if (scenario.full) assert.match(gate.reason, /affected-test selection is not enabled/u);
 
