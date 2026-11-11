@@ -954,6 +954,8 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
     sealed: freshSealed,
   };
   writeFileSync(freshLinkFile, JSON.stringify(freshLink) + '\n', { mode: 0o600 });
+  // The coordinator's sentinel sweep marks the unreviewable stack base once; let it upload before the baseline.
+  await settledUploadCount(relay, async () => (await Promise.all([...clones, ...worktrees].map((root, index) => cli(root, envs[index % 3], 'status'))))[2]);
   const beforeFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
   await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
