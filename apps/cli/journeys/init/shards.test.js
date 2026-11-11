@@ -465,6 +465,7 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
 
   // A runner killed mid-shard: its shard reruns locally with a named line and the gate stays green.
   scenario(box, 'drop', { dropOnce: true });
+  { const { DatabaseSync } = await import('node:sqlite'); const out = {}; for (const f of readdirSync(box.env.PULLBOARD_MACHINE_HOME)) { if (!f.endsWith('.sqlite')) continue; const db = new DatabaseSync(join(box.env.PULLBOARD_MACHINE_HOME, f)); for (const t of ['runner_unavailable', 'holder', 'runner_timing_reserve', 'runner_timing_drain', 'runner_gui']) { try { out[f + ':' + t] = db.prepare('SELECT * FROM ' + t).all(); } catch (e) { out[f + ':' + t] = String(e).slice(0, 60); } } } process.stderr.write('TEMPDBG ' + JSON.stringify(out) + '\n'); } // TEMPDBG
   const dropped = await landingGate(box, 'killed runner', 150_000);
   assert.equal(dropped.isGreen, true, dropped.output);
   const rerun = /^landing shard (\d\/3): runner fixture-host failed mid-shard; rerunning shard \1 locally$/mu.exec(dropped.output);
