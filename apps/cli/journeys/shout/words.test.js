@@ -102,10 +102,10 @@ async function seedBookkeeping(box, alpha) {
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     // The fixture has no registered runner, so no background baseline ever lands; record a request and complete it through the real store calls.
-    const pending = { command: 'node --version', main: box.git(alpha.repo, 'rev-parse', 'HEAD'), result: 'pending', request: randomUUID() };
+    const pending = { command: store.getItem(held, 1).item_check, main: box.git(alpha.repo, 'rev-parse', 'HEAD'), result: 'pending', request: randomUUID() };
     store.saveCheckBaseline(held, 1, pending);
-    store.completeCheckBaseline(held, 1, { agentId: 'coordinator', expected: pending,
-      baseline: { command: pending.command, main: pending.main, result: 'green', seconds: 1 } });
+    assert.equal(store.completeCheckBaseline(held, 1, { agentId: 'coordinator', expected: pending,
+      baseline: { command: pending.command, main: pending.main, result: 'green', seconds: 1 } }), true, 'the request is still current');
     store.board_recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
     const kinds = new Set(store.events(held).map(event => event.event_kind));
     for (const kind of ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item']) {
