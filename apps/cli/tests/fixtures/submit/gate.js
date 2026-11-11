@@ -20,7 +20,7 @@ const dirs = [];
 export const SPEC = '# Submit proof fixture\n\n## G · Goals\n- G1 [approved, must] The selected test proves the change. | gate: test\n';
 
 after(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 /** Resolve the real CLI relative to this test without importing any project dependencies. */
@@ -32,7 +32,7 @@ function resolveBin() {
 export function privateRepo(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-gate-')));
   dirs.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
   const root = join(dir, 'repo');
   mkdirSync(root);
   const env = {
