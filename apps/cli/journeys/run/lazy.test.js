@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/fixtures/budgets.js */
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
@@ -276,6 +277,7 @@ test('importing the runners package spawns nothing and pins no tooling; the firs
   const installed = join(directory, 'installed');
   copyPackageFiles(ROOT, installed);
   mkdirSync(join(installed, 'test'), { recursive: true });
+  mkdirSync(join(installed, 'packages/gate/tests/fixtures'), { recursive: true });
   copyFileSync(join(ROOT, 'packages/gate/tests/fixtures/budgets.js'), join(installed, 'packages/gate/tests/fixtures/budgets.js'));
   const counter = join(directory, 'counter.mjs');
   writeFileSync(counter, SPAWN_COUNTER);
@@ -288,8 +290,10 @@ assert.deepEqual(globalThis.__spawned, [], 'importing the runners package starts
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'import pins no tooling generation');
 // A front-door runner operation pins first; this one then fails on its invalid runner without any SSH.
 await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
-assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
+assert.equal(runners.runnerToolingPinned(), true, 'the first runner operation pins the tooling generation');
+// The closure capture waits for first use, so the generation's first read spawns the capture.
 assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
+assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first use of the pinned generation captures the tooling');
 appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/io/dispatch.js'))}, '\\n// changed after the first dispatch\\n');
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
 `;
