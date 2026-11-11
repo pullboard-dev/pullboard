@@ -43,21 +43,25 @@ test('a shard attempt header and its last word are read from the landing log [C7
   assert.equal(finalStatus('infrastructure'), false);
 });
 
-test('every planned file gets a row: green, red with its failing cases, hung, no result or unrun [C7]', () => {
+test('every planned file gets a row: green, red with its failing cases, hung or unrun [C7]', () => {
   const outcomes = [
     { file: 'a.test.js', name: 'one', passed: true, skipped: false },
     { file: 'b.test.js', name: 'bad case', passed: false, skipped: false },
     { file: 'b.test.js', name: 'fine case', passed: true, skipped: false },
   ];
-  const output = 'run-tests: HUNG file "/work/jobs/x/c.test.js" test "t": no output\n';
+  const output = [
+    'run-tests: HUNG file "/work/jobs/x/c.test.js" test "t": no output',
+    'not ok 2 - bad case', '  ---', "  location: '/work/jobs/x/b.test.js:3:1'", "  failureType: 'testCodeFailure'", '  ...',
+    'not ok 3 - parent only', '  ---', "  location: '/work/jobs/x/a.test.js:1:1'", "  failureType: 'subtestsFailed'", '  ...',
+  ].join('\n');
   const base = { files: ['a.test.js', 'b.test.js', 'c.test.js', 'd.test.js'], host: 'h', label: '1/2', output, outcomes, times: { 'a.test.js': 1250 } };
   const red = Object.fromEntries(shardRows({ ...base, status: 'red' }, 'abc').map(row => [row.file, row]));
   assert.deepEqual(red['a.test.js'], { file: 'a.test.js', status: 'green', cases: [], secs: 1.3, sha: 'abc', shard: '1/2', host: 'h' });
   assert.deepEqual([red['b.test.js'].status, red['b.test.js'].cases], ['red', ['bad case']]);
   assert.equal(red['c.test.js'].status, 'hung');
-  assert.equal(red['d.test.js'].status, 'no-result');
+  assert.equal(red['d.test.js'].status, 'green', 'a file with no failing row in a collecting red shard passed');
+  assert.equal(red['a.test.js'].status, 'green', 'a parent that failed only through its children is not a case');
   assert.ok(shardRows({ ...base, status: 'infrastructure' }, 'abc').every(row => row.status === 'unrun'));
-  assert.equal(shardRows({ ...base, status: 'green', outcomes: [] }, 'abc').find(row => row.file === 'd.test.js').status, 'green');
 });
 
 test('pullboard test --census runs every tracked file on the runner in shards and writes one row each [C7]', { timeout: 240_000 }, () => { // budget: two stand-in runner worker runs
