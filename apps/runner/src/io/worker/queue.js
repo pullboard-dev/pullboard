@@ -21,16 +21,28 @@ export function queueJobFolder(env = process.env) {
   return folder;
 }
 
+/** A named refusal: the code is what the receipt and the board read, the message ends with the next step. */
+function refusal(code, message) { return Object.assign(new Error(message), { code }); }
+
+/** Longest the worker holds the source-cache pin waiting for the coordinator's pack. */
+export const SOURCE_PACK_WAIT_MS = 600_000;
+
 /**
  * Copy the job's source.pack into the worker's pack file once source.pack.ready exists; false when not in queue mode.
  * Why: the pack is built after the worker's NEED line reaches the coordinator, so the worker waits for the ready marker
  * (the upload is whole by then) and a lost transport (SIGTERM from cancel or an expired wanted file) ends the wait.
+ * The wait is bounded too: the worker holds the repo source-cache pin meanwhile, and 11 Nov on runner .51 an orphan held it for
+ * an hour after its job folder vanished while every other job queued behind it [#5624].
  */
-export async function receiveQueuedPack(S, packFile, { env = process.env, pollMs = 100, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export async function receiveQueuedPack(S, packFile, { env = process.env, pollMs = 100, limitMs = SOURCE_PACK_WAIT_MS, now = Date.now, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const folder = queueJobFolder(env);
   if (folder === null) return false;
+  const deadline = now() + limitMs;
   while (!existsSync(join(folder, 'source.pack.ready'))) {
     assertTransportLive(S);
+    // A vanished job folder means the agent already finished this job; no pack can ever arrive, and the wait held the pin [#5624].
+    if (!existsSync(folder)) throw refusal('SOURCE_PACK_ORPHANED', 'the runner job folder is gone, so no source pack can arrive; resubmit the run');
+    if (now() >= deadline) throw refusal('SOURCE_PACK_TIMEOUT', `no source pack arrived within ${Math.round(limitMs / 1000)} s; the repo source-cache pin is released, rerun the job`);
     await wait(pollMs);
   }
   assertTransportLive(S);
