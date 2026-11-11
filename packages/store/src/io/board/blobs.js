@@ -1,5 +1,6 @@
 /** One-time move of oversized job step payloads into the blob store, and the compaction that returns their space [C7]. */
 import { statfsSync } from 'node:fs';
+import { boardWriteHolderText } from './write/lock.js';
 import { BLOBS_MIGRATED_KEY } from '../../logic/board/authority.js';
 import { BLOB_THRESHOLD_BYTES } from '../../../../jobs/index.js';
 import { blobDirOf } from '../../../../jobs/index.js';
@@ -80,14 +81,16 @@ export function migrateJobBlobs(db) {
  * copy, and the write lock comes within a short wait. Otherwise nothing changes and a later open tries again.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ minFreeBytes?: number, waitMs?: number }} [options]
+ * @param {{ minFreeBytes?: number, waitMs?: number, force?: boolean }} [options] - force skips the quiet-board check.
  * @returns {{ compacted: boolean, reason?: string, before?: number, after?: number }}
  */
-export function compactBoard(db, { minFreeBytes = COMPACT_MIN_FREE_BYTES, waitMs = 5000 } = {}) {
+export function compactBoard(db, { minFreeBytes = COMPACT_MIN_FREE_BYTES, waitMs = 5000, force = false } = {}) {
   const free = freeBytes(db);
   if (free < minFreeBytes) return { compacted: false, reason: 'little free space' };
   const file = db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!file) return { compacted: false, reason: 'no board file' };
+  // The rewrite holds the write lock for seconds, so it waits for a quiet board: a later open tries again.
+  if (!force && boardWriteHolderText(file) !== '') return { compacted: false, reason: 'another writer holds the board' };
   const pages = db.prepare('PRAGMA page_count').get().page_count;
   const size = pages * db.prepare('PRAGMA page_size').get().page_size;
   try {
