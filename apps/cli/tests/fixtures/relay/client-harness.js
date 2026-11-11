@@ -614,6 +614,7 @@ export async function competingReplicaClaims(fixture, timing, { ids, tail = true
 /** Preserve lost CLI replies, original outcomes and the receipt-missing stack guard. */
 export async function recoverReplicaReplies(fixture, timing, restoreInventories = () => {}) {
   const { scratch, clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
+  const treeAtStart = gitAt(worktrees[0], envs[0], 'rev-parse', 'main^{tree}'); // DIAG-TEMP
   timing.begin('lost-reply recovery', 'exercise dropped CLI replies, replay recovery, and durable outcome ordering across all replicas');
   // Exercise loss of the add's reply, after the separate one-time legacy migration has completed.
   await timing.wait('establish the legacy approval baseline before the add fault', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for add recovery'));
@@ -699,10 +700,10 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   writeFileSync(join(worktrees[0], 'web', 'lost-submit.txt'), 'the work whose submission reply is lost\n');
   gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
   gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
-  const diagInventory = () => { const lines = []; for (const env of envs) { const dir = join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'); try { lines.push(dir + ': ' + readdirSync(dir, { recursive: true }).join(',')); } catch (error) { lines.push(dir + ': ' + error.code); } } lines.push('stash: ' + readdirSync(join(fixture.scratch, 'inventory-stash'), { recursive: true }).join(',')); lines.push('main tree ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'main^{tree}') + ' head ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD')); return lines.join('\n'); }; // DIAG-TEMP
+  const diagInventory = () => { const lines = []; for (const env of envs) { const dir = join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'); try { lines.push(dir + ': ' + readdirSync(dir, { recursive: true }).join(',')); } catch (error) { lines.push(dir + ': ' + error.code); } } lines.push('stash: ' + readdirSync(join(fixture.scratch, 'inventory-stash'), { recursive: true }).join(',')); lines.push('tree at start ' + treeAtStart + ' main tree ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'main^{tree}') + ' head ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD')); return lines.join('\n'); }; // DIAG-TEMP
   restoreInventories(); // a CLI step in between can drop the published accepted inventory the submit reads
   relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
-  const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => { try { return cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next'); } catch (error) { throw new Error('DIAG lost submit:\n' + diagInventory() + '\n' + String(error.message).slice(0, 300)); } });
+  const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next').catch(error => { throw new Error('DIAG lost submit:\n' + diagInventory() + '\n' + String(error.message).slice(0, 300)); }));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
   assert.equal(lostSubmit.status, 1);
   assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE', JSON.stringify(lostSubmit.document).slice(0, 600) + '\nDIAG:\n' + diagInventory()); // DIAG-TEMP
