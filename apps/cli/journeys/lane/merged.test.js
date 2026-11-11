@@ -82,7 +82,9 @@ test('a builder editing the accepted main row itself still fails public submit b
   const box = await mergedPlacement(t);
   const plan = readPlan(box.view);
   const row = plan.cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === box.mainFile);
-  row[1] = row[1].replace('/shell/', '/core/');
+  // Placement targets use io/logic since cdd6fdd706; the old shell/core swap silently edited nothing.
+  row[1] = row[1].replace('/io/', '/logic/');
+  assert.match(row[1], /\/logic\//u, 'the accepted main row really changes');
   writePlan(box.view, plan);
   box.git(box.view, 'add', 'packages/codemap/data/plan');
   // A private commit-tree object models an externally authored bad commit; it claims no successful hook or proof.
