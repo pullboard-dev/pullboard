@@ -1837,8 +1837,12 @@
     "model": 7
   },
   "apps/cli/journeys/shout/journeys.test.js": {
-    "tempdir": 3,
-    "raw-cli": 4
+    "tempdir": 2,
+    "raw-cli": 1
+  },
+  "apps/cli/journeys/shout/shouts/scenarios.test.js": {
+    "tempdir": 1,
+    "raw-cli": 3
   },
   "apps/cli/journeys/gate/kernel.test.js": {
     "raw-board": 1
