@@ -1,6 +1,7 @@
 /** A real project and board under gate.runnerDispatch pull, with accepted main's stand-in gate tooling, and its board job queue on loopback [P7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -8,6 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
 import { fixtureMachineSettings } from './testkit.js';
@@ -23,6 +25,7 @@ export const TOOLING = {
   'package.json': '{"type":"module"}\n',
   'bin/record.js': `import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS ?? join(root, '.git', 'gate-steps.jsonl'), JSON.stringify({ step, job: process.env.PULLBOARD_FIXTURE_JOB ?? null, pid: process.pid }) + '\\n'); }
 `,
   'packages/items/index.js': `import { record } from '../../bin/record.js';
@@ -127,4 +130,22 @@ export async function pullQueue(t, box, { queue } = {}) {
     return document;
   };
   return { board, url, call };
+}
+
+const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+
+/**
+ * Run `pullboard runner serve <url> --once` as its own process, with no board environment, and resolve its exit and output.
+ * The stand-in tooling records its steps beside the runner's cache, since a runner's checkout is a worktree whose .git is a file.
+ */
+export function serveOnce(box, url, runner, env = {}) {
+  env = { PULLBOARD_FIXTURE_STEPS: join(box.runnerHome, `${runner}-steps.jsonl`), ...env };
+  const clean = { ...box.env };
+  for (const key of Object.keys(clean)) if (key.startsWith('PULLBOARD_')) delete clean[key];
+  const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--once', '--as', runner, '--directory', join(box.runnerHome, runner)],
+    { cwd: box.runnerHome, env: { ...clean, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  child.stdout.on('data', chunk => { output += chunk; });
+  child.stderr.on('data', chunk => { output += chunk; });
+  return new Promise(done => child.once('close', code => done({ code, output })));
 }
