@@ -351,7 +351,9 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
         await click('#proj-switch');
         await click(`[data-root="${demo.repo}"]`);
-        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo' && !!document.querySelector('#chain .row')");
+        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
+        await click('[data-tab=items]');
+        await chrome.waitFor("!!document.querySelector('#chain .row')");
       }
       assert.ok(await chrome.stable("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
       assert.ok(await chrome.stable("!!document.querySelector('#needs:not([hidden])')"), `${width}: Needs you is visible`);
