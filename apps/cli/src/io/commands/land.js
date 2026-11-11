@@ -12,6 +12,10 @@ import { openLandingSpans } from '../../../../../packages/resources/index.js';
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
+import { repoInfo } from '../../../../../packages/git/index.js';
+import { adoptLocalSession } from '../../../../../packages/seats/index.js';
+import { localSeatSessionDigest } from '../../../../../packages/seats/index.js';
+import { existsSync } from 'node:fs';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { landAcceptedItems } from '../../../../../packages/merge/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
@@ -137,6 +141,26 @@ async function landingBatchRunner(progress) {
   return inProcessLandingBatch({ checkAtCommit, candidateWorkerFile: fileURLToPath(new URL('../../../../lib/src/io/landing/candidate.js', import.meta.url)), progress });
 }
 
+/**
+ * Hand an interrupted landing batch's worktree to the coordinator session that adopts it (GH #24).
+ * Why: the batch's merges ran under the first session, whose digest the worktree's own checkout-session file still
+ * held; after `takeover` in the main checkout, `land --adopt` merged there and was refused NOT_YOUR_CHECKOUT, and
+ * `takeover` cannot run in a landing worktree, which has no lane. The file is replaced only while it still holds the
+ * coordinator binding read here, under the worktree's lease, so a session that bound it meanwhile is never overwritten.
+ *
+ * @param {object} board
+ * @param {string} root the main checkout
+ */
+async function rebindAdoptedLanding(board, root) {
+  const digest = agentSessionDigest();
+  const batch = store.landingBatches(board).findLast((entry) => entry.state !== 'landed' && entry.state !== 'blocked');
+  if (!digest || !batch?.root || !existsSync(batch.root)) return;
+  const info = repoInfo(batch.root);
+  if (info.root === root) return;
+  const from = localSeatSessionDigest(info, COORDINATOR);
+  if (from && from !== digest) await adoptLocalSession(info, { agent: COORDINATOR, digest, from: { agent: COORDINATOR, digest: from } });
+}
+
 /** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
 export async function executeBoardLanding(ctx, board, io, values = {}) {
   if (!values['dry-run'] && codeIsFromMain()) {
@@ -144,6 +168,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
     await (await import('../../../../../packages/gate/index.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
   const owner = agentSessionDigest() ?? `pid-${process.pid}`;
+  if (values.adopt && !values['dry-run']) await rebindAdoptedLanding(board, ctx.info.root);
   // The repository's landing.stall: how long a batch may make no progress before it ends (10 minutes unset, #3186, #3477).
   const progress = landingProgress();
   const watch = { stallAfterMs: ctx.config?.landing?.stallMs, lastProgressAt: progress.lastProgressAt, stall: progress.stall };
