@@ -254,8 +254,7 @@ import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
 /**
- * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
- * span for an open gate's telemetry [C7].
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's span for an open gate's telemetry [C7].
  */
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
