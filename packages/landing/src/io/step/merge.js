@@ -15,6 +15,8 @@ import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
 import { scanRidesRunner } from '../scan.js';
 import { amendLandingEngines } from '../derive.js';
+import { firstContainingCommit } from '../first.js';
+import { composeOnRunner } from './compose.js';
 import { deriveOnRunner } from './derive.js';
 import { commitDerived } from './derive.js';
 import { deriveRidesRunner } from './derive.js';
@@ -29,28 +31,6 @@ export async function save(state, patch) {
     .map(entry => [JSON.stringify(entry), entry])).values()];
   state.batch = await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...state.batch, ...patch, conflicts, resolutions }, revision: state.batch.revision ?? 0 }]);
   return state.batch;
-}
-
-/** Find the earliest first-parent commit containing a source using the monotone ancestry predicate. */
-export function firstContainingCommit(root, source) {
-  const commits = git(root, ['rev-list', '--first-parent', 'HEAD']).split('\n').filter(Boolean);
-  if (!commits.length) return undefined;
-  /** Test one point in the first-parent chain; ancestry is false before the first containing point and true after it. */
-  const contains = (commit) => {
-    const result = tryGit(root, ['merge-base', '--is-ancestor', source, commit]);
-    if (result.status === 0) return true;
-    if (result.status === 1) return false;
-    throw new Refused('LAND_GIT', `could not locate the first landing containing ${source}: ${result.stderr || result.stdout}`);
-  };
-  if (!contains(commits[0])) return undefined;
-  let containing = 0;
-  let absent = commits.length;
-  while (absent - containing > 1) {
-    const middle = Math.floor((containing + absent) / 2);
-    if (contains(commits[middle])) containing = middle;
-    else absent = middle;
-  }
-  return commits[containing];
 }
 
 /**
@@ -87,6 +67,20 @@ export async function mergeGroup(state, items) {
   // A per-item landing merges the reviewed commit with repository hooks off: they ran when the item was built [C7,#2901].
   const hooks = landingHooks(state.config);
   const onRunner = deriveRidesRunner(state);
+  // A named batch's merges, gate repoints and derived files are built by one runner job; this checkout only takes its commit [C7,#5585].
+  const composed = onRunner && items.length ? await composeOnRunner(state, items.map(entry => {
+    const item = store.getItem(state.board, entry.id ?? entry.item_id);
+    const message = messages.get(item.item_id);
+    return { id: item.item_id, commit: landedCommit(item), header: message.header, trailers: message.trailers };
+  })) : null;
+  if (onRunner && !composed) state.say('the runner could not compose this batch; its items were merged on the coordinator');
+  if (composed) {
+    for (const engine of composed.assigned) state.say(`engine ${engine.name}: ${engine.number}`);
+    for (const entry of composed.renames) {
+      resolutions.push({ id: entry.id, files: [state.config.spec], entries: entry.changes.map(change => ({ kind: 'spec-gate-rename', ...change })) });
+      for (const change of entry.changes) state.say(`spec ${change.row}: gate ${change.from} -> ${change.to}`);
+    }
+  }
   for (const entry of items) {
     await state.checkLease();
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
@@ -97,6 +91,10 @@ export async function mergeGroup(state, items) {
     requireLandingCompanions(batch.root, state.board, [item], checked);
     const stale = proven ? null : verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
+    if (composed) {
+      merged.push({ id: item.item_id, commit: proven ? checked : item.item_commit, ...(checked !== (proven ? checked : item.item_commit) ? { reviewedCommit: checked } : {}), merge: composed.merges.get(item.item_id) });
+      continue;
+    }
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.
     const trunk = headCommit(batch.root);
@@ -140,7 +138,7 @@ export async function mergeGroup(state, items) {
   // The paths the landing itself writes after the item merges (badge counts, lowered doctrine counts): data the board
   // derives, never an item's change, so a submit receipt still answers for a tree that differs only there [C7,#3685].
   const landingWrites = new Set();
-  if (merged.length && onRunner) for (const file of await commitDerived(state, merged, hooks)) landingWrites.add(file);
+  if (merged.length && onRunner) for (const file of composed ? composed.writes : await commitDerived(state, merged, hooks)) landingWrites.add(file);
   // A named batch writes its badge documents inside the runner job (above); only the local path writes them here [C7,#5583].
   if (merged.length && !onRunner) {
     const changed = state.landingPorts.writeBadges(batch.root, state.landingPorts.badgeCounts(state.board));
@@ -179,6 +177,7 @@ export async function mergeGroup(state, items) {
 }
 
 export { amendLandingEngines };
+export { firstContainingCommit };
 
 /** Validate and snapshot process-local providers before any landing admission or worker action. */
 export function landingOperations(ports) {
