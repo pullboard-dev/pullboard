@@ -1443,7 +1443,7 @@
     "raw-board": 7
   },
   "apps/cli/journeys/resume/e2e.test.js": {
-    "hand-policy": 8
+    "hand-policy": 5
   },
   "apps/cli/tests/fixtures/e2e.js": {
     "repo-read": 1,
@@ -3961,5 +3961,8 @@
   },
   "apps/cli/tests/fixtures/relay/auth.js": {
     "tempdir": 1
+  },
+  "apps/cli/journeys/resume/e2e-more.test.js": {
+    "hand-policy": 3
   }
 }

@@ -3251,6 +3251,29 @@
         "spawns a child process (apps/cli/journeys/resume/e2e.test.js)"
       ]
     },
+    "apps/cli/journeys/resume/e2e-more.test.js": {
+      "cells": [
+        "app:cli",
+        "app:lib",
+        "app:runner",
+        "config",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "spec",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past app:lib front door (apps/lib/src/logic/native.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "installs git hooks (apps/cli/journeys/resume/e2e-more.test.js)",
+        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
+        "spawns a child process (apps/cli/journeys/resume/e2e-more.test.js)"
+      ]
+    },
     "apps/cli/journeys/fact/e2e/join.test.js": {
       "cells": [
         "app:lib",
