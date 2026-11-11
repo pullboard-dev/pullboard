@@ -401,6 +401,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
   assert.match(shellAccepted.stdout, /reused submit proof/u);
   assert.doesNotMatch(shellAccepted.stdout, /timing profile:/u, 'reuse does not invent a verifier profile for work it did not run');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try {

@@ -1,4 +1,5 @@
-/** @pullboard-test-input apps/cli/src/io/landing/advance.js apps/cli/src/io/landing/audit.js packages/gate/src/io/run/tests.js packages/sandbox/index.js */
+/** @pullboard-test-input source-tree */
+/** @pullboard-test-loads packages/sandbox/index.js */
 import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { TITLE } from '../../../../packages/git/tests/fixtures/flakes.js';

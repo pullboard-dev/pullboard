@@ -49,13 +49,13 @@ after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
 /** Open a fresh real board file for an async body, closing it once the body settles. */
 async function withBoardAsync(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

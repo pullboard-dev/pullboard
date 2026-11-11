@@ -55,10 +55,10 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   assert.equal(await checkNeedsBrowser(repo, itemCheck, { env: classifyEnv }), false, 'an explicit CPU-only test file is classifiable');
   assert.equal(await checkNeedsBrowser(repo, 'node packages/gate/src/io/run/tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
     'a named file with no readable declaration stays browser-gated');
-  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--wait', '--json'], {
+  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--route', 'strong', '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });
-  assert.equal(added.status, 0, added.stderr);
+  assert.equal(added.status, 0, `${added.stdout}\n${added.stderr}`);
   const item = JSON.parse(added.stdout).item.item_id;
   assert.equal(existsSync(join(repo, 'item-check-started')), false, 'the setup baseline ran in its private clone');
 
@@ -106,10 +106,10 @@ test('browser-free checks skip the slot only when the machine allows it [C7]', a
   const box = fixture();
   const { repo } = checkProject(box);
   const check = `out=$(node packages/gate/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - item check marker' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`;
-  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'Browser-free policy check', '--check', check, '--wait', '--json'], {
+  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'Browser-free policy check', '--check', check, '--route', 'strong', '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });
-  assert.equal(added.status, 0, added.stderr);
+  assert.equal(added.status, 0, `${added.stdout}\n${added.stderr}`);
   const item = JSON.parse(added.stdout).item.item_id;
   const marker = join(repo, 'item-check-started');
 
@@ -405,7 +405,7 @@ test('a verification with no frozen check never enters the test queue [C7,V4]', 
 });
 
 test('a verification with a frozen check still waits for its slot [C7,V4]', async t => {
-  const { project, box, item, reviewer, marker } = verificationProject(t, { checked: true });
+  const { project, box, item, reviewer, marker } = verificationProject(t, { checked: true, landed: true });
   rmSync(marker, { force: true });
   const holder = worker(box, { agent: 'real-check-holder' });
   await acquired(holder);
@@ -416,7 +416,7 @@ test('a verification with a frozen check still waits for its slot [C7,V4]', asyn
     await waitUntil(() => completed || privateList(box).find(row => row.name === 'gate')?.line.some(row => row.item === String(item)),
       'the nonempty frozen check to enter its private queue');
     assert.equal(privateList(box).find(row => row.name === 'gate').line.some(row => row.item === String(item)), true,
-      'a real frozen command keeps the normal native admission boundary');
+      `a real frozen command keeps the normal native admission boundary\n${completed?.stdout}\n${completed?.stderr}`);
     assert.equal(completed, undefined, 'the check cannot finish while its slot remains occupied');
     assert.equal(existsSync(marker), false, 'the frozen command has not run early');
   } finally { await release(holder); await verifying; }

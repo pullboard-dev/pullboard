@@ -27,6 +27,7 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -67,12 +68,14 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
   const key = decodeBoardKey(encodedKey);
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token,
     url: box.origin, httpOnly: true, sameSite: 'Lax' });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encodedKey);
+  await chrome.waitFor('typeof transport !== "undefined" && !!transport && !!document.querySelector("[data-tab=items]")');
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor('typeof transport !== "undefined" && !!transport && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initial) + ')');
   /** Count real document loads to detect a hidden recovery reload. */
   const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
@@ -94,9 +97,9 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   await chrome.waitFor('document.querySelector("#relay-notice")?.textContent.includes(' + JSON.stringify(timeoutText) + ')', // budget: hang ceiling for observing the declared fifteen-second checkpoint timeout; no throughput claim.
     45_000, 'actual fifteen-second native checkpoint timeout');
   assert.ok(Date.now() - started >= 14_000, 'the production wait elapsed; no clock or fetch was replaced'); // budget: declared fifteen-second native checkpoint wait (14000ms lower bound).
-  assert.equal(await chrome.evaluate('document.querySelector("#relay-notice").textContent.includes("Pending event #1")'), true,
+  assert.equal(await chrome.stable('document.querySelector("#relay-notice").textContent.includes("Pending event #1")'), true,
     'the timeout retains the received pending event while checkpoint items remain authoritative');
-  assert.equal(await chrome.evaluate('document.querySelector("#chain").textContent.includes(' + JSON.stringify(recovered) + ')'), false);
+  assert.equal(await chrome.stable('document.querySelector("#chain").textContent.includes(' + JSON.stringify(recovered) + ')'), false);
 
   const native = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -114,9 +117,9 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   ]) {
     await upload(box, link, 'state', 1, bytes);
     await assert.rejects(readState(chrome, link.board), error => error.code === code, label + ' remains refused');
-    assert.equal(await chrome.evaluate('document.querySelector("#chain").textContent.includes(' + JSON.stringify(recovered) + ')'), false,
+    assert.equal(await chrome.stable('document.querySelector("#chain").textContent.includes(' + JSON.stringify(recovered) + ')'), false,
       label + ' cannot install the recovered projection');
-    assert.equal(await chrome.evaluate('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), true,
+    assert.equal(await chrome.stable('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), true,
       label + ' cannot clear the stale failure');
   }
 
@@ -125,11 +128,11 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   const result = await readState(chrome, link.board);
   assert.ok(result.state.items.some(item => item.title === recovered), 'the real page transport returns the authenticated native projection');
   // Inspect immediately, before another event can incidentally clear the failure.
-  assert.equal(await chrome.evaluate('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), false,
+  assert.equal(await chrome.stable('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), false,
     'successful authenticated state recovery clears the timeout notice');
-  assert.equal(await chrome.evaluate('document.querySelector("#relay-notice").textContent.includes("Pending event #1")'), false,
+  assert.equal(await chrome.stable('document.querySelector("#relay-notice").textContent.includes("Pending event #1")'), false,
     'only the covering authenticated checkpoint clears the pending mark');
-  await chrome.evaluate('refresh()');
+  await chrome.stable('refresh()');
   await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(recovered) + ')');
   assert.ok(streams() > streamsBeforeRecovery, 'the fatal old stream is replaced by a real authorized SSE connection');
   assert.equal(pageLoads(), originalLoads, 'checkpoint recovery does not reload the page');
@@ -137,7 +140,7 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   // The next ordinary CLI command catches up from the same checkpoint and authors a real native event.
   assert.equal((await box.cli('add', box.lane, later)).code, 0);
   await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(later) + ')');
-  assert.equal(await chrome.evaluate('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), false);
+  assert.equal(await chrome.stable('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), false);
   assert.equal(pageLoads(), originalLoads, 'later native updates keep the recovered document');
   assert.equal(box.keyInRequest(), false, 'all native and browser relay traffic keeps the board key on the device');
 });

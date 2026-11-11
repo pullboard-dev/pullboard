@@ -6,7 +6,7 @@
  * that reaches source by path, rather than importing it, is invisible to that graph unless its
  * file opens with the header line the selection reads: `/** @pullboard-test-input source-tree *\/`,
  * among the declaration lines at the very top of the file; a header naming the exact files the test
- * reads instead of the whole tree declares it too, and selects it for those files alone.
+ * reads instead of the whole tree declares it too, and selects it for those files alone. `/** @pullboard-test-input source-cell <cell> *\/` names the cells read instead.
  *
  * The rule is per file, because a path is often built on one line and read on another (a variable,
  * a queue of files to walk). A test file reads source files when its code (outside strings and
@@ -27,6 +27,8 @@
  *
  * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
+import { isSourceCellLine } from '../affected/inputs.js';
+import { sourceCellPrefixes } from '../affected/inputs.js';
 import {
   lex,
   lineAt,
@@ -56,6 +58,7 @@ const CLOSERS = ')]}';
 export function declaresSource(source) {
   for (const line of source.split(/\r?\n/u)) {
     if (line === SOURCE_TREE_INPUT || NAMED_INPUTS.test(line)) return true;
+    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return false; return true; }
     if (!DECLARATIONS.has(line)) return false;
   }
   return false;

@@ -53,8 +53,6 @@ test('worker identity is recorded before the file body [C7,V4]', () => {
 `);
   stageFixtureTests(fixture.root, ['test/worker-start.test.js']);
   execFileSync('git', ['branch', '-M', 'main'], { cwd: fixture.root, stdio: 'ignore' });
-  execFileSync('git', ['-c', 'user.name=Pullboard fixture', '-c', 'user.email=fixture@example.invalid',
-    'commit', '-q', '-m', 'test: commit worker identity fixture'], { cwd: fixture.root, stdio: 'ignore' });
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { appendFileSync } from 'node:fs';

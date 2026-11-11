@@ -41,7 +41,7 @@ function fixture(t, { dropFirst = true } = {}) {
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, runners: [runner],
     // Live-load ranking probes each runner over SSH before admission, which the holding stand-ins below would stall past the deadline.
-    gate: { runnersFirst: true, loadAwareDispatch: false },
+    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller' },
   }));
   return { ...box, requests, starts, runner };
 }
@@ -118,7 +118,7 @@ test('a worker missing READY yields to a free runner in the next admission cycle
   const dispatch = "if (hold === 'dispatch') await holdHere();";
   assert.ok(before.includes(dispatch));
   writeFileSync(ssh, before.replace(dispatch,
-    `if (host === ${JSON.stringify(box.runner.host)} && remoteCommand.startsWith(configuredNode)) await holdHere();`));
+    `if (host === ${JSON.stringify(box.runner.host)} && launchesWorker) await holdWorker();`));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   const second = { ...box.runner, host: HOST + '-setup' };
@@ -157,7 +157,7 @@ test('an SSH-healthy host whose worker misses READY once stays in service and it
   // The actual configured Node probe still answers; only the first framed worker dispatch never reaches READY.
   const missed = join(box.dir, 'missed-ready');
   writeFileSync(ssh, before.replace(dispatch,
-    `if (remoteCommand.startsWith(configuredNode) && !existsSync(${JSON.stringify(missed)})) { appendFileSync(${JSON.stringify(missed)}, 'x'); await holdHere(); }`));
+    `if (launchesWorker && !existsSync(${JSON.stringify(missed)})) { appendFileSync(${JSON.stringify(missed)}, 'x'); await holdWorker(); }`));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));

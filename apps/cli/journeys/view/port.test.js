@@ -131,7 +131,7 @@ test('the suite runs while a view holds the default port [N26,C7]', async (t) =>
   ];
   const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [
     resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'), '--test-name-pattern', names.join('|'),
-    resolve(import.meta.dirname, 'port.test.js'), resolve(import.meta.dirname, '../resume/flow.test.js'),
+    resolve(import.meta.dirname, 'port.test.js'), resolve(import.meta.dirname, '../resume/flow/setup.test.js'),
   ], { cwd: resolve(import.meta.dirname, '../../../..'), env: { ...process.env } }));
   if (result.status !== 0) t.diagnostic(safeErrorSummary(result.stdout));
   assert.equal(result.status, 0, result.failure ?? result.stderr);

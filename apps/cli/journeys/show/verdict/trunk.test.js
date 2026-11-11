@@ -1,6 +1,7 @@
 /** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A verdict survives a main move that touches nothing the review depends on (#928) [V4,C7]. */
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -23,7 +24,7 @@ function reviewWithLanding(t, { setting, landing }) {
   delete box.env.NODE_TEST_CONTEXT;
   const armed = join(box.dir, 'landing-armed');
   const landed = join(box.dir, 'landing-done');
-  for (const folder of ['test', 'web', 'api', 'bin']) mkdirSync(join(box.repo, folder), { recursive: true });
+  for (const folder of ['test', 'web', 'api', 'bin', 'packages/gate/src/io/run']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   // This is the fixture project's real runner; the installed CLI remains outside the project.
   writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
@@ -56,7 +57,7 @@ test('page is built', () => {
 });
 `);
   const config = JSON.parse(String(execGitShow(box)));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...(config.verify ?? {}), ...(setting === undefined ? {} : { unrelatedTrunkMoves: setting }) } }, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, lanes: { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'test/', 'packages/gate/src/io/run/'] } }, verify: { ...(config.verify ?? {}), ...(setting === undefined ? {} : { unrelatedTrunkMoves: setting }) } }, null, 2));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with a recorded landing [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -68,6 +69,10 @@ test('page is built', () => {
   box.git(box.web, 'add', 'web/lib.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
   json(box.run(box.web, 'submit', '1', '--json'));
+  // A landing between submit and review changes the runner the check names, so the sealed submit proof is not reused and the frozen check runs here.
+  appendFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), '// an earlier landing\n');
+  box.git(box.repo, 'add', 'packages/gate/src/io/run/tests.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   json(fixtureJoin(box.run, reviewer, 'api', '--json'));
@@ -88,15 +93,15 @@ test('an unrelated landing during a review keeps the verdict and names the commi
   const item = json(box.run(box.repo, 'show', '1', '--json'));
   assert.equal(item.item_status, 'verified');
   const moved = box.git(box.repo, 'rev-parse', 'HEAD').slice(0, 12);
-  assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}, judged unaffected`, 'u'));
+  assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}.*its files are unchanged`, 'u'));
 });
 
-test('a landing that breaks an affected import refuses the retried composition [V4,C7]', (t) => {
-  const { box, verdict, json } = reviewWithLanding(t, { setting: true, landing: 'web/shared.js' });
+test('a landing that rewrites a file the review judged refuses acceptance and keeps the item submitted [V4,C7]', (t) => {
+  const { box, verdict, json } = reviewWithLanding(t, { setting: true, landing: 'web/lib.js' });
   assert.notEqual(verdict.code, 0);
   const error = JSON.parse(verdict.out).error;
-  assert.equal(error.code, 'CHECK_RED');
-  assert.match(error.message, /retry composition/u);
+  assert.equal(error.code, 'MERGE_CONFLICT');
+  assert.match(error.message, /web\/lib\.js/u);
   assert.equal(json(box.run(box.repo, 'show', '1', '--json')).item_status, 'submitted');
 });
 

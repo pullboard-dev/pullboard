@@ -32,6 +32,7 @@ function fixture(t, gate = 'true') {
 
 /** Open only this fixture's genuine shared board; normal operations provide all writes. */
 function boardFor(box, action) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.mainRoot, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
   try { return action(board); } finally { store.closeBoard(board); }
 }
