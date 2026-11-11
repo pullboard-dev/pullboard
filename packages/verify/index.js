@@ -23,7 +23,7 @@ export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliases
 export { reviewQueueLine } from './src/logic/review/queue.js';
 export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/io/review/routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/io/rule/proof/counts.js';
-export { committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
+export { bindProofRunner, committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
 export { appendRuleProof } from './src/io/rule/proof/append.js';
 export { advancedVerdict, effectiveItemHead, requireSourceAdvanceReview, sourceAdvanceChain, sourceAdvanceEpisode, sourceAdvanceFloor, sourceAdvanceReviewEpisode } from './src/logic/advance.js';
 export { composeReview, composesAtAdmission } from './src/io/verdict/admission.js';
