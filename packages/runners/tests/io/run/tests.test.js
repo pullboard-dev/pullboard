@@ -327,14 +327,15 @@ test('a green landing run retries transient process snapshot timeouts [C7,V4]', 
   const preload = join(fixture.root, 'snapshot-timeout.mjs');
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, appendFileSync } from 'node:fs';
+const t0 = Date.now();
+const role = process.argv[1] === ${JSON.stringify(fixture.runner)} ? 'PARENT' : 'W' + process.argv[1]?.slice(-30);
+const trace = (kind, command, args) => appendFileSync(${JSON.stringify(join(fixture.root, 'trace.log'))}, process.pid + ' ' + role + ' ' + (Date.now() - t0) + ' ' + kind + ' ' + command + ' ' + JSON.stringify(args).slice(0, 70) + ' ' + new Error().stack.split('\\n').slice(3, 5).map(l => l.trim().slice(0, 60)).join(' | ') + '\\n');
+for (const name of ['execFile', 'spawn', 'spawnSync', 'execFileSync']) { const o = childProcess[name]; childProcess[name] = (...a) => { try { trace(name, a[0], a[1]); } catch {} return o(...a); }; }
+process.on('exit', () => { try { trace('EXIT', '', []); } catch {} });
 if (process.argv[1] === ${JSON.stringify(fixture.runner)}) {
   const original = childProcess.execFileSync;
-  const t0 = Date.now();
-  const trace = (kind, command, args) => process.stderr.write('TRACE ' + (Date.now() - t0) + ' ' + kind + ' ' + command + ' ' + JSON.stringify(args).slice(0, 80) + ' ' + new Error().stack.split('\\n').slice(2, 5).map(l => l.trim().slice(0, 70)).join(' | ') + '\\n');
-  for (const name of ['execFile', 'spawn', 'spawnSync']) { const o = childProcess[name]; childProcess[name] = (...a) => { trace(name, a[0], a[1]); return o(...a); }; }
   childProcess.execFileSync = (command, args, options) => {
-    trace('execFileSync', command, args);
     if (command === 'ps' && args?.[0] === '-axo' && existsSync(${JSON.stringify(ready)})) {
       const duringDrain = new Error().stack.includes('at snapshot ');
       const marker = duringDrain ? ${JSON.stringify(drained)} : ${JSON.stringify(sampled)};
@@ -379,6 +380,7 @@ test('green file waits for the injected observation', async () => {
   const result = runFixtureChild(process.execPath, [fixture.runner, 'test/shard-01.test.js'], {
     cwd: fixture.root, env, encoding: 'utf8', timeout: 15000,
   });
+  try { process.stderr.write('TRACEDUMP\n' + readFileSync(join(fixture.root, 'trace.log'), 'utf8').split('\n').filter(l => !/ps.*-axo/.test(l) || /W/.test(l)).join('\n') + '\nexists: ' + [ready, sampled, drained, childReady, childDrained].map(f => existsSync(f)).join(',') + '\n'); } catch (e) { process.stderr.write('TRACEFAIL ' + e + '\n'); }
   assert.ok(existsSync(sampled), 'a live monitor observation failed once');
   assert.ok(existsSync(drained), 'the final ownership census failed once and was retried');
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
