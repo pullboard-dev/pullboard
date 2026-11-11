@@ -853,6 +853,8 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   }
   const recoveredStackCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
 
+  // Clone B replays B's recovered submit, whose policy commit is clone A's main (the coordinator's init commit): fetch it as a clone of that main does [H3].
+  gitAt(worktrees[1], envs[1], 'fetch', '-q', clones[0], 'main');
   const beforeRecoveredStack = relay.uploads.length;
   relay.dropNextReply({ offline: true, operation: 'submit', item: stackedB, key, boardId });
   await restoreInventories();
