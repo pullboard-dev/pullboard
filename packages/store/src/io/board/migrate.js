@@ -32,7 +32,6 @@ const ADDED_COLUMNS = [
   ['shout', 'shout_evidence_commit', 'TEXT'],
   ['shout', 'shout_request', 'INTEGER NOT NULL DEFAULT 0'],
   ['shout', 'shout_request_outcome', "TEXT NOT NULL DEFAULT ''"],
-  ['item', 'item_verify_policy', 'TEXT'],
 ];
 
 /**
