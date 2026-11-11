@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import { createServer } from 'node:http';
 import {
   seal as sealMove,
