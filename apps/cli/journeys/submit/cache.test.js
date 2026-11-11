@@ -2,12 +2,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { test } from 'node:test';
 import { inventoryCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
 import { inventoryCacheFile } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
@@ -38,6 +40,7 @@ function freshJob(t, root) {
 /** Commit one edit on top of a commit in a job checkout and leave it checked out; returns the new commit. */
 function commitOn(job, base, file, text, message) {
   git(job, 'checkout', '-q', '--detach', base);
+  mkdirSync(dirname(join(job, file)), { recursive: true });
   writeFileSync(join(job, file), text);
   git(job, 'add', '-A');
   git(job, 'commit', '-q', '-m', message);
