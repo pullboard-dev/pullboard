@@ -4,7 +4,9 @@
  * Why: an item whose own check was green still got a red gate when the proof reached a test file holding a case red on
  * main, and a red case's details (checkout paths, timings) rarely match main's exactly, so builders released green work
  * (#2437, #1543, #1829, #2539). A case the item's criterion or check names is the item's own and keeps the exact
- * failure signature; any other case passes when base main fails that same file and case by name.
+ * failure signature; any other case passes when base main fails that same file and case by name with the same assertion
+ * (the stable signature and asserted values, else the first error line), since a changed assertion under a shared title
+ * is the item's regression, not main's red [C7,V4,B3,H16]. Cases sharing a title cannot be matched by name, so they refuse.
  */
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 
@@ -27,6 +29,18 @@ export function ownCase(failure, { criterion = '', check = '' } = {}) {
 }
 
 /**
+ * Whether a proof failure shows main's own assertion: the stable signature with its asserted values when both carry
+ * one, else the first error line. A failure with neither is unproven, so it never passes by name alone.
+ */
+function sameAssertion(failure, comparison) {
+  const file = comparison.files.find(row => row.file === failure.file);
+  const main = file?.failures?.find(row => row.file === failure.file && row.name === failure.name);
+  if (!main) return false;
+  if (failure.stable && main.stable) return failure.stable === main.stable && failure.stableData === main.stableData;
+  return Boolean(failure.firstError) && failure.firstError === main.firstError;
+}
+
+/**
  * Match every proof failure against base main: own cases by exact signature, neighbouring cases by file and case name.
  * Returns `{ main, failures }` when every failure is accounted for, else null, as matchingMainFailures does.
  *
@@ -37,10 +51,12 @@ export function ownCase(failure, { criterion = '', check = '' } = {}) {
  */
 export function proofMainFailures(failures, comparison, main, bar) {
   if (!failures?.length) return null;
+  if (new Set(failures.map(failure => failure.name)).size !== failures.length) return null;
   const own = failures.filter(failure => ownCase(failure, bar));
   const neighbours = failures.filter(failure => !ownCase(failure, bar));
   const exact = own.length ? matchingMainFailures(own, comparison, main) : { main, failures: [] };
   const named = neighbours.length ? matchingMainFailures(neighbours, comparison, main, { byCase: true }) : { main, failures: [] };
+  if (named && !neighbours.every(failure => sameAssertion(failure, comparison))) return null;
   return exact && named ? { main, failures } : null;
 }
 

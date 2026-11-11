@@ -28,6 +28,13 @@ test('clause 1: the gate runner\'s phase line after TAP\'s final count leaves th
   assert.equal(tapFailures(tap(`${PHASES} and more`), '/repo'), null, 'only the exact phase line is the runner\'s');
 });
 
+test('clause 1: Node\'s runtime warning lines after TAP\'s final count leave the failures accounted, and a look-alike does not [C7]', () => {
+  const warning = ['(node:4242) ExperimentalWarning: SQLite is an experimental feature and might change at any time', '(Use `node --trace-warnings ...` to show where the warning was created)'];
+  assert.deepEqual(tapFailures(tap(...warning), '/repo'), [{ name: 'shared failure [G1]', file: 'test/inherited.test.js' }]);
+  assert.equal(tapFailures(tap('(node:4242) something failed'), '/repo'), null, 'only a Warning line is node\'s');
+  assert.equal(tapFailures(tap('(Use `node --trace-warnings ...` to show where the warning was created) and more'), '/repo'), null);
+});
+
 test('clause 1: a submit gate whose only failure also fails on its main base records it as a main red and returns green [C7]', { timeout: 240_000 }, t => {
   // Main fails 'shared failure [G1]'; the candidate leaves it exactly as main has it and the gate runner prints its phase line.
   const box = fixture(t, { phases: true });
