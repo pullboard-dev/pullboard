@@ -96,7 +96,7 @@ test('a builder editing the accepted main row itself still fails public submit b
   const waiting = JSON.parse(submitted.out).waitingOwner;
   assert.deepEqual(waiting.owners, ['core']);
   assert.equal(waiting.paths.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
-  assert.equal(existsSync(box.marker), false, 'no gate runs for the unauthorized foreign edit');
+  assert.equal(existsSync(box.marker), true, 'the gate runs green first; only then do foreign paths wait on their owner');
   const item = success(box, box.view, 'show', String(box.id));
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_commit, null, 'owner waiting is not a submission');
