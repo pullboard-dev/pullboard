@@ -109,6 +109,7 @@ const ROWS = [
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
+  ['review.independence', 'Reviewer independence', 'Off: any seat but the builder may verify, even a subagent of the builder\'s session. Session: only a different agent session may verify.', 'Review', 'choice'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims

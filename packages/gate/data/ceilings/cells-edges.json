@@ -5119,6 +5119,10 @@
     "src/trusted-policy-read.js": {
       "cells": 1,
       "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
+      "deep": 0
     }
   },
   "cells": {

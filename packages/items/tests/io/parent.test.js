@@ -40,3 +40,11 @@ test('a captured session retains its recorded self-review refusal and an unrelat
   refuseSelfSession(info, item, 'b'.repeat(64));
   assert.equal(readFileSync(join(info.commonDir, 'pullboard', 'item-sessions.jsonl'), 'utf8').trim().split('\n').length, 1);
 });
+
+test('review.independence off lets a session that built the item verify, session keeps the refusal [V1,B3,C7]', t => {
+  const info = fixture(t), digest = 'c'.repeat(64), item = { item_id: 9 };
+  requireLedger(info, digest);
+  recordItemSession(info, 9, 'submit', digest);
+  refuseSelfSession(info, item, digest, [], { independence: 'off' });
+  assert.throws(() => refuseSelfSession(info, item, digest, [], { independence: 'session' }), { code: 'SELF_SESSION_VERIFY' });
+});
