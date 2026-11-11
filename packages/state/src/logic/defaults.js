@@ -17,6 +17,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_FOLDER_DIRTY: 'commit or stash the dirty files in that item folder, then claim again',
   SUBMIT_HANDOFF_NOT_LAUNCHED: 'run pullboard submit again from the item folder; the hand-off did not start',
   LAND_STALLED: 'run pullboard resume to inspect the batch record, then retry landing',
+  LAND_NAMED: 'name only accepted items on the board that are not merged or withdrawn, with commits in this repository; on a local trunk, set landing.publish to "separate" first',
   RUNNER_RESULT_SIGNATURE: 're-register the runner with pullboard runner add before accepting another result',
   RUNNER_RESULT_SOURCE: 'discard the result and rerun the pinned source on the runner',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
