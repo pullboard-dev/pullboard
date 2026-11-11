@@ -99,7 +99,9 @@ test('clause 1: a second browser pairs with the command the page names after the
   assert.equal((await box.cli('add', box.lane, freshTitle)).code, 0, 'a real later native move publishes fresh content');
   for (const browser of [first, second]) {
     await browser.navigate(box.origin + '/');
-    await browser.waitFor("data?.project?.items?.some(item => item.title === " + JSON.stringify(freshTitle) + ") && document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(freshTitle) + ")");
+    await browser.waitFor("data?.project?.items?.some(item => item.title === " + JSON.stringify(freshTitle) + ") && document.querySelector('[data-tab=items]')");
+    await browser.click("document.querySelector('[data-tab=items]')");
+    await browser.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(freshTitle) + ")");
   }
   assert.equal((await first.stable(deviceExpression())).id, firstDevice.id, 'the first browser still opens its board with its original key');
 });

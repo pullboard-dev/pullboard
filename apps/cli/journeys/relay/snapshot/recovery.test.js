@@ -74,6 +74,8 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
     url: box.origin, httpOnly: true, sameSite: 'Lax' });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encodedKey);
+  await chrome.waitFor('typeof transport !== "undefined" && !!transport && !!document.querySelector("[data-tab=items]")');
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor('typeof transport !== "undefined" && !!transport && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initial) + ')');
   /** Count real document loads to detect a hidden recovery reload. */
   const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;

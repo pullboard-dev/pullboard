@@ -224,6 +224,8 @@ window.fetch = async (input, options) => {
   await tapTouch(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   const linked = await run.closed;
   assert.equal(linked.code, 0, 'the same foreground command finishes after one real phone tap');
+  await chrome.waitFor(`data?.root === ${JSON.stringify(proposal.context.board)} && !!document.querySelector('[data-tab=items]')`);
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor(`document.body.innerText.includes(${JSON.stringify(marker)}) && data?.root === ${JSON.stringify(proposal.context.board)}`);
   assert.equal(await chrome.stable('document.documentElement.dataset.relayScreen ?? null'), null, 'the readable board replaces the first screen');
   assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizations, 1, 'one tap authorizes exactly once');
