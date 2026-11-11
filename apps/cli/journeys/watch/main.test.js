@@ -348,7 +348,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const noticed = events(box).find(event => event.event_id === notice.sequence);
   assert.equal(noticed.item_id, added.item_id, 'the notice follows its new item');
   assert.ok(['add', 'check-baseline'].includes(noticed.event_kind), 'the notice follows the add or its actual baseline observation');
-  assert.equal(added.item_check_baseline.result, 'green', 'the baseline is finished before later move assertions');
+  // The fixture's machine home registers no runner, and a baseline never runs on this machine: it stays pending, with its worker already exited.
+  assert.equal(added.item_check_baseline.result, 'pending', 'with no runner the baseline stays pending, so later move assertions see no baseline write');
   const blocked = box.cli(box.root, 'add', 'app', 'Waits for the fresh work', '--criterion', 'after', '--specs', 'G1', '--after', String(added.item_id), '--route', 'strong',
     '--brief', 'Files: app/after.txt\nChange: exercise a dependency-blocked item in the watch fixture.\nTest: observe the item becoming claimable after acceptance.\nOut of scope: product behavior.').item;
 
@@ -388,7 +389,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   // Accepting the work an item waits on makes that item claimable.
   const reviewer = join(box.dir, 'reviewer');
   box.git('worktree', 'add', '-q', '--detach', reviewer, firstCommit);
-  box.cli(reviewer, 'join', 'docs', '--model', 'watch-reviewer');
+  box.cli(reviewer, 'join', 'docs', '--route', 'strong', '--model', 'watch-reviewer');
   box.cli(reviewer, 'next', '--verify', String(added.item_id));
   box.cli(reviewer, 'verify', String(added.item_id), 'accept', '--no-next', '--note', 'read the fixture file');
   const unblocked = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === blocked.item_id, 5_000, 'claimable notice after its wait was verified')).line); // budget: hang ceiling for one line, not a latency claim.
@@ -436,10 +437,10 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const observations = new Set(['fact', 'usage', 'activity-delivered']);
   // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
-    'add', 'milestone_placed', 'check-baseline', 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
+    'add', 'milestone_placed', 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
-  ], 'only the explicit moves, rejection escalation, native placements, baseline and submit proofs were recorded');
+  ], 'only the explicit moves, rejection escalation, native placements and submit proofs were recorded (no runner, so no baseline write)');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
   const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
   const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
