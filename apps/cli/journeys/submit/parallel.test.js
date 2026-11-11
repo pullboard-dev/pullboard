@@ -61,19 +61,17 @@ function submit(box, marker) {
   put(box.root, 'src/a.js', `export const value = '${marker}';\n`);
   commitAll(box, 'feat(core): exercise the selected phase [G1]');
   const started = Date.now();
-  const result = box.run('submit', '1', '--infra', 'concurrent fixture checks');
-  const ended = Date.now();
-  const wallMs = ended - started;
+  const result = box.run('submit', '1', '--json', '--infra', 'concurrent fixture checks');
+  const wallMs = Date.now() - started;
   const item = JSON.parse(box.run('show', '1', '--json').out);
-  return { result, wallMs, started, ended, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
+  return { result, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
 }
 
 test('submit overlaps two slow checks within 20% of the slower one and preserves both receipts [V4,C7]', { timeout: 120_000 }, t => { // budget: a twenty-second check also runs once at add for its frozen baseline.
   const { box, observations } = project(t, SLOW_MS);
-  const { result, wallMs, started, ended, receipts } = submit(box, 'green');
+  const { result, wallMs, receipts } = submit(box, 'green');
   assert.equal(result.code, 0, result.err + result.out);
   const runs = readFileSync(observations, 'utf8').trim().split('\n').map(line => JSON.parse(line)).slice(-2);
-  t.diagnostic('submit parallel timing: ' + JSON.stringify({ wallMs, started, ended, runs, output: result.out, error: result.err }));
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
   assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), 'the real child intervals overlap');
   const slower = Math.max(...runs.map(run => run.end - run.start));
