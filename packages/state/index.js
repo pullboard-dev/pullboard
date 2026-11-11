@@ -1,5 +1,6 @@
 /** Shared state definitions without later-cell runtime imports [C7,H16]. */
 export { OWNERSHIP_WAIT_ENGINE } from './src/logic/engines/ownership-wait-engine.js';
+export { REVIEW_GRANT_ENGINE } from './src/logic/engines/review-grant-engine.js';
 export { RIGOR_INSTRUCTIONS_ENGINE } from './src/logic/engines/rigor-instructions-engine.js';
 export { decisionFields } from './src/logic/projection.js';
 export { factFromEvent } from './src/logic/projection.js';

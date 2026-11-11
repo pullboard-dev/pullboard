@@ -31,7 +31,6 @@ import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { join } from 'node:path';
 import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
 /** How long one repository's sweep may run before the dispatcher moves on. */
@@ -43,7 +42,7 @@ const SWEEP_TIMEOUT_MS = 60_000;
  * @param {string} commonDir - The repository's Git common directory.
  */
 export async function sweepRepositoryInChild(commonDir) {
-  const entry = join(fileURLToPath(new URL('..', import.meta.url)), 'apps/cli/src/io/submit/handoff/sweep.js');
+  const entry = fileURLToPath(new URL('../../../../cli/src/io/submit/handoff/sweep.js', import.meta.url));
   const child = spawn(process.execPath, [entry, commonDir], { stdio: ['ignore', 'ignore', 'inherit'], timeout: SWEEP_TIMEOUT_MS, killSignal: 'SIGKILL' });
   const [code] = await once(child, 'close');
   if (code !== 0) throw new Error(`sweep exited ${code}`);

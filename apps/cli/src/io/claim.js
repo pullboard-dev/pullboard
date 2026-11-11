@@ -9,6 +9,7 @@ import { captureLapsedClaims } from '../../../../packages/health/index.js';
 import { writeBoardCommand } from '../../../../packages/store/index.js';
 import { laneSeatContext } from '../../../../packages/seats/index.js';
 import { nextSessionSeats } from '../../../../packages/seats/index.js';
+import { primaryCheckoutRoot } from './worktree.js';
 import { seatRoutingPorts } from './ports/seat.js';
 import { sessionSeatReaders } from './ports/seat.js';
 import { agentSessionDigest } from '../../../../packages/person/index.js';
@@ -326,15 +327,17 @@ export function claimFreezer(ctx, board) {
   };
 }
 
-/** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
+/** Enrich the ordinary lane refusal with where to build the item; never widen claim authority and never open a seat (GH #16, #27). */
 export async function wrongLaneGuidance(ctx, board, me, id, error) {
   if (!(error instanceof Refused) || error.code !== 'WRONG_LANE') return error;
-  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
-  if (!seats) return error;
   const item = store.getItem(board, id);
   if (item.item_lane === COORDINATOR || store.ROUTES.indexOf(item.item_route) > store.ROUTES.indexOf(me.route)) return error;
-  const { seat } = await laneSeatContext(ctx, board, me, item, seats, context, seatRoutingPorts);
-  return new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}. Build it in ${seat.agent} at ${seat.path}`,
-    `${cdTo(seat.path)} pullboard claim ${id}`);
+  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
+  const free = seats ? (await laneSeatContext(ctx, board, me, item, seats, context, { ...seatRoutingPorts, open: false })).seat : null;
+  const message = `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}`;
+  if (free) return new Refused('WRONG_LANE', `${message}. Build it in ${free.agent} at ${free.path}`, `${cdTo(free.path)} pullboard claim ${id}`);
+  const primary = primaryCheckoutRoot(ctx.info);
+  const open = `${primary ? `${cdTo(primary)} ` : ''}pullboard worktree ${item.item_lane} --model "${me.model ?? '<model name>'}"`;
+  return new Refused('WRONG_LANE', `${message}. No seat was opened; open one in the ${item.item_lane} lane and claim it there`, `${open}, then in that worktree: pullboard claim ${id}`);
 }
 
