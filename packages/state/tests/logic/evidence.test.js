@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/commands/check.js apps/cli/src/io/commands/test.js */
+/** @pullboard-test-input apps/cli/src/io/commands/check.js apps/cli/src/io/test/here.js */
 /** @pullboard-world-pin: clause 1 reads the shipped pullboard test command source to prove it records ticks only after a green run. */
 /** A green pullboard test run of the item's check ticks the test clauses it proves [C7]. */
 import assert from 'node:assert/strict';
@@ -38,7 +38,7 @@ test('clause 1: a run of a file outside the check ticks nothing [C7]', () => {
 });
 
 test('clause 1: pullboard test records the ticks only after a green run [C7]', () => {
-  const source = readFileSync(new URL('../../../../apps/cli/src/io/commands/test.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../../../apps/cli/src/io/test/here.js', import.meta.url), 'utf8');
   assert.match(source, /result\.green && item !== undefined\) await recordClauseTicks/u);
 });
 
