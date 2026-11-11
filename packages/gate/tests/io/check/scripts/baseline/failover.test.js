@@ -25,7 +25,7 @@ function failover(t, { review = false, dropped = false, timedOut = false, leaked
   const machine = join(home, 'machine');
   mkdirSync(root);
   mkdirSync(machine);
-  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Check failover', GIT_AUTHOR_EMAIL: 'failover@example.invalid',
     GIT_COMMITTER_NAME: 'Check failover', GIT_COMMITTER_EMAIL: 'failover@example.invalid' };
@@ -160,7 +160,7 @@ function phaseEvidence(t, { timedOut = false } = {}) {
   const machine = join(home, 'machine');
   mkdirSync(root);
   mkdirSync(machine);
-  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Phase evidence', GIT_AUTHOR_EMAIL: 'evidence@example.invalid',
     GIT_COMMITTER_NAME: 'Phase evidence', GIT_COMMITTER_EMAIL: 'evidence@example.invalid' };
