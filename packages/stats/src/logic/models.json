@@ -1,0 +1,10 @@
+{
+  "families": [
+    { "match": "^(claude|anthropic)", "family": "anthropic" },
+    { "match": "^(gpt|codex|o\\d|openai)", "family": "openai" }
+  ],
+  "contextCeilings": [
+    { "match": "haiku", "ceiling": 100000 }
+  ],
+  "defaultContextCeiling": 200000
+}
