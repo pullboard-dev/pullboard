@@ -54,10 +54,11 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - B25 [approved, must] Questions go one step up: agents ask their coordinator; a coordinator asks the person or the coordinator above. | gate: apps/cli/journeys/resume/board.test.js | serves: B21
 - B26 [approved, must] Needs-you holds only the person's calls: decisions passed up, rows to approve, held lanes; agents ask their coordinator. | gate: apps/cli/journeys/resume/board.test.js | serves: B25
 - B27 [approved, must] A coordinator answers a decision or passes it up with its note; the answer reaches whoever asked. | gate: apps/cli/journeys/resume/board.test.js | serves: B25
-- B28 [draft, must] Work renews the lease: a commit, gate run or command from the holder's worktree renews its claim. | gate: apps/cli/journeys/resume/board.test.js | serves: B4
+- B28 [approved, must] A claim stays alive while a gate or proof run bound to its item is queued or running; commits, gate runs and commands from the holder also renew it. | gate: apps/cli/journeys/resume/board.test.js | serves: B4
 - B29 [draft, must] Any agent appends typed facts to an item's thread; the board stamps each with author, time and id. | gate: apps/cli/journeys/resume/board.test.js | serves: B22
 - B30 [approved, must] Judgements on an item (decision, rejection, supersession, root cause) come only from its holder or the coordinator. | gate: apps/cli/journeys/resume/board.test.js | serves: B29
 - B31 [approved, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: apps/cli/journeys/resume/board.test.js | serves: B29
+- B40 [approved, must] A finished wait reaches its holder as a fact on the item; reading it never claims other work. | gate: apps/cli/journeys/resume/board.test.js | serves: B28
 - B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: apps/cli/journeys/resume/board.test.js | serves: B29
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
 - B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: apps/cli/journeys/verify/trunk.test.js | serves: P2
@@ -226,7 +227,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N38 [draft, must] Every tab, item, row and shout in the view has its own address, so any of them can be linked. | gate: test/cockpit.test.js | serves: N26
 - N39 [approved, must] The view's secret never stays in the address bar: the first link trades it for a cookie. | gate: apps/cli/journeys/view/e2e.test.js | serves: N26
 - N40 [draft, must] Every action in the view answers within 100 ms and never over 250 ms, on a board of 3,000 items with eight projects open. | gate: apps/cli/journeys/init/perf.test.js | serves: N26
-- N41 [draft, must] `pullboard next` takes an eligible review first, else claims the next free build my route covers, else prints "nothing for this seat: end your turn". It never blocks. --verify names work I did not build. (Proposed replacement for N2, Corey approved 3 Nov.) | gate: review
+- N41 [approved, must] `pullboard next` never blocks. Whenever my work waits (a gate, a proof run, a review), I call next and get other work, up to my seat's in-flight limit (a board setting sized to my model's context). next returns first any item of mine whose wait has ended, so I resume what I was doing. Otherwise, while I'm under my limit, it takes an eligible review, then the next free build my route covers. At my limit, or with nothing free, it tells me what my waiting items are waiting on and to end my turn. --verify names work I did not build. | gate: review
 - N42 [draft, must] Pullboard never suggests a wait; every next step names work to take now, or says to end the turn. (Proposed replacement for N25, Corey approved 3 Nov.) | gate: review
 
 ## A · API: the engine others build on

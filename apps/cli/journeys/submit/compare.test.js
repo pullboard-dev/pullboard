@@ -253,7 +253,7 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   assert.equal(receipts.length, 3, 'each exact-main file has one retained native comparison receipt');
   const byFile = Object.fromEntries(receipts.map(receipt => {
     const file = box.names.map(name => `test/${name}.test.js`).find(path => receipt.command === createHash('sha256')
-      .update(`PULLBOARD_TEST_REUSE=0 node test/runner.js './${path}'`).digest('hex'));
+      .update(`PULLBOARD_TEST_REUSE=record node test/runner.js './${path}'`).digest('hex'));
     assert.ok(file, `native receipt command identifies one exact main file: ${receipt.command}`);
     return [file, receipt];
   }));

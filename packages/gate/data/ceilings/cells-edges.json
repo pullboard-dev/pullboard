@@ -3956,6 +3956,10 @@
       "cells": 2,
       "deep": 0
     },
+    "packages/store/src/io/board/read/light.js": {
+      "cells": 3,
+      "deep": 0
+    },
     "packages/store/src/io/board/read/snapshot.js": {
       "cells": 2,
       "deep": 0
