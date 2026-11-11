@@ -1258,8 +1258,19 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/shouts.test.js": {
-    "raw-cli": 11,
-    "tempdir": 7
+    "raw-cli": 1
+  },
+  "apps/cli/journeys/shout/shouts/cards.test.js": {
+    "raw-cli": 4,
+    "tempdir": 3
+  },
+  "apps/cli/journeys/shout/shouts/composer.test.js": {
+    "raw-cli": 3,
+    "tempdir": 3
+  },
+  "apps/cli/journeys/shout/shouts/scrollbar.test.js": {
+    "raw-cli": 3,
+    "tempdir": 1
   },
   "apps/cli/journeys/fact/snapshot.test.js": {
     "raw-cli": 10,

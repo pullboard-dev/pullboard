@@ -151,4 +151,4 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
-export { BIN, scratch, SPEC, machine, project };
+export { BIN, scratch, SPEC, MACHINE_MODEL, machine, project };
