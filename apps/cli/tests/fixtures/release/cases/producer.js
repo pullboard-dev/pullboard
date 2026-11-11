@@ -78,7 +78,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   const home = join(dir, 'home'), machine = join(home, '.pullboard');
   for (const path of [box.repo, box.bin, box.marks, machine, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    gate: { browserByLaunch: true, browserFreeChecks: true } }));
+    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false } }));
   for (let i = 0; i < hosts; i++) {
     const host = `synthetic-release-host-${i + 1}`;
     const worker = { home: join(dir, host, 'home'), machine: join(dir, host, 'home', '.pullboard'), root: join(dir, host, 'worker') };
