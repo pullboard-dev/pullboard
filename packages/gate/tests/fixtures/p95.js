@@ -69,7 +69,8 @@ export async function measureFileInflation(t, mode) {
   }
   const machine = join(root, '.machine');
   mkdirSync(machine);
-  writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 4, browserSlots: 1,
+  // A native run is a seat test, which leaves one slot for gates (#2831), so four of them need five slots; a landing run needs four.
+  writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: mode === 'native' ? 5 : 4, browserSlots: 1,
     gate: { browserByLaunch: true } }));
   const times = join(root, 'lifetimes.jsonl');
   writeFileSync(times, '');
