@@ -213,3 +213,18 @@ test('Dashboard has no Pipeline section and prints no raw milliseconds; The last
   assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
   assert.match(html, /<h2>The last two hours<\/h2>/u, 'the approved window card remains');
 });
+
+test('Dashboard shows a compact pipeline strip of seven stages that link to Items > Pipeline [N38]', () => {
+  const input = dashboardData({ populated: true });
+  const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
+  const html = dashboardHtml(model);
+  const strip = section(html, 'Pipeline');
+  const keys = ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged'];
+  assert.deepEqual([...strip.matchAll(/data-dashboard-stage="([^"]+)"/gu)].map(match => match[1]), keys, 'all seven stages show, in pipeline order');
+  assert.equal([...strip.matchAll(/href="#items\/pipeline"/gu)].length, 7, 'each stage links to Items > Pipeline');
+  for (const key of keys) assert.match(strip, new RegExp(`data-dashboard-stage="${key}"><span>[^<]+</span> <b>\\d+</b>`, 'u'), `${key} shows a count`);
+  assert.equal(itemRows(strip), 0, 'the strip lists no item rows');
+  assert.doesNotMatch(strip, /\d\s?ms\b/u, 'the strip shows no millisecond durations');
+  const empty = dashboardHtml({ ...model, stageCounts: Object.fromEntries(keys.map(key => [key, 0])) });
+  assert.equal([...section(empty, 'Pipeline').matchAll(/<b>0<\/b>/gu)].length, 7, 'a stage with no items still shows 0');
+});
