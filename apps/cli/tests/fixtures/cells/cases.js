@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

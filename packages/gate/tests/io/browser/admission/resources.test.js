@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import { redGateReleaseSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';

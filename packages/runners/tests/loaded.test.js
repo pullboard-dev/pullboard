@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Runner admission sends each job to the runner with the most live headroom and queues when all are overloaded [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
