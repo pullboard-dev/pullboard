@@ -1,4 +1,4 @@
-/** @pullboard-test-loads packages/gate/src/io/run/tests.js packages/gate/src/io/run-tests.js packages/gate/src/io/test/isolation.js src/child-journal-preload.js packages/resources/src/io/home.js packages/config/src/io/settings.js packages/resources/index.js packages/config/src/io/main.js */
+/** @pullboard-test-loads apps/cli/src/io/run/tests.js packages/gate/src/io/run-tests.js packages/gate/src/io/test/isolation.js src/child-journal-preload.js packages/resources/src/io/home.js packages/config/src/io/settings.js packages/resources/index.js packages/config/src/io/main.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
 import { awaitNestedRun } from '../../../index.js';
 import assert from 'node:assert/strict';
@@ -26,7 +26,7 @@ import { GATE_SLOT_HELD_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../resources/index.js';
 
-const RUNNER = resolve(import.meta.dirname, '../../../src/io/run/tests.js');
+const RUNNER = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 const HOSTILE_LEASE = 'isolation-hostile-machine';
 const PROBES = ['probe machine settings are the defaults', 'probe the resource pool is private',
   'probe no host marker reaches the test', 'probe the default view port is never chosen'];

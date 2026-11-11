@@ -49,11 +49,11 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   const box = fixture();
   setBrowserFreeChecks(box, true);
   const { repo, base } = checkProject(box);
-  const itemCheck = 'node packages/gate/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
-  const submitCheck = 'node packages/gate/src/io/run/tests.js --test-name-pattern "submit check marker" test/cpu-check.test.js';
+  const itemCheck = 'node apps/cli/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
+  const submitCheck = 'node apps/cli/src/io/run/tests.js --test-name-pattern "submit check marker" test/cpu-check.test.js';
   const classifyEnv = { ...process.env, NODE_OPTIONS: '' };
   assert.equal(await checkNeedsBrowser(repo, itemCheck, { env: classifyEnv }), false, 'an explicit CPU-only test file is classifiable');
-  assert.equal(await checkNeedsBrowser(repo, 'node packages/gate/src/io/run/tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
+  assert.equal(await checkNeedsBrowser(repo, 'node apps/cli/src/io/run/tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
     'a named file with no readable declaration stays browser-gated');
   const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--route', 'strong', '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
@@ -105,7 +105,7 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
 test('browser-free checks skip the slot only when the machine allows it [C7]', async () => {
   const box = fixture();
   const { repo } = checkProject(box);
-  const check = `out=$(node packages/gate/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - item check marker' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`;
+  const check = `out=$(node apps/cli/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - item check marker' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`;
   const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'Browser-free policy check', '--check', check, '--route', 'strong', '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });

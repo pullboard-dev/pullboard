@@ -1864,10 +1864,6 @@
       "cells": 2,
       "deep": 0
     },
-    "packages/gate/src/io/run/tests.js": {
-      "cells": 6,
-      "deep": 27
-    },
     "packages/gate/src/io/run/timing.js": {
       "cells": 1,
       "deep": 1
@@ -5145,6 +5141,10 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/run/tests.js": {
       "cells": 3,
       "deep": 0
     },

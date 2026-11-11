@@ -33,7 +33,7 @@ export const HOST = 'fixture-host';
 export const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 /** The full published copy contains unrelated docs tests; this fixture gates exactly its original probe universe. */
-export function fixtureGate(names = NAMES) { return 'node packages/gate/src/io/run/tests.js ' + names.map(name => `test/${name}.test.js`).join(' '); }
+export function fixtureGate(names = NAMES) { return 'node apps/cli/src/io/run/tests.js ' + names.map(name => `test/${name}.test.js`).join(' '); }
 
 
 /** Run Git in a fixture repository and fail with its context. */
@@ -251,7 +251,7 @@ const remoteRun = async (_root, _command, options) => {
   throw new Refused(answer, 'runner ' + options.runner.host + ' answered ' + answer + '; inspect job fixture-job under its runner namespace before another run');
 };
 const chunks = [];
-const result = await runLandingShards({ parseProcessCensus, root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))},
+const result = await runLandingShards({ parseProcessCensus, root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))},
   files: ${JSON.stringify(files)}, count: ${count}, remoteRun, write: text => chunks.push(text) });
 const output = chunks.join('');
 process.stdout.write(JSON.stringify({ isGreen: result.isGreen, output, calls, profile: landingShardProfile(output) }));`;

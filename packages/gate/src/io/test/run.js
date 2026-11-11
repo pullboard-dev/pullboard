@@ -59,13 +59,13 @@ import {
 
 /** Give a direct full suite the same admitted execution and immutable receipt writer as a gate. */
 export async function runFullSuite(root, runner, executionServices) {
-  if (relative(root, runner).split(sep).join('/') !== 'packages/gate/src/io/run/tests.js' || !timingSource(root)) return null;
+  if (relative(root, runner).split(sep).join('/') !== 'apps/cli/src/io/run/tests.js' || !timingSource(root)) return null;
   let policy;
   try { policy = mainPolicy(root); } catch { return null; }
   const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('../main.js'), import('../execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('../admission/cpu/load.js');
-  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node packages/gate/src/io/run/tests.js --all' }, false,
+  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node apps/cli/src/io/run/tests.js --all' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
   { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), ...testRunnerAdmission(), kind: 'gate' });
   return result;
@@ -219,7 +219,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
   if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
-    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node packages/gate/src/io/run/tests.js"');
+    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
   }
   let paths = affected ? [] : testFiles(root, files);
   if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');

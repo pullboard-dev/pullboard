@@ -3,7 +3,7 @@
  *
  * A test's verdict must not depend on where it runs: the person's ~/.pullboard settings (gateSlots, browserSlots,
  * gate.shortSlots, registered runners), the account's resources.sqlite, a CI marker a runner sets, or the
- * instrumentation an SSH runner loads into every Node process. packages/gate/src/io/run/tests.js applies this to each test run.
+ * instrumentation an SSH runner loads into every Node process. apps/cli/src/io/run/tests.js applies this to each test run.
  */
 import {
   mkdirSync,

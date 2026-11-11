@@ -192,8 +192,8 @@ test('unrelated bundled execution [C7]', () => appendFileSync(${JSON.stringify(u
 `);
   const file = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.gate = 'node packages/gate/src/io/run/tests.js test/alternating.test.mjs apps/cli/tests/unrelated.test.mjs';
-  config.affectedTests = 'node packages/gate/src/io/run/tests.js';
+  config.gate = 'node apps/cli/src/io/run/tests.js test/alternating.test.mjs apps/cli/tests/unrelated.test.mjs';
+  config.affectedTests = 'node apps/cli/src/io/run/tests.js';
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: private bundled runner');
   assert.equal(box.cli('gate').code, 1);
@@ -208,8 +208,8 @@ test('unrelated bundled execution [C7]', () => appendFileSync(${JSON.stringify(u
 test('an unknown script named run-tests cannot rerun unrelated tests or confirm a flake [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'observed-unrelated-runs');
-  mkdirSync(join(box.root, 'packages/gate/src/io/run'), { recursive: true });
-  writeFileSync(join(box.root, 'packages/gate/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
+  mkdirSync(join(box.root, 'apps/cli/src/io/run'), { recursive: true });
+  writeFileSync(join(box.root, 'apps/cli/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
 // This user's runner deliberately does not implement Node's test-name selector.
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/alternating.test.mjs', 'apps/cli/tests/unrelated.test.mjs'], { env: process.env, stdio: 'inherit' });
 process.exitCode = run.status;
@@ -221,8 +221,8 @@ test('unrelated execution [C7]', () => appendFileSync(${JSON.stringify(unrelated
 `);
   const file = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.gate = 'node packages/gate/src/io/run/tests.js';
-  config.affectedTests = 'node packages/gate/src/io/run/tests.js';
+  config.gate = 'node apps/cli/src/io/run/tests.js';
+  config.affectedTests = 'node apps/cli/src/io/run/tests.js';
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: private unknown runner');
   assert.equal(box.cli('gate').code, 1, 'the original assertion remains red');

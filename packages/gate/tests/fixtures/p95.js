@@ -20,7 +20,7 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../resources/index.js';
 import { testsNeedBrowser } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /** Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time. */
 function workload(file) {
