@@ -236,6 +236,9 @@ export const LANDING_COALESCE_MS = 0;
 export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
   const root = primaryCheckoutRoot(ctx.info);
+  // Under pull with a trunk remote of record a runner lands: this host offers one land job row and returns [P7].
+  const pulled = (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit });
+  if (pulled) return pulled;
   if (session()) {
     await schedule(root, new Date(now() + LANDING_COALESCE_MS).toISOString(), new URL('../landing/automatic.js', import.meta.url));
     ctx.io.say?.('the board lands this accept from the main checkout shortly; no command is needed there');

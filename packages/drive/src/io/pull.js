@@ -228,10 +228,13 @@ function gateReceipt(result, commit, durationMs) {
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
  * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number }} [options.timing]
+ * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
+ *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
+ *   result is the receipt; renew extends the lease and reads false once another runner holds the job.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[] }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {} }) {
+  once = false, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {} }) {
   const endpoint = boardEndpoint(board, key);
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS } = timing;
@@ -247,6 +250,29 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       catch (error) { if (!(error instanceof BoardUnreachable)) throw error; await backoff(error); }
     }
   };
+  /** Run a handled kind in this process and post its result as the receipt; a lost lease posts nothing. */
+  const handled = async (claim, held) => {
+    const renew = async () => {
+      try { return (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
+      catch (error) { return error instanceof BoardUnreachable; }
+    };
+    let receipt;
+    try { receipt = await handlers[claim.kind](claim, { cache, renew }); }
+    catch (error) {
+      // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
+      say(`releasing ${claim.job}: ${error?.message ?? error}`);
+      await reliably({ action: 'release', ...held }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
+      return { outcome: 'released' };
+    }
+    try {
+      await reliably({ action: 'receipt', ...held, receipt });
+      say(`posted ${claim.job}: ${receipt?.outcome ?? 'done'}`);
+      return { outcome: 'posted', receipt };
+    } catch (error) {
+      if (error.code !== 'JOB_LEASE_MOVED' && error.code !== 'RUNNER_STOPPED') throw error;
+      return { outcome: 'lost' };
+    }
+  };
   while (!signal?.aborted) {
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities }); }
@@ -255,6 +281,12 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (!claim) { await sleep(idleMs); continue; }
     const held = { job: claim.job, runner: id, token: claim.token };
     say(`claimed ${claim.job} (attempt ${claim.attempt}) at ${claim.candidate}`);
+    if (Object.hasOwn(handlers, claim.kind)) {
+      const outcome = await handled(claim, held);
+      jobs.push({ job: claim.job, ...outcome });
+      if (once) break;
+      continue;
+    }
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
     let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [];
     if (!run.length) {
