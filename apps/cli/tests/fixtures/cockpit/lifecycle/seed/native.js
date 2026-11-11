@@ -261,7 +261,8 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
     /** The owning lane objects inside the window to a companion the builder recorded at Submit, reopening the item. */
     objected: async () => {
       const id = add(demo.repo, 'Owner objects to a recorded companion');
-      box.git(demo.web, 'switch', '-q', demo.baseBranch);
+      // Its own branch from main: the earlier journeys' submitted commits stay unverified and must not stack under this one.
+      box.git(demo.web, 'switch', '-q', '-c', demo.baseBranch + '-objected-' + id, 'main');
       json(demo.web, 'claim', String(id));
       commit(demo.web, 'web/objected-proof.js', 'export const objected = true;\n', 'feat(web): real objected companion source');
       const owner = seatFor(demo.repo, 'api');
