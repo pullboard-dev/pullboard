@@ -130,7 +130,6 @@ export { REJECTED_WORK_RETURN_ENGINE } from './src/logic/engines/rejected-work-r
 export { REJECTION_RETURN_ENGINE } from './src/logic/engines/rejection-return-engine.js';
 export { REJECT_CLAUSE_ENGINE } from './src/logic/engines/reject-clause-engine.js';
 export { REJECT_OPEN_ENGINE } from './src/logic/engines/reject-open-engine.js';
-export { REJECTED_FIRST_ENGINE } from './src/logic/engines/rejected-first-engine.js';
 export { RELEASE_QUALITY_HOLD_ENGINE } from './src/logic/engines/release-quality-hold-engine.js';
 export { RELEASE_REASONS_ENGINE } from './src/logic/engines/release-reasons-engine.js';
 export { RELEASE_TWICE_HOLD_ENGINE } from './src/logic/engines/release-twice-hold-engine.js';
