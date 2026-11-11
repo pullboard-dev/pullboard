@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { applyStateDelta } from '../../../../../../packages/api/index.js';
-import { expandItemSummaries } from '../../../../index.js';
-import { pageScriptPart3 } from '../../../../index.js';
+import { applyStateDelta } from '../../../../packages/api/index.js';
+import { expandItemSummaries } from '../../index.js';
+import { pageScriptPart3 } from '../../index.js';
 
 /** Execute the actual generated board reader with explicit transport replies and no browser or board. */
 function compactBoardReader(replies, { local = true, snapshot = false } = {}) {

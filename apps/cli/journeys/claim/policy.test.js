@@ -1,4 +1,4 @@
-/** A new claim refreshes a frozen lane policy to current main; a held renewal keeps it [C7]. */
+/** A new claim refreshes a frozen policy to current main unless a file its bar names changed lanes; a held renewal keeps it [C7]. */
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -16,12 +16,12 @@ function success(box, cwd, ...args) {
   return result;
 }
 
-/** Claim item 1 in the web lane, commit one file under web/, and return the box. */
+/** Claim item 1 in the web lane (its brief names web/page.html and web/legacy/old.html), commit that file, and return the box. */
 function claimedWithWork(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  success(box, box.repo, 'add', 'web', 'Lane refresh', '--specs', 'G1', '--criterion', 'The page renders.');
+  success(box, box.repo, 'add', 'web', 'Lane refresh', '--specs', 'G1', '--criterion', 'The page renders.', '--brief', 'Files: web/page.html, web/legacy/old.html.');
   success(box, box.web, 'claim', '1');
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/page.html'), '<h1>Page</h1>\n');
@@ -69,7 +69,23 @@ test('a renewal with no lane change keeps the frozen policy [C7]', t => {
   assert.equal(pinned(box), first);
 });
 
-test('a re-claim whose lane the accepted policy changed is refused and keeps the old policy [C7]', t => {
+test('a re-claim after gate inputs and another folder\'s lane change re-freezes the item automatically [C7]', t => {
+  const box = claimedWithWork(t);
+  const first = pinned(box);
+  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'policy moves on', '--no-next');
+  const head = changeLanes(box, config => {
+    config.lanes.web.owns = [...config.lanes.web.owns, 'docs/'];
+    config.lanes.ops = { owns: ['ops/'], specs: [] };
+    config.affectedTests = 'node -e "process.exit(0)"';
+    config.submitInvariants = ['web/page.test.js'];
+  });
+  success(box, box.web, 'claim', '1');
+  assert.notEqual(head, first);
+  assert.equal(pinned(box), head, 'the claim re-pins the policy in its own write');
+  assert.match(success(box, box.repo, 'show', '1').out, /policy re-frozen automatically/);
+});
+
+test('a re-claim whose lane\'s owns shrank away from a named file is refused, naming the coordinator\'s refreeze, and keeps the old policy [C7,L2]', t => {
   const box = claimedWithWork(t);
   const first = pinned(box);
   changeLanes(box, config => {
@@ -82,6 +98,18 @@ test('a re-claim whose lane the accepted policy changed is refused and keeps the
   const refused = box.run(box.web, 'claim', '1');
   assert.notEqual(refused.code, 0, refused.out);
   assert.match(refused.err + refused.out, /NO_POLICY/);
-  assert.match(refused.err + refused.out, /lanes\.web/);
+  assert.match(refused.err + refused.out, /web\/page\.html moved lanes \(web -> ui\)/, 'the named path it moved refuses, not the shrunk list itself (#3793)');
+  assert.match(refused.err + refused.out, /next: nothing for the builder; take other work .*the coordinator refreezes #1/);
+  assert.equal(pinned(box), first);
+});
+
+test('a re-claim whose named file another lane now owns is refused, naming that file, and keeps the old policy [C7]', t => {
+  const box = claimedWithWork(t);
+  const first = pinned(box);
+  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'file changed lanes', '--no-next');
+  changeLanes(box, config => { config.lanes.ui = { owns: ['web/legacy/'], specs: [] }; });
+  const refused = box.run(box.web, 'claim', '1');
+  assert.notEqual(refused.code, 0, refused.out);
+  assert.match(refused.err + refused.out, /NO_POLICY.*web\/legacy\/old\.html moved lanes \(web -> ui\)/);
   assert.equal(pinned(box), first);
 });
