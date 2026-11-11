@@ -393,5 +393,8 @@
     "every": "1h",
     "grace": "1d",
     "exclude": []
+  },
+  "trunk": {
+    "remote": "coreyolson@192.168.1.98:pb-trunk"
   }
 }
