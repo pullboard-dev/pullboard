@@ -55,6 +55,7 @@ import {
   applyFixers,
   commitCitationWarnings,
   commitMsgProblems,
+  fixCommitHeader,
   FIX_NOTE,
   preCommitProblems,
   prePushProblems,
@@ -151,7 +152,10 @@ export async function hookCommand(io, { first, second }) {
     }) ?? {};
     const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
     const prepared = prepareCommitMetadata(originalMessage, { ...metadataContext, spec, syncMerge: existsSync(gitPath(info.root, 'MERGE_HEAD')) });
-    const message = prepared.message;
+    // Mechanical header style is fixed here and said, never refused, so it costs no retry [C7,#5775].
+    const styled = fixCommitHeader(prepared.message, ctx.config.commits);
+    styled.notes.forEach((note) => io.err(`pullboard commit-msg: fixed: ${note}`));
+    const message = styled.message;
     const signoff = pendingCommitSignoffProblem(info.root, message);
     if (signoff) { io.err(signoff); return 1; }
     commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })

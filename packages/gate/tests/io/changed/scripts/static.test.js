@@ -73,6 +73,21 @@ test('the staged checker refuses a source with two import bindings on one line, 
   assert.match(`${refused.stderr ?? refused.err}${refused.stdout ?? refused.out ?? ''}`, /src\/two\.js:1: one import binding per line \(2 bindings\)/u);
 });
 
+test('the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
+  const box = staticProject();
+  mkdirSync(join(box.repo, 'src'), { recursive: true });
+  writeFileSync(join(box.repo, 'src/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
+  box.git(box.repo, 'add', 'src/two.js');
+  const step = () => spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER, '--staged-hook'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const first = step();
+  assert.equal(first.status, 0, first.stderr);
+  assert.match(first.stderr, /pullboard pre-commit: fixed: split multi-binding import lines in src\/two\.js and staged them/u);
+  assert.equal(box.git(box.repo, 'show', ':src/two.js').trimEnd(), "import {\n  readFileSync,\n  existsSync,\n} from 'node:fs';\nexport const a = [readFileSync, existsSync];");
+  const second = step();
+  assert.equal(second.status, 0, second.stderr);
+  assert.doesNotMatch(second.stderr, /fixed:/u, 'a fixed file is never fixed or refused again');
+});
+
 test('the staged checker accepts a clean staged file [C7]', () => {
   const box = staticProject();
   const done = stageSource(box, 'src/one.js', "import { readFileSync } from 'node:fs';\nexport const a = readFileSync;\n");
