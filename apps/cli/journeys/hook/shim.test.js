@@ -69,3 +69,15 @@ test('a hook past its limit is stopped with its children, exits 1 and names a ne
   assert.equal(end.timedOut, true);
   assert.equal(end.exit, 1);
 });
+
+test('a hook in an item folder times under the seat and item its marker names [C7]', async () => {
+  const box = e2e.project('true');
+  const folder = join(box.dir, 'web-1-item-7');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', folder);
+  writeFileSync(join(box.git(folder, 'rev-parse', '--absolute-git-dir'), 'pullboard-item.json'), JSON.stringify({ version: 1, seat: 'web-1', item: 7 }));
+  const entry = join(box.dir, 'passing-hook.mjs');
+  writeFileSync(entry, 'process.exit(0);\n');
+  assert.equal(await runHookShim(entry, ['hook', 'commit-msg'], { cwd: folder, env: box.env, stderr: process.stderr }), 0);
+  const end = hookRows(box, 'hook commit-msg').find(row => row.phase === 'end');
+  assert.deepEqual([end.seat, end.item, end.exit], ['web-1', 7, 0]);
+});
