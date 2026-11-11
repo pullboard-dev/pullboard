@@ -39,7 +39,7 @@ import {
 /** Observe the decision target, its render-time replacement, and native pointer geometry without changing input. */
 async function armDecisionPressCapture(chrome, selector) {
   return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const root = document.querySelector('#decisions');
+    const root = document.querySelector('#feed');
     const initial = document.querySelector(${JSON.stringify(selector)});
     if (!root || !initial) return { armed: false, reason: 'decision target was absent before press' };
     const events = [], renders = [], mutations = [], resizes = [];
@@ -116,12 +116,12 @@ async function armDecisionPressCapture(chrome, selector) {
       } };
     sample('capture-armed');
     return { armed: true, initial: identity(initial), viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio } };
-  })())`, "document.querySelector('#decisions')"));
+  })())`, "document.querySelector('#feed')"));
 }
 
 /** Finish capture on the stable Needs-you root, removing every observer even after a failed press. */
 async function finishDecisionPressCapture(chrome) {
-  return JSON.parse(await chrome.stable(`JSON.stringify(window.__decisionPressCapture?.finish() || null)`, "document.querySelector('#decisions')"));
+  return JSON.parse(await chrome.stable(`JSON.stringify(window.__decisionPressCapture?.finish() || null)`, "document.querySelector('#feed')"));
 }
 
 /** Observe the existing shout form's native submit, validation, input and production value-clear path without changing them. */
@@ -389,17 +389,16 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
         }
         if (tab === 'shouts') {
-          await chrome.stable("(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))").then(open => open ? chrome.click("document.querySelector('.asks-toggle[data-fold=\"waiting\"]')") : undefined);
-          await waitRendered(['#decisions .shout:not(:has(.answer)) header', '#decisions .shout:not(:has(.answer)) .text', '#decisions .shout .answer']);
+          await click('[data-shout-thread="none"]');
+          await waitRendered(['#feed .shout:not(:has(.answer)) header', '#feed .shout:not(:has(.answer)) .text', '#feed .shout .answer']);
           const asks = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-            const waiting = document.querySelector('#decisions .shout:not(:has(.answer))');
+            const waiting = document.querySelector('#feed .shout:not(:has(.answer))');
             const waitingMeta = waiting?.querySelector('header');
             const waitingText = waiting?.querySelector('.text');
-            const button = document.querySelector('#decisions .shout .answer');
+            const button = document.querySelector('#feed .shout .answer');
             const answerText = button?.closest('.shout-main').querySelector('.text');
             const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}; };
             return {
-              waitingIsNeedsYou: document.querySelector('#decisions').classList.contains('needs-you'),
               waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
               waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta.querySelector('.who')).lineHeight),
@@ -407,7 +406,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
               answerText: answerText && rect(answerText), button: button && rect(button),
             };
           })())`));
-          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoAnswer, `${width}: the waiting ask is a card in the Needs-you panel without an Answer button`);
+          assert.ok(asks.waitingHasNoAnswer, `${width}: the waiting ask is a conversation card without an Answer button`);
           assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
             `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
           assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
@@ -442,10 +441,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await submit('#shout-form');
       await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
 
-      await chrome.waitFor("!!document.querySelector('#decisions [data-go]')");
-      const decision = await chrome.stable("document.querySelector('#decisions [data-go]')?.getAttribute('data-go')");
+      await chrome.waitFor("!!document.querySelector('#feed [data-go]')");
+      const decision = await chrome.stable("document.querySelector('#feed [data-go]')?.getAttribute('data-go')");
       assert.ok(decision, `${width}: a decision is offered for answer`);
-      const decisionSelector = `#decisions [data-go="${decision}"]`;
+      const decisionSelector = `#feed [data-go="${decision}"]`;
       let decisionCaptureArmed = false;
       let decisionPressError = null;
       let decisionCapture = null;
