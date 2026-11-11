@@ -1,4 +1,5 @@
 /** Sealed relay recovery races, checkpoint restore and engine-4 completions [H16,V2]. */
+import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
 import { fixture } from '../../../tests/fixtures/relay/sealed.js';
 import assert from 'node:assert/strict';
 import { cleanupFixtureChildren } from '../../../tests/fixtures/child.js';
