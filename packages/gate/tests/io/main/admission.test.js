@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { safeFixtureDiagnostic } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { startFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -137,6 +138,9 @@ function fixture(t, cores) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureChild('git', ['init', '-q'], { cwd: root });
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  // The runner reads its policy from the checkout's committed HEAD, so the fixture needs one commit.
+  runFixtureGit(['add', 'package.json'], { cwd: root });
+  runFixtureGit(['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], { cwd: root });
   const machine = join(root, '.machine');
   mkdirSync(machine);
   // Four gate slots, so the four runs overlap and only the file pool can hold them to the cores.

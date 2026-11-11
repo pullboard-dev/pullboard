@@ -1,6 +1,11 @@
 /** Read and write job rows on the board's SQLite handle [C7]. */
 import { Refused } from "../../../kernel/light.js";
 import { viewOf } from "../logic/view.js";
+import { parseStub } from "./blobs.js";
+import { readBlob } from "./blobs.js";
+import { blobDirOf } from "./blobs.js";
+import { readPayload } from "./blobs.js";
+import { storableText } from "./blobs.js";
 
 /**
  * Run `work` so its statements land together or not at all: in its own write transaction, or inside a savepoint
@@ -102,11 +107,16 @@ export function writeStep(db, job, name, payload = {}, { seq = 0, now = Date.now
   if (!name) throw new Refused('JOB_STEP_NAME', 'A step needs a name: pass the step the driver just finished.');
   return atomically(db, () => {
     if (!db.prepare('SELECT 1 FROM job WHERE job_id = ?').get(job)) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
+    const text = JSON.stringify(payload ?? {});
+    const kept = storableText(db, text, payload);
     const inserted = db.prepare('INSERT OR IGNORE INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)')
-      .run(job, name, seq, JSON.stringify(payload ?? {}), now);
+      .run(job, name, seq, kept, now);
     if (inserted.changes === 0) {
       const stored = db.prepare('SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = ? AND job_step_seq = ?').get(job, name, seq);
-      return { written: false, payload: JSON.parse(stored.job_step_payload) };
+      const stub = parseStub(stored.job_step_payload);
+      // A pruned body (the migration keeps only its hash and size) is derived data: the new write replaces it.
+      if (!stub || readBlob(blobDirOf(db), stub.blob) !== null) return { written: false, payload: readPayload(db, stored.job_step_payload) };
+      db.prepare('UPDATE job_step SET job_step_payload = ?, job_step_at = ? WHERE job_step_job = ? AND job_step_name = ? AND job_step_seq = ?').run(kept, now, job, name, seq);
     }
     db.prepare('UPDATE job SET job_step = ?, job_updated = ? WHERE job_id = ?').run(name, now, job);
     return { written: true, payload: payload ?? {} };
@@ -123,7 +133,7 @@ export function writeStep(db, job, name, payload = {}, { seq = 0, now = Date.now
 export function jobView(db, job) {
   const row = db.prepare('SELECT * FROM job WHERE job_id = ?').get(job);
   if (!row) return null;
-  return viewOf(row, db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(job));
+  return viewOf(row, db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(job), text => readPayload(db, text));
 }
 
 /**

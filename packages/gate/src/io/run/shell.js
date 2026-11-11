@@ -1,4 +1,4 @@
-import { spawnCaptured } from '../../../../sandbox/index.js';
+import { spawnCaptured } from '../../../../sandbox/light.js';
 /**
  * Run one shell command in a checkout and keep its output, apart from the gate's queue, runners and receipts. A
  * board read that replays a check baseline needs only this, so it never loads the gate [C7].
@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import {
   captureTestRuntimes,
   executionEnvironment,
-} from '../../../../sandbox/index.js';
+} from '../../../../sandbox/light.js';
 import { randomUUID } from 'node:crypto';
 import {
   mkdtempSync,
@@ -28,7 +28,7 @@ import {
   stagedScript,
 } from '../stages.js';
 import { Refused } from '../../../../kernel/index.js';
-import { sandboxBlockedOperation } from '../../../../sandbox/index.js';
+import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
 
 /**
  * Run a shell command in a checkout for a digest: both streams in one pipe, in order, read whole
