@@ -6,8 +6,8 @@ import {
   test,
 } from '../../../../tests/fixtures/scenarios/team.js';
 
-test('an abandoned landing is reclaimed and its interrupted batch adopted only on request [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private CLI death, lease reclaim, interrupted-batch adoption and Git; no speed target.
+test('an abandoned landing drains its blocked gate before adoption [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private CLI death, owned-process cleanup, interrupted-batch adoption and Git; no speed target.
   async t => landingQueueCase(t, helpers, { killParent: true }));
 
-test('a landing whose blocked gate dies is reclaimed and adopted only on request [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private gate death, lease reclaim and explicit adoption; no speed target.
+test('a dead landing guardian cannot leave its blocked worker running [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private guardian death, identity-bound cleanup and explicit adoption; no speed target.
   async t => landingQueueCase(t, helpers, { killGuardian: true }));
