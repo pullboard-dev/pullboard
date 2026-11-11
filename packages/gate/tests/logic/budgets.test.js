@@ -124,5 +124,5 @@ test('main CI saves the eight-project performance report outside the gate [N40,C
   assert.match(perf, /node packages\/gate\/src\/io\/check\/budgets\.js artifacts\/performance\/harness-output\.txt artifacts\/performance/u);
   assert.match(perf, /actions\/upload-artifact@v4\n\s+if: always\(\)/u);
   assert.match(perf, /path: artifacts\/performance\//u);
-  assert.ok(!/npm (?:test|run gate)|node packages\/gate\/src\/io\/run\/tests\.js/u.test(perf), 'the large observation runs separately from the gate’s tests');
+  assert.ok(!/npm (?:test|run gate)|node (?:packages\/gate|apps\/cli)\/src\/io\/run\/tests\.js/u.test(perf), 'the large observation runs separately from the gate’s tests');
 });

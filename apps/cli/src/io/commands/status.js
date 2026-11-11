@@ -36,6 +36,8 @@ import { identifyCaller } from '../read.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';
 import { ruleProofCounts } from '../../../../../packages/verify/index.js';
+import { bindProofRunner } from '../../../../../packages/verify/index.js';
+import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
 import { handoffCapLine } from '../../../../../packages/resources/index.js';
@@ -62,6 +64,9 @@ import {
   context,
   span,
 } from '../read.js';
+
+// Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
+bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
 
 /** Bind authenticated foreign state to the status reader's existing read-only board. */
 function statusForeignBlockers(board, item) {

@@ -23,7 +23,7 @@ export const PROVES_NOTHING_HOLD = 'hold';
 export function provingCheck(item) {
   const named = /\b((?:test|packages\/[\w-]+\/tests|apps\/[\w-]+\/(?:tests|journeys))\/[\w./-]+\.test\.[cm]?js)\b/u.exec(`${item.item_criterion ?? ''}\n${item.item_brief ?? ''}`)?.[1];
   const slug = String(item.item_title ?? '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 48) || 'the-work';
-  const runner = /^node\s+(?:bin\/run-tests|packages\/gate\/src\/io\/run\/tests)\.js\b/u.test(item.item_check ?? '') ? 'node packages/gate/src/io/run/tests.js' : 'node --test';
+  const runner = /^node\s+(?:bin\/run-tests|(?:packages\/gate|apps\/cli)\/src\/io\/run\/tests)\.js\b/u.test(item.item_check ?? '') ? 'node apps/cli/src/io/run/tests.js' : 'node --test';
   return `${runner} ${named ?? `test/${slug}.test.js`}`;
 }
 

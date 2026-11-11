@@ -40,7 +40,7 @@ function image(root, file) {
   }
   const stat = lstatSync(path);
   requireThat(stat.isFile() && !stat.isSymbolicLink(), `${file} must be regular`);
-  return { bytes: readFileSync(path).toString('base64'), mode: stat.mode & 0o777 };
+  return { bytes: readFileSync(path).toString('base64'), mode: stat.mode & 0o111 ? 0o755 : 0o644 }; // Git records only the executable bit, so a group-writable umask (0o664) is the same file as 0o644.
 }
 /** Compare exact content and executable bits; do not reinterpret text as an image. */
 function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }

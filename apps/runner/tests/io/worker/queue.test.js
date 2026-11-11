@@ -46,3 +46,17 @@ test('a lost transport (cancel or an expired wanted file) ends the wait for the 
   await assert.rejects(receiveQueuedPack(S, join(dir, 'worker.pack'), { env: { [QUEUE_JOB_ENV]: dir }, wait }), /runner transport was lost/u);
   assert.equal(existsSync(join(dir, 'worker.pack')), false);
 });
+
+test('a pack that never arrives, or a vanished job folder, ends the wait with a named refusal that frees the pin [C7,#5624]', async t => {
+  const dir = folder(t);
+  const env = { [QUEUE_JOB_ENV]: dir };
+  let clock = 0;
+  const wait = async ms => { clock += ms; };
+  await assert.rejects(
+    receiveQueuedPack({ transportLost: false }, join(dir, 'worker.pack'), { env, wait, now: () => clock, limitMs: 1000 }),
+    error => error.code === 'SOURCE_PACK_TIMEOUT' && /pin is released/u.test(error.message));
+  rmSync(dir, { recursive: true, force: true });
+  await assert.rejects(
+    receiveQueuedPack({ transportLost: false }, join(dir, 'worker.pack'), { env, wait, now: () => clock }),
+    error => error.code === 'SOURCE_PACK_ORPHANED');
+});

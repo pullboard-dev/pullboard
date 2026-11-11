@@ -49,6 +49,10 @@ const row = { renew() {}, release() {}, retake() { return false; }, withDb() {} 
 await runDispatcher({ row, admission: { admit() {}, spawned() {}, unstarted() {}, entry: null }, onPass() {}, retryMs: 200 });
 `;
 
+/** The same loop with an admission that finds every gate stale, as one whose item was released or replaced does; it records what it ends unstarted. */
+const RUN_STALE = `import { appendFileSync } from 'node:fs';\n${RUN}`.replace('admit() {}', `admit() { throw Object.assign(new Error('gate no longer serves its item'), { code: 'GATE_STALE' }); }`)
+  .replace('unstarted() {}', `unstarted(launch, reason) { appendFileSync(process.env.STALE_LOG, launch.job + ' ' + reason.code + '\\n'); }`);
+
 /** A private machine home and captured tools tree holding the stand-in driver; the test process uses the same home. */
 function fixture(t) {
   const dir = realpathSync(temporaryDirectory('pullboard-dispatcher-locked-'));
@@ -79,9 +83,9 @@ async function queueJob(box, id) {
 }
 
 /** Start the dispatcher process on the fixture's machine home; resolves its exit code through `exited`. */
-function startDispatcher(box) {
-  const child = spawn(process.execPath, ['--input-type=module', '-e', RUN], { cwd: box.dir, stdio: ['ignore', 'ignore', 'pipe'],
-    env: { ...process.env, PULLBOARD_MACHINE_HOME: box.home } });
+function startDispatcher(box, run = RUN) {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', run], { cwd: box.dir, stdio: ['ignore', 'ignore', 'pipe'],
+    env: { ...process.env, PULLBOARD_MACHINE_HOME: box.home, STALE_LOG: join(box.dir, 'stale.log') } });
   const stderr = [];
   child.stderr.on('data', chunk => stderr.push(chunk));
   box.children.push(child.pid);
@@ -161,4 +165,13 @@ test('clause 2: a gate worker keeps running and reaches its verdict when the dis
   assert.deepEqual(JSON.parse(readFileSync(join(job, 'verdict.json'), 'utf8')), { green: true, pid: worker });
   await waitForCondition(() => !alive(worker), 'the worker to end after its verdict', { signal: t.signal });
   assert.deepEqual(await workerHolders(box), [], 'the slot is freed once the worker ends');
+});
+
+test('clause 3: a queued gate that no longer serves its item ends unstarted at once and the dispatcher frees itself [C7]', { timeout: 60_000 }, async t => {
+  const box = fixture(t);
+  await queueJob(box, 'stale1');
+  const end = await startDispatcher(box, RUN_STALE).exited;
+  assert.equal(end.code, 0, `the dispatcher drained its queue and ended normally: ${end.stderr}`);
+  assert.equal(readFileSync(join(box.dir, 'stale.log'), 'utf8'), 'stale1 GATE_STALE\n', 'the stale gate was ended unstarted, once');
+  assert.doesNotMatch(dispatcherLog(), /not admitted/u, 'a stale gate is never retried on the next pass');
 });
