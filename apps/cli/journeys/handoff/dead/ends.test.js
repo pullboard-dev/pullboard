@@ -93,7 +93,8 @@ function fixture(t) {
     catch (error) { // DIAG probe
       const row = spawnSync('sqlite3', [box.boardFile, "select * from job where job_id='dispatcher'; select job_step_id, job_step_name, substr(job_step_payload,1,200) from job_step where job_step_job='dispatcher'"]).stdout?.toString();
       const ps = spawnSync('ps', ['-axo', 'pid,ppid,etime,command']).stdout.toString().split('\n').filter(l => l.includes(box.dir) || l.includes('dispatcher')).join('\n');
-      process.stderr.write(`DIAG row=${row} now=${Date.now()}\nDIAG state=${JSON.stringify(state(box, id))}\nDIAG ps=\n${ps}\n`);
+      const dlog = spawnSync('sh', ['-c', `ls -la ${box.dir}/machine-home/handoff-queue; tail -40 ${box.dir}/machine-home/handoff-queue/dispatcher.log`]).stdout?.toString();
+      process.stderr.write(`DIAG dlog=${dlog}\nDIAG row=${row} now=${Date.now()}\nDIAG state=${JSON.stringify(state(box, id))}\nDIAG ps=\n${ps}\n`);
       throw error;
     }
     await removeSandboxes(helpers);
