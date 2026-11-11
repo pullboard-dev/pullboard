@@ -230,7 +230,15 @@ process.exit(lines.length?1:0);
     for (const row of trials) row.start = 0;
     writeFileSync(ledgerFile, JSON.stringify(ledger) + '\n');
     // The probe measured main once; clear that machine-wide cache so the item under test really runs the baseline command.
-    rmSync(join(paths.remoteMachine, 'doctrine-main'), { recursive: true, force: true });
+    let cleared = 0;
+    for (const folder of [paths.remoteMachine, paths.remoteHome]) {
+      for (const entry of readdirSync(folder, { recursive: true, withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name !== 'doctrine-main') continue;
+        rmSync(join(entry.parentPath, entry.name), { recursive: true, force: true });
+        cleared += 1;
+      }
+    }
+    assert.ok(cleared > 0, 'the probe left main\'s measured count cached on the worker');
     rmSync(marker, { force: true });
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
