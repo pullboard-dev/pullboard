@@ -45,7 +45,7 @@ test('an edited tier manifest cannot hide a real failing unit [C7,CS4,V4]', t =>
   assert.equal(json(box, box.repo, 'show', String(entry.id)).item_status, 'claimed');
 });
 
-test('a real T3 batch failure bisects to its item while package units stay out of batch gates [C7,CS4,V4]', t => {
+test('a real T3 batch failure bisects to its item while package units stay out of batch gates [C7,CS4,V4]', async t => {
   const box = fixture(t), good = build(box, 'alpha', 2);
   json(box, good.root, 'submit', String(good.id), '--no-next');
   accept(box, good);
@@ -57,6 +57,9 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   const landing = box.run(box.repo, 'land', '--max', '2', '--json');
   assert.equal(landing.code, 0, landing.out + landing.err);
   const landed = JSON.parse(landing.out);
+  { const { readdirSync } = await import('node:fs'); const dir = join(box.repo, '.git/pullboard/landings'); const out = [];
+    for (const id of readdirSync(dir)) { const ld = join(dir, id, 'logs'); if (existsSync(ld)) for (const f of readdirSync(ld)) out.push('=== ' + f + '\n' + readFileSync(join(ld, f), 'utf8').slice(0, 1500)); }
+    console.log('DBGLOGS\n' + out.join('\n') + '\nDBGLAND ' + JSON.stringify({ k: landed.batch.knownMain, d: landed.diagnostics, r: landed.batch.refusal })); }
   const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
   assert.deepEqual(landed.landed, [good.id], `${landing.err}\n${gateLogs}\n${JSON.stringify(landed)}`);
   assert.deepEqual(landed.culprits.map(row => row.id), [bad.id]);
