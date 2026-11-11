@@ -30,7 +30,8 @@ function lightContext(io) {
  * @returns {Promise<number>}
  */
 export async function runThinHook(args, streams) {
-  const io = commandOutput(args, streams, { nextActions: false });
+  const io = commandOutput(args, streams, { nextActions: false,
+    loadRefusal: async () => (await import('../../logic/step/words.js')).refusalDocument });
   io.hookContext = lightContext;
   io.gateWaitReporter = () => () => {};
   try {
@@ -40,6 +41,7 @@ export async function runThinHook(args, streams) {
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
     io.refusal?.(error);
+    await io.prepareRefusal();
     io.err(`pullboard: ${io.guidance(error.message.replace(/\r?\nnext:[ \t]*[^\r\n]*\S[ \t]*(?:\r?\n)*$/u, ''))}\nnext: ${io.refusalDocument(error).error.next}`);
     io.flush(1);
     return 1;
