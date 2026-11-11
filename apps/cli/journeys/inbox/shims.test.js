@@ -40,8 +40,11 @@ const SEED = { source: 'fixture', sha256: 'none', order: ['kernel', 'stats', 'mi
 /** A stats cell already moved behind shims, with one importer of every kind and one that would cut upward. */
 function shimmed(t) {
   const box = fixture(t);
-  box.put('pullboard.json', CONFIG);
-  box.put('bin/cells-plan/seed.json', JSON.stringify(SEED));
+  const config = JSON.parse(CONFIG);
+  config.lanes.core.owns.push('src/', 'bin/', 'test/');
+  config.lanes.view.owns.push('src/view/');
+  box.put('pullboard.json', JSON.stringify(config));
+  box.put('packages/codemap/data/plan/seed.json', JSON.stringify(SEED));
   for (const file of ['src/board.js', 'src/claims.js', 'src/stats-flow.js']) box.put(file, 'export const unused = 1;\n');
   box.put('src/stats.js', 'export const stats = 1;\n');
   box.put('src/mid.js', "import { leaf } from './stats-leaf.js';\nexport const mid = leaf;\n");
@@ -53,7 +56,7 @@ function shimmed(t) {
   box.put('packages/stats/src/shell/leaf.js', 'export const leaf = 4;\n');
   box.put('packages/stats/core.js', 'export * from "./src/core/pure.js";\n');
   box.put('packages/stats/index.js', 'export * from "./core.js";\nexport { shell } from "./src/shell/shell.js";\nexport * from "../../src/late.js";\n');
-  box.put('src/stats.js', 'export { pure, shell } from "../../../../packages/stats/index.js";\nexport { extra } from "../packages/stats/src/shell/shell.js";\n');
+  box.put('src/stats.js', 'export { pure, shell } from "../packages/stats/index.js";\nexport { extra } from "../packages/stats/src/shell/shell.js";\n');
   box.put('src/stats-leaf.js', 'export { leaf } from "../packages/stats/src/shell/leaf.js";\n');
   box.put('src/uses-shell.js', "import { shell } from './stats.js';\nexport { shell };\n");
   box.put('src/uses-extra.js', "import { extra } from './stats.js';\nexport { extra };\n");
@@ -82,15 +85,15 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
   box.put('docs/architecture.md', 'The stats body was src/stats.js; src/stats.json and src/stats.js.map are other files.\n');
   box.put('docs/guide.md', 'See src/stats.js.\n');
   const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
-  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../../../../packages/stats/index.js';\nexport { shell };\n");
-  assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../../../../packages/stats/light.js';\nconsole.log(pure);\n");
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
+  assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/core.js';\nconsole.log(pure);\n");
   assert.match(read(box, 'src/reader.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/src\/shell\/shell\.js'\)/u, 'a resolved path names the exact moved file');
   assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/src\/shell\/shell\.js', import\.meta\.url\)/u);
   assert.equal(read(box, 'test/declared.test.js').split('\n')[0], '/** @pullboard-test-input packages/stats/src/shell/shell.js package.json */');
   assert.equal(read(box, 'docs/architecture.md'), 'The stats body was packages/stats/src/shell/shell.js; src/stats.json and src/stats.js.map are other files.\n', 'a core-lane doc cites the moved file');
   assert.equal(read(box, 'docs/guide.md'), 'See src/stats.js.\n', 'a docs-lane citation is left to its lane');
   assert.deepEqual(result.cited, ['docs/guide.md (docs lane) cites src/stats.js; not rewritten outside the core lane']);
-  assert.equal(read(box, 'src/uses-extra.js'), "import { extra } from '../../../../packages/stats/index.js';\nexport { extra };\n");
+  assert.equal(read(box, 'src/uses-extra.js'), "import { extra } from '../packages/stats/index.js';\nexport { extra };\n");
   assert.match(read(box, 'packages/stats/index.js'), /export \{ extra \} from "\.\/src\/shell\/shell\.js";/u);
   assert.equal(existsSync(join(box.root, 'src/stats.js')), false, 'src/stats.js has no importer left');
   assert.deepEqual(result.deleted, ['src/stats.js']);
@@ -109,7 +112,7 @@ test('a core file keeps its shim rather than reach past the cell core [C7,D3]', 
   assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
   assert.equal(read(box, 'packages/stats/src/core/impure.js'), "import { shell } from '../../../../src/stats.js';\nexport const impure = shell;\n");
   assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /core file packages\/stats\/src\/core\/impure\.js/u);
-  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../../../../packages/stats/index.js';\nexport { shell };\n", 'the other importers still move');
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n", 'the other importers still move');
 });
 
 test('a view-lane importer keeps its shim and its file, and a second run changes nothing [C7,D3]', t => {
@@ -125,7 +128,7 @@ test('a view-lane importer keeps its shim and its file, and a second run changes
   assert.doesNotMatch(first.stdout, /deleted src\/stats\.js/u);
   assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
   assert.equal(read(box, 'src/view/panel.js'), view, 'the view file is never rewritten');
-  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../../../../packages/stats/index.js';\nexport { shell };\n", 'core importers still move');
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n", 'core importers still move');
   assert.equal(readPlan(box.root).cells.find(cell => cell.name === 'stats').reexports.join(), 'src/stats.js,src/stats-leaf.js');
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'first removal');
@@ -140,7 +143,7 @@ test('an importer of a name the door binds to a different definition keeps the s
   box.put('packages/stats/src/shell/write.js', 'export const open = "write";\n');
   box.put('packages/stats/src/shell/read.js', 'export const open = "read";\n');
   box.put('packages/stats/index.js', read(box, 'packages/stats/index.js') + 'export { open } from "./src/shell/read.js";\nexport { open as write_open } from "./src/shell/write.js";\n');
-  box.put('src/stats-open.js', 'export { write_open as open } from "../../../../packages/stats/index.js";\n');
+  box.put('src/stats-open.js', 'export { write_open as open } from "../packages/stats/index.js";\n');
   box.put('src/uses-open.js', "import { open } from './stats-open.js';\nexport { open };\n");
   box.put('src/all-open.js', "import * as all from './stats-open.js';\nexport const keys = Object.keys(all);\n");
   const plan = readPlan(box.root), stats = plan.cells.find(cell => cell.name === 'stats');
@@ -181,7 +184,7 @@ test('a namespace importer keeps its shim when the door exports more names than 
   const reason = new Map(result.kept).get('src/stats.js');
   assert.match(reason, /src\/all\.js takes the whole src\/stats\.js namespace, and packages\/stats\/index\.js also exports late/u);
   assert.match(reason, /src\/lazy\.js takes the whole src\/stats\.js namespace/u);
-  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../../../../packages/stats/index.js';\nexport { shell };\n", 'a named importer still moves');
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n", 'a named importer still moves');
 });
 
 test('a run that adds a name to the door for one importer leaves a namespace importer of another shim on its shim [C7,D3]', t => {
@@ -226,28 +229,28 @@ test('(b) with lane view, a view importer needing a binding absent from a core-o
 
 test('(c) with lane core, a door addition and the shim deletion proceed; a plan shard owned elsewhere holds the deletion [C7,D3]', t => {
   const box = shimmed(t);
-  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS, lane: 'core', planFiles: ['bin/cells-plan.json', 'bin/cells-plan/02-stats.json'] });
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS, lane: 'core', planFiles: ['packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan/02-stats.json'] });
   assert.match(read(box, 'packages/stats/index.js'), /export \{ extra \} from "\.\/src\/shell\/shell\.js";/u, 'core adds to its own door');
   assert.deepEqual(result.deleted, ['src/stats.js'], 'core deletes its own shim');
   const config = JSON.parse(read(box, 'pullboard.json'));
-  config.lanes.view.owns.push('bin/cells-plan/02-stats.json');
+  config.lanes.view.owns.push('packages/codemap/data/plan/02-stats.json');
   const other = shimmed(t);
   other.put('pullboard.json', JSON.stringify(config));
   git(other.root, 'add', '-A');
   git(other.root, 'commit', '-q', '-m', 'view owns the stats shard');
-  const shard = read(other, 'bin/cells-plan/02-stats.json'), index = read(other, 'bin/cells-plan.json');
+  const shard = read(other, 'packages/codemap/data/plan/02-stats.json'), index = read(other, 'packages/codemap/data/plan/cells.json');
   const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats'], { cwd: other.root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/02-stats\.json \(view lane\), outside the core lane/u);
+  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites packages\/codemap\/data\/plan\/02-stats\.json \(view lane\), outside the core lane/u);
   assert.equal(existsSync(join(other.root, 'src/stats.js')), true);
-  assert.equal(read(other, 'bin/cells-plan/02-stats.json'), shard, 'the view-owned shard is never written');
-  assert.equal(read(other, 'bin/cells-plan.json'), index);
+  assert.equal(read(other, 'packages/codemap/data/plan/02-stats.json'), shard, 'the view-owned shard is never written');
+  assert.equal(read(other, 'packages/codemap/data/plan/cells.json'), index);
 });
 
 /** Give the shimmed fixture a runner worker, a shipped-file manifest and one move declaration, then commit. */
 function withClosures(box, { core = 'export * from "./src/core/pure.js";\n', extra = {} } = {}) {
-  box.put('package.json', JSON.stringify({ type: 'module', files: ['src', 'packages', 'bin'] }));
-  box.put('src/runner-worker.js', "import { step } from './worker-step.js';\nexport const worker = step;\n");
+  box.put('package.json', JSON.stringify({ type: 'module', files: ['src', 'packages', 'bin', 'apps'] }));
+  box.put('apps/runner/src/io/scripts/worker.js', "import { step } from '../../../../../src/worker-step.js';\nexport const worker = step;\n");
   box.put('src/stats-pure.js', 'export { pure } from "../packages/stats/src/core/pure.js";\n');
   box.put('src/moves/seed.js', "import { pure } from '../stats-pure.js';\nexport const seed = pure;\n");
   box.put('packages/stats/core.js', core);
@@ -265,15 +268,15 @@ function withClosures(box, { core = 'export * from "./src/core/pure.js";\n', ext
 test('a plan file another lane owns that writing the plan would prune holds every deletion, and stays [C7,D3]', t => {
   const box = shimmed(t);
   const config = JSON.parse(read(box, 'pullboard.json'));
-  config.lanes.view.owns.push('bin/cells-plan/99-view-retired.json');
+  config.lanes.view.owns.push('packages/codemap/data/plan/99-view-retired.json');
   box.put('pullboard.json', JSON.stringify(config));
-  box.put('bin/cells-plan/99-view-retired.json', '{"retired": true}\n');
+  box.put('packages/codemap/data/plan/99-view-retired.json', '{"retired": true}\n');
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'view owns a retired plan file');
   const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats', '--lane', 'core'], { cwd: box.root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(read(box, 'bin/cells-plan/99-view-retired.json'), '{"retired": true}\n', 'the view-owned plan file is never pruned');
-  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/99-view-retired\.json \(view lane\), outside the core lane/u);
+  assert.equal(read(box, 'packages/codemap/data/plan/99-view-retired.json'), '{"retired": true}\n', 'the view-owned plan file is never pruned');
+  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites packages\/codemap\/data\/plan\/99-view-retired\.json \(view lane\), outside the core lane/u);
   assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
 });
 
@@ -282,8 +285,8 @@ test('a runner-closure importer reads core.js while a shell importer of the same
   box.put('src/worker-step.js', "import { pure } from './stats.js';\nexport const step = pure;\n");
   const plan = withClosures(box);
   const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
-  assert.equal(read(box, 'src/worker-step.js'), "import { pure } from '../../../../packages/stats/light.js';\nexport const step = pure;\n");
-  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../../../../packages/stats/index.js';\nexport { shell };\n");
+  assert.equal(read(box, 'src/worker-step.js'), "import { pure } from '../packages/stats/core.js';\nexport const step = pure;\n");
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
   assert.equal(read(box, 'src/moves/seed.js'), "import { pure } from '../../packages/stats/core.js';\nexport const seed = pure;\n", 'a move declaration reads core.js');
   assert.ok(result.deleted.includes('src/stats.js') && result.deleted.includes('src/stats-pure.js'));
 });
@@ -295,7 +298,7 @@ test('a core importer reads its pure door while a shell importer of the same shi
   const plan = withClosures(box);
   removeShims(box.root, plan, 'stats', { parsers: PARSERS });
   assert.equal(read(box, 'packages/stats/src/core/uses.js'), "import { pure } from '../../core.js';\nexport const used = pure;\n");
-  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../../../../packages/stats/index.js';\nexport { shell };\n");
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
 });
 
 test('a pure binding with another definition keeps the runner importer and names that binding [C7,D3]', t => {

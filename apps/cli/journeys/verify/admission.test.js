@@ -41,11 +41,16 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
-    mkdirSync(join(box.repo, 'bin'));
+    // The explicit-file classifier only reads checks run through packages/gate/src/io/run/tests.js, so the web lane owns the runner and the test dir here.
+    const configPath = join(box.repo, 'pullboard.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    config.lanes.web.owns = [...config.lanes.web.owns, 'packages/gate/', 'test/'];
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
     mkdirSync(join(box.repo, 'test'));
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
     // A literal fixture runner executes the selected file, without importing the real project's test pool.
-    writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "await import(new URL('../../../../' + process.argv[2], import.meta.url));\n");
+    writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "await import(new URL('../../../../../' + process.argv[2], import.meta.url));\n");
     writeFileSync(join(box.repo, 'test/desktop.test.js'), `${liveGui ? '/** @pullboard-test-gui */\n' : ''}import { test } from 'node:test';\ntest('desktop fixture executes', () => {});\n`);
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'test: explicit desktop admission fixture [G1]');
@@ -82,6 +87,14 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     const liveStatus = box.git(reviewer, 'status', '--porcelain=v1');
     const indexPath = box.git(reviewer, 'rev-parse', '--git-path', 'index');
     const liveIndex = readFileSync(indexPath.startsWith('/') ? indexPath : join(reviewer, indexPath));
+    let verifier = reviewer;
+    if (companion) {
+      verifier = join(box.dir, 'composed-reviewer');
+      box.git(box.repo, 'worktree', 'add', '-q', '--detach', verifier, head);
+      document(fixtureJoin(box.run, verifier, 'api', '--json'));
+      document(box.run(verifier, 'next', '--verify', '1', '--json'));
+      assert.equal(await checkNeedsGui(verifier, check), true, 'the reserved reviewer sees the composed GUI marker');
+    }
     const ready = join(box.dir, 'holder-ready');
     const release = join(box.dir, 'holder-release');
     const holderSource = join(box.dir, 'holder.mjs');
@@ -93,7 +106,7 @@ ${executionServicesSource(gate)}\nimport { existsSync, writeFileSync } from 'nod
     let queued;
     try {
       await helpers.waitFor(() => existsSync(ready), 'private gate holder');
-      verification = helpers.launch(box, reviewer, process.execPath, [helpers.BIN, 'verify', '1', 'accept', '--note', 'real admission fixture', '--json']);
+      verification = helpers.launch(box, verifier, process.execPath, [helpers.BIN, 'verify', '1', 'accept', '--note', 'real admission fixture', '--json']);
       const db = new DatabaseSync(join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), { readOnly: true });
       // This observer must wait for a real in-flight writer, without changing admission or its deadline.
       db.exec('PRAGMA busy_timeout = 500');
