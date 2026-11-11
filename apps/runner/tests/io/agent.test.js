@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { agentVersion } from '../../src/io/agent.js';
 import { runnerAgentStartCommand } from '../../src/io/agent.js';
-import { sourceCacheJobGone } from '../../../../packages/resources/src/io/liveness.js';
+import { sourceCacheJobGone } from '../../../../packages/resources/index.js';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { HOST } from '../../../cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../cli/tests/fixtures/runner/ssh.js';
