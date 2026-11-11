@@ -114,8 +114,9 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
       brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options,
       route: wanted === 'light' ? 'mid' : wanted });
     if (wanted === 'light') {
+      // The diagnosis names the item's own files, so a disjoint brief stays disjoint from other claims' diagnoses.
       store.appendFact(board, id, { agentId: seats.builder.id, kind: 'diagnosis',
-        text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.' });
+        text: `${options.brief?.match(/^Files:.*$/mu)?.[0] ?? 'Files: web/dispatch.js'}\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.` });
       if (store.getItem(board, id).item_route !== 'light') store.editItem(board, id, { agentId: 'coordinator', route: 'light', reason: 'Private light dispatch fixture' });
     }
     return id;
