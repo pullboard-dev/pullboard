@@ -317,6 +317,7 @@ test('a green landing run retries transient process snapshot timeouts [C7,V4]', 
   const fixture = makeShardFixture(t);
   const ready = join(fixture.root, 'snapshot-ready');
   const sampled = join(fixture.root, 'sample-timeout');
+  const calls = join(fixture.root, 'ps-calls.log');
   const drained = join(fixture.root, 'drain-timeout');
   const childReady = join(fixture.root, 'child-ready');
   const childDrained = join(fixture.root, 'child-drained');
@@ -327,12 +328,13 @@ test('a green landing run retries transient process snapshot timeouts [C7,V4]', 
   const preload = join(fixture.root, 'snapshot-timeout.mjs');
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import { existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 if (process.argv[1] === ${JSON.stringify(fixture.runner)}) {
   const original = childProcess.execFileSync;
   childProcess.execFileSync = (command, args, options) => {
     if (command === 'ps' && args?.[0] === '-axo' && existsSync(${JSON.stringify(ready)})) {
       const duringDrain = new Error().stack.includes('at snapshot ');
+      appendFileSync(${JSON.stringify(calls)}, Date.now() + ' ' + duringDrain + ' ' + new Error().stack.split('\\n').slice(2, 5).map(line => line.trim().replace(/\\(.*\\/|\\)/g, '')).join(' | ') + '\\n');
       const marker = duringDrain ? ${JSON.stringify(drained)} : ${JSON.stringify(sampled)};
       if (!existsSync(marker)) {
         writeFileSync(marker, 'injected');
@@ -376,7 +378,7 @@ test('green file waits for the injected observation', async () => {
     cwd: fixture.root, env, encoding: 'utf8', timeout: 15000,
   });
   assert.ok(existsSync(sampled), 'a live monitor observation failed once');
-  assert.ok(existsSync(drained), `the final ownership census failed once and was retried\n${result.context}\n${String(result.stdout ?? '').slice(-1500)}\n${String(result.stderr ?? '').slice(-2500)}`);
+  assert.ok(existsSync(drained), `the final ownership census failed once and was retried\n${result.context}\n${String(result.stdout ?? '').slice(-1500)}\n${String(result.stderr ?? '').slice(-2500)}\n${existsSync(calls) ? readFileSync(calls, 'utf8').slice(-3000) : 'no ps calls'}`);
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
   assert.match(result.stdout, /# fail 0/u);
   assert.ok(existsSync(childDrained), 'the owned child acknowledged cleanup after a successful census');
