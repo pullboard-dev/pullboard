@@ -101,12 +101,13 @@ gate() {
   shown=$l; [ -n "$shown" ] || shown=-
   printf 'state=%s load=%s cores=%s at=%s\n' "$state" "$shown" "$c" "$(now)" > "$ROOT/load.tmp" && mv "$ROOT/load.tmp" "$ROOT/load"
 }
+gate
 idle_since=$(now)
 while :; do
   busy=0; ticks=$((ticks + 1)); queued=0
   for d in "$Q"/*/; do
     [ -d "$d" ] || continue
-    case $d in */.*) continue ;; esac
+    case $(basename "$d") in .*) continue ;; esac
     queued=1; break
   done
   if [ "$queued" = 1 ] || [ "$ticks" -ge 10 ]; then gate; ticks=0; fi
