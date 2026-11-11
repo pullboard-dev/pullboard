@@ -4,11 +4,15 @@ import { readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../../kernel/light.js';
 import { ENGINE_VERSION } from '../../../../../state/light.js';
+import { SUBMIT_HANDOFF_ENGINE } from '../../../../../state/light.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
 import { submitGateInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
 import { boardDataVersion } from '../version.js';
+import { withSeatPresence } from '../../presence.js';
+import { withDerivedFamily } from '../../../../../items/light.js';
+import { agentParent } from '../../../../../seats/light.js';
 
 /** Maximum time a board connection waits for another process to release SQLite's lock. */
 export const BOARD_BUSY_TIMEOUT_MS = 10_000;
@@ -150,3 +154,28 @@ export function listItemsSql({ all, hasLane }) {
 
 /** Remembered item lists by connection and filter; each entry names the board data version it read. */
 const LISTED = new WeakMap();
+
+/** The board's drafted spec rows, empty when none were drafted. */
+export function rowDrafts(board) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('row_drafts');
+  return row ? JSON.parse(row.meta_value) : [];
+}
+
+/** The agent registered for a worktree path, with its model, parent session and presence, if any. */
+export function agentAt(board, path) {
+  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
+  if (!agent) return agent;
+  const model = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${agent.agent_id}`)?.meta_value ?? null;
+  return withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: model, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
+}
+
+/** The board's time source and a snapshot over an open read-only connection, with the native engine thresholds [C7]. */
+export const systemClock = { now: () => new Date() };
+
+/** Attach the native read-only engine thresholds to an existing observation snapshot. */
+export function readBoardSnapshot(db, clock = systemClock) {
+  return { db, clock, enginePorts: Object.freeze({ submitHandoffEngines }) };
+}
+
+/** Supply exact discovered engine thresholds to read-only projections. */
+function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
