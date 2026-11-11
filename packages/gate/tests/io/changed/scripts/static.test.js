@@ -73,7 +73,7 @@ test('the staged checker refuses a source with two import bindings on one line, 
   assert.match(`${refused.stderr ?? refused.err}${refused.stdout ?? refused.out ?? ''}`, /src\/two\.js:1: one import binding per line \(2 bindings\)/u);
 });
 
-test('the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
+test('clause 1, clause 2: the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
   const box = staticProject();
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   writeFileSync(join(box.repo, 'src/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");

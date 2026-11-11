@@ -23,7 +23,7 @@ function claimed() {
   return box;
 }
 
-test('a real commit with a capitalised, over-long, full-stopped header lands fixed on the first try and says each fix [C7]', () => {
+test('clause 1, clause 2: a real commit with a capitalised, over-long, full-stopped header lands fixed on the first try and says each fix [C7]', () => {
   const box = claimed();
   const long = 'feat(web): Retain the context of every claim across a long and winding session of work. [G1]';
   assert.ok(long.length > 72);

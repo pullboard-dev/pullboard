@@ -51,7 +51,7 @@ test('a staged two-binding import line lands split and staged, with the same imp
   assert.deepEqual(importsIn([TWO])[0], importsIn([staged])[0], 'the module still imports the same specifiers');
 });
 
-test('a partly staged file is fixed in the index and working tree alike, its unstaged edit kept unstaged, and a clean file is not rewritten [C7]', t => {
+test('clause 1: a partly staged file is fixed in the index and working tree alike, its unstaged edit kept unstaged, and a clean file is not rewritten [C7]', t => {
   const box = repository(t);
   box.put('src/two.js', TWO);
   box.put('src/clean.js', "import { only } from './x.js';\nexport { only };\n");
