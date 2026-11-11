@@ -453,7 +453,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     assert.equal(result.status, 0, result.stderr || result.stdout || 'the real native CLI prepares a fresh claim under the pinned main policy');
     return JSON.parse(result.stdout);
   };
-  const joined = runBuilder('join', lane, '--family', 'Builder Family');
+  const joined = runBuilder('join', lane, '--route', 'strong', '--family', 'Builder Family');
   const builderId = joined.agent;
   assert.equal(typeof builderId, 'string');
   runBuilder('claim', '1');

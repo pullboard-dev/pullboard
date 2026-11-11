@@ -93,8 +93,7 @@ export async function fixture(t, { machineCredentials = true, legacySnapshots = 
   runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'fixture policy'], { cwd: root, env, encoding: 'utf8' });
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   const marker = 'PRIVATE_BOARD_CRITERION_DO_NOT_RELAY_IN_CLEAR';
-  cli('add', Object.keys(config.lanes)[0], 'A sealed board item', '--criterion', marker, '--route', 'mid',
-    '--check', 'node --version', '--brief', 'Files: fixture.js. Test: the sealed fixture item builds cold.');
+  cli('add', Object.keys(config.lanes)[0], 'A sealed board item', '--criterion', marker);
   const document = JSON.parse(cli('export'));
   const id = document.tables.board_meta.find((row) => row.meta_key === 'board_id').meta_value;
   const provider = await githubFixture(t);
