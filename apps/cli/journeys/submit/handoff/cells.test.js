@@ -13,6 +13,8 @@ import {
   joinFixtureSeat,
 } from '../../../tests/fixtures/testkit.js';
 import { warmAcceptedCells } from '../../../../../packages/gate/index.js';
+import { gateSpanFolder } from '../../../../../packages/jobs/index.js';
+import { readGateSpans } from '../../../../../packages/jobs/index.js';
 import { withMainCheckout } from '../../../../../packages/landing/index.js';
 import { withFileLock } from '../../../../../packages/outbox/index.js';
 import {
@@ -86,4 +88,12 @@ for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happen
   assert.equal(completed.item.item_status, 'claimed');
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   assert.equal(existsSync(box.started), false, 'the ordinary gate never executes a source refused by cell checks');
+  // The authorization span carries one sub-span per step, each with its own milliseconds [C7].
+  const spans = readGateSpans(gateSpanFolder(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')), { since: 0, now: Date.now() });
+  const phases = new Set(spans.filter(span => Number(span.item) === Number(box.id)).map(span => span.phase));
+  assert.ok(phases.has('authorization'), 'the whole stage is still one span');
+  for (const step of ['claim-check', 'trunk-merge', 'freezer-digest', 'changed-lines', 'preflight-record', 'item-patches']) {
+    assert.ok(phases.has(`authorization-${step}`), `authorization-${step} is recorded as its own sub-span; saw ${[...phases].join(', ')}`);
+  }
+  for (const span of spans.filter(row => row.phase.startsWith('authorization-'))) assert.ok(Number.isInteger(span.ms) && span.ms >= 0, `${span.phase} carries its own milliseconds`);
 });
