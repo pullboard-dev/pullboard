@@ -1,9 +1,9 @@
 /** The files a landing derives after its item merges (engine numbers, format table, generated docs, plan placement), as one step a runner job can run [C7,#5568]. */
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { git } from '../../../git/index.js';
+import { gitSpawn } from '../../../git/index.js';
 import { assignEngineNumbers } from '../../../state/index.js';
 import { writeFormatTable } from '../../../state/index.js';
 import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
@@ -54,7 +54,7 @@ export function amendLandingEngines(root, hooks = []) {
 /** Run a git command in `cwd`, feeding `input` on stdin; resolves its status and stdout bytes. Async so a leased caller's timer keeps firing. */
 export function gitStdin(cwd, args, input = '') {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = gitSpawn(args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
     const out = [];
     child.stdout.on('data', chunk => out.push(chunk));
     child.on('error', reject);
