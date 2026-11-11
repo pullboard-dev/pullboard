@@ -98,20 +98,25 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   assert.equal(onBoard(box, board => submitHandoff(board, id)).state, 'queued', 'a lost ticket under the grace is left queued');
 
   ageJob(box, id, 3 * 60_000);
-  const lastSweep = sweep(box);
-  // The sweep ends the lost launch as infrastructure, then recoverInfrastructureHandoffs retries it under a new job id (3810cc1a6d).
-  const ended = onBoard(box, board => submitHandoff(board, id));
-  assert.notEqual(ended.id, job.id, `the retried job replaces the lost launch on the board (${ended.state} ${ended.error?.code}; sweep said: ${lastSweep.err.slice(-600)}${lastSweep.out.slice(-300)})`);
-  assert.ok(['queued', 'infrastructure'].includes(ended.state), 'the retry is queued, or ended as infrastructure when its launch failed');
-  // Each retry holds the claim while queued, so lose every retry's place in line too, until the two-retry budget is spent.
-  let last = ended;
-  for (let round = 0; round < 3 && last.state === 'queued'; round++) {
+  const replaced = sweep(box);
+  // A lost place in line is re-placed once on the same job (b2ed5cf838): the job keeps its id and gets a fresh ticket.
+  const again = onBoard(box, board => submitHandoff(board, id));
+  assert.equal(again.id, job.id, `the first loss re-places the same job (${replaced.err.slice(-300)}${replaced.out.slice(-300)})`);
+  assert.equal(again.state, 'queued', 'the re-placed job is still in line');
+  // A second loss ends it as infrastructure, then recoverInfrastructureHandoffs retries it under a new job id (3810cc1a6d);
+  // each retry is re-placed once too, so lose every place in line until the two-retry budget is spent.
+  let last = again;
+  let retried = false;
+  for (let round = 0; round < 8 && last.state === 'queued'; round++) {
     const names = await inMachineHome(box, () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(last.id) && !name.startsWith('.')));
     await inMachineHome(box, () => { for (const name of names) rmSync(join(handoffQueueDirectory(), name)); });
     ageJob(box, id, 3 * 60_000);
     sweep(box);
-    last = onBoard(box, board => submitHandoff(board, id));
+    const next = onBoard(box, board => submitHandoff(board, id));
+    if (next.id !== last.id) retried = true;
+    last = next;
   }
+  assert.ok(retried, 'a second loss ends the launch and the retried job replaces it on the board');
   assert.equal(last.state, 'infrastructure', 'once the retries are spent the lost launch ends as infrastructure');
   assert.equal(last.error?.code, 'SUBMIT_HANDOFF_DEAD');
 
