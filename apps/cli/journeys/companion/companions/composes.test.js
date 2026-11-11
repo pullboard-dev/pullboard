@@ -236,7 +236,7 @@ test('control: an unstaged edit to a code file makes the hook run the staged byt
   write(builder, { 'web/real.js': 'export const value = 3;\n' });
   const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(web): change the value [G1]');
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
-  assert.notEqual(realpathSync(JSON.parse(readFileSync(probe, 'utf8')).dir), realpathSync(join(builder, 'apps/cli')), 'the entry ran from a copy');
+  assert.match(JSON.parse(readFileSync(probe, 'utf8')).dir, /pullboard-hook-/u, 'the entry ran from a copy');
 });
 
 test('with a companion patch the composed tree holds the code and leaves tests and journeys out [C7]', () => {
@@ -247,7 +247,7 @@ test('with a companion patch the composed tree holds the code and leaves tests a
   const committed = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
   const seen = JSON.parse(readFileSync(probe, 'utf8'));
-  assert.notEqual(realpathSync(seen.dir), realpathSync(join(builder, 'apps/cli')), 'the entry ran from the composed copy');
+  assert.match(seen.dir, /pullboard-hook-/u, 'the entry ran from the composed copy');
   assert.equal(seen.real, true, 'the code the check loads is written');
   assert.equal(seen.unread, false, 'tests are not written');
 });
