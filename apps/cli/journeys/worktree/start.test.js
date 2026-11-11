@@ -95,7 +95,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   const missingJoinJson = fixtureJoin(box.run, missingJoin, 'api', '--json');
   assert.equal(missingJoinJson.code, 1);
   assert.equal(JSON.parse(missingJoinJson.out).error.next,
-    'run pullboard join api --model "<model name>"');
+    'run pullboard join api --route strong --model "<model name>"', 'the kit adds the strong route, and the next step keeps it');
 });
 
 test('a new worktree is created inside the repository [I1,I2]', () => {

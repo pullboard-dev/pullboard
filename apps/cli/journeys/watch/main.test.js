@@ -543,8 +543,7 @@ test('help watch and the generated agent instructions teach seats to listen with
   assert.deepEqual(lines.slice(example + 2), [
     'Claude Code: run pullboard watch --to <your id> under the Monitor tool, and each event line wakes the seat.',
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
-    'next: pullboard status',
-  ], 'the original two harness instructions and the final interactive help action stay exact');
+  ], 'the two harness instructions end the help: one command\'s help adds no next line after its example [N37]');
   const { agentsBlock } = await import('../../../../packages/doctrine/light.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
