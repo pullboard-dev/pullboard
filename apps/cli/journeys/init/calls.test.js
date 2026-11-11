@@ -59,7 +59,7 @@ function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
   t.after(() => {
     try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); } catch (error) {
-      const left = spawnSync('sh', ['-c', `ps -axo pid,command | grep -F ${JSON.stringify(dir)} | grep -v grep; find ${JSON.stringify(dir)} | tail -n 8`], { encoding: 'utf8' }).stdout;
+      const left = spawnSync('sh', ['-c', `ps -axo pid,command | grep -F ${JSON.stringify(dir)} | grep -v grep; lsof +D ${JSON.stringify(dir)} 2>&1 | head -5; ps -axo pid,ppid,command | grep -E 'pullboard|node' | grep -v grep | tail -n 6; find ${JSON.stringify(dir)} | tail -n 8`], { encoding: 'utf8' }).stdout;
       throw new Error(`${error.message}\n${left}`);
     }
   });
