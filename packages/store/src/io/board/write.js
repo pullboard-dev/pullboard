@@ -7,6 +7,7 @@ import { prepareReserveReview } from "./reserve/review.js";
 import { requireHandoffActive } from "../../../../state/light.js";
 import { requireAgentGrant } from "../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
+import { REVIEW_GATE_RECEIPT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 
 const PREPARE_ATTEMPTS = 4;
@@ -19,10 +20,22 @@ const PREPARATIONS = Object.freeze({
   queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
   reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
+  // A verdict on work whose gate has no captured receipt is refused before any write transaction opens (#5561).
+  verify: (board, args) => { refuseUnreceiptedVerdict(board, args[0]); return args; },
   // Gate-run and flake writes read every earlier run; read them here so the writer reads only the runs since (#2294).
   recordGateRun: (board, args) => { warmHistories(board); return args; },
   recordFlakeObservation: (board, args) => { warmHistories(board); return args; },
 });
+
+/**
+ * Refuse a verdict whose gate has no captured proof receipt, reading with no lock held; the writer checks it again.
+ * Why: a refusal rolls back, yet it still held the board's one write lock while it read the receipts (#5561).
+ */
+function refuseUnreceiptedVerdict(board, id) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_GATE_RECEIPT_ENGINE) return;
+  const problem = store.gateReceiptProblem(board, store.getItem(board, id) ?? {});
+  if (problem) throw problem;
+}
 
 /** Read the shared gate-run and flake histories with no lock held. */
 function warmHistories(board) {
