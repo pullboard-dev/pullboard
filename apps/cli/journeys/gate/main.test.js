@@ -119,7 +119,8 @@ test('the landing gate bounds its own concurrency [C7]', () => {
     mkdirSync(folder, { recursive: true });
     const file = join(folder, `overlap-${id}.test.js`);
     selected.push(file);
-    writeFileSync(file, `import {appendFileSync} from 'node:fs';
+    // A file takes a browser lease only by declaring it on its first line, not by its folder.
+    writeFileSync(file, `${browser ? '// pullboard: browser\n' : ''}import {appendFileSync} from 'node:fs';
 import {test} from 'node:test';
 /** Keep controlled work alive briefly so concurrent file bodies leave overlapping records. */
 test('record real file ${id} [C7]', async () => {
