@@ -64,7 +64,7 @@ function miniAgentSource(ssh, runnerHome) {
   `;
 }
 
-test('a pulled job returns the controller path\'s result and leaves no controller process while it waits [C7,#5465]', t => {
+for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's'} return the controller path's result and leave no controller process while waiting [C7,#5465]`, { timeout: 170000 }, t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -90,35 +90,36 @@ test('a pulled job returns the controller path\'s result and leaves no controlle
     const root = ${JSON.stringify(box.repo)};
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
       gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
-      runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 1 }] }));
+      runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: ${count}, browser: 1 }] }));
     const command = 'printf job-finished; sleep 8; exit 3';
     const shaped = result => ({ exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), kind: result.executionReceipt?.kind, runner: result.executionRunner });
     const settle = promise => promise.catch(error => ({ refused: error.code, message: error.message }));
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
-    let counts = [], waiting = false;
+    let counts = [], waiting = 0;
     const sampler = setInterval(() => {
-      if (!waiting) return;
+      if (waiting < 1) return;
       try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
-    const viaPull = await withGateSlot(root, lease => settle(runPulled(root, command, {
+    const ready = new Set();
+    const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => settle(runPulled(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata },
-      { waitRunnerJob: miniAgent(state => { waiting = state; }) })),
-      { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} });
+      { waitRunnerJob: miniAgent(state => { if (state) ready.add(index); else ready.delete(index); waiting = ready.size; }) })),
+      { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} })));
     clearInterval(sampler);
     const left = dir => { try { return readdirSync(dir); } catch { return []; } };
-    console.log(JSON.stringify({ viaController: shaped(viaController), viaPull: viaPull.refused ? viaPull : shaped(viaPull), counts,
+    console.log(JSON.stringify({ viaController: shaped(viaController), viaPull: pulled.map(result => result.refused ? result : shaped(result)), counts,
       records: left(join(process.env.PULLBOARD_MACHINE_HOME, 'runner-jobs')), runnerLeft: ['queue', 'running', 'done'].map(name => left(join(${JSON.stringify(home)}, '.pullboard-runner', name)).length) }));
   `;
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
   delete env.NODE_TEST_CONTEXT;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.dir, env, encoding: 'utf8', timeout: 120000 });
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.dir, env, encoding: 'utf8', timeout: 150000 });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   const actual = JSON.parse(result.stdout.trim().split('\n').at(-1));
   assert.equal(actual.viaController.exitCode, 3, `the control run finished: ${JSON.stringify(actual.viaController)}`);
-  assert.deepEqual(actual.viaPull, actual.viaController, 'the pulled job returns the controller path\'s result shape');
+  assert.deepEqual(actual.viaPull, Array(count).fill(actual.viaController), 'every pulled job returns the controller path\'s result shape');
   assert.ok(actual.counts.length >= 20, 'the wait was sampled');
   assert.equal(Math.max(...actual.counts), 0, 'no controller process lives while a pulled job waits');
   assert.deepEqual(actual.records, [], 'the finished job\'s record is removed');
