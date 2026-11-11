@@ -970,7 +970,6 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
   assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
   const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
-  if (afterFreshRefusal !== beforeFreshRefusal) console.error('DIAG', JSON.stringify((await relayUploadSummary(relay.uploads.slice(beforeFreshRefusal), key, boardId))));
   assert.equal(afterFreshRefusal, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
   const freshAfter = store.openBoard(replicaFiles[2]);
   try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
