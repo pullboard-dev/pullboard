@@ -222,6 +222,8 @@ test('queued sentinel ${number} releases ordinary sibling', () => {
 });
 `);
   }
+  // Without a commit, native discovery would also run every copied gate source file under a test/ folder.
+  stageFixtureTests(root, ['test/01-sibling.test.js', 'test/02-failing.test.js', ...queuedFiles]);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
     root, runner: join(root, 'packages/gate/src/io/run/tests.js'),
