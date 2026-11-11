@@ -97,8 +97,8 @@ const mode = existsSync(${JSON.stringify(mode)}) ? readFileSync(${JSON.stringify
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('fixture file ' + name, async () => {
   writeFileSync(${JSON.stringify(markers)} + '/' + name + '.' + host + '.started', '');
-  // The dropped runner must receive a shard before the local slots can take them all: hold local files until it started one.
-  if (mode === 'drop' && host === 'local') {
+  // The dropped runner must receive a shard before the local slots can take them all: hold local files until it started one (a stand-in runner call counts).
+  if ((mode === 'drop' || mode === 'green') && host === 'local') {
     for (let waited = 0; waited < 60_000 && !readdirSync(${JSON.stringify(markers)}).some(file => file.endsWith('.runner.started')); waited += 100) await sleep(100);
   }
   if (mode === 'collect-all' && (name === 'a' || name === 'b')) throw new Error('collect-all deliberate failure ' + name);
@@ -236,11 +236,12 @@ const { parseProcessCensus } = await import(${url('packages/kernel/src/logic/cen
 const { landingShardProfile } = await import(${url('packages/gate/index.js')});
 const { Refused } = await import(${url('packages/kernel/index.js')});
 const { RunnerDropped } = await import(${url('packages/gate/light.js')});
-const { appendFileSync } = await import('node:fs');
+const { appendFileSync, writeFileSync } = await import('node:fs');
 const answer = ${JSON.stringify(answer)};
 const calls = [];
 const remoteRun = async (_root, _command, options) => {
   calls.push(options.runner.host);
+  writeFileSync(${JSON.stringify(join(box.markers, 'call.runner.started'))}, '');
   if (answer === 'DROPPED') throw new RunnerDropped(options.runner.host);
   if (answer === 'DROPPED_AFTER_EDIT') {
     // The checkout moves on while the landing runs: a rerun must not test this source instead.
