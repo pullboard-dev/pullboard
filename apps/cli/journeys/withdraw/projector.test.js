@@ -146,6 +146,7 @@ test('project state carries the focused release as name and item ids, and null w
   const p = project(box, 'projector-focus');
   const add = (title) => Number(/#(\d+)/.exec(box.run(p.repo, 'add', 'web', title, '--criterion', 'a page renders'))[1]);
   const first = add('First'), second = add('Second');
+  // @pullboard-board-file journey: seed the board file the real withdraw command reads
   const board = openBoard(join(p.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(serve.projectState(p.repo, { board }).focusMilestone, null);

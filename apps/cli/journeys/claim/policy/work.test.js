@@ -15,6 +15,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 /** Open the fixture's real SQLite board and close it with the test. */
 function boardFor(t, repo) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo });
   t.after(() => store.closeBoard(board));
   return board;

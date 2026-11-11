@@ -22,6 +22,7 @@ function fixture(t) {
   const file = repositoryBoardFile(root);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: {}, verify: { family: 'require' } }));
   execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'required family'], { cwd: root });
+  // @pullboard-board-file persistence: the real submit in this fixture repository reopens the board file
   const board = openBoard(file);
   t.after(() => { closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   store.register(board, { id: 'coordinator', lane: 'coordinator', path: root, family: 'human', model: FIXTURE_MODEL });
