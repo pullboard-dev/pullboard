@@ -53,7 +53,7 @@ function fixture() {
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
-    "import { boardFileProblems } from '../../../../../packages/gate/src/io/board/files.js';",
+    "import { boardFileProblems } from '../../../../../../packages/gate/src/io/board/files.js';",
     "test('no growing file-board debt [G1]', () => {",
     '  const problems = boardFileProblems(process.cwd(), {});',
     "  assert.deepEqual(problems, [], problems.map(p => `${p.path}:${p.line}: ${p.text}`).join('\\n'));",
