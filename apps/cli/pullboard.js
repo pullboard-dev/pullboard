@@ -81,7 +81,11 @@ if (handed !== null) process.exit(handed);
 // A warm resident board process runs the command when one serves this checkout; otherwise it runs here.
 const resident = await (await import('./src/io/resident/client.js')).runResident(process.argv.slice(2));
 if (resident !== null) process.exitCode = resident;
-else {
+else if (process.argv[2] === 'hook' && (await import('./src/io/hook/thin-door.js')).isThinHook(process.argv.slice(2), process.env)) {
+  // A commit hook outside an agent session runs hookCommand alone: no dispatcher, no checkout lease to bind [H24].
+  const { runThinHook } = await import('./src/io/hook/thin.js');
+  process.exitCode = await runThinHook(process.argv.slice(2), { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
+} else {
   // Mark this command as the outermost live pullboard for every child it starts, unless a live outer one already
   // did: a pullboard test under a gate, check or landing then blocks and returns its real exit code [C7].
   const outer = Number(process.env.PULLBOARD_CLI_PID);

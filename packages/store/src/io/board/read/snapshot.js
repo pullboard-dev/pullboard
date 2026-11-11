@@ -2,13 +2,15 @@ import { closeBoardWrites } from "../write/lock.js";
 /** Open existing board data without loading move execution [C7]. */
 import {
   existsSync,
-  readdirSync,
 } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { CANTOPEN_RETRY_MS } from "./light.js";
+import { readBoardSnapshot } from "./light.js";
+import { systemClock } from "./light.js";
+import { openBoardReadOnly as openReadOnlyLight } from "./light.js";
 import { boardBusyError } from "../access.js";
 import { boardIsCurrent } from "../migrate.js";
 import {
-  BOARD_BUSY_TIMEOUT_MS,
   EVENT_LOG_VERSION,
   SIGNED_EVENT_LOG_VERSION,
   SCHEMA_DIGEST,
@@ -19,13 +21,6 @@ import { Refused } from "../../../../../kernel/index.js";
 import { ENGINE_REGISTRY } from "../../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 
-/** Supply exact discovered engine thresholds to read-only projections. */
-function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: ENGINE_REGISTRY['submit-handoff'] }; }
-
-/** Attach the native read-only engine thresholds to an existing observation snapshot. */
-export function readBoardSnapshot(db, clock = systemClock) {
-  return { db, clock, enginePorts: Object.freeze({ submitHandoffEngines }) };
-}
 
 let heldReadConnection = null;
 
@@ -39,10 +34,6 @@ export function holdReadConnections(provider) {
   heldReadConnection = provider;
 }
 
-/**
- * The clock the board reads, real unless a test passes its own.
- */
-export const systemClock = { now: () => new Date() };
 
 /**
  * Open an existing board for a command that only reads: read-only, with no write lock and no
@@ -57,46 +48,13 @@ export function openBoardForRead(file, clock = systemClock, { connection = null 
   catch (error) { db.close(); throw error; }
 }
 
-/** How long a read keeps retrying a transient "unable to open database file" before it refuses (#3059). */
-export const CANTOPEN_RETRY_MS = 5000;
-
-/** Recognize SQLITE_CANTOPEN, including extended result codes. */
-function isCantOpen(error) {
-  return error?.code === 'SQLITE_CANTOPEN' || (Number.isInteger(error?.errcode) && (error.errcode & 0xff) === 14)
-    || /unable to open database file/iu.test(error?.message ?? '');
+/** Open an existing board without migrations, naming the process that holds its write lock when the wait runs out. */
+export function openBoardReadOnly(file, options = {}) {
+  return openReadOnlyLight(file, { busyError: (path, startedAt, error) => boardBusyError(path, startedAt, error), ...options });
 }
-
-/** Count this process's open descriptors, or null where the platform lists none. */
-function openFileCount() {
-  try { return readdirSync('/dev/fd').length; } catch { return null; }
-}
-
-/** Open an existing board without migrations, waiting for the same locks as openBoard. */
-export function openBoardReadOnly(file, { sleep = pauseMs, now = Date.now, budgetMs = CANTOPEN_RETRY_MS, openFiles = openFileCount } = {}) {
-  const startedAt = now();
-  let delay = 10;
-  for (;;) {
-    let db;
-    try {
-      db = new DatabaseSync(file, { readOnly: true });
-      db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
-      return db;
-    } catch (error) {
-      try { db?.close(); } catch { /* Preserve the opening error if cleanup also fails. */ }
-      if (!isCantOpen(error)) throw boardBusyError(file, startedAt, error);
-      const left = budgetMs - (now() - startedAt);
-      if (left <= 0) {
-        const count = openFiles();
-        throw new Refused('BOARD_BUSY', `board file ${file} could not be opened after ${now() - startedAt}ms of retries (${error.message}); this process has ${count ?? 'an unknown number of'} open files; wait for load to fall and retry`);
-      }
-      sleep(Math.min(delay, left));
-      delay = Math.min(delay * 2, 500);
-    }
-  }
-}
-
-/** Block the thread for a short backoff, as the synchronous open cannot await. */
-function pauseMs(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+export { CANTOPEN_RETRY_MS };
+export { readBoardSnapshot };
+export { systemClock };
 
 /**
  * Read the persisted event format without migrating it, so integrity checks enforce the same

@@ -10,12 +10,12 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { outOfLane } from '../../../../../seats/index.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { outOfLane } from '../../../../packages/seats/index.js';
 import {
   TIER_TABLE,
   tierRowChange,
-} from '../../../../../commits/light.js';
+} from '../../../../packages/commits/light.js';
 
 const config = { shared: [], lanes: { core: { owns: ['test/'] }, view: { owns: ['test/cockpit/'] } } };
 const row = file => ({ file, tier: 'T3', packages: ['.'] });
@@ -45,7 +45,7 @@ test('clause 2: a view seat adds test/cockpit/new.test.js with its row but may n
   assert.equal(judge('core', base, edited).allowed, true);
 });
 
-const BIN = join(import.meta.dirname, '../../../../../../apps/cli/pullboard.js');
+const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** A private board whose view seat owns test/cockpit/ and whose tier table lists one core test. */
 function hookFixture(t) {

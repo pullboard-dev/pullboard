@@ -3956,6 +3956,10 @@
       "cells": 2,
       "deep": 0
     },
+    "packages/store/src/io/board/read/light.js": {
+      "cells": 3,
+      "deep": 0
+    },
     "packages/store/src/io/board/read/snapshot.js": {
       "cells": 2,
       "deep": 0
@@ -5118,6 +5122,10 @@
     },
     "src/trusted-policy-read.js": {
       "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
       "deep": 0
     }
   },

@@ -1,6 +1,7 @@
 /** Receive missing history, validate it against the source cache and prepare the isolated checkout and dependencies [C7]. */
 import { acquireResourceApi } from './environment.js';
 import { git } from './git.js';
+import { receiveQueuedPack } from './queue.js';
 import { gitBytes } from './git.js';
 import { assertTransportLive } from './process.js';
 import { drainOwned } from './process.js';
@@ -46,8 +47,8 @@ async function concurrently(reads) {
 function negotiationTip(commit) { return commit ? [`--negotiation-tip=${commit}`] : []; }
 
 /** Receive the negotiated history pack after the worker announces the cache's candidate tips. */
-async function receivePack(packFile) {
-  await pipeline(process.stdin, createWriteStream(packFile, { mode: 0o600, flags: 'wx' }));
+async function receivePack(S, packFile) {
+  if (!await receiveQueuedPack(S, packFile)) await pipeline(process.stdin, createWriteStream(packFile, { mode: 0o600, flags: 'wx' }));
 }
 
 /** Receive only missing ancestry, validate the full graph, then copy the exact commit into a clean job repository. */
@@ -161,7 +162,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     await new Promise((resolveWrite, rejectWrite) => process.stderr.write(
       `PULLBOARD_RUNNER_NEED ${spec.id} ${Buffer.from(JSON.stringify({ tips: uniqueTips, tagObjects: knownTagObjects })).toString('base64')}\n`,
       error => error ? rejectWrite(error) : resolveWrite()));
-    await receivePack(packFile);
+    await receivePack(S, packFile);
     measured.packBytes = statSync(packFile).size;
     mark('transferMs');
 

@@ -1,9 +1,9 @@
 /** Pause only an owned fixture worker at a real landing side-effect boundary [B35]. */
 const targets = {
-  merging: ['landing-step-merge.js', 'export async function mergeGroup(state, items) {'],
-  gating: ['landing-step-gate.js', "await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });"],
-  pushing: ['landing-step-publish.js', "const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));"],
-  recording: ['landing-step-publish.js', "state.batch = state.config.landing?.requireReceipts === true"],
+  merging: ['packages/landing/src/io/step/merge.js', 'export async function mergeGroup(state, items) {'],
+  gating: ['packages/landing/src/io/step/gate.js', "await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });"],
+  pushing: ['packages/landing/src/io/step/publish.js', "const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));"],
+  recording: ['packages/landing/src/io/step/publish.js', "state.batch = state.config.landing?.requireReceipts === true"],
 };
 
 /** Instrument the selected boundary without changing the checked-out source or any board records. */
