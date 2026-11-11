@@ -49,7 +49,7 @@ finish() {
   mv "$R/$1" "$D/$1" 2>/dev/null
 }
 stale() { m=$(mtime "$1"); [ -n "$m" ] && [ $(( $(now) - m )) -gt "$WANTED" ]; }
-stop() { echo "$2" > "$R/$1/killed"; kill -TERM -- "-$3" 2>/dev/null; }
+stop() { echo "$2" > "$R/$1/killed"; kill -s TERM -- "-$3" 2>/dev/null || kill -s TERM "$3" 2>/dev/null; }
 claim() {
   [ -e "$R/$1" ] && return 0
   mv "$Q/$1" "$R/$1" 2>/dev/null || return 0
