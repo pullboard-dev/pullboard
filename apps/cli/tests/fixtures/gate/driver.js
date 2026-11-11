@@ -59,3 +59,21 @@ export function setDriverUnstarted(boardFile, job, { code, message }) {
     endGateDriveUnstarted(board.db, job, { owner: record.owner, code, message });
   });
 }
+
+/**
+ * Mark a dead driver's relaunch budget as spent, as the real relaunches that each died would leave it: the next
+ * sweep then ends the running gate as infrastructure instead of relaunching it (#3995). The dead process is kept.
+ *
+ * @param {string} boardFile
+ * @param {string} job - The hand-off job id.
+ * @param {number} relaunches - The relaunch budget to mark spent (the caller passes RUNNING_RELAUNCH_LIMIT, so this helper stays free of the CLI).
+ */
+export function spendDriverRelaunches(boardFile, job, relaunches) {
+  onBoard(boardFile, board => {
+    const record = readGateDrive(board.db, job);
+    // Admit at a time past the dead driver's lease, so the board takes the lease over without a release call.
+    const owner = `test-driver:${job}`;
+    admitGateDrive(board.db, job, { owner, relaunches, now: Date.now() + 10 * 60_000 });
+    recordGateDriveSpawn(board.db, job, { owner, pid: record.pid, started: record.started });
+  });
+}

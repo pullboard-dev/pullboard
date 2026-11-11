@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /**
  * The resident client sends test --status to the resident process and frees a slot whose command is wedged past the
  * per-command ceiling [C7,#5470]. On 10 Nov all four slots held commands hung for 3-11 h, so every call ran cold.

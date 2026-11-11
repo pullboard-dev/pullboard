@@ -34,6 +34,7 @@ export async function seedRareLifecycleJourneys({ board, journeys, readProject }
     ['patch', ['item_patch_attach']],
     ['verifiedPatch', ['item_patch_attach']],
     ['claimedPatch', ['claim', 'item_patch_attach', 'item_patch_remove', 'submit']],
+    ['objected', ['item_patch_attach', 'item_patch_object']],
   ];
   const observed = {};
   for (const [name, kinds] of requirements) {
@@ -53,7 +54,8 @@ export async function seedRareLifecycleJourneys({ board, journeys, readProject }
     const total = Object.entries(project.moveCounts).filter(([key]) => key.endsWith(':' + verb)).reduce((sum, [, n]) => sum + n, 0);
     assert.equal(total, expected, 'actual native projected rare count: ' + verb);
   }
-  assert.equal(project.moveCounts['claimed>claimed:patch-claimed'], 2, 'claimed attach and remove retain two actual self loops');
+  // Two from the claimed attach and remove, one from the companion the objected journey records at its Submit.
+  assert.equal(project.moveCounts['claimed>claimed:patch-claimed'], 3, 'claimed attach, remove and the Submit companion retain three actual self loops');
   const claimed = project.items.find(item => item.id === observed.claimedPatch.id);
   assert.ok(claimed, 'the exact claimed-patch item is in the live projection');
   assert.equal(claimed.status, 'submitted', 'the later real Submit is preserved');
@@ -87,10 +89,12 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
   };
   const reviewers = new Map();
   /** Keep the coordinator on main while a genuinely registered independent seat checks exact source. */
-  const reviewerFor = root => {
-    if (!reviewers.has(root)) reviewers.set(root, json(root, 'worktree', 'web', '--model', 'Lifecycle reviewer fixture').path);
-    return reviewers.get(root);
+  const seatFor = (root, lane = 'web') => {
+    const key = root + '\0' + lane;
+    if (!reviewers.has(key)) reviewers.set(key, json(root, 'worktree', lane, '--model', 'Lifecycle reviewer fixture'));
+    return reviewers.get(key);
   };
+  const reviewerFor = root => seatFor(root).path;
   /** Independently verify from the submitted source through its registered native reviewer. */
   const accept = (root, id, head) => {
     const reviewer = reviewerFor(root);
@@ -99,10 +103,10 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       'The actual frozen fixture command passed.', '--no-next');
   };
   /** Generate exact native companion bytes from a clean private Git index, then restore that index. */
-  const patchFile = key => {
-    const file = 'docs/' + key + '.txt';
+  const patchFile = (key, dir = 'docs') => {
+    const file = dir + '/' + key + '.txt';
     assert.equal(box.git(demo.repo, 'status', '--porcelain'), '', 'the private author index starts clean');
-    mkdirSync(join(demo.repo, 'docs'), { recursive: true });
+    mkdirSync(join(demo.repo, dir), { recursive: true });
     writeFileSync(join(demo.repo, file), key + '\n');
     box.git(demo.repo, 'add', file);
     const bytes = box.git(demo.repo, 'diff', '--cached', '--binary') + '\n';
@@ -175,7 +179,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       box.git(demo.repo, 'config', `url.file://${outside.origin}.insteadOf`, 'https://github.com/fixture/project.git');
       try {
         const filed = fixtureJSON(outside, demo.repo, 'intake', outside.pull.html_url, '--lane', 'web',
-          '--criterion', 'The contributed module parses.', '--check', 'node --check apps/relay/src/io/deploy/outside.js');
+          '--route', 'strong', '--criterion', 'The contributed module parses.', '--check', 'node --check apps/relay/src/io/deploy/outside.js');
         const id = filed.item.item_id;
         assert.equal(filed.item.item_commit, outside.commit);
         assert.equal(filed.item.item_tree, outside.tree);
@@ -253,6 +257,22 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       for (const [key, delta] of [['claimed>claimed:patch-claimed', 2], ['claimed>submitted:submit', 1], ['claimed>submitted:patch', 0]]) {
         assert.equal((countsAfter[key] ?? 0) - (countsBefore[key] ?? 0), delta, 'native claimed-patch journey exact delta: ' + key);
       }
+      return id;
+    },
+    /** The owning lane objects inside the window to a companion the builder recorded at Submit, reopening the item. */
+    objected: async () => {
+      const id = add(demo.repo, 'Owner objects to a recorded companion');
+      // Its own branch from main: the earlier journeys' submitted commits stay unverified and must not stack under this one.
+      box.git(demo.web, 'switch', '-q', '-c', demo.baseBranch + '-objected-' + id, 'main');
+      json(demo.web, 'claim', String(id));
+      commit(demo.web, 'web/objected-proof.js', 'export const objected = true;\n', 'feat(web): real objected companion source');
+      const owner = seatFor(demo.repo, 'api');
+      const patch = patchFile('objected-lifecycle-companion', 'api');
+      json(demo.web, 'submit', String(id), '--companion', patch.path, '--key', 'objected-lifecycle-route',
+        '--author', owner.agent, '--wait', '--no-next');
+      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'submitted');
+      json(owner.path, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
+      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'open');
       return id;
     },
   };

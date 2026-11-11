@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/gate/index.js packages/kernel/index.js packages/resources/index.js */
 /** A deleted admitted source stops its real controller before the fixture cleanup signal [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -35,7 +35,7 @@ test(scenario === 'unreadable item status'
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, hold: 'run' });
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
   const script = `
-    import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+    import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
     import { join } from 'node:path';
     import { execFileSync } from 'node:child_process';
     import { spawnSync } from 'node:child_process';
@@ -77,6 +77,10 @@ test(scenario === 'unreadable item status'
       .map(row => Number(row[0]));
     let observation;
     ${scenario === 'unreadable item status' ? `
+    // A controller keeps the board file it already resolved while that file exists [C7,#5535], so status goes
+    // unreadable by moving that file aside and pointing the clone at nowhere; both are undone below.
+    const boardFile=${JSON.stringify(join(box.repo, '.git', 'pullboard', 'board.sqlite'))};
+    renameSync(boardFile,boardFile+'.aside');
     execFileSync('git', ['config','remote.origin.url',${JSON.stringify(join(box.dir, 'missing-origin'))}], {cwd:root,env:process.env});
     let problems;
     const observationDeadline=Date.now()+3000;
@@ -85,6 +89,7 @@ test(scenario === 'unreadable item status'
     const health=JSON.parse(healthRun.stdout);
     observation={problems,holders:db.prepare('SELECT pid FROM holder').all(),settledAlready,health,healthStatus:healthRun.status};
     execFileSync('git',['config','remote.origin.url',${JSON.stringify(box.repo)}],{cwd:root,env:process.env});
+    renameSync(boardFile+'.aside',boardFile);
     const restoredDeadline=Date.now()+3000;
     while(runnerLeaseHealth().some(row=>row.problem)&&Date.now()<restoredDeadline) await new Promise(resolve=>setTimeout(resolve,20));
     observation.restored=runnerLeaseHealth(); observation.holdersAfterRestore=db.prepare('SELECT pid FROM holder').all();

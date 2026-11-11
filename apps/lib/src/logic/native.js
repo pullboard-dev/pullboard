@@ -1,164 +1,5 @@
-import { sealOwnershipWait } from '../io/seal.js';
-import { claimHealthSnapshot } from '../../../../packages/health/index.js';
-import { conditionalHoldFloor } from '../../../../packages/health/index.js';
-import { claimedItemRoot } from '../../../../packages/items/index.js';
-import { recordFamilyDeclareActivation } from '../../../../packages/items/light.js';
-import { withDerivedFamily } from '../../../../packages/items/light.js';
-import {
-  submitGateConfig,
-  submitGatePlan,
-} from '../../../../packages/gate/index.js';
-import {
-  nativeProofBlockingGreen,
-  receiptBlockingGreen,
-} from '../../../../packages/verify/index.js';
-import { reviewPatchAuthors } from '../../../../packages/verify/index.js';
-import {
-  localDependencyIds,
-  dependencyLabel,
-} from '../../../../packages/items/index.js';
-import { itemFileCollisions } from '../../../../packages/items/index.js';
-import { warmFamilyProjection } from '../../../../packages/items/index.js';
-import { familyProjectionCurrent } from '../../../../packages/items/index.js';
-import { withLocalSeatPresence } from '../../../../packages/store/index.js';
-import { policyAt } from '../../../../packages/sandbox/index.js';
-import { mainPolicy } from '../../../../packages/sandbox/index.js';
-import {
-  frozenCheck,
-  itemPolicy,
-  requireTrunkMerge,
-} from '../../../../packages/sandbox/index.js';
-import { ENGINE_VERSION } from '../../../../packages/state/index.js';
-import { PIPELINE_CAUSE_ENGINE } from '../../../../packages/state/light.js';
-import { SUBMIT_HANDOFF_ENGINE } from '../../../../packages/state/light.js';
-import { firstRefusalDetail } from '../../../../packages/items/index.js';
-import { itemPatchDigest } from '../../../../packages/items/index.js';
-/** Supply current native engine thresholds without duplicating their values. */
-function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
-
-/** Provide exact native engine thresholds for typed pipeline observations. */
-function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
-
-import { shadowSubmitHandoff } from '../../../../packages/jobs/index.js';
-import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/index.js';
-import { renewReview } from '../../../../packages/jobs/index.js';
-import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
-import { releaseReview } from '../../../../packages/jobs/index.js';
-import { submitHandoffBoardRoot } from '../../../../packages/sandbox/index.js';
-import { sealSubmitHandoffQueue } from '../../../../packages/sandbox/index.js';
-import {
-  validateQuarantineProofIds,
-  quarantineVerdictSnapshot,
-  validateQuarantineGate,
-  validateQuarantineLandingProof,
-  validateQuarantineVerdict,
-  recordSealedGateRun,
-  sealQuarantineVerdict,
-  flakeQuarantines,
-  gateRuns,
-  recordGateRun,
-  requireBound,
-} from '../../../../packages/flakes/index.js';
-import {
-  sealKnownMainAutofile,
-  receiptFields,
-  boardReceiptStore,
-  readGateReceipt,
-  receiptBody,
-} from '../../../../packages/gate/index.js';
-import {
-  MOVE_REGISTRY,
-  MOVE_OPERATIONS,
-  minimumMoveEngine,
-  declaredMoveActor,
-  withMoveNextSteps,
-} from '../../../../packages/moves/index.js';
-import {
-  activeViewAgents,
-  viewProofSummary,
-} from '../../../view/index.js';
-import { personSigningPresentation } from '../../../../packages/person/index.js';
-import {
-  personRequestStatuses,
-  requestMoveProblem,
-  recordRequestMove,
-  relayPerson,
-  requestPerson,
-} from '../../../../packages/link/index.js';
-import { projectState } from '../../../view/index.js';
-import {
-  projectFit,
-  pendingFit,
-  fitFile,
-} from '../../../../packages/blueprints/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../packages/person/index.js';
-import {
-  advanceItemSource,
-  sourceAdvanceCASProblem,
-} from '../../../../packages/sandbox/index.js';
-import {
-  proposeSentinel,
-  decideSentinel,
-  beginSentinelRun,
-  finishSentinelRun,
-} from '../../../../packages/sentinels/index.js';
-import {
-  flakeLedger,
-  recordFlakeObservation,
-} from '../../../../packages/flakes/index.js';
-import {
-  personProposals,
-  personSigning,
-  proposePersonMove,
-  setPersonSigning,
-  signedMoveProblem,
-  exportedMeta,
-  guardRestore,
-} from '../../../../packages/person/index.js';
-import { recordPublishFinding } from '../../../../packages/github/index.js';
-import {
-  landingWaivers,
-  landingWaiverFor,
-  waivedLandingProof,
-} from '../../../../packages/landing/index.js';
-import {
-  prepareTrainLanding,
-  prepareNativeTrainLanding,
-} from '../../../../packages/landing/index.js';
-import {
-  sealItemPatchSubmit,
-  sealItemPatchFollow,
-} from '../../../../packages/items/index.js';
-import {
-  sealSourceAdvance,
-  sealSourceAdvanceReturn,
-} from '../../../../packages/sandbox/index.js';
-import { computedReturnArgs } from '../../../../packages/landing/index.js';
-import {
-  requirePreparedComputedConflict,
-  preflightComputedConflict,
-  conflictValue,
-} from '../../../../packages/landing/index.js';
-import { validPresence } from '../../../../packages/person/index.js';
-import { recordTrainLanding } from '../../../../packages/landing/index.js';
-import {
-  newRigorNotices,
-  rigorNoticeText,
-} from '../../../../packages/rigor/index.js';
-import { DEFAULT_NEXT_STEPS } from '../../../../packages/state/index.js';
-import * as landingEnvironment from '../../../../packages/landing/index.js';
-import {
-  deriveRigorCause,
-  recordAutomaticRigorDrafts,
-} from '../../../../packages/rigor/index.js';
-import { normalizedDispatch } from '../../../../packages/sentinels/index.js';
-import { rejectedWorkReturns } from '../../../../packages/sentinels/index.js';
-import { guardLandingWrite } from '../../../../packages/store/index.js';
-
-import { recordRowVerification as applyRowVerification } from '../../../../packages/spec/index.js';
-import { decideSpecRevisions as applySpecRevisionDecisions } from '../../../../packages/spec/index.js';
-import { draftSpecRow as applySpecRowDraft } from '../../../../packages/spec/index.js';
-/** One native board composition root supplies connection-local runtime providers [C7]. */
+/** @pullboard-module-loads apps/lib/src/logic/native/ports.js */
+import { createRequire } from 'node:module';
 import * as store from '../../../../packages/store/index.js';
 import {
   addMilestone,
@@ -170,105 +11,12 @@ import {
   roadmap,
   shipMilestone,
 } from '../../../../packages/store/index.js';
-import { beginCommandPhase } from '../../../../packages/link/index.js';
-
-import { boardEnginePorts } from '../../../../packages/store/index.js';
 import {
   openBoardStore,
   requireRuntimePorts,
-} from '../../../../packages/store/index.js';
-import {
-  guardStore,
-  refreshStoreDeclarations,
-} from '../../../../packages/store/index.js';
-import {
-  storeTriggers,
-} from '../../../../packages/state/index.js';
-import {
-  atomic,
-  logEvent,
-} from '../../../../packages/store/index.js';
-import {
-  ensureProofCounters,
-  currentProofCounters,
-  proofCounter,
-} from '../../../../packages/verify/index.js';
-import { ensureHotIndexes } from '../../../../packages/store/index.js';
-import { missingAdditiveIndexes } from '../../../../packages/store/index.js';
-import { ensureAdditiveIndexes } from '../../../../packages/store/index.js';
-import {
-  configureBoardJournal,
-  closeBoardWrites,
-} from '../../../../packages/store/index.js';
-import { sharedSchemaOwner } from '../../../../packages/store/index.js';
-import { expectedBoardSchema } from '../../../../packages/store/index.js';
-import { sharedSchemaDiagnostic } from '../../../../packages/store/index.js';
-import { reportSharedSchema } from '../../../../packages/store/index.js';
-import {
-  boardStanding,
-  migrate,
-  recordSchemaStamp,
-  reportDrift,
-} from '../../../../packages/store/index.js';
-import {
-  openBoardReadOnly,
   openBoardForRead as readBoard,
-  readEventLogVersion,
   systemClock,
 } from '../../../../packages/store/index.js';
-import { migrateEventLogVersion } from '../../../../packages/store/index.js';
-import {
-  boardNotWritable,
-  boardBusyError,
-} from '../../../../packages/store/index.js';
-import {
-  now,
-  agentAt,
-  agentModel,
-  proofReceipts,
-  laneHold,
-  laneHolds,
-  itemById,
-  itemCheckBaseline,
-  events,
-  acceptedVerdict,
-  verdictReviewProblem,
-  boardId,
-} from '../../../../packages/store/index.js';
-import {
-  appendRigorCounter,
-  ensureRigorCounters,
-} from '../../../../packages/rigor/index.js';
-import {
-  committedItemAuthors,
-  twoTierReviews,
-  strictReviewProblem,
-  reviewPolicyChange,
-  saveItemReviewPolicy,
-} from '../../../../packages/verify/index.js';
-import { holdUntilKind } from '../../../../packages/store/index.js';
-import { forgetHoldMaintenance } from '../../../../packages/store/index.js';
-import { rememberHoldCondition } from '../../../../packages/store/index.js';
-import {
-  STALE_STATE_ENGINE,
-} from '../../../../packages/state/light.js';
-import {
-  readReceivedBoardState,
-} from '../../../../packages/store/index.js';
-import {
-  verdictWithdrawalTarget,
-} from '../../../../packages/verify/index.js';
-import {
-  computedConflictProblem,
-} from '../../../../packages/landing/index.js';
-import {
-  firstRefusal,
-} from '../../../../packages/store/index.js';
-import {
-  itemReviewPolicy,
-} from '../../../../packages/verify/index.js';
-
-import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
 import * as self from './native.js';
 
@@ -277,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { bindProofRunner } from '../../../../packages/verify/index.js';
 
 // Rule-proof coverage compares committed runner bytes with this installed file; verify never imports the runner's cell.
-bindProofRunner(fileURLToPath(new URL('../../../../packages/gate/src/io/run/tests.js', import.meta.url)));
+bindProofRunner(fileURLToPath(new URL('../../../cli/src/io/run/tests.js', import.meta.url)));
 
 const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];
 /** The milestone operations, each read through its live binding at call time (the same cyclic-load rule). */
@@ -324,65 +72,13 @@ for (const [name, read] of Object.entries(MILESTONE_READS)) libraryExport(name, 
 export const board = Object.freeze(libraryBoard);
 export { closeBoard } from '../../../../packages/store/index.js';
 
-// The CLI's own next-step table, composed here from its state-cell defaults so opening a board never loads the CLI (#3906).
-const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);
+const requireModule = createRequire(import.meta.url);
+let composed = null;
+/** The package providers, loaded on the first call that needs them: a board that only reads never pays for the ~600 modules behind them [C7]. */
+function providers() { return composed ??= requireModule('./native/ports.js'); }
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
-export function nativeBoardPorts() {
-  const nativePorts = Object.freeze({
-    patchProof: Object.freeze({ boardReceiptStore, readGateReceipt, submitGateConfig, submitGatePlan, nativeProofBlockingGreen, receiptBlockingGreen }),
-    quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds }),
-    sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
-    newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
-    atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
-    recordRowDecisions: store.recordRowDecisions, now,
-    reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
-    holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
-    currentProofCounters, proofCounter,
-    localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence,
-    agentModel, proofReceipts, itemById, laneHold, laneHolds,
-    addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
-    getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
-    listAgents: store.listAgents, verdictWithdrawalTarget, computedConflictProblem, firstRefusal,
-    seatFamily: store.seatFamily, canonicalFamily: store.canonicalFamily,
-    itemReviewPolicy, reviewPolicyChange, saveItemReviewPolicy,
-    milestones: store.milestones, listItems: store.listItems, buildOrder: store.buildOrder,
-    canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
-  });
-  const enginePorts = boardEnginePorts({
-    shadowJob: shadowSubmitHandoff,
-    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
-    conditionalHoldFloor, claimedItemRoot,
-    recordFamilyDeclareActivation, withDerivedFamily,
-    sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
-    submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
-    MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
-    recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
-    beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
-    flakeQuarantines, gateRuns, recordGateRun, personProposals,
-    personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
-    landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealOwnershipWait, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
-    sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
-    signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
-    relayPerson, requestPerson, validPresence,
-    openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification,
-    addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone
-  });
-  return Object.freeze({
-    nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile }),
-    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
-
-    verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
-    guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
-      missingAdditiveIndexes, ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
-    query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
-      boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),
-    auth: Object.freeze({ boardNotWritable, boardBusyError }),
-  });
-}
+export function nativeBoardPorts() { return providers().nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification }); }
 
 /** Freeze explicit provider bags without changing the function or canonical operation identities. */
 function freezeRuntimePorts(ports) {
@@ -396,29 +92,54 @@ export function openBoard(file, clock = systemClock, { ports = nativeBoardPorts(
   return openBoardStore(file, clock, { ...options, ports: freezeRuntimePorts(ports) });
 }
 
-/** Give native read consumers the same capabilities without migrating or changing the light CLI read path. */
-export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts(), connection = null } = {}) {
-  const runtimePorts = freezeRuntimePorts(ports);
+/** Serve a port bag from the connection's first read of it; a later assignment replaces it like any other property. */
+function lazyPort(board, name, read) {
+  Object.defineProperty(board, name, {
+    enumerable: true,
+    configurable: true,
+    get: read,
+    set(value) { Object.defineProperty(board, name, { value, enumerable: true, configurable: true, writable: true }); },
+  });
+}
+
+/** Give native read consumers the same capabilities without migrating or changing the light CLI read path; the providers load when a consumer first reads a port. */
+export function openBoardForRead(file, clock = systemClock, { ports = null, connection = null } = {}) {
   const board = readBoard(file, clock, { connection });
-  return board && Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
+  if (!board) return board;
+  let runtimePorts = null;
+  const composedPorts = () => runtimePorts ??= freezeRuntimePorts(ports ?? nativeBoardPorts());
+  lazyPort(board, 'runtimePorts', composedPorts);
+  lazyPort(board, 'nativePorts', () => composedPorts().nativePorts);
+  lazyPort(board, 'enginePorts', () => composedPorts().enginePorts);
+  return board;
 }
 
 /** Execute an authenticated draft with the native composition root's explicit store ports. */
-export function draftSpecRow(board, options) { return applySpecRowDraft(board, options, board.nativePorts); }
+export function draftSpecRow(board, options) { return providers().applySpecRowDraft(board, options, board.nativePorts); }
 
 /** Execute a person revision decision without changing its native engine operation shape. */
-export function decideSpecRevisions(board, options) { return applySpecRevisionDecisions(board, options, board.nativePorts); }
+export function decideSpecRevisions(board, options) { return providers().applySpecRevisionDecisions(board, options, board.nativePorts); }
 
 /** Record a row verdict through the same native query, transaction and event capabilities. */
-export function recordRowVerification(board, options) { return applyRowVerification(board, options, board.nativePorts); }
+export function recordRowVerification(board, options) { return providers().applyRowVerification(board, options, board.nativePorts); }
 
-/** Actual public operations remain owned by their providers; the raw board bridge expires with #1776. */
-export { advanceItemSource } from '../../../../packages/sandbox/index.js';
-export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from '../../../../packages/sentinels/index.js';
-export { flakeLedger, recordFlakeObservation } from '../../../../packages/flakes/index.js';
-export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../packages/flakes/index.js';
-export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../../../../packages/person/index.js';
-export { recordPublishFinding } from '../../../../packages/github/index.js';
-export { landingWaivers, landingWaiverFor, waivedLandingProof } from '../../../../packages/landing/index.js';
-
-export { recordTrainLanding } from '../../../../packages/landing/index.js';
+/** Actual public operations remain owned by their providers, which load at the first call; the raw board bridge expires with #1776. */
+export function advanceItemSource(...args) { return providers().advanceItemSource(...args); }
+export function proposeSentinel(...args) { return providers().proposeSentinel(...args); }
+export function decideSentinel(...args) { return providers().decideSentinel(...args); }
+export function beginSentinelRun(...args) { return providers().beginSentinelRun(...args); }
+export function finishSentinelRun(...args) { return providers().finishSentinelRun(...args); }
+export function flakeLedger(...args) { return providers().flakeLedger(...args); }
+export function recordFlakeObservation(...args) { return providers().recordFlakeObservation(...args); }
+export function flakeQuarantines(...args) { return providers().flakeQuarantines(...args); }
+export function gateRuns(...args) { return providers().gateRuns(...args); }
+export function recordGateRun(...args) { return providers().recordGateRun(...args); }
+export function personProposals(...args) { return providers().personProposals(...args); }
+export function personSigning(...args) { return providers().personSigning(...args); }
+export function proposePersonMove(...args) { return providers().proposePersonMove(...args); }
+export function setPersonSigning(...args) { return providers().setPersonSigning(...args); }
+export function recordPublishFinding(...args) { return providers().recordPublishFinding(...args); }
+export function landingWaivers(...args) { return providers().landingWaivers(...args); }
+export function landingWaiverFor(...args) { return providers().landingWaiverFor(...args); }
+export function waivedLandingProof(...args) { return providers().waivedLandingProof(...args); }
+export function recordTrainLanding(...args) { return providers().recordTrainLanding(...args); }

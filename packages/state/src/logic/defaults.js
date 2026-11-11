@@ -578,3 +578,6 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   WORKER_SEAT_IDENTITY: "check that pullboard worktree registers its seat in pullboard status, then run pullboard run --scale again",
   LAND_GIT: "fetch the source commit the message names into the main checkout, confirm git log --first-parent reads, then run pullboard land --adopt"
 });
+
+/** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */
+export const RECORDED_GENERIC_NEXT = 'Run pullboard help, correct the reported problem, and retry the command.';

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** withdraw's refusal names the positional reason form and --note is accepted as the reason [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

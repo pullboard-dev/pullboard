@@ -27,6 +27,9 @@ import {
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import {
+  MACHINE_MODEL,
+} from '../../../tests/fixtures/cockpit/machine.js';
 
 test('clause 1: the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
   const executable = chromeExecutable();
@@ -118,7 +121,7 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
       // Each native check now records its own measurement between proof runs, so the runs are not consecutive and stay separate rows (grouping of consecutive runs is covered in view-pure.test.js).
       assert.ok(result.proofRows.length >= 2 && result.proofRows.every(ids => ids.length >= 1 && ids.every(id => /^\d+$/.test(id))), JSON.stringify(result) + ': each actual native check keeps its own proof row and event identity');
       for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', reviewer.agent + ' started reviewing', reviewer.agent + ' passed it', reviewer.agent + ' sent it back']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
-      assert.ok(result.models.some(row => row.text === 'web-1' && row.title === 'Fixture Model'));
+      assert.ok(result.models.some(row => row.text === 'web-1' && row.title === MACHINE_MODEL), JSON.stringify(result.models));
       assert.ok(result.models.every(row => !row.text.includes('(')));
       assert.ok(result.refs.includes('web/timeline.js:1@' + head));
       assert.deepEqual(result.hashes, [{ text: head.slice(0, 12), title: head }]);

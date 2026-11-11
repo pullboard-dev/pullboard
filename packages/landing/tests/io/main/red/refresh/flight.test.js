@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/landing/src/io/main/red/refresh.js */
 /**
  * One background main-red refresh per machine, started at most once per spacing window, holding no checkout lease [C7].
  * On 9 Nov detached refreshes piled up under launchd, two per landing, while writes queued behind them.

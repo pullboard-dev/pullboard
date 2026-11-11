@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Lapsed claims expire through captured native writes, preserving activity and original ownership [B4,C7,H16]. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';

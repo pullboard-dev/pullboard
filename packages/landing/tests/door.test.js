@@ -8,8 +8,8 @@ import * as door from '../index.js';
 
 const CORE = fileURLToPath(new URL('../light.js', import.meta.url));
 
-test('core.js exports landWhy, landWhyLines and landingLine, the same functions index.js carries [C7]', () => {
-  assert.deepEqual(Object.keys(core).sort(), ['landWhy', 'landWhyLines', 'landingLine']);
+test('core.js exports landWhy, landWhyLines, landingLine and the two batch-root checks, the same functions index.js carries [C7]', () => {
+  assert.deepEqual(Object.keys(core).sort(), ['landWhy', 'landWhyLines', 'landingBatchItemsAtRoot', 'landingBatchOwnsRoot', 'landingLine']);
   for (const name of Object.keys(core)) assert.equal(door[name], core[name], name);
 });
 

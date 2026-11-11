@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/config/index.js packages/gate/index.js packages/landing/index.js packages/runners/index.js */
 /** Registration preserves remote configuration and setup failures move to another runner [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

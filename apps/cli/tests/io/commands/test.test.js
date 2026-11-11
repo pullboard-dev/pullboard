@@ -96,7 +96,7 @@ test('runner removes its private home after test workers exit [C7, S13]', (t) =>
 import { writeFileSync } from 'node:fs';
 test('reports its sandbox and person-terminal markers', () => writeFileSync(${JSON.stringify(report)}, JSON.stringify({ sandbox: process.env.TMPDIR, ssh: [process.env.SSH_CONNECTION, process.env.SSH_CLIENT, process.env.SSH_TTY] })));
 `);
-  const runner = fileURLToPath(new URL('../../../../../packages/gate/src/io/run/tests.js', import.meta.url));
+  const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
   const launchEnv = { ...process.env };
   Object.assign(launchEnv, {
     SSH_CONNECTION: '192.0.2.1 1234 192.0.2.2 22',
@@ -123,7 +123,7 @@ test('reports its sandbox and person-terminal markers', () => writeFileSync(${JS
 function copyRunnerImports(sourceRoot, root) {
   const copied = new Set();
   // The source-owned catalog validates its actual command files without importing them.
-  let pending = ['packages/gate/src/io/run/tests.js', ...commandDocs(sourceRoot).map(entry => `apps/cli/src/io/commands/${entry.name.split(' ')[0]}.js`)];
+  let pending = ['apps/cli/src/io/run/tests.js', ...commandDocs(sourceRoot).map(entry => `apps/cli/src/io/commands/${entry.name.split(' ')[0]}.js`)];
   while (pending.length) {
     const files = [...new Set(pending)].filter((file) => !copied.has(file));
     pending = [];
@@ -238,7 +238,7 @@ test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x')
 function runDiscovery({ root, bin, marker }) {
   const launchEnv = { ...process.env };
   delete launchEnv.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, ['--test', '--import', join(root, 'packages/gate/src/io/run/tests.js')], {
+  const result = spawnSync(process.execPath, ['--test', '--import', join(root, 'apps/cli/src/io/run/tests.js')], {
     cwd: root,
     encoding: 'utf8',
     env: launchEnv,
@@ -256,11 +256,11 @@ test('discovery follows a new runner src import and its transitive dependency [C
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), source);
-  const runner = readFileSync(join(source, 'packages/gate/src/io/run/tests.js'), 'utf8');
-  writeFileSync(join(source, 'packages/gate/src/io/run/tests.js'), runner.replace('\n', "\nimport './discovery-extra.js';\n"));
-  writeFileSync(join(source, 'packages/gate/src/io/run/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
-  writeFileSync(join(source, 'packages/gate/src/io/run/discovery-nested.js'), "export const value = 'closure';\n");
-  writeFileSync(join(source, 'packages/gate/src/io/run/unreferenced.test.js'),
+  const runner = readFileSync(join(source, 'apps/cli/src/io/run/tests.js'), 'utf8');
+  writeFileSync(join(source, 'apps/cli/src/io/run/tests.js'), runner.replace('\n', "\nimport './discovery-extra.js';\n"));
+  writeFileSync(join(source, 'apps/cli/src/io/run/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
+  writeFileSync(join(source, 'apps/cli/src/io/run/discovery-nested.js'), "export const value = 'closure';\n");
+  writeFileSync(join(source, 'apps/cli/src/io/run/unreferenced.test.js'),
     "throw new Error('an unreferenced shipped test must stay outside the discovery fixture');\n");
   runDiscovery(discoveryFixture(t, source));
 });
@@ -268,7 +268,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
 
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
+  const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
   const id = '12345678-1234-1234-1234-123456789abc';
   const env = { ...process.env };
@@ -313,7 +313,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
 
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
+  const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
@@ -340,7 +340,7 @@ test('runner option values that resemble a name pattern remain values [C7,S13]',
   writeFileSync(empty, 'export {};\n');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, [realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js')),
+  const result = spawnSync(process.execPath, [realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js')),
     '--test-skip-pattern', '--test-name-pattern=absent option value 1018', empty],
   { cwd: box.root, env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -359,7 +359,7 @@ test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
   /** Exercise configured discovery without explicit files, so the landing-shard branch is reached. */
-  const execute = (pattern) => spawnSync(process.execPath, [realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js')),
+  const execute = (pattern) => spawnSync(process.execPath, [realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js')),
     '--test-name-pattern', pattern], { cwd: box.root, env, encoding: 'utf8' });
   const present = execute('one discovered test');
   assert.equal(present.status, 0, `${present.stdout}${present.stderr}`);

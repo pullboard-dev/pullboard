@@ -39,9 +39,9 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
     ].join('\n') + '\n');
     put(box.root, 'test/a.test.js', "import '../src/entry.js';\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.INVARIANT_MARKER, 'selected\\n');\n");
     put(box.root, 'test/c.test.js', "throw new Error('unrelated test must stay deferred');\n");
-    put(box.root, 'packages/gate/src/io/run/tests.js', 'export const version = 1;\n');
+    put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
     commitAll(box);
-    box = builderRepo(box, ['packages/gate/src/io/run/tests.js']);
+    box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
     assert.equal(box.coordinator('add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"').code, 0);
     assert.equal(box.run('claim', '1').code, 0);
     return { box, marker };
@@ -49,7 +49,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
   /** A global edit exercises the uncertain-selector path without running a full suite. */
   function change(box, global = true) {
     put(box.root, 'src/a.js', 'export const value = 2;\n');
-    if (global) put(box.root, 'packages/gate/src/io/run/tests.js', 'export const version = 2;\n');
+    if (global) put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
     commitAll(box, 'feat(core): change invariant input [G1]');
   }
   /** A submit subset must never leave a full-gate stamp. */

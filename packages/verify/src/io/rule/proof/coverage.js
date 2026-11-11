@@ -84,8 +84,10 @@ function includedFiles(root, commit, command, tracked, depth = 0, context = {}) 
   if (words[0] !== 'node' && words[0] !== process.execPath) return [];
   if (words[0] === process.execPath) context.execPath = process.execPath;
   if (words[1] === '--test') return selectedFiles(words.slice(2), tracked, false);
-  if (words[1]?.replace(/^\.\//u, '') === 'packages/gate/src/io/run/tests.js' && tracked.has('packages/gate/src/io/run/tests.js')) {
-    const source = tryGit(root, ['show', `${commit}:packages/gate/src/io/run/tests.js`]);
+  const launcher = words[1]?.replace(/^\.\//u, '');
+  if ((launcher === 'apps/cli/src/io/run/tests.js' || launcher === 'packages/gate/src/io/run/tests.js') && tracked.has(launcher)) {
+    // A check frozen on the old path reaches the same launcher through the forwarding shim, so both compare the app file.
+    const source = tryGit(root, ['show', `${commit}:apps/cli/src/io/run/tests.js`]);
     const installed = runnerBytes();
     if (source.status !== 0 || installed === null || source.stdout !== installed.toString('utf8')) return [];
     return selectedFiles(words.slice(2), tracked, true);

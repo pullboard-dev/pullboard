@@ -20,6 +20,7 @@ import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 function fixture(t) {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => { closeBoard(board); helpers.cleanup(); });
   /** Require native command success before using its response. */

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Typed item conversations use the real CLI, Git, SQLite and runner pack [B29,B30,B31,B32,N14,N26]. */
 import assert from 'node:assert/strict';
 import {

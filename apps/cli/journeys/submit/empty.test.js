@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/empty.js packages/codemap/src/io/cells/scripts/plan.js packages/gate/src/io/edges.js */
 /** @pullboard-world-pin: clause 1 reads the shipped tree to prove the move: the old path is gone and the leaf exists. */
 /** A submit with no change against main is refused before any gate and names the folder with the work [C7,V4]. */
 import assert from 'node:assert/strict';

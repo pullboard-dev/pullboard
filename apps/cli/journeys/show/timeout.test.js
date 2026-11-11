@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js apps/cli/pullboard.js apps/cli/tests/fixtures/board.js packages/api/index.js packages/seats/index.js */
 /** Unreachable registered repositories cannot retain project listing or an actual verdict command [C7,N33]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

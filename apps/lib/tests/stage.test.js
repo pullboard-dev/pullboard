@@ -19,7 +19,7 @@ test('GUI placement uses the common stage and excludes false or unknown desktop 
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { core: { owns: ['src/'] } } }));
-  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = root;

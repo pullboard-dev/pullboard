@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /** A complete selected Node run lets an exact-main red land only after later work runs [B3,C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -28,7 +28,7 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 const SOURCE = resolve(import.meta.dirname, '../../../..');
-const RUNNER = join(SOURCE, 'packages/gate/src/io/run/tests.js');
+const RUNNER = join(SOURCE, 'apps/cli/src/io/run/tests.js');
 const MAIN_RED = 'web/land-9.test.js';
 const LATER_FILE = 'web/land-99.test.js';
 

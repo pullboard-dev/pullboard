@@ -61,7 +61,9 @@ export function packageFiles(root) {
       if (path === 'package.json') continue;
       const stat = lstatSync(join(directory, name));
       if (stat.isDirectory()) {
-        if (patterns.some(({ prefix }) => !prefix || path === prefix || path.startsWith(prefix + '/') || prefix.startsWith(path + '/'))) {
+        // Only an inclusion can add a file, so only inclusions widen the walk: a root-wide ! entry once sent it through
+        // every untracked folder, such as hundreds of agent worktrees under .claude, and a removed one crashed it [5642].
+        if (patterns.some(({ prefix, exclude }) => !exclude && (!prefix || path === prefix || path.startsWith(prefix + '/') || prefix.startsWith(path + '/')))) {
           visit(join(directory, name), path);
         }
       } else if (selectedBy(patterns, path)) {

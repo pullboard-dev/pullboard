@@ -103,7 +103,7 @@ function fixture(code, dir) {
   git(repo, 'commit', '-q', '-m', 'chore(repo): set up the budget fixture');
   for (const title of ['First', 'Second']) cli(repo, ['add', 'core', title, '--specs', 'C7', '--criterion', 'it works', '--brief', 'Files: src/a.js\nTest: it works.']);
   git(repo, 'worktree', 'add', '-q', '-b', 'core/one', seat);
-  cli(seat, ['join', 'core', '--model', 'claude-opus-5-5']);
+  cli(seat, ['join', 'core', '--model', 'fixture-strong', '--route', 'strong']);
   return { bin, env, repo, seat };
 }
 

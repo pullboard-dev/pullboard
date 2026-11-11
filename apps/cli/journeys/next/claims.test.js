@@ -34,6 +34,7 @@ test('next stays under 200 ms with forty claimed worktrees [H24]', (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
@@ -96,6 +97,7 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();

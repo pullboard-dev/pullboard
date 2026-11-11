@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js apps/cli/src/io/submit/receipt.js */
 /** Durable gate 22: main-red status is a receipt lookup keyed by main tree, test file and command [C7]. */
 /** @pullboard-world-pin: clauses 1 and 2 read the shipped submit gate and its lookup to prove the production caller is switched. */
 import assert from 'node:assert/strict';
@@ -49,13 +49,13 @@ after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
 /** Open a fresh real board file for an async body, closing it once the body settles. */
 async function withBoardAsync(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

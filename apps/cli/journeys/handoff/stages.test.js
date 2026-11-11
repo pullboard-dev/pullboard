@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/runner/handoff/child.js */
 /** @pullboard-world-pin: the wiring case reads the runner worker's own source files to prove the job path calls the stages. */
 /** The runner job runs the real hand-off stages from its ticket; a red ends it with the local worker's failure account [C7]. */
 import assert from 'node:assert/strict';
