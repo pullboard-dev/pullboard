@@ -70,7 +70,7 @@ async function resultWritten(transport, runner, job, shard) {
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 async function withBoard(body) {
   const files = privateFixtureFiles('pullboard-drive12-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = openBoard(':memory:');
   try { return await body(board.db, files.root); } finally { closeBoard(board); }
 }
 
@@ -178,7 +178,7 @@ after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoardPart2(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
@@ -246,7 +246,7 @@ function finished(child, onLine = () => {}) {
 }
 
 test('clause 1: drainLoop calls driveOnce until the job reaches its terminal step [C7]', async () => {
-  const board = openBoard(join(filesPart3.root, 'loop.sqlite'));
+  const board = openBoard(':memory:');
   try {
     createJob(board.db, { id: 'loop', kind: 'gate', now: 1 });
     const phases = ['captured', 'running', 'running', 'collected', 'verdict'];
@@ -268,6 +268,7 @@ test('clause 1: the hand-off worker is a child that drives the job to its verdic
   const head = seededRepo();
   const env = localSsh();
   const file = join(filesPart3.root, 'board.sqlite');
+  // @pullboard-board-file persistence: a killed worker process and this seed share one board file
   const seed = openBoard(file);
   try { createJob(seed.db, { id: 'g1', kind: 'gate', candidate: head, base: head, now: 1 }); } finally { closeBoard(seed); }
   const go = join(filesPart3.root, 'go');
@@ -282,6 +283,7 @@ test('clause 1: the hand-off worker is a child that drives the job to its verdic
   const killed = await finished(first, (line) => { if (line.startsWith('step running')) first.kill('SIGKILL'); });
   assert.equal(killed.signal, 'SIGKILL', `the first worker dies mid-job: ${killed.stderr}`);
   const read = () => {
+    // @pullboard-board-file persistence: a killed worker process and this seed share one board file
     const board = openBoard(file);
     try { return jobView(board.db, 'g1'); } finally { closeBoard(board); }
   };

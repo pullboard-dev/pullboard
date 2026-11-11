@@ -26,6 +26,7 @@ async function fixture(t) {
   const nudges = [];
   /** Record the nudge the CLI would launch; the real worker would run the whole suite. */
   const nudgeMainAudit = async (root, workerUrl) => { nudges.push({ root, worker: fileURLToPath(workerUrl) }); return null; };
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const db = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: box.repo });
   let identity;
   try { identity = { id: store.boardId(db), after: store.events(db).at(-1).event_id }; }

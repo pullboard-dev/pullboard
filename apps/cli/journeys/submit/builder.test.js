@@ -41,6 +41,7 @@ function lines(result) {
 
 /** Read the real SQLite state under an optional injected clock, never writing anything. */
 function read(box, id, clock) {
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const board = openBoard(box.boardFile, clock);
   try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
   finally { board.db.close(); }
@@ -168,6 +169,7 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   const idle = { now: () => new Date(Date.parse(red.job.completedAt) + 39 * 60_000) };
   const returned = read(box, refused).item;
   assert.ok(idle.now().getTime() < Date.parse(returned.item_lease_until), 'maintenance runs before the fresh lease ends');
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const maintained = openBoard(box.boardFile, idle);
   try {
     const snapshot = captureLapsedClaims({ clock: idle, config: loadConfig(box.repo) }, maintained, 'coordinator');
@@ -180,6 +182,7 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   const held = read(box, refused).item;
   assert.equal(held.item_owner, red.job.agentId);
   const lapsed = { now: () => new Date(Date.parse(held.item_lease_until) + 1000) };
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const board = openBoard(box.boardFile, lapsed);
   try {
     assert.equal(firstRefusal(board, refused), null, 'no builder reservation outlives the lease');
@@ -202,6 +205,7 @@ test('a returned red claim left untouched is freed by maintenance once its fresh
   // Nothing happens after the return: the fresh lease lapses and the stale interval passes.
   const config = loadConfig(box.repo);
   const lapsed = { now: () => new Date(Date.parse(red.item.item_lease_until) + staleStateLimits(config).claim + 60_000) };
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const board = openBoard(box.boardFile, lapsed);
   try {
     const snapshot = captureLapsedClaims({ clock: lapsed, config }, board, 'coordinator');
