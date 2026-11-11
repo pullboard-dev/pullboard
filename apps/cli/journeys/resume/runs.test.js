@@ -21,9 +21,9 @@ import {
 /**
  * Queue a proof run for the seat's item the way `pullboard test` does: bound to the seat's single live claim, else unbound.
  */
-function queueRunFor(box, seat) {
+function queueRunFor(box, seat, bound) {
   const claims = itemsInStatus(box.board, 'claimed', seat.id);
-  const item = claims.length === 1 ? claims[0].item_id : undefined;
+  const item = bound ?? (claims.length === 1 ? claims[0].item_id : undefined);
   const queued = queueTestRun({ info: { root: box.root, commonDir: box.root } }, work => work(box.board),
     { agent: seat.id, item, files: ['a.test.js'] }, { launch: () => ({ unref() {} }), now: box.clock.now().getTime() });
   return { ...queued, item };
@@ -74,13 +74,17 @@ test('clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run 
   const id = box.add('Held through the sweep');
   const control = box.add('Control with no run', { brief: 'Files: web/control.js\nTest: a quiet seat without a run is swept.' });
   box.claim(id, seat);
-  box.claim(control, box.seats.builder);
+  box.claim(control, seat);
+  // Live holders keep the sweep from reading two quiet claims as the whole machine stalling.
+  const live = [1, 2, 3].map(n => box.add(`Live claim ${n}`, { brief: `Files: web/live${n}.js\nTest: a live seat is never swept.` }));
+  for (const other of live) box.claim(other, box.seats.builder);
   const ctx = { clock: box.clock, config: box.config, info: { root: box.root } };
   const sweep = () => {
+    heartbeatSeat(box.board, box.seats.builder.id);
     const snapshot = captureLapsedClaims(ctx, box.board, 'coordinator');
     return snapshot ? snapshot.claims.map(claim => claim.id) : [];
   };
-  const run = queueRunFor(box, seat);
+  const run = queueRunFor(box, seat, id);
   box.advance(3 * 60_000);
   assert.deepEqual(sweep(), [control], 'both seats are quiet over 2 minutes: only the claim with no run is swept');
   takeJob(box.board.db, run.id, 'test-run:sweep', { now: box.clock.now().getTime(), leaseMs: 120_000 });
