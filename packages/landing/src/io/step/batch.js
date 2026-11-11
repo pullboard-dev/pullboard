@@ -197,7 +197,7 @@ export async function land(options) {
     } }));
   let failed = false;
   try {
-    await lease.assertHeld();
+    await lease.assertHeld(); await lease.guard(controller); // The guardian stops a gate this command can no longer own.
     invalidateGitFacts(); // The holder may have moved main while this command waited.
     /** Bind each batch transition to this acknowledged grant, never to an optimistic local result. */
     const write = async (operation, args) => {
@@ -289,7 +289,7 @@ export function crashRefusal(error) {
  * Why: FLAKE_RATCHET escaped with the batch still gating and killed the worker 50 times on 5 Nov [C7,#3188].
  */
 export async function blockAfterRefusal(state, error) {
-  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST';
+  const refused = error instanceof Refused && !['LAND_LEASE_LOST', 'LAND_WORKER'].includes(error.code);
   if ((refused || isCrash(error)) && ['merging', 'gating', 'ready', 'trunk'].includes(state.batch.state)) await save(state, { state: 'blocked' });
 }
 
