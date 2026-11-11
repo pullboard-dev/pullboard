@@ -73,6 +73,7 @@ const ROWS = [
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
   ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Project', 'list'],
+  ['trunk.remote', 'Trunk remote', 'The git URL runners fetch candidates from and landing pushes the trunk to; empty uses the board host\'s own repository.', 'Project', 'text'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],

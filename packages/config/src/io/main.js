@@ -15,6 +15,7 @@ import {
 } from '../logic/exit/rules.js';
 import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
+import { trunkProblems } from '../logic/trunk.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 import { COORDINATOR } from '../../../queue/light.js';
@@ -76,6 +77,7 @@ export function defaults() {
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
     lanes: {},
+    trunk: { remote: '' },
     products: {},
     shared: [],
     fix: [],
@@ -442,6 +444,7 @@ export function configProblems(config) {
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
   }
+  problems.push(...trunkProblems(config.trunk));
   return problems;
 }
 
