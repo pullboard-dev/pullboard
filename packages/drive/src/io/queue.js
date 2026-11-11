@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
+import { reclaimLapsed } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
@@ -34,6 +35,9 @@ export const DELIVERED = 'delivered';
 
 /** How long a queued run may wait for its worker to take it before it is reported refused, not queued. */
 export const START_BOUND_MS = LEASE_MS;
+
+/** The step that ends a run whose worker is gone: it frees the job's lease and reads as lost. */
+export const LOST = 'lost';
 
 /** The last line a finished worker writes to its log: its verdict, runner and seconds. */
 const FINAL_LINE = /^pullboard test: (red|green) on (\S+) in (\d+(?:\.\d+)?)s/mu;
@@ -179,6 +183,7 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
   let status;
   let refusal = null;
   if (result) status = result.green ? 'green' : 'red';
+  else if (view.steps.some(row => row.name === LOST)) status = 'lost';
   else if (view.leaseOwner) status = view.leaseUntil < now ? 'lost' : 'running';
   else if (view.created + START_BOUND_MS < now) {
     status = 'refused';
@@ -205,6 +210,33 @@ export function readFinalLine(path) {
     const match = FINAL_LINE.exec(buffer.toString('utf8'));
     return match ? { green: match[1] === 'green', runner: match[2], seconds: Number(match[3]) } : null;
   } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/**
+ * End every test run whose lease lapsed and whose worker process is gone: record a `lost` step and free the lease,
+ * so the run reads lost, `next` hands that back once, and the dead row stops holding a slot.
+ *
+ * Why: a worker killed mid-run stopped renewing, but nothing ever wrote an ending, so rows sat running for up to 30
+ * hours; the liveness rule is that every hold heartbeats or is reclaimed within 2 minutes (`waits record` runs this each minute).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - A board handle opened for writing.
+ * @param {{ now?: number, alive?: (pid: number) => boolean }} [options]
+ * @returns {{ id: string, lapsedMs: number, pid: number | null }[]} The runs ended.
+ */
+export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive } = {}) {
+  const ended = [];
+  for (const job of reclaimLapsed(db, { now })) {
+    if (job.kind !== TEST_RUN_KIND) continue;
+    const view = jobView(db, job.id);
+    if (!view || view.steps.some(row => row.name === 'result' || row.name === LOST)) continue;
+    const pid = Number(/^test-run:(\d+)$/u.exec(job.leaseOwner)?.[1]);
+    const known = Number.isSafeInteger(pid) && pid > 0 ? pid : null;
+    if (known !== null && alive(known)) continue;
+    writeStep(db, job.id, LOST, { pid: known, lapsedMs: job.lapsedMs }, { now });
+    finishJob(db, job.id, job.leaseOwner, { now });
+    ended.push({ id: job.id, lapsedMs: job.lapsedMs, pid: known });
+  }
+  return ended;
 }
 
 /**
