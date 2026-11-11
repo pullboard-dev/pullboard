@@ -1,6 +1,7 @@
 import { CHROME_GUARDIAN_SOURCE } from './chrome/shutdown.js';
 import { chromeLeaderIdentity } from './chrome/shutdown.js';
 import { quitOwnedChrome } from './chrome/shutdown.js';
+export { stableChrome } from './cockpit/stable.js';
 import { chromeLaunchArgs } from './chrome/args.js';
 /** Shared isolated Chrome launcher with bounded startup and complete process-group cleanup [C7]. */
 import {
@@ -27,7 +28,6 @@ import {
   resolve,
 } from 'node:path';
 import { browserSlotRefusal } from '../../../../packages/gate/index.js';
-
 const STARTUP_TIMEOUT_MS = 30_000;
 const COMMAND_TIMEOUT_MS = 15_000;
 const CLEANUP_TIMEOUT_MS = 5_000;
