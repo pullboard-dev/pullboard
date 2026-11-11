@@ -39,7 +39,7 @@ export function definePullJourney(count) {
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: ${count}, browser: 1 }] }));
     const command = 'printf job-finished; sleep ${8 + count}; exit 3';
     const shaped = result => ({ exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), kind: result.executionReceipt?.kind, runner: result.executionRunner, ...(result.exitCode === undefined ? { odd: JSON.stringify(result).slice(0, 300) } : {}) });
-    const settle = promise => promise.catch(error => ({ refused: error.code, message: error.message }));
+    const settle = promise => promise.catch(error => ({ refused: error.code ?? error.name, message: error.message, diagnostic: JSON.stringify(error.diagnostic ?? null).slice(0, 1200) }));
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
