@@ -860,7 +860,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
           criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
           verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
           moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)).reverse(),
-          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !text.startsWith('Review comparison:')),
+          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
         };
       })()`);
       assert.ok(opened.title.includes('Offline greeting'), `the address opens item #1: ${opened.title}`);
