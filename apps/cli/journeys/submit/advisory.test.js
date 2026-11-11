@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js packages/codemap/data/plan/cells.json packages/codemap/data/plan/path-map/kernel.json packages/codemap/data/plan/transition.json packages/kernel/index.js packages/kernel/src/logic/refused.js */
 /** The Cells reorg-only checks refuse only Cells reorg work; every other item proceeds with printed warnings [C7,D3]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

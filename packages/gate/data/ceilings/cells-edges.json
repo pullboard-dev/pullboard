@@ -2456,6 +2456,10 @@
       "cells": 3,
       "deep": 0
     },
+    "packages/landing/src/io/compose.js": {
+      "cells": 3,
+      "deep": 0
+    },
     "packages/landing/src/io/deferred/run.js": {
       "cells": 5,
       "deep": 0
@@ -2470,6 +2474,10 @@
     },
     "packages/landing/src/io/doctrine.js": {
       "cells": 7,
+      "deep": 0
+    },
+    "packages/landing/src/io/first.js": {
+      "cells": 2,
       "deep": 0
     },
     "packages/landing/src/io/guards.js": {
@@ -2574,6 +2582,10 @@
     },
     "packages/landing/src/io/step/derive.js": {
       "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/compose.js": {
+      "cells": 3,
       "deep": 0
     },
     "packages/landing/src/io/step/merge.js": {

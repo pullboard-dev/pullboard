@@ -1,6 +1,6 @@
 /** @pullboard-test-loads apps/cli/src/io/worktree/maintenance/scheduler.js */
 /** @pullboard-test-loads apps/cli/pullboard.js */
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/worktree/maintenance/scheduler.js */
 /** Repository timer ownership never borrows a seat or replaces unknown process custody [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

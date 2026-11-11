@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/kernel/index.js */
 /** An unpinned run requeued off a lost runner dispatches on another runner without invalid metadata [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/runners/index.js */
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import { recordTrainLanding } from '../../../../packages/landing/index.js';
 import assert from 'node:assert/strict';

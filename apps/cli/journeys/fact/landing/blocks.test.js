@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js */
 /** Every refusal or crash in a landing step ends its batch blocked, recorded once, so no restart adopts it unchanged [C7]. */
 import assert from 'node:assert/strict';
 import {

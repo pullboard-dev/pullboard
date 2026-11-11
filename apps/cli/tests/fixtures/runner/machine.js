@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/controller.js */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 

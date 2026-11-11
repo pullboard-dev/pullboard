@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/check/baseline.js */
 /** @pullboard-test-loads packages/store/src/io/board.js apps/cli/src/io/claim.js packages/gate/src/io/check/baseline/worker.js */
 /** Native baseline completion must not strand a claim whose source remains valid [B2,C7,V2]. */
 // Recovered unchanged from core-716's eacc75698b7 deterministic baseline-worker reproduction.

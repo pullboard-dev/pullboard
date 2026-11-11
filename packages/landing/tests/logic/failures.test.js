@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** The real test runner's red output always parses into a complete failure account [C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

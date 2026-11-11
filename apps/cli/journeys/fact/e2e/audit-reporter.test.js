@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Native audit coverage must survive a directory named file and preserve red outcomes [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

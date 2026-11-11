@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/scripts/worker.js docs/architecture.md packages/codemap/data/plan/cells.json packages/codemap/data/plan/seed.json packages/codemap/src/io/cells/scripts/plan.js packages/stats/index.js */
 /** One command removes a cell's shims: repoint, delete, keep what would cut upward, and change nothing the second time [C7,D3]. */
 import assert from 'node:assert/strict';
 import {

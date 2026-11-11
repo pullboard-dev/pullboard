@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/seed.json */
 /** Real recorded tool commands regenerate conflicting source, with fresh full proof and no inherited verdict [C7,V4,V6]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

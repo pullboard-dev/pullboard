@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Criterion size counts files, clauses and named cells [B35,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

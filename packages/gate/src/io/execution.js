@@ -176,6 +176,21 @@ export function committedTree(root) {
 }
 
 /**
+ * Record that the gate passed on this committed tree, as a full gate run does, so pre-push accepts it.
+ * Landing reuses the submit receipt as its proof and runs no gate, so without this stamp pre-push ran the whole
+ * gate again on the pushed tree. A tree that is not the checkout's committed one is never stamped [C7].
+ *
+ * @param {string} root
+ * @param {string} tree - The tree a green receipt proved.
+ * @returns {boolean} True when the stamp was written.
+ */
+export function stampGreen(root, tree) {
+  if (committedTree(root) !== tree) return false;
+  writeFileSync(gitPath(root, STAMP), `${tree}\n`);
+  return true;
+}
+
+/**
  * True when the gate already passed on exactly this committed tree.
  *
  * @param {string} root

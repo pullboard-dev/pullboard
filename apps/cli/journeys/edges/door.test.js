@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/data/ceilings/cells-edges.json apps/cli/light.js apps/runner/light.js apps/view/light.js packages/gate/light.js packages/kernel/light.js */
 /** @pullboard-world-pin: the last clause reads the committed packages/gate/data/ceilings/cells-edges.json, where each real light door's cold load is recorded. */
 /* Declared pure entries preserve the moved-cell boundary without importing shell code; a light front door may re-export shell modules within its cold-load budget [C7,D3]. */
 import assert from 'node:assert/strict';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js docs/lifecycle.md */
 /** Lifecycle declaration documentation and CLI parity, moved intact from machine.test.js [C7,M1,P4]. */
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

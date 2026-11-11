@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A name-filtered landing gate shards like any other landing gate, and a red in any shard still fails it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

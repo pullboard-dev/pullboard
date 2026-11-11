@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Repeated rejects identify the frozen requirement that needs clarification [V6,R2,B30,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

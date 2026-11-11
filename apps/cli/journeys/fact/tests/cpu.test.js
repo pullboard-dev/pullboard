@@ -1,5 +1,4 @@
 /** Declared load is placed by the real runner road, never by a forged host flag [C7]. */
-/** @pullboard-test-input source-tree */
 import assert from 'node:assert/strict';
 import {
   join,

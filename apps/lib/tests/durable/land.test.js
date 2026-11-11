@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/merged.js apps/cli/src/io/commands/land.js */
 /** Durable gate 18/20: the landing finish sequence's six steps are job steps; a resumed landing continues [C7].  * @pullboard-test-input source-tree
  */
 import assert from 'node:assert/strict';
