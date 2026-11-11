@@ -12,6 +12,10 @@ import {
   runFixtureGit,
   safeFixtureDiagnostic,
 } from '../../tests/fixtures/child.js';
+import {
+  AGENT_SHELL_MARKERS,
+  SSH_SHELL_MARKERS,
+} from '../../../../packages/kernel/index.js';
 import { createServer } from 'node:http';
 import {
   chmodSync,
