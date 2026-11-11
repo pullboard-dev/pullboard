@@ -184,12 +184,15 @@ export function dependencySatisfied(dependency) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [] } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [], named = null } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
-  const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
+  // A coordinator's named landing takes the named items at their named proven commits whatever their status [C7,#5559].
+  const proven = named ? new Map(named.map(({ id, commit }) => [id, commit])) : null;
+  const pending = all.filter((item) => (proven ? proven.has(item.item_id) && item.item_status !== 'withdrawn' : item.item_status === 'verified') && !item.item_merged_commit)
+    .map((item) => (proven ? { ...item, item_commit: proven.get(item.item_id) } : item));
   const order = new Map();
   // Only accept rows set the order; reading every event (380,000 on 9 Nov) cost each selection about 2 s [C7].
   const accepts = board.db ? board.db.prepare("SELECT item_id, event_id, event_kind FROM event WHERE event_kind = 'accept' ORDER BY event_id").all() : store.events(board);
@@ -200,7 +203,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
   // picking take turns and cannot starve the queue (#2911).
   const failed = landingTurns(batches, roundFailures(batches), pending);
+  const namedOrder = proven ? [...proven.keys()] : null;
   pending.sort((left, right) => {
+    if (namedOrder) return namedOrder.indexOf(left.item_id) - namedOrder.indexOf(right.item_id);
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;
       if (!failed.has(right.item_id)) return 1;
@@ -247,8 +252,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     }
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
-    const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
-    const stale = projector.state(item);
+    const item = { ...original, item_landing_commit: proven ? original.item_commit : store.checkedLandingCommit(board, original) };
+    const stale = proven ? null : projector.state(item);
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
     const known = knownReds.find((entry) => entry.id === item.item_id && entry.commit === item.item_commit
       && (entry.reviewedCommit ?? entry.commit) === item.item_landing_commit);
