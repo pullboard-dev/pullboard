@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/test/outcomes.js */
 /** Real private SSH worker/CLI controls exercise remote failure identity and exact main matching [V4,B3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

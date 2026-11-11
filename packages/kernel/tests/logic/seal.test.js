@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/kernel/src/logic/refused.js */
 /** @pullboard-test-gui */
 /** @pullboard-test-loads packages/kernel/src/logic/seal.js */
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */

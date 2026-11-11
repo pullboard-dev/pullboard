@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/runner/src/io/private/check/worker.js packages/gate/src/io/budgets.js packages/gate/src/io/run/tests.js packages/gate/tests/fixtures/budgets.js packages/git/index.js */
 import { flakeQuarantines as nativeFlakeQuarantines } from '../../../../packages/flakes/index.js';
 import { gateRuns as nativeGateRuns } from '../../../../packages/flakes/index.js';
 import { recordGateRun as nativeRecordGateRun } from '../../../../packages/flakes/index.js';

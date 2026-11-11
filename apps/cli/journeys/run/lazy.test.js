@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/resume/board.test.js packages/gate/src/io/main.js packages/gate/src/io/run-tests.js packages/gate/src/io/run/tests.js packages/gate/src/io/slot.js packages/gate/tests/fixtures/budgets.js packages/gate/tests/run-tests-kill.test.js packages/gate/tests/run-tests-timeout.test.js packages/landing/src/io/queue.js packages/runners/src/io/dispatch.js packages/state/index.js packages/state/src/io/machine.js packages/store/index.js packages/store/src/io/board.js */
 /** @pullboard-test-input packages/gate/tests/fixtures/budgets.js */
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */

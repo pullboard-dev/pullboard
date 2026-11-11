@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Release placement and receipt boundaries; synthetic models do not claim a real eight-node timed release [C7,I15]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';

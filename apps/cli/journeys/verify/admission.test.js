@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Verification carries the gate's explicit desktop requirement into real admission [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';

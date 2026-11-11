@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/gate/index.js packages/sandbox/index.js */
 /** Real detached fake-SSH jobs carry admitted policy into nested shards [C7,V4]. */
 import assert from 'node:assert/strict';

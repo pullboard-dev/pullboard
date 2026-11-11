@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** @pullboard-world-pin: clause 3 reads the shipped submit caller to prove it passes the tooling key. */
 /** A rerun of the same candidate reads back the analysis parts already recorded for its main, source and tooling [C7]. */
 import { test } from 'node:test';

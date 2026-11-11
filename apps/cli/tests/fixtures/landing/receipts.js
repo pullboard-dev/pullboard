@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/audit.js apps/lib/src/logic/native.js packages/codemap/data/plan/cells.json packages/landing/index.js packages/runners/index.js */
 /** Shared private-fixture helpers for the native train receipt journeys [C7]. */
 import { receiptBinds } from '../../../../../packages/gate/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
