@@ -39,6 +39,7 @@ function document(result) {
 
 /** Observe actual persisted state without creating any gate receipt or test authority. */
 function observe(box) {
+  // @pullboard-board-file journey: observe the board file the real CLI processes share
   const board = openBoard(box.file);
   try { return { item: getItem(board, box.id), waiting: ownershipWaiting(board, 'coordinator'), job: submitHandoff(board, box.id) }; }
   finally { closeBoard(board); }
@@ -135,6 +136,7 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   assert.equal(next.item.item_id, peer.item.item_id, 'the builder can claim its next ordinary item');
   assert.equal(next.item.item_owner, wait.agentId);
   // Repeating the same native source receipt cannot notify the owner or release another item again.
+  // @pullboard-board-file journey: observe the board file the real CLI processes share
   const board = openBoard(box.file);
   try {
     const before = board.db.prepare('SELECT COUNT(*) AS n FROM shout').get().n;
@@ -154,6 +156,7 @@ test('a red gate cannot free its builder or create an owner wait for foreign pat
   assert.equal(state.item.item_status, 'claimed');
   assert.notEqual(state.item.item_owner, null);
   assert.deepEqual(state.waiting, [], 'ownership is not a waiver for another red');
+  // @pullboard-board-file journey: observe the board file the real CLI processes share
   const board = openBoard(box.file);
   try {
     assert.throws(() => deferOwnership(board, box.id, { root: box.root, agentId: state.item.item_owner,

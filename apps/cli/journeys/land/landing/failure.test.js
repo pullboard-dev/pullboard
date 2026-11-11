@@ -53,6 +53,7 @@ async function fixture(t, { duplicate = false, unrelated = false } = {}) {
   box.git(seat, 'commit', '-q', '-m', 'feat(web): private landing source [G1]');
   const submitted = await cli(seat, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
   const reviewer = join(box.dir, reviewerName);
@@ -77,6 +78,7 @@ async function fixture(t, { duplicate = false, unrelated = false } = {}) {
     assert.equal(joined.code, 0, joined.out + joined.err);
     other = await accepted(second, 'Independent change', 'web/other.txt', false, 'landing-reviewer-two');
   }
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
   return { ...box, board, item, other, source, marker, cli, before: box.git(box.repo, 'rev-parse', 'main') };

@@ -1,10 +1,8 @@
 /** What next prints when it reserves nothing: an offered review, or a builder still at work [C7,P4]. */
 import * as store from '../../../../../packages/store/index.js';
-import {
-  agentDisplayName,
-  span,
-  whoAmI,
-} from '../entry.js';
+import { agentDisplayName } from '../context.js';
+import { span } from '../context.js';
+import { whoAmI } from '../join.js';
 import { withBoardRead } from '../context.js';
 import { reviewQueueLine } from '../../../../../packages/verify/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
