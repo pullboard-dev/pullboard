@@ -39,24 +39,22 @@ import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { fallbackReclaim } from '../reclaim.js';
-import {
-  agentDisplayName,
-  MainSpecMerged,
-  checkMainVerifier,
-  claimFreezer,
-  claimOrdered,
-  cdTo,
-  context,
-  displayedWait,
-  idArg,
-  nextOnce,
-  ordered,
-  sayBrief,
-  span,
-  whoAmI,
-  withBoard,
-  withBoardRead,
-} from '../entry.js';
+import { agentDisplayName } from '../context.js';
+import { cdTo } from '../context.js';
+import { context } from '../context.js';
+import { idArg } from '../context.js';
+import { sayBrief } from '../context.js';
+import { span } from '../context.js';
+import { withBoard } from '../context.js';
+import { withBoardRead } from '../context.js';
+import { MainSpecMerged } from '../claim.js';
+import { claimFreezer } from '../claim.js';
+import { claimOrdered } from '../claim.js';
+import { ordered } from '../claim.js';
+import { checkMainVerifier } from '../verify.js';
+import { displayedWait } from '../next.js';
+import { nextOnce } from '../next.js';
+import { whoAmI } from '../join.js';
 import {
   refuseWhileBuilding,
   sayReviewOffer,

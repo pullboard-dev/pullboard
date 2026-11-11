@@ -159,7 +159,7 @@ async function controllerSpawns(work) {
 /** The request a queued worker sends: pinned commits, its config and the board's cut rows, all as data. */
 function request(box, readCutItems = () => [{ item_id: 7 }]) {
   return { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'fixture criterion',
-    composition: box.source, staticChecks: 'node apps/cli/src/io/static/checks.js', config: { affectedTests: 'node packages/gate/src/io/run/tests.js', gate: 'npm test' },
+    composition: box.source, staticChecks: 'node apps/cli/src/io/static/checks.js', config: { affectedTests: 'node apps/cli/src/io/run/tests.js', gate: 'npm test' },
     browserFreeChecks: true, readCutItems };
 }
 

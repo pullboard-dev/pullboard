@@ -223,16 +223,16 @@ export function declaredEdges(root) {
  * Today's edges: per file the undeclared distinct cells and deep imports, and per cell the cells it imports and its deep importers.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (file: string) => string }} [options]
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options] - `edgesOf` lets a caller answer a file's edges from a cache.
  * @returns {{ files: Record<string, { cells: number, deep: number, edges: { from: string, to: string, deep: boolean, line: number }[] }>, cells: Record<string, { imports: string[], deepImporters: number }> }}
  */
-export function cellsEdgeReport(root, { files, read = file => readFileSync(resolve(root, file), 'utf8') } = {}) {
+export function cellsEdgeReport(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const declared = declaredEdges(root);
   const names = (files ?? walk(root, SOURCE)).filter(file => SOURCE.test(file) && !TESTISH.test(file));
   const result = { files: {}, cells: {} };
   for (const file of names) {
     const from = cellOf(file).cell;
-    const edges = fileEdges(file, read(file)).filter(edge => !declared.has(`${from}->${edge.to}${edge.deep ? '/src' : ''}`));
+    const edges = edgesOf(file, read(file)).filter(edge => !declared.has(`${from}->${edge.to}${edge.deep ? '/src' : ''}`));
     if (!edges.length) continue;
     const cells = new Set(edges.map(edge => edge.to));
     const deep = edges.filter(edge => edge.deep);
@@ -261,11 +261,11 @@ export function ceilingsOf(current) {
  * Refuse a file or cell whose undeclared edges grew past its ceiling, naming the plan declaration that would allow it.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (file: string) => string, ceilings?: ReturnType<typeof ceilingsOf> }} [options] - `files` limits the check to those files (the pre-commit run).
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges>, ceilings?: ReturnType<typeof ceilingsOf> }} [options] - `files` limits the check to those files (the pre-commit run).
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function cellsEdgeProblems(root, { files, read, ceilings = JSON.parse(readFileSync(CEILINGS, 'utf8')) } = {}) {
-  const current = cellsEdgeReport(root, { files, read });
+export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.parse(readFileSync(CEILINGS, 'utf8')) } = {}) {
+  const current = cellsEdgeReport(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) });
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
   for (const [file, row] of Object.entries(current.files)) {
@@ -290,7 +290,7 @@ export function cellsEdgeProblems(root, { files, read, ceilings = JSON.parse(rea
       for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it, or add "${name}->${target}" to allowedEdges in packages/codemap/data/plan/cells.json`);
     }
   }
-  problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}) }));
+  problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) }));
   return problems;
 }
 
@@ -321,16 +321,16 @@ export async function lightDoorProblems(root, { mainRoot } = {}) {
  * DURABLE_CELLS does not allow. A plan declaration never allows one, so these edges are read before the plan filter.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (file: string) => string }} [options] - `files` limits the check to those files (the pre-commit run).
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options] - `files` limits the check to those files (the pre-commit run).
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function durableEdgeProblems(root, { files, read = file => readFileSync(resolve(root, file), 'utf8') } = {}) {
+export function durableEdgeProblems(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const problems = [];
   for (const file of (files ?? walk(root, SOURCE)).filter(path => SOURCE.test(path) && !TESTISH.test(path))) {
     const from = cellOf(file).cell;
     const allowed = DURABLE_CELLS[from];
     if (!allowed) continue;
-    for (const edge of fileEdges(file, read(file))) {
+    for (const edge of edgesOf(file, read(file))) {
       if (!Object.hasOwn(DURABLE_CELLS, edge.to) || allowed.includes(edge.to)) continue;
       problems.push({ path: file, line: edge.line, text: `backwards edge between durable cells: ${from} imports ${edge.to}; ${from} may import only ${allowed.join(', ') || 'none of the six'} (jobs, drive, transport, receipt, pin, land); move the code down a cell` });
     }
@@ -349,6 +349,6 @@ export async function writeCellsEdgeCeilings(root) {
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
-  else if (process.argv.includes('--write')) report(await writeCellsEdgeCeilings(root));
-  else report([...cellsEdgeProblems(root), ...await lightDoorProblems(root)]);
+  else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);
+  else lightDoorProblems(root).then(light => report([...cellsEdgeProblems(root), ...light]));
 }

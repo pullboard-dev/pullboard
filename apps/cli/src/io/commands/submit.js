@@ -86,6 +86,7 @@ import { gateWithRunnerPlan } from '../submit/gate.js';
 import { doctrineRunnerChecks } from '../submit/gate.js';
 export { doctrineExecutionPhases } from '../submit/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import {
@@ -237,6 +238,7 @@ import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit/reds.js';
+import { regressesMain } from '../submit/reds.js';
 import { redsAreMains } from '../submit/reds.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
@@ -253,8 +255,7 @@ import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
 /**
- * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
- * span for an open gate's telemetry [C7].
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's span for an open gate's telemetry [C7].
  */
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
@@ -534,7 +535,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return { me: who, claimHead: item.item_claim_head };
   }));
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
-  const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
+  // gate.mainComparison off: no base, so no main comparison and no carried-red acceptance; a red gate is red [C7,#5565].
+  const mainFailureBase = mainComparisonMode() === 'off' ? null
+    : acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
@@ -800,7 +803,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // The proof is judged like the check: a case an open Main red repair's own check fails on this main is known main (#2594).
   let proofMainRed = [];
-  if (failures && mainFailureBase && !proofMatched && !companion) {
+  if (failures && mainFailureBase && !proofMatched && !companion && !regressesMain(failures, comparison)) {
     try {
       const items = mainRedItems();
       const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
@@ -1093,7 +1096,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   } else if (gate.isGreen && !waived && (!criterionMatched || mainOwnedGreen)) {
     try { if (submissionReceiptIds.length) for (const line of countTrialGate(root, { id: JSON.stringify([...submissionReceiptIds].sort()) })) ctx.io.say(line); }
     catch { ctx.io.err('could not record this gate in the refusal-trial ledger'); }
-    try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
+    try { if (mainComparisonMode() !== 'off') await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
     catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
   }
   recordGateSpan({ phase: 'post-submit', start: postSubmitStart, outcome: 'done' });

@@ -17,11 +17,10 @@ import { costTabModel } from '../../../../view/index.js';
 import { counterDelta } from '../../../../view/index.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../../index.js';
 import * as store from '../../../../../packages/store/index.js';
+import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { SPEC } from '../../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../../tests/fixtures/cockpit/harness.js';
-import { accept } from '../../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../../tests/fixtures/cockpit/harness.js';
@@ -29,6 +28,9 @@ import { closeSnapshotChrome } from '../../../tests/fixtures/cockpit/harness.js'
 import { press } from '../../../tests/fixtures/cockpit/harness.js';
 import { serveFolder } from '../../../tests/fixtures/cockpit/harness.js';
 import { openBoard } from '../../../../lib/index.js';
+
+/** The model name of the scratch machine's native seat. */
+const SEAT_MODEL = 'Test Model';
 
 /** Make one deterministic presenter-only usage history; it is not native provider data. */
 function pricedHistory() {
@@ -198,23 +200,31 @@ test('clause 1: the private view shows its last twenty native landings; a public
       usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 0 },
     },
   }) + '\n');
-  for (let id = 1; id <= 22; id++) {
-    box.run(alpha.repo, 'add', 'web', 'Private cost fixture ' + id, '--specs', 'G1', '--criterion', 'The private view shows its landed row.');
-    const fixtureSession = box.env.CLAUDE_CODE_SESSION_ID;
-    if (id === 3) delete box.env.CLAUDE_CODE_SESSION_ID;
-    try { build(box, alpha, id, `cost-fixture-${id}.txt`); }
-    finally { box.env.CLAUDE_CODE_SESSION_ID = fixtureSession; }
-    delete box.env.CLAUDE_CODE_SESSION_ID;
-    try { accept(box, alpha, id); }
-    finally { box.env.CLAUDE_CODE_SESSION_ID = fixtureSession; }
-    box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
-    box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  }
-  // @pullboard-board-file journey: the private Chrome view renders this persisted project board after native CLI landings.
-  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  let clock = Date.now() - 3_600_000;
+  // @pullboard-board-file journey: the private Chrome view renders this persisted project board after landings seeded through the board API.
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(clock) });
   try {
     const agent = store.listAgents(board).find(row => row.agent_lane === 'web');
     assert.ok(agent, 'the seeded board has the native web builder');
+    const commit = 'a'.repeat(40);
+    for (let id = 1; id <= 22; id++) {
+      const digest = `digest:cost-fixture-${id}`;
+      clock += 1000;
+      assert.equal(store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private cost fixture ' + id,
+        criterion: 'The private view shows its landed row.', specIds: ['G1'] }), id);
+      store.claim(board, id, { agentId: agent.agent_id, lane: 'web', leaseMs: 3_600_000, freeze: item => ({ text: item.item_criterion, digest }) });
+      clock += 1000;
+      submitFixture(board, id, { agentId: agent.agent_id, commit, tree: `tree:cost-fixture-${id}` });
+      // Submit records the baseline-relative usage of a native Claude session; item 3 ran without one.
+      if (id !== 3) store.recordUsage(board, { agentId: agent.agent_id, item: id, revision: 1, observedAt: clock, records: [{
+        model: SEAT_MODEL, inputTokens: 0, knownInputTokens: 0, outputTokens: 0, knownOutputTokens: 0, freshInputTokens: 0,
+        cacheReadInputTokens: 0, cacheWriteInputTokens: 0, wallMs: 0, unknownReasons: [],
+      }] });
+      clock += 1000;
+      store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', head: commit, digest, policy: 'any', note: 'the page shows it' });
+      clock += 1000;
+      store.merged(board, id, { agentId: 'coordinator', commit: String(id).padStart(40, 'b') });
+    }
     for (let id = 4; id <= 22; id++) {
       const freshInputTokens = id === 21 ? 1_500_000 : id === 22 ? 3_000_000 : 1_000_000;
       store.recordUsage(board, { agentId: agent.agent_id, item: id, revision: 100, observedAt: id, records: [{

@@ -12,6 +12,7 @@ import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { landingTestDefects } from "../../../../store/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../state/light.js";
+import { FORCED_MERGE_ENGINE } from "../../../../state/light.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -36,7 +37,7 @@ function existingEngine(args, board, at) {
 /** A computed batch cannot be finished by a receiver that would ignore its event-bound authority. */
 function minimumEngine(args, board, at) {
   const batch = board && latestLandingBatch(board, args[0]?.id);
-  return Math.max(batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1, existingEngine(args, board, at), batch && (quarantineBatchGates(batch).length
+  return Math.max(batch?.external ? FORCED_MERGE_ENGINE : 1, batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1, existingEngine(args, board, at), batch && (quarantineBatchGates(batch).length
     || Object.hasOwn(batch.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
 }
 

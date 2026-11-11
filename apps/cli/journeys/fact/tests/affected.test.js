@@ -408,7 +408,7 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   box.put('apps/cli/journeys/spec/person.test.js', "import '../../../../src/config.js';\n");
-  box.put('test/runner-reader.test.js', "import '../packages/gate/src/io/run/tests.js';\n");
+  box.put('test/runner-reader.test.js', "import '../apps/cli/src/io/run/tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
   const mapped = mappedWorkingSource(sourceRoot, 'src/config.js');

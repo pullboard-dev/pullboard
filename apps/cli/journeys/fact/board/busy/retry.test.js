@@ -127,6 +127,7 @@ test('submit dry-run prepares repository evidence before locking and records a h
     '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
+  // @pullboard-board-file locking: the retry case needs a second connection contending on the same board file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined,
     { gitRoot: box.repo, writeContext: { command: 'submit-preflight' } });
   t.after(() => closeBoard(board));
@@ -180,6 +181,7 @@ test('submit dry-run prepares again when another seat commits after preparation,
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const file = join(box.repo, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file locking: the retry case needs a second connection contending on the same board file.
   const board = openBoard(file, undefined, { gitRoot: box.repo, writeContext: { command: 'submit-preflight' } });
   t.after(() => closeBoard(board));
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder'), model: 'fixture', family: 'openai' });

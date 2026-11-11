@@ -48,7 +48,7 @@ function actors(box) {
 }
 
 // Direct node --test preserves the existing native runner pool under coordinator30668.
-// packages/gate/src/io/run/tests.js deliberately isolates that pool: its deterministic lane uses only the private stand-in.
+// apps/cli/src/io/run/tests.js deliberately isolates that pool: its deterministic lane uses only the private stand-in.
 test('a local developer, a runner developer and a pull-request developer share one board and one receipt format [B3,R3,C7]', { timeout: 300_000 }, async t => {
   const started = performance.now();
   const registered = loadMachineSettings().runners ?? [];

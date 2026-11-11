@@ -14,6 +14,7 @@ import {
   after,
   test,
 } from 'node:test';
+import { runThinHook } from '../../src/io/hook/thin.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
@@ -29,7 +30,7 @@ function counted(box, cwd, extraEnv, args) {
   writeFileSync(loader, "import { appendFileSync } from 'node:fs';\nexport async function load(url, ctx, next) { appendFileSync(process.env.COUNT_FILE, url + '\\n'); return next(url, ctx); }\n");
   writeFileSync(preload, "import { register } from 'node:module';\nregister('./count-loader.mjs', import.meta.url);\n");
   rmSync(counts, { force: true });
-  const bin = join(box.dir, 'bin', 'pullboard');
+  const bin = join(box.dir, 'bin/pullboard');
   const shim = readFileSync(bin, 'utf8').match(/exec "([^"]+)" "([^"]+)"/u);
   const env = { ...box.env, ...extraEnv, COUNT_FILE: counts, NODE_OPTIONS: `--import ${preload}` };
   const result = runFixtureChild(shim[1], [shim[2], 'hook', ...args], { cwd, env, encoding: 'utf8' });
@@ -65,4 +66,15 @@ test('commit-msg outside an agent session loads at most 1,000 modules and matche
     if (label === 'blocked') assert.notEqual(thin.code, 0, 'the blocked message is refused');
     else assert.equal(thin.code, 0, thin.err);
   }
+});
+
+test('a thin hook that refuses prints its refusal and exits 1 instead of crashing [H24]', async () => {
+  const box = e2e.project('true');
+  const chunks = [];
+  const sink = { write(text) { chunks.push(String(text)); return true; } };
+  const code = await runThinHook(['hook', 'no-such-hook'], { cwd: box.web, stdout: sink, stderr: sink, stdin: process.stdin });
+  const text = chunks.join('');
+  assert.equal(code, 1);
+  assert.match(text, /\[USAGE\] pullboard hook pre-commit/u);
+  assert.match(text, /\nnext: /u);
 });

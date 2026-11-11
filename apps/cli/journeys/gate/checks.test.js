@@ -87,7 +87,7 @@ test('clause 1: a future client replays move floors while refusal guidance loads
 test('clause 2: a split train landing repoints open and claimed checks and reports submitted checks unchanged [C7,H16]',
   { timeout: 120_000 }, async t => { // budget: private project setup, one native gate and owned cleanup.
     const helpers = createE2eHelpers();
-    const box = helpers.project('node packages/gate/src/io/run/tests.js web/legacy-a.test.js web/legacy-b.test.js', undefined, { withWorktree: false });
+    const box = helpers.project('node apps/cli/src/io/run/tests.js web/legacy-a.test.js web/legacy-b.test.js', undefined, { withWorktree: false });
     t.after(async () => helpers.cleanup());
     delete box.env.NODE_TEST_CONTEXT;
     const fixtureHooks = join(box.dir, 'fixture-hooks');
@@ -105,7 +105,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
     const baseTree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
-    const check = 'node packages/gate/src/io/run/tests.js web/legacy.test.js';
+    const check = 'node apps/cli/src/io/run/tests.js web/legacy.test.js';
     const freeze = criterion => {
       const text = JSON.stringify({ criterion, rows: [], policy: { version: 1, commit: base,
         verify: { policy: 'any', family: 'off' } } });
@@ -122,7 +122,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
       const openId = makeItem(board, 'Open check');
       const claimedId = makeItem(board, 'Claimed check');
       const submittedId = makeItem(board, 'Submitted check');
-      const malformedId = makeItem(board, 'Malformed check', "node packages/gate/src/io/run/tests.js 'web/legacy.test.js");
+      const malformedId = makeItem(board, 'Malformed check', "node apps/cli/src/io/run/tests.js 'web/legacy.test.js");
       const trainId = makeItem(board, 'Landing carrier');
       store.claim(board, openId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Open check') });
@@ -181,14 +181,14 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
       [prepared.openId, prepared.claimedId].sort((a, b) => a - b));
     assert.deepEqual(landed.checkRepointReport.blocked.map(entry => entry.id).sort((a, b) => a - b),
       [prepared.submittedId, prepared.malformedId].sort((a, b) => a - b));
-    const expected = "node packages/gate/src/io/run/tests.js 'web/legacy-a.test.js' 'web/legacy-b.test.js'";
+    const expected = "node apps/cli/src/io/run/tests.js 'web/legacy-a.test.js' 'web/legacy-b.test.js'";
     onBoard(box, board => {
       assert.equal(store.getItem(board, prepared.openId).item_check, expected);
       assert.equal(store.getItem(board, prepared.openId).item_status, 'open');
       assert.equal(store.getItem(board, prepared.claimedId).item_check, expected);
       assert.equal(store.getItem(board, prepared.claimedId).item_status, 'claimed');
       assert.equal(store.getItem(board, prepared.submittedId).item_check, check);
-      assert.equal(store.getItem(board, prepared.malformedId).item_check, "node packages/gate/src/io/run/tests.js 'web/legacy.test.js");
+      assert.equal(store.getItem(board, prepared.malformedId).item_check, "node apps/cli/src/io/run/tests.js 'web/legacy.test.js");
       for (const id of [prepared.openId, prepared.claimedId]) {
         const edit = store.events(board, { itemId: id }).find(event => event.event_kind === 'edit');
         assert.deepEqual(JSON.parse(edit.event_detail).barCorrection.fields, ['check']);

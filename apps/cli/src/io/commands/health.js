@@ -37,7 +37,7 @@ export async function run(io, { values = {} } = {}) {
   report.toolBuild.newestEligible = eligible ? { commit: eligible.commit, gatedAt: eligible.gatedAt,
     ageMs: Math.max(0, ctx.clock.now().getTime() - Date.parse(eligible.gatedAt)) } : null;
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
-  report.autoQuarantines = automaticQuarantines(ctx.file);
+  report.autoQuarantines = automaticQuarantines(ctx.file, ctx.clock);
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
   report.overdueRunnerLeases = runnerHealth.filter(row => row.deadline !== undefined);
   report.runnerLifecycleProblems = runnerHealth.filter(row => row.problem);
@@ -126,10 +126,10 @@ export function blockLines({ codes, drafts }, { detail = true } = {}) {
     ...drafts.map(draft => detail ? `  repeated, draft an item: ${draft.command}` : `  repeated ${draft.cause}: coordinator item draft available with --detail`)];
 }
 
-/** Read active automatic quarantines without opening a mutable board or exposing private log bytes. */
-function automaticQuarantines(file) {
+/** Read active automatic quarantines without opening a mutable board or exposing private log bytes; the clock lets each item's stage be read. */
+function automaticQuarantines(file, clock) {
   if (!existsSync(file)) return [];
   const db = openBoardReadOnly(file);
-  try { return flakeQuarantines({ db }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
+  try { return flakeQuarantines({ db, clock }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
   finally { db.close(); }
 }

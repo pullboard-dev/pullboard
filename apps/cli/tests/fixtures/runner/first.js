@@ -58,7 +58,7 @@ export async function runnerFirstPolicyCase(e2e) {
   }
   // With two or more runners the first is kept for timed checks by default; rotation needs every runner open to ordinary runs.
   const keptSettings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  writeFileSync(settingsFile, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false } }));
+  writeFileSync(settingsFile, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false, runnerDispatch: 'controller' } }));
   const first = box.run(box.repo, 'settings', 'gate.runnersFirst', 'on');
   assert.equal(first.code, 0, first.err);
   const browserZero = box.run(box.repo, 'settings', 'browserSlots', '0');

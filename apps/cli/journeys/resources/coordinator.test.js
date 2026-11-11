@@ -73,7 +73,7 @@ test('clause 2: run-tests and a bare node --test refuse on the coordinator witho
   const files = privateFixtureFiles('pullboard-coordinator-tests-');
   const env = coordinatorEnv(files);
   files.write('probe.test.js', `import ${JSON.stringify(join(REPO, 'apps/cli/tests/fixtures/child.js'))};\nimport { test } from 'node:test';\ntest('probe [C7]', () => {});\n`);
-  const runTests = spawnSync(process.execPath, [join(REPO, 'packages/gate/src/io/run/tests.js'), join(files.root, 'probe.test.js')], { cwd: files.root, env, encoding: 'utf8' });
+  const runTests = spawnSync(process.execPath, [join(REPO, 'apps/cli/src/io/run/tests.js'), join(files.root, 'probe.test.js')], { cwd: files.root, env, encoding: 'utf8' });
   assert.equal(runTests.status, 2, runTests.stderr);
   assert.match(runTests.stderr, /\[TESTS_ON_COORDINATOR\].*pullboard test/u, 'run-tests names pullboard test as the way');
   const bare = spawnSync(process.execPath, ['--test', join(files.root, 'probe.test.js')], { cwd: files.root, env, encoding: 'utf8' });
