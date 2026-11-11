@@ -346,7 +346,7 @@ async function landingGate(box, label, deadlineMs, repo = box.repo) {
 /** Start a landing immediately; callers may start several before lending their one place serially. */
 function startLandingGate(box, label, deadlineMs, repo = box.repo) {
   const gateUrl = pathToFileURL(join(repo, 'packages', 'gate', 'index.js')).href;
-  const configUrl = pathToFileURL(join(repo, 'src/config.js')).href;
+  const configUrl = pathToFileURL(join(repo, 'packages/config/index.js')).href;
   const script = `const { runGate } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
 const { loadConfig } = await import(${JSON.stringify(configUrl)});
@@ -499,13 +499,13 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
  * every runner call with `answer` (a refusal code, or DROPPED for a lost transport).
  */
 async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
-  const url = name => JSON.stringify(pathToFileURL(repoPath(SOURCE, `src/${name}`)).href);
+  const url = name => JSON.stringify(pathToFileURL(repoPath(SOURCE, name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
   const script = `const { runLandingShards } = await import(${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)});
-const { parseProcessCensus } = await import(${url('../../../../packages/kernel/src/logic/census.js')});
-const { landingShardProfile } = await import(${url('../../../../packages/gate/index.js')});
-const { Refused } = await import(${url('../../../../packages/kernel/index.js')});
-const { RunnerDropped } = await import(${url('runners.js')});
+const { parseProcessCensus } = await import(${url('packages/kernel/src/logic/census.js')});
+const { landingShardProfile } = await import(${url('packages/gate/index.js')});
+const { Refused } = await import(${url('packages/kernel/index.js')});
+const { RunnerDropped } = await import(${url('packages/gate/light.js')});
 const { appendFileSync } = await import('node:fs');
 const answer = ${JSON.stringify(answer)};
 const calls = [];
