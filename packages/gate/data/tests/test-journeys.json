@@ -10065,6 +10065,50 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
+    "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/selection/landing.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/selection/invariants.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/selection/jest.test.js": {
+      "cells": [
+        "config",
+        "gate",
+        "sandbox"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
     "test/submit-gate-ticks-clause.test.js": {
       "cells": [
         "app:cli",
