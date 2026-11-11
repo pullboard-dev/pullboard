@@ -90,7 +90,7 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/relay/sealed/checkpoint.test.js": 8,
   "apps/cli/journeys/relay/sealed/recovery.test.js": 22,
   "apps/cli/journeys/relay/snapshot/recovery.test.js": 2,
-  "apps/cli/journeys/relay/snapshot/size.test.js": 4,
+  "apps/cli/journeys/relay/snapshot/size.test.js": 3,
   "apps/cli/journeys/relay/upload/pause.test.js": 1,
   "apps/cli/journeys/reopen/conflict.test.js": 3,
   "apps/cli/journeys/engine/reopen.test.js": 18,

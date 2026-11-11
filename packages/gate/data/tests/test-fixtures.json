@@ -1671,6 +1671,9 @@
   "packages/commits/tests/io/revert.test.js": {
     "tempdir": 1
   },
+  "packages/api/tests/io/state/materializer/stamp.test.js": {
+    "tempdir": 1
+  },
   "apps/cli/journeys/init/refresh.test.js": {
     "tempdir": 3,
     "repo-read": 1
@@ -2625,6 +2628,9 @@
     "hand-policy": 1,
     "tempdir": 1
   },
+  "apps/cli/tests/fixtures/relay/sealed-client.js": {
+    "raw-board": 2
+  },
   "apps/cli/tests/fixtures/relay/client.js": {
     "tempdir": 3,
     "env-spread": 1
@@ -2787,7 +2793,7 @@
     "raw-board": 2
   },
   "apps/cli/journeys/relay/snapshot/size.test.js": {
-    "raw-board": 5
+    "raw-board": 3
   },
   "apps/relay/tests/io/quota.test.js": {
     "tempdir": 1
