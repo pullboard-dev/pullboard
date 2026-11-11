@@ -1,6 +1,5 @@
 /** Bars a builder cannot satisfy: a check or criterion naming paths missing from main [C7]. */
 import { tryGit } from '../../../../../packages/git/index.js';
-import { checkTestFiles } from '../../../../../packages/items/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { trunkBranch } from './folder.js';
 import { laneOf } from '../../../../../packages/seats/index.js';
@@ -9,10 +8,9 @@ import { laneOf } from '../../../../../packages/seats/index.js';
 const COORDINATOR = 'coordinator';
 
 /**
- * The paths a bar names that the build cannot reach on main. A path counts as missing when it is absent from main and
- * either no lane owns it (a layout the repository left, such as test/ or bin/, which no seat may recreate), or the check
- * runs it and it is not a test file the item may add. Why: 284 live items named paths the Cells move retired and every
- * core seat stopped on one; a new file in a lane's folder, or a new test the check names, is how a bar asks for new work.
+ * The paths a bar names that the build cannot reach on main: absent from main and owned by no lane, such as the test/ and
+ * bin/ layout the Cells move retired, which no seat may recreate. Why: 284 live items named such paths and every core
+ * seat stopped on one; a path absent from main inside a lane's folders is how a bar asks for a new file, so it stays allowed.
  *
  * @param {{ criterion?: string, check?: string }} bar - Its check and criterion; a brief's file list is guidance, not the bar.
  * @param {(paths: string[]) => Set<string>} present - Which of these paths exist on main.
@@ -23,11 +21,8 @@ const COORDINATOR = 'coordinator';
 export function missingBarPaths(bar, present, owned, barPaths) {
   const named = barPaths({ criterion: bar.criterion, check: bar.check }).filter(path => path !== 'pullboard.json');
   if (!named.length) return [];
-  const checked = new Set(barPaths({ check: bar.check }, { prose: false }));
-  const tests = new Set(checkTestFiles(bar.check ?? ''));
   const found = present(named);
-  return named.filter(path => !found.has(path.replace(/\/$/u, ''))
-    && (!owned(path) || (checked.has(path) && !tests.has(path))));
+  return named.filter(path => !found.has(path.replace(/\/$/u, '')) && !owned(path));
 }
 
 /**
