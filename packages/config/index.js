@@ -48,6 +48,7 @@ export {
   browserByLaunchEnabled,
   runnerDispatchMode,
   mainComparisonMode,
+  submitAuthorizationMode,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   memoryFloorMB,
