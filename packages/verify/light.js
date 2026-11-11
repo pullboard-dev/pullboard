@@ -21,7 +21,7 @@ export function testOutcomeFields(value) {
   return rows;
 }
 
-const LANE_TEST_PART = /^(?:node --test|node (?:bin\/run-tests|packages\/gate\/src\/io\/run\/tests)\.js)(?: --test-force-exit)?((?: [A-Za-z0-9_][A-Za-z0-9_./-]*\.test\.js)+)$/u;
+const LANE_TEST_PART = /^(?:node --test|node (?:bin\/run-tests|(?:packages\/gate|apps\/cli)\/src\/io\/run\/tests)\.js)(?: --test-force-exit)?((?: [A-Za-z0-9_][A-Za-z0-9_./-]*\.test\.js)+)$/u;
 
 /**
  * The test files of a check that is only `node --test` or `node apps/cli/src/io/run/tests.js` over plain .test.js paths, joined by &&;

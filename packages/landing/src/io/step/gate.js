@@ -272,7 +272,7 @@ function criterionTestFiles(root, entry, item, runner, detail) {
   const prefix = literalShellWords(runner);
   const ownRunner = prefix?.length && prefix.every((word, index) => words[index] === word) ? prefix.length : 0;
   const node = /(?:^|\/)node(?:\.exe)?$/u.test(words[0]);
-  const length = ownRunner || (node && (words[1] === '--test' || /(?:^|\/)(?:bin\/run-tests|packages\/gate\/src\/io\/run\/tests)\.js$/u.test(words[1] ?? '')) ? 2 : 0);
+  const length = ownRunner || (node && (words[1] === '--test' || /(?:^|\/)(?:bin\/run-tests|(?:packages\/gate|apps\/cli)\/src\/io\/run\/tests)\.js$/u.test(words[1] ?? '')) ? 2 : 0);
   if (!length || words.length <= length) return null;
   const files = [];
   for (const raw of words.slice(length)) {
