@@ -97,16 +97,16 @@ for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
-    let counts = [], waiting = 0;
+    let counts = [], waiting = 0, inflight = 0;
     const sampler = setInterval(() => {
-      if (waiting < ${count}) return;
+      if (waiting < 1 || waiting < inflight) return;
       try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
     const ready = new Set();
-    const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => settle(runPulled(root, command, {
+    const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => { inflight += 1; return settle(runPulled(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata },
-      { waitRunnerJob: miniAgent(state => { if (state) ready.add(index); else ready.delete(index); waiting = ready.size; }) })),
+      { waitRunnerJob: miniAgent(state => { if (state) ready.add(index); else ready.delete(index); waiting = ready.size; }) })).then(result => { inflight -= 1; return result; }); },
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} })));
     clearInterval(sampler);
     const left = dir => { try { return readdirSync(dir); } catch { return []; } };
