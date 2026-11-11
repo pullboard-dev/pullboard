@@ -1216,21 +1216,21 @@ scenario('a long shout folds and stays open across a refresh', async ({ Given, W
   /** The long card's fold control, how many lines its text shows, and whether it is marked open. */
   const folded = () => `JSON.stringify((() => { const c = document.querySelector('#feed #shout-${id}'), t = c.querySelector('.text'); return [c.querySelector('.more').textContent, Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight)), c.classList.contains('open')]; })())`;
   await layouts(async ({ at }) => {
-    await Given('the long shout is folded at six lines', async () => {
-      await chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['more', 6, false]))}`);
+    await Given('the long shout is folded at three lines', async () => {
+      await chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show all', 3, false]))}`);
     });
-    await When('the person presses more', () => press(chrome, q(`#feed #shout-${id} .more`)));
-    await Then('every line shows and the control says less', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['less', 12, true]))}`));
+    await When('the person presses Show all', () => press(chrome, q(`#feed #shout-${id} .more`)));
+    await Then('every line shows and the control says Show less', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show less', 12, true]))}`));
     const later = `A later shout at ${at}.`;
     await When('a new shout refreshes the feed', async () => {
       box.run(p.web, 'shout', 'all', later);
       await chrome.waitFor(`document.querySelector('#feed .shout .text')?.textContent === ${JSON.stringify(later)}`, 15_000); // budget: hang ceiling for the live refresh to bring the new shout; no throughput claim.
     });
     await Then('the long shout is still open', async () => {
-      assert.equal(await chrome.stable(folded()), JSON.stringify(['less', 12, true]), 'an open shout stays open across a refresh');
+      assert.equal(await chrome.stable(folded()), JSON.stringify(['Show less', 12, true]), 'an open shout stays open across a refresh');
     });
-    await When('the person presses less', () => press(chrome, q(`#feed #shout-${id} .more`)));
-    await And('it folds again at six lines', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['more', 6, false]))}`));
+    await When('the person presses Show less', () => press(chrome, q(`#feed #shout-${id} .more`)));
+    await And('it folds again at three lines', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show all', 3, false]))}`));
   });
 });
 
