@@ -40,7 +40,7 @@ function barChangedThenFresh(t) {
   return box;
 }
 
-test('next skips an item whose lane policy changed its bar and claims the next one (#3793) [C7]', t => {
+test('clause 1: next skips an item whose lane policy changed its bar and claims the next one (#3793) [C7]', t => {
   const box = barChangedThenFresh(t);
   const first = box.run(box.web, 'next');
   assert.equal(first.code, 0, first.err || first.out);
@@ -48,7 +48,7 @@ test('next skips an item whose lane policy changed its bar and claims the next o
   assert.match(first.out, /claimed #2: Fresh item/u);
 });
 
-test('the coordinator hears of a stale item once per frozen bar, not once per next (#3793) [C7,B7]', t => {
+test('clause 2: the coordinator hears of a stale item once per frozen bar, not once per next (#3793) [C7,B7]', t => {
   const box = barChangedThenFresh(t);
   success(box, box.web, 'next');
   const second = join(box.dir, 'web-2');
@@ -63,7 +63,7 @@ test('the coordinator hears of a stale item once per frozen bar, not once per ne
   assert.equal(inbox.split('next passes over #1 until it is refrozen').length - 1, 1, 'one shout to the coordinator');
 });
 
-test('a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', t => {
+test('clause 3: a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
