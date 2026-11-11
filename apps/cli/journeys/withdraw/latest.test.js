@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { viewApiPorts } from '../../../../../../apps/view/index.js';
-import { refusalDocument } from '../../../../../../apps/cli/index.js';
-import { serveApi } from '../../../../index.js';
-import { apiBoardOpeners } from '../../../../../../apps/cli/tests/fixtures/board.js';
-import { apiHttpFixture } from '../../../../../../apps/cli/tests/fixtures/api.js';
-import { main } from '../../../../../../apps/cli/tests/fixtures/native.js';
+import { viewApiPorts } from '../../../view/index.js';
+import { refusalDocument } from '../../index.js';
+import { serveApi } from '../../../../packages/api/index.js';
+import { apiBoardOpeners } from '../../tests/fixtures/board.js';
+import { apiHttpFixture } from '../../tests/fixtures/api.js';
+import { main } from '../../tests/fixtures/native.js';
 
-const STATE_PORTS = new URL('../../../../../../apps/cli/src/io/commands/serve.js', import.meta.url).href;
+const STATE_PORTS = new URL('../../src/io/commands/serve.js', import.meta.url).href;
 
 test('[A2,C7,N26] a read of an unchanged board reports a newer flow asOf, with the same content and no new build', async (t) => {
   const box = apiHttpFixture(t);
