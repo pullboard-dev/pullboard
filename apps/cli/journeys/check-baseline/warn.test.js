@@ -16,6 +16,7 @@ import {
   fileCheck,
   addChecked,
   cleanupFixtures,
+  withBoard,
 } from '../../tests/fixtures/check-baseline.js';
 import { exportBoard } from '../../../../packages/store/index.js';
 
