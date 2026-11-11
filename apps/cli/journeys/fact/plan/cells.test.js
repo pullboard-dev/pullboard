@@ -57,11 +57,13 @@ test('every moved path in the committed plan is in exactly one cell, with one ta
     for (const [from, to] of cell.paths) {
       assert.ok(!owners.has(from), `${from} is in ${owners.get(from)} and ${cell.name}`);
       owners.set(from, cell.name);
-      assert.ok(to.startsWith(`${cell.root}/src/core/`) || to.startsWith(`${cell.root}/src/shell/`) || to.startsWith(`${cell.root}/tests/`), `${to} sits in ${cell.root}'s anatomy`);
+      assert.ok(['src/logic/', 'src/io/', 'tests/', 'data/'].some(folder => to.startsWith(`${cell.root}/${folder}`)), `${to} sits in ${cell.root}'s anatomy`);
       assert.ok(!targets.has(to), `${to} is the target of ${targets.get(to)} and ${from}`);
       targets.set(to, from);
     }
-    assert.ok(cell.item.criterion && cell.item.check === `node packages/codemap/src/io/cells/scripts/plan.js --moved ${cell.name}`, `${cell.name} carries a frozen check`);
+    // A finished cell carries no paths and no item: its move landed and its rows left the plan with it.
+    if (cell.paths.length === 0) assert.equal(cell.item, undefined, `${cell.name} finished, so it carries no item`);
+    else assert.ok(cell.item.criterion && cell.item.check === `node packages/codemap/src/io/cells/scripts/plan.js --moved ${cell.name}`, `${cell.name} carries a frozen check`);
   }
   for (const row of PLAN.stays) assert.ok(!owners.has(row.path), `${row.path} both stays and moves`);
   assert.equal(owners.size, PLAN.totals.movedPaths);
@@ -80,10 +82,12 @@ test('no cut edge names a file without a plan row, so the cut reader and the sub
 
 test('the plan places every tracked module and asset under src/, bin/ and relay/ at its base commit [D3,CD60]', () => {
   assert.match(PLAN.base, /^[0-9a-f]{40}$/u, 'the plan records the commit it was computed at');
-  const listed = git(ROOT, 'ls-tree', '-r', '--name-only', PLAN.base);
-  const placed = new Set([...PLAN.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...(PLAN.retired ?? []).map(entry => entry.row[0]), ...PLAN.stays.map(row => row.path)]);
-  const missing = listed.split('\n').filter(file => inPlanScope(file) && !placed.has(file));
-  assert.deepEqual(missing, [], 'regenerate with node packages/codemap/src/io/cells/scripts/plan.js --write');
+  const listed = new Set(git(ROOT, 'ls-tree', '-r', '--name-only', PLAN.base).split('\n'));
+  const rows = [...PLAN.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...PLAN.stays.map(row => row.path)];
+  assert.deepEqual(rows.filter(file => !listed.has(file)), [], 'a kept row names a file its base commit does not hold');
+  const stays = new Set(PLAN.stays.map(row => row.path));
+  const left = git(ROOT, 'ls-files').split('\n').filter(file => inPlanScope(file) && !stays.has(file));
+  assert.deepEqual(left, [], 'the freeze moved every module and asset out of the old roots; place a new one under its cell, not at the root');
 });
 
 test('no cell is ordered ahead of a cell it imports, computed from the real source, except the cuts it names [D3,CD64]', () => {
@@ -106,7 +110,7 @@ test('no cell is ordered ahead of a cell it imports, computed from the real sour
   assert.equal(checked, crossCellEdges.length, 'the order check visits every cross-cell import in the inventory');
   assert.deepEqual([...ahead], [], 'name the import as a cut of the later cell, or regenerate with node packages/codemap/src/io/cells/scripts/plan.js --write');
   for (const cell of PLAN.cells) {
-    for (const name of cell.item.after) assert.ok(position.get(name) < cell.order, `${cell.name} waits only on earlier cells`);
+    for (const name of cell.item?.after ?? []) assert.ok(position.get(name) < cell.order, `${cell.name} waits only on earlier cells`);
     if (!cell.name.startsWith('app:')) assert.ok(PLAN.cells.filter(other => other.name.startsWith('app:')).every(app => app.order > cell.order), `package ${cell.name} moves before every app`);
   }
 });
@@ -123,7 +127,9 @@ test('a plan built from real files orders leaves first, cuts the cycle and place
   assert.deepEqual(later.cuts.map(row => row.cell), [earlier.name], 'the store and items cycle becomes one named cut');
   assert.equal(plan.cells.find(cell => cell.name === 'stats').paths.find(([from]) => from === 'src/stats-flow.js')?.[2], 'rule', 'the newer stats-flow module joins stats by the dry run name rule');
   assert.deepEqual(plan.stays.map(row => row.path), ['bin/tool.js']);
-  assert.ok(plan.cells.find(cell => cell.name === 'stats').paths.every(([, to]) => to.startsWith('packages/stats/src/io/cost/')), 'a module reading files is shell');
+  const statsPaths = plan.cells.find(cell => cell.name === 'stats').paths;
+  assert.ok(statsPaths.find(([from]) => from === 'src/stats.js')?.[1].startsWith('packages/stats/src/io/'), `a module reading files is io: ${JSON.stringify(statsPaths)}`);
+  assert.ok(statsPaths.find(([from]) => from === 'src/stats-flow.js')?.[1].startsWith('packages/stats/src/logic/'), `a module with no input or output is logic: ${JSON.stringify(statsPaths)}`);
   assert.equal(plan.cells.find(cell => cell.name === 'kernel').paths[0][1], 'packages/kernel/src/logic/refused.js', 'a module with no input or output is core');
   const commands = itemCommands(plan);
   assert.equal(commands.length, plan.cells.length);
@@ -145,7 +151,7 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   const kernel = plan.cells.find(cell => cell.name === 'kernel');
   assert.ok(checkMoved(root, plan, 'kernel').length > 0, 'an unmoved cell fails its check');
   put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   assert.match(checkMoved(root, plan, 'kernel').join('\n'), /src\/refused\.js still holds code/u, 'code left at the old path fails');
   put('src/refused.js', "export { Refused } from '../../../../../packages/kernel/index.js';\n");
   assert.deepEqual(checkMoved(root, plan, 'kernel'), [], `${kernel.name} moved behind a shim`);
@@ -162,7 +168,7 @@ test('a moved shim that bypasses its unreachable front door fails by both paths 
   const plan = computePlan(root);
   writePlan(root, plan);
   put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   put('src/refused.js', "export { Refused } from '../../../../../packages/kernel/light.js';\n");
   const problems = checkMoved(root, plan, 'kernel');
   assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door packages/kernel/index.js')), problems.join('\n'));
@@ -180,11 +186,11 @@ test('only exact named own-body worker shims pass the bounded process-entry exce
     writePlan(root, plan);
     put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
     put('packages/kernel/src/logic/other.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
     put('src/board.js', "import { Refused } from '../../../../../packages/kernel/index.js';\nexport const board = () => Refused;\n");
     const leaf = mode === 'wrong-leaf' ? 'other' : 'refused';
     const bindings = mode === 'star' ? '*' : '{ Refused }';
-    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/core/${leaf}.js';\n`);
+    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/logic/${leaf}.js';\n`);
     let worker = mode === 'non-worker' ? 'export const worker = true;\n' : "import { Refused } from './refused.js';\nexport const worker = Refused;\n";
     if (mode === 'opaque') worker += 'new URL(process.env.UNKNOWN_WORKER_PATH, import.meta.url);\n';
     if (mode === 'oversize') worker += `export const padding = '${'x'.repeat(1_048_576)}';\n`;
@@ -203,11 +209,11 @@ test('only exact named own-body move shims pass the bounded move-registry except
     writePlan(root, plan);
     put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
     put('packages/kernel/src/logic/other.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
     put('src/board.js', "import { Refused } from '../../../../../packages/kernel/index.js';\nexport const board = () => Refused;\n");
     const leaf = mode === 'wrong-leaf' ? 'other' : 'refused';
     const bindings = mode === 'star' ? '*' : '{ Refused }';
-    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/core/${leaf}.js';\n`);
+    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/logic/${leaf}.js';\n`);
     put('apps/runner/src/io/scripts/worker.js', 'export const worker = true;\n');
     let move = mode === 'outside' ? 'export const move = true;\n'
       : "import { Refused } from '../refused.js';\nexport const move = Refused;\n";
@@ -226,7 +232,7 @@ test('a correct shim does not make an otherwise unreachable moved package reacha
   const plan = computePlan(root);
   writePlan(root, plan);
   put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   put('src/refused.js', "export { Refused } from '../../../../../packages/kernel/index.js';\n");
   put('src/board.js', "import { claims } from './claims.js';\nexport const board = () => claims;\n");
   assert.ok(checkMoved(root, plan, 'kernel').some(problem => problem.includes('unreachable front door packages/kernel/index.js')));
@@ -462,9 +468,9 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
     writePlan(root, plan);
     put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
     put('packages/kernel/src/logic/other.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
     put('src/board.js', "import { Refused } from '../../../../../packages/kernel/index.js';\nexport const board = () => Refused;\n");
-    put('src/refused.js', `export { Refused } from '../packages/kernel/src/core/${mode === 'wrong-leaf' ? 'other' : 'refused'}.js';\n`);
+    put('src/refused.js', `export { Refused } from '../packages/kernel/src/logic/${mode === 'wrong-leaf' ? 'other' : 'refused'}.js';\n`);
     if (['live', 'expired', 'wrong-leaf'].includes(mode)) put('packages/codemap/data/plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'packages/kernel/src/logic/refused.js', contractItem: 42, expires: mode === 'expired' ? '2000-01-01' : '2999-01-01' }] }));
     if (mode === 'uncommitted-history') put('packages/state/data/history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
     const notes = [], problems = checkMoved(root, plan, 'kernel', { notes });
