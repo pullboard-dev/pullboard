@@ -661,7 +661,8 @@ test('output after the match', async () => {
   for (const command of commands) {
     const item = repoWithGate('true', command);
     const baseline = JSON.parse(item.run('show', '1', '--json').stdout).item_check_baseline;
-    assert.equal(baseline.result, 'green', `background baselines preserve last-stage semantics: ${JSON.stringify({ command, reason: baseline.reason })}`);
+    // The fixture board registers no runner, and a baseline never runs on this machine (#2520): it waits as pending.
+    assert.equal(baseline.result, 'pending', `a baseline with no runner waits: ${JSON.stringify({ command, reason: baseline.reason })}`);
     const checked = item.run('check', '1', '--yes');
     assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
     const submitted = item.run('submit', '1', '--json');
