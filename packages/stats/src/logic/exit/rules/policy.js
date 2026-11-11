@@ -1,7 +1,4 @@
-import models from '../../models.json' with { type: 'json' };
-
-/** Model labels with their own context ceiling come from models.json, so the core names none itself [P5]. */
-const CEILINGS = models.contextCeilings.map(({ match, ceiling }) => ({ match: new RegExp(match, 'iu'), ceiling }));
+import ceilings from '../../../../data/context-ceilings.json' with { type: 'json' };
 
 /** Pure exit decisions use known claim counters and exact consecutive receipt failures [B3,C7,N2]. */
 /** An unavailable or malformed count is unknown, never a reason to stop a session. */
@@ -31,11 +28,11 @@ export function exitRulesDecision(policy, usage, receipts = []) {
   return failure ? { code: 'EXIT_REPEAT_FAILURE', failure } : null;
 }
 
-/** The prompt size at which a session ends: exitRules.contextCeiling, else the models.json ceiling for a matching model label, 200000 otherwise [P5]. */
+/** The prompt size at which a session ends: exitRules.contextCeiling, else the per-family ceiling from packages/stats/data/context-ceilings.json [P5]. */
 export function contextCeiling(policy, model) {
   if (Number.isSafeInteger(policy?.contextCeiling) && policy.contextCeiling > 0) return policy.contextCeiling;
-  const label = String(model ?? '');
-  return CEILINGS.find(({ match }) => match.test(label))?.ceiling ?? models.defaultContextCeiling;
+  const name = String(model ?? '').toLowerCase();
+  return ceilings.families.find(family => name.includes(family.contains))?.ceiling ?? ceilings.default;
 }
 
 /** A seat whose last call's prompt exceeds the ceiling ends after its claim settles; unknown usage never ends a session [C7]. */
