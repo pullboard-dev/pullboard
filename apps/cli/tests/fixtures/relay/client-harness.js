@@ -699,12 +699,13 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   writeFileSync(join(worktrees[0], 'web', 'lost-submit.txt'), 'the work whose submission reply is lost\n');
   gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
   gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
+  const diagInventory = () => { const lines = []; for (const env of envs) { const dir = join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'); try { lines.push(dir + ': ' + readdirSync(dir, { recursive: true }).join(',')); } catch (error) { lines.push(dir + ': ' + error.code); } } lines.push('stash: ' + readdirSync(join(fixture.scratch, 'inventory-stash'), { recursive: true }).join(',')); lines.push('main tree ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'main^{tree}') + ' head ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD')); return lines.join('\n'); }; // DIAG-TEMP
   restoreInventories(); // a CLI step in between can drop the published accepted inventory the submit reads
   relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
   const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
   assert.equal(lostSubmit.status, 1);
-  assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE');
+  assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE', JSON.stringify(lostSubmit.document).slice(0, 600) + '\nDIAG:\n' + diagInventory()); // DIAG-TEMP
   const linkFile = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
   const pendingSubmit = JSON.parse(readFileSync(linkFile, 'utf8')).pending?.move;
   assert.equal(pendingSubmit?.operation, 'submit', 'the dropped reply belongs to the actual submission, not a preceding proof move');
@@ -723,7 +724,6 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
   const afterSubmitRecoverySetup = relay.uploads.length;
   restoreInventories();
-  const diagInventory = () => { const lines = []; for (const env of envs) { const dir = join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'); try { lines.push(dir + ': ' + readdirSync(dir, { recursive: true }).join(',')); } catch (error) { lines.push(dir + ': ' + error.code); } } lines.push('stash: ' + readdirSync(join(fixture.scratch, 'inventory-stash'), { recursive: true }).join(',')); lines.push('main tree ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'main^{tree}') + ' head ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD')); return lines.join('\n'); }; // DIAG-TEMP
   const diagBefore = diagInventory();
   const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next').catch(error => { error.message += '\nDIAG before:\n' + diagBefore + '\nafter:\n' + diagInventory(); throw error; }));
   const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
