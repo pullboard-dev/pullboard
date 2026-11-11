@@ -17,7 +17,7 @@ import {
 import { test } from 'node:test';
 
 // Accepted main265b6e8 pins store bodies except relocation operands; re-pinned 11 Nov to the accepted bodies after the layout freeze repointed their imports to cell doors, and src/native-user-directory.js left the store for the gate cell.
-// Held at their old pins, red until item 5541 reviews the change: board-write-lock (2309c5a0b4), native-board-state (e8c0687eaf, 0c571b5a1d), board-shout-audience (1073997c5e) changed in commits that carry no item.
+// Re-pinned 11 Nov (item 5541) after review: board-write-lock (2309c5a0b4), native-board-state (e8c0687eaf, 0c571b5a1d), board-shout-audience (1073997c5e, 2e3bcaf7c5).
 const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "43cff0e1fe6b69e3e06438f9842999ddca53d131e95ba935761bd12755a04e90",
   "src/known-main-autofile.js": "7e3b77ea7a14f8ddd28ae0cf6b94f17a012fa639223eb03216ae8c590610c9b8", "src/board-access.js": "be064e9e94d39ee5b3fd61495ab94df850c4eb1305dc82e51bad25a1c3c06b56",
@@ -33,13 +33,13 @@ const STORE_BODY_HASHES = {
   "src/board-read-open.js": "2a0842c798033bb90e6155953c2a919c1637671106b8b837ab01ff65129c8b19", "src/board-rehome.js": "ea3f4a0b7ab9584917f404e072c3b1462b2525b1084487ffaa528bbf0f486a21",
   "src/board-schema-source.js": "5c3452d8f15cd9dae45d0018bbdc8cafab5d33550fe82a932f496ee5dec91f0e", "src/board-schema.js": "105e2b3fa249287b8c95f57c46d1d90e9849b75f652de8e906cacd202eb16409",
   "src/board-signing-recovery.js": "5d29d936067c3514891d4d8bb050124446cd4e62298d5f84e8d86f69bacd6689", "src/board-stats.js": "48f3ed37e8518e7242ecd267b2548fe9deb288c3bb157e96e343bbdde340b4f6",
-  "src/board-store-guards.js": "59d61adf6f03ffeb7392bcf964889d1db456a5bcf09af0fd44e95ea4ac8d92ac", "src/board-write-lock.js": "814ecb9d465d12d8c611de7b485f5bd9e75cf1c497a5a8eda2363e522cda5686",
+  "src/board-store-guards.js": "59d61adf6f03ffeb7392bcf964889d1db456a5bcf09af0fd44e95ea4ac8d92ac", "src/board-write-lock.js": "2ea36cd927b11cc5a0256b2a5a8c96adf91dee83dcd4202193b0b99dbaf12a0b",
   "src/board.js": "556da6307cb60450852ca298080c710713ee0b8c2aee72b614aa8b64dc531301", "src/companion.js": "079af68eb5eee8d2aecd90e60efec0c363d740f6ccd5dc6e56a3e6bd64c6427b",
   "src/dispatch-eligibility.js": "49b81b4f1de7a5280f5dee6a432fade8c0fd24689deaae2fdf8c455b0c0670ce", "src/exchange.js": "c0ec04a21d0bd036a8e00599b22b474b9f8ad2b89ee410576c0f7feeb71a202e",
   "src/history.js": "fa0fd97a765ad359c5965b98d323a99e7d8a50d0905acd58affea61cfb43dad8", "src/item-check-baseline.js": "6e353d9996bc281b605b23a076a4b6161339ff6ff7b4b3a8162b91ed0b6bcd37",
   "src/known-main-reworks.js": "a5aad98f605c80efcc0aeb349ea8667f1c84424cbca8a8ff3876fc9de6705975", "src/local-state.js": "06fe20320b4ea99c757c5719e72a8e487bee988a4554ba446b14e2a6badaae55",
   "src/main-red-build-routing.js": "b2350feb701160bfbc1b27d8a9330666394f4dbefda1e9da9ca00b9ea0753881", "src/memory-held.js": "3ddaf339187426ca0ab5ac0518409853ded5120b7d247b2788f463144c082c70",
-  "src/native-board-state.js": "6d39353b6d3b2a273252deee57cc2820246fdefa897fdcbb7b71e0de293817d8", "src/native-state-clock.js": "cf9fb8899caa4cfc789d2ae26d3c538dffbf0d779d731044e7dbeaffe75e3426",
+  "src/native-board-state.js": "4a91c9fc2e2b0ab7f66c55e9ddd9df8a887af48caf336bec20b857e14b890770", "src/native-state-clock.js": "cf9fb8899caa4cfc789d2ae26d3c538dffbf0d779d731044e7dbeaffe75e3426",
   "src/outside-store.js": "d6267a06e55614b297c7d94439bb9257604fc4de3b677b65dd6dd612766c52db",
   "src/proof-receipts.js": "2f35b32fe056888bdf16b18565db4ac5c948f7e4e72653ff7e75c2fe18eacb0b", "src/seat-presence.js": "3f2548cc6ddb50df868364bd043d12a70371ceedbf1f10876bc212e77f1f0497",
   "src/source-advance-return.js": "a3c6716dd9cdeada128fe2a431c224b30a11c8259e2b73835d42a47ba3171c1a", "src/spec-approval-baseline.js": "fb68798d38de29b29fcbe1b7e38523a57213b3fb91034006ed970cbdb4ccaaa1",
@@ -50,7 +50,7 @@ const STORE_BODY_HASHES = {
   "src/board-activity-news.js": "449dbbc26897a4867120f3422373e73d5e439acf55571da9407117a27de5df18", "src/board-landing-exceptions.js": "99d1840643331a0dfbd602ff1028b206d0e680c1e1f13cc73e486fc6630d9e07",
   "src/board-landing-lease.js": "37c21648ec03eaf9fb01d9045d486e860616ba81a0e05e45564fcda343154d1b", "src/board-landing-local-lease.js": "98fc3ac1334995717c25db764d3702ca738f0488f9dae578c8abb98b46b4c190",
   "src/board-landing-test-defect-history.js": "70d6c4640975d02dc0edbf91365832a216b1bdca2ddb820881012f86da3fdbcb", "src/board-landing-test-defects.js": "4d2cf48713300c028b57c70603b8bc0f14194193de68fe47e3eaecd638a50977",
-  "src/board-inbox-store.js": "41ebf52053fcc0bef40fad4d0a7df4958a5c4b6fc77325c377c510a8ff684d01", "src/board-shout-audience.js": "cbee70607b8103c030ae5e3d07c02e9e263c13fa4764b9602a53ac59cb303a94",
+  "src/board-inbox-store.js": "41ebf52053fcc0bef40fad4d0a7df4958a5c4b6fc77325c377c510a8ff684d01", "src/board-shout-audience.js": "9078a6f547b3a685c975c509d35dd050812db474b10a38105b4bcbe978e8daf2",
   "src/board-worker-inbox.js": "d225b8b3535944363073c6cd0b63e8eb9ec2861534ddd1913807f4636c3a2b7f", "src/board-conditional-holds.js": "ca6b1226fba0060dca0608601d6e813d912fa49e9d1d2d2ffe3a29f988464e07",
   "src/board-health-receipts.js": "8008706cd1e878bb3c6aa46af590905849c512f6b26f0d67825e441877444423", "src/board-recurring-jobs.js": "3b236d573cc47bdd5141ddf6c3d7c1cfb52206ed2ccef64a8ee91cfe8ae87572",
   "src/board-release-claim.js": "b93155ed9b2cf709cfae59e9e0927fee5f93e80f788a59c91eec3d03bee9e5c6", "src/board-stale-claim-release.js": "ae23544ffc83d1f6a93ec2599273151ef4237394b9adb8f8b176fcf83a2d637c",
