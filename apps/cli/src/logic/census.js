@@ -67,8 +67,8 @@ export function tapFailures(output, files) {
 
 /**
  * One result row per planned file from its shard's output.
- * red: a case failed (named in `cases`); hung: its watchdog stopped it; unrun: the shard gave no answer, or was
- * stopped before this file reported; green: it ran with no failing case. Node runs each file in its own process
+ * red: a case failed (named in `cases`); hung: its watchdog stopped it; no-result: the shard was red without running
+ * its tests; unrun: the shard gave no answer, or was stopped before this file reported; green: it ran with no failing case. Node runs each file in its own process
  * and a collecting shard runs them all, so a red shard's file with no failing row passed.
  *
  * @param {object} shard
@@ -88,12 +88,15 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
   // The watchdog names the file as a JSON string, absolute inside the shard's checkout.
   const stopped = [...String(output).matchAll(/run-tests: (?:HUNG|TIMEOUT) file ("(?:[^"\\]|\\.)*")/gu)].flatMap((match) => { try { return [JSON.parse(match[1])]; } catch { return []; } });
   const isHung = file => stopped.some(path => path === file || path.endsWith(`/${file}`));
+  // A red shard that printed no TAP totals never ran its tests (a missing engine, a crash), so it vouches for no file.
+  const ran = /^# tests \d+/mu.test(String(output)) || status === 'green';
   const cut = /^Landing gate stopped early|Landing shard .* stopped by the landing/mu.test(String(output));
   return files.map((file) => {
     const ms = times[file];
     const verdict = status !== 'green' && status !== 'red' ? 'unrun'
       : isHung(file) ? 'hung'
         : failed.has(file) ? 'red'
+          : !ran ? 'no-result'
           : cut && !Number.isFinite(ms) ? 'unrun' : 'green';
     return { file, status: verdict, cases: failed.get(file) ?? [], secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
   });

@@ -46,10 +46,10 @@ function cleanHead(root) {
  * @param {object} io
  * @param {{ info: { root: string } }} ctx
  * @param {{ out?: string, json?: boolean }} values
- * @param {{ shards?: number, prefixes?: string[] }} [options] - `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing).
+ * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards }} [options] - `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
-export async function runCensus(io, ctx, values, { shards, prefixes = [] } = {}) {
+export async function runCensus(io, ctx, values, { shards, prefixes = [], run = runLandingShards } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
   const files = (await trackedTests(root)).filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
@@ -83,7 +83,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [] } = {})
   const started = Date.now();
   try {
     const bound = browserBoundFiles(root, files).then(list => new Set(list));
-    await runLandingShards({ root, runner: resolve(root, 'apps/cli/src/io/run/tests.js'), files, count: plan.length, fullScope: true, parseProcessCensus, write,
+    await run({ root, runner: resolve(root, 'apps/cli/src/io/run/tests.js'), files, count: plan.length, fullScope: true, parseProcessCensus, write,
       runnerAdmission: gateRunnerAdmission(), needsGui: shardFiles => testsNeedGui(root, shardFiles),
       needsBrowser: async shardFiles => { const set = await bound; return shardFiles.some(file => set.has(file)); } });
   } finally {
