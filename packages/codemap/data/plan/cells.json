@@ -2234,6 +2234,7 @@
     "items->store",
     "items->queue",
     "queue->kernel",
+    "jobs->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
