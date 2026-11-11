@@ -59,7 +59,7 @@ function snapshotGit(root, slot) {
 }
 
 /** Upgrade the old private clean base without copying its worktree or inheriting a command's mutations. */
-function adoptLegacy(directory, legacy, history) {
+async function adoptLegacy(directory, legacy, reachable) {
   if (!legacy || !existsSync(legacy)) return;
   directoryAt(legacy);
   const file = join(legacy, '.git', 'pullboard-source-snapshot.json');
@@ -67,7 +67,7 @@ function adoptLegacy(directory, legacy, history) {
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024) throw new Error('source tree metadata is invalid');
   const value = JSON.parse(readFileSync(file, 'utf8'));
   if (value.version !== 1 || !SHA.test(value.commit) || !SHA.test(value.tree)) throw new Error('source tree metadata is invalid');
-  if (!history.has(value.commit)) return;
+  if (!(await reachable([value.commit])).length) return;
   const slot = join(directory, randomUUID());
   mkdirSync(slot, { mode: 0o700 });
   try {
@@ -78,16 +78,21 @@ function adoptLegacy(directory, legacy, history) {
 }
 
 /** Borrow only an idle ancestor; moving an independent tree leaves no shared writable alias behind. */
-export async function borrowWarmCheckout({ directory, legacy, root, commit, history, lease, git, env }) {
+export async function borrowWarmCheckout({ directory, legacy, root, commit, history, ancestry, lease, git, env }) {
   admitted(lease);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   directoryAt(directory);
   /** Enumerate only owned idle entries; borrowed slots have no checkout and cannot be pruned or borrowed twice. */
   const idle = () => readdirSync(directory).filter(name => SLOT.test(name)).map(name => join(directory, name))
     .filter(slot => { directoryAt(slot); return existsSync(join(slot, 'checkout')); })
-    .map(slot => ({ slot, ...metadata(slot) })).filter(row => history.has(row.commit));
-  let available = idle();
-  if (!available.length) { adoptLegacy(directory, legacy, history); available = idle(); }
+    .map(slot => ({ slot, ...metadata(slot) }));
+  /** With an ancestry oracle, ask it only about the commits in question instead of holding the whole history. */
+  const reachable = async rows => {
+    const known = ancestry ? await ancestry(rows.map(row => row.commit)) : history;
+    return rows.filter(row => known.has(row.commit));
+  };
+  let available = await reachable(idle());
+  if (!available.length) { await adoptLegacy(directory, legacy, reachable); available = await reachable(idle()); }
   available.sort((a, b) => Number(b.commit === commit) - Number(a.commit === commit) || b.usedAt - a.usedAt);
   if (!available.length) return null;
   const selected = available[0], checkout = join(selected.slot, 'checkout');

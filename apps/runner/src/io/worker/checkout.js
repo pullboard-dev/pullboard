@@ -40,6 +40,37 @@ async function concurrently(reads) {
   return settled.map(result => () => { if (result.status === 'rejected') throw result.reason; return result.value; });
 }
 
+/** Cache repos with more packs than this are consolidated before the next job (one pack lands per job). */
+const MAX_CACHE_PACKS = 8;
+
+/**
+ * Consolidate a cache repo that has accumulated packs and keep a commit-graph, so ancestry reads stay cheap.
+ * Runs only under the cache lease before a job reads the cache, never while a job is using it.
+ */
+async function maintainSourceCache(S, cache, env) {
+  const packs = readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.pack')).length;
+  const graphed = existsSync(join(cache, 'objects', 'info', 'commit-graph')) || existsSync(join(cache, 'objects', 'info', 'commit-graphs'));
+  if (packs > MAX_CACHE_PACKS) await git(S, cache, ['repack', '-a', '-d', '-q'], env);
+  if (packs > MAX_CACHE_PACKS || !graphed) await git(S, cache, ['commit-graph', 'write', '--reachable', '--split'], env);
+}
+
+/**
+ * Of the given commits, the ones reachable from the tip, each answered by merge-base --is-ancestor from the
+ * commit graph; a full-history rev-list used to answer these same membership questions on every job.
+ */
+async function ancestorsOf(S, cache, env, tip, commits) {
+  const found = new Set();
+  const unique = [...new Set(commits)];
+  for (let offset = 0; offset < unique.length; offset += 8) {
+    await Promise.all(unique.slice(offset, offset + 8).map(async commit => {
+      if (commit === tip) { found.add(commit); return; }
+      try { await git(S, cache, ['merge-base', '--is-ancestor', commit, tip], env); found.add(commit); }
+      catch { /* Exit 1 is "not an ancestor"; a missing object is likewise outside the candidate history. */ }
+    }));
+  }
+  return found;
+}
+
 /**
  * A fetch names the job's own base commit as its negotiation tip: a checkout's only have is a detached
  * HEAD, which Git never advertises, so without it the cache resends the whole history on every job.
@@ -130,6 +161,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       || existsSync(join(cache, 'shallow')) || existsSync(join(cache, 'objects', 'info', 'alternates'))) {
       throw new Error('source history cache has an incompatible format');
     }
+    await maintainSourceCache(S, cache, env);
     const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     /** Log exact ref deletions without reporting candidate source or credentials. */
     const logPrune = result => process.stderr.write(`PULLBOARD_RUNNER_CACHE_PRUNE ${spec.id} ${JSON.stringify(result)}\n`);
@@ -183,7 +215,8 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     // Every read below only inspects the cache, so all start at once; each result is still checked in order.
     const [rootsRead, historyRead, recentRead, packsRead, bodiesRead, lightweightRead] = await concurrently([
       () => git(S, cache, ['cat-file', '--batch-check'], env, `${roots.join('\n')}\n${spec.commit}^{tree}\n`),
-      () => git(S, cache, ['rev-list', spec.commit], env),
+      () => ancestorsOf(S, cache, env, spec.commit, [spec.originBase, spec.trunk?.commit, spec.trustedMode?.policyCommit, spec.trustedMode?.trunk.commit,
+        ...spec.tags.flatMap(tag => [tag.peeledCommit, ...(tag.chain.length ? [] : [tag.object])])].filter(Boolean)),
       // The pack was cut against the announced tips, so only new objects need walking; the full closure is the fallback.
       () => reachable(uniqueTips),
       () => Promise.all(newIndexes.map(indexName => git(S, cache, ['verify-pack', '-v', join(packDirectory, indexName)], env))),
@@ -196,8 +229,8 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     }
     validateCacheTips(roots, checks.slice(0, roots.length).join('\n') + '\n');
     for (const commit of roots) proven.add(commit);
-    const candidateHistory = new Set(historyRead().split(/\r?\n/u).filter(Boolean));
-    if (!candidateHistory.size) throw new Error('source history is incomplete');
+    const candidateHistory = historyRead();
+    candidateHistory.add(spec.commit);
     if (spec.originBase && !candidateHistory.has(spec.originBase)) throw new Error('source history does not contain its origin base');
     let closure = recentRead();
     const tagObjects = new Set(spec.tags.flatMap(tag => tag.chain));
@@ -243,7 +276,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     // Pruning touches only cache refs and borrowing only the warm pool and job root, so both run under the one lease together.
     const [borrowRead, prunedRead] = await concurrently([
       () => borrowWarmCheckout({ directory: warmPool, legacy: join(repositories, `${spec.repoId}.checkout`), root, commit: spec.commit,
-        history: candidateHistory, lease: cacheLease, git: (...args) => git(S, ...args), env }),
+        history: candidateHistory, ancestry: commits => ancestorsOf(S, cache, env, spec.commit, commits), lease: cacheLease, git: (...args) => git(S, ...args), env }),
       () => pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git: (...args) => git(S, ...args), env, log: logPrune, proven }),
     ]);
     warm = borrowRead();
