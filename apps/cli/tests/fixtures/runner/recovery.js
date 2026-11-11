@@ -159,6 +159,8 @@ console.log(JSON.stringify({aged,admittedAgain,admitted,probesAtAdmission,probes
       installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
       const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
       const url = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
+      // Cancellation fences the installer before extraction, so the direct control uses the same source being pinned.
+      const directWorker = join(import.meta.dirname, '../../../../../apps/runner/src/io/scripts/worker.js');
       const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
 import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
 const runner=${JSON.stringify(runner)};let failure;
@@ -170,7 +172,7 @@ const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remo
 const first=${workerFirst}?runDeferred():null;
 const health=await probeRunnerHealth(runner,[failure.recovery]);
 const delayed=runDeferred();
-const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(join(home, '.pullboard-runner', 'runtime'))}+'/'+failure.recovery.tooling+'/src/runner-worker.js'],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
+const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(directWorker)}],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
 console.log(JSON.stringify({direct:direct?{code:direct.status,stderr:direct.stderr}:null,first,health,delayed,jobDirectory:existsSync(${JSON.stringify(join(home, '.pullboard-runner', 'jobs'))})}));`;
       const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` }; delete env.NODE_TEST_CONTEXT;
       const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30_000 });

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { failureSignature } from '../../../index.js';
 
-const JOB_A = '/Users/runner/.pullboard-runner/jobs/8f31c0de-1111-4a2b-9c3d-0123456789ab/checkout';
-const JOB_B = '/home/vanilla/pullboard-runner/jobs/00aa77bb-2222-4c4c-8d8d-fedcba987654/checkout';
+const JOB_A = '/Users/example/.pullboard-runner/jobs/8f31c0de-1111-4a2b-9c3d-0123456789ab/checkout';
+const JOB_B = '/home/example/pullboard-runner/jobs/00aa77bb-2222-4c4c-8d8d-fedcba987654/checkout';
 const NODE_TAIL = 'Test.runInAsyncScope (node:async_hooks:214:14)\nTest.run (node:internal/test_runner/test:1047:25)';
 
 /** The real device sign-in assertion as node:test prints it, run in one checkout. */

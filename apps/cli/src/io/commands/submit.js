@@ -632,7 +632,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const judgeTests = async (signal) => {
   await preflightPassed;
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
-  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
+  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests, check: frozenCheck(held) },
     runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
   if (signal.aborted) throw signal.reason;
   // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
@@ -830,7 +830,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-        if (!remoteMode && !companion && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+        if (!remoteMode && !companion && /\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
           const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
           const report = await runPreflight(root, changed);
           if (!report.ok) {
@@ -892,7 +892,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         if (remoteMode) return await runRemotePart('static', signal);
         const changedStaticStart = performance.now();
         try {
-          if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+          if (/\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
             await withItemPatchSubmit(root, companion, async gateRoot => {
               const checker = fileURLToPath(new URL('../static/checks.js', import.meta.url));
               const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,

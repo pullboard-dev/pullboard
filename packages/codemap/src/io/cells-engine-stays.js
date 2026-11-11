@@ -6,7 +6,8 @@ import { engineBindings } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 
-const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js', 'packages/state/src/io/engine/numbers.js']);
+const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js', 'packages/state/src/io/engine/numbers.js',
+  'packages/state/src/io/engine/metadata.js', 'packages/state/src/logic/move/constants.js']);
 const HISTORY = /^(?:src\/move-history|packages\/state\/data\/history)\/(?:legacy|[1-9][0-9]*)\.json$/u;
 const REASON = 'canonical engine identity retained in src during package moves';
 

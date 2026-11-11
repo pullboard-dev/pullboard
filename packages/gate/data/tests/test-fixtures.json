@@ -190,11 +190,11 @@
     "tempdir": 2,
     "repo-read": 3
   },
-  "packages/landing/tests/io/main/red/cache.test.js": {
+  "apps/cli/journeys/red/content-cache.test.js": {
     "tempdir": 2,
     "env-spread": 1
   },
-  "packages/landing/tests/io/main/red.test.js": {
+  "apps/cli/journeys/red/main-red.test.js": {
     "tempdir": 2,
     "env-spread": 1,
     "model": 2
@@ -1337,7 +1337,7 @@
     "raw-board": 18,
     "model": 16
   },
-  "packages/gate/tests/io/imports/edits.test.js": {
+  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "model": 1
@@ -2034,7 +2034,7 @@
     "tempdir": 2,
     "env-spread": 1
   },
-  "packages/gate/tests/io/test/tier/selection.test.js": {
+  "apps/cli/journeys/test/tier-selection.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "model": 1
@@ -2154,7 +2154,7 @@
   "apps/cli/tests/fixtures/main/routing.js": {
     "raw-board": 2
   },
-  "packages/gate/tests/io/affected/graph/cache/lock.test.js": {
+  "apps/cli/journeys/gate/main-red-lock.test.js": {
     "tempdir": 2,
     "model": 2
   },
@@ -2393,7 +2393,7 @@
   "apps/cli/journeys/import/bindings.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/receipts.test.js": {
+  "apps/cli/journeys/gate/receipts.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "model": 1
@@ -2716,8 +2716,17 @@
     "raw-board": 2
   },
   "apps/cli/journeys/relay/sealed.test.js": {
-    "tempdir": 7,
-    "raw-board": 45,
+    "tempdir": 4,
+    "raw-board": 12
+  },
+  "apps/cli/journeys/relay/sealed/recovery.test.js": {
+    "tempdir": 3,
+    "raw-board": 22
+  },
+  "apps/cli/journeys/relay/sealed/checkpoint.test.js": {
+    "raw-board": 11
+  },
+  "apps/cli/journeys/relay/sealed/store.test.js": {
     "repo-read": 1
   },
   "apps/cli/journeys/relay/heartbeat.test.js": {
@@ -2761,9 +2770,6 @@
     "raw-board": 1
   },
   "apps/relay/tests/version.test.js": {
-    "tempdir": 1
-  },
-  "apps/cli/journeys/relay/main.test.js": {
     "tempdir": 1
   },
   "packages/git/tests/archive.test.js": {
@@ -2830,7 +2836,7 @@
   "apps/cli/tests/io/resident/board/orphans.test.js": {
     "tempdir": 3
   },
-  "apps/cli/tests/io/resident/board.test.js": {
+  "apps/cli/journeys/resident/board.test.js": {
     "tempdir": 3,
     "env-spread": 1,
     "hand-policy": 2,
@@ -3655,8 +3661,7 @@
     "raw-board": 4
   },
   "apps/cli/journeys/merged/receipts.test.js": {
-    "raw-board": 4,
-    "hand-policy": 1
+    "raw-board": 1
   },
   "apps/cli/journeys/show/conflict.test.js": {
     "raw-board": 1
@@ -3928,5 +3933,12 @@
   "packages/runners/tests/io/run/tests/filexit.test.js": {
     "tempdir": 3,
     "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/landing/receipts.js": {
+    "raw-board": 3,
+    "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/relay/auth.js": {
+    "tempdir": 1
   }
 }
