@@ -1,12 +1,12 @@
 /** Light runner and landing services for an ordinary gate slot, so a plain test run loads no gate, board or machine [C7,V4]. */
-import { localRunnerDescriptor } from '../../../../runners/index.js';
-import { sampleRunnerLoad } from '../../../../runners/index.js';
-import { carriedRunnerTrunk } from '../../../../runners/index.js';
-import { probeRunnerTransport } from '../../../../runners/index.js';
-import { effectiveRunners } from '../../../../runners/index.js';
-import { refreshRunnerMeasurements } from '../../../../runners/index.js';
+import { localRunnerDescriptor } from '../../../../runners/light.js';
+import { sampleRunnerLoad } from '../../../../runners/light.js';
+import { carriedRunnerTrunk } from '../../../../runners/light.js';
+import { probeRunnerTransport } from '../../../../runners/light.js';
+import { effectiveRunners } from '../../../../runners/light.js';
+import { refreshRunnerMeasurements } from '../../../../runners/light.js';
 import { gateQueueSettings } from '../../../../config/index.js';
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 
 /**
  * Build the execution services withGateSlot validates, loading only what it calls synchronously.
@@ -26,7 +26,7 @@ export async function gateSlotServices() {
     runOnRunnerAsync: async (...args) => (await front()).runOnRunnerAsync(...args),
     runOnRunner: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot dispatches remote runs itself; use runnerExecutionServices() from the runners front door for gate execution'); },
   });
-  const release = gateQueueSettings().currentReleaseFirst ? await import('../../../../landing/index.js') : null;
+  const release = gateQueueSettings().currentReleaseFirst ? await import('../../../../landing/light.js') : null;
   const landing = Object.freeze({
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
     captureReleaseQueue: release ? release.captureReleaseQueue : () => undefined,
