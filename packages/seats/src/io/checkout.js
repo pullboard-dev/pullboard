@@ -64,13 +64,13 @@ export function seatLeadLine(seat, item, held) {
 }
 
 /**
- * Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards.
+ * Choose or open the matching lane seat (with `open: false`, only choose: no free seat returns `seat: null` and nothing is opened), retaining ordinary checkout ownership and lane guards.
  *
  * The CLI supplies the board readers, the session digest reader and the worktree opener as one explicit port,
  * so the seats cell never loads the board, the person cell or the CLI's commands. `repoInfoOf` reads a seat's checkout and
  * is a port so a test can name a Windows checkout whose commonDir uses the other slash spelling [C7].
  */
-export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { store, sessionDigest, openWorktree, repoInfoOf = repoInfo }) {
+export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { store, sessionDigest, openWorktree, repoInfoOf = repoInfo, open = true }) {
   const held = item.item_status === 'claimed';
   const occupied = new Set(store.listItems(board).filter(entry => entry.item_status === 'claimed'
     && entry.item_parent_id === null).map(entry => entry.item_owner));
@@ -90,6 +90,7 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { 
     && (held ? item.item_owner === own.agent_id : true) && sameCommonDir(repoInfoOf(own.agent_path).commonDir, ctx.info.commonDir);
   let agent = ownFits ? own : held ? available.find((seat) => seat.agent_id === item.item_owner) : available[0];
   let created = false;
+  if (!agent && !open) return { context: null, seat: null };
   if (!agent) {
     let opened;
     await openWorktree({ ...ctx.io, say: () => {}, result: (value) => { opened = value; } }, item.item_lane, me.route, me.family, me.model, false);

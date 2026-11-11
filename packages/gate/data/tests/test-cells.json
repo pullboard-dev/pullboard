@@ -72,7 +72,14 @@
     "apps/cli/journeys/resources/main.test.js": "drives the real CLI (settings, check, verify, resources, view) with machine resource workers and checks the browser, gate and queue admission it prints and enforces, end to end",
     "apps/cli/journeys/gate/resource.test.js": "drives the real CLI (join, add, claim, check, submit, verify, settings, resources) in a project checkout and checks the machine queue order of an item check, the short-slot refusal and the output it prints, end to end",
     "apps/cli/journeys/gate/timing.test.js": "drives the real CLI (add, claim, check --yes --json, stats) against a held machine slot and checks the wait and run split in the gate receipt and the wait line stats prints, end to end",
-    "apps/cli/journeys/land/affected.test.js": "drives the real CLI (add, claim, submit, verify, badge, gate, land --waive, land) in a project checkout with a late affected importer and checks what landing adopts, blocks and waives, end to end"
+    "apps/cli/journeys/land/affected.test.js": "drives the real CLI (add, claim, submit, verify, badge, gate, land --waive, land) in a project checkout with a late affected importer and checks what landing adopts, blocks and waives, end to end",
+    "apps/cli/journeys/resident/board.test.js": "drives the resident board daemon through the real CLI client and checks its answers, restarts and timing end to end",
+    "apps/cli/journeys/gate/main-red-lock.test.js": "runs the real CLI against a main-red cache under a held lock and checks its exit codes and receipts end to end",
+    "apps/cli/journeys/imports/cross-lane-edits.test.js": "drives the real CLI to submit cross-lane edits whose only changed tokens are imports and checks the verdicts end to end",
+    "apps/cli/journeys/gate/receipts.test.js": "drives the real CLI pre-commit and gate in a lane box and checks the receipts it reuses and refuses end to end",
+    "apps/cli/journeys/test/tier-selection.test.js": "drives the real CLI to select a lane-generated tier row and checks the rows and refusals end to end",
+    "apps/cli/journeys/red/main-red.test.js": "drives the real CLI main-red comparison across checkouts and checks the failures it matches and its receipts end to end",
+    "apps/cli/journeys/red/content-cache.test.js": "drives the real CLI main-red content cache and checks reuse and invalidation end to end"
   },
   "pureHelpers": {
     "apps/cli/tests/fixtures/badge.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",

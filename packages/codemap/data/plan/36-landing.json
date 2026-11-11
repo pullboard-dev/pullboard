@@ -30,7 +30,7 @@
   ["src/main-failure-matches.js","packages/landing/src/io/main/matches.js","seed"],
   ["src/main-red.js","packages/landing/src/io/main/red.js","seed"],
   ["src/release-queue.js","packages/landing/src/io/queue.js","seed"],
-  ["test/main-red.test.js","packages/landing/tests/io/main/red.test.js","seed"],
+  ["test/main-red.test.js","apps/cli/journeys/red/main-red.test.js","seed"],
   ["test/retention-prune.test.js","packages/landing/tests/io/prune.test.js","seed"],
   ["src/land-envelope.js","packages/landing/src/io/land/envelope.js","rule"],
   ["src/landing-completion.js","packages/landing/src/io/completion.js","rule"],
