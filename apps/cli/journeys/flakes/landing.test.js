@@ -124,8 +124,11 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
   assert.equal(adopted.code, 1, JSON.stringify(adopted.document)); // the adopted batch ends blocked with every candidate a culprit
   assert.equal(adopted.document.batch.state, 'blocked');
   assert.equal(targetRuns(box), 4, 'normal adoption consumes the retained diagnostics, never a confidence rerun');
-  // Changed today: the retained pair is red beside a red original, so the ledger holds it as stable-red, not a flake sighting.
-  assert.equal(box.cli('flakes').document.stable[0].observations.length, 1, 'adoption does not invent a second sighting');
+  const adoptedReport = box.cli('flakes').document;
+  assert.equal(adoptedReport.flakes.length, 1, 'the retained pair is red then green, so the ledger holds one flake sighting, as the uninterrupted landing does');
+  assert.equal(adoptedReport.flakes[0].observations.length, 1, 'adoption does not invent a second sighting');
+  assert.equal(adoptedReport.flakes[0].count, 1);
+  assert.deepEqual(adoptedReport.stable, []);
   assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base);
 });
 
