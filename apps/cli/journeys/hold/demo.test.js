@@ -373,20 +373,18 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
         }
         if (tab === 'activity') {
-          await chrome.waitFor(`(() => {
-            const element = [...document.querySelectorAll('#activity .what')].find(node => node.textContent === ${JSON.stringify(wrapTitle)});
-            return element?.getBoundingClientRect().width > 0 && element.firstChild?.nodeType === Node.TEXT_NODE;
-          })()`);
-          const wrap = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-            const element=[...document.querySelectorAll('#activity .what')].find(node=>node.textContent===${JSON.stringify(wrapTitle)});
-            if(!element) return null;
-            const text=element.firstChild, ranges=(word)=>{const start=text.textContent.indexOf(word),range=document.createRange();range.setStart(text,start);range.setEnd(text,start+word.length);return [...range.getClientRects()].map(rect=>({x:rect.x,y:rect.y,width:rect.width}));};
-            const lines=(rects)=>new Set(rects.map(rect=>Math.round(rect.y))).size;
-            return {width:element.clientWidth,height:element.getBoundingClientRect().height,wordLines:lines(ranges('boundary')),tokenLines:lines(ranges('abcdef0123456789'.repeat(12)))};
+          const findTitle = `(() => [...document.querySelectorAll('#activity .activity-item')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`;
+          await chrome.waitFor(`(() => { const element = ${findTitle}; return element?.getBoundingClientRect().width > 0; })()`);
+          const fit = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+            const element = ${findTitle};
+            if (!element) return null;
+            const row = element.closest('.activity-event').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
+            return {rowRight: row.right, boxRight: box.right, boxWidth: box.width, boxHeight: box.height, lineHeight: parseFloat(style.fontSize) * 2, overflow: style.textOverflow, whiteSpace: style.whiteSpace, clipped: element.scrollWidth > element.clientWidth, title: element.title};
           })())`));
-          assert.ok(wrap, `${width}: the activity feed shows the long item title`);
-          assert.equal(wrap.wordLines, 1, `${width}: a normal word stays together at a line boundary: ${JSON.stringify(wrap)}`);
-          assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
+          assert.ok(fit, `${width}: the activity feed shows the long item title`);
+          assert.ok(fit.boxWidth > 0 && fit.boxRight <= fit.rowRight + 1, `${width}: the ellipsized title stays inside its row: ${JSON.stringify(fit)}`);
+          assert.ok(fit.whiteSpace === 'nowrap' && fit.overflow === 'ellipsis' && fit.clipped && fit.boxHeight < fit.lineHeight, `${width}: the long title is one ellipsized line: ${JSON.stringify(fit)}`);
+          assert.equal(fit.title, wrapTitle, `${width}: the full title stays available in the title attribute`);
         }
         if (tab === 'shouts') {
           await click('[data-shout-thread="none"]');
