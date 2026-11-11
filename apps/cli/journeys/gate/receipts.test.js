@@ -9,9 +9,9 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 
-const BIN = join(import.meta.dirname, '../../../../apps/cli/pullboard.js');
+const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Create isolated main and core worktrees with Pullboard's real installed commit hooks. */
 function fixture(t) {
@@ -88,19 +88,19 @@ test('the accepted-main allowance does not permit a builder edit to the same for
 function mixedMainAndShim(t) {
   const box = fixture(t);
   writeFileSync(join(box.main, 'core', 'new.js'), 'export const value = 1;\n');
-  writeFileSync(join(box.main, 'core', 'old.js'), "export { value } from './new.js';\n");
-  writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../core/old.js';\nexport const accepted = value;\n");
+  writeFileSync(join(box.main, 'core', 'old.js'), "export { value } from '../../../../packages/gate/tests/io/new.js';\n");
+  writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../../../../packages/gate/tests/core/old.js';\nexport const accepted = value;\n");
   assert.equal(box.git(box.main, 'add', '-A').status, 0);
   assert.equal(box.git(box.main, 'commit', '-q', '-m', 'chore: add forwarding shim [L3]').status, 0);
   assert.equal(box.git(box.lane, 'merge', '--ff-only', 'main').status, 0);
   assert.equal(box.git(box.lane, 'rm', 'core/old.js').status, 0);
   assert.equal(box.git(box.lane, 'commit', '-q', '-m', 'feat(core): remove shim [L3]').status, 0);
-  writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../core/old.js';\nexport const accepted = value;\nexport const mainChange = true;\n");
+  writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../../../../packages/gate/tests/core/old.js';\nexport const accepted = value;\nexport const mainChange = true;\n");
   assert.equal(box.git(box.main, 'add', 'view/file.js').status, 0);
   assert.equal(box.git(box.main, 'commit', '-q', '-m', 'chore: change view on main [L3]').status, 0);
   const merge = box.git(box.lane, 'merge', '--no-commit', '--no-ff', 'main');
   assert.equal(merge.status, 0, merge.stderr + merge.stdout);
-  writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\n");
+  writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../../../../packages/gate/tests/core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\n");
   assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
   return box;
 }
@@ -113,7 +113,7 @@ test('a merge accepts main lines plus the deleted-shim import repoint [L3,C7]', 
 
 test('a merge still refuses a builder edit beside the deleted-shim import repoint [L3,C7]', t => {
   const box = mixedMainAndShim(t);
-  writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\nexport const foreignEdit = true;\n");
+  writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../../../../packages/gate/tests/core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\nexport const foreignEdit = true;\n");
   assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): edit a foreign file [L3]');
   assert.notEqual(commit.status, 0);

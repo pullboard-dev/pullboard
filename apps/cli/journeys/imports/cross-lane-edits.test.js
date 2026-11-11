@@ -10,11 +10,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { importOnlyChange } from '../../../../commits/light.js';
-import { submissionPaths } from '../../../../sandbox/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { importOnlyChange } from '../../../../packages/commits/light.js';
+import { submissionPaths } from '../../../../packages/sandbox/index.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 
-const BIN = join(import.meta.dirname, '../../../../../apps/cli/pullboard.js');
+const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Create a private initialized board with independently owned core and view files. */
 function nativeFixture(t) {
@@ -40,7 +40,7 @@ function nativeFixture(t) {
   writeFileSync(join(root, 'SPEC.md'), '# Fixture\n\n## L · Limits\n- L3 [approved, must] Lanes own their paths. | gate: any\n');
   mkdirSync(join(root, 'core')); mkdirSync(join(root, 'view'));
   writeFileSync(join(root, 'core', 'file.js'), 'export const value = 1;\n');
-  writeFileSync(join(root, 'view', 'test.js'), "import { value } from '../core/file.js';\nassert.equal(value, 1);\n");
+  writeFileSync(join(root, 'view', 'test.js'), "import { value } from '../../../../packages/gate/tests/io/core/file.js';\nassert.equal(value, 1);\n");
   assert.equal(git(root, 'add', '-A').status, 0);
   const seeded = git(root, 'commit', '-q', '-m', 'chore: seed private fixture [L3]');
   assert.equal(seeded.status, 0, seeded.stderr);
@@ -52,21 +52,21 @@ function nativeFixture(t) {
 }
 
 test('only valid static import bindings and module specifiers may change [L3,C7]', () => {
-  assert.equal(importOnlyChange("import { oldName } from './old.js';\nrun();\n", "import { newName } from './new.js';\nrun();\n"), true);
-  assert.equal(importOnlyChange("import './old.js';\n", "import './new.js';\n"), true);
-  assert.equal(importOnlyChange("import x from './x.js';\ncheck(true);\n", "import y from './y.js';\ncheck(false);\n"), false);
+  assert.equal(importOnlyChange("import { oldName } from '../../../../packages/gate/tests/io/imports/old.js';\nrun();\n", "import { newName } from '../../../../packages/gate/tests/io/imports/new.js';\nrun();\n"), true);
+  assert.equal(importOnlyChange("import '../../../../packages/gate/tests/io/imports/old.js';\n", "import '../../../../packages/gate/tests/io/imports/new.js';\n"), true);
+  assert.equal(importOnlyChange("import x from '../../../../packages/gate/tests/io/imports/x.js';\ncheck(true);\n", "import y from '../../../../packages/gate/tests/io/imports/y.js';\ncheck(false);\n"), false);
   assert.equal(importOnlyChange("import('./old.js');\n", "import('./new.js');\n"), false);
-  assert.equal(importOnlyChange("export { value } from './old.js';\n", "export { value } from './new.js';\n"), false);
-  assert.equal(importOnlyChange("import x from './x.js';\n", "import x from './x.js';\n// changed\n"), false);
-  assert.equal(importOnlyChange("import x from './x.js';\n", "import { from } from './x.js';\n"), true);
-  assert.equal(importOnlyChange(Buffer.from([0x69, 0x6d, 0x70, 0x6f, 0x72, 0x74, 0xff]), "import x from './x.js';"), false);
+  assert.equal(importOnlyChange("export { value } from '../../../../packages/gate/tests/io/imports/old.js';\n", "export { value } from '../../../../packages/gate/tests/io/imports/new.js';\n"), false);
+  assert.equal(importOnlyChange("import x from '../../../../packages/gate/tests/io/imports/x.js';\n", "import x from '../../../../packages/gate/tests/io/imports/x.js';\n// changed\n"), false);
+  assert.equal(importOnlyChange("import x from '../../../../packages/gate/tests/io/imports/x.js';\n", "import { from } from '../../../../packages/gate/tests/io/imports/x.js';\n"), true);
+  assert.equal(importOnlyChange(Buffer.from([0x69, 0x6d, 0x70, 0x6f, 0x72, 0x74, 0xff]), "import x from '../../../../packages/gate/tests/io/imports/x.js';"), false);
 });
 
 test('a core commit may repoint a view import, while a changed assertion is refused by line [L3,C7]', t => {
   const box = nativeFixture(t);
   const file = join(box.lane, 'view', 'test.js');
   assert.equal(box.git(box.lane, 'mv', 'core/file.js', 'core/renamed.js').status, 0);
-  writeFileSync(file, "import { value } from '../core/renamed.js';\nassert.equal(value, 1);\n");
+  writeFileSync(file, "import { value } from '../../../../packages/gate/tests/io/core/renamed.js';\nassert.equal(value, 1);\n");
   assert.equal(box.git(box.lane, 'add', 'view/test.js').status, 0);
   const allowed = box.git(box.lane, 'commit', '-m', 'test: repoint view import [L3]');
   assert.equal(allowed.status, 0, allowed.stderr);
@@ -77,7 +77,7 @@ test('a core commit may repoint a view import, while a changed assertion is refu
   { mainCommit: box.base, onMechanicalPaths: paths => seen.push(...paths) }).includes('view/test.js'));
   assert.deepEqual(seen, ['view/test.js'], 'submit policy reports the cross-lane path for reviewer visibility');
 
-  writeFileSync(file, "import { value } from '../core/renamed.js';\nassert.equal(value, 2);\n");
+  writeFileSync(file, "import { value } from '../../../../packages/gate/tests/io/core/renamed.js';\nassert.equal(value, 2);\n");
   assert.equal(box.git(box.lane, 'add', 'view/test.js').status, 0);
   const refused = box.git(box.lane, 'commit', '-m', 'test: alter view assertion [L3]');
   assert.notEqual(refused.status, 0, 'the installed pre-commit hook refuses the unrelated assertion edit');
