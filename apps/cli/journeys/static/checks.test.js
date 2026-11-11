@@ -90,7 +90,7 @@ test('clause 1: cell-partitioned rows equal a full run, and a change reruns only
   assert.deepEqual(cellRows({ sources: changed, edgeCache, cache, compute: badRows(seen) }), full(changed));
   assert.deepEqual(seen.flat(), ['packages/c/index.js'], 'only cell c, which imports nothing, was handed to the check');
   seen.length = 0;
-  const imported = cellSources({ 'packages/a/index.js': 'export const a = 2;\n' });
+  const imported = cellSources({ 'packages/a/index.js': 'export const a = 2;\n', 'packages/c/index.js': 'export const c = BAD;\n' });
   assert.deepEqual(cellRows({ sources: imported, edgeCache, cache, compute: badRows(seen) }), full(imported));
   assert.ok(seen.flat().includes('packages/b/index.js'), 'cell b imports the changed cell a, so it is rerun with it');
   assert.ok(!seen.flat().includes('packages/c/index.js'), 'cell c reads neither, so it is not rerun');
