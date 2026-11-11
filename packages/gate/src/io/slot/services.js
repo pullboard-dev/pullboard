@@ -26,10 +26,12 @@ export async function gateSlotServices() {
     runOnRunnerAsync: async (...args) => (await front()).runOnRunnerAsync(...args),
     runOnRunner: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot dispatches remote runs itself; use runnerExecutionServices() from the runners front door for gate execution'); },
   });
-  const release = gateQueueSettings().currentReleaseFirst ? await import('../../../../landing/light.js') : null;
+  const policyOn = gateQueueSettings().currentReleaseFirst;
   const landing = Object.freeze({
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
-    captureReleaseQueue: release ? release.captureReleaseQueue : () => undefined,
+    // The landing door (and its board reader) loads only when a run names an item to rank; an unplanned run reads no board [C7,V4].
+    captureReleaseQueue: !policyOn ? () => undefined : async (root, item) => (item === undefined || item === null || item === ''
+      ? undefined : (await import('../../../../landing/light.js')).captureReleaseQueue(root, item)),
     constrainedLandingHost: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot never lands; use landingExecutionServices() from the landing front door for a landing'); },
     releaseExecutors: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot runs no release; use landingExecutionServices() from the landing front door for a release'); },
   });
