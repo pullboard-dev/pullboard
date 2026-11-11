@@ -20,7 +20,7 @@ const waiver = { id: '2360cc6b-ccc7-4dbc-9754-d9d53751b422', test: FILE, until: 
 /** #3768's 9 Nov candidate gate: the file failed at file level, its failure named by its runner path, and it never completed. */
 function gate(extra = {}) {
   return { tree: 't'.repeat(40), isGreen: false, complete: false, logPath: '/logs/candidate-1.log',
-    failures: [{ file: FILE, name: `/Users/x/.pullboard-runner/jobs/j/checkout/${FILE}`, assertion: "error: 'test failed'" }],
+    failures: [{ file: FILE, name: `/Users/example/.pullboard-runner/jobs/j/checkout/${FILE}`, assertion: "error: 'test failed'" }],
     collectionReport: { plannedFiles: ['packages/landing/tests/io/reuse/t1.test.js', FILE], completedFiles: ['packages/landing/tests/io/reuse/t1.test.js'] }, ...extra };
 }
 
