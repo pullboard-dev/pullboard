@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
+  openSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -184,7 +185,7 @@ process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, collectAllComplete:
   child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
   const closed = new Promise(resolveClose => child.once('close', (status, signal) => resolveClose({ status, signal })));
   // DIAG-TEMP
-  const diag = spawn('/bin/sh', ['-c', `while sleep 10; do echo DIAG; ls ${box.markers} | tr '\\n' ' '; echo; ps -eo pid,ppid,pgid,etime,command | grep -E '${box.dir}|pullboard-landing' | grep -v grep | cut -c1-240; done`], { stdio: ['ignore', 2, 2] });
+  const diag = spawn('/bin/sh', ['-c', `while sleep 10; do echo DIAG $(date +%T); ls ${box.markers} | tr '\\n' ' '; echo; ps -eo pid,ppid,pgid,etime,command | grep -E '${box.dir}|pullboard-landing' | grep -v grep | cut -c1-240; done`], { stdio: ['ignore', openSync(join(box.dir, 'diag.log'), 'a'), 2] });
   closed.then(() => diag.kill());
   // Deadline cancellation stays inside the helper, never outside a raced loan promise.
   const terminal = (async () => {
@@ -195,10 +196,11 @@ process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, collectAllComplete:
     if (!ended) {
       for (const signal of ['SIGTERM', 'SIGKILL']) { try { process.kill(-child.pid, signal); } catch { /* already gone */ } }
       await closed;
-      throw new Error(`landing gate scenario "${label}" passed its ${deadlineMs} ms deadline\n${stdout.slice(-4_000)}\n${stderr.slice(-4_000)}`);
+      throw new Error(`landing gate scenario "${label}" passed its ${deadlineMs} ms deadline\n${stdout.slice(-4_000)}\n${stderr.slice(-4_000)}\n${readFileSync(join(box.dir, 'diag.log'), 'utf8').slice(-6_000)}`);
     }
     assert.equal(ended.status, 0, `scenario "${label}": the gate process failed\n${stderr.slice(-4_000)}`);
-    return { ...JSON.parse(stdout), stderr };
+    const parsed = JSON.parse(stdout);
+    return { ...parsed, output: parsed.output + '\nDIAGLOG\n' + readFileSync(join(box.dir, 'diag.log'), 'utf8'), stderr };
   })().finally(() => stopGroup(child, closed));
   terminal.child = child;
   // A sibling may finish before this promise gets its turn to borrow; retain its original rejection.
