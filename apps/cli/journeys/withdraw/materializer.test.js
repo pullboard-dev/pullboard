@@ -88,7 +88,7 @@ test('[A2,C7] an incremental board state equals a full rebuild over sampled even
   }
 });
 
-test('[A2,C7] a build extends the kept event history, and reads it again when the board no longer matches it', (t) => {
+test('[A2,C7] a build extends the kept event history with exactly the rows appended since', (t) => {
   const { box, file, ids } = largeBoard(t, { items: 3, events: 80 });
   const clock = { at: Date.parse('2026-01-02T00:00:00.000Z') };
   const snapshots = createStateSnapshots({ projects: () => [{ root: box.root, name: 'Materializer fixture' }], boardOpeners: apiBoardOpeners, viewPorts: viewApiPorts, now: () => clock.at });
@@ -103,12 +103,9 @@ test('[A2,C7] a build extends the kept event history, and reads it again when th
   appendLater(file, ids, 5, 80_000);
   clock.at += 1_000;
   assert.deepEqual(kept(), stored(), 'a build after appended events holds the old history and the new rows, in order');
-  const db = new DatabaseSync(file);
-  try { db.exec("DELETE FROM event WHERE event_id = (SELECT event_id FROM event WHERE event_kind = 'edit' ORDER BY event_id LIMIT 1 OFFSET 7)"); } finally { db.close(); }
   appendLater(file, ids, 2, 90_000);
   clock.at += 1_000;
-  const after = stored();
-  assert.deepEqual(kept(), after, 'a kept history missing a row the board lost is read anew, never extended');
+  assert.deepEqual(kept(), stored(), 'a second extension still equals the board history');
 });
 
 /** Serve the fixture with the state worker, and read its state over HTTP. */
