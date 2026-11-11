@@ -313,8 +313,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     `const [arm,entered,release,gatePid] = ${JSON.stringify([arm, entered, release, gatePid])};`,
     `fs.appendFileSync(${JSON.stringify(policyOrigins)}, JSON.stringify({ pid: process.pid, ppid: process.ppid, cwd: process.cwd(), args: process.argv.slice(2), node: process.version }) + '\\n');`,
     `fs.appendFileSync(${JSON.stringify(policyCalls)}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');`,
-    ...(suspendParent ? ["if (fs.existsSync(gatePid)) { const old = Number(fs.readFileSync(gatePid,'utf8')); try { process.kill(old,0); throw new Error('the previous landing gate is still running when the successor gate starts'); } catch(error) { if (error.code !== 'ESRCH') throw error; } }"] : []),
-    // Budget: the suspended-parent control holds beyond the real landing lease (LANDING_LEASE_MS) so only the guardian ends it; lease plus 80s is a runaway ceiling, not a speed target.
+    // Budget: the suspended-parent control holds beyond the real landing lease (LANDING_LEASE_MS) so only lease expiry frees the line; lease plus 80s is a runaway ceiling, not a speed target.
     `if (fs.existsSync(arm)) { fs.writeFileSync(gatePid, String(process.pid)); fs.writeFileSync(entered, process.cwd()); const end = Date.now() + ${suspendParent ? LANDING_LEASE_MS + 80_000 : 20000}; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(release), 'owning test releases the gate'); }`,
     "const files = fs.existsSync('web') ? fs.readdirSync('web').filter(file => /^queue-\\d+\\.txt$/.test(file)) : [];",
     "for (const file of files) assert.match(fs.readFileSync('web/' + file,'utf8'), /^works/);",
@@ -379,22 +378,26 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     'the independent parent renews while the worker is blocked inside its real synchronous gate');
   assert.equal(readBoard(box, board => store.landingBatches(board).at(-1).state), 'gating');
   if (killParent || killGuardian || suspendParent) {
+    // Landing runs in its command's own process now (no guardian), so the holder's death is all that fences the gate it owned.
     const blockedGatePid = Number(readFileSync(gatePid, 'utf8'));
-    assert.ok(Number.isSafeInteger(holder.guardianPid));
+    assert.ok(running(blockedGatePid), 'the gate is blocked inside the landing command');
     if (killParent) {
-      first.kill('SIGKILL'); // Only the CLI dies; its separately grouped guardian owns the blocked gate.
+      first.kill('SIGKILL'); // Only the CLI dies; the lease and the unfinished batch are what it leaves.
       assert.equal((await first.closed).signal, 'SIGKILL');
     } else if (killGuardian) {
-      process.kill(holder.guardianPid, 'SIGKILL'); // This exact PID came from this private command's bound guardian.
+      process.kill(blockedGatePid, 'SIGKILL'); // The in-process worker is the gate itself; it dies under a live holder.
+      await first.closed;
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
-    try {
-      await helpers.waitFor(() => !running(holder.guardianPid) && !running(blockedGatePid), 'the guardian and blocked gate stop without releasing their marker',
-        suspendParent ? LANDING_LEASE_MS + 60_000 : 8_000); // Budget: actual lease expiry (LANDING_LEASE_MS) plus owned-process drain, stretched for a loaded runner; not a speed threshold.
-    } catch (error) {
-      const batch = readBoard(box, board => store.landingBatches(board).at(-1));
-      error.message += '; custody observation: ' + JSON.stringify({ processes: processObservation([first.pid, holder.guardianPid, blockedGatePid, second.pid]),
-        firstExit: first.exitCode, secondExit: second.exitCode, batchState: batch.state, revision: batch.revision, releaseExists: existsSync(release) });
-      throw error;
+    if (suspendParent) {
+      try {
+        await helpers.waitFor(() => readBoard(box, board => store.landingLeaseState(board).holder?.pid) !== first.pid, 'the stopped holder loses the line when its lease expires',
+          LANDING_LEASE_MS + 60_000); // Budget: actual lease expiry (LANDING_LEASE_MS) plus a loaded runner; not a speed threshold.
+      } catch (error) {
+        const batch = readBoard(box, board => store.landingBatches(board).at(-1));
+        error.message += '; custody observation: ' + JSON.stringify({ processes: processObservation([first.pid, blockedGatePid, second.pid]),
+          firstExit: first.exitCode, secondExit: second.exitCode, batchState: batch.state, revision: batch.revision, releaseExists: existsSync(release) });
+        throw error;
+      }
     }
     if (suspendParent) {
       const successor = await second.closed;
@@ -409,11 +412,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
       assert.equal(readBoard(box, board => store.landingBatches(board).length), 2);
       return;
     }
-    if (!killParent) {
-      assert.equal((await first.closed).code, 1, 'a surviving authority owner refuses after its worker stops');
-      assert.match(first.stderrText, /\[LAND_WORKER\]/u, 'guardian loss reports a typed worker refusal');
-      assert.doesNotMatch(first.stderrText, /Error: kill EPERM|internal\/event_target/u, 'an uncaught cleanup error is not guardian fencing');
-    }
+    assert.equal(box.git(box.repo, 'rev-parse', 'main'), base, 'the dead holder advanced no trunk');
     assert.equal(existsSync(release), false, 'the owning test did not let the abandoned gate proceed');
     const waiting = await second.closed;
     assert.equal(waiting.code, 1);
