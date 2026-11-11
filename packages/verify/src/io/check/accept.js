@@ -9,6 +9,9 @@ import { COORDINATOR } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
 
+/** The hold reason an item gets when its first baseline shows its check already passes on main (#5709); accepting that check lifts it. */
+export const PROVES_NOTHING_HOLD_REASON = 'check passes on main; edit the bar';
+
 /** The setting value that turns today's warning into a hold. */
 export const PROVES_NOTHING_HOLD = 'hold';
 
@@ -143,6 +146,10 @@ export async function checkAcceptCommand(io, first, rest, { context, withBoard, 
     const item = getItem(board, idArg(first));
     if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command to accept; its proof is the project gate: pullboard gate`);
     const accepted = await ordered(ctx, board, 'acceptCheck', [item.item_id, { agentId: PERSON, channel: io.personChannel ?? 'terminal', digest: checkDigest(item.item_check) }]);
+    // The acceptance is the person's answer to that hold, so the item is offered again [#5709].
+    if (getItem(board, item.item_id).item_hold_reason === PROVES_NOTHING_HOLD_REASON) {
+      await ordered(ctx, board, 'releaseItemHold', [item.item_id, { agentId: COORDINATOR }]);
+    }
     io.result?.({ id: accepted.id, digest: accepted.digest, check: accepted.check });
     io.say(`accepted #${accepted.id}'s check as it reads now: ${accepted.check}`);
     io.say('a changed check needs the person to accept it again');
