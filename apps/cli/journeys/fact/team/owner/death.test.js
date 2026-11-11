@@ -9,5 +9,5 @@ import {
 test('an abandoned landing is reclaimed and its interrupted batch adopted only on request [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private CLI death, lease reclaim, interrupted-batch adoption and Git; no speed target.
   async t => landingQueueCase(t, helpers, { killParent: true }));
 
-test('a landing whose blocked gate dies is reclaimed and adopted only on request [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private gate death, lease reclaim and explicit adoption; no speed target.
+test('a landing whose blocked gate dies blocks its batch and leaves nothing to adopt [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private gate death and its blocked batch; no speed target.
   async t => landingQueueCase(t, helpers, { killGuardian: true }));

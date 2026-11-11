@@ -386,12 +386,31 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
       assert.equal((await first.closed).signal, 'SIGKILL');
     } else if (killGuardian) {
       process.kill(blockedGatePid, 'SIGKILL'); // The in-process worker is the gate itself; it dies under a live holder.
-      await first.closed;
+      const ended = await first.closed;
+      // The live holder sees its gate die and fails the batch itself: nothing is left interrupted, so there is nothing to adopt.
+      assert.equal(ended.code, 1, ended.failure ?? 'the holder refuses when its gate dies');
+      assert.match(first.stderrText, /\[LAND_DIAGNOSTIC\]/u, 'the holder reports the dead gate as a typed refusal');
+      assert.equal(readBoard(box, board => store.landingBatches(board).find(batch => batch.id === firstBatch.id).state), 'blocked', 'the dead gate blocks its batch; it is not left gating');
+      assert.equal(box.git(box.repo, 'rev-parse', 'main'), base, 'the dead gate advanced no trunk');
+      assert.equal(existsSync(release), false, 'the owning test did not let the killed gate proceed');
+      return;
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
     if (suspendParent) {
+      // A stopped holder cannot renew, so its lease runs out; age both of its deadlines instead of waiting out the real 120 s [C7].
+      readBoard(box, board => {
+        const past = new Date(Date.now() - 1000).toISOString();
+        const lease = store.landingLeaseState(board).holder;
+        const marks = board.db.prepare('SELECT meta_key, meta_value FROM board_meta WHERE meta_key IN (?, ?)').all('landing_lease', `local:landing-lease:${lease.token}`);
+        assert.equal(marks.length, 2, 'the stopped holder has its shared lease and its local heartbeat');
+        for (const { meta_key: key, meta_value: value } of marks) {
+          const record = JSON.parse(value);
+          if (key === 'landing_lease') record.holder.until = past; else record.until = past;
+          board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(record), key);
+        }
+      });
       try {
-        await helpers.waitFor(() => readBoard(box, board => store.landingLeaseState(board).holder?.pid) !== first.pid, 'the stopped holder loses the line when its lease expires',
-          LANDING_LEASE_MS + 60_000); // Budget: actual lease expiry (LANDING_LEASE_MS) plus a loaded runner; not a speed threshold.
+        await helpers.waitFor(() => readBoard(box, board => store.landingLeaseState(board).holder?.pid) !== first.pid, 'the stopped holder loses the line when its lease expires', // Budget: ceiling for a loaded runner noticing the aged lease; no speed target.
+          60_000);
       } catch (error) {
         const batch = readBoard(box, board => store.landingBatches(board).at(-1));
         error.message += '; custody observation: ' + JSON.stringify({ processes: processObservation([first.pid, blockedGatePid, second.pid]),
