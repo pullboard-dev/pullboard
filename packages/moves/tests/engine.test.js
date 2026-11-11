@@ -688,7 +688,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
     assert.equal(lines.length,1,`${file} has exactly one exported engine declaration`);
     const match=/^export const [A-Z][A-Z0-9_]*_ENGINE = (?:(\d+)|unassignedEngine\(\));$/u.exec(lines[0]);
     assert.ok(match,`${file} declares its landed number or the accepted unassigned placeholder`);
-    if (match[1]===undefined) assert.ok(text.split('\n').includes("import { unassignedEngine } from '../../../test/engine-next.js';"),`${file} imports its real placeholder`);
+    if (match[1]===undefined) assert.ok(text.split('\n').includes("import { unassignedEngine } from './engine-next.js';"),`${file} imports its real placeholder`);
     return {file,number:match[1]===undefined ? null : Number(match[1])};
   });
   const next=Math.max(0,...declarations.map(row=>row.number??0))+1;
