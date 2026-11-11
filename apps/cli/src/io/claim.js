@@ -273,7 +273,7 @@ export async function claimOrdered(ctx, board, args) {
   }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
-  // The claiming session's declared model caps its seat's route, so a Haiku in a strong seat cannot claim strong work (#3678).
+  // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
   const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
