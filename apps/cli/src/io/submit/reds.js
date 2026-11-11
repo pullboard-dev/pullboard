@@ -41,6 +41,19 @@ function sameAssertion(failure, comparison) {
 }
 
 /**
+ * Whether any proof failure is a case base main fails with another assertion (both carry comparable details that
+ * differ): the item's regression under a shared title, which no repair item's name-only baseline may excuse [V4,C7].
+ */
+export function regressesMain(failures, comparison) {
+  return (failures ?? []).some(failure => {
+    const main = comparison?.files?.find(row => row.file === failure.file)?.failures?.find(row => row.file === failure.file && row.name === failure.name);
+    if (!main) return false;
+    if (failure.stable && main.stable) return failure.stable !== main.stable || failure.stableData !== main.stableData;
+    return Boolean(failure.firstError && main.firstError) && failure.firstError !== main.firstError;
+  });
+}
+
+/**
  * Match every proof failure against base main: own cases by exact signature, neighbouring cases by file and case name.
  * Returns `{ main, failures }` when every failure is accounted for, else null, as matchingMainFailures does.
  *

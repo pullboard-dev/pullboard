@@ -237,6 +237,7 @@ import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit/reds.js';
+import { regressesMain } from '../submit/reds.js';
 import { redsAreMains } from '../submit/reds.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
@@ -781,7 +782,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // The proof is judged like the check: a case an open Main red repair's own check fails on this main is known main (#2594).
   let proofMainRed = [];
-  if (failures && mainFailureBase && !proofMatched && !companion) {
+  if (failures && mainFailureBase && !proofMatched && !companion && !regressesMain(failures, comparison)) {
     try {
       const items = mainRedItems();
       const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
