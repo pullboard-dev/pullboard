@@ -1860,10 +1860,6 @@
       "cells": 2,
       "deep": 0
     },
-    "packages/gate/src/io/scripts/release.js": {
-      "cells": 2,
-      "deep": 0
-    },
     "packages/gate/src/io/shards/proof.js": {
       "cells": 2,
       "deep": 0
@@ -1871,10 +1867,6 @@
     "packages/gate/src/io/slot.js": {
       "cells": 4,
       "deep": 0
-    },
-    "packages/gate/src/io/slot/services.js": {
-      "cells": 4,
-      "deep": 5
     },
     "packages/gate/src/io/static/check.js": {
       "cells": 3,
@@ -5123,6 +5115,14 @@
     "apps/cli/src/io/run/tests.js": {
       "cells": 3,
       "deep": 1
+    },
+    "packages/landing/src/io/scripts/release.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/src/io/slot/services.js": {
+      "cells": 4,
+      "deep": 0
     }
   },
   "cells": {

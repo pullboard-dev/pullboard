@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Produce an artifact only from this host's actual admitted native release gate [C7,I15]. */
 import { runnerExecutionServices } from '../../../../runners/index.js';
-import { landingExecutionServices } from '../../../../landing/index.js';
+import { landingExecutionServices } from '../../../index.js';
 import {
   copyFileSync,
   constants,
@@ -14,7 +14,7 @@ const { values } = parseArgs({ options: { output: { type: 'string' }, head: { ty
 import {
   releaseSource,
   runReleaseGate,
-} from '../../../index.js';
+} from '../../../../gate/index.js';
 const landing = Object.freeze({ ...landingExecutionServices(), releaseSource, runReleaseGate });
 if (!values.output || !values.head || landing.releaseSource(process.cwd()).head !== values.head) {
   throw new Error('release-gate needs --output and --head naming the exact accepted commit');

@@ -2239,6 +2239,7 @@
     "landing->pin",
     "landing->store",
     "landing->store/src",
+    "apps/cli->apps/lib/src",
     "landing->resources",
     "landing->runners",
     "link->store",

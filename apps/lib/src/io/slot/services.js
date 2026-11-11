@@ -1,12 +1,12 @@
 /** Light runner and landing services for an ordinary gate slot, so a plain test run loads no gate, board or machine [C7,V4]. */
-import { localRunnerDescriptor } from '../../../../runners/index.js';
-import { sampleRunnerLoad } from '../../../../runners/index.js';
-import { carriedRunnerTrunk } from '../../../../runners/index.js';
-import { probeRunnerTransport } from '../../../../runners/index.js';
-import { effectiveRunners } from '../../../../runners/index.js';
-import { refreshRunnerMeasurements } from '../../../../runners/index.js';
-import { gateQueueSettings } from '../../../../config/index.js';
-import { Refused } from '../../../../kernel/index.js';
+import { localRunnerDescriptor } from '../../../../../packages/runners/index.js';
+import { sampleRunnerLoad } from '../../../../../packages/runners/index.js';
+import { carriedRunnerTrunk } from '../../../../../packages/runners/index.js';
+import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
+import { effectiveRunners } from '../../../../../packages/runners/index.js';
+import { refreshRunnerMeasurements } from '../../../../../packages/runners/index.js';
+import { gateQueueSettings } from '../../../../../packages/config/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
 
 /**
  * Build the execution services withGateSlot validates, loading only what it calls synchronously.
@@ -19,14 +19,14 @@ import { Refused } from '../../../../kernel/index.js';
  */
 export async function gateSlotServices() {
   /** Load the canonical runner front door the first time a remote probe or dispatch needs it. */
-  const front = () => import('../../../../runners/index.js');
+  const front = () => import('../../../../../packages/runners/index.js');
   const runners = Object.freeze({
     sampleRunnerLoad, localRunnerDescriptor, carriedRunnerTrunk, probeRunnerTransport, effectiveRunners, refreshRunnerMeasurements,
     probeRunnerHealth: async (...args) => (await front()).probeRunnerHealth(...args),
     runOnRunnerAsync: async (...args) => (await front()).runOnRunnerAsync(...args),
     runOnRunner: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot dispatches remote runs itself; use runnerExecutionServices() from the runners front door for gate execution'); },
   });
-  const release = gateQueueSettings().currentReleaseFirst ? await import('../../../../landing/index.js') : null;
+  const release = gateQueueSettings().currentReleaseFirst ? await import('../../../../../packages/landing/index.js') : null;
   const landing = Object.freeze({
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
     captureReleaseQueue: release ? release.captureReleaseQueue : () => undefined,
