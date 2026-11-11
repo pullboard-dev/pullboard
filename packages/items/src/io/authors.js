@@ -25,7 +25,7 @@ function authorIdentityProblem(board, item, reviewer, authors, reviewPatchAuthor
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   const direct = engine >= PATCH_AUTHOR_IDENTITY_ENGINE ? reviewPatchAuthors(board, item) : null;
   if (direct?.some(author => author.agentId === reviewer)) return new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
-  if (engine >= PARENT_SESSION_ENGINE) {
+  if (engine >= PARENT_SESSION_ENGINE && board.reviewIndependence !== 'off') { // review.independence, set from the repo config when the CLI opens the board
     const parent = effectiveAgentParent(board, reviewer);
     const snapshots = direct ?? reviewPatchAuthors(board, item);
     const session = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${reviewer}`)?.meta_value;

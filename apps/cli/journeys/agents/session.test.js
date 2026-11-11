@@ -31,6 +31,7 @@ import {
 import { DatabaseSync } from 'node:sqlite';
 import { listResources } from "../../../../packages/resources/index.js";
 import { SSH_SHELL_MARKERS } from "../../../../packages/kernel/index.js";
+import { requireSessionIndependence } from "../../tests/fixtures/testkit.js";
 import { waitForCondition } from "../../tests/fixtures/runner/holders.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -382,7 +383,7 @@ async function waitForReviewComparison(box) {
     { signal: AbortSignal.timeout(60_000), state: () => existsSync(jobs) ? readdirSync(jobs) : 'no comparison jobs' });
 }
 
-test('a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async () => {
+test('review.independence session: a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async () => {
   const box = project();
   const builder = 'codex-thread-secret-builder-921';
   const build = (args) => box.run(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
@@ -395,6 +396,7 @@ test('a verdict from the agent session that built the item is refused under any 
   // The same session opens a review seat of its own: a different seat name, the same session.
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
+  requireSessionIndependence(review);
   const reviewAs = (session, args) => box.run(review, args, { session, sessionKey: 'CODEX_THREAD_ID' });
   assert.equal(reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--route', 'strong', '--json']).status, 0);
   const before = boardSnapshot(box.boardFile);

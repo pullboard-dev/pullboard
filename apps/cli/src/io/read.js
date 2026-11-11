@@ -376,6 +376,7 @@ function installWritePolicy(ctx, board) {
 
 /** Run work on an opened board with the same caller, quarantine, event and close lifecycle. */
 export function withOpenedBoard(ctx, work, board) {
+  board.reviewIndependence = ctx.config?.review?.independence ?? 'off'; // review.independence, a connection-local setting read by the verifier identity checks.
   const restorePolicy = installWritePolicy(ctx, board);
   const firstEvent = board.emittedEvents?.length ?? 0;
   /** Forward committed events before releasing either synchronous or asynchronous work. */

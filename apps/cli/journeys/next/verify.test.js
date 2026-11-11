@@ -28,6 +28,7 @@ import {
 } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { requireSessionIndependence } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const HOUR = 3_600_000;
@@ -177,6 +178,7 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   store.claim(box.board, id, { agentId: second, lane: 'web', leaseMs: HOUR,
     freeze: () => ({ text: 'fixture criterion', digest: createHash('sha256').update('fixture criterion').digest('hex') }) });
   submitFixture(box.board, id, { agentId: second, commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });
+  requireSessionIndependence(box.reviewer);
   const sibling = await run(box, box.reviewer, ['next', '--verify']);
   assert.equal(sibling.code, 1, sibling.stdout + sibling.stderr);
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'a sibling never reserves its parent’s submission');

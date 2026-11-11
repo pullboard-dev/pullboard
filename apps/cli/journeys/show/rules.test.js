@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { requireSessionIndependence } from '../../tests/fixtures/testkit.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-routing-bar' });
@@ -163,6 +164,7 @@ test('CLI next and verify reject the original building session through its real 
   box.json(box.runAs(original, built, 'submit', String(id), '--no-next', '--json'));
   const review = join(box.dir, 'original-session-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(built, 'rev-parse', 'HEAD'));
+  requireSessionIndependence(review);
   const reviewer = box.json(box.runAs(original, review, 'join', 'web', '--family', 'codex',
     '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   assert.notEqual(reviewer, builder, 'the review seat is not the building seat');

@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../../../../packages/store/src/io/board.js";
 import { openCellBoard as openBoard } from "../../../../packages/store/tests/fixtures/cell.js";
+import { requireSessionIndependence } from "../../tests/fixtures/testkit.js";
 import { joinFixtureSeat } from "../../tests/fixtures/testkit.js";
 import { submitFixture } from "../../tests/fixtures/board/submit.js";
 import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
@@ -70,6 +71,7 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
   document(joinFixtureSeat(box, review, 'web'));
+  requireSessionIndependence(review);
   refused(box, board, review, ['next','--verify',String(id)], 'SELF_SESSION_VERIFY');
   // A next --verify with nothing free records its idle cause once, then dedupes the same cause: record it here so the refusal below leaves the stream untouched.
   assert.equal(JSON.parse(box.run(review, 'next', '--verify', '--json').out).error.code, 'NOTHING_FREE');
