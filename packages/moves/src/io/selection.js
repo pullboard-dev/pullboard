@@ -158,8 +158,10 @@ export async function nextOnce(ctx, values, ports) {
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
-      // An item frozen under an older submit policy is passed over and named, so one stale item never stops the seat; claim by id still refuses (#3770).
-      if (error instanceof Refused && error.code === 'NO_POLICY' && /accepted submit policy changed|no longer contains the frozen policy/u.test(error.message)) {
+      // An item frozen under an older policy is passed over and named, so one stale item never stops the seat; claim by id
+      // still refuses (#3770). The coordinator hears of it once per frozen bar, never once per next (#3793).
+      if (error instanceof Refused && error.code === 'NO_POLICY' && STALE_POLICY.test(error.message)) {
+        await reportStalePolicyOnce(target, board, item, holder, error.message, ordered);
         return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       }
       throw error;
@@ -168,6 +170,28 @@ export async function nextOnce(ctx, values, ports) {
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/** The claim refusals that name one item's frozen policy as stale; any other NO_POLICY still stops next. */
+const STALE_POLICY = /accepted submit policy changed|no longer contains the frozen policy|is frozen against an older accepted policy/u;
+
+/**
+ * Tell the coordinator once that next passed over an item frozen against an older policy [B7,B25].
+ *
+ * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on the
+ * frozen digest keeps the report to one per frozen bar, and a refreeze (a new digest) is a new episode.
+ */
+async function reportStalePolicyOnce(ctx, board, item, holder, message, ordered) {
+  const text = JSON.stringify({ staleFrozenPolicy: { digest: item.item_frozen_digest ?? null } });
+  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
+  try {
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
+      text: `next passes over #${item.item_id} until it is refrozen: ${message.replace(/^\[NO_POLICY\] /u, '')}; pullboard refreeze ${item.item_id}` }]);
+  } catch (error) {
+    // A refused report must never stop the seat it only reports on.
+    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
+  }
 }
 
 /**

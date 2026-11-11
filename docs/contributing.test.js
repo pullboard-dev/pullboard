@@ -1,10 +1,11 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input CONTRIBUTING.md docs/contributing-runbook.md .github/pull_request_template.md .github/ISSUE_TEMPLATE/feature_request.md CLA.md SECURITY.md CODE_OF_CONDUCT.md */
+/** @pullboard-test-input CONTRIBUTING.md docs/contributing-runbook.md .github/pull_request_template.md .github/ISSUE_TEMPLATE/feature_request.md .github/ISSUE_TEMPLATE/bug_report.md .github/ISSUE_TEMPLATE/flaky.md .github/ISSUE_TEMPLATE/performance.md .github/ISSUE_TEMPLATE/config.yml packages/commits/src/logic/contribution.js CLA.md SECURITY.md CODE_OF_CONDUCT.md */
 /** The approved contribution wording and the maintainers' complete safe intake path [I11]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { parseContributionRecord } from '../packages/commits/src/logic/contribution.js';
 
 /** Read a public contribution document from the checked source tree. */
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
@@ -50,7 +51,7 @@ test('clause 1: CONTRIBUTING is the approved guide, asks for no sign-off, and th
   assert.doesNotMatch(template, /sign.?off|Signed-off-by/iu, 'the PR template asks for no sign-off');
   assert.doesNotMatch(runbook, /sign-off|Signed-off-by/iu, 'the runbook asks for no sign-off');
   assert.match(template, /CLA/u);
-  assert.match(template, /(?:linked.issue|fixes #)/iu);
+  assert.match(template, /^refs:$/mu, 'the PR links same-repo issues through refs');
   const cla = read('CLA.md');
   assert.match(cla, /\bversion 2\.2\b/u);
   assert.equal(createHash('sha256').update(cla).digest('hex'),
@@ -73,12 +74,40 @@ test('the approved feature-request template routes new issues to feature [I1,C7]
   assert.equal(label, 'feature', '#1312 requires feature rather than the legacy enhancement label');
 });
 
-test('clause 2: the contributor docs tell people to post the agreement sentence and name no CLA bot [I11]', () => {
-  const sentence = 'I have read CLA.md and I agree to it.';
-  for (const path of ['.github/pull_request_template.md', 'docs/contributing-runbook.md']) {
-    const text = read(path);
-    assert.ok(text.includes(sentence), path + ' quotes the sentence');
-    assert.ok(/comment on (?:your|their) pull request/u.test(text), path + ' says to comment on the pull request');
-    assert.doesNotMatch(text, /CLA bot|one-click/iu, path + ' no longer mentions a CLA bot');
+/** The yaml fences of a template, each with the text before it. */
+function records(path) {
+  const text = read(path);
+  return [...text.matchAll(/(?:^|\n)([^\n][\s\S]*?)\n```yaml\n([\s\S]*?)```/gu)].map(m => ({ before: m[1], yaml: m[2] }));
+}
+
+test('clause 1: the issue templates are Bug, Ask, Flaky and Performance and Security links to private reporting [I11]', () => {
+  const dir = '.github/ISSUE_TEMPLATE/';
+  const shapes = { 'bug_report.md': 'Bug', 'feature_request.md': 'Ask', 'flaky.md': 'Flaky', 'performance.md': 'Performance' };
+  for (const [file, shape] of Object.entries(shapes)) {
+    const text = read(dir + file);
+    assert.match(text, new RegExp('^name: ' + shape + '$', 'mu'), file + ' is the ' + shape + ' template');
+    const found = records(dir + file);
+    assert.equal(found.length, 1, file + ' shows one record');
+    const summary = found[0].before.replace(/^---[\s\S]*?\n---\n+/u, '').trim();
+    assert.ok(summary.length > 0 && !summary.includes('```'), file + ' shows the summary before the YAML');
+    const parsed = parseContributionRecord(found[0].yaml, shape);
+    assert.equal(parsed.shape, shape);
   }
+  const config = read(dir + 'config.yml');
+  assert.match(config, /name: Security/u);
+  assert.match(config, /security\/advisories\/new/u, 'Security links to private reporting');
+  assert.match(config, /blank_issues_enabled: false/u);
+});
+
+test('clause 2: the PR template shows Fix and Proposal as records that parse, and names the CLA on pullboard.dev [I11]', () => {
+  const found = records('.github/pull_request_template.md');
+  assert.equal(found.length, 2, 'Fix and Proposal');
+  assert.match(found[0].before, /## Fix/u);
+  assert.match(found[1].before, /## Proposal/u);
+  assert.equal(parseContributionRecord(found[0].yaml, 'Fix').shape, 'Fix');
+  assert.equal(parseContributionRecord(found[1].yaml, 'Proposal').shape, 'Proposal');
+  const template = read('.github/pull_request_template.md');
+  assert.ok(template.includes('Sign the CLA once on your pullboard.dev contributor profile.'));
+  assert.ok(template.includes('2-3 sentences, then YAML'));
+  assert.doesNotMatch(template, /I have read CLA\.md|CLA bot|one-click/iu, 'no comment sentence, no bot');
 });

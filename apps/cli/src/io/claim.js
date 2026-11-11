@@ -49,6 +49,7 @@ import { initialSpecApprovalBaseline } from '../../../../packages/spec/index.js'
 import { refuseClaimProvesNothing } from '../../../../packages/verify/index.js';
 import { firstRefusalArgs } from '../../../../packages/items/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
+import { laneOf } from '../../../../packages/seats/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { relayOperation } from '../../../../packages/link/index.js';
@@ -207,9 +208,12 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
 }
 
 /**
- * Decide whether a new claim can refresh policy metadata without changing this item's lane or gate [C7].
+ * Decide whether a new claim can refresh policy metadata in place, re-freezing this one item [C7].
  *
- * Unrelated accepted settings can move the policy pin; lane ownership and gate inputs remain the item's bar.
+ * Why: policy outside the bar (gate inputs, other lanes, the item lane's owns list) moves often and never changes what the
+ * bar means, so the claim re-pins it in its own write; a changed verify or check rule, a named file that changed lanes
+ * (L2) or a row that no longer resolves (V3) would change the bar, so only those still refuse, naming who acts. A shrunk
+ * owns list is judged like another lane's owns change: by the named paths it moves, never by the list alone (#3793).
  *
  * @param {any} ctx
  * @param {any} board
@@ -227,18 +231,28 @@ async function refreshesLanePolicy(ctx, board, id, agentId) {
   let old;
   try { current = mainPolicy(ctx.info.root); old = policyAt(ctx.info.root, pinned); } catch { return null; }
   if (current.commit === pinned) return null;
-  if (!contains(ctx.info.root, pinned, current.commit)) throw new Refused('NO_POLICY', 'accepted main no longer contains the frozen policy commit; refresh the item before claiming it');
+  const stale = reason => new Refused('NO_POLICY', `#${item.item_id} is frozen against an older accepted policy: ${reason}`,
+    `nothing for the builder; take other work (pullboard next) while the coordinator refreezes #${item.item_id}`);
+  if (!contains(ctx.info.root, pinned, current.commit)) throw stale('accepted main no longer contains its frozen policy commit');
   if (item.item_status === 'claimed' && item.item_owner === agentId && store.isHeld(board, item)) return false;
   const changed = [...new Set([...Object.keys(old.config), ...Object.keys(current.config)])].sort()
     .flatMap(key => changedPolicyLeaves(old.config[key], current.config[key], key));
   if (!changed.length) return null;
-  const lanePrefix = `lanes.${item.item_lane}`;
-  const gateKeys = ['verify', 'gate', 'affectedTests', 'staticChecks', 'submitGate', 'submitInvariants', 'landingShards', 'submitDeferAbove', 'check', 'checks'];
-  const affecting = changed.filter(key => key === lanePrefix || key.startsWith(`${lanePrefix}.`)
-    || gateKeys.some(name => key === name || key.startsWith(`${name}.`)));
-  if (affecting.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${affecting.join(', ')}; refresh the item against the changed lane or gate policy`);
-  // A moved criterion keeps its own refusal at submit; a lane refresh must not hide it.
-  try { if (freezer(ctx, { board })(item).digest !== item.item_frozen_digest) return null; } catch { return null; }
+  const lane = `lanes.${item.item_lane}`;
+  // The lane's owns list only decides which lane each path is in (L2); the moved check below refuses a named path it moves.
+  const owns = current.config.lanes?.[item.item_lane]?.owns;
+  const stillOwns = Array.isArray(old.config.lanes?.[item.item_lane]?.owns) && Array.isArray(owns) && owns.length > 0;
+  const inBar = changed.filter(key => ['verify', 'check'].some(name => key === name || key.startsWith(`${name}.`))
+    || ((key === lane || key.startsWith(`${lane}.`)) && !(key === `${lane}.owns` && stillOwns)));
+  if (inBar.length) throw stale(`${inBar.join(', ')} changed what its bar means`);
+  const { barPaths } = await import('./commands/add.js');
+  const moved = barPaths({ criterion: item.item_criterion, check: item.item_check, brief: item.item_brief })
+    .filter(path => laneOf(old.config, path) !== laneOf(current.config, path));
+  if (moved.length) throw stale(`its named ${moved.map(path => `${path} moved lanes (${laneOf(old.config, path)} -> ${laneOf(current.config, path)})`).join(', ')}`);
+  // Rows re-read from accepted main must still give the frozen bar; a moved row gate or criterion needs a real refreeze.
+  let rows;
+  try { rows = freezer(ctx, { board })(item).digest; } catch { return null; } // the claim's own freeze reports it
+  if (rows !== item.item_frozen_digest) throw stale('its spec rows no longer resolve to the frozen bar');
   const digest = config => createHash('sha256').update(JSON.stringify(config, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : value)).digest('hex');
   return { before: digest(old.config), after: digest(current.config), changed };
