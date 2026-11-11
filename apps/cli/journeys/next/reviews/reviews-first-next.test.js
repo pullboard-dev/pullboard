@@ -63,7 +63,7 @@ test('a self-ineligible seat builds normally while an eligible seat cannot escap
   assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
 });
 
-test('the two-minute age boundary makes a waiting review mandatory, and a prior reservation ends the first-review wait [B26,V4,C7]', async t => {
+test('the two-minute age boundary makes a waiting review mandatory, and an expired reservation leaves it waiting [B26,V4,C7]', async t => {
   const box = await fixture(t);
   const review = box.add('Boundary review'); box.submit(review);
   const who = { agentId: box.seats.actor.id, lane: box.seats.actor.lane, mandatoryOnly: true, policy: 'any' };
@@ -77,5 +77,5 @@ test('the two-minute age boundary makes a waiting review mandatory, and a prior 
   setting(box, 'reviewsFirst', true);
   store.reserveReview(box.board, review, { agentId: box.seats.outside.id, leaseMs: 1000, policy: 'any' });
   box.advance(1001);
-  assert.equal(store.reviewOffer(box.board, who), null, 'a previously reviewed submission is no longer waiting for its first reviewer');
+  assert.equal(store.reviewOffer(box.board, who).item.item_id, review, 'an expired reservation leaves the aged review waiting again');
 });

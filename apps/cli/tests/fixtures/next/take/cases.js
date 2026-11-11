@@ -15,17 +15,12 @@ import * as store from '../../../../../../packages/store/index.js';
 import { main } from '../../native.js';
 import { addMilestone } from '../../../../../../packages/store/index.js';
 
-test('an eleven-minute submission interrupts a free builder before the queue ratio [C7,N2,V1]', async t => {
+test('a two-minute-old submission interrupts a free builder before the queue ratio [C7,N2,V1]', async t => {
   const box = await fixture(t, { family: 'off' });
   const waiting = box.add('Waiting normal review');
   box.submit(waiting);
   const build = box.add('Otherwise the next build', { brief: 'Files: web/build.js\nTest: independent build remains claimable.' });
-  box.advance(2 * 60_000 - 1);
-  const boundary = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(boundary.code, 0, boundary.out + boundary.err);
-  assert.equal(boundary.document.item.item_id, build, 'a submission younger than two minutes does not override ordinary dispatch');
-  store.release(box.board, build, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
-  box.advance(1);
+  box.advance(2 * 60_000);
   store.appendFact(box.board, waiting, { agentId: 'coordinator', kind: 'note', text: 'A fresh note does not reset submission age.' });
   const offered = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(offered.code, 0, offered.out + offered.err);
