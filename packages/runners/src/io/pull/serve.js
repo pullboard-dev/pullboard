@@ -17,14 +17,15 @@ import { MAX_FETCH_BYTES } from './transfer.js';
 import { ackScript } from './transfer.js';
 import { burstOk } from './transfer.js';
 import { cancelScript } from './transfer.js';
-import { enqueueScript } from './transfer.js';
-import { fetchScript } from './transfer.js';
-import { packScript } from './transfer.js';
+import { enqueueScript } from './scripts.js';
+import { fetchScript } from './scripts.js';
+import { packScript } from './scripts.js';
 import { sshBurst } from './transfer.js';
 import { createHash } from 'node:crypto';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 
 /** The modes a pull-aware controller entry accepts after `--pullboard-runner-controller`. */
@@ -62,8 +63,9 @@ export async function submitJob(payload, ports) {
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath } : {}), reusedRuntime: request.reusedRuntime, hasExchange: Boolean(request.exchange),
       startupDeadline: startupDeadline(payload.options, request.phaseAt.start), ceilingMs: runCeilingMs(request.spec),
       readyTimeoutMs: request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs ?? null, parentPid: payload.parentPid, item: String(payload.options.metadata?.item ?? '') };
-    const sent = await sshBurst({ args: request.args, env: request.env }, enqueueScript(request.runner, job.id, { command: request.args.at(-1),
-      row: { version: 1, id: job.id, recovery: request.spec.recovery, toolingSha256: request.spec.tooling.sha256, enqueuedAt: Date.now(), rawOutput: Boolean(request.rawOutputPath) } }, ports.agentStart?.(request.runner.root ?? '') ?? ''), { input: request.frame });
+    const row = JSON.stringify({ version: 1, id: job.id, recovery: request.spec.recovery, toolingSha256: request.spec.tooling.sha256, enqueuedAt: Date.now(), rawOutput: Boolean(request.rawOutputPath) });
+    const script = enqueueScript(request.runner, { id: job.id, frameBytes: request.frame.length, command: request.args.at(-1), agent: ports.agentStart?.(request.runner.root ?? '') ?? '' });
+    const sent = await sshBurst({ args: request.args, env: request.env }, script, { input: Buffer.concat([Buffer.from(`${row}\n`), request.frame]) });
     if (!burstOk(sent)) throw runnerFailure(request, { status: sent.status, signal: sent.signal, error: sent.error, stderr: sent.stderr }, 'enqueue');
     writeJob(job);
     return { id: job.id, recovery: job.spec.recovery, host: request.runner.host, toolingSha: request.spec.tooling.sha256, reusedRuntime: job.reusedRuntime,
@@ -83,7 +85,7 @@ export async function serveNeed({ id, inventory }) {
     updateJob(id, { phaseAt: { inventory: Date.now() } });
     const packed = Date.now();
     const pack = historyPack(job.root, job.source, tips, directory, job.spec.tags, tagObjects);
-    const sent = await sshBurst(job, packScript(job.runner, id), { inputFile: pack });
+    const sent = await sshBurst(job, packScript(job.runner, { id, bytes: statSync(pack).size }), { inputFile: pack });
     if (!burstOk(sent)) throw runnerFailure(job, { status: sent.status, signal: sent.signal, error: sent.error, stderr: sent.stderr }, 'pack-upload');
     updateJob(id, { phaseAt: { pack: packed, 'source-sent': Date.now() } });
     return { sent: true };
@@ -96,7 +98,7 @@ async function captureRaw(job) {
   const hash = createHash('sha256'), half = 4 * 1024 ** 2;
   let bytes = 0, head = Buffer.alloc(0), tail = Buffer.alloc(0), failed = false;
   try {
-    const got = await sshBurst(job, fetchScript(job.runner, job.id, 'out.bin'), { onStdout: chunk => {
+    const got = await sshBurst(job, fetchScript(job.runner, { id: job.id, name: 'out.bin' }), { onStdout: chunk => {
       if (failed) return;
       try {
         for (let offset = 0; offset < chunk.length;) {
@@ -132,10 +134,10 @@ export async function finishJob(payload, ports) {
   if (job.hasExchange) request.exchange = { store: await exchangeStore(job.root) };
   try {
     if (reason !== 'result' && reason !== 'ssh-exit') await sshBurst(job, cancelScript(job.runner, job.id));
-    const control = await sshBurst(job, fetchScript(job.runner, job.id, 'control.log'));
+    const control = await sshBurst(job, fetchScript(job.runner, { id: job.id, name: 'control.log' }));
     let output, raw = {}, fetched = control;
     if (job.rawOutputPath) { const captured = await captureRaw(job); output = captured.bounded; raw = captured.extra; fetched = captured.got.error ? captured.got : control; }
-    else { const body = await sshBurst(job, fetchScript(job.runner, job.id, 'out.bin')); output = body.stdout; fetched = body.error ? body : control; }
+    else { const body = await sshBurst(job, fetchScript(job.runner, { id: job.id, name: 'out.bin' })); output = body.stdout; fetched = body.error ? body : control; }
     if (fetched.error?.code === 'RUNNER_OUTPUT_LIMIT') throw new Refused('RUNNER_OUTPUT_LIMIT', fetched.error.message);
     const stderr = control.stdout;
     const receiptSeen = stderr.toString('utf8').split('\n').some(line => line.startsWith(`PULLBOARD_RUNNER_RESULT ${job.id} `));

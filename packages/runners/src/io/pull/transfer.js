@@ -1,4 +1,4 @@
-/** The bursts a pulled job spends on its runner: enqueue, pack upload, output fetch, cancel and ack, each one short ssh [C7,#5465]. */
+/** The ssh bursts a pulled job spends on its runner (cancel, ack, and running the shared enqueue, pack and fetch scripts of scripts.js) over the job's own ssh options [C7,#5465]. */
 import { spawnSsh } from '../../../../transport/index.js';
 import { shellWord } from '../tooling/remote.js';
 import { sshEnvironment } from '../tooling/remote.js';
@@ -17,40 +17,9 @@ export function pullRoot(runner) {
 /** The ssh options of a job's own launch, minus its host and remote command: the same credential-free policy. */
 export function sshOptions(args) { return args.slice(0, -2); }
 
-/**
- * Shell that publishes one job whole: built under a temporary name, then renamed into the queue. `agent` is a shell
- * command that starts the runner's agent unless one lives (the first enqueue starts it, so a runner needs no setup).
- */
-export function enqueueScript(runner, id, row, agent = '') {
-  const root = pullRoot(runner);
-  return [
-    'set -e', 'umask 077', `R=${root}`,
-    'mkdir -p "$R/queue" "$R/running" "$R/done"',
-    `d="$R/queue/.tmp-${id}"`, 'rm -rf "$d"', 'mkdir "$d"',
-    'cat > "$d/input"',
-    `printf '%s\\n' ${shellWord(row.command)} > "$d/command"`,
-    `printf '%s\\n' ${shellWord(JSON.stringify(row.row))} > "$d/row.json"`,
-    ': > "$d/wanted"',
-    `mv "$d" "$R/queue/${id}"`,
-    ...(agent ? [agent] : []),
-  ].join('\n');
-}
-
-/** Shell that lands the history pack in the job's folder and only then marks it complete. */
-export function packScript(runner, id) {
-  return ['set -e', 'umask 077', `R=${pullRoot(runner)}`,
-    `d=$(ls -d "$R/running/${id}" "$R/queue/${id}" 2>/dev/null | head -n 1)`,
-    'test -n "$d"', 'cat > "$d/source.pack.tmp"', 'mv "$d/source.pack.tmp" "$d/source.pack"', ': > "$d/source.pack.ready"'].join('\n');
-}
-
 /** Shell that asks a job to stop: a queued row is removed, a running one gets its cancel mark. */
 export function cancelScript(runner, id) {
   return ['umask 077', `R=${pullRoot(runner)}`, `if [ -d "$R/running/${id}" ]; then : > "$R/running/${id}/cancel"; elif [ -d "$R/done/${id}" ]; then :; else rm -rf "$R/queue/${id}"; fi`].join('\n');
-}
-
-/** Shell that prints one of a finished job's files; the folder is wherever the job last was. */
-export function fetchScript(runner, id, file) {
-  return ['R=' + pullRoot(runner), `for d in "$R/done/${id}" "$R/running/${id}"; do if [ -f "$d/${file}" ]; then cat "$d/${file}"; exit 0; fi; done`, 'exit 0'].join('\n');
 }
 
 /** Shell that forgets a finished job on the runner. */

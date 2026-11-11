@@ -1,4 +1,5 @@
 /** Dispatch a runner job by pulling: submit, wait on the shared mirror, finish; the controller path stays untouched [C7,#5465]. */
+import { waitRunnerJob as defaultWait } from './wait.js';
 import { runnerDispatchMode } from '../../../../config/index.js';
 import { controllerDeadline } from '../../../../resources/index.js';
 import { recordRunnerDispatch } from '../../../../resources/index.js';
@@ -73,7 +74,7 @@ export async function runPulled(root, command, options, ports = {}) {
       submitted = await call('--submit', { root, command, options: plainOptions, parentPid: process.pid }, { root, runner: options.runner, signal });
       custody.job(submitted.recovery);
       const finish = extra => call('--finish', { id: submitted.id, readyAt, ...extra }, { root, runner: options.runner });
-      const { waitRunnerJob } = ports.waitRunnerJob ? ports : await import('./wait.js');
+      const waitRunnerJob = ports.waitRunnerJob ?? defaultWait;
       const end = await waitRunnerJob({
         runner: options.runner, id: submitted.id, signal: local.signal, startedAt: dispatchStart, parentPid: process.pid,
         startupDeadline: submitted.startupDeadline, ceilingMs: submitted.ceilingMs,

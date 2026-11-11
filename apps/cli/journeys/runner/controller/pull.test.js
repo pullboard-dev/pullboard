@@ -2,8 +2,6 @@
 /** A pulled runner job submits, serves its NEED, waits with no controller process and finishes through the unchanged result check [C7,#5465]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -13,56 +11,6 @@ import { executionServicesSource } from '../../../tests/fixtures/gate/execution.
 import { HOST } from '../../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../tests/fixtures/runner/ssh.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
-
-/** A runner agent in miniature: runs a queued job's own command with its input file, serves the pack the job asks for, writes its files. */
-function miniAgentSource(ssh, runnerHome) {
-  return `
-    import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync } from 'node:fs';
-    import { spawn } from 'node:child_process';
-    import { join } from 'node:path';
-    const runnerRoot = join(${JSON.stringify(runnerHome)}, '.pullboard-runner');
-    const home = process.env.PULLBOARD_MACHINE_HOME;
-    export function miniAgent(onWait) {
-      return async function waitRunnerJob({ id, observe, onNeed, onReady, signal }) {
-        const job = JSON.parse(readFileSync(join(home, 'runner-jobs', id + '.json'), 'utf8'));
-        const queued = join(runnerRoot, 'queue', id), running = join(runnerRoot, 'running', id), done = join(runnerRoot, 'done', id);
-        mkdirSync(join(runnerRoot, 'running'), { recursive: true }); mkdirSync(join(runnerRoot, 'done'), { recursive: true });
-        renameSync(queued, running);
-        const command = readFileSync(join(running, 'command'), 'utf8').trimEnd();
-        const child = spawn(${JSON.stringify(ssh)}, [...job.args.slice(0, -2), job.args.at(-2), command], { stdio: ['pipe', 'pipe', 'pipe'] });
-        createReadStream(join(running, 'input')).pipe(child.stdin, { end: false });
-        const out = [], err = []; let control = '', needSeen = false, readySeen = false, receipt = false;
-        child.stdout.on('data', chunk => out.push(chunk));
-        child.stderr.on('data', chunk => {
-          err.push(chunk); control += chunk.toString('utf8');
-          let newline;
-          while ((newline = control.indexOf('\\n')) >= 0) {
-            const line = control.slice(0, newline); control = control.slice(newline + 1);
-            if (line === 'PULLBOARD_RUNNER_READY ' + id && !readySeen) { readySeen = true; onReady(); onWait(true); }
-            if (line.startsWith('PULLBOARD_RUNNER_RESULT ' + id + ' ')) receipt = true;
-            if (line.startsWith('PULLBOARD_RUNNER_NEED ' + id + ' ') && !needSeen) {
-              needSeen = true; onNeed(id, line.slice(('PULLBOARD_RUNNER_NEED ' + id + ' ').length));
-              const feed = setInterval(() => {
-                if (!existsSync(join(running, 'source.pack.ready'))) return;
-                clearInterval(feed); createReadStream(join(running, 'source.pack')).pipe(child.stdin);
-              }, 50);
-            }
-          }
-        });
-        const ended = new Promise(resolve => child.once('close', (code, killed) => resolve({ code, signal: killed })));
-        let stopped = null;
-        const tick = setInterval(() => { const found = observe({}, {}); if (found && !stopped) { stopped = { end: found.end, finishReason: found.finishReason, cancellation: found.cancellation, unavailable: found.unavailable }; child.kill('SIGTERM'); } }, 200);
-        signal?.addEventListener('abort', () => { stopped ??= { end: 'canceled', finishReason: 'canceled' }; child.kill('SIGTERM'); }, { once: true });
-        const exit = await ended;
-        onWait(false);
-        clearInterval(tick);
-        writeFileSync(join(running, 'out.bin'), Buffer.concat(out)); writeFileSync(join(running, 'control.log'), Buffer.concat(err));
-        renameSync(running, done);
-        return stopped ?? (receipt ? { end: 'result', finishReason: null, job: { exit } } : { end: 'ssh-exit', finishReason: 'ssh-exit', job: { exit } });
-      };
-    }
-  `;
-}
 
 for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's'} return the controller path's result and leave no controller process while waiting [C7,#5465]`, { timeout: 170000 }, t => {
   const helpers = createE2eHelpers();
@@ -77,15 +25,12 @@ for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
-  const agent = join(box.dir, 'agent.mjs');
-  writeFileSync(agent, miniAgentSource(join(bin, 'ssh'), home));
   const script = `
-    import { readdirSync, writeFileSync } from 'node:fs';
+    import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
     import { execFileSync } from 'node:child_process';
     import { join } from 'node:path';
     import { withGateSlot } from ${JSON.stringify(gate)};
     import { runPulled } from ${JSON.stringify(runners)};
-    import { miniAgent } from ${JSON.stringify(pathToFileURL(agent).href)};
     ${executionServicesSource(gate)}
     const root = ${JSON.stringify(box.repo)};
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
@@ -97,16 +42,20 @@ for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
-    let counts = [], waiting = 0, inflight = 0;
+    let counts = [], inflight = 0;
+    const readyJobs = () => {
+      const running = join(${JSON.stringify(home)}, '.pullboard-runner', 'running');
+      try { return readdirSync(running).filter(id => { try { return readFileSync(join(running, id, 'control.log'), 'utf8').includes('PULLBOARD_RUNNER_READY'); } catch { return false; } }).length; } catch { return 0; }
+    };
     const sampler = setInterval(() => {
+      const waiting = readyJobs();
       if (waiting < 1 || waiting < inflight) return;
       try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
-    const ready = new Set();
     const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => { inflight += 1; return settle(runPulled(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata },
-      { waitRunnerJob: miniAgent(state => { if (state) ready.add(index); else ready.delete(index); waiting = ready.size; }) })).then(result => { inflight -= 1; return result; }); },
+      {})).then(result => { inflight -= 1; return result; }); },
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} })));
     clearInterval(sampler);
     const left = dir => { try { return readdirSync(dir); } catch { return []; } };
