@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../../../../packages/state/index.js';
 import {
   createDeviceKeys,
@@ -58,7 +59,7 @@ export async function memberHandoverCase(t, { helpers, withBoard }) {
         return { requests: [person.entry] };
       },
       async githubKeys(login) { return login === person.entry.login ? [person.publicKey] : []; },
-    }, { err() {} });
+    }, { openBoard, err() {} });
     assert.equal(deliveries.length, 1, 'each request gets one explicit refusal or delivery');
     return deliveries[0];
   }
