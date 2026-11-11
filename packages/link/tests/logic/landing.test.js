@@ -29,7 +29,7 @@ import { landingRelayCallbacks } from '../../index.js';
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-landing-lease-'));
   let at = Date.parse('2026-10-22T00:00:00.000Z');
-  const boards = [0, 1].map(index => openBoard(join(dir, `${index}.sqlite`), { now: () => new Date(at) }));
+  const boards = [0, 1].map(index => openBoard(':memory:', { now: () => new Date(at) }));
   store.register(boards[0], { lane: 'coordinator', path: '/private-fixture/coordinator' });
   importBoard(boards[1], exportBoard(boards[0]));
   t.after(() => { for (const board of boards) store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });

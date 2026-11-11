@@ -56,6 +56,12 @@ export function cellOf(path) {
 /** A light door (a cell's core.js that may re-export shell modules) must cold-load within this many milliseconds [C7]. */
 export const LIGHT_DOOR_BUDGET_MS = 100;
 
+/** Slack in ms for a candidate that is over the budget while main is under it, so a few ms of noise never refuses it [C7]. */
+const LIGHT_DOOR_NOISE_MS = 10;
+
+/** Slack in ms (or a quarter of main's own load, if more) before an over-budget candidate counts as slower than main [C7]. */
+const LIGHT_DOOR_WIDE_MARGIN_MS = 25;
+
 /**
  * Every cell's declared light front door, read from the plan index and its shards.
  *
@@ -75,6 +81,27 @@ export function lightDoorsOf(root) {
 }
 
 /**
+ * One cold load of a module in a fresh Node process, import only (no process start), in milliseconds.
+ *
+ * @param {string} root
+ * @param {string} door - Repo-relative module path.
+ * @returns {Promise<number>} Milliseconds, or Infinity when it never loads.
+ */
+function loadOnceMs(root, door) {
+  const script = `const t = performance.now(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); process.stdout.write(String(performance.now() - t));`;
+  return new Promise(done => {
+    let out = '';
+    const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 });
+    child.stdout.on('data', chunk => { out += chunk; });
+    child.on('error', () => done(Infinity));
+    child.on('close', status => done(status === 0 ? Number(out) : Infinity));
+  });
+}
+
+/** Round a best-of measure to whole milliseconds, at least 1; Infinity stays Infinity. */
+const wholeMs = best => (Number.isFinite(best) ? Math.max(1, Math.round(best)) : Infinity);
+
+/**
  * The cold load time of one module in a fresh Node process, import only (no process start), in whole milliseconds.
  * Why: a light door promises light-path code a cheap load; a loaded machine adds noise, so the best of up to five tries counts.
  *
@@ -83,19 +110,67 @@ export function lightDoorsOf(root) {
  * @returns {Promise<number>} Milliseconds, or Infinity when it never loads.
  */
 export async function coldLoadMs(root, door) {
-  const script = `const t = performance.now(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); process.stdout.write(String(performance.now() - t));`;
   let best = Infinity;
-  for (let attempt = 0; attempt < 5 && best > LIGHT_DOOR_BUDGET_MS; attempt += 1) {
-    const ms = await new Promise(done => {
-      let out = '';
-      const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 });
-      child.stdout.on('data', chunk => { out += chunk; });
-      child.on('error', () => done(Infinity));
-      child.on('close', status => done(status === 0 ? Number(out) : Infinity));
-    });
-    if (ms < best) best = ms;
+  for (let attempt = 0; attempt < 5 && best > LIGHT_DOOR_BUDGET_MS; attempt += 1) best = Math.min(best, await loadOnceMs(root, door));
+  return wholeMs(best);
+}
+
+/**
+ * Judge one door's cold load against the budget and against main measured in the same run.
+ * Why: a loaded machine pushes every load over the budget, main's included; only a candidate that is over the budget
+ * and also slower than main by a margin is the candidate's doing [C7].
+ *
+ * @param {number} candidate - The candidate's cold load in ms.
+ * @param {number | undefined} main - Main's cold load for the same door in the same run; undefined when main could not be measured.
+ * @returns {boolean} True when the door should be refused.
+ */
+export function lightDoorRefused(candidate, main) {
+  if (candidate <= LIGHT_DOOR_BUDGET_MS) return false;
+  if (!Number.isFinite(main)) return true;
+  const slower = candidate > main + Math.max(LIGHT_DOOR_WIDE_MARGIN_MS, main * 0.25);
+  const overWhileMainUnder = main <= LIGHT_DOOR_BUDGET_MS && candidate > main + LIGHT_DOOR_NOISE_MS;
+  return slower || overWhileMainUnder;
+}
+
+/**
+ * Where main's tree lives for a candidate checkout: the main checkout that owns the shared git directory, or undefined.
+ *
+ * @param {string} root
+ * @returns {Promise<string | undefined>}
+ */
+export async function mainRootOf(root) {
+  const out = await new Promise(done => {
+    let text = '';
+    const child = spawn('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
+    child.stdout.on('data', chunk => { text += chunk; });
+    child.on('error', () => done(''));
+    child.on('close', status => done(status === 0 ? text.trim() : ''));
+  });
+  if (!out) return undefined;
+  const main = resolve(out, '..');
+  return main === resolve(root) || !existsSync(main) ? undefined : main;
+}
+
+/**
+ * Measure a candidate door and main's same door alternately, so both see the same machine load, and stop once the
+ * verdict cannot change: the candidate is within budget, or the verdict holds on the best of up to five tries each.
+ *
+ * @param {string} root
+ * @param {string} door
+ * @param {string | undefined} mainRoot - Undefined, or a tree without the door, measures the candidate alone.
+ * @returns {Promise<{ candidate: number, main: number | undefined }>}
+ */
+async function measureAgainstMain(root, door, mainRoot) {
+  const hasMain = mainRoot !== undefined && existsSync(resolve(mainRoot, door));
+  let candidate = Infinity, main = Infinity;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    candidate = Math.min(candidate, await loadOnceMs(root, door));
+    if (candidate <= LIGHT_DOOR_BUDGET_MS) break;
+    if (!hasMain) continue;
+    main = Math.min(main, await loadOnceMs(mainRoot, door));
+    if (!lightDoorRefused(wholeMs(candidate), wholeMs(main))) break;
   }
-  return Number.isFinite(best) ? Math.max(1, Math.round(best)) : Infinity;
+  return { candidate: wholeMs(candidate), main: hasMain && Number.isFinite(main) ? wholeMs(main) : undefined };
 }
 
 /**
@@ -220,17 +295,23 @@ export function cellsEdgeProblems(root, { files, read, ceilings = JSON.parse(rea
 }
 
 /**
- * Refuse each light door that cold-loads over its budget. Why: a light door promises light-path code a cheap load;
- * the measure starts child processes, so it runs here beside the edge check and never inside the synchronous leased audit.
+ * Refuse each light door whose cold load is over its budget and slower than main's same door measured in the same run.
+ * Why: a light door promises light-path code a cheap load; on a loaded machine main reads over budget too, so the
+ * absolute budget alone backed out changes that never touched a door. Without a main tree to compare, the budget alone judges.
+ * The measure starts child processes, so it runs here beside the edge check and never inside the synchronous leased audit.
  *
  * @param {string} root
+ * @param {{ mainRoot?: string | null }} [options] - `mainRoot` is main's tree; null forces the budget alone, and the default finds the main checkout.
  * @returns {Promise<{ path: string, line: number, text: string }[]>}
  */
-export async function lightDoorProblems(root) {
+export async function lightDoorProblems(root, { mainRoot } = {}) {
   const problems = [];
+  const against = mainRoot === null ? undefined : mainRoot ?? await mainRootOf(root);
   for (const door of lightDoorsOf(root)) {
-    const ms = await coldLoadMs(root, door);
-    if (ms > LIGHT_DOOR_BUDGET_MS) problems.push({ path: door, line: 1, text: `light door cold load ${Number.isFinite(ms) ? `${ms} ms` : 'fails'} exceeds its ${LIGHT_DOOR_BUDGET_MS} ms budget; drop the heavy re-export from ${door}, or move it behind the cell index` });
+    const { candidate: ms, main } = await measureAgainstMain(root, door, against);
+    if (!lightDoorRefused(ms, main)) continue;
+    const beside = main === undefined ? '' : `, and main measures ${main} ms beside it`;
+    problems.push({ path: door, line: 1, text: `light door cold load ${Number.isFinite(ms) ? `${ms} ms` : 'fails'} exceeds its ${LIGHT_DOOR_BUDGET_MS} ms budget${beside}; drop the heavy re-export from ${door}, or move it behind the cell index` });
   }
   return problems;
 }
@@ -268,6 +349,6 @@ export async function writeCellsEdgeCeilings(root) {
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
-  else if (process.argv.includes('--write')) report(await writeCellsEdgeCeilings(root));
-  else report([...cellsEdgeProblems(root), ...await lightDoorProblems(root)]);
+  else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);
+  else lightDoorProblems(root).then(light => report([...cellsEdgeProblems(root), ...light]));
 }

@@ -50,3 +50,36 @@ export function submitGateInFlight(board, item) {
   const job = handoffRecord(board.db, item.item_id);
   return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner;
 }
+
+/** How long a proof run may sit queued before a worker takes it; matches the drive queue's start bound. */
+const RUN_START_GRACE_MS = 2 * 60_000;
+
+/**
+ * Whether the claim has work in flight that the board itself keeps alive: its queued gate (`submitGateInFlight`), or a
+ * queued or running proof run bound to the item and queued by the owner. A run counts while its worker's job lease is
+ * live, or while it is newly queued and no worker has taken it yet; a worker that dies stops renewing, the lease
+ * lapses, and the claim becomes sweepable again [B4,B28].
+ * Why: a builder waiting on a runner beats no seat heartbeat, so the sweep took its claim after 2 minutes and the
+ * next commit in the item folder refused NOT_JOINED.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @returns {boolean}
+ */
+export function itemWorkInFlight(board, item) {
+  if (item?.item_status !== 'claimed' || !item.item_owner) return false;
+  if (submitGateInFlight(board, item)) return true;
+  const at = board.clock.now().getTime();
+  let rows;
+  try {
+    rows = board.db.prepare(`SELECT j.job_lease_until AS lease, j.job_lease_owner AS owner, j.job_created AS created,
+      (SELECT s.job_step_payload FROM job_step s WHERE s.job_step_job = j.job_id AND s.job_step_name = 'queued' ORDER BY s.job_step_id LIMIT 1) AS queued
+      FROM job j WHERE j.job_kind = 'test-run' AND j.job_item = ? AND j.job_step NOT IN ('result', 'delivered', 'done')`).all(item.item_id);
+  } catch { return false; } // an older board has no job tables, so it holds no run
+  return rows.some(row => {
+    let agent;
+    try { agent = JSON.parse(row.queued ?? '{}').agent; } catch { return false; }
+    if (agent !== item.item_owner) return false;
+    return row.lease > at || (!row.owner && row.created + RUN_START_GRACE_MS > at);
+  });
+}

@@ -94,9 +94,10 @@ test('the API carries withdrawal as a boolean without changing note boundaries [
 
 test('withdrawing the latest accept never revives an earlier accept of the same commit [V2,V6,H16]', t => {
   const { box, reviewer } = acceptedSnapshot(true);
-  const trunk = e2e.commitFile(box, box.repo, 'web/page.html', '<header>New</header>\n' + '\n'.repeat(8) + '<h1>Start</h1>\n', 'fix(web): move the private review trunk [G1]');
+  const trunk = e2e.commitFile(box, box.repo, 'web/page.html', '<header>Old</header>\n' + '\n'.repeat(8) + '<h1>Trunk</h1>\n', 'fix(web): move the private review trunk [G1]');
   assert.equal(trunk.status, 0, trunk.stderr);
-  box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
+  // The trunk rewrites the line the item changed, so the old verdict is stale; the reviewer seals a resolved head.
+  box.git(reviewer, 'merge', '-q', '--no-edit', '-X', 'ours', 'main');
   const reviewed = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the actual new trunk composition passes', '--json');
   assert.equal(reviewed.code, 0, reviewed.err + reviewed.out);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -109,7 +110,7 @@ test('withdrawing the latest accept never revives an earlier accept of the same 
   assert.equal(store.acceptedVerdict(board, store.getItem(board, 1)), undefined,
     'withdrawal of the latest current acceptance must not resurrect the older one');
   assert.deepEqual(board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(1), rows);
-  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  box.git(box.web, 'merge', '-q', '--no-edit', '-X', 'ours', 'main');
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Corrected</h1>', 'fix(web): honor the clarified interpretation [G1]').status, 0);
   assert.equal(box.run(box.web, 'submit', '1').code, 0);
