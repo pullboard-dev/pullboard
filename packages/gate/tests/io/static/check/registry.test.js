@@ -13,12 +13,12 @@ const ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
 test('clause 1: one registry lists every static check class with a function that runs it, and submit reads the registry instead of an inline list [C7]', () => {
   const names = STATIC_CHECKS.map(check => check.name);
   assert.equal(new Set(names).size, names.length, 'each class is listed once');
-  for (const expected of ['relay-boundary', 'import-style', 'engine-folder', 'empty-catch', 'file-size', 'test-inputs', 'load-bearing', 'wall-clock-margins', 'test-waits']) {
+  for (const expected of ['relay-boundary', 'import-style', 'engine-folder', 'empty-catch', 'file-size', 'test-inputs', 'load-bearing', 'wall-clock-margins', 'test-waits', 'cli-launches']) {
     assert.ok(names.includes(expected), expected);
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
   const tree = readFileSync(new URL('../../../../src/io/static/registry.js', import.meta.url), 'utf8');
-  for (const expected of ['test-waits', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
+  for (const expected of ['test-waits', 'cli-launches', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
     assert.ok(tree.includes(`name: '${expected}'`), `whole-tree class ${expected}`);
   }
   for (const expected of ['cells', 'cell-lints', 'spec-ids']) {
