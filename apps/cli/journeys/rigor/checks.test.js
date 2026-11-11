@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/kernel/src/logic/seal.js packages/store/index.js */
 /**
  * Pullboard's first Rigor checks (D1, C7): packages/gate holds four scripts a doctrine row's
  * `gate: check` can count. Each prints one `path:line: text` line per problem, sorted, and exits 0
