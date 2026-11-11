@@ -111,6 +111,19 @@ test('[C7,P4] next --verify with nothing submitted yet says the builder is still
   assert.equal(store.getItem(box.board, id).item_review_by, box.reviewerId, 'a submitted item is reserved as before');
 });
 
+test('next --verify with nothing free suggests a command next accepts [C7]', async (t) => {
+  const box = await project(t);
+  const idle = await run(box, box.reviewer, ['next', '--verify']);
+  assert.equal(idle.code, 1);
+  const said = idle.stdout + idle.stderr;
+  assert.match(said, /NOTHING_FREE/u);
+  const suggested = said.match(/To keep looking: pullboard (next[^\n]*)/u);
+  assert.ok(suggested, `the refusal names a command: ${said}`);
+  assert.doesNotMatch(suggested[1], /--take/u, 'the suggestion never mixes --take with --verify');
+  const again = await run(box, box.reviewer, suggested[1].trim().split(/\s+/u));
+  assert.doesNotMatch(again.stdout + again.stderr, /USAGE/u, 'next accepts the command it suggested');
+});
+
 test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
