@@ -51,10 +51,11 @@ const DETAIL = `(() => {
     waiting: detail.querySelector('.detail-wait')?.textContent ?? null,
     busy: !!detail.querySelector('[aria-busy]'),
     criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
-    check: part('Check') ? [part('Check').querySelector('code').textContent, part('Check').querySelector('.chip').textContent] : null,
-    brief: part('Brief')?.querySelector('.text').innerText ?? null,
-    verdicts: [...detail.querySelectorAll('.verdict')].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
-    moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
+    check: part('Check') ? [part('Check').querySelector('.item-panel-command pre').textContent, part('Check').querySelector('.chip').textContent] : null,
+    brief: part('Brief')?.closest('section').querySelector('.item-panel-brief')?.innerText ?? null,
+    // The Verdicts tab and the History tab list newest first; the helper reads them oldest first.
+    verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
+    moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].reverse().flatMap((move) => move.dataset.eventIds.split(' ').reverse().map(() => move.dataset.timelineKind)),
     facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
   };
 })()`;
@@ -139,7 +140,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       assert.deepEqual(greeting, {
         title: '#1Offline greeting',
         criterion: 'The greeting renders from the snapshot alone.',
-        check: ['true', 'green'],
+        check: ['true', 'Green on main'],
         brief: 'Keep the greeting short.',
         verdicts: [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']],
         moves: ['add', 'claim', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'proof-run', 'proof-run', 'submit', 'proof-run', 'accept'],
