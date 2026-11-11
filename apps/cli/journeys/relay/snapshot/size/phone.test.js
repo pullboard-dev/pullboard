@@ -168,7 +168,7 @@ async function openOnPhone(t, { box, link, heldPage, currentMarker }, { holdStat
     let opened = false;
     new MutationObserver(() => {
       const tab = document.querySelector('[data-tab="items"]');
-      if (!opened && tab) { opened = true; tab.click(); } // a person opens Items before the list is drawn, since pages open on the Dashboard.
+      if (!opened && tab && typeof data === 'object' && data?.project) { opened = true; tab.click(); } // a person opens Items before the list is drawn, since pages open on the Dashboard.
       const node = document.querySelector('#chain');
       if (queued || !node?.textContent.includes('${currentMarker}') || !node.getBoundingClientRect().height) return;
       queued = true;
