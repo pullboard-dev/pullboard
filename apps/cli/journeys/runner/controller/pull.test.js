@@ -38,7 +38,7 @@ function miniAgentSource(ssh, runnerHome) {
           let newline;
           while ((newline = control.indexOf('\\n')) >= 0) {
             const line = control.slice(0, newline); control = control.slice(newline + 1);
-            if (line === 'PULLBOARD_RUNNER_READY ' + id && !readySeen) { readySeen = true; onReady(); onWait(job); }
+            if (line === 'PULLBOARD_RUNNER_READY ' + id && !readySeen) { readySeen = true; onReady(); onWait(true); }
             if (line.startsWith('PULLBOARD_RUNNER_RESULT ' + id + ' ')) receipt = true;
             if (line.startsWith('PULLBOARD_RUNNER_NEED ' + id + ' ') && !needSeen) {
               needSeen = true; onNeed(id, line.slice(('PULLBOARD_RUNNER_NEED ' + id + ' ').length));
@@ -54,6 +54,7 @@ function miniAgentSource(ssh, runnerHome) {
         const tick = setInterval(() => { const found = observe({}, {}); if (found && !stopped) { stopped = { end: found.end, finishReason: found.finishReason, cancellation: found.cancellation, unavailable: found.unavailable }; child.kill('SIGTERM'); } }, 200);
         signal?.addEventListener('abort', () => { stopped ??= { end: 'canceled', finishReason: 'canceled' }; child.kill('SIGTERM'); }, { once: true });
         const exit = await ended;
+        onWait(false);
         clearInterval(tick);
         writeFileSync(join(running, 'out.bin'), Buffer.concat(out)); writeFileSync(join(running, 'control.log'), Buffer.concat(err));
         renameSync(running, done);
@@ -104,7 +105,7 @@ test('a pulled job returns the controller path\'s result and leaves no controlle
     }, 250);
     const viaPull = await withGateSlot(root, lease => settle(runPulled(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata },
-      { waitRunnerJob: miniAgent(() => { waiting = true; }) })),
+      { waitRunnerJob: miniAgent(state => { waiting = state; }) })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} });
     clearInterval(sampler);
     const left = dir => { try { return readdirSync(dir); } catch { return []; } };
