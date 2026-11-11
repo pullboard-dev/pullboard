@@ -21,7 +21,7 @@ import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('land stops again with an expired waiver, and a changed test on main releases the held batch [B3,R3]', () => {
   const box = landProject();

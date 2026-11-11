@@ -20,7 +20,7 @@ import { assertDeferredLandingPriority } from '../../../../packages/store/tests/
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('an uncertain affected batch passes its full gate before local adoption [B3,R3,C7,V4]', () => {
   const box = landProject();

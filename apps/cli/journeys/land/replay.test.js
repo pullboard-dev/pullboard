@@ -26,7 +26,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('landing records replay identically with native sender and engine boundaries [B3,R3,H16]', (t) => {
   const box = landProject();

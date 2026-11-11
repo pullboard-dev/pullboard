@@ -21,7 +21,7 @@ import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
-const { FILES, landProject, itemWorktree } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('a waiver after an early-stopped gate runs the gate again with legacy oversized markers [C7,V4]', () => {
   const box = landProject();

@@ -21,7 +21,7 @@ import { assertSiblingConflictLanding } from '../../../../packages/store/tests/f
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('a landing stop never signals a reused process group [Q1,Q3,C7]', async () => {
   await assertLandingStopIdentity();
@@ -35,15 +35,6 @@ test('a repo with no remote lands into the local trunk and status reads as norma
   assertNoRemoteLanding(sandbox, commitFile);
 });
 /** Prepare four independent submitted items and accept them in a caller-selected verdict order. */
-
-function verifiedFour(box, { red, flaky, order = [0, 1, 2, 3] } = {}) {
-  box.env.LAND_SUPPRESS_RED = '1';
-  const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
-  for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : (Array.isArray(flaky) ? flaky.includes(index) : index === flaky) ? 'FLAKE\n' : 'PASS\n');
-  for (const index of order) acceptItem(box, entries[index]);
-  delete box.env.LAND_SUPPRESS_RED;
-  return entries;
-}
 
 test('land pushes one exact batch in verdict order and records each first-containing merge once [B3,R3]', () => {
   const box = landProject();

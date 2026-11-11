@@ -19,7 +19,7 @@ import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
-const { FILES, landProject } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('land holds a flake without retries and person waivers cover every failure at the exact tree [B3,R3]', () => {
   const box = landProject();
