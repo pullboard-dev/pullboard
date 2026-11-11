@@ -227,7 +227,7 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   assert.equal(lifted.reasons, undefined);
 });
 
-test('an item waiting only on verified or withdrawn items ranks as ready and next offers it by score [N22,B13]', (t) => {
+test('clause 1; clause 2: an item waiting only on verified or withdrawn items ranks as ready and next offers it by score [N22,B13]', (t) => {
   const board = openKitBoard(':memory:');
   t.after(() => closeBoard(board));
   register(board, { lane: 'coordinator', path: '/coordinator' });
