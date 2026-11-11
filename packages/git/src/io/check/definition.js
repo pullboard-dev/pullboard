@@ -44,6 +44,16 @@ function localModule(file, specifier) {
   return found;
 }
 
+/** Longest stretch before a string literal that any context regex below needs to see. */
+const contextWindow = 160;
+
+/** The code just before a literal; scanning the whole prefix per literal is quadratic in file length. */
+function literalContext(code, start) {
+  const window = code.slice(Math.max(0, start - contextWindow), start);
+  // A cut can leave half an identifier whose word boundary is false; the real match is never that long.
+  return start > contextWindow ? window.replace(/^[\w$]+/u, '') : window;
+}
+
 /** Collect tracked project code plus literal external dependencies; opaque external loading misses the cache. */
 export function checkCommandDefinition(root, commands, codeFiles = []) {
   const files = new Map();
@@ -76,13 +86,13 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
     const { code, strings } = lex(source);
     const constants = new Map();
     for (const value of strings) {
-      const binding = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*$/u.exec(code.slice(0, value.start));
+      const binding = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*$/u.exec(literalContext(code, value.start));
       if (binding && !value.text.includes('\\') && !value.text.includes('${')) constants.set(binding[1], value.text);
     }
     let calls = 0;
     let requires = 0;
     for (const value of strings) {
-      const prefix = code.slice(0, value.start);
+      const prefix = literalContext(code, value.start);
       const call = /\b(?:require|import)\s*\(\s*$/u.test(prefix);
       if (!call && !/\b(?:from|import)\s*$/u.test(prefix)) continue;
       if (call) { calls++; if (/\brequire\s*\(\s*$/u.test(prefix)) requires++; }

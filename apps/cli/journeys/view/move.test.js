@@ -50,7 +50,7 @@ test('a running view answers state after its shipped doctrine dependency is remo
   const installed = join(box.dir, 'installed');
   mkdirSync(installed);
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);
-  const child = spawn(process.execPath, [join(installed, 'bin/pullboard.js'), 'view', '--no-open', '--port', '0'], {
+  const child = spawn(process.execPath, [join(installed, 'apps/cli/pullboard.js'), 'view', '--no-open', '--port', '0'], {
     cwd: demo.repo, env: { ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   try {
@@ -67,8 +67,8 @@ test('a running view answers state after its shipped doctrine dependency is remo
     const before = await read(path);
     assert.equal(before.status, 200, 'the original source answers a real state request');
     const original = (await before.json()).state;
-    // #1561 moved this shipped file from src/ into its cell; old running code still reads its original path.
-    rmSync(join(installed, 'packages/doctrine/src/shell/standard-doctrine.md'));
+    // The shipped standard doctrine lives in its cell; a running generation must keep serving when a landing removes it.
+    rmSync(join(installed, 'packages/doctrine/src/io/standard.md'));
     // A genuine watched board input change forces projection rather than reusing serialized state.
     appendFileSync(join(demo.repo, 'SPEC.md'), '\n');
     const after = await read(path + '?seen=0');
