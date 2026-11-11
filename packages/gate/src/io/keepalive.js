@@ -46,6 +46,12 @@ export function itemFolderSeat(cwd) {
 /** The seat acting from a checkout: the seat registered there, or the seat whose item folder it is. */
 export function runSeat(cwd) { return timingSeat(cwd) ?? itemFolderSeat(cwd); }
 
+/** Beat once for the seat acting from `cwd`, its checkout or item folder; a directory with no seat beats nothing. */
+export async function beatSeat(cwd, { seatOf = runSeat, beat = defaultBeat } = {}) {
+  const binding = seatOf(cwd);
+  if (binding?.seat && binding.file) await beat(join(dirname(binding.file), 'board.sqlite'), binding.seat);
+}
+
 /**
  * Run `work` with this directory's seat kept alive for exactly as long as it runs, then stop the beat, even when
  * the work throws. A process that dies stops beating, so the sweep still reclaims its claim after two minutes.

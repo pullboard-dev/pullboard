@@ -99,6 +99,7 @@ export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
 export { keepClaimsAlive } from "./src/io/keepalive.js";
+export { beatSeat } from "./src/io/keepalive.js";
 export { gateHealthLines } from "./src/logic/health.js";
 export { gateHealthReport } from "./src/io/health.js";
 export { maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';

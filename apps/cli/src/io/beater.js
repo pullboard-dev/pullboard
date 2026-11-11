@@ -8,9 +8,21 @@ import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startDetachedCheck } from '../../../drive/light.js';
-import { keepClaimsAlive } from './keepalive.js';
-import { runSeat } from './keepalive.js';
+import { startDetachedCheck } from '../../../../packages/drive/index.js';
+
+/** A long command's keepalive cadence: the same 60 s submit has always kept. */
+export const COMMAND_KEEPALIVE_MS = 60_000;
+
+/**
+ * Beat the seat acting from `cwd` every 60 s while this command runs; returns the stop. The gate cell loads on the
+ * first beat, so a command that ends within a minute pays nothing. Why: a 21-33 minute `pullboard test` wait read
+ * as a gone seat, and its claim was taken mid-run (#5726). The timer is unref'd, so it never keeps a command alive.
+ */
+export function keepCommandAlive(cwd, { everyMs = Number(process.env.PULLBOARD_KEEPALIVE_MS) || COMMAND_KEEPALIVE_MS, every = setInterval, cancel = clearInterval } = {}) {
+  const timer = every(() => import('../../../../packages/gate/index.js').then(gate => gate.beatSeat(cwd)).catch(() => { /* retried on the next tick */ }), everyMs);
+  timer?.unref?.();
+  return () => cancel(timer);
+}
 
 /** The beater's cadence: four beats inside the two-minute seat-gone limit, so one missed beat never costs a claim. */
 export const BEATER_EVERY_MS = 30_000;
@@ -65,48 +77,48 @@ export function agentSession({ env = process.env, ppid = process.ppid, table = p
 }
 
 /**
- * Whether the watched agent session still runs: its pid answers and, where ps can say, it is the same process that
- * started at `start`. A pid reused by a later process reads as the agent gone.
+ * Whether the watched agent session still runs: its pid answers and, where ps can say, it is no zombie and is the same
+ * process that started at `start`. A pid reused by a later process, or one dead but not yet reaped, reads as gone.
  */
 export function agentAlive({ pid, start }, { run = execFileSync, signal = process.kill } = {}) {
   try { signal(pid, 0); } catch (error) { if (error?.code !== 'EPERM') return false; }
-  if (!start) return true;
-  try { return run('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() === start; }
+  let row;
+  try { row = /^\s*(\S+)\s+(.*?)\s*$/u.exec(run('ps', ['-o', 'stat=', '-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); }
   catch (error) { return error?.code === 'ENOENT'; }
+  return Boolean(row) && !row[1].startsWith('Z') && (!start || row[2] === start);
 }
 
 /** The lock file naming the beater that keeps `seat` alive, beside the board's private seat files. */
-function beaterLock(file, seat) { return join(dirname(file), 'beaters', `${encodeURIComponent(seat)}.json`); }
+function beaterLock(board, seat) { return join(dirname(board), 'beaters', `${encodeURIComponent(seat)}.json`); }
 
 /** The recorded beater for `seat`, or null. */
 function readLock(lock) { try { return JSON.parse(readFileSync(lock, 'utf8')); } catch { return null; } }
 
 /**
- * Start the detached beater for the seat acting from `cwd`, bound to its agent session; it beats every 30 s until the
- * seat holds no claim, the session exits or the seat's worktree is gone. A beater already watching the same session
- * is kept. Returns what it did; it never throws, because the claim is already recorded.
+ * Start the detached beater for `seat` on the board file `board`, bound to the agent session behind this CLI call; it
+ * beats every 30 s until the seat holds no claim, the session exits or the seat's worktree is gone. A beater already
+ * watching the same session is kept. Returns what it did; it never throws, because the claim is already recorded.
  * Why: on 11 Nov 43 of 45 live seats lost a claim while editing or running native tests outside the CLI: only CLI
  * writes, hooks and submit's keepalive beat, and Codex seats have no hooks [B3,C7].
  */
-export function startClaimBeater(cwd, { env = process.env, seatOf = runSeat, session = () => agentSession({ env }), launch = startDetachedCheck, alive = agentAlive } = {}) {
+export function startClaimBeater(cwd, { seat, board }, { env = process.env, session = () => agentSession({ env }), launch = startDetachedCheck, alive = agentAlive } = {}) {
   try {
     if (env.PULLBOARD_CLAIM_BEATER === '0') return { started: false, reason: 'off' };
-    const binding = seatOf(cwd);
-    if (!binding?.seat || !binding.file) return { started: false, reason: 'no seat' };
+    if (typeof seat !== 'string' || !seat || typeof board !== 'string' || !board) return { started: false, reason: 'no seat' };
     const agent = session();
     if (!agent) return { started: false, reason: 'no agent session' };
-    const lock = beaterLock(binding.file, binding.seat);
+    const lock = beaterLock(board, seat);
     const held = readLock(lock);
     if (held?.agent?.pid === agent.pid && held.agent.start === agent.start && alive({ pid: held.pid, start: null })) {
       return { started: false, reason: 'running', pid: held.pid };
     }
-    const entry = fileURLToPath(new URL('../../bin/beater.js', import.meta.url));
-    const args = [JSON.stringify({ cwd, lock, agent, everyMs: Number(env.PULLBOARD_BEATER_MS) || BEATER_EVERY_MS })];
+    const entry = fileURLToPath(new URL('./beater/run.js', import.meta.url));
+    const args = [JSON.stringify({ cwd, seat, board, lock, agent, everyMs: Number(env.PULLBOARD_BEATER_MS) || BEATER_EVERY_MS })];
     // The beater drops the lock only while it names the beater, so recording it after the launch is safe.
     mkdirSync(dirname(lock), { recursive: true });
     const pid = launch(entry, { args, cwd, env: { ...env, PULLBOARD_CLAIM_BEATER: '0' } });
     if (!pid) return { started: false, reason: 'launch failed' };
-    writeFileSync(lock, JSON.stringify({ version: 1, pid, agent, seat: binding.seat }) + '\n', { mode: 0o600 });
+    writeFileSync(lock, JSON.stringify({ version: 1, pid, agent, seat }) + '\n', { mode: 0o600 });
     return { started: true, pid, agent };
   } catch (error) { return { started: false, reason: error?.message ?? String(error) }; }
 }
@@ -114,11 +126,13 @@ export function startClaimBeater(cwd, { env = process.env, seatOf = runSeat, ses
 /**
  * The beater's whole life: beat the seat while it holds a claim, its worktree exists and the agent session lives, then
  * drop its lock if the lock is still its own. A dead agent stops the beats within one tick, so the two-minute
- * seat-gone release still takes its claim.
+ * seat-gone release still takes its claim. The gate cell loads here, in the detached process, never in the claim.
  */
-export async function runBeater({ cwd, lock, agent, everyMs = BEATER_EVERY_MS }, { alive = agentAlive, pid = process.pid, ...options } = {}) {
+export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS }, { alive = agentAlive, pid = process.pid, ...options } = {}) {
   try {
-    return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent), ...options });
+    const { keepClaimsAlive } = await import('../../../../packages/gate/index.js');
+    return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent),
+      seatOf: () => ({ seat, file: join(dirname(board), 'seat-timing.jsonl') }), ...options });
   } finally {
     if (readLock(lock)?.pid === pid) rmSync(lock, { force: true });
   }

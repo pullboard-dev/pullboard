@@ -116,9 +116,7 @@ export async function main(rawArgv, streams) {
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
   const binding = timingSeat(cwd);
   const finish = beginSeatTiming(cwd, 'command', argv[0] ?? 'help', item, binding);
-  // Every command a seat runs keeps it alive while it runs, as submit always did: a 30-minute test wait was silence (#5726).
-  const { keepSeatAlive, runSeat } = await import('../../../../../packages/gate/light.js');
-  const stopBeat = keepSeatAlive(cwd, { seatOf: dir => binding ?? runSeat(dir), everyMs: Number(process.env.PULLBOARD_KEEPALIVE_MS) || 60_000 });
+  const stopBeat = (await import('../beater.js')).keepCommandAlive(cwd);
   const lockPort = Symbol.for('pullboard.seat-timing.lock');
   const previous = globalThis[lockPort];
   globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);

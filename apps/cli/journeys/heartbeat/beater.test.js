@@ -14,8 +14,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { agentSession } from '../../../../packages/gate/src/io/beater.js';
-import { startClaimBeater } from '../../../../packages/gate/src/io/beater.js';
+import { agentSession } from '../../src/io/beater.js';
+import { startClaimBeater } from '../../src/io/beater.js';
 import { repoPath } from '../../../../packages/kernel/light.js';
 import {
   createE2eHelpers,
@@ -28,7 +28,7 @@ import {
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-const BEATER = pathToFileURL(repoPath('packages/gate/src/io/beater.js')).href;
+const BEATER = pathToFileURL(repoPath('apps/cli/src/io/beater.js')).href;
 
 /** Resolve once `check` holds, re-reading it on each change in `dir`; fail after ten seconds without it. */
 async function whenTrue(dir, check, what) {
@@ -91,7 +91,9 @@ test('clause 1: the agent session is the nearest ancestor that is not the shell 
   const agent = fakeAgent(t);
   // The agent opens a shell for one command, the way Claude's Bash tool and Codex both do; `; true` keeps the shell from exec'ing away.
   const probe = `import(${JSON.stringify(BEATER)}).then(m => process.stdout.write(JSON.stringify(m.agentSession({ env: {} }))))`;
-  const shell = spawnSync('/bin/sh', ['-c', `env "${process.execPath}" -e '${probe}'; true`], { encoding: 'utf8' });
+  // The probe is a plain node child, not a test child, so it prints its own stdout.
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const shell = spawnSync('/bin/sh', ['-c', `env "${process.execPath}" -e '${probe}'; true`], { encoding: 'utf8', env });
   assert.equal(shell.status, 0, shell.stderr);
   // The probe's own parent chain: sh (shell) -> this test process. The test process stands in for the agent here.
   assert.equal(JSON.parse(shell.stdout).pid, process.pid, 'the shell and env are skipped; the first other ancestor is the session');
@@ -100,7 +102,7 @@ test('clause 1: the agent session is the nearest ancestor that is not the shell 
   assert.deepEqual(agentSession({ env: {}, ppid: 40, table }), { pid: 20, start: 'Wed Nov 11 14:43:32 2026' });
   assert.equal(agentSession({ env: {}, ppid: 40, table: new Map([[40, { ppid: 1, start: 'x', comm: 'bash' }]]) }), null, 'only shells up to launchd: no session, so no beater');
   assert.deepEqual(agentSession({ env: { PULLBOARD_AGENT_PID: String(agent.pid) }, ppid: 40, table: new Map([[agent.pid, { ppid: 1, start: 's', comm: 'x' }]]) }), { pid: agent.pid, start: 's' });
-  assert.equal(startClaimBeater('/any', { env: {}, seatOf: () => ({ seat: 'core-1', file: '/r/.git/pullboard/seat-timing.jsonl' }), session: () => null }).started, false);
+  assert.equal(startClaimBeater('/any', { seat: 'core-1', board: '/r/.git/pullboard/board.sqlite' }, { env: {}, session: () => null }).started, false);
 });
 
 test('clause 1: a claim starts a detached beater that beats while the agent lives and stops when the agent exits [B3,C7]', async t => {
@@ -114,6 +116,7 @@ test('clause 1: a claim starts a detached beater that beats while the agent live
   // No CLI command runs from here on: only the beater can refresh the heartbeat.
   const old = ageHeartbeat(f.presence, f.seat);
   await whenTrue(dirname(f.presence), () => heartbeatAt(f.presence, f.seat) > old, 'a beat with no CLI command running');
+  // Killed and not yet reaped by this test: a zombie agent must read as gone too.
   agent.kill('SIGKILL');
   // With the agent dead nothing beats again, so the two-minute seat-gone release takes the claim.
   assert.equal(exited(beater.pid), true, 'the beater stops once its agent died');
