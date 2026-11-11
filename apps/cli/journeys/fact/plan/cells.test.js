@@ -85,7 +85,9 @@ test('the plan places every tracked module and asset under src/, bin/ and relay/
   assert.match(PLAN.base, /^[0-9a-f]{40}$/u, 'the plan records the commit it was computed at');
   const listed = new Set(git(ROOT, 'ls-tree', '-r', '--name-only', PLAN.base).split('\n'));
   const rows = PLAN.cells.flatMap(cell => cell.paths.map(([from]) => from));
-  assert.deepEqual(rows.filter(file => !listed.has(file)), [], 'a moved row names a file its base commit does not hold');
+  // A module added after the base is placed by name as it lands, so a row may also name a file some later commit added.
+  const added = new Set(git(ROOT, 'log', '--diff-filter=A', '--name-only', '--format=', `${PLAN.base}..HEAD`).split('\n'));
+  assert.deepEqual(rows.filter(file => !listed.has(file) && !added.has(file)), [], 'a moved row names a file neither its base commit nor a later commit holds');
   const stays = new Set(PLAN.stays.map(row => row.path));
   const left = git(ROOT, 'ls-files').split('\n').filter(file => inPlanScope(file) && !stays.has(file));
   assert.deepEqual(left, [], 'the freeze moved every module and asset out of the old roots; place a new one under its cell, not at the root');
@@ -192,10 +194,12 @@ test('only exact named own-body worker shims pass the bounded process-entry exce
     const leaf = mode === 'wrong-leaf' ? 'other' : 'refused';
     const bindings = mode === 'star' ? '*' : '{ Refused }';
     put('src/refused.js', `export ${bindings} from '../packages/kernel/src/logic/${leaf}.js';\n`);
-    let worker = mode === 'non-worker' ? 'export const worker = true;\n' : "import { Refused } from './refused.js';\nexport const worker = Refused;\n";
+    let worker = mode === 'non-worker' ? 'export const worker = true;\n' : "import { Refused } from '../../../../../src/refused.js';\nexport const worker = Refused;\n";
     if (mode === 'opaque') worker += 'new URL(process.env.UNKNOWN_WORKER_PATH, import.meta.url);\n';
     if (mode === 'oversize') worker += `export const padding = '${'x'.repeat(1_048_576)}';\n`;
     put('apps/runner/src/io/scripts/worker.js', worker);
+    // Once any app file exists the production roots are apps/*/index.js, so the runner app reaches the worker and the board.
+    put('apps/runner/index.js', "import './src/io/scripts/worker.js';\nimport '../../src/board.js';\n");
     const problems = checkMoved(root, plan, 'kernel');
     if (mode === 'worker') assert.deepEqual(problems, [], 'a closed actual worker may retain its exact named own-body shim');
     else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
@@ -216,6 +220,7 @@ test('only exact named own-body move shims pass the bounded move-registry except
     const bindings = mode === 'star' ? '*' : '{ Refused }';
     put('src/refused.js', `export ${bindings} from '../packages/kernel/src/logic/${leaf}.js';\n`);
     put('apps/runner/src/io/scripts/worker.js', 'export const worker = true;\n');
+    put('apps/runner/index.js', "import './src/io/scripts/worker.js';\nimport '../../src/board.js';\n");
     let move = mode === 'outside' ? 'export const move = true;\n'
       : "import { Refused } from '../refused.js';\nexport const move = Refused;\n";
     if (mode === 'opaque') move += 'await import(process.env.UNKNOWN_MOVE_PATH);\n';
