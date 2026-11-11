@@ -5,6 +5,9 @@ function shellWord(value) { return `'${String(value).replaceAll("'", "'\\''")}'`
 /**
  * POSIX shell text of the agent; argument 1 is the runner root. Tunables (seconds unless noted) come from the environment:
  * PULLBOARD_AGENT_POLL (1), PULLBOARD_AGENT_IDLE_SECONDS (600), PULLBOARD_AGENT_WANTED_SECONDS (120), PULLBOARD_AGENT_DONE_MINUTES (30).
+ * Load gate [#5578]: a new job is claimed only while the machine's one-minute load average is under its core count; each
+ * tick writes <root>/load (`state=ok|hold load=.. cores=.. at=..`) for the status script. PULLBOARD_AGENT_LOAD_FILE (a file
+ * holding the load) and PULLBOARD_AGENT_CORES replace the machine's own readings, for tests and for capping a shared box.
  * Why a shell loop: a runner already has a node and a shell, so no daemon, launchd entry or extra runtime is installed, and
  * waiting for work costs the kernel one directory read a second. The text holds no backtick or dollar-brace, so it
  * can sit in a template literal.
@@ -25,6 +28,15 @@ umask 077
 Q=$ROOT/queue; R=$ROOT/running; D=$ROOT/done; LOCK=$ROOT/agent.lock
 mkdir -p "$Q" "$R" "$D" || exit 1
 now() { date +%s; }
+cores() {
+  if [ -n "$PULLBOARD_AGENT_CORES" ]; then echo "$PULLBOARD_AGENT_CORES"; return; fi
+  getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1
+}
+load1() {
+  if [ -n "$PULLBOARD_AGENT_LOAD_FILE" ]; then tr -cd '0-9.' < "$PULLBOARD_AGENT_LOAD_FILE" 2>/dev/null; return; fi
+  if [ -r /proc/loadavg ]; then cut -d ' ' -f 1 /proc/loadavg; return; fi
+  uptime 2>/dev/null | sed 's/.*load averages*: *//' | sed 's/[ ,].*//' | tr ',' '.'
+}
 mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
 if ! mkdir "$LOCK" 2>/dev/null; then
@@ -82,14 +94,22 @@ tend() {
   [ -z "$pid" ] && ! stale "$d/owner.json" && return 0
   finish "$1" '"LOST"' lost
 }
+full=0
+gate() {
+  c=$(cores); l=$(load1); full=0; state=ok
+  if [ -n "$l" ] && awk "BEGIN{exit !($l >= $c)}"; then full=1; state=hold; fi
+  shown=$l; [ -n "$shown" ] || shown=-
+  printf 'state=%s load=%s cores=%s at=%s\n' "$state" "$shown" "$c" "$(now)" > "$ROOT/load.tmp" && mv "$ROOT/load.tmp" "$ROOT/load"
+}
 idle_since=$(now)
 while :; do
   busy=0
+  gate
   for d in "$Q"/*/; do
     [ -d "$d" ] || continue
     id=$(basename "$d")
     case $id in .*) continue ;; esac
-    busy=1; claim "$id"
+    busy=1; [ "$full" = 1 ] || claim "$id"
   done
   for d in "$R"/*/; do
     [ -d "$d" ] || continue

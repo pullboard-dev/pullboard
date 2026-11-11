@@ -7,6 +7,7 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { installSshStandIn } from '../../../cli/tests/fixtures/runner/ssh.js';
 
 /** A grandchild that notes the TERM it receives, which only a signal to the whole process group delivers. */
 const GRANDCHILD = '(trap "echo gone > gone; exit" TERM; sleep 60 & echo $! > grand.pid; wait) & wait';
-const FAST = 'PULLBOARD_AGENT_POLL=0.1 PULLBOARD_AGENT_IDLE_SECONDS=3 PULLBOARD_AGENT_WANTED_SECONDS=2';
+const FAST = 'PULLBOARD_AGENT_POLL=0.1 PULLBOARD_AGENT_IDLE_SECONDS=3 PULLBOARD_AGENT_WANTED_SECONDS=2 PULLBOARD_AGENT_CORES=1000';
 
 /** A private runner root plus the ssh stand-in that starts the agent exactly as an enqueue would. */
 function machine(t, settings = FAST) {
@@ -140,4 +141,21 @@ test('a worker command that reads its capsule then execs node still sees the res
   start();
   await until('the job to finish', root, () => existsSync(join(root, 'done', 'frame', 'exit')));
   assert.equal(readFileSync(join(root, 'done', 'frame', 'out.bin'), 'utf8'), 'spec-frame\nrest');
+});
+
+test('a runner at or above its core count takes no new job, says why, and pulls again once load drops [C7,#5578]', async t => {
+  const { root } = machine(t);
+  const loadFile = join(root, '..', 'load-now');
+  writeFileSync(loadFile, '12.5\n');
+  const settings = `${FAST} PULLBOARD_AGENT_CORES=10 PULLBOARD_AGENT_LOAD_FILE=${loadFile}`;
+  mkdirSync(join(root, 'queue'), { recursive: true });
+  enqueue(root, 'held', { command: 'echo ran', input: '' });
+  execFileSync('sh', ['-c', `${settings} ${runnerAgentStartCommand(root)}`], { stdio: 'ignore' });
+  await until('the hold report', root, () => existsSync(join(root, 'load')) && /state=hold load=12.5 cores=10/.test(readFileSync(join(root, 'load'), 'utf8')));
+  const seen = statSync(join(root, 'load')).mtimeMs;
+  await until('two more ticks that held', root, () => statSync(join(root, 'load')).mtimeMs > seen && /state=hold/.test(readFileSync(join(root, 'load'), 'utf8')));
+  assert.ok(existsSync(join(root, 'queue', 'held')) && !existsSync(join(root, 'running', 'held')), 'the job stays queued while load is above cores');
+  writeFileSync(loadFile, '9.99\n');
+  await until('the job to run once load is under cores', root, () => existsSync(join(root, 'done', 'held', 'exit')));
+  assert.match(readFileSync(join(root, 'load'), 'utf8'), /state=ok load=9.99 cores=10/);
 });
