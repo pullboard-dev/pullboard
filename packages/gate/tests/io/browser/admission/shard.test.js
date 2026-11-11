@@ -16,7 +16,7 @@ const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.tes
 /** A short shard admission window, so the unplaceable shard's bound is measured in seconds. */
 const ADMIT_MS = 1_000;
 
-/** The submit's captured runner admission under gate.runnersOnly with the MacBook's 30-minute gate.runnerWaitMs. */
+/** The submit's captured runner admission under gate.runnersOnly with the laptop's 30-minute gate.runnerWaitMs. */
 const SUBMIT_WAIT_MS = 1_800_000;
 
 /** Own a private machine pool; the two browser runners reach admission through each request's runnerProvider. */
