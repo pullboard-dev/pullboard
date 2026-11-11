@@ -46,6 +46,10 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../../tests/fixtures/relay/browser.js';
+import {
+  reportedSnapshotSize,
+  formatSnapshotLimit,
+} from '../../../../../packages/link/src/logic/relay/size.js';
 import { readSealedDescriptor } from '../../../../../packages/pages/index.js';
 import { openPagedSnapshot } from '../../../../../packages/pages/index.js';
 import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
@@ -392,4 +396,15 @@ test('clause 2: a refused over-limit upload stores no snapshot and the refusal c
   const read = await fetch(path, { headers: { authorization: headers.authorization, 'x-pullboard-engine': headers['x-pullboard-engine'] } });
   const document = await read.json().catch(() => ({}));
   assert.ok(read.status === 404 || (document.state?.sequence !== 1 && (document.state?.sealed?.length ?? 0) < RELAY_LIMIT), 'no snapshot is stored from the refused bytes');
+});
+
+/** The link's existing size consumer accepts the body-measured refusal for the exact body it sent, so the page can name board, size and limit (#1196). */
+test('clause 2: the link consumer turns the over-limit body refusal into the size the page names [H5,H17]', () => {
+  const snapshot = { sequence: 1, sealed: randomBytes(RELAY_LIMIT + 4_000_000).toString('base64url') };
+  const measured = Buffer.byteLength(JSON.stringify(snapshot));
+  const error = { httpStatus: 400, snapshotLimit: { sealedBytes: measured, limit: BODY_LIMIT } };
+  const reported = reportedSnapshotSize(error, { snapshot });
+  assert.deepEqual(reported, { sealedBytes: RELAY_LIMIT + 4_000_000, limit: RELAY_LIMIT }, 'the consumer reports the ciphertext size against the decoded limit');
+  assert.match(formatSnapshotLimit({ board: 'demo', ...reported }), /demo.*sealed snapshot 68\.0 MB over the relay limit 64\.0 MB/, 'the status line names board, size and limit');
+  assert.equal(reportedSnapshotSize({ ...error, snapshotLimit: { sealedBytes: measured + 1, limit: BODY_LIMIT } }, { snapshot }), null, 'a measurement that does not match the sent body is discarded');
 });
