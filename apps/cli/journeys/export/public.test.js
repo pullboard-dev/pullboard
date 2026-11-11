@@ -248,7 +248,8 @@ test('a clean public export renders offline with public work and no write path [
   const executable = chromeExecutable();
   assert.ok(executable, 'the native public-export proof needs the configured browser');
   const box = machine();
-  const alpha = project(box, 'clean-public');
+  // The fixture merges by hand, so the board must not land the accepted item itself and hold the lease.
+  const alpha = project(box, 'clean-public', undefined, { landing: { perItem: false, manualOverride: true, publish: 'separate' } });
   box.run(alpha.repo, 'add', 'web', 'Public task', '--specs', 'G1', '--criterion', 'The public page renders.');
   box.run(alpha.repo, 'add', 'web', 'Landed public task', '--specs', 'G1', '--criterion', 'The public work is landed.');
   build(box, alpha, 2, 'public.html');
