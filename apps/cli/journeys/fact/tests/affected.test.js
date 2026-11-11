@@ -106,7 +106,7 @@ test('an unread doc adds no tests and doc readers come from Git objects [V4,C7]'
   box.put('docs/unread.md','# No readers\n');
   const commit = box.commit();
   box.put('test/unrelated.test.js',"import {readFileSync} from 'node:fs'; readFileSync('docs/unread.md');\n");
-  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[]});
+  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[],reasons:{}});
   assert.deepEqual(selectAffectedTests(box.root,{base,commit,changed:['src/api.js','docs/unread.md']}).files,['test/api.test.js']);
 });
 
