@@ -21,7 +21,7 @@ import { BOOTSTRAP } from './gate.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
 
-/** The line a gate job prints its receipt on, the last line of its output. */
+/** The line a gate job prints its receipt on, the last line of its output; runner serve reads the same prefix. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 /** The capabilities a runner needs to take a gate job. */
 const GATE_NEEDS = ['node22'];
@@ -98,13 +98,15 @@ export function gateJobRun() {
  * @param {{ main: string, source: string, trunk: string, base: string | null, check: string, criterion: string, title: string,
  *   composition: string | null, config: object, crossRunTests: string[], cutRows: object[], produceInventory: string[],
  *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean }} pinned
- * @returns {{ run: string[], input: { main: string, entry: string, data: object } }}
+ * @returns {{ run: string[], input: { main: string, entry: string, data: object }, commits: string[] }} commits: what a
+ *   runner fetches beside the candidate, since the bootstrap archives main and the analysis reads trunk from the checkout's objects.
  */
 export function gateJobRequest(pinned) {
   const { main, source, check, doctrine, authorization, produceInventory, ...rest } = pinned;
+  const commits = [...new Set([main, rest.trunk].filter(commit => typeof commit === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(commit)))];
   const analysis = { main, source, ...rest, check, inventory: null, ...(produceInventory.length ? { produceInventory } : {}), staticChecks: rest.config?.staticChecks ?? '',
     collectMachinery: true, perPart: true, ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(authorization ? { authorization } : {}) };
-  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check } } };
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check } }, commits };
 }
 
 /**
