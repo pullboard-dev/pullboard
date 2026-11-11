@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { constants } from 'node:os';
 import { basename } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,7 @@ import { HANDOFF_DISPATCHER_OWNER_ENV } from '../../../../resources/index.js';
 import { ensureHandoffDispatcher } from '../../../../resources/index.js';
 import { finishRunningWorkers } from '../../../../resources/index.js';
 import { handoffQueueDirectory } from '../../../../resources/index.js';
+import { releaseLifelines } from '../../../../resources/index.js';
 
 /** The tools folder a dispatcher in this tree runs from. */
 const OWN_TOOLS = fileURLToPath(new URL('../../../../..', import.meta.url));
@@ -36,14 +38,14 @@ const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
 
 /**
  * The current tools this dispatcher should hand over to, or null while it runs them. The newest waiting launch whose
- * request was captured at its tool root's current HEAD names the current tooling snapshot; a dispatcher running a
- * different shared snapshot hands over to it. A dispatcher run from a checkout, or with no launch captured at the
- * current HEAD, never hands over.
+ * request was captured at the commit `head` names for its tool root (main's tip) names the current tooling snapshot; a
+ * dispatcher running a different shared snapshot hands over to it. A dispatcher run from a checkout, or with no launch
+ * captured at that commit, never hands over.
  *
  * Why: on 8 Nov a dispatcher started from submit-time tools kept launching gates on code main had fixed (no
  * PROOF_MAX_SHARDS), and one gate opened 18 runner controllers; one live dispatcher must run main's tooling (DJ16).
  *
- * @param {{ own?: string, launches?: () => { directory: string, tools: string }[], head: (root: string) => string | null }} ports - `head` names the commit a tool root's HEAD is at; it runs git, which this cell's lease-reached modules never do synchronously, so the caller passes it in.
+ * @param {{ own?: string, launches?: () => { directory: string, tools: string }[], head: (root: string) => string | null }} ports - `head` names a tool root's current tooling commit, its trunk tip, so a seat worktree's item HEAD never counts; it runs git, which this cell's lease-reached modules never do synchronously, so the caller passes it in.
  * @returns {string | null} The current tools folder to hand over to.
  */
 export function staleDispatcherTools({ own = OWN_TOOLS, launches = waitingLaunches, head } = {}) {
@@ -91,24 +93,58 @@ export function dispatcherPass(row, { finish, stale, now = Date.now } = {}) {
   };
 }
 
+/** One timestamped line on the dispatcher's stderr, which is its log. */
+function logLine(line) { process.stderr.write(`${new Date().toISOString()} ${line}\n`); }
+
+/** The signals a handed-over dispatcher records before it ends, so the next death names its cause. */
+const RECORDED_SIGNALS = ['SIGTERM', 'SIGHUP', 'SIGINT'];
+
 /**
- * Hand the machine over, then exit once the gates this dispatcher started have finished. With current tools, launch
- * one from them in this directory under this dispatcher's own row owner, so the successor holds the row it renewed;
- * with none, another dispatcher already took the row. Either way this one launches nothing more and frees each of
- * its workers' slots as they exit (DJ16).
+ * While a handed-over dispatcher waits on its gates, record any stop signal it receives and how many gates still run,
+ * then exit as the signal would. Returns the call that removes the handlers.
+ * Why: on 11 Nov two handed-over dispatchers ended with nothing in their log; the cause could not be named [C7].
+ *
+ * @param {Map<unknown, object>} running
+ * @param {(code: number) => void} exit
+ * @returns {() => void}
+ */
+export function recordStopSignals(running, exit) {
+  const handlers = RECORDED_SIGNALS.map(signal => {
+    const handler = () => {
+      logLine(`handed-over dispatcher ${process.pid} received ${signal} with ${running.size} gate driver(s) still running; they finish on their own`);
+      exit(128 + constants.signals[signal]);
+    };
+    process.once(signal, handler);
+    return () => process.off(signal, handler);
+  });
+  return () => { for (const remove of handlers) remove(); };
+}
+
+/**
+ * Hand the machine over, then exit once the gates this dispatcher started have finished. First each running gate's
+ * driver is told it is handed over, so it finishes its gate even if this process dies before it. With current tools,
+ * launch one from them in this directory under this dispatcher's own row owner, so the successor holds the row it
+ * renewed; with none, another dispatcher already took the row. Either way this one launches nothing more and frees
+ * each of its workers' slots as they exit (DJ16).
  *
  * @param {string | null} tools - The current tools folder, or null when another dispatcher took over.
  * @param {(code: number) => void} exit
- * @param {{ launch?: typeof ensureHandoffDispatcher, running?: Map<unknown, object>, finish?: typeof finishRunningWorkers, owner?: string, startOf?: (pid: number) => string }} [ports]
+ * @param {{ launch?: typeof ensureHandoffDispatcher, running?: Map<unknown, object>, finish?: typeof finishRunningWorkers, release?: typeof releaseLifelines, signals?: typeof recordStopSignals, owner?: string, startOf?: (pid: number) => string }} [ports]
  */
-export async function handOver(tools, exit, { launch = ensureHandoffDispatcher, running = new Map(), finish = finishRunningWorkers, owner = process.env[HANDOFF_DISPATCHER_OWNER_ENV], startOf } = {}) {
+export async function handOver(tools, exit, { launch = ensureHandoffDispatcher, running = new Map(), finish = finishRunningWorkers, release = releaseLifelines, signals = recordStopSignals, owner = process.env[HANDOFF_DISPATCHER_OWNER_ENV], startOf } = {}) {
+  const stopRecording = signals(running, exit);
+  let released = 0;
+  try { released = await release(running); }
+  catch (error) { logLine(`gate drivers not told of the hand-over: ${error.message}; they stop when this dispatcher exits`); }
   const line = tools ? `dispatcher on ${OWN_TOOLS} hands over to current tooling ${tools}` : `dispatcher on ${OWN_TOOLS} stops: another dispatcher took the row`;
   // The dispatcher's stderr is its log, so the hand-over is recorded there.
-  process.stderr.write(`${new Date().toISOString()} ${line}\n`);
+  logLine(`${line}; ${released} running gate driver(s) finish on their own`);
   if (tools) {
     try { await launch(tools, process.cwd(), { ...(startOf ? { startOf } : {}), ...(owner ? { owner } : {}) }); }
     catch (error) { process.stderr.write(`hand-over launch failed: ${error.message}; the next submit launches a dispatcher\n`); }
   }
   await finish(running);
+  stopRecording();
+  logLine(`handed-over dispatcher ${process.pid} exits: its gate drivers finished`);
   exit(0);
 }

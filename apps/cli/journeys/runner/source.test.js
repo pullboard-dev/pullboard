@@ -22,6 +22,7 @@ import { checkSourceTagNames } from '../../../../packages/runners/index.js';
 import { takeResource } from '../../../../packages/resources/index.js';
 import {
   cleanupFixtureChildren,
+  privateFixtureFiles,
   runFixtureChild,
 } from '../../tests/fixtures/child.js';
 import { pathToFileURL } from 'node:url';
@@ -187,4 +188,72 @@ test('batched source tag validation keeps Git ref rules and publishes no refs [C
     await assert.rejects(check([name]), undefined, `Git rejects ${name}`);
     assert.equal(git(dir, env, 'for-each-ref'), '', 'an invalid name did not publish partial refs');
   }
+});
+
+/**
+ * A repository with a git shim on PATH that logs every `git log` launch, and a private machine home so the history
+ * verdict cache starts empty. Returns helpers to commit, scan and count full-history walks.
+ */
+async function historyFixture(t) {
+  const { protectHistory } = await import('../../../../packages/runners/index.js');
+  const { defaults } = await import('../../../../packages/config/index.js');
+  const dir = privateFixtureFiles('pullboard-incremental-history-').root;
+  const repo = join(dir, 'repo'), bin = join(dir, 'bin'), launches = join(dir, 'launches');
+  for (const folder of [repo, bin]) mkdirSync(folder, { recursive: true });
+  const real = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\nfor a in "$@"; do if [ "$a" = log ]; then echo "$*" >> "${launches}"; break; fi; done\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  const saved = { PATH: process.env.PATH, PULLBOARD_MACHINE_HOME: process.env.PULLBOARD_MACHINE_HOME };
+  process.env.PATH = `${bin}:${process.env.PATH}`;
+  process.env.PULLBOARD_MACHINE_HOME = join(dir, 'machine');
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  git(repo, env, 'init', '-q', '-b', 'main');
+  const commit = (path, parent) => {
+    if (parent) git(repo, env, 'checkout', '-q', '--detach', parent);
+    mkdirSync(join(repo, path, '..'), { recursive: true });
+    writeFileSync(join(repo, path), `${path}\n`);
+    git(repo, env, 'add', '-f', path);
+    git(repo, env, '-c', 'core.hooksPath=/dev/null', '-c', 'user.name=F', '-c', 'user.email=f@example.invalid', 'commit', '-q', '-m', path);
+    return git(repo, env, 'rev-parse', 'HEAD').trim();
+  };
+  const scan = sha => protectHistory(repo, { commit: sha }, [defaults().protect]);
+  const logs = () => (existsSync(launches) ? readFileSync(launches, 'utf8').split('\n').filter(Boolean) : []);
+  return { commit, scan, logs };
+}
+
+test('a candidate one commit ahead of a scanned main runs no full-history log, even beside an unscanned sibling [C7,#5550]', async t => {
+  const { commit, scan, logs } = await historyFixture(t);
+  commit('a.txt');
+  const main = commit('b.txt');
+  scan(main);
+  assert.equal(logs().length, 1, 'main itself pays one full walk');
+  const first = commit('c.txt', main);
+  scan(first);
+  const second = commit('d.txt', main);
+  scan(second);
+  const walks = logs().slice(1);
+  assert.equal(walks.length, 2, 'each candidate walks once');
+  for (const walk of walks) assert.match(walk, new RegExp(`${main}\\.\\.`, 'u'), 'and only the commits past main');
+});
+
+test('a candidate whose parent was never dispatched still skips the full walk for its sibling [C7,#5550]', async t => {
+  const { commit, scan, logs } = await historyFixture(t);
+  commit('a.txt');
+  const main = commit('b.txt');
+  scan(commit('c.txt', main));
+  assert.equal(logs().length, 1, 'the first candidate walks all history once');
+  scan(commit('d.txt', main));
+  assert.match(logs()[1], new RegExp(`${main}\\.\\.`, 'u'), 'the sibling walks only past main, which the first scan vouched for');
+});
+
+test('a bad path in the new commit is still refused beside a scanned ancestor [C7,#5550]', async t => {
+  const { commit, scan } = await historyFixture(t);
+  const main = commit('a.txt');
+  scan(main);
+  const bad = commit('data/board.sqlite', main);
+  assert.throws(() => scan(bad), error => error.code === 'RUNNER_SECRET');
+  assert.throws(() => scan(commit('e.txt', bad)), error => error.code === 'RUNNER_SECRET');
 });

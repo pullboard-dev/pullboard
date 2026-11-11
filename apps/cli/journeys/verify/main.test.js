@@ -36,6 +36,7 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // @pullboard-board-file journey: share the board file the real verify command reads
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   const first = document(box.run(box.web, 'whoami', '--json')).id;
@@ -89,6 +90,7 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
  * the armed frozen check itself; the cases below observe that run [C7,V4].
  */
 function submitUnsealed(box) {
+  // @pullboard-board-file journey: share the board file the real verify command reads
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     submitFixture(board, 1, { agentId: document(box.run(box.web, 'whoami', '--json')).id,

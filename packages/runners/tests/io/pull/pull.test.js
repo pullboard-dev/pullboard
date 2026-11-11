@@ -14,6 +14,7 @@ import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner
 import { enqueueRunnerJob } from '../../../src/io/pull/enqueue.js';
 import { fetchRunnerFile } from '../../../src/io/pull/enqueue.js';
 import { uploadRunnerPack } from '../../../src/io/pull/enqueue.js';
+import { parseStatus } from '../../../src/io/pull/mirror.js';
 import { readRunnerMirror } from '../../../src/io/pull/mirror.js';
 import { refreshRunnerStatus } from '../../../src/io/pull/mirror.js';
 import { ackRunnerJob } from '../../../src/io/pull/mirror.js';
@@ -30,7 +31,9 @@ function runnerFixture(t) {
   for (const sub of [root, dir, bin, join(base, 'home')]) mkdirSync(sub, { recursive: true });
   const ssh = installSshStandIn({ bin, worker: base, home: join(base, 'home'), machineHome: join(base, 'machine'), requests });
   const runner = { host: HOST, root };
-  const calls = () => (existsSync(requests) ? readFileSync(requests, 'utf8').split('\n').filter(line => line.includes('"workerStarted":true')).length : 0);
+  /** Status refreshes are pull-aux ssh calls: the stand-in records them in <requests>.pull, apart from job dispatches. */
+  const pullLog = `${requests}.pull`;
+  const calls = () => (existsSync(pullLog) ? readFileSync(pullLog, 'utf8').split('\n').filter(line => line.includes('"workerStarted":true')).length : 0);
   /** Lay out one job folder as the runner agent would. */
   const job = (state, id, files = {}) => {
     const folder = join(root, state, id);
@@ -209,4 +212,15 @@ test('5468 clause 2: a runner that fails three refreshes is unreachable and ends
   controller.abort();
   await done;
   assert.deepEqual(needs, [['needy', 'QUJD']]);
+});
+
+test('5578 clause 1: the status mirror carries the agent load line, with the reason while it holds new jobs [C7]', () => {
+  const held = parseStatus('agent present\nload state=hold load=34.2 cores=10 at=1700000000\nend\n');
+  assert.equal(held.load.holding, true);
+  assert.equal(held.load.cores, 10);
+  assert.match(held.load.reason, /load 34\.2 is at or above its 10 cores/);
+  const open = parseStatus('agent present\nload state=ok load=3 cores=10 at=1700000000\nend\n');
+  assert.equal(open.load.holding, false);
+  assert.equal(open.load.reason, undefined);
+  assert.equal(parseStatus('agent absent\nend\n').load, undefined);
 });

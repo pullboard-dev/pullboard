@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A bounded stopgap leaves every unsent native usage revision available for later lifecycle moves [N2,C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

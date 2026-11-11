@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/fixtures/known-main-red/identities.json */
 /** Real failures retain assertion meaning while source refs, SHAs and temporary identities vary [V4,B3,C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

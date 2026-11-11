@@ -18,6 +18,7 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
 /** Read private pending metadata without including ciphertext or credentials in an assertion diagnostic. */
 function state(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
@@ -87,13 +88,13 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   await t.test('the actual phone names the exhausted account quota before any newer checkpoint [H15,H17]', {
     skip: !findChromeExecutable() && 'Chrome is not installed',
   }, async phoneTest => {
-    const chrome = await startChrome(); phoneTest.after(() => chrome.close());
+    const chrome = await stableChrome(await startChrome()); phoneTest.after(() => chrome.close());
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
     await chrome.navigate(box.origin + '/#board=' + saved.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
     await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('relay storage limit')", 3000, 'the account quota is visible on the phone'); // budget: hang ceiling for the account-notice render handshake, not a throughput claim.
-    const notice = await chrome.evaluate("document.querySelector('#relay-notice').textContent");
+    const notice = await chrome.stable("document.querySelector('#relay-notice').textContent");
     assert.ok(notice.includes(saved.storage.account.login));
     assert.match(notice, /0\.3 MB relay storage limit/u);
     if (process.env.PULLBOARD_RELAY_PAGE_PROOF) {

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/check.js apps/cli/src/io/commands/test.js */
 /** @pullboard-world-pin: clause 1 reads the shipped pullboard test command source to prove it records ticks only after a green run. */
 /** A green pullboard test run of the item's check ticks the test clauses it proves [C7]. */
 import assert from 'node:assert/strict';

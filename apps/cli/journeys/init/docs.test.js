@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json apps/cli/src/logic/help/additions.js docs/api.md docs/cli-help.txt docs/formats.md docs/tools/update-docs.js */
 /** @pullboard-test-input docs-tree */
 /** @pullboard-test-input apps/cli/src/io/documentation/*.json */
 /** @pullboard-test-input apps/cli/src/io/documentation/events/*.json */

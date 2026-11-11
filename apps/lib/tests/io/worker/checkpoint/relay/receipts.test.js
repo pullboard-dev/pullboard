@@ -24,7 +24,7 @@ const machine = { kind: 'machine', userId: 'private-person', machine: 'private-m
 function replicas(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-machine-receipts-'));
   const boards = ['first', 'second'].map(name => {
-    const board = openBoard(join(directory, name + '.sqlite'), { now: () => new Date(at) });
+    const board = openBoard(':memory:', { now: () => new Date(at) });
     store.board_ensureCoordinator(board, '/private/coordinator');
     return board;
   });

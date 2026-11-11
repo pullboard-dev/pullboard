@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /** Native flake landing: a red landing keeps its original verdict and a retained diagnostic is consumed once [C7,H16]. */
 import {
   flakyProject,
@@ -90,6 +90,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
   // The direct public API call cannot inherit cliAt's private identity environment; set only this synthetic repo's identity.
   box.git('config', '--local', 'user.name', 'Fixture Agent');
   box.git('config', '--local', 'user.email', 'fixture@example.com');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     // The product's own config loader reads the fixture repo's settings, as automatic landing does.

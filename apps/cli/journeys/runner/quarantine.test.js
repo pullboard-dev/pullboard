@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run-tests.js packages/resources/index.js */
 /** One unverified cleanup costs one runner slot, runner jobs start no detached watcher, and a held pool lock never fails a gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

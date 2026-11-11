@@ -44,7 +44,9 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   const unknownSeat = join(box.dir, 'unknown-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', unknownSeat, 'main');
   box.env.PULLBOARD_MODEL = 'Unlisted Vendor Model';
+  box.env.PULLBOARD_FIXTURE_ROUTES = 'board';
   const unknown = fixtureJoin(box.run, unknownSeat, 'api', '--json');
+  delete box.env.PULLBOARD_FIXTURE_ROUTES;
   assert.equal(unknown.code, 0, unknown.err + unknown.out);
   assert.equal(JSON.parse(unknown.out).route, 'mid', 'an unlisted model label falls back to mid');
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/main/audit.js */
 /** @pullboard-world-pin: clause 1 reads the shipped producer source to prove it never blocks the lease renewal timer. */
 /** A cells-inventory producer job reaches a result, or its lease lapses and another driver resumes it [C7]. */
 import assert from 'node:assert/strict';
@@ -41,7 +41,7 @@ const fixture = repo();
 
 /** Open a real board file and hand its SQLite handle to the body. */
 async function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

@@ -8,7 +8,7 @@ import { projectReviewFamily } from "../../../../verify/index.js";
 import { withSeatPresence } from "../presence.js";
 import { projectItemDecisions } from "../../../../items/index.js";
 import { itemById } from "../../logic/board/item/lookup.js";
-import { submitGateInFlight } from "../../logic/red/return.js";
+import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
 import { handoffRecord } from "../submit/handoff/records.js";
 import {
@@ -59,7 +59,7 @@ const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
  * @returns {boolean}
  */
 export function isHeld(board, item) {
-  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || submitGateInFlight(board, item));
+  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || itemWorkInFlight(board, item));
 }
 
 /**

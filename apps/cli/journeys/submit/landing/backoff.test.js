@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js */
 /** A held or idle lander backs off 60 s doubling to 5 minutes, and an accept, a green gate or a held-test commit wakes it at once [C7]. */
 import assert from 'node:assert/strict';
 import {

@@ -10,9 +10,10 @@ export * from './src/io/lock.js';
 export { keepHeartbeatWhileBlocked } from './src/io/heartbeat/blocked.js';
 export { analysisArtifactDescriptor, readAnalysisArtifact, receiveAnalysisArtifact } from './src/io/artifact.js';
 
-export { HANDOFF_DISPATCHER_OWNER_ENV, HANDOFF_WORKER_LIFELINE_ENV, onDispatcherLifelineEnd, HANDOFF_DISPATCHER_RESOURCE, HANDOFF_WORKER_RESOURCE, drainHandoffQueue, ensureHandoffDispatcher, finishRunningWorkers, exitedWithoutResult, HANDOFF_SWEEP_EVERY_MS, repeatingSweep, handoffQueueDirectory, handoffCapLine, handoffDispatcherHeartbeat, handoffDispatcherLog, handoffTicketWaiting, handoffTicketsWaiting, dropHandoffTicket, handoffWorkerCapacity, handoffWorkerCapacityDetail, queueHandoffLaunch, recordHandoffCap, reserveHandoffTicket, withHandoffQueueOrder } from './src/io/handoff/worker/cap.js';
+export { HANDOFF_DISPATCHER_OWNER_ENV, HANDOFF_WORKER_LIFELINE_ENV, HANDOFF_LIFELINE_RELEASE, onDispatcherLifelineEnd, releaseLifelines, HANDOFF_DISPATCHER_RESOURCE, HANDOFF_WORKER_RESOURCE, drainHandoffQueue, ensureHandoffDispatcher, finishRunningWorkers, exitedWithoutResult, HANDOFF_SWEEP_EVERY_MS, repeatingSweep, handoffQueueDirectory, handoffCapLine, handoffDispatcherHeartbeat, handoffDispatcherLog, handoffTicketWaiting, handoffTicketsWaiting, dropHandoffTicket, handoffWorkerCapacity, handoffWorkerCapacityDetail, queueHandoffLaunch, recordHandoffCap, reserveHandoffTicket, withHandoffQueueOrder } from './src/io/handoff/worker/cap.js';
 export { claimHandoffRecoveryTurn, handoffDispatcherMayBeDead, recoverHandoffDispatcher } from './src/io/handoff/recovery.js';
 export { HANDOFF_FOLDER_KEEP_MS, handoffRoots, pruneFinishedHandoffs, rememberHandoffRoot } from './src/io/handoff/prune.js';
 export { closeGateSpans, gateSpanCause, openGateSpans, recordGateSpan, recordRunnerDispatch } from './src/io/spans/gate.js';
 export { closeLandingSpans, landingSpan, landingSpanFolder, openLandingSpans, readLandingSpans, recordLandingSpan } from './src/io/spans/landing.js';
 export { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from './src/io/handoff/owner.js';
+export { sourceCacheJobGone } from './src/io/liveness.js';
