@@ -19,7 +19,6 @@ import {
   document,
   fixture,
   state,
-  waitJob,
 } from '../../../../tests/fixtures/submit/handoff.js';
 
 for (const mode of ['silent']) test(`a dead queued handoff is ${mode === 'missing' ? 'returned when captured tools are gone' : mode === 'silent' ? 'returned after one silent relaunch' : 'relaunched from captured tools'} [V4,H16,E18]`, async t => {
@@ -64,13 +63,19 @@ for (const mode of ['silent']) test(`a dead queued handoff is ${mode === 'missin
     }, 'actual recovery worker exit', 120000);
     document(box.run(box.web, 'next', '--json'));
   }
-  await waitJob(box, mode === 'relaunch' ? 'green' : 'infrastructure');
-  const ended = state(box, box.id);
-  assert.equal(ended.job.id, current.job.id, 'recovery retains the original immutable queue');
+  // Since #3074 a dead worker's job ends as infrastructure and the board queues the same candidate again (up to three times).
+  await box.helpers.waitFor(() => state(box, box.id).job?.id !== current.job.id, 'the dead job is replaced by its first infrastructure retry', 120000); // budget: owned recovery ceiling, not a timing assertion.
+  const ended = state(box, box.id, current.job.id);
+  assert.equal(ended.ended.id, current.job.id, 'recovery ends the original immutable queue');
+  assert.equal(ended.ended.state, 'infrastructure');
+  assert.equal(ended.job.infrastructureRetries, 1);
+  assert.equal(ended.job.retryOf, current.job.id);
+  assert.equal(ended.job.commit, current.job.commit, 'the retry queues the same candidate');
   if (mode !== 'relaunch') {
     assert.equal(ended.item.item_status, 'claimed');
-    assert.equal(ended.job.error.code, 'SUBMIT_HANDOFF_DEAD');
-    assert.match(ended.job.error.message, /dead and cannot be relaunched/u);
+    assert.equal(ended.ended.error.code, 'SUBMIT_HANDOFF_DEAD');
+    assert.match(ended.ended.error.message, /dead and cannot be relaunched/u);
+    assert.equal(ended.returns, 0, 'infrastructure never becomes a builder red');
     assert.equal(existsSync(box.started), false, 'failure recovery invents no gate or proof');
     const other = join(box.dir, 'other-web');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
