@@ -84,8 +84,8 @@ test('clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run 
     const snapshot = captureLapsedClaims(ctx, box.board, 'coordinator');
     return snapshot ? snapshot.claims.map(claim => claim.id) : [];
   };
-  const run = queueRunFor(box, seat, id);
   box.advance(3 * 60_000);
+  const run = queueRunFor(box, seat, id);
   assert.deepEqual(sweep(), [control], 'both seats are quiet over 2 minutes: only the claim with no run is swept');
   takeJob(box.board.db, run.id, 'test-run:sweep', { now: box.clock.now().getTime(), leaseMs: 120_000 });
   writeStep(box.board.db, run.id, 'running', {}, { now: box.clock.now().getTime() });
