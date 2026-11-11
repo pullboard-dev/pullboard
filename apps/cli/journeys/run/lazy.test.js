@@ -154,9 +154,7 @@ function knownLiteralBoardImporters(closures, modules) {
   const releaseSource = modules.get('packages/landing/src/io/queue.js');
   const releaseImports = importsIn([releaseSource])[0];
   assert.ok(!releaseImports.includes('../../../store/index.js'), 'release capture avoids the eager store front door');
-  for (const reader of ['../../../store/src/shell/board-event-log.js', '../../../store/src/shell/board-query.js', '../../../store/src/core/board-milestones-read.js']) {
-    assert.ok(releaseSource.includes(`load('${reader}')`), `release capture loads its lazy read-only store module ${reader}`);
-  }
+  assert.ok(releaseImports.includes('../../../store/light.js'), 'release capture reads the board through the store light door');
   for (const name of ['openBoardReadOnly', 'boardId', 'listItems', 'milestones']) assert.match(releaseSource, new RegExp(`\\b${name}\\b`), `release capture uses canonical reader ${name}`);
   assert.ok(!releaseImports.includes('../../../store/src/shell/board.js'), 'release capture does not import the writer facade');
   const parsed = new Map();
