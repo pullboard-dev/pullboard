@@ -57,11 +57,11 @@ export async function seedItemPatches({ board, box, store, exercise, agent, clai
   assert.ok(store.events(board, { itemId: item }).some(entry => entry.event_kind === 'item_patch_remove'));
   assert.equal(store.getItem(board, item).item_status, 'submitted');
   assert.equal(store.getItem(board, item).item_commit, commit, 'patch lifecycle never rewrites submitted source');
-  await seedPatchFollow({ board, box, store, exercise, claim, commit, patch, digest });
+  await seedPatchFollow({ board, box, store, exercise, claim, commit, patch, digest, submitFixture });
 }
 
 /** Follow real ancestor-bound bytes from a clean registered private Git worktree, then compare every reader field. */
-async function seedPatchFollow({ board, box, store, exercise, claim, commit, patch, digest }) {
+async function seedPatchFollow({ board, box, store, exercise, claim, commit, patch, digest, submitFixture }) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-parity-follow-'));
   const root = join(directory, 'builder');
   // A real descendant object is private fixture input, like the existing source-advance recipe.
@@ -104,6 +104,20 @@ async function seedPatchFollow({ board, box, store, exercise, claim, commit, pat
     assert.equal(retained.item_commit, owned.item_commit, 'following companion metadata never submits or rewrites item source');
     assert.equal(git(root, ['rev-parse', 'HEAD']), moved);
     assert.equal(git(root, ['status', '--porcelain']), '');
+    // The builder then proposes an automatic companion; the real submit opens its owning lane's objection window,
+    // and the owner's objection inside it reopens the item. Synthetic state-only submission, no gate claimed [C7,H16,A2].
+    const proposed = store.attachItemPatch(board, item, { agentId: builder, key: 'reader-parity-objection',
+      commit: moved, patch: patch.replaceAll('parity-companion', 'parity-objection'), author: 'coordinator', autoAttach: true });
+    assert.equal(proposed?.changed, true, 'a refused setup never counts as objection parity');
+    const submittedTree = git(root, ['rev-parse', '--verify', `${moved}^{tree}`]);
+    submitFixture(board, item, { agentId: builder, commit: moved, tree: submittedTree });
+    const opened = store.events(board, { itemId: item }).findLast(entry => entry.event_kind === 'item_patch_window');
+    assert.ok(opened, 'submission opened a recorded objection window');
+    const objected = await exercise('objectItemPatch', () => store.objectItemPatch(board, item,
+      { agentId: 'coordinator', key: 'reader-parity-objection', note: 'Synthetic owner objection for state projection only.' }));
+    assert.equal(objected?.reopened, true, 'only a real objection inside its window counts');
+    assert.equal(store.getItem(board, item).item_status, 'open');
+    assert.ok(store.events(board, { itemId: item }).some(entry => entry.event_kind === 'item_patch_object'));
   } finally {
     try { git(box.root, ['worktree', 'remove', '--force', root]); }
     finally { rmSync(directory, { recursive: true, force: true }); }
