@@ -611,8 +611,8 @@ export async function competingReplicaClaims(fixture, timing, { ids, tail = true
 }
 
 /** Preserve lost CLI replies, original outcomes and the receipt-missing stack guard. */
-export async function recoverReplicaReplies(fixture, timing, restoreInventories = () => {}) {
-  const { scratch, clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
+export async function recoverReplicaReplies(fixture, timing) {
+  const { clones, worktrees, envs, commonDir, relay, replicaFiles } = fixture;
   timing.begin('lost-reply recovery', 'exercise dropped CLI replies, replay recovery, and durable outcome ordering across all replicas');
   // Exercise loss of the add's reply, after the separate one-time legacy migration has completed.
   await timing.wait('establish the legacy approval baseline before the add fault', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for add recovery'));
@@ -683,6 +683,14 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   const afterRetry = receipts(replicaFiles[1]).find((receipt) => JSON.parse(receipt.move).id === queuedB.id);
   assert.equal(JSON.stringify(afterRetry), originalReceipt, 'presenting a retry does not rewrite any canonical receipt field');
   assert.equal(relay.uploads.length, beforeDenied + 2, 'the two queued claims each post exactly once, including the refused move');
+}
+
+/** Recover lost submit, verify, edit and merge replies, each consumed once under the legacy ACK policy. */
+export async function recoverReplicaOutcomes(fixture, timing, restoreInventories = () => {}) {
+  const { clones, worktrees, envs, gitAt, commonDir, relay, key, boardId } = fixture;
+  timing.begin('lost-outcome recovery', 'recover dropped submit, verify, edit and merge replies once across all replicas');
+  await timing.wait('establish the legacy approval baseline before the outcome faults', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for outcome recovery'));
+  await timing.wait('take item 1 on worktree A so its release below is acknowledged', () => cli(worktrees[0], envs[0], 'claim', '1'));
   const restoreOutboxDefault = await enterLegacyAckPolicy(fixture);
   const ackSetup = await timing.wait('confirm the ACK scenario starts with an empty outbox', () =>
     cli(worktrees[0], envs[0], 'status'));
