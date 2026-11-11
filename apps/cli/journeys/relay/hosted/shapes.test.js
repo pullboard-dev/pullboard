@@ -615,7 +615,7 @@ async function buildBoards(t, boards, engines) {
           await page.navigate(link);
         });
       } catch (error) {
-        const seen = page ? await page.stable(READ_SCREEN).catch(() => null) : null;
+        const seen = page ? await page.evaluate(READ_SCREEN).catch(() => null) : null;
         error.message += ` (enrolling ${engine.name}; its page showed ${JSON.stringify(seen)})`;
         throw error;
       }
@@ -745,8 +745,8 @@ test('a forced hosted cell failure captures its final page state without raising
               await page.navigate(url);
               const shown = await page.poll(OPEN_BOARD, 8_000); // budget: existing blocker-settle fixture ceiling, not a speed assertion.
               assert.ok(shown, 'the real seeded board appears before this control injects its fault');
-              beforeFault.push(await page.stable(READ_SCREEN));
-              await page.stable(`document.querySelector('#chain').remove()`);
+              beforeFault.push(await page.evaluate(READ_SCREEN));
+              await page.evaluate(`document.querySelector('#chain').remove()`);
             },
           };
         },
@@ -1033,12 +1033,12 @@ test('a revoked browser sees the removed screen on a computer and a phone [H5,H1
               actions: [...panel.querySelectorAll('a,button')].filter(seen)
               .map(node => ({ text: node.textContent.trim(), href: node.getAttribute('href') })) };
           })()`, 8_000); // budget: existing matrix blocker-settle ceiling, not a performance assertion.
-          assert.ok(removed, key + ': visible removed screen required; ' + JSON.stringify(await page.stable(READ_SCREEN)));
+          assert.ok(removed, key + ': visible removed screen required; ' + JSON.stringify(await page.evaluate(READ_SCREEN)));
           assert.match(removed.words, /removed/iu, key);
           assert.deepEqual(removed.competing, [], key + ': removed screen has priority over other blocker panels');
           assert.equal(removed.otherSignIns, 0, key + ': no competing sign-in action outside the removed screen');
           assert.deepEqual(removed.actions, [{ text: 'Sign in with GitHub', href: '/auth/github/start' }], key + ': exactly one actionable recovery step');
-          const screen = await page.stable(READ_SCREEN);
+          const screen = await page.evaluate(READ_SCREEN);
           assert.equal(screen.board, false, key + ': revoked identity cannot display private board content');
           visited.push(key);
         } finally { await page.close(); }
@@ -1051,7 +1051,7 @@ test('a revoked browser sees the removed screen on a computer and a phone [H5,H1
 
 /** Read private identity only inside this fixture; assertion messages never include its values. */
 async function savedIdentity(page) {
-  await page.stable(`(() => { delete window.__identityRead981;
+  await page.evaluate(`(() => { delete window.__identityRead981;
     const request = indexedDB.open('pullboard-relay-device-v1', 1);
     request.onsuccess = () => { const db = request.result;
       try { const read = db.transaction('keys').objectStore('keys').get('device');
@@ -1065,7 +1065,7 @@ async function savedIdentity(page) {
     const identity = await page.poll('window.__identityRead981', 8_000); // budget: existing hosted blocker-settle ceiling.
     assert.ok(identity && !identity.failed, 'fixture identity read completed');
     return identity;
-  } finally { await page.stable('delete window.__identityRead981'); }
+  } finally { await page.evaluate('delete window.__identityRead981'); }
 }
 
 test('an expired saved pairing preserves a valid identity when its session probe succeeds or is unavailable [H5,H17,N26]', {
@@ -1125,17 +1125,17 @@ test('an expired saved pairing preserves a valid identity when its session probe
       } else {
         // #982 intentionally replaces the former expired-link blocker for an authorized paired browser.
         assert.ok(await page.poll(`(${READ_SCREEN}).board`, 8_000), 'valid paired identity opens its board despite the expired link'); // budget: fixture settle ceiling.
-        assert.doesNotMatch((await page.stable(READ_SCREEN)).words, /fresh phone pairing link/u);
+        assert.doesNotMatch((await page.evaluate(READ_SCREEN)).words, /fresh phone pairing link/u);
       }
       if (unavailable) assert.equal(probes, 1, 'only the cause-specific session probe ran');
       else {
         assert.ok(probes > 0, 'the opened board performs normal session authorization');
         assert.equal(unmatchedProbes, 0, 'no expiry-only session probe runs before or beyond the observed board listings');
       }
-      const screen = await page.stable(READ_SCREEN);
+      const screen = await page.evaluate(READ_SCREEN);
       assert.doesNotMatch(screen.words, /browser was removed/iu, 'a valid or unavailable session is not a revocation');
-      assert.equal(await page.stable("document.getElementById('relay-removed') !== null"), false);
-      assert.equal(await page.stable("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null, 'the expired pending code is discarded normally');
+      assert.equal(await page.evaluate("document.getElementById('relay-removed') !== null"), false);
+      assert.equal(await page.evaluate("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null, 'the expired pending code is discarded normally');
       const retained = await savedIdentity(page);
       assert.ok(retained.id === enrolled.id, 'the existing device identity is retained');
       assert.equal(retained.extractable, false, 'the existing private key remains nonextractable');
@@ -1171,8 +1171,8 @@ test('an expired pairing link left in sessionStorage never blocks a paired brows
     try {
       await page.navigate(HOSTED + '/');
       assert.ok(await page.poll(OPEN_BOARD, 8_000), 'saved enrollment opens its board despite expired pending pairing'); // budget: fixture settle ceiling.
-      assert.equal(await page.stable("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null);
-      assert.doesNotMatch((await page.stable(READ_SCREEN)).words, /fresh phone pairing link|DEVICE_PAIR_EXPIRED/u);
+      assert.equal(await page.evaluate("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null);
+      assert.doesNotMatch((await page.evaluate(READ_SCREEN)).words, /fresh phone pairing link|DEVICE_PAIR_EXPIRED/u);
     } finally { await page.close(); }
   });
   const view = await boardView(box);
@@ -1192,8 +1192,8 @@ test('an expired pairing link left in sessionStorage never blocks a paired brows
     try {
       await page.navigate(HOSTED + '/');
       assert.ok(await page.poll(`(${READ_SCREEN}).words.includes('fresh phone pairing link')`, 8_000), 'unpaired browser gets actionable expiry guidance'); // budget: fixture settle ceiling.
-      assert.equal((await page.stable(READ_SCREEN)).board, false);
-      assert.equal(await page.stable("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null);
+      assert.equal((await page.evaluate(READ_SCREEN)).board, false);
+      assert.equal(await page.evaluate("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null);
     } finally { await context.close(); }
   });
 });
