@@ -66,6 +66,7 @@ async function fixture(t, { companion = false, deleted = false } = {}) {
   }
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
   const reviewer = join(box.dir, 'landing-reviewer');

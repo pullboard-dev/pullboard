@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/45-app-view.json packages/codemap/data/plan/cells.json packages/config/index.js */
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** A builder's new source may carry exactly its own canonical placement across lane boundaries [L3,C7]. */
 import assert from 'node:assert/strict';

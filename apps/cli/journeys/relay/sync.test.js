@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js apps/lib/src/io/worker/checkpoint/relay.js packages/link/src/io/relay.js packages/outbox/index.js */
 /** A relay timeout, a busy link lock or an uncertain baseline never fails a local board move [B26,H16,H17]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

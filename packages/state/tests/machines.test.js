@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/state/tests/fixtures/machines.json packages/store/src/io/submit/handoff/retry.js */
 /** @pullboard-test-input docs-tree */
 /** @pullboard-world-pin: every clause reads the committed source tree, packages/state/tests/fixtures/machines.json and docs/architecture.md, because the map must match this repository's own code. */
 /**

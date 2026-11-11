@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/cells-submit-checks.js packages/codemap/data/plan/cells.json packages/codemap/data/plan/path-map/kernel.json packages/codemap/data/plan/seed.json packages/codemap/data/plan/temporary-edges.json packages/codemap/data/plan/transition.json packages/gate/src/io/browser/guard.js */
 import { inventoryCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
 import { observationCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
 import { inventoryCacheFile } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';

@@ -71,8 +71,19 @@ test('#4140 clause 2: the worker-bundle check fails when the measured raw bundle
   const tree = privateFixtureFiles('pb-worker-bundle-');
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   tree.write('packages/runners/index.js', 'export const workerBundleBytes = () => 1000;\n');
+  tree.write('package.json', '{}\n'); // the check's cache key reads the tree's manifest
   tree.write('packages/gate/data/ceilings/worker-bundle.json', JSON.stringify({ bytes: 999 }) + '\n');
   assert.match(bundleCheck.run(tree.root)[0] ?? '', /runner worker bundle is 1000 raw bytes, over its recorded 999/u);
   tree.write('packages/gate/data/ceilings/worker-bundle.json', JSON.stringify({ bytes: 1000 }) + '\n');
   assert.deepEqual(bundleCheck.run(tree.root), [], 'at the record it passes');
+});
+
+test('5642 clause 1: a worker-bundle measurement that fails names the step it reached and its error [C7]', t => {
+  const bundleCheck = STATIC_TREE_CHECKS.find(check => check.name === 'worker-bundle');
+  const tree = privateFixtureFiles('pb-worker-bundle-step-');
+  t.after(() => rmSync(tree.root, { recursive: true, force: true }));
+  tree.write('packages/runners/index.js', "export const workerBundleBytes = (root, entry, step) => { step('list the package files'); throw new Error('walk failed'); };\n");
+  tree.write('package.json', '{}\n');
+  tree.write('packages/gate/data/ceilings/worker-bundle.json', JSON.stringify({ bytes: 1001 }) + '\n');
+  assert.match(bundleCheck.run(tree.root)[0] ?? '', /could not be measured at the step: list the package files: Error: walk failed$/u);
 });

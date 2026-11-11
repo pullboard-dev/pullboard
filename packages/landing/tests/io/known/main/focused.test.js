@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/exit/rules.test.js */
 /** Focused main comparisons preserve named failures and use a complete file verdict only as a fallback [B3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

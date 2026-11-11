@@ -941,7 +941,7 @@ test('the matrix runs as its own job, outside the landing gate [H5,C7]', () => {
   assert.match(job, /run: npm run hosted-shapes/u);
   assert.equal(workflow.match(/npm run hosted-shapes|PULLBOARD_HOSTED_SHAPES|hosted-shapes\.test\.js/gu).length, 1, 'no other job runs the matrix');
   const scripts = JSON.parse(readFileSync(new URL('../../../../../package.json', import.meta.url), 'utf8')).scripts;
-  assert.equal(scripts['hosted-shapes'], 'PULLBOARD_HOSTED_SHAPES=1 node packages/gate/src/io/run/tests.js apps/cli/journeys/relay/hosted/shapes.test.js', 'one script runs the matrix as its own job');
+  assert.equal(scripts['hosted-shapes'], 'PULLBOARD_HOSTED_SHAPES=1 node apps/cli/src/io/run/tests.js apps/cli/journeys/relay/hosted/shapes.test.js', 'one script runs the matrix as its own job');
   assert.equal(/hosted-shapes|PULLBOARD_HOSTED_SHAPES/u.test(scripts.gate + scripts.test), false, 'the gate and npm test never set it');
 });
 

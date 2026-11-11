@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /**
  * A gate drive that renews its lease with no step is ended, retried once, ended as infrastructure, and shouted Stuck;
  * one whose tests section reports progress is never ended [C7].

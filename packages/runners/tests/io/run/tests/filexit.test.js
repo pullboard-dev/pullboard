@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Exercise the production test runner against files that will not exit and focused-pool admission [C7]. */
 import { copyPackageFiles } from '../../../../index.js';
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import { withNestedGroup } from '../../../../../gate/index.js';
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { focusedPoolSnapshot } from '../../../fixtures/pool.js';
 
-const runner = fileURLToPath(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const fixtureExitCeilingMs = '500';
 const fixtureCleanupMs = '100';
 
@@ -34,7 +34,7 @@ function makeFileExitFixture(t, source) {
   writeFileSync(testFile, source);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
-    root, runner: join(root, 'packages/gate/src/io/run/tests.js'), testFile,
+    root, runner: join(root, 'apps/cli/src/io/run/tests.js'), testFile,
     cleanupFile: join(root, 'cleanup.txt'), portFile: join(root, 'port.txt'),
   };
 }
@@ -232,7 +232,7 @@ test('second focused run starts after the slot is released [C7]', () => {
 });
 `);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, runner: join(root, 'packages/gate/src/io/run/tests.js'), machine, ready, nestedDone, release, firstDone, secondStarted };
+  return { root, runner: join(root, 'apps/cli/src/io/run/tests.js'), machine, ready, nestedDone, release, firstDone, secondStarted };
 }
 
 /** Launch one direct fixture runner with an explicit, cleared inherited-slot marker. */

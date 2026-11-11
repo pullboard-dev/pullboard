@@ -7,6 +7,7 @@ import {
 import { gateStages } from '../../stages.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
 import {
+  RECORD_ONLY_PREFIX,
   testActionKeys,
   testResultStore,
 } from './cache.js';
@@ -52,10 +53,13 @@ function invocations(root, command, depth = 0) {
       } catch { /* Unknown package scripts transfer nothing. */ }
       continue;
     }
+    // A record-only run (census, main comparison) sends no stored green but asks for its own greens back.
+    const record = words[0] === RECORD_ONLY_PREFIX;
+    if (record) words.shift();
     if (!['node', 'node.exe'].includes(basename(words[0] ?? '')) || words.length < 2
-      || resolve(root, words[1]) !== resolve(root, 'packages/gate/src/io/run/tests.js')) continue;
+      || resolve(root, words[1]) !== resolve(root, 'apps/cli/src/io/run/tests.js')) continue;
     const selected = selection(words.slice(2));
-    if (selected) found.push(selected);
+    if (selected) found.push(record ? { ...selected, record } : selected);
   }
   return found;
 }
@@ -68,14 +72,16 @@ function invocations(root, command, depth = 0) {
 export async function prepareTestResultExchange(root, command, commit) {
   try {
     const inputs = new Set();
-    for (const selected of invocations(root, command)) {
+    const recorded = new Set();
+    for (const { record, ...selected } of invocations(root, command)) {
       // Store upkeep scans every memo and record, minutes at load, so a dispatch's request never runs it (9 Nov) [C7].
       const keys = await testActionKeys(root, { commit, ...selected, maintain: false });
-      for (const value of keys.values()) if (value.inputKey) inputs.add(value.inputKey);
+      for (const value of keys.values()) if (value.inputKey) (record ? recorded : inputs).add(value.inputKey);
     }
-    if (!inputs.size) return null;
+    if (!inputs.size && !recorded.size) return null;
     const store = testResultStore(root);
-    const inputKeys = [...inputs].sort();
-    return { store, inputKeys, packet: packTestResults(selectedTestResults(store, inputKeys)) };
+    const inputKeys = [...new Set([...inputs, ...recorded])].sort();
+    // A record-only key is named so its greens come back, but its stored greens never go out.
+    return { store, inputKeys, packet: inputs.size ? packTestResults(selectedTestResults(store, [...inputs].sort())) : null };
   } catch { return null; }
 }

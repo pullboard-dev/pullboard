@@ -20,7 +20,7 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../resources/index.js';
 import { testsNeedBrowser } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /** Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time. */
 function workload(file) {
@@ -62,15 +62,15 @@ export async function measureFileInflation(t, mode) {
   assert.equal(git.status, 0, git.failure);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ testConcurrency: { files: 8, browser: 1 } }));
-  for (const args of [['config', 'user.name', 'Pool Fixture'], ['config', 'user.email', 'pool@example.invalid'],
-    ['config', 'pullboard.trunk', 'refs/heads/main'], ['add', 'package.json', 'pullboard.json'],
-    ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'fixture']]) {
-    const result = runFixtureChild('git', args, { cwd: root });
-    assert.equal(result.status, 0, result.failure ?? result.stderr);
+  // The runner reads its policy from the committed HEAD, so the fixture needs one commit.
+  for (const args of [['add', 'package.json', 'pullboard.json'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture']]) {
+    const step = runFixtureChild('git', args, { cwd: root });
+    assert.equal(step.status, 0, step.failure);
   }
   const machine = join(root, '.machine');
   mkdirSync(machine);
-  writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 4, browserSlots: 1,
+  // A native run is a seat test, which leaves one slot for gates (#2831), so four of them need five slots; a landing run needs four.
+  writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: mode === 'native' ? 5 : 4, browserSlots: 1,
     gate: { browserByLaunch: true } }));
   const times = join(root, 'lifetimes.jsonl');
   writeFileSync(times, '');

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/hold.js apps/cli/src/io/commands/land.js */
 /** Automatic landing schedules its own next wake while verified items wait [C7,#2898]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

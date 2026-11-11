@@ -19,7 +19,7 @@ export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
 export { detectGate, settingCommand, missingGate, setHere } from "./src/io/config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
-export { committedTree, isStampedGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
+export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { digestOf, writeTimingProfile } from "./src/io/output.js";
 export { failureSignature } from "./src/logic/failure/signature.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/logic/policy.js";
@@ -46,7 +46,7 @@ export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest } from "./src/io/tap.js";
-export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, settleTestActions, recordTestAction, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
+export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
 export { prepareTestResultExchange } from "./src/io/test/action/transfer.js";
 export { testCapacityReport } from "./src/io/test/capacity.js";
 export { testConversionPlan } from "./src/logic/test/conversion.js";
@@ -107,5 +107,4 @@ export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDIN
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
-export { gateSlotServices } from './src/io/slot/services.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';

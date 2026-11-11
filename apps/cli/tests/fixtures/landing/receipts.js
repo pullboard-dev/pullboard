@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/audit.js apps/lib/src/logic/native.js packages/codemap/data/plan/cells.json packages/landing/index.js packages/runners/index.js */
 /** Shared private-fixture helpers for the native train receipt journeys [C7]. */
 import { receiptBinds } from '../../../../../packages/gate/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
@@ -104,7 +104,7 @@ export function onBoard(box, action) {
 /** Prepare real private source and policy; all gate receipts are produced by actual native executions. */
 export function fixture(t, required = true) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('node packages/gate/src/io/run/tests.js', undefined, { withWorktree: false });
+  const box = helpers.project('node apps/cli/src/io/run/tests.js', undefined, { withWorktree: false });
   box.auditTokens = new Map();
   t.after(async () => { await finishAudits(box, helpers.waitFor); helpers.cleanup(); });
   delete box.env.NODE_TEST_CONTEXT;

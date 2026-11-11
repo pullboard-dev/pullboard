@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree package.json */
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js package.json packages/sandbox/index.js packages/sandbox/src/io/source/advance.js packages/sandbox/src/io/source/advance/worker.js packages/state/src/io/engine/metadata.js packages/store/src/io/board/reopen.js */
 /** The sandbox shims keep the runner worker closure resolvable and off the engine [C7,CD60]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
