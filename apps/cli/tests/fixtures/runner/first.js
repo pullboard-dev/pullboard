@@ -115,7 +115,8 @@ export async function runnerFirstPolicyCase(e2e) {
   assert.equal(fallbackCapacity.code, 0, fallbackCapacity.err);
   const fallbackBrowser = box.run(box.repo, 'settings', 'browserSlots', '1');
   assert.equal(fallbackBrowser.code, 0, fallbackBrowser.err);
-  const fallback = runPrivateGateLease(box, `if (lease.runner && remoteAttempts++ < 2) throw new RunnerDropped(lease.runner.host);`);
+  // Every registered runner refuses once; with none reserved for timed checks that is one drop per host.
+  const fallback = runPrivateGateLease(box, `if (lease.runner && remoteAttempts++ < ${hosts.length}) throw new RunnerDropped(lease.runner.host);`);
   assert.equal(fallback.status, 0, fallback.context);
   assert.equal(fallback.stdout.trim(), 'local', 'after registered runners refuse, runner-first uses the available local slot');
 
