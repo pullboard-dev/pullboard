@@ -268,6 +268,6 @@ export async function writeCellsEdgeCeilings(root) {
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
-  else if (process.argv.includes('--write')) report(await writeCellsEdgeCeilings(root));
-  else report([...cellsEdgeProblems(root), ...await lightDoorProblems(root)]);
+  else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);
+  else lightDoorProblems(root).then(light => report([...cellsEdgeProblems(root), ...light]));
 }

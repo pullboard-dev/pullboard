@@ -1061,7 +1061,11 @@
       "deep": 0
     },
     "apps/lib/src/logic/native.js": {
-      "cells": 18,
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/src/logic/native/ports.js": {
+      "cells": 17,
       "deep": 0
     },
     "apps/lib/tests/fixtures/generated/doc/default.js": {
