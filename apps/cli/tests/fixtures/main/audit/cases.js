@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/** bin/** package.json */
+/** @pullboard-test-input source-tree */
 import { assertMainAuditOpenRouteReplay } from './receipt.js';
 import { assertMainAuditReceiptReplay } from './receipt.js';
 import { exportBoard } from '../../../../../../packages/store/index.js';
