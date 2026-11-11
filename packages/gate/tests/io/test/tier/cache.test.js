@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/gate/src/io/test/tier/selection.js */
 /** A commit's tier snapshot is built once per machine and tier code and read back by later processes [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
