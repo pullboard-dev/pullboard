@@ -58,6 +58,8 @@ const divider = argv.indexOf('--');
 const host = argv[divider + 1];
 const remoteCommand = argv[divider + 2];
 if (host !== ${JSON.stringify(HOST)}) process.exit(255);
+// A control call (ssh -O check, or a master start) carries no remote command: it ends at once, so it never waits on a drop that needs a started shard.
+if (!remoteCommand) process.exit(0);
 const dropFlag = ${JSON.stringify(dropOnce ?? '')};
 const drop = Boolean(dropFlag);
 const env = { PATH: process.env.PATH, HOME: ${JSON.stringify(home)}, TMPDIR: process.env.TMPDIR,
