@@ -1489,7 +1489,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
   if (!landingWorker) cleanupWatchdog = installTestWatchdog();
-  if (process.env.NODE_TEST_CONTEXT === 'child-v8' && !landingWorker) installTestChildDrain({
+  if (process.env.NODE_TEST_CONTEXT === 'child-v8' && !landingWorker) installTestChildDrain({ // the landing parent owns and signals the leftovers; waiting here holds the run
     sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
     onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
   });
