@@ -15,6 +15,7 @@ const ROWS = [
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
+  ['gate.runnerDispatch', 'How runner jobs are watched', 'controller keeps one controller process per runner job until its result; pull submits, waits on a shared status file and finishes in short processes, so waiting costs none.', 'Capacity', 'controller/pull'],
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],

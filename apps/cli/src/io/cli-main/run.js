@@ -32,7 +32,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   }
   if (!info.isMain) return;
   const primary = mainCheckout(info.root);
-  if (primary?.branch) (await import('../../../../../packages/sandbox/index.js')).trunkRef(info.root, primary.branch);
+  if (primary?.branch) (await import('../../../../../packages/sandbox/light.js')).trunkRef(info.root, primary.branch);
 }
 
 /** Commands that write the board whatever their arguments. */

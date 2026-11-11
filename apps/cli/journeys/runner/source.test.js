@@ -5,11 +5,13 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -133,6 +135,20 @@ recordRunnerGui(runner.host, observation.gui);
     assert.ok(changed.sourcePreparation.git.fetch.calls <= cold.sourcePreparation.git.fetch.calls + 1, 'parent-held preparation adds at most one delta fetch');
     assert.ok(warm.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'same-commit preparation resends no bulk history');
     assert.ok(Number.isSafeInteger(warm.executionPhases.commandMs));
+    assert.ok(changed.sourcePreparation.git['merge-base']?.calls >= 1, 'ancestry of the origin base and tags is answered by merge-base --is-ancestor [C7]');
+    // A cache repo with more than 8 packs is consolidated and given a commit-graph before the next job reads it.
+    const cache = readdirSync(remoteHome, { recursive: true }).map(name => join(remoteHome, name))
+      .find(name => /[\\/]repos[\\/][^\\/]+\.git$/u.test(name));
+    assert.ok(cache, 'the runner kept a source cache repo');
+    const packsIn = () => readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.pack')).length;
+    for (let index = 0; index < 9; index++) {
+      const written = spawnSync('git', ['hash-object', '-w', '--stdin'], { cwd: cache, env, input: `extra pack object ${index}\n`, encoding: 'utf8' });
+      spawnSync('git', ['pack-objects', join(cache, 'objects', 'pack', 'pack')], { cwd: cache, env, input: written.stdout });
+    }
+    assert.ok(packsIn() > 8, 'the fixture cache has accumulated more than 8 packs');
+    await run('changed source\n', false, null, sourceTags);
+    assert.ok(packsIn() <= 2, `the cache was repacked before the next job: ${packsIn()} packs left`);
+    assert.ok(existsSync(join(cache, 'objects', 'info', 'commit-graph')) || existsSync(join(cache, 'objects', 'info', 'commit-graphs')), 'the cache has a commit-graph');
     git(repo, env, 'checkout', '--orphan', 'unrelated');
     git(repo, env, 'rm', '-rf', '.');
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));

@@ -64,6 +64,9 @@ export function queuedSource(root, source) {
   return pinnedSource(root, source) ?? current;
 }
 
+/** The test-result store a request's exchange wrote to, rebuilt by the later short process that finishes a pulled job [C7,#5465]. */
+export async function exchangeStore(root) { return (await import('../../../gate/index.js')).testResultStore(root); }
+
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
 export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);

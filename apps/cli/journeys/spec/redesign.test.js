@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Native Spec provenance, real gate files and Chrome layout/actions share one board [N26,B26,B23]. */
 import assert from 'node:assert/strict';
