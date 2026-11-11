@@ -27,8 +27,8 @@ function fixtureResult(result) {
 }
 
 /** Join a fixture worktree with the model and route required by current admission rules. */
-export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(run(root, 'join', lane, '--model', model, '--route', route, '--json'));
+export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', lockLane = false, run = box.run } = {}) {
+  return fixtureResult(run(root, 'join', lane, '--model', model, '--route', route, ...(lockLane ? ['--lock-lane'] : []), '--json'));
 }
 
 /** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */

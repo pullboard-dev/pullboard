@@ -111,6 +111,13 @@ export async function nextOnce(ctx, values, ports) {
       throw error;
     }
   }
+  if (looked.move) {
+    // This seat's lane has nothing it can take: the same seat, in the same worktree, re-joins the lane that has work and claims
+    // there, so the claim is its own and releases from this worktree. A seat made with --lock-lane never gets here (GH #27).
+    await withBoard(ctx, board => ordered(ctx, board, 'register', [{ lane: looked.move.lane, path: ctx.info.root, route: store.agentAt(board, ctx.info.root).agent_route, moveLane: true }]));
+    ctx.io.say(`moved from ${looked.move.from} to ${looked.move.lane}: ${looked.move.from} had nothing you can take`);
+    return { ...await nextOnce(ctx, { ...values, moved: true }, ports), moved: { from: looked.move.from, to: looked.move.lane } };
+  }
   if (!looked.claim) return looked;
   // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
   // caller's next loop. Selecting again under the write lock held BOARD_BUSY for seconds (#2978).
@@ -298,7 +305,8 @@ function nextPick(ctx, board, values, ports) {
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
+  if (item.item_lane !== me.lane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
+    : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };

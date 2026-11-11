@@ -304,7 +304,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
 
 test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
-  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json'));
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
   const peerBinding = box.binding(peer.root);
   const api = box.seat('owned-api', 'api', box.session);
@@ -389,7 +389,7 @@ test('next names the lane to open for work the agent lacks, and creates no seat 
 
 test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
-  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json'));
   const api = box.seat('rank-owned-api', 'api', box.session);
   const peer = box.seat('rank-peer-api', 'api', 'rank-peer-session');
   const oldest = box.add('web', 'Oldest unranked strong work');
@@ -564,7 +564,7 @@ test('milestone order refuses invalid membership and unauthenticated ranking [N2
 
 test('next in a fresh unbound checkout of a seated session claims nothing and names the seat [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
-  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json'));
   const item = box.add('web', 'Web work for the seated checkout');
   const fresh = join(box.dir, 'fresh-helper');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', fresh, 'main');
@@ -580,7 +580,7 @@ test('next in a fresh unbound checkout of a seated session claims nothing and na
 
 test('a claim held in another checkout cannot be acted on from this one [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
-  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json'));
   const api = box.seat('owned-api', 'api', box.session);
   const first = box.add('api', 'Earlier API release');
   box.milestone('first', first);
@@ -1073,7 +1073,7 @@ test('focus milestone policy survives export while old reserve-next retains its 
 
 test('blocked release --on records and coordinator edit --after none clears the wait [B5,B10,N2]', t => {
   const box = crossLaneFixture(t);
-  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json'));
   const blocker = box.add('web', 'Prerequisite');
   const work = box.add('web', 'Blocked task');
   box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));

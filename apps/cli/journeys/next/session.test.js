@@ -35,10 +35,10 @@ function shared(box, work) {
 }
 
 /** Make a seat checkout in `lane` and join it under the shared session. */
-function seat(box, lane) {
+function seat(box, lane, { lock = false } = {}) {
   const root = join(box.dir, `${lane}-seat`);
   box.git(box.repo, 'worktree', 'add', '-q', root, '-b', `${lane}/seat`);
-  const joined = shared(box, () => joinFixtureSeat(box, root, lane, { model: FIXTURE_MODEL }));
+  const joined = shared(box, () => joinFixtureSeat(box, root, lane, { model: FIXTURE_MODEL, lockLane: lock }));
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { root, id: JSON.parse(joined.out).agent };
 }
@@ -48,10 +48,10 @@ function seatIds(box) {
   return JSON.parse(box.run(box.repo, 'agents', '--json').out).agents.map(agent => agent.agent_id ?? agent.id).sort();
 }
 
-test('clause 1: next in an api seat never claims in the web lane or opens a seat when its session also holds a web seat [GH27]', () => {
+test('clause 2: next in a seat made with --lock-lane never claims in the web lane or opens a seat, and only names the work [GH27]', () => {
   const box = e2e.project();
   const web = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web only work', check: 'true', args: ['--specs', 'G1'] });
-  const api = seat(box, 'api');
+  const api = seat(box, 'api', { lock: true });
   const other = seat(box, 'web');
   const before = seatIds(box);
   const next = shared(box, () => box.run(api.root, 'next'));
@@ -64,7 +64,7 @@ test('clause 1: next in an api seat never claims in the web lane or opens a seat
   assert.ok(other.id);
 });
 
-test('clause 2: two seats of one session each run next and release in their own lane without NOT_YOURS [GH27]', () => {
+test('clause 3: two seats of one session each run next and release in their own lane without NOT_YOURS [GH27]', () => {
   const box = e2e.project();
   const webItem = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web work', check: 'true', args: ['--specs', 'G1'] });
   const apiItem = fileFixtureItem(box, box.repo, { lane: 'api', title: 'Api work', check: 'true', args: ['--specs', 'G1'] });
@@ -82,4 +82,24 @@ test('clause 2: two seats of one session each run next and release in their own 
     assert.doesNotMatch(`${released.out}${released.err}`, /NOT_YOURS/u);
   }
   assert.deepEqual(seatIds(box), before, 'no seat was opened by either next');
+});
+
+test('clause 1: next in an idle api seat moves that same seat to the web lane, claims there, and releases without NOT_YOURS [GH27]', () => {
+  const box = e2e.project();
+  const web = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web only work', check: 'true', args: ['--specs', 'G1'] });
+  const api = seat(box, 'api');
+  const other = seat(box, 'web');
+  const before = seatIds(box);
+  const id = String(web.item_id);
+  const next = shared(box, () => box.run(api.root, 'next'));
+  const all = `${next.out}\n${next.err}`;
+  assert.equal(next.code, 0, all);
+  assert.match(next.out, /moved from api to web: api had nothing you can take/u, all);
+  assert.match(next.out, new RegExp(`claimed #${id}:`, 'u'), all);
+  assert.match(box.run(box.repo, 'show', id).out, new RegExp(`^#${id}\\s+claimed ${api.id}\\b`, 'mu'), 'the same seat holds it');
+  assert.deepEqual(seatIds(box), before, 'no new seat was opened');
+  const released = shared(box, () => box.run(api.root, 'release', id, '--reason', 'OTHER', '--note', 'fixture'));
+  assert.equal(released.code, 0, `${released.out}\n${released.err}`);
+  assert.doesNotMatch(`${released.out}${released.err}`, /NOT_YOURS/u);
+  assert.ok(other.id);
 });

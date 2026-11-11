@@ -18,6 +18,7 @@ const OPTIONS = {
   specs: { type: 'string' },
   parent: { type: 'string' },
   wake: { type: 'string' },
+  'lock-lane': { type: 'boolean' },
   reason: { type: 'string' },
   revises: { type: 'string' },
   status: { type: 'string' },

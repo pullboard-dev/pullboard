@@ -305,6 +305,11 @@ export function agentById(board, id) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(id));
 }
 
+/** Whether a seat was created with --lock-lane: `next` never moves it to another lane (GH #27). */
+export function agentLaneLocked(board, id) {
+  return board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get(`agent_lane_lock:${id}`) !== undefined;
+}
+
 /** Read the model label kept beside other board metadata, avoiding any board-schema migration. */
 export function agentModel(board, id) {
   return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${id}`)?.meta_value ?? null;
