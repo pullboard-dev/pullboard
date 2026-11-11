@@ -93,7 +93,7 @@ import { trunkRevisionReader } from '../../../git/index.js';
 import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
-import { runnerDispatchMode } from '../../../config/index.js';
+import { jobQueueMode } from '../../../config/index.js';
 import { boardJobQueueCall } from './gate.js';
 import { trunkRemote } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
@@ -1339,7 +1339,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)),
-    jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: runnerDispatchMode(), now: now(), trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
+    jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: jobQueueMode(), now: now(), trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return projectRead(board, () => withReadBoard(board.root, current => costAnalytics({
