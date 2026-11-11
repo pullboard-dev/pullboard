@@ -280,6 +280,7 @@ scenario('answering a decision moves it out of Decision needed and marks its car
     });
     await Then('the decision leaves Decision needed', () => chrome.waitFor(`!document.querySelector('#feed #shout-${id} .answer') && data.project.shouts.some((s) => s.shout_answers === ${id} && s.shout_text === ${JSON.stringify(`Yes, at ${at}.`)}) && ${q('#answering')}.hidden`, 15_000)); // budget: hang ceiling for the answer to be recorded and shown; no throughput claim.
     await And('its card in the feed says it is answered', async () => {
+      await openShouts(chrome, 4); // the answer returns the feed to its conversations; open this one again
       const band = JSON.parse(await chrome.stable(`JSON.stringify((() => { const b = document.querySelector('#feed #shout-${id} .band'); return b && [b.classList.contains('done'), b.textContent]; })())`));
       assert.ok(band?.[0] && band[1].startsWith('Answered'), `the card's band says answered: ${JSON.stringify(band)}`);
     });
