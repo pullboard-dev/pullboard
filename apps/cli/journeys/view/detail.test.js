@@ -121,7 +121,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("view.item === 2 && !document.querySelector('#detail [aria-busy]') && !!document.querySelector('#detail .tl')");
       const farewell = await chrome.stable(DETAIL);
       assert.equal(farewell.criterion, 'The farewell mentions the zeppelin.');
-      assert.deepEqual(farewell.moves, ['add', 'claim', 'proof-run', 'submit']);
+      assert.deepEqual(farewell.moves, ['add', 'claim', 'renew', 'proof-run', 'submit']);
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2'], 'opening an item makes exactly one detail request');
 
       // The verified item opens with its criterion, check, brief, verdicts and thread from one more request.
@@ -143,7 +143,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
         check: ['true', 'Green on main'],
         brief: 'Keep the greeting short.',
         verdicts: [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']],
-        moves: ['add', 'claim', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'proof-run', 'proof-run', 'submit', 'proof-run', 'accept'],
+        moves: ['add', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'proof-run', 'accept'],
         facts: ['The corrected greeting renders offline.'],
       }, 'the detail carries what the summary leaves out');
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1']);
