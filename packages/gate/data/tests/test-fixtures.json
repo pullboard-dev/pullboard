@@ -3959,7 +3959,7 @@
   },
   "apps/cli/tests/fixtures/init/shards.js": {
     "tempdir": 1,
-    "hand-policy": 4,
+    "hand-policy": 2,
     "env-spread": 1
   }
 }

@@ -18,6 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { stopGroup } from '../../tests/fixtures/runner/group.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import {
   SOURCE,
   BIN,
@@ -231,7 +232,7 @@ test('own a detached child', async () => {
   for (const name of NAMES.slice(2)) rmSync(join(box.repo, `test/${name}.test.js`));
   writeFileSync(join(box.repo, 'test/a.test.js'), failing);
   writeFileSync(join(box.repo, 'test/b.test.js'), owner);
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: fixtureGate(NAMES.slice(0, 2)), landingShards: 2 }));
+  fixtureProjectPolicy(box.repo, { config: { gate: fixtureGate(NAMES.slice(0, 2)), landingShards: 2 } });
   git(box.repo, box.env, 'add', '-A');
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: a shard owns a detached descendant');
   let pid = null;
@@ -252,7 +253,7 @@ test('own a detached child', async () => {
 for (const count of [1, 3]) test(`collect-all retains two real failures and later green files with ${count} shard(s) [C7,V4]`, { timeout: 90_000 }, async t => {
   const box=fixture({runner:false});
   t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
-  writeFileSync(join(box.repo,'pullboard.json'),JSON.stringify({gate:fixtureGate(),landingShards:count}));
+  fixtureProjectPolicy(box.repo, { config: { gate: fixtureGate(), landingShards: count } });
   if(git(box.repo,box.env,'status','--porcelain','pullboard.json').trim()) {
     git(box.repo,box.env,'add','pullboard.json');git(box.repo,box.env,'commit','-q','-m','test: collect-all shard count');
   }
