@@ -74,7 +74,9 @@ test('per-item proposals isolate each patch and never attribute bots or unlisted
 test('publication findings replay deterministically and ordinary closed-parent guards remain intact [B2,H16,R3]', t => {
   const box = bridgeProject(t);
   const entries = landBridgeItems(box);
+  // @pullboard-board-file journey: reads the board the CLI children wrote and exports it
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  // @pullboard-board-file persistence: the replica is a second file board the import fills
   const replica = openBoard(join(box.dir, 'replica.sqlite'));
   t.after(() => { store.closeBoard(source); store.closeBoard(replica); });
   const baseline = exportBoard(source);
@@ -121,6 +123,7 @@ test('one publish pass computes pull request coverage once with bounded git call
   chmodSync(shim, 0o755);
   const before = { PATH: process.env.PATH, PB_PROOF_GIT_CALLS: process.env.PB_PROOF_GIT_CALLS,
     PB_PROOF_REAL_GIT: process.env.PB_PROOF_REAL_GIT };
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let itemReads = 0;
   const observed = { ...board, db: {

@@ -186,13 +186,13 @@ function diagnosticCode(error) {
  * persist one typed result per case without changing its verdict. Batching keeps a 33-case red file to two probes
  * instead of 66 [#1899]; each case still keeps its own evidence directory, receipts and classification.
  */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
+async function observeFailure({ root, outputRoot = root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
   const load = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
   const prefix = nodePrefix(command, config, root, pin);
-  const parsed = tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
+  const parsed = tapTests(run.output ?? '', run.executionRoot ?? outputRoot).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
   const failures = parsed.length ? parsed : [{ file: null, name: null, indent: null }];
   const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   if (common.status !== 0) throw new Error('Cannot retain flake evidence without the board Git directory.');
@@ -217,6 +217,11 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
       const group = groups.get(entry.failure.file) ?? [];
       if (!group.some(other => other.failure.name === entry.failure.name)) group.push(entry);
       groups.set(entry.failure.file, group);
+    } else if (config.flakes?.rerun === true && prefix) {
+      // Name the missing fact, so a red that was never paired says which condition kept it unpaired.
+      entry.reason = !entry.failure.file || !entry.failure.name ? 'The red names no test file and case in its output; no paired rerun is possible.'
+        : !entry.named ? `${entry.failure.file} is not a committed test file at the pinned head ${pin.head.slice(0, 12)}; no paired rerun is possible.`
+          : 'A nested failing case has no structured selector; no paired rerun is possible.';
     }
   }
   const pairedReceipts = [];

@@ -101,7 +101,8 @@ function batchAffectedTests(state, readEvents, readItem) {
     const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
     const deferred = submitted === null ? deferredSelections(state, readEvents).flatMap(row => row.files).filter(file => named.has(file)) : [];
     const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
-    return { full: false, mandatory, testTiers, files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
+    return { full: false, mandatory, testTiers, journeys: testTiers.journeys.filter(file => named.has(file)), proved: submitted ?? [],
+      files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
   }
   // The submit's files are a floor: a later accepted-trunk importer of a file the merged batch changed is found only
   // on the merged tree, so its selection is added to the submitted union [C7,V4].
@@ -192,6 +193,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
     if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
     const command = testTierCommand(selection.testTiers, files) || 'true';
     return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, testTiers: true,
+      journeys: (selection.journeys ?? []).filter(file => files.includes(file)), proved: selection.proved ?? [],
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
@@ -360,7 +362,7 @@ async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   await smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
-  let { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
+  let { config, affectedGate, files, subset, testTiers, journeys, proved: proof } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
   if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
   let cached = recorded?.affectedGate === affectedGate ? recorded : null;
@@ -373,8 +375,16 @@ async function runGateGroup(state, label, options) {
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
-  const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
+  let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
     generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
+  // T3 journeys are deferred to the landing batch by design: no submit ran them, so no submit receipt answers for the ones it did not run.
+  // Why: a one-item bisect half reused its submit receipt, ran no journey and passed the item that broke it [C7,CS4,V4].
+  if (reuse.reuse && journeys?.length) {
+    // Read the proof the reuse code reads: the submit's recorded files plus the files its frozen check ran [C7,#3685].
+    const proved = new Set(proof);
+    const unproved = journeys.filter(file => !proved.has(file));
+    if (unproved.length) reuse = { ...reuse, rerun: [...new Set([...(reuse.rerun ?? []), ...unproved])].sort() };
+  }
   const receipts = reuse.items?.length > 1 ? `#${reuse.items.join(', #')}'s submit receipts` : `#${reuse.item}'s submit receipt`;
   if (reuse.reuse && reuse.rerun?.length) {
     // The proof answers for the rest of the plan; only the files main's commits reach since the submit run again [C7].

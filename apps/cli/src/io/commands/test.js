@@ -36,7 +36,9 @@ export async function run(io, { first, second, rest, values }) {
   const item = await claimedItem(ctx, agent);
   if (values.diagnose !== true && queuesTestRun(ctx, seat, values)) return queueSeatRun(io, ctx, { agent, item, files, values });
   if (values['test-run'] !== undefined) {
-    await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).payload);
+    const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
+    await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).payload,
+      { beatSeat: board => heartbeatSeat(board, agent) });
     return 0;
   }
   return (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).code;
