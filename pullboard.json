@@ -395,6 +395,6 @@
     "exclude": []
   },
   "trunk": {
-    "remote": "coreyolson@192.168.1.98:pb-trunk"
+    "remote": "coreyolson@100.109.124.33:pb-trunk"
   }
 }
