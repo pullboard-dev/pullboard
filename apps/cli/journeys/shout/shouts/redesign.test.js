@@ -20,6 +20,9 @@ import {
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import {
+  MACHINE_MODEL,
+} from '../../../tests/fixtures/cockpit/machine.js';
 
 /** Read rendered boxes and text through the shared stable browser observation boundary. */
 async function observe(chrome, expression) {
@@ -82,7 +85,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(list.rows.find(row => row.key === 'item:1').chip, 'Question open');
       assert.equal(list.decisions, false, 'there is no pinned coordinator decisions wall');
       assert.equal(list.agent.name, 'web-1');
-      assert.equal(list.agent.model, 'Fixture Model');
+      assert.equal(list.agent.model, MACHINE_MODEL);
       assert.equal(list.agent.avatars, 0);
       assert.match(list.agent.title, /\+1 more item/);
       assert.match(list.agent.age, /^(now|\d+[mhd])$/);
@@ -107,7 +110,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(conversation.clamp, '3');
       assert.ok(conversation.height <= conversation.lineHeight * 3 + 1, 'long messages occupy at most three lines');
       assert.equal(conversation.more, 'Show all');
-      assert.equal(conversation.model, 'Fixture Model');
+      assert.equal(conversation.model, MACHINE_MODEL);
       assert.match(conversation.clock, /^\d{1,2}:\d{2} [AP]M$/, 'the opened conversation keeps the approved person clock');
       assert.equal(conversation.avatars, 0);
       assert.notEqual(conversation.coordinatorBackground, 'rgba(0, 0, 0, 0)');
