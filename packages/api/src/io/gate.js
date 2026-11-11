@@ -97,20 +97,67 @@ export function failingParts(receipt) {
 }
 
 /**
+ * Compare a red gate receipt's failing cases with main's receipts, as today's submit gate does: each case is marked
+ * also failing on main (`onMain: true`), new (`false`), or unknown (`null`) when main has no receipt for its file yet,
+ * in which case the lookup queues the main-test job that writes one. Nothing runs here.
+ *
+ * Why: a red that main also has is not the item's code, so it must never bounce the builder [P7,C7]. The lookup is a
+ * port (the CLI's main-receipt lookup, which `pullboard serve` provides) since main's receipts belong to the
+ * landing and drive cells, which the board API does not import.
+ *
+ * @param {any} board - The open board, gitRoot set to the board host's repository.
+ * @param {Record<string, any>} receipt
+ * @param {string} main - The accepted main the gate job was offered against.
+ * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[] }) =>
+ *   { classes: { file: string, owner: string, own: string[], receipt: unknown, job: string | null }[] } | null) | null} lookup
+ * @returns {{ cases: { phase: string, file: string, name: string, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
+ *   null when the red is not only test cases (a job error, infrastructure, a refusal, a phase with no case account),
+ *   when no lookup is given (gate.mainComparison off) or when main's receipts cannot be keyed.
+ */
+export function compareGateWithMain(board, receipt, main, lookup) {
+  const gate = receipt?.gate ?? {};
+  if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length) return null;
+  const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
+  if (!red.length || red.some(phase => !Array.isArray(phase.failures) || !phase.failures.length
+    || phase.failures.some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
+  const cases = red.flatMap(phase => phase.failures.map(({ file, name }) => ({ phase: String(phase.role), file, name })));
+  let found = null;
+  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })) }); } catch (error) { if (!error?.code) throw error; }
+  const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
+  if (cases.some(row => !classes.has(row.file))) return null;
+  const receiptId = value => typeof value === 'string' ? value : typeof value?.id === 'string' ? value.id : null;
+  return {
+    cases: cases.map(row => {
+      const one = classes.get(row.file);
+      return { ...row, onMain: one.owner === 'unknown' ? null : !one.own.includes(row.name), receipt: receiptId(one.receipt) };
+    }),
+    jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
+  };
+}
+
+/** One line per compared case, saying whether main fails it too. */
+function caseLines(compared) {
+  return compared.cases.map(row => `${row.onMain === true ? 'also fails on main' : row.onMain === false ? 'new' : 'main receipt missing'}: ${row.phase} ${row.file} (${row.name})`);
+}
+
+/**
  * Apply one newly recorded gate-job receipt to its item. The receipt counts only while it is for the item's current
  * candidate: the newest gate job offered for the item, its source, still claimed by the seat that submitted it at the
  * same frozen bar. Anything else is stale: the receipt stays recorded on the job and the item is left as it is.
  *
- * Green records the item's submission at the candidate, as a green submit would, so it routes to review. Red keeps the
- * item claimed by its builder, records the failing parts on its thread and shouts them to the builder.
+ * Green records the item's submission at the candidate, as a green submit would, so it routes to review. A red whose
+ * every failing case also fails on main is submitted the same way, with gateGreen false and the cases recorded for the
+ * reviewer. Any other red keeps the item claimed by its builder, records the failing parts (each case marked new or
+ * also failing on main) on its thread and shouts them to the builder.
  *
  * Why here: the receipt is the gate's result, and the board host only writes rows; it starts no process and no gate.
  *
  * @param {any} board - The open board, with gitRoot set when the board host holds the repository.
  * @param {{ job: string, receipt: Record<string, any> }} posted
- * @returns {{ applied: boolean, outcome: 'review' | 'red' | 'stale' | 'not-gate', reason?: string }}
+ * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} [ports] - the main-receipt lookup; absent, a red is not compared.
+ * @returns {{ applied: boolean, outcome: 'review' | 'red' | 'stale' | 'not-gate', reason?: string, cases?: object[] }}
  */
-export function applyGateReceipt(board, { job, receipt }) {
+export function applyGateReceipt(board, { job, receipt }, { compareWithMain = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -131,27 +178,45 @@ export function applyGateReceipt(board, { job, receipt }) {
     }
   }
   const green = receipt?.status === 0 && receipt?.gate?.green === true;
-  let parts = failingParts(receipt);
-  if (green) {
-    const files = Array.isArray(receipt.gate.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
+  const compared = green ? null : compareGateWithMain(board, receipt, main, compareWithMain);
+  const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true);
+  const recorded = compared ? { cases: compared.cases } : {};
+  let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared)] : failingParts(receipt);
+  if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
+  if (green || mainOnly) {
+    const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
     try {
-      store.submit(board, id, { agentId: submit.agentId, commit: candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: true,
-        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}` } });
-      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} green at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
-      return { applied: true, outcome: 'review' };
+      store.submit(board, id, { agentId: submit.agentId, commit: candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green,
+        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}` } });
+      if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
+      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      return { applied: true, outcome: 'review', ...recorded };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
       if (!error?.code) throw error;
       parts = [`submit ${error.code}: ${error.message}`];
     }
   }
-  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${green ? 'green but not submitted' : 'red'} at ${candidate.slice(0, 12)}; failing parts:\n${parts.join('\n')}` });
+  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${green || mainOnly ? 'passed but not submitted' : 'red'} at ${candidate.slice(0, 12)}; failing parts:\n${parts.join('\n')}` });
   // The shout only wakes the builder; the fact above is the record, so a refused shout leaves the red recorded.
   try {
     store.shout(board, { from: 'coordinator', to: submit.agentId, lanes: [], item: id,
-      text: `#${id} gate red at ${candidate.slice(0, 7)}: ${parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
+      text: `#${id} gate red at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
   } catch (error) { if (error?.code === undefined) throw error; }
-  return { applied: true, outcome: 'red' };
+  return { applied: true, outcome: 'red', ...recorded };
+}
+
+/** The main-receipt lookup this process's board API applies red gate receipts with; null until a host provides one. */
+let mainComparison = null;
+
+/**
+ * Provide the main-receipt lookup red gate receipts are compared with, for every board this process serves; null
+ * removes it. Why a provider: `pullboard serve` owns the lookup (the landing and drive cells hold main's receipts) and
+ * calls this once at start, so the board API's routes stay free of those cells [P7].
+ * @param {Parameters<typeof compareGateWithMain>[3]} lookup
+ */
+export function provideMainComparison(lookup) {
+  mainComparison = typeof lookup === 'function' ? lookup : null;
 }
 
 /**
@@ -159,16 +224,17 @@ export function applyGateReceipt(board, { job, receipt }) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2]} options
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} options - compareWithMain:
+ *   main's receipt lookup for a red gate's cases; the one provided to this process by default.
  */
-export function boardJobQueueCall(board, body, options) {
-  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted) });
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, ...options }) {
+  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
 }
 
 /** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
-export function applyJobReceipt(board, posted) {
+export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
-  if (kind === 'gate') return applyGateReceipt(board, posted);
+  if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   return { applied: false, outcome: 'recorded' };
 }
