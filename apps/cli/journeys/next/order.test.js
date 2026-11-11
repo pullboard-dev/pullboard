@@ -361,7 +361,7 @@ test('a seat that holds nothing is never told it holds another seat\'s claim [N2
 
 test('next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
-  const web = box.seat('owned-mid-web', 'web', box.session, 'mid');
+  const web = box.seat('owned-mid-web', 'web', box.session, 'mid', true);
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
   const peerBinding = box.binding(peer.root);
   const tooStrong = box.add('api', 'A strong-only earlier release');
