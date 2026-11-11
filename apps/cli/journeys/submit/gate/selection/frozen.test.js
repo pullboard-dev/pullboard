@@ -2,6 +2,7 @@
 /**
  * Submit runs the frozen item check and defers the full suite to landing [V4,C7,V16].
  */
+import assert from 'node:assert/strict';
 import {
   runFixtureChild,
   runFixtureGit,

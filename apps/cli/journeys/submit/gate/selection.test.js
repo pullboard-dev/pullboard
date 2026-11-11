@@ -2,6 +2,7 @@
 /**
  * Submit proves its frozen item check and the import closure its change can reach; the sandbox-denial and selection cases [V4,C7,V16].
  */
+import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../../../tests/fixtures/child.js';
 import {
   existsSync,

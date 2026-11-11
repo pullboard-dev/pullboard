@@ -2,6 +2,7 @@
 /**
  * A jest project submits with its own gate, and affectedTests and submitInvariants are validated [V4,C7].
  */
+import assert from 'node:assert/strict';
 import {
   appendFileSync,
   readFileSync,
