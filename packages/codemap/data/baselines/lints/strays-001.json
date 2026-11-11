@@ -24,6 +24,7 @@
     "apps/cli/journeys/doctrine/name.test.js": 1,
     "apps/cli/journeys/doctrine/rulings.test.js": 1,
     "apps/cli/journeys/export/addresses.test.js": 1,
+    "apps/cli/journeys/export/shouts.test.js": 1,
     "apps/cli/journeys/export/fetch.test.js": 1,
     "apps/cli/journeys/export/lan.test.js": 1,
     "apps/cli/journeys/export/public.test.js": 1,

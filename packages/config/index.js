@@ -46,6 +46,8 @@ export {
   setWorkerBudget,
   setGateRunnerWaitMs,
   browserByLaunchEnabled,
+  runnerDispatchMode,
+  mainComparisonMode,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   memoryFloorMB,

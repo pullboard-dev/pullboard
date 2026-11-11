@@ -98,7 +98,7 @@ async function withNoBrowserRunner(t, { cli, git }, body, browserSlots = 0) {
   const fixture = {
     repo, env, slot, marks: `${requests}.phases`,
     phases: () => phases(`${requests}.phases`),
-    runTests: file => runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', file], { cwd: repo, env }),
+    runTests: file => runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js', file], { cwd: repo, env }),
     show: result => `${result.context}\nstdout:\n${result.stdout}`,
     // Fill the controller's only gate slot so a remote-capable run goes to the runner.
     hold: async () => { slot.lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: repo,
@@ -130,7 +130,7 @@ process.exitCode = result.isGreen ? 0 : 1;
 /** An authenticated worker refusal is retried on a real remote browser lease [C7]. */
 export async function browserRefusalRetriesRunner(t, helpers) {
   await withNoBrowserRunner(t, helpers, async fixture => {
-    const command = `PULLBOARD_TEST_REUSE=0 node packages/gate/src/io/run/tests.js ${shellQuote('test/declared.test.js')}`;
+    const command = `PULLBOARD_TEST_REUSE=0 node apps/cli/src/io/run/tests.js ${shellQuote('test/declared.test.js')}`;
     const result = await awaitNestedRun(gateRun(fixture, command, true));
     assert.equal(result.status, 0, fixture.show(result));
     assert.match(result.stderr, /retrying on an eligible runner with a browser slot/u);
@@ -157,7 +157,7 @@ export async function browserFreeRunnerCheck(t, helpers) {
     // A run handed a lease without a browser slot whose file declares a browser has its lease guard refuse
     // on the runner; the guard's receipt, not any text, reruns it locally. Opt out of result reuse: the
     // refusal needs a real execution.
-    const command = `PULLBOARD_TEST_REUSE=0 node packages/gate/src/io/run/tests.js ${shellQuote('test/declared.test.js')}`;
+    const command = `PULLBOARD_TEST_REUSE=0 node apps/cli/src/io/run/tests.js ${shellQuote('test/declared.test.js')}`;
     const pending = gateRun(fixture, command);
     await until(() => fixture.phases().returned === 2, 'the runner answers the refused run');
     free();
@@ -197,7 +197,7 @@ export async function runnersOnlyRefusalStaysOnRunner(t, helpers) {
     const settings = JSON.parse(readFileSync(join(fixture.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
     fixtureMachineSettings(fixture.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnersOnly: true } });
     await hold();
-    const command = `PULLBOARD_TEST_REUSE=0 node packages/gate/src/io/run/tests.js ${shellQuote('test/declared.test.js')}`;
+    const command = `PULLBOARD_TEST_REUSE=0 node apps/cli/src/io/run/tests.js ${shellQuote('test/declared.test.js')}`;
     const pending = gateRun(fixture, command);
     await until(() => fixture.phases().returned === 1, 'the runner answers the refused run');
     free();

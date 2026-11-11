@@ -106,7 +106,7 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   const report = box.run(checkout, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
   const lines = report.out.trim().split(/\r?\n/u);
-  assert.equal(lines.pop(), 'next: pullboard next --wait 1', 'the finite report ends with one immediate action');
+  assert.equal(lines.pop(), 'next: pullboard next', 'the finite report ends with one immediate action');
   assert.equal(lines.length, 4, 'doctrine check prints exactly four Rigor rules');
   assert.deepEqual(lines.map((line) => line.slice(0, line.indexOf(' '))), ['C9', 'C8', 'T5', 'T6']);
   for (const line of lines) {

@@ -121,8 +121,8 @@ test('main CI saves the eight-project performance report outside the gate [N40,C
   assert.match(perf, /if: github\.ref == 'refs\/heads\/main' && github\.event_name != 'pull_request'/u);
   assert.match(perf, /runs-on: ubuntu-latest/u);
   assert.match(perf, /--size 3000 --projects 8 --runs 5 --idle 30 --live-every 5/u);
-  assert.match(perf, /node bin\/check-perf-budgets\.js artifacts\/performance\/harness-output\.txt artifacts\/performance/u);
+  assert.match(perf, /node packages\/gate\/src\/io\/check\/budgets\.js artifacts\/performance\/harness-output\.txt artifacts\/performance/u);
   assert.match(perf, /actions\/upload-artifact@v4\n\s+if: always\(\)/u);
   assert.match(perf, /path: artifacts\/performance\//u);
-  assert.ok(!/npm (?:test|run gate)|node bin\/run-tests\.js/u.test(perf), 'the large observation runs separately from the gate’s tests');
+  assert.ok(!/npm (?:test|run gate)|node (?:packages\/gate|apps\/cli)\/src\/io\/run\/tests\.js/u.test(perf), 'the large observation runs separately from the gate’s tests');
 });

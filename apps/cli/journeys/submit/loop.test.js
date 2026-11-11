@@ -16,6 +16,7 @@ function document(result) {
 
 /** Read one item's actual persisted handoff without mutating the board. */
 function state(box, id) {
+  // @pullboard-board-file journey: read the handoff state the real CLI persisted
   const board = openBoard(box.boardFile);
   try { return { item: store.getItem(board, id), job: store.submitHandoff(board, id), proofs: store.proofReceipts(board, id) }; }
   finally { board.db.close(); }
@@ -49,8 +50,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
   delete isolated.env.NODE_TEST_CONTEXT;
-  isolated.env.PULLBOARD_MODEL = 'gpt-6-luna';
-  const check = 'node --test test/red-loop-gate.test.cjs';
+  const check = 'node --test web/red-loop-gate.test.cjs';
   let box;
   try { box = { ...helpers.project('true', isolated), helpers }; }
   catch (error) { helpers.cleanup(); throw error; }
@@ -67,17 +67,17 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   delete config.submitDeferAbove;
   fs.writeFileSync(configFile, JSON.stringify({ ...config, gate: check, submit: { handoff: true },
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true } }, null, 2) + '\n');
-  fs.mkdirSync(join(box.repo, 'test'), { recursive: true });
-  fs.writeFileSync(join(box.repo, 'test/red-loop-gate.test.cjs'), [
+  fs.mkdirSync(join(box.repo, 'web'), { recursive: true });
+  fs.writeFileSync(join(box.repo, 'web/red-loop-gate.test.cjs'), [
     "const assert = require('node:assert/strict');",
     "const fs = require('node:fs');",
     "const test = require('node:test');",
-    "test('source stays green', () => assert.notEqual(fs.readFileSync('web/snapshot.txt', 'utf8').trim(), 'red'));",
+    "test('source stays green (clause 1 and clause 2)', () => assert.notEqual(fs.readFileSync('web/snapshot.txt', 'utf8').trim(), 'red'));",
     '',
   ].join('\n'));
   fs.mkdirSync(join(box.repo, 'web'), { recursive: true });
   fs.writeFileSync(join(box.repo, 'web/snapshot.txt'), 'base\n');
-  box.git(box.repo, 'add', 'pullboard.json', 'test/red-loop-gate.test.cjs', 'web/snapshot.txt');
+  box.git(box.repo, 'add', 'pullboard.json', 'web/red-loop-gate.test.cjs', 'web/snapshot.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare red loop fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -87,8 +87,8 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   item = added.item.item_id;
   assert.equal(added.item.item_check, check, 'the frozen check executes the red-input test');
   document(box.run(box.web, 'claim', String(item), '--json'));
-  document(box.run(box.web, 'fact', String(item), 'note', 'clause 1 [test]: the committed test observes the red input', '--json'));
-  document(box.run(box.web, 'fact', String(item), 'note', 'clause 2 [test]: the same test observes the corrected input', '--json'));
+  document(box.run(box.web, 'fact', String(item), 'note', 'clause 1 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the red input', '--json'));
+  document(box.run(box.web, 'fact', String(item), 'note', 'clause 2 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the corrected input', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'red\n', 'feat(web): retain red source [G1]').status, 0);
   const firstRedHead = box.git(box.web, 'rev-parse', 'HEAD');
   document(box.run(box.web, 'submit', String(item), '--no-next', '--json'));

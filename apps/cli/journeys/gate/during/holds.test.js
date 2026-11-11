@@ -26,6 +26,7 @@ function document(result) {
 
 /** Read the real board under an optional injected clock. */
 function read(box, id, clock) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, clock);
   try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
   finally { board.db.close(); }
@@ -67,7 +68,7 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, api, 'api', '--route', 'strong').code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const add = (lane, title) => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
     '--criterion', `${title} passes its gate.`, '--check', 'true', '--json')).item.item_id;
@@ -85,6 +86,7 @@ function fixture(t) {
 /** Capture and apply one maintenance pass at the given clock, as the write path and the sentinel do. */
 function maintain(box, clock) {
   const config = loadConfig(box.repo);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, clock);
   try {
     const snapshot = captureLapsedClaims({ info: { root: box.repo }, clock, config }, board, 'coordinator');

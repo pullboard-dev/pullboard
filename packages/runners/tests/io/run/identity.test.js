@@ -26,7 +26,7 @@ function makeIdentityFixture(t) {
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
-  const fixtureRunner = join(root, 'packages/gate/src/io/run/tests.js');
+  const fixtureRunner = join(root, 'apps/cli/src/io/run/tests.js');
   assert.equal(realpathSync(fixtureRunner), fixtureRunner, 'the copied runner uses its physical path');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return { root, runner: fixtureRunner, workerTest: join(root, 'test/worker-start.test.js') };
@@ -53,8 +53,6 @@ test('worker identity is recorded before the file body [C7,V4]', () => {
 `);
   stageFixtureTests(fixture.root, ['test/worker-start.test.js']);
   execFileSync('git', ['branch', '-M', 'main'], { cwd: fixture.root, stdio: 'ignore' });
-  execFileSync('git', ['-c', 'user.name=Pullboard fixture', '-c', 'user.email=fixture@example.invalid',
-    'commit', '-q', '-m', 'test: commit worker identity fixture'], { cwd: fixture.root, stdio: 'ignore' });
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { appendFileSync } from 'node:fs';

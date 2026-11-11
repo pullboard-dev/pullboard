@@ -39,7 +39,7 @@ import {
 /** Observe the decision target, its render-time replacement, and native pointer geometry without changing input. */
 async function armDecisionPressCapture(chrome, selector) {
   return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const root = document.querySelector('#decisions');
+    const root = document.querySelector('#feed');
     const initial = document.querySelector(${JSON.stringify(selector)});
     if (!root || !initial) return { armed: false, reason: 'decision target was absent before press' };
     const events = [], renders = [], mutations = [], resizes = [];
@@ -116,12 +116,12 @@ async function armDecisionPressCapture(chrome, selector) {
       } };
     sample('capture-armed');
     return { armed: true, initial: identity(initial), viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio } };
-  })())`, "document.querySelector('#decisions')"));
+  })())`, "document.querySelector('#feed')"));
 }
 
 /** Finish capture on the stable Needs-you root, removing every observer even after a failed press. */
 async function finishDecisionPressCapture(chrome) {
-  return JSON.parse(await chrome.stable(`JSON.stringify(window.__decisionPressCapture?.finish() || null)`, "document.querySelector('#decisions')"));
+  return JSON.parse(await chrome.stable(`JSON.stringify(window.__decisionPressCapture?.finish() || null)`, "document.querySelector('#feed')"));
 }
 
 /** Observe the existing shout form's native submit, validation, input and production value-clear path without changing them. */
@@ -293,7 +293,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const b=e.getBoundingClientRect(),edges=e.matches('.seg button')?[...e.querySelectorAll('.seg-hit')].map(x=>x.getBoundingClientRect()):[],r={x:b.x,y:Math.min(b.top,...edges.map(x=>x.top)),right:b.right,bottom:Math.max(b.bottom,...edges.map(x=>x.bottom)),width:b.width};r.height=r.bottom-r.y;return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
@@ -323,6 +323,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     };
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await assertFirstStateDelay(chrome, t);
     await chrome.stable(`(() => {
@@ -337,7 +339,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     for (const width of [375, 1280]) {
       if (width === 1280) {
         box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision');
-        await chrome.waitFor("document.querySelector('#needs').innerText.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in Needs; no throughput claim.
+        await chrome.waitFor("document.querySelector('#feed').textContent.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in the shout feed; no throughput claim.
       }
       await setViewport(width);
       await click('[data-tab="items"]');
@@ -349,7 +351,9 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
         await click('#proj-switch');
         await click(`[data-root="${demo.repo}"]`);
-        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo' && !!document.querySelector('#chain .row')");
+        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
+        await click('[data-tab=items]');
+        await chrome.waitFor("!!document.querySelector('#chain .row')");
       }
       assert.ok(await chrome.stable("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
       assert.ok(await chrome.stable("!!document.querySelector('#needs:not([hidden])')"), `${width}: Needs you is visible`);
@@ -358,7 +362,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       assert.ok(await chrome.stable("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
       await checkLayout(width, 'items, Needs you and detail');
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
-        await click(`[data-tab="${tab}"]`);
+        await click(`.tab[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
         if (tab === 'spec') {
           await waitRendered(['#spec-chips button']);
@@ -369,42 +373,40 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
         }
         if (tab === 'activity') {
-          await chrome.waitFor(`(() => {
-            const element = [...document.querySelectorAll('#activity .what')].find(node => node.textContent === ${JSON.stringify(wrapTitle)});
-            return element?.getBoundingClientRect().width > 0 && element.firstChild?.nodeType === Node.TEXT_NODE;
-          })()`);
-          const wrap = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-            const element=[...document.querySelectorAll('#activity .what')].find(node=>node.textContent===${JSON.stringify(wrapTitle)});
-            if(!element) return null;
-            const text=element.firstChild, ranges=(word)=>{const start=text.textContent.indexOf(word),range=document.createRange();range.setStart(text,start);range.setEnd(text,start+word.length);return [...range.getClientRects()].map(rect=>({x:rect.x,y:rect.y,width:rect.width}));};
-            const lines=(rects)=>new Set(rects.map(rect=>Math.round(rect.y))).size;
-            return {width:element.clientWidth,height:element.getBoundingClientRect().height,wordLines:lines(ranges('boundary')),tokenLines:lines(ranges('abcdef0123456789'.repeat(12)))};
+          const findTitle = `(() => [...document.querySelectorAll('#activity .activity-item')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`;
+          await chrome.waitFor(`(() => { const element = ${findTitle}; return element?.getBoundingClientRect().width > 0; })()`);
+          const fit = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+            const element = ${findTitle};
+            if (!element) return null;
+            const row = element.closest('.activity-event').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
+            return {rowRight: row.right, boxRight: box.right, boxWidth: box.width, boxHeight: box.height, lineHeight: parseFloat(style.fontSize) * 2, overflow: style.textOverflow, whiteSpace: style.whiteSpace, clipped: element.scrollWidth > element.clientWidth, title: element.title};
           })())`));
-          assert.ok(wrap, `${width}: the activity feed shows the long item title`);
-          assert.equal(wrap.wordLines, 1, `${width}: a normal word stays together at a line boundary: ${JSON.stringify(wrap)}`);
-          assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
+          assert.ok(fit, `${width}: the activity feed shows the long item title`);
+          assert.ok(fit.boxWidth > 0 && fit.boxRight <= fit.rowRight + 1, `${width}: the ellipsized title stays inside its row: ${JSON.stringify(fit)}`);
+          assert.ok(fit.whiteSpace === 'nowrap' && fit.overflow === 'ellipsis' && fit.clipped && fit.boxHeight < fit.lineHeight, `${width}: the long title is one ellipsized line: ${JSON.stringify(fit)}`);
+          assert.equal(fit.title, wrapTitle, `${width}: the full title stays available in the title attribute`);
         }
         if (tab === 'shouts') {
-          await chrome.stable("(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))").then(open => open ? chrome.click("document.querySelector('.asks-toggle[data-fold=\"waiting\"]')") : undefined);
-          await waitRendered(['#decisions .shout:not(:has(.answer)) header', '#decisions .shout:not(:has(.answer)) .text', '#decisions .shout .answer']);
+          await click('[data-shout-thread="none"]');
+          await waitRendered(['#feed .shout:not(:has(.answer)) header', '#feed .shout:not(:has(.answer)) .text', '#feed .shout .answer']);
           const asks = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-            const waiting = document.querySelector('#decisions .shout:not(:has(.answer))');
+            const waiting = document.querySelector('#feed .shout:not(:has(.answer))');
             const waitingMeta = waiting?.querySelector('header');
             const waitingText = waiting?.querySelector('.text');
-            const button = document.querySelector('#decisions .shout .answer');
+            const button = document.querySelector('#feed .shout .answer');
             const answerText = button?.closest('.shout-main').querySelector('.text');
             const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}; };
             return {
-              waitingIsNeedsYou: document.querySelector('#decisions').classList.contains('needs-you'),
               waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
-              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta.querySelector('.who')).lineHeight),
+              waitingMetaLine: waitingMeta && Math.max(...[...waitingMeta.children].map(e => e.getBoundingClientRect().height)),
+              waitingMetaRows: waitingMeta && new Set([...waitingMeta.children].flatMap(e => { const range = document.createRange(); range.selectNodeContents(e); return [...range.getClientRects()].map(r => Math.round(r.top + r.height / 2)); }).map(y => Math.round(y / 6))).size,
               waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
               answerText: answerText && rect(answerText), button: button && rect(button),
             };
           })())`));
-          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoAnswer, `${width}: the waiting ask is a card in the Needs-you panel without an Answer button`);
-          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
+          assert.ok(asks.waitingHasNoAnswer, `${width}: the waiting ask is a conversation card without an Answer button`);
+          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1 && asks.waitingMetaRows === 1,
             `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
           assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
             `${width}: waiting ask text spans the card: ${JSON.stringify(asks)}`);
@@ -438,10 +440,11 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await submit('#shout-form');
       await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
 
-      await chrome.waitFor("!!document.querySelector('#decisions [data-go]')");
-      const decision = await chrome.stable("document.querySelector('#decisions [data-go]')?.getAttribute('data-go')");
+      await click('[data-shout-thread="none"]');
+      await chrome.waitFor("!!document.querySelector('#feed [data-go]')");
+      const decision = await chrome.stable("document.querySelector('#feed [data-go]')?.getAttribute('data-go')");
       assert.ok(decision, `${width}: a decision is offered for answer`);
-      const decisionSelector = `#decisions [data-go="${decision}"]`;
+      const decisionSelector = `#feed [data-go="${decision}"]`;
       let decisionCaptureArmed = false;
       let decisionPressError = null;
       let decisionCapture = null;
@@ -785,6 +788,8 @@ test('the spec chip measurement survives a redraw [N26,C7]', {
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await press(chrome, "document.querySelector('[data-tab=spec]')");
     await chrome.waitFor("document.querySelectorAll('#spec-chips button:not([data-natural-chip])').length >= 2");

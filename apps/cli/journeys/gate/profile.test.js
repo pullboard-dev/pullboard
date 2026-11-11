@@ -39,12 +39,12 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-const RUNNER = resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js');
+const RUNNER = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
 const CALLER_REPORTER = resolve(import.meta.dirname, '../../tests/fixtures/reporter.js');
 const RESOURCE_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
-const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
+const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/', '.timed/', 'timed/', 'apps/cli/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
 // budget: run-tests SIGKILLs a file that has not exited 30 s after its last test, so cleanup stops retrying well inside that ceiling.
@@ -305,7 +305,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
-  assert.equal(box.run(box.web, 'claim', '1').status, 0);
+  const claimedOne = box.run(box.web, 'claim', '1');
+  assert.equal(claimedOne.status, 0, `${claimedOne.stdout}${claimedOne.stderr}`);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/timing.txt'), 'profiled');
   const commit = featureCommit(box, box.web);
@@ -330,10 +331,10 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
     assert.equal(statSync(profilePath).mode & 0o777, 0o600);
     assert.ok(existsSync(profilePath.slice(0, -'.profile.json'.length)), 'the corresponding sanitized raw log remains beside its profile');
   }
-  mkdirSync(join(box.repo, 'docs'), { recursive: true });
-  writeFileSync(join(box.repo, 'docs/review-context.md'), 'unrelated main context\n');
-  box.git(box.repo, 'add', 'docs/review-context.md');
-  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance unrelated review context');
+  // Main moves a file the check names, so the sealed submit proof cannot stand and the check runs again.
+  writeFileSync(join(box.repo, '.timed/fast.test.js'), "import { test } from 'node:test'; test('fast timing profile check', () => {}); // main context\n");
+  box.git(box.repo, 'add', '.timed/fast.test.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: advance a file the check names');
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
@@ -357,7 +358,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   } finally { store.closeBoard(reviewBoard); }
   assert.ok(checkedHead, 'the sealed fresh ACCEPT review names its actual checked composition');
   assert.notEqual(checkedHead, commit, 'unrelated main advancement produced a new composed commit');
-  assert.equal(box.git(review, 'show', `${checkedHead}:docs/review-context.md`).trim(), 'unrelated main context',
+  assert.equal(box.git(review, 'show', `${checkedHead}:.timed/fast.test.js`).includes('// main context'), true,
     'the checked composition includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
@@ -400,6 +401,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
   assert.match(shellAccepted.stdout, /reused submit proof/u);
   assert.doesNotMatch(shellAccepted.stdout, /timing profile:/u, 'reuse does not invent a verifier profile for work it did not run');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try {
@@ -577,9 +579,9 @@ test('a submit timing profile records both phases and one queue wait for selecte
     box.env.PROFILE_TRACE = trace;
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false } }));
-    const checkCommand = 'node packages/gate/src/io/run/tests.js timed/check.test.js';
+    const checkCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js';
     // Select the same three private bodies while the copied runtime remains the unchanged production runner.
-    const gateCommand = 'node packages/gate/src/io/run/tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
+    const gateCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
     writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }));
     copyProfileRunner(box);
     mkdirSync(join(box.repo, 'timed'), { recursive: true });
@@ -613,7 +615,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
       '  assert.equal(1, 1);',
       '});',
     ].join('\n') + '\n');
-    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node packages/gate/src/io/run/tests.js' }) }, null, 2));
+    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node apps/cli/src/io/run/tests.js' }) }, null, 2));
     box.git(box.repo, 'add', '-A');
     // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
     box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
@@ -621,7 +623,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const added = fixtureAdd(box.run, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
-    assert.equal(box.run(box.web, 'claim', '1').status, 0);
+    const claimedTwo = box.run(box.web, 'claim', '1');
+    assert.equal(claimedTwo.status, 0, `${claimedTwo.stdout}${claimedTwo.stderr}`);
     writeFileSync(trace, ''); // Ignore the real --wait baseline execution in submission counts.
     writeFileSync(join(box.web, 'web/value.js'), 'export const value = 7; // changed lane module\n');
     if (scenario.full) writeFileSync(join(box.web, 'web/README.txt'), 'unsupported path forces the configured gate\n');
@@ -638,7 +641,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     assert.equal(gate.check.checked, true);
     assert.equal(gate.check.command, checkCommand);
     assert.equal(gate.reason === '', !scenario.full);
-    if (scenario.full) assert.deepEqual(gate.files, []);
+    // The check's own file is named by the bar, and a no-runner project's default runner does not match the check's runner prefix, so the proof names it too.
+    if (scenario.full) assert.deepEqual(gate.files, ['timed/check.test.js']);
     if (!scenario.full) assert.deepEqual(gate.files, ['web/affected.test.js']);
     if (scenario.full) assert.match(gate.reason, /affected-test selection is not enabled/u);
 

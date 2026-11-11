@@ -174,14 +174,16 @@ test('additive smoke config is retained and validated without activating the rep
   const command = 'node test/smoke.js';
   assert.deepEqual(configFromSource(JSON.stringify({ pushReceiptCheck: { smoke: command } })).pushReceiptCheck, { smoke: command });
   assert.equal(configFromSource('{}').pushReceiptCheck, undefined);
-  for (const value of [null, [], {}, { smoke: '' }, { smoke: false }, { smoke: command, enabled: true }]) {
+  for (const value of [null, [], {}, { smoke: '' }, { smoke: false }]) {
     assert.throws(() => configFromSource(JSON.stringify({ pushReceiptCheck: value })), { code: 'BAD_CONFIG' });
   }
+  // A key this validator version does not know is ignored, never kept or activated [N26].
+  assert.deepEqual(configFromSource(JSON.stringify({ pushReceiptCheck: { smoke: command, enabled: true } })).pushReceiptCheck, { smoke: command });
 });
 
 
 test('native push adapter checks real ordered receipts and exact open audit repairs [C7]', { timeout: 120_000 }, () => {
-  const installedRunner = resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js');
+  const installedRunner = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
   const box = e2e.project(`node ${shellWord(installedRunner)}`, undefined, { withWorktree: false });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/audit.test.js'), [

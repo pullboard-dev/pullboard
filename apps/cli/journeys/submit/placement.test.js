@@ -61,7 +61,7 @@ test('a guarded process module leaves its old cell and keeps its exact body [C7,
   const after = readPlan(root);
   assert.deepEqual(after.entries, [{ path, cell: 'app:lib' }]);
   assert.equal(after.cells[0].paths.length, 0);
-  assert.ok(after.cells[1].paths.some(row => row[0] === path && row[1] === 'apps/lib/src/shell/entry.js'));
+  assert.ok(after.cells[1].paths.some(row => row[0] === path && row[1] === 'apps/lib/src/io/entry.js'));
   assert.equal(after.totals.movedPaths, before.totals.movedPaths);
   assert.deepEqual(checkCuts(root, after, 'low', { allLaterCells: true }), []);
   assert.deepEqual(checkCuts(root, after, 'app:lib', { allLaterCells: true }), []);

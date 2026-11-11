@@ -17,6 +17,7 @@ import { itemShoutReader } from "../../logic/board/audience.js";
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { COORDINATOR } from "../../../../config/index.js";
+import { loadConfig } from "../../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
 import { Refused } from "../../../../kernel/index.js";
 import { PROOF_RUN_ENGINE } from "../../../../state/light.js";
@@ -86,6 +87,14 @@ export function insertShout(board, { from, to, text, lanes, item, decision = fal
       ...(validatedDecision.decisionEffects ? { effects: validatedDecision.decisionEffects } : {}) } : null });
 }
 
+/**
+ * Whether the board's rigor.autoDraft setting allows unproved Rigor auto-drafts (GH #26).
+ * It lives here, not in the rigor cell, so rigor gains no edge to config; a missing or bad config keeps the default of drafting.
+ */
+export function rigorAutoDraftOn(board) {
+  try { return !board.gitRoot || loadConfig(board.gitRoot).rigor?.autoDraft !== false; } catch { return true; }
+}
+
 /** Persist a validated message or a fixed internal notice inside the caller's transaction. */
 export function persistShout(board, { from, to, text, decision = false, answers = null, evidence = null, request = false,
   channel = 'terminal', detail = {}, outcome = '', personAnswer = false, decisionRecord = null, news = false }) {
@@ -100,7 +109,7 @@ export function persistShout(board, { from, to, text, decision = false, answers 
   const id = Number(result.lastInsertRowid);
   logEvent(board, from, answers === null ? (news ? 'shout_news' : 'shout') : decision ? 'pass' : 'answer', detail.item ?? null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}), ...(personAnswer ? { channel } : {}), ...detail });
   if (from === COORDINATOR && answers === null && (board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_INSTRUCTIONS_ENGINE) {
-    board.nativePorts.recordAutomaticRigorDrafts(board, board.lastEvent, persistShout);
+    if (rigorAutoDraftOn(board)) board.nativePorts.recordAutomaticRigorDrafts(board, board.lastEvent, persistShout);
   }
   itemDecisions.recordItemDecision(board, id, { decision, answers, record: decisionRecord });
   return id;

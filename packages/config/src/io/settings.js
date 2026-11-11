@@ -125,6 +125,22 @@ export function browserByLaunchEnabled() {
 }
 
 /**
+ * Whether a red gate is compared with main: `on-red` (default) or `off` [C7,#5565]. Anything but an exact `off` compares,
+ * so a damaged value keeps the safe behaviour; `off` makes a red gate plain red.
+ */
+export function mainComparisonMode() {
+  return loadMachineSettings().gate?.mainComparison === 'off' ? 'off' : 'on-red';
+}
+
+/**
+ * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
+ * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
+ */
+export function runnerDispatchMode() {
+  return loadMachineSettings().gate?.runnerDispatch === 'pull' ? 'pull' : 'controller';
+}
+
+/**
  * Whether init and resume keep a view running in the background [H5,N26]. Unlike the gate's
  * settings this is on by default: pullboard.dev can only open a computer's boards while its view
  * runs, and a newcomer should never need a command for that. Only `"view": { "background": false }`

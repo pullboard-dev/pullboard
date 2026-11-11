@@ -54,7 +54,8 @@ async function fixture(t, state) {
   marker = join(box.dir, 'dispatcher-starts');
   stop = join(box.dir, 'stop-dispatcher');
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'handoff-queue');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'packages/resources/src/io/handoff/worker'), { recursive: true });
+  mkdirSync(join(tools, 'apps/lib/src/io/handoff'), { recursive: true });
   mkdirSync(queue, { recursive: true });
   // The shipped detached launcher re-parents the dispatcher, so the captured tooling carries it beside the stub [C7].
   copyFileSync(join(import.meta.dirname, '../../../../../packages/resources/src/io/handoff/worker/detach.js'), join(tools, 'packages/resources/src/io/handoff/worker/detach.js'));

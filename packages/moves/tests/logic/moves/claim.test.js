@@ -23,7 +23,7 @@ const TRUNK = 'b'.repeat(40);
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
-  const board = openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(':memory:', { now: () => new Date(at) });
   // These controls prove replay of the former first-refusal policy, not the current rejection rule.
   board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
