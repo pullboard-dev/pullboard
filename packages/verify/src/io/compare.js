@@ -63,7 +63,7 @@ export function recordedVerificationComparison(thread, item) {
 /** Keep argument boundaries, including spaces and shell punctuation in committed test paths. */
 export function comparisonCommand(runner, files) {
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
-  return files.length ? `PULLBOARD_TEST_REUSE=0 ${runner} ${files.map(file => word('./' + file)).join(' ')}`
+  return files.length ? `PULLBOARD_TEST_REUSE=record ${runner} ${files.map(file => word('./' + file)).join(' ')}`
     : `node -e 'process.stdout.write("No comparison files\\n")'`;
 }
 
