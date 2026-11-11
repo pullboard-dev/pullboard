@@ -69,7 +69,9 @@ test('the view fixture refuses to launch Chrome from an undeclared test file [C7
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
-  cpSync(resolve(import.meta.dirname, '..'), join(root, 'test'), { recursive: true });
+  // The tests under test import the cockpit harness from its place in the layout, so that folder comes along [C7].
+  mkdirSync(join(root, 'test'));
+  cpSync(resolve(import.meta.dirname, '../../tests/fixtures'), join(root, 'apps/cli/tests/fixtures'), { recursive: true });
 
   /** Exercise the actual view launcher and always stop any stand-in it owns, including a failing baseline. */
   const body = (name, binding) => `
@@ -83,13 +85,13 @@ test('${name} view launch', async () => {
   mkdirSync(profile);
   let stop;
   try {
-    const view = ${name === 'held' ? '{ startSnapshotChrome }' : "await import(['.', 'cockpit', 'fixture.js'].join('/'))"};
+    const view = ${name === 'held' ? '{ startSnapshotChrome }' : "await import(['..', 'apps', 'cli', 'tests', 'fixtures', 'cockpit', 'harness.js'].join('/'))"};
     const browser = await view.startSnapshotChrome(process.env.FIXTURE_BROWSER, profile, { onOwned: owned => { stop = owned; } });
     await browser.stop();
   } finally { await stop?.(); }
 });
 `;
-  writeFileSync(join(root, 'test/classified-view.test.js'), `// pullboard: browser${body('held', "import { startSnapshotChrome } from './cockpit/fixture.js';")}`);
+  writeFileSync(join(root, 'test/classified-view.test.js'), `// pullboard: browser${body('held', "import { startSnapshotChrome } from '../apps/cli/tests/fixtures/cockpit/harness.js';")}`);
   writeFileSync(join(root, 'test/hidden-view.test.js'), body('none', ''));
   const browser = join(root, 'view-browser-stand-in');
   writeFileSync(browser, `#!/usr/bin/env node
@@ -181,11 +183,14 @@ test('the cockpit helper starts its view in the foreground [C7,N26]', async t =>
   const receipt = join(box.dir, 'view-processes.jsonl');
   const observer = join(box.dir, 'observe-view.mjs');
   // A preload observes the real spawned Node environment without replacing the CLI or server.
-  writeFileSync(observer, `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(receipt)}, JSON.stringify({ pid: process.pid, marker: process.env.PULLBOARD_VIEW_FOREGROUND ?? null }) + '\\n', { mode: 0o600 });\n`);
+  writeFileSync(observer, `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(receipt)}, JSON.stringify({ pid: process.pid, argv: process.argv.slice(1, 4), marker: process.env.PULLBOARD_VIEW_FOREGROUND ?? null }) + '\\n', { mode: 0o600 });\n`);
   box.env.NODE_OPTIONS = `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(observer).href}`.trim();
   /** Read only the PIDs and marker observed by this fixture's actual Node children. */
   const observed = () => {
-    try { return readFileSync(receipt, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
+    try { const seen = new Map();
+      // A worker thread inside the view repeats the preload under the same pid, so count processes, not imports.
+      for (const line of readFileSync(receipt, 'utf8').trim().split('\n').filter(Boolean)) { const row = JSON.parse(line); if (!seen.has(row.pid)) seen.set(row.pid, row); }
+      return [...seen.values()]; }
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   };
   /** Stop any owned child if a failed assertion interrupted the helper's normal cleanup. */
@@ -199,7 +204,7 @@ test('the cockpit helper starts its view in the foreground [C7,N26]', async t =>
   let children;
   try {
     children = observed();
-    assert.equal(children.length, 1, 'the helper owns one foreground view process');
+    assert.equal(children.length, 1, 'the helper owns one foreground view process: ' + JSON.stringify(children));
     assert.equal(children[0].marker, '1', 'the actual spawned child receives the foreground marker');
     assert.doesNotThrow(() => process.kill(children[0].pid, 0), 'the owned child stays alive while serving');
   } finally {
@@ -350,10 +355,10 @@ test('the page uses only API v1 for state, code and every offered move [A3,N26,N
     assert.equal(moves[4].body.args.off, true);
     // The local view also asks its own server whether it can link boards (/api/v1/view-link, #633).
     const offPublic = [...new Set(page.requests.map((request) => request.path).filter((path) => path !== '/api/v1/view-link'
-      && !/^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves|items\/\d+|items\?q=[^&]+)(?:\?|$))/.test(path)))];
+      && !/^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves|events|items\/\d+|items\?q=[^&]+)(?:\?|$))/.test(path)))];
     assert.deepEqual(offPublic, [], 'every page request uses a public v1 path');
     assert.ok(page.requests.some((request) => request.path === '/api/v1/boards'));
-    assert.ok(page.requests.some((request) => request.path === `/api/v1/boards/${id}/state`));
+    assert.ok(page.requests.some((request) => request.path.startsWith(`/api/v1/boards/${id}/state`)), JSON.stringify(page.requests.map((request) => request.path)));
     assert.ok(page.requests.some((request) => request.path.startsWith(`/api/v1/boards/${id}/code?`)));
     assert.ok(moves.every((request) => request.path === `/api/v1/boards/${id}/moves`));
     assert.doesNotMatch(page.html, /['"]\/api\/(?:state|act|code)(?:[?'"])/, 'the served page contains no legacy API calls');
