@@ -112,10 +112,13 @@ export function startGuardian({ onDeath }) {
   const code = `import(${JSON.stringify(import.meta.url)}).then(module => module.guardianMain(${JSON.stringify(token)}))`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', code], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
   let ended = false;
-  child.once('exit', () => { if (!ended) void stopRegisteredGates(token).then(() => onDeath(), () => onDeath()); });
+  // Refuse first: the stopped gate then fails into an aborted landing, so its fall-out cannot block the batch or name itself the cause.
+  child.once('exit', () => { if (ended) return; onDeath(); draining = stopRegisteredGates(token).catch(() => {}); });
   process.env[CUSTODY_ENV] = token;
   return {
     pid: child.pid,
+    /** Resolves once a guardian death has finished stopping the gates, so the landing never releases before they are gone. */
+    settle: () => draining,
     deadline(at) { if (child.connected) child.send({ deadline: at }); },
     end() {
       ended = true;

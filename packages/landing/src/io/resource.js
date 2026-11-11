@@ -173,6 +173,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         clearInterval(watchdog);
         stopWatching?.();
         guardian?.end();
+        await guardian?.settle();
         await pending;
         await write('landingLeaseMove', [{ ...parameters, action: 'release', generation }]);
         forgetLocalLanding(board, token);

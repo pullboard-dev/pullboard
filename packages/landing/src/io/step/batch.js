@@ -227,7 +227,11 @@ export async function land(options) {
     // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
     if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
-  } catch (error) { failed = true; throw error; }
+  } catch (error) {
+    failed = true;
+    // A gate stopped by the guardian's loss fails on its own; the loss is the cause.
+    throw controller.signal.aborted && controller.signal.reason?.code === 'LAND_WORKER' ? controller.signal.reason : error;
+  }
   finally {
     try { await lease.release(); }
     catch (error) {
