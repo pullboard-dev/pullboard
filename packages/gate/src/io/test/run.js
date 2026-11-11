@@ -191,14 +191,14 @@ export async function localLoadStart({ read = loadavg, cores = availableParallel
 
 /**
  * Split named files into those a runner already proved under the same inputs and those that must queue. Null when
- * nothing is reused or anything about the lookup is unavailable, so the caller runs every file as before.
+ * nothing is reused or anything about the lookup is unavailable (including no trustedTooling handed in by the caller), so the caller runs every file as before.
  *
  * @returns {Promise<{ run: string[], text: string } | null>}
  */
-async function dropReused(checkout, paths) {
+async function dropReused(checkout, paths, trustedTooling) {
   try {
     if (process.env.PULLBOARD_TEST_REUSE === '0') return null;
-    const [{ trustedTooling }] = await Promise.all([import('../../../../runners/index.js')]);
+    if (typeof trustedTooling !== 'function') return null;
     const split = await preQueueReuse(checkout, headCommit(checkout), paths, trustedTooling().tooling.sha256);
     if (!split.reused.size) return null;
     // All reused: the stored TAP is the proof. Mixed: the runner's own TAP counts what ran, the reused files are named.
@@ -245,7 +245,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
     // Files whose inputs match a runner-completed green never queue: no slot is held for them [C7].
     let reusedText = '';
     if (!full && !diagnose && paths.length) {
-      const split = await dropReused(checkout, paths);
+      const split = await dropReused(checkout, paths, executionServices?.runners?.trustedTooling);
       if (split) {
         reusedText = split.text;
         requested = paths;
