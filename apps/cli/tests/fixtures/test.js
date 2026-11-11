@@ -32,7 +32,7 @@ export function cpuLoadFixture(e2e, { declaration = '{ cpuLoad: true }', binding
   const stage = phase => console.error('CPU_LOAD_STAGE ' + JSON.stringify({ fixture, phase, elapsedMs: Math.round(performance.now() - started) }));
   stage('project-start');
   const probeFile = `cpu-probe.test.${commonjs ? 'cjs' : 'js'}`;
-  const box = e2e.project(`node packages/gate/src/io/run/tests.js test/${probeFile}`, undefined, { withWorktree: false });
+  const box = e2e.project(`node apps/cli/src/io/run/tests.js test/${probeFile}`, undefined, { withWorktree: false });
   stage('project-ready');
   const bin = join(box.dir, 'ssh-bin');
   const remoteHome = join(box.dir, 'runner-home');

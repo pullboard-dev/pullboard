@@ -272,3 +272,26 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   assert.equal(events(box).length, before, 'the identical red resubmit does not rerun the completed main comparisons');
   assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
 });
+
+test('with gate.mainComparison off a red submit stays red and runs no main comparison [V4,C7,#5565]', async t => {
+  const box = fixture(t, 1);
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...saved, gate: { ...saved.gate, mainComparison: 'off' } }));
+  const submission = launch(box, 'submit', String(box.item));
+  const result = await submission.closed;
+  assert.equal(result.code, 1, result.out + result.err);
+  assert.equal(JSON.parse(result.out).error.code, 'GATE_RED');
+  assert.equal(events(box).length, 0, 'no main comparison ran');
+  assert.equal(existsSync(join(box.root, '.git', 'pullboard', 'gate-receipts')) ? mainReceipts(box).length : 0, 0, 'no main-red receipt was recorded');
+});
+
+test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', async t => {
+  const box = fixture(t, 1);
+  const saved = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  assert.equal(saved.gate?.mainComparison, undefined, 'the fixture leaves the setting at its on-red default');
+  const submission = launch(box, 'submit', String(box.item));
+  await comparisonStarted(box, submission, 'the default still starts the main comparison');
+  writeFileSync(join(box.control, 'a.release'), 'release');
+  await assertRed(box, submission);
+});

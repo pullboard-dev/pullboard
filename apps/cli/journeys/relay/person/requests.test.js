@@ -32,7 +32,7 @@ import {
   cliChildDeadlineMs,
 } from "../../../tests/fixtures/relay/client.js";
 import { legacyRelayClientFixture as relayClientFixture } from "../../../tests/fixtures/relay/client.js";
-
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 const CHROME_START_BUDGET_MS = relayWorkBudgetMs(2);
 const CLI_SETUP_MARGIN_MS = relayWorkBudgetMs(0);
 const FIXTURE_SETUP_CLI_CHILDREN = [
@@ -134,7 +134,7 @@ async function signIn(chrome, box) {
 async function showItem(chrome, title, previousDocument) {
   await chrome.waitFor('performance.timeOrigin !== ' + JSON.stringify(previousDocument)
     + ' && document.readyState === "complete" && typeof data === "object" && !!data?.project');
-  await chrome.evaluate("document.querySelector('[data-tab=items]').click(); true");
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
 }
 
@@ -146,7 +146,7 @@ async function pairedTransport(chrome, box, title, timing = null) {
   await signIn(chrome, box);
   timing?.finish();
   timing?.begin('Chrome navigation', relayWorkBudgetMs());
-  const previousDocument = await chrome.evaluate('performance.timeOrigin');
+  const previousDocument = await chrome.stable('performance.timeOrigin');
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
   timing?.finish();
   timing?.begin('page readiness', relayWorkBudgetMs());
@@ -160,8 +160,8 @@ async function pairedTransport(chrome, box, title, timing = null) {
 async function installRequestTransport(chrome, timing = null) {
   timing?.begin('page transport readiness', relayWorkBudgetMs());
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
-  assert.equal(await chrome.evaluate(`(() => { window.__personRequestTransport = transport;
-    return window.__personRequestTransport === transport; })()`, 'use real person request transport'), true,
+  assert.equal(await chrome.stable(`(() => { window.__personRequestTransport = transport;
+    return window.__personRequestTransport === transport; })()`), true,
     'fixture commands use the page-owned transport and its single stream queue');
   timing?.finish();
 }
@@ -223,7 +223,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     await box.link();
     timing.finish();
     timing.begin('Chrome startup', CHROME_START_BUDGET_MS);
-    const chrome = await startChrome();
+    const chrome = await stableChrome(await startChrome());
     t.after(() => chrome.close());
     timing.finish();
     const link = await pairedTransport(chrome, box, title, timing);
@@ -235,7 +235,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     assert.equal(receipt.result.request.status, 'waiting');
     assert.deepEqual(receipt.result.request.move, move);
     assert.equal(typeof receipt.result.request.id, 'string');
-    assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
+    assert.equal(await chrome.stable("document.querySelector('#relay-notice').textContent"),
       '1 request from this device is waiting for a linked machine to run Pullboard.',
       'the paired browser identifies only its own acknowledged waiting request');
     assert.equal(box.calls.some(call => call.method === 'POST' && call.path === `/api/v1/boards/${link.board}/requests`), true,
@@ -253,10 +253,10 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     timing.finish();
 
     timing.begin('browser reload and readiness', relayWorkBudgetMs());
-    const reloadedFrom = await chrome.evaluate('performance.timeOrigin');
+    const reloadedFrom = await chrome.stable('performance.timeOrigin');
     await chrome.send('Page.reload');
     await showItem(chrome, title, reloadedFrom);
-    assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
+    assert.equal(await chrome.stable("document.querySelector('#relay-notice').textContent"),
       '1 request from this device is waiting for a linked machine to run Pullboard.',
       'the device-local request id survives a page reload without storing its text');
     timing.finish();
@@ -289,7 +289,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     timing.finish();
     timing.begin('paired-browser request completion poll', '85,000 ms in-page poll; 110,000 ms outer CDP task bound');
     const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
-    assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
+    assert.equal(await chrome.stable("document.querySelector('#relay-notice').textContent"), '',
       'the completed local request no longer appears as waiting');
     const personShouts = latest.state.shouts.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text);
     assert.equal(personShouts.length, 1, 'the authored person shout occurs exactly once');
@@ -314,7 +314,7 @@ test('real paired Chrome approval remains pending until coordinator applies and 
   const row = addPendingSpecRow(box, id);
   assert.equal((await box.cli('add', box.lane, title)).code, 0);
   await box.link();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const link = await pairedTransport(chrome, box, title);
 
@@ -417,7 +417,7 @@ test('coordinator decline resolves a paired approval request with a reason and l
   const title = 'PERSON_REQUEST_DECLINE_FIXTURE';
   assert.equal((await box.cli('add', box.lane, title)).code, 0);
   await box.link();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const link = await pairedTransport(chrome, box, title);
   const queued = await sendPersonIntent(chrome, link.board, { verb: 'spec-approve', args: { ids: 'G96' } });

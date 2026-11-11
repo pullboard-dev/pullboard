@@ -88,6 +88,26 @@ test('[A2,C7] an incremental board state equals a full rebuild over sampled even
   }
 });
 
+test('[A2,C7] a build extends the kept event history with exactly the rows appended since', (t) => {
+  const { box, file, ids } = largeBoard(t, { items: 3, events: 80 });
+  const clock = { at: Date.parse('2026-01-02T00:00:00.000Z') };
+  const snapshots = createStateSnapshots({ projects: () => [{ root: box.root, name: 'Materializer fixture' }], boardOpeners: apiBoardOpeners, viewPorts: viewApiPorts, now: () => clock.at });
+  const board = { id: 'materializer-fixture', root: box.root };
+  /** The event ids a build kept, against the ids the board holds now. */
+  const kept = () => snapshots.withSnapshot(board, (entry) => entry.comparisonHistory.map((event) => event.event_id));
+  const stored = () => {
+    const db = new DatabaseSync(file);
+    try { return db.prepare('SELECT event_id FROM event ORDER BY event_id').all().map((row) => row.event_id); } finally { db.close(); }
+  };
+  assert.deepEqual(kept(), stored(), 'the first build reads the whole history');
+  appendLater(file, ids, 5, 80_000);
+  clock.at += 1_000;
+  assert.deepEqual(kept(), stored(), 'a build after appended events holds the old history and the new rows, in order');
+  appendLater(file, ids, 2, 90_000);
+  clock.at += 1_000;
+  assert.deepEqual(kept(), stored(), 'a second extension still equals the board history');
+});
+
 /** Serve the fixture with the state worker, and read its state over HTTP. */
 async function materializedApi(t, box, builds, statePorts = STATE_PORTS) {
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, statePorts,

@@ -431,8 +431,10 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   const results = await Promise.all(children.map(child => child.closed));
   if (staleAfterFirst) {
     assert.equal(results[0].code, 0, results[0].failure);
-    assert.equal(results[1].code, 1, 'the queued command refuses the now-stale acceptance');
-    assert.match(second.stderrText, /STALE_VERDICT/u);
+    // A plain main change withdraws the stale verdict and returns the item to its lane, so the waiter exits 0 [B3,C7].
+    assert.equal(results[1].code, 0, `the queued command returns the now-stale acceptance to its lane: ${results[1].failure ?? ''}`);
+    assert.match(second.stdoutText + second.stderrText, /STALE_VERDICT #\d+ reopened to its lane/u);
+    assert.equal(readBoard(box, board => store.getItem(board, entries[0].id).item_status), 'open', 'the stale item left verified for its lane');
     assert.equal(readBoard(box, board => store.landingBatches(board).length), 1, 'a stale waiter starts no batch');
     assert.equal(readBoard(box, board => store.getItem(board, entries[0].id).item_merged_commit), null);
     return;

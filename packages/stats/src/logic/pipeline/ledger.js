@@ -270,7 +270,7 @@ export function seatAssignments(events) {
  */
 export function seatOf(cwd, agents) {
   if (cwd?.startsWith('seat:')) {
-    // A seat wrapper names the seat by its worktree's suffix: seat-sonnet-15.sh drives <repo>-sonnet-15.
+    // A seat wrapper names the seat by its worktree's suffix: seat-<name>.sh drives <repo>-<name>.
     const name = cwd.slice('seat:'.length);
     for (const agent of agents) if (agent.path.endsWith(`-${name}`) || agent.path.endsWith(`/${name}`)) return { id: agent.id, lane: agent.lane ?? null };
     return { id: 'coordinator', lane: 'coordinator' };

@@ -452,7 +452,7 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
   });
   await t.test('real outside-file TAP denials refuse while permission assertions stay ordinary [I1,C7]', () => {
     let box = privateRepo(t);
-    const runner = `${JSON.stringify(process.execPath)} ${JSON.stringify(resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'))} test/permission.test.js`;
+    const runner = `${JSON.stringify(process.execPath)} ${JSON.stringify(resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'))} test/permission.test.js`;
     const directory = join(box.dir, 'readonly-outside-worktree');
     mkdirSync(directory);
     const outside = join(directory, "outside'quote.txt");
@@ -520,7 +520,7 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
   });
   await t.test('module-startup outside-file denials preserve fatal TAP evidence [I1,C7]', (t) => {
     const box = privateRepo(t);
-    const runner = `${JSON.stringify(process.execPath)} ${JSON.stringify(resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'))} test/permission.test.js`;
+    const runner = `${JSON.stringify(process.execPath)} ${JSON.stringify(resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'))} test/permission.test.js`;
     put(box.root, 'pullboard.json', JSON.stringify({ gate: runner }));
     const directory = join(box.dir, 'readonly-module-startup');
     mkdirSync(directory);
