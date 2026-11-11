@@ -1,3 +1,4 @@
+import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -91,6 +92,10 @@ export async function run(io, args) {
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
+  // A changed bar may not name a path missing from main; an edit that leaves the bar alone never refuses on it (#5709).
+  if (['item_criterion', 'item_check'].some(key => next[key] !== item[key])) {
+    await requireBarPathsOnMain(ctx, { criterion: next.item_criterion, check: next.item_check });
+  }
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });

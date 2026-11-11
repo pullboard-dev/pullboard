@@ -164,6 +164,13 @@ export async function nextOnce(ctx, values, ports) {
         await reportStalePolicyOnce(target, board, item, holder, error.message, ordered);
         return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       }
+      // A bar naming a path missing from main, or a held check already green there, has nothing a builder can do: next
+      // passes over it and the coordinator hears once per bar; claim by id still refuses (#5709).
+      if (error instanceof Refused && UNBUILDABLE.has(error.code)) {
+        await reportUnbuildableOnce(target, board, item, holder, error, ordered);
+        target.io.say?.(`skipped #${item.item_id}: ${error.message}`);
+        return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
+      }
       throw error;
     }
     const itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: item.renewed }, ports);
@@ -171,6 +178,9 @@ export async function nextOnce(ctx, values, ports) {
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
 }
+
+/** Claim refusals of a bar no build can satisfy: next passes over the item instead of stopping (#5709). */
+const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
 
 /** The claim refusals that name one item's frozen policy as stale; any other NO_POLICY still stops next. */
 const STALE_POLICY = /accepted submit policy changed|no longer contains the frozen policy|is frozen against an older accepted policy/u;
@@ -188,6 +198,25 @@ async function reportStalePolicyOnce(ctx, board, item, holder, message, ordered)
     await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
     await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
       text: `next passes over #${item.item_id} until it is refrozen: ${message.replace(/^\[NO_POLICY\] /u, '')}; pullboard refreeze ${item.item_id}` }]);
+  } catch (error) {
+    // A refused report must never stop the seat it only reports on.
+    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
+  }
+}
+
+/**
+ * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
+ *
+ * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
+ * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
+ */
+async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered) {
+  const text = JSON.stringify({ unbuildableBar: { code: refusal.code, message: refusal.message } });
+  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
+  try {
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
+      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '')}; ${refusal.next ?? ''}`.trim() }]);
   } catch (error) {
     // A refused report must never stop the seat it only reports on.
     if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;

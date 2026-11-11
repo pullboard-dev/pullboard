@@ -47,6 +47,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { ensureSpecApprovalCoordinator } from '../../../../packages/spec/index.js';
 import { initialSpecApprovalBaseline } from '../../../../packages/spec/index.js';
 import { refuseClaimProvesNothing } from '../../../../packages/verify/index.js';
+import { refuseClaimMissingPaths } from './item/bar.js';
 import { firstRefusalArgs } from '../../../../packages/items/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { laneOf } from '../../../../packages/seats/index.js';
@@ -268,9 +269,10 @@ function changedPolicyLeaves(before, after, prefix) {
   return [prefix];
 }
 
-/** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
+/** Order a claim on every route (claim, next, run) only after a check green on main is not held and the bar's paths exist [V4,C7]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
+  await refuseClaimMissingPaths(ctx, board, args[0]);
   const policyRefreeze = await refreshesLanePolicy(ctx, board, args[0], args[1].agentId);
   const refreshPolicy = Boolean(policyRefreeze);
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
