@@ -701,8 +701,8 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
         slot.release();
         // A gate whose last driver's lease is still live waits in line until that lease ends or lapses (2 minutes).
         if (error.code === 'GATE_DRIVE_LEASED') continue;
-        // A board that could not record the admission keeps the ticket in line for the next pass.
-        if (error.admission) { lastError = error.code ?? 'ERROR'; logDispatcher(`gate ${launch.job} not admitted: ${error.code ?? 'ERROR'} ${error.message}; retrying on the next pass`); break; }
+        // A board that could not record the admission keeps the ticket in line for the next pass; a stale gate never will serve, so it ends unstarted.
+        if (error.admission && error.code !== 'GATE_STALE') { lastError = error.code ?? 'ERROR'; logDispatcher(`gate ${launch.job} not admitted: ${error.code ?? 'ERROR'} ${error.message}; retrying on the next pass`); break; }
         endUnstarted(file, name, launch, error, admission); continue;
       }
       rmSync(file);

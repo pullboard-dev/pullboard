@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Two independent Git clones and SQLite replicas exercise account-free sharing [H11]. */
 import assert from 'node:assert/strict';
 import {

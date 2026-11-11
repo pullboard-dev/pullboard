@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/src/io/browser/client.js */
 /** @pullboard-test-gui */
 /** The relay browser client's sealed snapshot decode, in Chrome and in WebKit [H5,H16]. */
 import {

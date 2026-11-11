@@ -28,6 +28,7 @@ import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
+import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
@@ -114,7 +115,11 @@ function sandbox({ declareFamilies = false } = {}) {
       if (familyFlag >= 0) declareFamily(cwd, args[familyFlag].startsWith('--family=') ? args[familyFlag].slice(9) : args[familyFlag + 1]);
       else if (!declaredFamilies.has(cwd)) args.push('--family', declareFamily(cwd));
     }
-    fixtureJoinRoute(args, env.PULLBOARD_MODEL);
+    // A test of the board's own default routing sets PULLBOARD_FIXTURE_ROUTES=board to receive the routes it asks for.
+    if (env.PULLBOARD_FIXTURE_ROUTES !== 'board') {
+      fixtureJoinRoute(args, env.PULLBOARD_MODEL);
+      fixtureAddRoute(args);
+    }
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };

@@ -5,15 +5,10 @@ import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import {
-  after,
-  test,
-} from 'node:test';
-import { privateFixtureFiles } from '../../tests/fixtures/child.js';
+import { test } from 'node:test';
 import {
   openBoard,
   closeBoard,
@@ -34,12 +29,9 @@ import {
   LEASE_MS,
 } from '../../../../packages/jobs/index.js';
 
-const files = privateFixtureFiles('pullboard-gate-shadow-stalled-');
-after(() => rmSync(files.root, { recursive: true, force: true }));
-
-/** Open a fresh real board file and hand its SQLite handle to the body. */
+/** Open a fresh in-memory board and hand its SQLite handle to the body. */
 function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
@@ -104,6 +96,7 @@ test('clause 1: show and status read a lease-free running shadow gate as running
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/shadow.txt', 'shadow\n', 'feat(web): shadow candidate [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile);
   let job;
   try {

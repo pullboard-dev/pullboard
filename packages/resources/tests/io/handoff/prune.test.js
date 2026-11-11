@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/resources/src/io/handoff/worker/cap.js */
 /** Finished submit-handoff folders are pruned within 30 minutes by the dispatcher loop [C7,#3292]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

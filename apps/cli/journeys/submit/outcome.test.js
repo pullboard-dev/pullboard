@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/test/outcomes.js */
 /** Real private SSH worker/CLI controls exercise remote failure identity and exact main matching [V4,B3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -18,7 +18,7 @@ import { timingAccountingStages } from '../../../../packages/gate/index.js';
 import { accountedFailures } from '../../../../packages/landing/index.js';
 import { testOutputSummary } from '../../../../packages/gate/index.js';
 
-/** A portable copy of the production collector observes real Node events inside the worker's source tree. */
+/** The production collector observes real Node events inside the worker's source tree. */
 function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
@@ -37,7 +37,8 @@ const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outco
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
 `);
     }
-    put(box.root, 'test/native-outcomes.js', readFileSync(new URL("../../../../packages/gate/src/io/test/outcomes.js", import.meta.url), 'utf8'));
+    const outcomesModule = new URL('../../../../packages/gate/src/io/test/outcomes.js', import.meta.url).href;
+    put(box.root, 'test/native-outcomes.js', `export { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(outcomesModule)};\n`);
     put(box.root, 'test/outcome-reporter.js', `import { tap } from 'node:test/reporters';
 import { testOutcomeCollector, formatTestOutcomes } from './native-outcomes.js';
 export default async function* report(events) {
@@ -75,7 +76,7 @@ function remote(box) {
   for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
   box.env.PATH = bin + ':' + box.env.PATH;
   installSshStandIn({ bin, worker, home, machineHome, requests });
-  let result = cli(box, box.root, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
+  let result = cli(box, box.root, 'runner', 'add', HOST, '--slots', '2', '--browser', '1');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
     result = cli(box, box.root, 'settings', key, value);

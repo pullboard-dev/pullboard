@@ -27,6 +27,8 @@ import {
   connect,
   createServer,
 } from 'node:net';
+// Node 22 announces that node:sqlite is experimental; this drops the notice before socket.js loads it.
+import './quiet.js';
 import {
   endThen,
   flushesDue,
@@ -35,13 +37,6 @@ import {
   processAlive,
   releaseOwnSocket,
 } from './socket.js';
-
-// Node 22 announces that node:sqlite is experimental; the in-process entry drops that notice, and so does this one.
-const emitWarning = process.emitWarning;
-process.emitWarning = (warning, ...rest) => {
-  if (String(warning).includes('SQLite is an experimental feature')) return;
-  emitWarning.call(process, warning, ...rest);
-};
 
 const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
@@ -226,7 +221,7 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
-const { gitLocation, headCommit, residentBusyFile, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
+const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
 const busyFile = residentBusyFile(pidFile);
 
 /** Whether a queued command's client has stopped waiting for it to start, and so runs it in-process itself. */
@@ -290,14 +285,25 @@ async function serve(socket, request) {
       send({ t: 'start' });
       // Written synchronously, so it holds even while this command blocks the event loop.
       try { writeFileSync(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
+      const ceiling = residentCommandCeiling(baseEnv);
+      let timer;
+      // Why a race: a command hung on a promise that never settles would hold this process's one turn for ever.
+      const expired = new Promise((done) => {
+        timer = setTimeout(() => {
+          store.send('err', `pullboard: [RESIDENT_COMMAND_CEILING] the resident process ended this command after ${ceiling} ms; run it again, or with PULLBOARD_RESIDENT=0\n`);
+          retire('ceiling');
+          done(1);
+        }, ceiling);
+        timer.unref?.();
+      });
       try {
-        return await main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, gateWaitReporter, stdin: process.stdin,
+        return await Promise.race([expired, main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, gateWaitReporter, stdin: process.stdin,
           stdout: clientStream(store, 'out', request.tty?.stdout === true, request.tty?.columns),
-          stderr: clientStream(store, 'err', request.tty?.stderr === true, request.tty?.columns) });
+          stderr: clientStream(store, 'err', request.tty?.stderr === true, request.tty?.columns) })]);
       } catch (error) {
         store.send('err', `${error?.stack ?? String(error)}\n`);
         return 1;
-      }
+      } finally { clearTimeout(timer); }
     } finally {
       try { unlinkSync(busyFile); } catch { /* Never written or already gone. */ }
       running = null;

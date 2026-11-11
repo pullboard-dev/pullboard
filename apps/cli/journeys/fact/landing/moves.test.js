@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** The trunk finish moves the trunk ref by compare-and-swap whatever the primary checkout holds, and refuses aloud when the ref moved [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

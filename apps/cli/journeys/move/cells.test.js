@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/mcp/index.js */
 /** A leaf move preserves behavior and reverses without overwriting unrelated bytes [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A verdict survives main moving through files the review never read, and a move that reaches it names the files (#1861) [V4,C7]. */
 import assert from 'node:assert/strict';
 import {

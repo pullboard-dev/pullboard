@@ -1,4 +1,5 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/resume/board.test.js packages/gate/src/io/main.js packages/gate/src/io/run-tests.js packages/gate/src/io/run/tests.js packages/gate/src/io/slot.js packages/gate/tests/fixtures/budgets.js packages/gate/tests/run-tests-kill.test.js packages/gate/tests/run-tests-timeout.test.js packages/landing/src/io/queue.js packages/runners/src/io/dispatch.js packages/state/index.js packages/state/src/io/machine.js packages/store/index.js packages/store/src/io/board.js */
+/** @pullboard-test-input packages/gate/tests/fixtures/budgets.js */
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
@@ -39,7 +40,7 @@ import {
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const RUNNER = join(ROOT, 'packages/gate/src/io/run/tests.js');
+const RUNNER = join(ROOT, 'apps/cli/src/io/run/tests.js');
 /** The engine the launcher starts; the source guards below read this file, where the code lives. */
 const ENGINE = join(ROOT, 'packages/gate/src/io/run-tests.js');
 const HEAVY = ['packages/gate/src/io/main.js', 'packages/store/index.js', 'packages/store/src/io/board.js', 'packages/state/src/io/machine.js'];
@@ -60,7 +61,7 @@ test('clause 1: a real named-file run meets its declared ten-second import-check
   });
   assert.equal(child.status, 0, child.context ?? child.stderr + child.stdout);
   const phases = /^run-tests: phases selection ([\d.]+)s, admission ([\d.]+)s, tests ([\d.]+)s, cleanup ([\d.]+)s, total ([\d.]+)s$/mu.exec(child.stderr);
-  assert.ok(phases, 'the real node packages/gate/src/io/run/tests.js <one file> run prints its phase line');
+  assert.ok(phases, 'the real node apps/cli/src/io/run/tests.js <one file> run prints its phase line');
   t.diagnostic(`real named-file run: selection ${phases[1]}s of total ${phases[5]}s; declared budget ${declaredBudget / 1000}s`);
   assert.ok(Number(phases[1]) * 1000 < declaredBudget, `the real run's selection phase (the named-file import check) took ${phases[1]}s`); // budget: declared #2425 ten-second named-file import-check limit.
 });
@@ -81,17 +82,17 @@ test('clause 2: every named run prints one per-phase timing line, successful or 
 /** The package front doors the run-tests engine imports statically; #3056 trimmed the closure to this set and main holds it. */
 const MAIN_STATIC_FRONT_DOORS = ['../../../git/index.js'];
 
-test('clause 3: packages/gate/src/io/run/tests.js adds no static front-door import that main lacks [C7,V4]', () => {
+test('clause 3: apps/cli/src/io/run/tests.js adds no static front-door import that main lacks [C7,V4]', () => {
   const source = readFileSync(ENGINE, 'utf8');
   const doors = [...source.matchAll(/^import\s[^;]*?\sfrom\s+['"]([^'"]+\/index\.js)['"]/gmu)].map(match => match[1]).sort();
   assert.deepEqual(doors, MAIN_STATIC_FRONT_DOORS, 'a static package front door pulls its whole barrel into every run-tests start');
   assert.doesNotMatch(source, /^import\s[^;]*?from\s+['"]\.\.\/\.\.\/index\.js['"]/mu, 'the gate front door stays a dynamic import');
 });
 
-test('clause 1: packages/gate/src/io/run/tests.js is a launcher whose only static import of the repository is the gate entry [C7,V4]', () => {
+test('clause 1: apps/cli/src/io/run/tests.js is a launcher whose only static import of the repository is the gate entry [C7,V4]', () => {
   const source = readFileSync(RUNNER, 'utf8');
   const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+['"]([^'"]+)['"]/gmu)].map(match => match[1]).filter(name => !name.startsWith('node:'));
-  assert.deepEqual(specifiers, ['../../../../packages/gate/bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
+  assert.deepEqual(specifiers, ['../../../bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
   assert.ok(source.split('\n').length < 30, 'the engine lives in gate, not in the launcher');
 });
 
@@ -148,15 +149,13 @@ function sourceTreeReader(source) {
 
 /** Independently trace historical literal importer paths without assuming their cache completeness. */
 function knownLiteralBoardImporters(closures, modules) {
-  const runners = [...modules.keys()].filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
+  const runners = [...modules.keys()].filter(file => /^apps\/cli\/journeys\/runner\/runners\/.*\.test\.js$/u.test(file));
   assert.ok(runners.length > 0, 'the split runner scenarios remain actual importer roots');
-  const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', ...runners];
+  const roots = ['packages/gate/tests/run-tests-kill.test.js', 'packages/gate/tests/run-tests-timeout.test.js', ...runners];
   const releaseSource = modules.get('packages/landing/src/io/queue.js');
   const releaseImports = importsIn([releaseSource])[0];
   assert.ok(!releaseImports.includes('../../../store/index.js'), 'release capture avoids the eager store front door');
-  for (const reader of ['../../../store/src/shell/board-event-log.js', '../../../store/src/shell/board-query.js', '../../../store/src/core/board-milestones-read.js']) {
-    assert.ok(releaseSource.includes(`load('${reader}')`), `release capture loads its lazy read-only store module ${reader}`);
-  }
+  assert.ok(releaseImports.includes('../../../store/light.js'), 'release capture reads the board through the store light door');
   for (const name of ['openBoardReadOnly', 'boardId', 'listItems', 'milestones']) assert.match(releaseSource, new RegExp(`\\b${name}\\b`), `release capture uses canonical reader ${name}`);
   assert.ok(!releaseImports.includes('../../../store/src/shell/board.js'), 'release capture does not import the writer facade');
   const parsed = new Map();
@@ -276,6 +275,7 @@ test('importing the runners package spawns nothing and pins no tooling; the firs
   const installed = join(directory, 'installed');
   copyPackageFiles(ROOT, installed);
   mkdirSync(join(installed, 'test'), { recursive: true });
+  mkdirSync(join(installed, 'packages/gate/tests/fixtures'), { recursive: true });
   copyFileSync(join(ROOT, 'packages/gate/tests/fixtures/budgets.js'), join(installed, 'packages/gate/tests/fixtures/budgets.js'));
   const counter = join(directory, 'counter.mjs');
   writeFileSync(counter, SPAWN_COUNTER);
@@ -288,8 +288,10 @@ assert.deepEqual(globalThis.__spawned, [], 'importing the runners package starts
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'import pins no tooling generation');
 // A front-door runner operation pins first; this one then fails on its invalid runner without any SSH.
 await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
-assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
+assert.equal(runners.runnerToolingPinned(), true, 'the first runner operation pins the tooling generation');
+// The closure capture waits for first use, so the generation's first read spawns the capture.
 assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
+assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first use of the pinned generation captures the tooling');
 appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/io/dispatch.js'))}, '\\n// changed after the first dispatch\\n');
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
 `;

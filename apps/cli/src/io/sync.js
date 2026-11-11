@@ -2,13 +2,13 @@ import { nativeBoardOpeners } from './context.js';
 import { nativePersonRequestPorts } from './context.js';
 import { recordedMoveRefusal } from '../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
+import { baselineReceiptsPending } from '../../../../packages/store/light.js';
 import { readBoardKey } from '../../../../packages/keys/index.js';
 /**
  * The relay and baseline work around a command: link a new project, sync the relay, deliver finished baselines and
  * run the person's waiting requests. The command line loads it only when one of them could act [C7].
  */
-import { retryCheckBaselines } from '../../../../packages/gate/index.js';
-import { relayOutboxSetting } from './entry.js';
+import { relayOutboxSetting } from './relay-outbox.js';
 import { displayedRefusal } from './context.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import {
@@ -34,6 +34,13 @@ import {
   withBoard,
   withBoardRead,
 } from './context.js';
+
+/** Deliver finished baselines; the gate loads only when a sync step reaches this call [C7]. */
+async function retryCheckBaselines(root, ...args) {
+  // No finished result waiting means nothing to deliver, so the gate stays unloaded.
+  if (!baselineReceiptsPending(repoInfo(root).commonDir)) return;
+  return (await import('../../../../packages/gate/index.js')).retryCheckBaselines(root, ...args);
+}
 
 /** Codes a checkout with no board refuses with, which the sync around a command keeps quiet. */
 const QUIET = ['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'];

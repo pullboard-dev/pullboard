@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/link/src/io/command.js packages/link/src/io/relay.js packages/link/src/io/relay/lock.js packages/store/index.js */
 /** Real private waits prove the phase attached to the existing child stall, not the historical cause [A7,H16,C7]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';

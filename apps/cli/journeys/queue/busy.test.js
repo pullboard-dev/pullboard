@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/lib/index.js packages/store/index.js */
 /** @pullboard-test-loads packages/store/src/io/board.js */
 import assert from 'node:assert/strict';
 import {

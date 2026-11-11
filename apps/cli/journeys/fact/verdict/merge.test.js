@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 import { landingPorts } from '../../../tests/fixtures/landing/ports.js';
 import { checkAtCommit } from '../../../../runner/index.js';
 import { fileURLToPath } from 'node:url';

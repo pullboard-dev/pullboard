@@ -65,13 +65,8 @@ export function defaults() {
     review: { starveMinutes: 5, independence: 'off' },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
-    modelTiers: [
-      { contains: 'haiku', route: 'light' },
-      { contains: 'luna', route: 'light' },
-      { contains: 'sonnet', route: 'mid' },
-      { contains: 'sol', route: 'mid' },
-      { contains: 'opus', route: 'strong' },
-    ],
+    // The route table is data, not code: packages/config/data/model-tiers.json (a fresh copy per call) [P5].
+    modelTiers: JSON.parse(readFileSync(new URL('../../data/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
@@ -262,7 +257,8 @@ export function configProblems(config) {
       || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
   if (config.rigor !== undefined && (!config.rigor || typeof config.rigor !== 'object' || Array.isArray(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
-      || Object.keys(config.rigor).some(key => key !== 'budget'))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add; 400 by default');
+      || config.rigor.autoDraft !== undefined && typeof config.rigor.autoDraft !== 'boolean'
+      || Object.keys(config.rigor).some(key => !['budget', 'autoDraft'].includes(key)))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add (400 by default), and the optional boolean "autoDraft", on by default; false stops unproved Rigor auto-drafts');
   if (config.relay !== undefined && (!config.relay || typeof config.relay !== 'object' || Array.isArray(config.relay)
       || config.relay.outbox !== undefined && typeof config.relay.outbox !== 'boolean'
       || config.relay.board !== undefined && (typeof config.relay.board !== 'string' || !/^[0-9a-f]{32}$/u.test(config.relay.board))

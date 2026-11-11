@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/resident/board.js apps/cli/src/io/resident/socket.js */
 /**
  * A resident board process never outlives the socket it serves and never deletes a successor's socket [H24]. On
  * 4 November 38 orphaned residents (6 GB) piled up on the coordinator's Mac: a busy resident refused a connect, a

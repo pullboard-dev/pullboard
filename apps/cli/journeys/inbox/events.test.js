@@ -117,6 +117,7 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
 test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes cleared observations', async (t) => {
   const box = await httpBox(t);
   const pending = { command: 'true', main: box.commit, result: 'pending', request: randomUUID() };
+  // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let id;
   try {
@@ -126,6 +127,7 @@ test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes
   const initial = await box.call(box.path + '/items/' + id);
   assert.deepEqual(initial.document.item.checkBaseline, pending,
     'a pending captured request reaches the public state endpoint before completion');
+  // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const completed = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.completeCheckBaseline(completed, id, { agentId: 'coordinator', expected: pending,
@@ -269,6 +271,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   const localClaim = await box.call(box.path + '/moves', { verb: 'claim', item: leaseItem.item_id, agent: agent.agent });
   assert.equal(localClaim.status, 200);
   const leaseUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const db = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
     db.db.prepare('UPDATE item SET item_lease_until = ? WHERE item_id = ?')
@@ -367,6 +370,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
 
   box.cli(box.root, 'shout', 'app', 'unread by the joined agent'); assert.equal((await nextFrame()).data.event.event_kind, 'shout'); await changedOnce('unread-shout-state'); // the inbox advances its cursor only past an unread shout
   const localBoardPath = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const cursorBefore = store.openBoard(localBoardPath);
   let beforeSeen;
   let beforeEvent;
@@ -378,6 +382,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
     beforeHistory = cursorBefore.db.prepare('SELECT * FROM event ORDER BY event_id').all();
   } finally { store.closeBoard(cursorBefore); }
   box.cli(agent.path, 'inbox');
+  // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const cursorAfter = store.openBoard(localBoardPath);
   try {
     const afterSeen = store.listAgents(cursorAfter).find((entry) => entry.agent_id === agent.agent).agent_last_shout_id;

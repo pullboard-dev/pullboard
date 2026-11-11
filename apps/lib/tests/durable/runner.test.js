@@ -57,7 +57,7 @@ function projectRepo(name) {
  */
 async function boardFixture(name, trusted) {
   const { repo, tree } = projectRepo(name);
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   const db = board.db;
   const seqs = new Map();
   const adapter = pullAdapter({

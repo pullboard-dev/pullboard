@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .github/workflows/cla.yml .github/workflows/gate.yml .github/workflows/release.yml packages/gate/src/io/check/cla.js */
 /** @pullboard-test-input .github/workflows/gate.yml .github/workflows/cla.yml .github/workflows/stale.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
 import { copyPackageFiles } from '../../../../packages/runners/index.js';

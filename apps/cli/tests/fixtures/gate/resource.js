@@ -23,7 +23,7 @@ import { TEST_FILE_POOL_ENV } from '../../../../../packages/gate/index.js';
 import { executionServicesSource } from './execution.js';
 import { fixtureProjectPolicy } from '../testkit.js';
 
-export const RUNNER = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
+export const RUNNER = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 export const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
 export const RESOURCE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/resources/index.js')).href;
 export const PROBE_NAME = 'machine gate slot runner probe [Q4]';

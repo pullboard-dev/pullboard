@@ -172,7 +172,7 @@ function gitCall(cwd, args, env) {
 /**
  * Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it.
  * Detached by default; `onMainBranch` puts the commit on main's branch name instead. Why: a detached clone has no
- * accepted main, so packages/gate/src/io/run/tests.js refused a main comparison before any test and it came back a red that proved
+ * accepted main, so apps/cli/src/io/run/tests.js refused a main comparison before any test and it came back a red that proved
  * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
  * Only a run on this machine needs it: a runner comparison reads main from the object store in place [C7,#3323].
  */
@@ -310,7 +310,7 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
     if (diff.status !== 0) return false;
     const changed = new Set(diff.stdout.split('\0').filter(Boolean));
     // These inputs select execution itself; no source-import closure can prove them irrelevant.
-    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'packages/gate/src/io/run/tests.js'].includes(path))) return false;
+    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'apps/cli/src/io/run/tests.js'].includes(path))) return false;
     const selection = selectAffectedTests(root, { base: source, commit: composed, changed: [...changed] });
     if (selection.full || failures.some(failure => selection.files.includes(failure.file))) return false;
     for (const commit of new Set([base, source, composed])) {
@@ -414,11 +414,12 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
   // main, focused command and runtime before using them as comparison evidence.
   if (pinned && detailed) for (const path of files) {
     const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
-    const command = createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${word}`).digest('hex');
+    // Receipts taken before the record-only prefix name the old `=0` command; both bind the same focused run.
+    const commands = ['record', '0'].map(mode => createHash('sha256').update(`PULLBOARD_TEST_REUSE=${mode} ${policy.config.affectedTests.trimEnd()} ${word}`).digest('hex'));
     for (const run of [...recordedRuns].reverse()) {
       const receipt = readGateReceipt(receiptStore(root), run.id);
       if (!receipt || receiptBody(receipt) !== receiptBody(run) || receipt.kind !== 'main-red'
-        || receipt.head !== main.commit || receipt.main !== main.commit || receipt.command !== command
+        || receipt.head !== main.commit || receipt.main !== main.commit || !commands.includes(receipt.command)
         || !sameEnvironment(receipt.environment, execution.environment)) continue;
       const failures = receipt.green ? [] : receipt.failureSignatures?.version === MAIN_FAILURE_SIGNATURE_VERSION
         ? receipt.failureSignatures.failures.map(row => row.file === path ? row : { ...row, ran: path }) : null;
@@ -785,9 +786,9 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     const entry = entries[0];
     const receipt = readGateReceipt(store, entry.receiptId);
     const word = "'" + ('./' + failure.file).replaceAll("'", "'\\''") + "'";
-    const command = `PULLBOARD_TEST_REUSE=0 ${runner.trimEnd()} ${word}`;
+    const commands = ['record', '0'].map(mode => createHash('sha256').update(`PULLBOARD_TEST_REUSE=${mode} ${runner.trimEnd()} ${word}`).digest('hex'));
     if (!['red', 'green'].includes(entry.result) || !receipt || receipt.kind !== 'main-red' || receipt.head !== comparison.main || receipt.main !== comparison.main
-      || receipt.command !== createHash('sha256').update(command).digest('hex')
+      || !commands.includes(receipt.command)
       || receipt.green !== (entry.result === 'green') || !cachedFailureSignatures(entry, failure.file)) return [];
     const mainCases = entry.failures.filter(row => row.name === failure.name);
     // The raw signature changes between identical runs; the stable one (error type plus deepest repository frame) does not, so

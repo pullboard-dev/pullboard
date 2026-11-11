@@ -25,7 +25,7 @@ import { literalShellWords } from '../../../../kernel/index.js';
 import { foreignNodeOptions } from '../test/isolation.js';
 import { declaresBrowser } from '../../logic/declaration.js';
 
-const TEST_RUNNER = 'packages/gate/src/io/run/tests.js';
+const TEST_RUNNER = 'apps/cli/src/io/run/tests.js';
 /** Fixed source-only entry points belong to this tool's repository, never to a project's labels. */
 const SOURCE_CHECKS = [
   { args: ['apps/cli/src/io/static/checks.js'], file: 'apps/cli/src/io/static/checks.js', doctrine: true },
@@ -65,7 +65,7 @@ function explicitRunnerFiles(args) {
     files.push(argument);
   }
   return files.length && files.every(file => !file.split('/').some(part => part === '.' || part === '..')
-    && /^(?:test|(?:packages|apps)\/[^/]+\/tests)\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
+    && /^(?:test|(?:packages|apps)\/[^/]+\/(?:tests|journeys))\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
 }
 
 /** Resolve a command word through PATH using the same inherited environment as the check shell.
@@ -271,7 +271,7 @@ export async function checkNeedsBrowser(root, command, { commit, env = process.e
   const node = resolveExecutable(words[0], env.PATH);
   if (!node || await realpath(node).catch(() => '') !== await realpath(process.execPath).catch(() => '')) return browserFallback(onFallback, '<frozen check>', 'Node executable does not resolve to this runtime');
   const runner = resolve(root, words[1]);
-  if (runner !== resolve(root, TEST_RUNNER)) return browserFallback(onFallback, '<frozen check>', 'runner is not packages/gate/src/io/run/tests.js in this repository');
+  if (runner !== resolve(root, TEST_RUNNER)) return browserFallback(onFallback, '<frozen check>', 'runner is not apps/cli/src/io/run/tests.js in this repository');
   const files = explicitRunnerFiles(words.slice(2));
   if (!files) return browserFallback(onFallback, '<frozen check>', 'runner options or test selection are not statically understood');
   if (commit) {
@@ -289,7 +289,7 @@ export async function checkNeedsBrowser(root, command, { commit, env = process.e
 }
 
 /**
- * Name the test files a check runs when it is a literal packages/gate/src/io/run/tests.js call over regular in-repository
+ * Name the test files a check runs when it is a literal apps/cli/src/io/run/tests.js call over regular in-repository
  * test files, or return null. Only such a check may take a short gate slot (gate.shortSlots); anything
  * uncertain, a directory or discovery included, stays an ordinary run. Kept apart from checkNeedsBrowser
  * so short-slot admission never changes how a check is classified for the browser.
