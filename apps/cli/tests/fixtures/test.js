@@ -5,7 +5,6 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -120,8 +119,6 @@ ${subtest ? '});' : ''}
   return {
     ...box, env, requests, remoteHome, remoteMachineHome, command,
     /** Count real completed SSH requests without treating a configured host as execution proof. */
-    /** Everything the stand-in recorded this case, for an assertion message. */
-    requestLog() { return readdirSync(box.dir).filter(name => name.startsWith(`ssh-requests-${fixture}.`)).map(name => `${name}: ${readFileSync(join(box.dir, name), 'utf8').trim().split('\n').length}`).join('; '); },
     requestsMade() { return existsSync(requests) ? readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : []; },
     /** Commit a harmless source change so the next public gate executes instead of reusing a green tree. */
     commitProbeChange() {
