@@ -8,6 +8,7 @@ import {
 import {
   globSync,
   readFileSync,
+  readdirSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -131,9 +132,13 @@ export function isGitWorkTree(cwd, env) {
   throw new Error(result.stderr.trim() || `git rev-parse failed (status ${result.status})`);
 }
 
-/** List tracked repository test entry files, excluding helpers and worktree-only copies. */
+/**
+ * List repository test entry files, excluding helpers and worktree-only copies: tracked ones in a Git work tree, else the folder's own.
+ * Why: Node's native discovery also runs every file under any `test/` folder, which now holds gate's own source.
+ */
 export function trackedDefaultTestFiles(cwd, env) {
-  const output = gitExecFileSync(['ls-files', '-z'], { cwd, env, encoding: 'utf8' });
+  const output = isGitWorkTree(cwd, env) ? gitExecFileSync(['ls-files', '-z'], { cwd, env, encoding: 'utf8' })
+    : readdirSync(cwd, { recursive: true }).join('\0');
   return output.split('\0').filter(path => path && isDefaultTestFile(path)).sort()
     .map(path => `./${path}`);
 }
