@@ -1,5 +1,6 @@
 /** Immutable derived facts live outside every checkout; never persist live board decisions. */
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { closeSync } from 'node:fs';
@@ -9,8 +10,10 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { blobOid } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { git } from '../../../git/index.js';
+import { indexedFiles } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { trunkRef } from '../../../git/index.js';
 
@@ -31,6 +34,29 @@ function commitIdentity(identity) {
   const commit = Array.isArray(identity) ? identity[0] : identity && typeof identity === 'object' ? identity.commit : identity;
   return typeof commit === 'string' && commit ? commit : mainFactDigest(JSON.stringify(identity));
 }
+const TOOL_PATHS = ['package.json', 'src', 'bin', 'packages'];
+
+/**
+ * The same inventory taken from the git index: committed files by blob id, only changed or untracked ones read.
+ * Null when the installation is not a plain git checkout, and the caller then walks it.
+ */
+function indexedToolIdentity(root) {
+  const present = TOOL_PATHS.filter(name => existsSync(join(root, name)));
+  const found = indexedFiles(root, present);
+  if (!found || found.links.size) return null;
+  const entries = new Map(found.clean);
+  for (const file of [...found.dirty, ...found.untracked]) {
+    let stat;
+    try { stat = lstatSync(join(root, file)); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (!stat.isFile()) return null;
+    entries.set(file, { mode: stat.mode & 0o111 ? '100755' : '100644', oid: blobOid(readFileSync(join(root, file)), found.length) });
+  }
+  const hash = createHash('sha256');
+  for (const name of TOOL_PATHS) if (!present.includes(name)) hash.update(JSON.stringify([name, null]));
+  for (const file of [...entries.keys()].sort()) hash.update(`${JSON.stringify([file, entries.get(file).mode, entries.get(file).oid])}\n`);
+  return hash.digest('hex');
+}
+
 // Undefined until computed; null once the installation proved it cannot be fingerprinted, so no command walks it again.
 let toolIdentity;
 
@@ -38,6 +64,8 @@ let toolIdentity;
 export function mainFactToolIdentity() {
   if (toolIdentity === undefined) {
     const root = fileURLToPath(new URL('../../../../', import.meta.url));
+    try { toolIdentity = indexedToolIdentity(root) ?? undefined; } catch { toolIdentity = undefined; }
+    if (toolIdentity !== undefined) return toolIdentity;
     const hash = createHash('sha256');
     let size = 0;
     let count = 0;
