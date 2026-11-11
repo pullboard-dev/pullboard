@@ -56,7 +56,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   /** Exercise the real CLI, retaining only its structured receipt for assertions. */
   const cliAt = (cwd, ...args) => {
     const result = runFixtureChild(process.execPath, [cliBin, ...args, '--json'], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure };
+    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure, stderr: result.stderr };
   };
   /** Keep the coordinator's normal command path separate from its actual joined worktrees. */
   const cli = (...args) => cliAt(root, ...args);

@@ -24,7 +24,7 @@ test('clause 1: two actual composed Submit pairs quarantine once, retain raw rec
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
   // f562d717d8: a Submit pair files its quarantine at once, so the first pair already holds the one active repair.
-  assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
+  assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ stderr: String(first.stderr ?? '').slice(-2500), quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
   const second = submit(box);
   assert.equal(second.code, 0, JSON.stringify(second.document)); // the active quarantine lets the computed verdict through
   const state = snapshot(box);
