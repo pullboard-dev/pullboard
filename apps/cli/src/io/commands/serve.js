@@ -17,6 +17,9 @@ import {
   traceServeStartup,
 } from '../main.js';
 import { serveListen } from '../../../../../packages/config/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { criterionMainReceipts } from '../submit/receipt.js';
+import { provideMainComparison } from '../../../../../packages/api/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import {
@@ -56,6 +59,8 @@ export async function serveHere(io, values) {
   const { address, port } = serveListen({ address: values.address, port: flagPort });
   // Off loopback the API answers runners on the network: it needs this machine's lasting board key and serves only this repo's board [P7].
   const networked = address !== LOOPBACK;
+  // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
+  provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   traceServeStartup('serve-listen-start');
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
