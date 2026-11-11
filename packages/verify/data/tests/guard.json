@@ -49,6 +49,7 @@
     "apps/cli/journeys/fact/merge.test.js",
     "apps/cli/journeys/init/assurance.test.js",
     "apps/cli/journeys/verify/check.test.js",
+    "apps/cli/journeys/verify/store-bodies.test.js",
     "apps/cli/journeys/show/verdict/trunk.test.js"
   ],
   "moved": {
