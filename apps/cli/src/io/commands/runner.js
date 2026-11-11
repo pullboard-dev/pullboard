@@ -15,6 +15,7 @@ import {
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
+import { serveRunner } from '../../../../../packages/jobs/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
@@ -47,6 +48,19 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     });
     io.result?.({ runners });
     io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
+    return 0;
+  }
+  if (first === 'serve') {
+    // A pull runner: only outbound HTTPS to the board and git fetches from its trunk remote, no ssh in [P7].
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory'].includes(key))) {
+      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>]');
+    }
+    const stop = new AbortController();
+    for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
+    const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
+      ...(values.directory ? { cache: values.directory } : {}), signal: stop.signal, say: line => io.say(line) })
+      .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
+    io.result?.(served);
     return 0;
   }
   if (first === 'remove') {
