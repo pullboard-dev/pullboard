@@ -85,7 +85,7 @@ test('a re-claim after gate inputs and another folder\'s lane change re-freezes 
   assert.match(success(box, box.repo, 'show', '1').out, /policy re-frozen automatically/);
 });
 
-test('a re-claim whose lane\'s owns shrank is refused, naming the coordinator\'s refreeze, and keeps the old policy [C7]', t => {
+test('a re-claim whose lane\'s owns shrank away from a named file is refused, naming the coordinator\'s refreeze, and keeps the old policy [C7,L2]', t => {
   const box = claimedWithWork(t);
   const first = pinned(box);
   changeLanes(box, config => {
@@ -98,7 +98,7 @@ test('a re-claim whose lane\'s owns shrank is refused, naming the coordinator\'s
   const refused = box.run(box.web, 'claim', '1');
   assert.notEqual(refused.code, 0, refused.out);
   assert.match(refused.err + refused.out, /NO_POLICY/);
-  assert.match(refused.err + refused.out, /lanes\.web\.owns changed what its bar means/);
+  assert.match(refused.err + refused.out, /web\/page\.html moved lanes \(web -> ui\)/, 'the named path it moved refuses, not the shrunk list itself (#3793)');
   assert.match(refused.err + refused.out, /next: nothing for the builder; take other work .*the coordinator refreezes #1/);
   assert.equal(pinned(box), first);
 });
