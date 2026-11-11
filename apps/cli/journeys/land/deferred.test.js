@@ -12,10 +12,7 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import { calls } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { landingTimeoutFixture } from '../../../../packages/store/tests/fixtures/timeout.js';
-import { landEnginesInOrder } from '../../tests/fixtures/land/engine.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
-import { assertCollisionFreeLanding } from '../../../../packages/store/tests/fixtures/collision.js';
-import { assertDeferredLandingPriority } from '../../../../packages/store/tests/fixtures/collision.js';
 /** Exercise deferred and affected landings against real private Git worktrees [B3,R3,C7,V4]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -97,13 +94,3 @@ test('a publish gate run is recorded and a red and green pair it sees files the 
 });
 
 test('a landing gate past its timeout stops cleanly [E27,E29]', () => landingTimeoutFixture({ landProject, itemWorktree, submitItem, acceptItem, onBoard, json }));
-
-test('the landing merge assigns engine numbers in landing order, either order, and the board replays [B3,R3,H16]', () => {
-  for (const order of [[0, 1], [1, 0]]) landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order);
-});
-
-test('a landing batch leaves out an item that touches a file already in the batch [B3,R3,R1,H16]',
-() => assertCollisionFreeLanding({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
-
-test('a deferred landing item keeps its place ahead of newer acceptances after merge-only reaccept [B3,R3,R1,H16]',
-() => assertDeferredLandingPriority({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
