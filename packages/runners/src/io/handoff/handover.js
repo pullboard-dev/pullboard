@@ -36,14 +36,14 @@ const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
 
 /**
  * The current tools this dispatcher should hand over to, or null while it runs them. The newest waiting launch whose
- * request was captured at its tool root's current HEAD names the current tooling snapshot; a dispatcher running a
- * different shared snapshot hands over to it. A dispatcher run from a checkout, or with no launch captured at the
- * current HEAD, never hands over.
+ * request was captured at the commit `head` names for its tool root (main's tip) names the current tooling snapshot; a
+ * dispatcher running a different shared snapshot hands over to it. A dispatcher run from a checkout, or with no launch
+ * captured at that commit, never hands over.
  *
  * Why: on 8 Nov a dispatcher started from submit-time tools kept launching gates on code main had fixed (no
  * PROOF_MAX_SHARDS), and one gate opened 18 runner controllers; one live dispatcher must run main's tooling (DJ16).
  *
- * @param {{ own?: string, launches?: () => { directory: string, tools: string }[], head: (root: string) => string | null }} ports - `head` names the commit a tool root's HEAD is at; it runs git, which this cell's lease-reached modules never do synchronously, so the caller passes it in.
+ * @param {{ own?: string, launches?: () => { directory: string, tools: string }[], head: (root: string) => string | null }} ports - `head` names a tool root's current tooling commit, its trunk tip, so a seat worktree's item HEAD never counts; it runs git, which this cell's lease-reached modules never do synchronously, so the caller passes it in.
  * @returns {string | null} The current tools folder to hand over to.
  */
 export function staleDispatcherTools({ own = OWN_TOOLS, launches = waitingLaunches, head } = {}) {
