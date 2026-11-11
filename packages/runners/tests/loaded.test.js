@@ -132,7 +132,8 @@ test('a busy runner records its live load reading instead of being refused as bu
 test('a measured fleet with default settings dispatches by live load, measured before admission; only an explicit off disables it [C7]', async t => {
   const project = box(t);
   const measured = { host: 'unread-host', slots: 9, browser: 6, cores: 10, memoryMB: 16384 };
-  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, runners: [measured] }));
+  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { timingRunner: false }, runners: [measured] }));
+  // Two runners: timingRunner 'auto' would keep the idle one for timed checks (#2512) and hide the load-aware pick under test.
   const settings = loadMachineSettings();
   assert.equal(settings.gate?.loadAwareDispatch, undefined, 'nothing is configured');
   assert.equal(gateRunnerLoadPolicy(settings).enabled, true, 'a measured fleet balances by load by default');

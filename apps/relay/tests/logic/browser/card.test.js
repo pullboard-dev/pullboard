@@ -102,32 +102,32 @@ test('a relay file may name a public module that has no file of that name, as a 
 
 test('the served relay graph keeps each moved package module at its repository path, and it loads [H5,H16,C7]', async t => {
   const root = moduleTree(t, {
-    'apps/relay/src/io/deploy/entry.js': "import { keys } from '../packages/keys/src/core/keys.js';\nimport { flat } from './flat.js';\nexport const loaded = keys + flat;\n",
-    'apps/relay/src/io/deploy/flat.js': "export const flat = 'flat';\n",
-    'packages/keys/src/logic/keys.js': "import { Refused } from '../../../kernel/index.js';\nexport const keys = Refused.name;\n",
+    'relay/entry.js': "import { keys } from '../packages/keys/src/core/keys.js';\nimport { flat } from './flat.js';\nexport const loaded = keys + flat;\n",
+    'relay/flat.js': "export const flat = 'flat';\n",
+    'packages/keys/src/core/keys.js': "import { Refused } from '../../../kernel/index.js';\nexport const keys = Refused.name;\n",
     'packages/kernel/index.js': "import 'node:fs';\nexport * from './core.js';\n",
     'packages/kernel/light.js': "export { Refused } from './src/core/refused.js';\n",
-    'packages/kernel/src/logic/refused.js': 'export class Refused extends Error {}\n',
+    'packages/kernel/src/core/refused.js': 'export class Refused extends Error {}\n',
   });
-  const served = browserModules(root, { named: { '/relay/entry.js': 'apps/relay/src/io/deploy/entry.js', '/relay/flat.js': 'apps/relay/src/io/deploy/flat.js', '/relay/refused.js': 'packages/kernel/src/logic/refused.js' } });
-  assert.deepEqual([...served.keys()].sort(), ['/relay/entry.js', '/relay/flat.js', '/relay/m/packages/kernel/core.js', '/relay/m/packages/keys/src/core/keys.js', '/relay/refused.js']);
+  const served = browserModules(root, { named: { '/relay/entry.js': 'relay/entry.js', '/relay/flat.js': 'relay/flat.js', '/relay/refused.js': 'packages/kernel/src/core/refused.js' } });
+  assert.deepEqual([...served.keys()].sort(), ['/relay/entry.js', '/relay/flat.js', '/relay/m/packages/kernel/light.js', '/relay/m/packages/keys/src/core/keys.js', '/relay/refused.js']);
   assert.match(served.get('/relay/entry.js'), /from '\.\/m\/packages\/keys\/src\/core\/keys\.js'/u, 'a relay file reaches a moved body by its kept directory path');
-  assert.match(served.get('/relay/m/packages/keys/src/core/keys.js'), /from '\.\.\/\.\.\/\.\.\/kernel\/core\.js'/u, 'a front door is read as its pure core.js');
-  assert.match(served.get('/relay/m/packages/kernel/core.js'), /from '\.\.\/\.\.\/\.\.\/refused\.js'/u, 'one public refusal module, so instanceof holds across the graph');
+  assert.match(served.get('/relay/m/packages/keys/src/core/keys.js'), /from '\.\.\/\.\.\/\.\.\/kernel\/light\.js'/u, 'a front door is read as its pure light.js');
+  assert.match(served.get('/relay/m/packages/kernel/light.js'), /from '\.\.\/\.\.\/\.\.\/refused\.js'/u, 'one public refusal module, so instanceof holds across the graph');
   const out = mkdtempSync(join(tmpdir(), 'pullboard-relay-served-'));
   t.after(() => rmSync(out, { recursive: true, force: true }));
   for (const [url, source] of served) { mkdirSync(dirname(join(out, url)), { recursive: true }); writeFileSync(join(out, url), source); }
-  assert.equal((await import(pathToFileURL(join(out, 'apps/relay/src/io/deploy/entry.js')).href)).loaded, 'Refusedflat');
+  assert.equal((await import(pathToFileURL(join(out, 'relay/entry.js')).href)).loaded, 'Refusedflat');
 });
 
 test('a served relay module that reaches a Node builtin or a missing file refuses by name [H5,H16,C7]', t => {
   const root = moduleTree(t, {
-    'apps/relay/src/io/deploy/entry.js': "import { shell } from '../src/shell.js';\nexport const loaded = shell;\n",
+    'relay/entry.js': "import { shell } from '../src/shell.js';\nexport const loaded = shell;\n",
     'src/shell.js': "import { readFileSync } from 'node:fs';\nexport const shell = readFileSync;\n",
-    'apps/relay/src/io/deploy/lost.js': "import { gone } from '../src/gone.js';\nexport const lost = gone;\n",
+    'relay/lost.js': "import { gone } from '../src/gone.js';\nexport const lost = gone;\n",
   });
-  assert.throws(() => browserModules(root, { named: { '/relay/entry.js': 'apps/relay/src/io/deploy/entry.js' } }),
+  assert.throws(() => browserModules(root, { named: { '/relay/entry.js': 'relay/entry.js' } }),
     error => error.code === 'RELAY_BROWSER_MODULE' && /src\/shell\.js imports node:fs/u.test(error.message));
-  assert.throws(() => browserModules(root, { named: { '/relay/lost.js': 'apps/relay/src/io/deploy/lost.js' } }),
+  assert.throws(() => browserModules(root, { named: { '/relay/lost.js': 'relay/lost.js' } }),
     error => error.code === 'RELAY_BROWSER_MODULE' && /relay\/lost\.js imports \.\.\/src\/gone\.js/u.test(error.message));
 });

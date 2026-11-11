@@ -22,7 +22,7 @@ function fixture(t) {
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(directory, name)]));
   for (const path of Object.values(paths)) mkdirSync(path);
   const env = { PATH: `${paths.bin}:${process.env.PATH}`, HOME: paths.home, PULLBOARD_HOME: paths.home, PULLBOARD_MACHINE_HOME: paths.machine,
-    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Requeue fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Requeue fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
     GIT_COMMITTER_NAME: 'Requeue fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: paths.repo, env });
   writeFileSync(join(paths.repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
@@ -59,7 +59,7 @@ const completed=await withGateSlot(root,async lease=>{
   seen.push(lease.runner.host);
   if(seen.length===2){
     const db=new DatabaseSync(${JSON.stringify(join(box.machine, 'resources.sqlite'))},{readOnly:true});
-    try {assert.ok(db.prepare('SELECT host FROM runner_unavailable WHERE host=?').get(${JSON.stringify(HOST)}),'the lost first runner was quarantined');}
+    try {assert.ok(db.prepare('SELECT host FROM runner_unavailable WHERE host=?').get(seen[0]),'the lost first runner was quarantined');}
     finally {db.close();}
   }
   const result=await runProfiledShell(root,'printf unpinned-runner-retry',{gateLease:lease});
@@ -67,11 +67,14 @@ const completed=await withGateSlot(root,async lease=>{
   if(seen.length===1)throw new Refused('RUNNER_JOB_LOST','controlled first-runner loss after dispatch');
   return result;
 },{executionServices,remote:true,runnerOnly:true,itemCheck:true,agent:'unpinned-requeue',kind:'submit',item:'fixture',onWait(){}});
-assert.deepEqual(seen,${JSON.stringify(box.runners.map(row => row.host))},'an unpinned retry dispatches to the other registered runner');
+// Which registered runner is picked first follows measured load, so only the pair is fixed: one host, then the other.
+assert.deepEqual([...seen].sort(),${JSON.stringify(box.runners.map(row => row.host).sort())},'an unpinned retry dispatches to the other registered runner');
 assert.equal(completed.profile.executionRunner,seen[1]);
 assert.equal(completed.output,'unpinned-runner-retry');
 console.log(JSON.stringify({seen,executionRunner:completed.profile.executionRunner,output:completed.output}));
 `);
   assert.doesNotMatch(output, /BAD_RESOURCE_METADATA/u);
-  assert.deepEqual(JSON.parse(output.trim()), { seen: box.runners.map(row => row.host), executionRunner: box.runners[1].host, output: 'unpinned-runner-retry' });
+  const done = JSON.parse(output.trim());
+  assert.deepEqual([...done.seen].sort(), box.runners.map(row => row.host).sort());
+  assert.deepEqual({ executionRunner: done.executionRunner, output: done.output }, { executionRunner: done.seen[1], output: 'unpinned-runner-retry' });
 });

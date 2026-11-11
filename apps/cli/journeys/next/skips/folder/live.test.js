@@ -20,6 +20,8 @@ import {
   fileFixtureItem,
   joinFixtureSeat,
 } from '../../../../tests/fixtures/testkit.js';
+import { runFixtureChildAsync } from '../../../../tests/fixtures/child.js';
+import { waitForCondition } from '../../../../tests/fixtures/runner/holders.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -92,8 +94,17 @@ function liveFolderBoard() {
   return { box, a, b, holder, claimer, folder, before: binding(box, folder) };
 }
 
-test('clause 1: with item A first and its folder held by another live session, plain pullboard next hands item B through the real next path instead of refusing ITEM_FOLDER_SESSION_LIVE [B3,C7]', () => {
+/** Keep a real process in the clean folder while the live session uses it. */
+async function keepFolderInUse(t, box, folder) {
+  const marker = join(box.dir, 'folder-process-ready');
+  const child = runFixtureChildAsync(process.execPath, ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ready'); setInterval(() => {}, 1000);`], { cwd: folder, env: box.env });
+  t.after(async () => { child.child.kill('SIGTERM'); await child; });
+  await waitForCondition(() => existsSync(marker), 'the folder process starts', { signal: AbortSignal.timeout(10_000) }); // Budget: runaway ceiling for the owned process to start.
+}
+
+test('clause 1: with item A first and its folder held by another live session, plain pullboard next hands item B through the real next path instead of refusing ITEM_FOLDER_SESSION_LIVE [B3,C7]', async t => {
   const { box, a, b, claimer, folder, before } = liveFolderBoard();
+  await keepFolderInUse(t, box, folder);
   const next = as(box, 'session-b', () => box.run(claimer.root, 'next'));
   const all = `${next.out}\n${next.err}`;
   assert.equal(next.code, 0, all);
@@ -106,8 +117,9 @@ test('clause 1: with item A first and its folder held by another live session, p
   assert.deepEqual(binding(box, folder), before, 'the live session still owns the folder binding');
 });
 
-test('clause 2: pullboard claim A on that seat still refuses ITEM_FOLDER_SESSION_LIVE naming the live session [B3,C7]', () => {
+test('clause 2: pullboard claim A on that seat still refuses ITEM_FOLDER_SESSION_LIVE naming the live session [B3,C7]', async t => {
   const { box, a, holder, claimer, folder, before } = liveFolderBoard();
+  await keepFolderInUse(t, box, folder);
   const claimed = as(box, 'session-b', () => box.run(claimer.root, 'claim', a));
   const all = `${claimed.out}\n${claimed.err}`;
   assert.notEqual(claimed.code, 0, all);

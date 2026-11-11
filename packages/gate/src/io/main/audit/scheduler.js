@@ -74,10 +74,13 @@ export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
 export async function waitMainAudit(directory, token, dueAt) {
   const due = Date.parse(dueAt);
   if (!Number.isFinite(due)) throw new Error('invalid audit wake time');
-  for (;;) {
-    const remaining = due - Date.now();
-    if (remaining <= 0) break;
-    await pause(Math.min(remaining, 2147483647));
+  // Sleep the span read once, not until a re-read clock says so: a process that inherits a frozen or stepped Date
+  // (a preload that pins it) would otherwise wait forever, a detached timer nobody can end [C7].
+  let remaining = due - Date.now();
+  while (remaining > 0) {
+    const step = Math.min(remaining, 2147483647);
+    await pause(step);
+    remaining -= step;
   }
   return withFileLock(join(directory, 'timer.guard.sqlite'), () => {
     const file = join(directory, 'timer.json'), owner = readMainAudit(file);

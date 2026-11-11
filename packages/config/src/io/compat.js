@@ -12,7 +12,7 @@ function schema(base) {
     submit: { ...shape(base.submit), ...fields(['handoff']) },
     spec: fields(['file', 'agentApproval']),
     flakes: fields(['rerun', 'quarantine']),
-    rigor: fields(['budget']),
+    rigor: fields(['budget', 'autoDraft']),
     cells: fields(['cache', 'shimMaxAgeDays']),
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),

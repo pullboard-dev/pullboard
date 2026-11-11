@@ -62,8 +62,8 @@ function seatUsage(box, cwd, identity) {
   const env = { ...box.env, CODEX_HOME: join(box.dir, 'codex'), CLAUDE_CONFIG_DIR: join(box.dir, 'claude') };
   for (const key of ['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_CI', 'CODEX_SHELL']) delete env[key];
   Object.assign(env, identity);
-  const cli = pathToFileURL(join(helpers.BIN, '../../apps/cli/index.js')).href;
-  const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
+  const cli = pathToFileURL(join(helpers.BIN, '../index.js')).href;
+  const checkpoint = pathToFileURL(join(helpers.BIN, '../../../packages/stats/src/io/cost/checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,cli\$ordered as ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../lib/src/logic/native.js', import.meta.url).href)};

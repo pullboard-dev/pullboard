@@ -59,6 +59,8 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     // A new board opens on Dashboard, which retains the rules and the calls waiting on the person.
     const fresh = await openPage(view, { store: storage() });
     assert.equal(fresh.run('view.tab'), 'dashboard', 'a board with no items yet opens on Dashboard');
+    assert.match(fresh.show('dashboard'), /data-first-run-tour/, 'a new board first presents the setup tour');
+    fresh.run("keep('pb.firstrun.' + view.root, 'hidden'); render();");
     const rules = fresh.show('dashboard');
     assert.deepEqual(['approved', 'gated', 'ungated'].map((key) => count(rules, key)), [3, 2, 1], 'approved rows, those naming a gate, and those with none');
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
@@ -97,8 +99,9 @@ test('home renders the projected useful agents range lever and curve and refresh
   project(box, 'capacity home', SPEC);
   const view = await startView(box);
   try {
-    const page = await openPage(view);
+    const page = await openPage(view, { store: storage() });
     assert.match(page.html, /id="dashboard-capacity"/, 'the served page mounts the capacity card on Dashboard');
+    page.run("keep('pb.firstrun.' + view.root, 'hidden'); render();");
     page.run(`data.project.capacityForecast = ${JSON.stringify(CAPACITY)}; render();`);
     const html = page.show('dashboard');
     assert.match(html, /Max useful agents now: <strong>24<\/strong> \(16–32\)/);
@@ -134,6 +137,7 @@ test('Dashboard capacity stays readable at phone and desktop widths in real Chro
     await allowLiveHold(chrome);
     await chrome.send('Page.navigate', { url: view.link.href });
     await holdLive(chrome, "data?.project?.spec.some(row => row.id === 'G1')");
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=dashboard]').hidden");
     assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true, 'the real served Dashboard mounts the capacity card');
     for (const width of [375, 1280]) {

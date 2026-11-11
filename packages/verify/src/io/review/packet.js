@@ -342,9 +342,10 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
       evidence = executed.filter(run => checkFiles.includes(run.file) && run.test.replace(/^\.\//u, '') !== run.file)
         .map(run => ({ ...run, why: "the item's check ran" }));
     }
-    // When no named check outcome exists, retain the brief's file-level proof for a clause with no case of its own.
-    if (!evidence.length && clause.kind === 'test' && !ownCaseDeclared && !namedTestFiles(clause.text).length) {
-      evidence = runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" }));
+    // Include the brief's file-level proof alongside generic check cases, without covering a skipped own case.
+    if (evidence.every(run => run.why === "the item's check ran") && clause.kind === 'test' && !ownCaseDeclared && !namedTestFiles(clause.text).length) {
+      evidence.push(...runs.filter(run => briefFiles.includes(run.file) && !checkFiles.includes(run.file))
+        .map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" })));
     }
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {

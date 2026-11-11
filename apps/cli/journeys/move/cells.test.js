@@ -77,7 +77,7 @@ test('leaf move and independent journal inverse restore exact tree and modes [C7
   assert.equal(value(root, input.frontDoor), '42\n');
   assert.equal(value(root, input.from), '42\n');
   assert.equal(statSync(join(root, input.to)).mode & 0o777, 0o755);
-  assert.deepEqual(JSON.parse(readFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'))), { 'src/leaf.js': input.to });
+  assert.deepEqual(JSON.parse(readFileSync(join(root, 'packages/codemap/data/plan/path-map/leaf.json'))), { 'src/leaf.js': input.to });
   assert.match(readFileSync(join(root, input.to), 'utf8'), /\.\.\/\.\.\/\.\.\/\.\.\/src\/number\.js/u);
   cellsMove.undo(result.record);
   assert.equal(git(root, 'write-tree'), before);
@@ -227,14 +227,14 @@ test('fixture joins retain rooted later segments while resolve keeps its absolut
   const { root, custody, input } = fixture(t, 'export const value = 42;\n');
   mkdirSync(join(root, 'test'));
   const file = 'test/join-copy.test.js';
-  const external = "function external() { return fs.readFileSync(path.resolve(import.meta.dirname, '../../../..', '/src/leaf.js')); }";
+  const external = "function external() { return fs.readFileSync(path.resolve(import.meta.dirname, '..', '/src/leaf.js')); }";
   const source = [
     "import assert from 'node:assert/strict';",
     "import * as fs from 'node:fs';",
     "import * as path from 'node:path';",
-    "const body = fs.readFileSync(path.join(import.meta.dirname, '../../../..', '/src/leaf.js'), 'utf8');",
+    "const body = fs.readFileSync(path.join(import.meta.dirname, '..', '/src/leaf.js'), 'utf8');",
     "assert.equal(body, 'export const value = 42;\\n');",
-    "assert.equal(path.resolve(import.meta.dirname, '../../../..', '/src/leaf.js'), '/src/leaf.js');",
+    "assert.equal(path.resolve(import.meta.dirname, '..', '/src/leaf.js'), '/src/leaf.js');",
     '/** An external absolute read is deliberately outside the repository move. */',
     external,
     "console.log('joined copy reads actual body');",
@@ -325,8 +325,8 @@ test('rehashed forged inverse cannot bless a concurrent edit as its postimage [C
 
 test('failed apply preserves a concurrently deleted preexisting path map [C7]', t => {
   const { root, custody, input } = fixture(t);
-  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
-  writeFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'), '{}\n');
+  mkdirSync(join(root, 'packages/codemap/data/plan/path-map'), { recursive: true });
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/leaf.json'), '{}\n');
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'existing path map');
   const plan = cellsMove.plan(input);
   const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
@@ -336,7 +336,7 @@ test('failed apply preserves a concurrently deleted preexisting path map [C7]', 
     `const fs = require('node:fs'); const cp = require('node:child_process');\n` +
     `const args = process.argv.slice(2);\n` +
     `if (args[2] === 'add' && !fs.existsSync(${JSON.stringify(marker)})) {\n` +
-    ` fs.writeFileSync(${JSON.stringify(marker)}, 'yes'); fs.unlinkSync(${JSON.stringify(join(root, 'bin/cells-plan/path-map/leaf.json'))}); process.exit(1); }\n` +
+    ` fs.writeFileSync(${JSON.stringify(marker)}, 'yes'); fs.unlinkSync(${JSON.stringify(join(root, 'packages/codemap/data/plan/path-map/leaf.json'))}); process.exit(1); }\n` +
     `const result = cp.spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }); process.exit(result.status ?? 1);\n`);
   chmodSync(shim, 0o755);
   const previous = process.env.PATH;
@@ -344,7 +344,7 @@ test('failed apply preserves a concurrently deleted preexisting path map [C7]', 
   try {
     assert.throws(() => cellsMove.apply(plan, custody), /retain exact custody/u);
   } finally { process.env.PATH = previous; }
-  assert.equal(existsSync(join(root, 'bin/cells-plan/path-map/leaf.json')), false);
+  assert.equal(existsSync(join(root, 'packages/codemap/data/plan/path-map/leaf.json')), false);
   assert.ok(existsSync(join(custody, plan.digest + '.json')));
   assert.match(readFileSync(join(root, input.from), 'utf8'), /^export \*/u);
 });
@@ -372,16 +372,16 @@ test('export pruning refuses grouped variable exports rather than leaking extra 
 
 test('committed cell shards combine with root compatibility map and reject conflicts [C7]', t => {
   const { root } = fixture(t);
-  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
+  mkdirSync(join(root, 'packages/codemap/data/plan/path-map'), { recursive: true });
   writeFileSync(join(root, 'path-map.json'), JSON.stringify({ 'src/old.js': 'src/leaf.js' }));
-  writeFileSync(join(root, 'bin/cells-plan/path-map/leaf.json'), JSON.stringify({ 'src/leaf.js': 'packages/leaf/src/core/leaf.js' }));
-  writeFileSync(join(root, 'bin/cells-plan/path-map/other.json'), JSON.stringify({ 'src/other.js': 'packages/other/src/core/other.js' }));
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/leaf.json'), JSON.stringify({ 'src/leaf.js': 'packages/leaf/src/core/leaf.js' }));
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/other.json'), JSON.stringify({ 'src/other.js': 'packages/other/src/core/other.js' }));
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'committed shards');
   const accepted = git(root, 'rev-parse', 'HEAD').trim();
   const map = readPathMap(root);
   assert.equal(map.get('src/old.js'), 'packages/leaf/src/core/leaf.js');
   assert.equal(map.get('src/other.js'), 'packages/other/src/core/other.js');
-  writeFileSync(join(root, 'bin/cells-plan/path-map/other.json'), JSON.stringify({ 'src/leaf.js': 'packages/other/src/core/other.js' }));
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/other.json'), JSON.stringify({ 'src/leaf.js': 'packages/other/src/core/other.js' }));
   assert.deepEqual(readPathMap(root), map, 'uncommitted bytes cannot change the selected map');
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'conflicting shards');
   assert.throws(() => readPathMap(root), /NO_POLICY/u);
@@ -390,9 +390,9 @@ test('committed cell shards combine with root compatibility map and reject confl
 
 test('cycles spanning cell shards fail closed [C7]', t => {
   const { root } = fixture(t);
-  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
-  writeFileSync(join(root, 'bin/cells-plan/path-map/a.json'), JSON.stringify({ 'src/a.js': 'src/b.js' }));
-  writeFileSync(join(root, 'bin/cells-plan/path-map/b.json'), JSON.stringify({ 'src/b.js': 'src/a.js' }));
+  mkdirSync(join(root, 'packages/codemap/data/plan/path-map'), { recursive: true });
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/a.json'), JSON.stringify({ 'src/a.js': 'src/b.js' }));
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/b.json'), JSON.stringify({ 'src/b.js': 'src/a.js' }));
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'cyclic shards');
   assert.throws(() => readPathMap(root), /NO_POLICY/u);
 });
@@ -405,7 +405,7 @@ test('the shipped installation includes the first real package and runs its CLI 
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);
   const env = { ...process.env, HOME: join(outer, 'home'), PULLBOARD_HOME: join(outer, 'home/pullboard'), PULLBOARD_MACHINE_HOME: join(outer, 'machine') };
   delete env.NODE_OPTIONS; delete env.NODE_TEST_CONTEXT;
-  const child = spawnSync(process.execPath, [join(installed, 'bin/pullboard.js'), '--help'], { cwd: installed, env, encoding: 'utf8' });
+  const child = spawnSync(process.execPath, [join(installed, 'apps/cli/pullboard.js'), '--help'], { cwd: installed, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);
   assert.match(child.stdout, /pullboard/u);
   const body = spawnSync(process.execPath, ['--input-type=module', '-e', "import assert from 'node:assert/strict'; import { serveMcp, refusePersonMove } from './packages/mcp/index.js'; assert.equal(typeof serveMcp, 'function'); assert.throws(() => refusePersonMove('spec_approve'), { code: 'HUMAN_REQUIRED' });"], { cwd: installed, env, encoding: 'utf8' });

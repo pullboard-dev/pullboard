@@ -52,6 +52,22 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
+/**
+ * Assert a green submit routed only foreign paths to their owner: the builder is freed and nothing is submitted (B3,L1,V4).
+ *
+ * Why: the ownership routing (814a7def2a) replaced the immediate OUTSIDE_LANE refusal for proved foreign paths; the owner decides.
+ */
+function assertWaitsOnOwner(box, id, submitted, paths, label = '') {
+  assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
+  const waiting = JSON.parse(submitted.out).waitingOwner;
+  assert.deepEqual(waiting.owners, ['coordinator'], label);
+  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
+  const item = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+  assert.equal(item.item_status, 'open', label);
+  assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
+  assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
+}
+
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', () => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Append notes', '--specs', 'G1', '--criterion', 'append one note', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
@@ -66,8 +82,9 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   const commit = attackCommit(box, box.web);
   const submitted = box.run(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 1);
-  assert.equal(JSON.parse(submitted.out).error.code, 'OUTSIDE_LANE');
-  assert.equal(JSON.parse(submitted.out).error.message.includes('pullboard.json'), true);
+  // A red check is never waived by ownership routing (ownership.test.js): the red gate refuses and the builder keeps the claim.
+  assert.equal(JSON.parse(submitted.out).error.code, 'GATE_RED');
+  assert.equal(JSON.parse(box.run(box.web, 'show', '1', '--json').out).item_status, 'claimed');
   assert.equal(box.run(box.web, 'check', '1').code, 1, 'the original item check stays red');
 
   // Model a historical unchecked receipt using the low-level engine in this private fixture.
@@ -141,9 +158,7 @@ test('accepted-main merges carry foreign files without granting permission to al
   assert.equal(box.run(box.web, 'claim', '2').code, 0);
   writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized replacement');
   attackCommit(box, box.web);
-  const refused = box.run(box.web, 'submit', '2', '--json');
-  assert.equal(refused.code, 1);
-  assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE');
+  assertWaitsOnOwner(box, 2, box.run(box.web, 'submit', '2', '--json'), ['coordinator.txt']);
 });
 
 test('foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', () => {
@@ -164,10 +179,7 @@ test('foreign changes before claiming and cross-lane renames cannot hide from su
     else if (mode === 'delete') box.git(box.web, 'rm', 'foreign file.txt');
     writeFileSync(join(box.web, 'web/index.html'), 'owned');
     attackCommit(box, box.web);
-    const refused = box.run(box.web, 'submit', '1', '--json');
-    assert.equal(refused.code, 1, mode);
-    assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE', mode);
-    assert.equal(JSON.parse(refused.out).error.message.includes('foreign file.txt'), true, mode);
+    assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), ['foreign file.txt'], mode);
   }
 });
 
@@ -266,9 +278,7 @@ test('a detached coordinator review cannot become a new claim policy [V4,V16]', 
   assert.match(JSON.parse(refused.out).error.message, /return to its main branch/);
   box.git(box.repo, 'switch', '-q', 'main');
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
-  assert.equal(submitted.code, 1);
-  assert.equal(JSON.parse(submitted.out).error.code, 'OUTSIDE_LANE');
+  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), ['pullboard.json']);
 });
 
 test("a dependency's own verified dependency admits its files [N16,V4]", () => {

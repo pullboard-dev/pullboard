@@ -40,8 +40,9 @@ test('clause 1: doctrine-fast declares and imports only scan.js and its listed @
   const declared = /^\/\*\* @pullboard-module-loads (.+) \*\/$/u.exec(header)?.[1].split(' ');
   assert.deepEqual(declared, ['packages/gate/src/io/scan.js', ...FAST_CHECK_SCRIPTS]);
   for (const script of FAST_CHECK_SCRIPTS) assert.match(readFileSync(join(ROOT, script), 'utf8'), /@file-local\b/u, script);
-  const marked = readdirSync(join(ROOT, 'bin/checks')).filter(name => name.endsWith('.js'))
-    .filter(name => /@file-local\b/u.test(readFileSync(join(ROOT, 'bin/checks', name), 'utf8'))).map(name => `bin/checks/${name}`);
+  const checks = 'packages/gate/src/io';
+  const marked = readdirSync(join(ROOT, checks), { recursive: true }).filter(name => name.endsWith('.js'))
+    .filter(name => /@file-local\b/u.test(readFileSync(join(ROOT, checks, name), 'utf8'))).map(name => `${checks}/${name}`);
   assert.deepEqual(marked.sort(), [...FAST_CHECK_SCRIPTS].sort(), 'every @file-local check is listed, so none silently loses the fast path');
 });
 
@@ -73,7 +74,7 @@ function cliFixture(t) {
   put('apps/cli/src/io/landing/audit.js', 'export const audit = () => 1;\n');
   put('packages/alpha/index.js', "export { leaf } from './src/shell/leaf.js';\n");
   put('packages/alpha/src/shell/leaf.js', 'export const leaf = () => 2;\n');
-  put('packages/beta/index.js', "import { audit } from '../../bin/main-audit.js';\nexport const beta = () => audit();\n");
+  put('packages/beta/index.js', "import { audit } from '../../apps/cli/src/io/landing/audit.js';\nexport const beta = () => audit();\n");
   git('add', '-A');
   git('commit', '-qm', 'main');
   git('checkout', '-qb', 'candidate');
@@ -104,7 +105,7 @@ test('clause 2: cell-lints --check refuses a package module that newly reaches a
   box.commit();
   const { status, stderr } = check(box.root);
   assert.equal(status, 1);
-  assert.match(stderr, /cliReach:packages\/alpha\/src\/shell\/leaf\.js: reaches bin\/main-audit\.js through packages\/alpha\/src\/shell\/leaf\.js -> packages\/beta\/index\.js -> bin\/main-audit\.js/u);
+  assert.match(stderr, /cliReach:packages\/alpha\/src\/shell\/leaf\.js: reaches apps\/cli\/src\/io\/landing\/audit\.js through packages\/alpha\/src\/shell\/leaf\.js -> packages\/beta\/index\.js -> apps\/cli\/src\/io\/landing\/audit\.js/u);
 });
 
 test('clause 2: cell-lints --check passes a change that adds no package reach into the CLI [C7,#3808]', t => {

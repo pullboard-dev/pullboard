@@ -211,9 +211,24 @@ test('materialized Rigor advice uses the existing person decision and a decline 
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
     assert.equal(personNeedsState(box.root, { board: box.board }).rigorDrafts.some(entry => entry.id === ref), false);
     const fourth = box.submit('New item after decline'); box.reject(fourth);
-    assert.equal(store.rowDrafts(box.board).length, 2, 'a genuinely new item after the decision can reopen the question');
-    const newNeed = personNeedsState(box.root, { board: box.board }).rigorDrafts.find(entry => entry.kind === 'rigor-draft');
-    assert.ok(newNeed.evidence.items.some(item => item.id === fourth));
+    assert.equal(store.rowDrafts(box.board).length, 1, 'a declined key is not drafted again for a new item (GitHub #26)');
+  } finally { box.close(); }
+});
+
+test('rigor.autoDraft false stops unproved auto-drafts and a bad value is refused (GH #26) [D1,S1]', () => {
+  const box = fixture();
+  try {
+    const file = join(box.root, 'pullboard.json');
+    const config = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: false } }));
+    for (const title of ['First', 'Second', 'Third']) { const id = box.submit(title); box.failure(id); box.reject(id); }
+    assert.equal(store.rowDrafts(box.board).length, 0, 'repeated failures draft nothing while autoDraft is false');
+    assert.equal(store.events(box.board).some(event => event.event_kind === 'rigor-draft'), false);
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: true } }));
+    const again = box.submit('Fourth'); box.failure(again); box.reject(again);
+    assert.ok(store.rowDrafts(box.board).length > 0, 'turning it back on drafts again');
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: 'no' } }));
+    assert.throws(() => loadConfig(box.root), error => error.code === 'BAD_CONFIG' && /autoDraft/u.test(error.message));
   } finally { box.close(); }
 });
 

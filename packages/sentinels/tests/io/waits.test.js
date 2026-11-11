@@ -186,10 +186,10 @@ test('a gate with no span progress past five minutes and a landing run past fift
 
 test('a runner job past twenty minutes is filed with its host, job folder and test [C7]', async t => {
   const m = machine(t);
-  const ps = ['  500   90  11:32:22 /u/bin/node /Users/r/.pullboard-runner/runtime/abc/src/runner-worker.js',
-    '  501  500     11:32:00 /u/bin/node /Users/r/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
-    '  600    1     03:00 /u/bin/node /Users/r/.pullboard-runner/runtime/abc/src/runner-worker.js'].join('\n');
-  const cwd = 'p501\nfcwd\nn/Users/r/.pullboard-runner/jobs/job-1/checkout\n';
+  const ps = ['  500   90  11:32:22 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
+    '  501  500     11:32:00 /u/bin/node /Users/example/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
+    '  600    1     03:00 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js'].join('\n');
+  const cwd = 'p501\nfcwd\nn/Users/example/.pullboard-runner/jobs/job-1/checkout\n';
   const exec = (command, args, options, done) => done(null, `${ps}\n__CWD__\n${cwd}`);
   const snapshot = await m.snapshot({ hosts: ['runner@10.0.0.53'], readers: { runners: (hosts, now, options) => readRunnerJobs(hosts, now, { ...options, exec }) } });
   const jobs = snapshot.rows.filter(entry => entry.surface === 'runner-job');
@@ -308,7 +308,7 @@ test('waits record files a mid item add accepts: Files: naming the holder\'s sou
   assert.equal(recorded.filed.length, 1, 'the real add validation accepts the item');
   const [item] = m.items();
   assert.equal(item.item_route, 'mid', 'routed so a Sonnet builds it cold');
-  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/io\/commands\/merged\.js\n- packages\/seats\/src\/io\/agent-session\.js$/mu, 'the holder\'s source and the surface code');
+  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/io\/commands\/merged\.js\n- packages\/seats\/src\/io\/agent\/session\.js$/mu, 'the holder\'s source and the surface code');
   assert.match(item.item_brief, /^Test: /mu);
   assert.equal(item.item_check, "node apps/cli/pullboard.js waits check 'checkout-lease:repo:checkout-session:abc:coordinator'", 'its check is the audit for this one cause');
   const bare = { by: 'coordinator', lane: 'core', title: 'bare', criterion: '1. It holds. [test]', brief: 'no sections', route: 'mid', check: item.item_check };
