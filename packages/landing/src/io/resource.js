@@ -159,7 +159,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
        * drain; a guardian that dies first stops the gate and ends the landing with LAND_WORKER, leaving its batch to adoption.
        */
       async guard(controller) {
-        guardian = startGuardian({ onDeath: () => { if (!lost) controller.abort(new Refused('LAND_WORKER', 'the landing guardian stopped; its gate was stopped and the batch stays for pullboard land --adopt')); } });
+        guardian = startGuardian({ boardFile: board.db.prepare('PRAGMA database_list').get()?.file || null, leaseToken: token, onDeath: () => { if (!lost) controller.abort(new Refused('LAND_WORKER', 'the landing guardian stopped; its gate was stopped and the batch stays for pullboard land --adopt')); } });
         stopWatching = this.watchDeadline(at => guardian?.deadline(at));
         await this.bindWorker(guardian.pid);
       },

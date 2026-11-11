@@ -73,6 +73,8 @@ export function assertWorkerFence(board, fence, root) {
   return holder;
 }
 import { assertLandingLease } from '../../../store/index.js';
+import { landingLeaseState } from '../../../store/index.js';
+import { DatabaseSync } from 'node:sqlite';
 
 /** The environment name of the token a landing's timed gate workers carry on their command line, for its guardian to find them by. */
 export const CUSTODY_ENV = 'PULLBOARD_LANDING_CUSTODY';
@@ -107,9 +109,9 @@ export async function stopRegisteredGates(token, { pause = ms => new Promise(res
  * the landing command dies or its lease deadline passes unrenewed, and is itself watched by the command.
  * Returns its pid, a deadline sender, and `end()` for a normal finish; `onDeath` runs when the guardian dies first.
  */
-export function startGuardian({ onDeath }) {
+export function startGuardian({ onDeath, boardFile = null, leaseToken = null }) {
   const token = randomUUID();
-  const code = `import(${JSON.stringify(import.meta.url)}).then(module => module.guardianMain(${JSON.stringify(token)}))`;
+  const code = `import(${JSON.stringify(import.meta.url)}).then(module => module.guardianMain(${JSON.stringify(token)}, ${JSON.stringify({ boardFile, leaseToken })}))`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', code], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
   let ended = false;
   let draining = null;
@@ -129,8 +131,22 @@ export function startGuardian({ onDeath }) {
   };
 }
 
-/** The guardian process body: stop the landing's gate workers when the command's channel closes or the deadline lapses. */
-export function guardianMain(token) {
+/**
+ * True when the board no longer shows this landing as the holder, or shows its lease past its deadline. It reads the lease the
+ * way the fence does (the local heartbeat over the shared record), so an aged lease stops the gate as well as a late IPC deadline.
+ */
+export function leaseLapsed(boardFile, leaseToken, now = Date.now()) {
+  let db;
+  try {
+    db = new DatabaseSync(boardFile, { readOnly: true });
+    const holder = landingLeaseState({ db }).holder;
+    return !holder || holder.token !== leaseToken || Date.parse(holder.until) <= now;
+  } catch { return false; } // An unreadable or busy board proves nothing; the IPC deadline and channel still guard.
+  finally { try { db?.close(); } catch { /* Already closed. */ } }
+}
+
+/** The guardian process body: stop the landing's gate workers when the command's channel closes, the deadline lapses, or the board's lease has. */
+export function guardianMain(token, { boardFile = null, leaseToken = null } = {}) {
   let deadline = Infinity;
   let finishing = false;
   /** Stop the gates once, then leave. */
@@ -141,4 +157,5 @@ export function guardianMain(token) {
   });
   process.on('disconnect', act);
   setInterval(() => { if (Date.now() >= deadline) act(); }, 250);
+  if (boardFile && leaseToken) setInterval(() => { if (!finishing && leaseLapsed(boardFile, leaseToken)) act(); }, 1000);
 }
