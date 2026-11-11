@@ -250,7 +250,7 @@ process.exit(lines.length?1:0);
     succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
     const observations = readFileSync(marker, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.ok(observations.some(row => row.commit === commit), 'candidate command really ran');
-    assert.ok(observations.some(row => row.commit === base), 'touched existing problem really exercised the baseline command');
+    assert.ok(observations.some(row => row.commit === base), `touched existing problem really exercised the baseline command: base ${base}, saw ${JSON.stringify(observations)}`);
     assert.ok(observations.every(row => row.cwd.startsWith(paths.remoteHome + '/')), 'no current or baseline doctrine shell ran on the controller');
     const output = resolve(box.web, box.git(box.web, 'rev-parse', '--git-path', 'pullboard-doctrine-output'));
     const receipts = readdirSync(output).map(name => join(output, name, 'observation.json')).filter(existsSync)
