@@ -352,7 +352,7 @@ if (process.argv[1] === ${JSON.stringify(fixture.runner)}) {
 const fields=execFileSync('ps',['-p',String(process.pid),'-o','pid=,pgid=,stat=,lstart='],{encoding:'utf8'}).trim().split(/\\s+/);
 writeFileSync(${JSON.stringify(childIdentity)},JSON.stringify({pid:Number(fields[0]),pgid:Number(fields[1]),state:fields[2],started:fields.slice(3).join(' ')}));
 process.on('SIGTERM',()=>{writeFileSync(${JSON.stringify(childDrained)},'drained');process.exit(0)});
-writeFileSync(${JSON.stringify(childReady)},'ready');setInterval(()=>{},1000);setTimeout(()=>process.exit(0),20000);`;
+writeFileSync(${JSON.stringify(childReady)},'ready');setInterval(()=>{},1000);setTimeout(()=>process.exit(0),20000);`.replaceAll('\n', ' '); // ps prints a newline in an argument as \\012, so a multi-line -e body never matches its spawn receipt
   writeFileSync(join(fixture.root, 'test/shard-01.test.js'), `import assert from 'node:assert/strict';
 import { existsSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
