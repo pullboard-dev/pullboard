@@ -94,7 +94,7 @@ else if (process.argv[2] === 'hook' && (await import('./src/io/hook/thin-door.js
     try { process.kill(outer, 0); outerAlive = true; } catch (error) { outerAlive = error?.code === 'EPERM'; }
   }
   if (!outerAlive) process.env.PULLBOARD_CLI_PID = String(process.pid);
-  const { cliMain$main: main } = await import('./index.js');
+  const { main } = await import('./src/io/main.js');
   const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./src/io/ports/process.js');
   process.exitCode = await main(process.argv.slice(2), {
     cwd: process.cwd(),

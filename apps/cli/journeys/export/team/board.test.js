@@ -34,6 +34,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const local = await box.cli('add', box.lane, 'private item', '--private');
   assert.equal(local.code, 0, `private add stays available beside a linked team board: ${JSON.stringify(local.document?.error ?? null)}`);
   const privateFile = privateBoardPath(repoBoardId, box.env.PULLBOARD_HOME);
+  // @pullboard-board-file persistence: the export reads the private board file at its repo-id path.
   const privateIdBoard = openBoard(privateFile);
   let privateBoardId;
   try { privateBoardId = store.boardId(privateIdBoard); } finally { store.closeBoard(privateIdBoard); }

@@ -2,7 +2,6 @@
 /** Durable gate 18/20: the landing finish sequence's six steps are job steps; a resumed landing continues [C7].  * @pullboard-test-input source-tree
  */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
@@ -41,8 +40,7 @@ function landingRepo() {
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 async function withBoard(body) {
-  const files = privateFixtureFiles('pullboard-land18-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 
@@ -169,8 +167,7 @@ function landedRepo() {
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 async function withBoardPart2(body) {
-  const files = privateFixtureFiles('pullboard-land19-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

@@ -15,3 +15,4 @@ export * from "./src/logic/batches.js";
 export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/io/tools.js';
 export * from "./src/io/check/receipts.js";
 export { checkCommandDefinition } from './src/io/check/definition.js';
+export { blobOid, indexedFiles } from './src/io/check/project-files.js';

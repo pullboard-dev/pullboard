@@ -9,6 +9,11 @@ import { SOURCE_ADVANCE_ENGINE } from "../../../state/light.js";
  * Historical order and first-matching engine conditions belong to each leaf, not this loader.
  */
 import { readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+/** Load a discovered move module synchronously, so this registry (and everything that imports it) has no top-level await. */
+const loadMove = createRequire(import.meta.url);
 import {
   MOVE_CANDIDATE,
   MOVE_FILE,
@@ -46,11 +51,11 @@ function addSteps(target, source, owner) {
  * New moves may omit order and append by file name; existing moves retain their historical order.
  *
  * @param {URL|URL[]} [folders] one folder, or the cell's pure and effectful move folders by default
- * @returns {Promise<{registry: Readonly<Record<string, any>>, operations: readonly string[], nextSteps: Readonly<Record<string,string>>}>}
+ * @returns {{registry: Readonly<Record<string, any>>, operations: readonly string[], nextSteps: Readonly<Record<string,string>>}}
  */
-export async function discoverMoves(folders = MOVE_DIRECTORIES) {
+export function discoverMoves(folders = MOVE_DIRECTORIES) {
   const entries = (Array.isArray(folders) ? folders : [folders]).flatMap(directory => discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => ({ file, directory })));
-  const declarations = await Promise.all(entries.map(async ({ file, directory }) => declarationFor(file, (await import(new URL(file, directory).href)).default)));
+  const declarations = entries.map(({ file, directory }) => declarationFor(file, loadMove(fileURLToPath(new URL(file, directory))).default));
   declarations.sort((a, b) => a.order - b.order || (a.operation < b.operation ? -1 : a.operation > b.operation ? 1 : 0));
   const registry = {};
   const nextSteps = {};
@@ -62,7 +67,7 @@ export async function discoverMoves(folders = MOVE_DIRECTORIES) {
   return Object.freeze({ registry: Object.freeze(registry), operations: Object.freeze(declarations.map(declaration => declaration.operation)), nextSteps: Object.freeze(nextSteps) });
 }
 
-const found = await discoverMoves();
+const found = discoverMoves();
 /** Every discovered operation declaration, in preserved historical order. */
 export const MOVE_REGISTRY = found.registry;
 /** The allowed operation names, derived rather than hand-kept. */

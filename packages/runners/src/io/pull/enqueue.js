@@ -14,14 +14,14 @@ function scriptFailure(what, run) {
 /**
  * Queue one job: its row and its frame become `queue/<id>` on the runner, whole or not at all.
  * @param {{ host: string, root?: string }} runner The runner record.
- * @param {{ id: string, row: object, frame: Buffer, agent?: string }} job The row.json fields (a version, the id and
- *   `enqueuedAt` are added), the stdin frame, and an optional agent-start snippet.
+ * @param {{ id: string, row: object, frame: Buffer, command?: string, agent?: string }} job The row.json fields (a version, the id and
+ *   `enqueuedAt` are added), the stdin frame, the remote command the agent runs, and an optional agent-start snippet.
  * @param {object} [options] `ssh`, `env`, `dir` and `timeoutMs` for the ssh call.
  * @returns {Promise<void>} Settles when the runner has the row; rejects with `RUNNER_PULL_SCRIPT`.
  */
-export async function enqueueRunnerJob(runner, { id, row, frame, agent }, options = {}) {
+export async function enqueueRunnerJob(runner, { id, row, frame, command, agent }, options = {}) {
   const line = JSON.stringify({ version: 1, id, enqueuedAt: Date.now(), ...row });
-  const run = await runRunnerScript(runner, enqueueScript(runner, { id, frameBytes: frame.length, agent }),
+  const run = await runRunnerScript(runner, enqueueScript(runner, { id, frameBytes: frame.length, command, agent }),
     { ...options, stdin: Buffer.concat([Buffer.from(`${line}\n`), frame]) });
   if (run.status !== 0 || run.error) throw scriptFailure(`could not queue job ${id} on ${runner.host}`, run);
 }

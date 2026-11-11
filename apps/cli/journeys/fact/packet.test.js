@@ -236,6 +236,7 @@ test('an item with no frozen check accepts from its packet when every clause is 
 
 test('a same-head refreeze cannot reuse coverage from the prior criterion digest [V4,C7]', { timeout: 240_000 }, () => {
   const { box, id, head } = submittedItem({ uncovered: false });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const before = store.getItem(board, id);
