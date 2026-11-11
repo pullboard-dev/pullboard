@@ -164,10 +164,10 @@ export function rowDrafts(board) {
 
 /** The agent registered for a worktree path, with its model, parent session and presence, if any. */
 export function agentAt(board, path) {
-  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
+  const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
   if (!agent) return agent;
   const model = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${agent.agent_id}`)?.meta_value ?? null;
-  return withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: model, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
+  return withSeatPresence(board, [{ ...agent, agent_model: model, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
 }
 
 /** The board's time source and a snapshot over an open read-only connection, with the native engine thresholds [C7]. */
