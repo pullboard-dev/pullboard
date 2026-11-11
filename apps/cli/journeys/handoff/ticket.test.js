@@ -42,6 +42,7 @@ function onBoard(box, work) {
 function sweep(box) {
   const run = box.run(box.repo, 'sentinel', 'run', '--health-only');
   assert.equal(run.code, 0, `${run.err}\n${run.out}`);
+  return run;
 }
 
 /** Run `work` with this process's machine home set to the fixture's, so its resources are the fixture's own. */
@@ -97,10 +98,10 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   assert.equal(onBoard(box, board => submitHandoff(board, id)).state, 'queued', 'a lost ticket under the grace is left queued');
 
   ageJob(box, id, 3 * 60_000);
-  sweep(box);
+  const lastSweep = sweep(box);
   // The sweep ends the lost launch as infrastructure, then recoverInfrastructureHandoffs retries it under a new job id (3810cc1a6d).
   const ended = onBoard(box, board => submitHandoff(board, id));
-  assert.notEqual(ended.id, job.id, 'the retried job replaces the lost launch on the board');
+  assert.notEqual(ended.id, job.id, `the retried job replaces the lost launch on the board (${ended.state} ${ended.error?.code}; sweep said: ${lastSweep.err.slice(-600)}${lastSweep.out.slice(-300)})`);
   assert.ok(['queued', 'infrastructure'].includes(ended.state), 'the retry is queued, or ended as infrastructure when its launch failed');
   // Each retry holds the claim while queued, so lose every retry's place in line too, until the two-retry budget is spent.
   let last = ended;
