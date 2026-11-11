@@ -133,7 +133,7 @@ test('landing cleanup failure stops named under runner-only and retains opt-out 
   const box = helpers.project('node apps/cli/src/io/run/tests.js', helpers.sandbox(), { withWorktree: false });
   mkdirSync(join(box.repo, 'bin'));
   mkdirSync(join(box.repo, 'test'));
-  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), "require('node:fs').writeFileSync(process.env.PULLBOARD_PRIVATE_MARKER, 'ran');\n");
   writeFileSync(join(box.repo, 'test/probe.test.js'), '// the local recovery executable records its actual body\n');
   box.git(box.repo, 'add', 'apps/cli/src/io/run/tests.js', 'test/probe.test.js');
