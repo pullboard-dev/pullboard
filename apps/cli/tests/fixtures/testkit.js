@@ -267,6 +267,15 @@ export function fixtureJoinRoute(args, defaultModel) {
 }
 
 /**
+ * Give a fixture `add` the strong route unless it names one, in place, and return args.
+ * Why: an unrouted add is routed mid by the board, and a mid item must be buildable cold (Files, Test, criterion, check) and needs a mid seat; fixture items are bare rows built and verified by strong seats, as fixtureJoinRoute makes them [C7].
+ */
+export function fixtureAddRoute(args) {
+  if (args[0] === 'add' && !args.some(arg => arg === '--route' || arg.startsWith('--route='))) args.push('--route', 'strong');
+  return args;
+}
+
+/**
  * A private repository and board where tests submit and reject synthetic items through the normal board moves.
  *
  * Why: Rigor draft tests need real rejects and reopens on a real board; the raw repository and board setup lives in

@@ -110,7 +110,10 @@ test('the actual tour leaves a labelled demo visible at phone and desktop widths
   const env = { ...box.env, TMPDIR: box.dir };
   delete env.PULLBOARD_MODEL;
   const output = box.runWithEnv(box.dir, env, 'tour');
-  assert.equal(output.trimEnd().split('\n').at(-1), 'see it: pullboard view', 'the actual tour ends with the view command');
+  // The tour prints its own see-it line, then the outer command retains its final action (resume/e2e pins both).
+  const lines = output.trimEnd().split('\n');
+  assert.equal(lines.pop(), 'next: pullboard view', 'the outer command retains its action');
+  assert.equal(lines.at(-1), 'see it: pullboard view', 'the actual tour ends with the view command');
   const demo = /Look around: cd (.+) && pullboard log/.exec(output)?.[1];
   assert.ok(demo, 'the tour prints its retained real repo');
   const view = await startView(box);

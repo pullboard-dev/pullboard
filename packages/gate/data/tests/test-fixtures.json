@@ -2716,8 +2716,17 @@
     "raw-board": 2
   },
   "apps/cli/journeys/relay/sealed.test.js": {
-    "tempdir": 7,
-    "raw-board": 45,
+    "tempdir": 4,
+    "raw-board": 12
+  },
+  "apps/cli/journeys/relay/sealed/recovery.test.js": {
+    "tempdir": 3,
+    "raw-board": 22
+  },
+  "apps/cli/journeys/relay/sealed/checkpoint.test.js": {
+    "raw-board": 11
+  },
+  "apps/cli/journeys/relay/sealed/store.test.js": {
     "repo-read": 1
   },
   "apps/cli/journeys/relay/heartbeat.test.js": {

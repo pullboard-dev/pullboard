@@ -35,14 +35,14 @@ export function docsRepository(t) {
 
 /** Add one actual lazy command, result contract and format declaration through independent files. */
 export function addDocumentedCommand(box, name) {
-  writeFileSync(join(box.root, `src/commands/${name}.js`),
+  writeFileSync(join(box.root, `apps/cli/src/io/commands/${name}.js`),
     `/** Fixture command. */\nexport function run(io) { io.result?.({ fixture: '${name}' }); io.say('${name}'); return 0; }\n`);
   writeFileSync(join(box.root, `apps/cli/src/io/command-docs/${name}.json`), JSON.stringify({ name,
     help: `  pullboard ${name}  fixture command\n`, required: { fixture: 'string' } }, null, 2) + '\n');
   const constant = name.toUpperCase().replaceAll('-', '_') + '_VERSION';
-  writeFileSync(join(box.root, `src/${name}.js`), `export const ${constant} = 1;\n`);
-  writeFileSync(join(box.root, `src/formats/${name}.json`), JSON.stringify({ name, order: 60,
-    version: { kind: 'constant', file: `src/${name}.js`, constant }, source: `\`${constant}\``, upgrade: 'Preserve fixture records.' }, null, 2) + '\n');
+  writeFileSync(join(box.root, `apps/cli/src/io/${name}-version.js`), `export const ${constant} = 1;\n`);
+  writeFileSync(join(box.root, `packages/state/src/io/formats/${name}.json`), JSON.stringify({ name, order: 60,
+    version: { kind: 'constant', file: `apps/cli/src/io/${name}-version.js`, constant }, source: `\`${constant}\``, upgrade: 'Preserve fixture records.' }, null, 2) + '\n');
   const generated = box.node('docs/tools/update-docs.js');
   assert.equal(generated.status, 0, generated.context);
 }
