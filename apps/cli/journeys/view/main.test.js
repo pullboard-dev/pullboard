@@ -322,7 +322,7 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   t.after(restore);
 
   const add = (project, title) => {
-    const result = fixtureAdd(box.run, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'light',
+    const result = fixtureAdd(box.run, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'strong',
       '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--json');
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     return JSON.parse(result.stdout).item;

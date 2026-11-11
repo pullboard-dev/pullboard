@@ -136,5 +136,10 @@ if __name__ == "__main__":
     except Exception as error:
         # Never echo the captured terminal buffer or URL: it contains the session key.
         detail = error.args[0] if isinstance(error, AssertionError) and error.args else "unexpected helper failure"
-        print(f"PTY regression failed: {type(error).__name__}: {detail}", file=sys.stderr)
+        frames = []
+        trace = error.__traceback__
+        while trace is not None:
+            frames.append(trace.tb_lineno)
+            trace = trace.tb_next
+        print(f"PTY regression failed: {type(error).__name__}: {detail} (frames {frames})", file=sys.stderr)
         raise SystemExit(1)
