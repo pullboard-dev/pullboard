@@ -3,8 +3,8 @@
  * from the board's new events, while the request thread serves the latest materialized text [A2,C7]. Why a
  * thread: a build on a large board takes seconds, and on the request thread every read behind it waited. Each
  * record carries the board's cheap state revision from before its build. A read whose board still has that revision
- * joins the materialized JSON around its own unread count and starts nothing; a read after a change waits for the
- * build that extends the last one with it, so a read never serves state from before a write it follows [A2,C7].
+ * joins the materialized JSON around its own unread count and starts no rebuild of the board, though it waits for a
+ * build that stamps its own clock readings; a read after a change waits for the build that extends the last one with it, so a read never serves state from before a write it follows [A2,C7].
  */
 import { Worker } from 'node:worker_threads';
 
@@ -125,14 +125,17 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));
 
   /**
-   * A board's record as of this read: the one held while the board's revision is unchanged, with no build started;
-   * otherwise the next build, which extends the last one with the change.
+   * A board's record as of this read: the held content while the board's revision is unchanged, restamped with this
+   * read's clock readings by a build that rebuilds nothing; otherwise the next build, which extends the last one with the change.
    */
   function latest(board, { full = false } = {}) {
     const entry = boardEntry(board);
     if (full) entry.full = true;
     const revision = revisionOf(entry);
-    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision) return entry.record;
+    // A held record carries the clock readings of its build (flow asOf, queue ages): a read after that moment is a
+    // new observation of an unchanged board, so it waits for a build that stamps its own [N26]. That build reuses
+    // the cached state, so it starts no rebuild of the board.
+    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision && entry.record.observedAt >= Date.now()) return entry.record;
     const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, revision, after: nextId }));
     entry.wanted = revision;
     request(entry);
