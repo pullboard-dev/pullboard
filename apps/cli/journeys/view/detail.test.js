@@ -154,7 +154,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("view.item === 2 && document.querySelector('#detail h2')?.innerText.includes('Farewell page') && !!document.querySelector('#detail .tl')");
       const states = await chrome.stable("window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length");
       box.run(alpha.web, 'claim', '3');
-      await chrome.waitFor(`window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length > ${states} && !!document.querySelector('#chain .row[data-item="3"] .chip.busy')`, 15_000); // budget: hang-only ceiling for the page's 3-second board poll.
+      await chrome.waitFor(`window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length > ${states} && !!document.querySelector('#chain .row[data-item="3"] .item-stage[data-stage="building"]')`, 15_000); // budget: hang-only ceiling for the page's 3-second board poll.
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1'], 'a refresh does not refetch items that have not changed');
 
       // A change to the opened item asks for its detail once more.
