@@ -78,7 +78,7 @@ function sharpenText(id, clause) {
 /** Complete an authorized verdict inside the caller's atomic boundary, preserving its exact writer/event order. */
 export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
   agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
-  review, implies, impliesId, decision, verb, knownMainFailures, policyVersion }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
+  review, implies, impliesId, decision, verb, knownMainFailures }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
   shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications }) {
   const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
   const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
@@ -92,8 +92,6 @@ export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRe
   if (isAccept && quarantineProofId !== undefined) detail.quarantineProofId = quarantineProofId;
   if (environment !== undefined) detail.environment = environment;
   if (sandbox !== undefined) detail.sandbox = sandbox;
-  // The policy version the verdict was judged under, so replay re-judges with the same inputs [B4,R2].
-  if (policyVersion) detail.policy = policyVersion;
   if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
   const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
   if (!isAccept) sharpenRepeatedClause(board, item, clauseDetail, { holdItem, shout, logEvent });
