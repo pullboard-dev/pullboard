@@ -71,6 +71,7 @@ test('#4140 clause 2: the worker-bundle check fails when the measured raw bundle
   const tree = privateFixtureFiles('pb-worker-bundle-');
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   tree.write('packages/runners/index.js', 'export const workerBundleBytes = () => 1000;\n');
+  tree.write('package.json', '{}\n'); // the check's cache key reads the tree's manifest
   tree.write('packages/gate/data/ceilings/worker-bundle.json', JSON.stringify({ bytes: 999 }) + '\n');
   assert.match(bundleCheck.run(tree.root)[0] ?? '', /runner worker bundle is 1000 raw bytes, over its recorded 999/u);
   tree.write('packages/gate/data/ceilings/worker-bundle.json', JSON.stringify({ bytes: 1000 }) + '\n');
