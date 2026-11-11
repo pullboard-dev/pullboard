@@ -2,6 +2,9 @@
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
+import { isSourceCellLine } from './inputs.js';
+import { readsChangedCell } from './inputs.js';
+import { sourceCellPrefixes } from './inputs.js';
 import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
@@ -43,6 +46,7 @@ function declaredInputs(source, paths) {
   for (const line of declarations) {
     const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
     if (!match) return null;
+    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return null; continue; }
     for (const value of match[1].trim().split(/\s+/u)) {
       if (['source-tree', 'test-tree', 'docs-tree'].includes(value)) continue;
       if (value.startsWith('/') || value.split('/').some(part => !part || part === '..' || part === '.')) return null;
@@ -548,7 +552,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unknownRoots = [before, after].map(graph => unknownRootTests(graph, path => TEST.test(path)));
     const unknownRoot = path => codeChanged && unknownRoots.some(roots => roots.has(path));
     const rootReason = path => (unknownRoots[1].has(path) ? unknownRoots[1] : unknownRoots[0]).reasonOf(path);
-    const selected = files.filter(path => reached.has(path) || unknownRoot(path)
+    const cellReads = path => changedSourceInput && [before, after].some(graph => readsChangedCell(headerLines(graph.modules.get(path) ?? ''), changed));
+    const selected = files.filter(path => reached.has(path) || unknownRoot(path) || cellReads(path)
       || (changedTestInput && (before.testTreeReaders.has(path) || after.testTreeReaders.has(path)))
       || (changedSourceInput && (before.sourceTreeReaders.has(path) || after.sourceTreeReaders.has(path))));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };
