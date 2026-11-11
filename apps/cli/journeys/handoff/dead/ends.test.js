@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   driverRecord,
   setDriverProcess,
@@ -88,7 +89,13 @@ function fixture(t) {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
     // The driver and dispatcher still write for a moment after the job ends; remove the tree only once they are done.
-    await gateSettled(helpers, box, state(box, id).job?.id);
+    try { await gateSettled(helpers, box, state(box, id).job?.id); }
+    catch (error) { // DIAG probe
+      const row = spawnSync('sqlite3', [box.boardFile, "select * from jobs where id='dispatcher'"]).stdout?.toString();
+      const ps = spawnSync('ps', ['-axo', 'pid,ppid,etime,command']).stdout.toString().split('\n').filter(l => l.includes(box.dir) || l.includes('dispatcher')).join('\n');
+      process.stderr.write(`DIAG row=${row} now=${Date.now()}\nDIAG state=${JSON.stringify(state(box, id))}\nDIAG ps=\n${ps}\n`);
+      throw error;
+    }
     await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, started, release };
