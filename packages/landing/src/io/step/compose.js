@@ -47,7 +47,7 @@ export async function composeOnRunner(state, plan, { runChecks = state.guardServ
   const pack = lineValue(output, COMPOSE_PACK);
   if (tip !== base) {
     if (pack === null) return null;
-    const unpacked = await gitStdin(root, ['unpack-objects', '--quiet'], Buffer.from(pack, 'base64'));
+    const unpacked = await gitStdin(root, ['unpack-objects', '-q'], Buffer.from(pack, 'base64'));
     if (unpacked.status !== 0) return null;
   }
   // Only a tip that is the base plus these items counts: every planned commit is in its history and the base is its ancestor.

@@ -141,7 +141,8 @@ test('composeOnRunner brings the runner-built landing commit here as objects and
   const composed = await composeOnRunner(state, plan);
   assert.match(seen, /compose\.js --base /u);
   assert.equal(sh('rev-parse', 'HEAD'), composed.tip, 'the checkout sits on the returned commit');
-  assert.equal(sh('rev-parse', 'HEAD^1'), sh('rev-parse', composed.merges.get(1) + '^1'), 'the merges chain from the base');
+  assert.equal(sh('rev-parse', 'HEAD^1'), composed.merges.get(1), 'the second merge sits on the first');
+  assert.equal(sh('rev-parse', `${composed.merges.get(1)}^1`), base, 'the first merge sits on the base');
   assert.match(readFileSync(join(root, LEAF), 'utf8'), /FEATURE_ENGINE = 81;/u, 'the derived engine number rides the returned commit');
   assert.ok(readFileSync(join(root, 'web/a.txt'), 'utf8'));
   assert.deepEqual(composed.assigned, [{ name: 'FEATURE_ENGINE', number: 81 }]);
