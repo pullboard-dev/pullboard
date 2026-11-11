@@ -145,16 +145,17 @@ test('a worker command that reads its capsule then execs node still sees the res
 test('a runner at or above its core count takes no new job, says why, and pulls again once load drops [C7,#5578]', async t => {
   const { root } = machine(t);
   const loadFile = join(root, '..', 'load-now');
-  writeFileSync(loadFile, '12.5\n');
+  const setLoad = value => { writeFileSync(`${loadFile}.tmp`, `${value}\n`); renameSync(`${loadFile}.tmp`, loadFile); };
+  setLoad('12.5');
   const settings = `${FAST} PULLBOARD_AGENT_CORES=10 PULLBOARD_AGENT_LOAD_FILE=${loadFile}`;
   mkdirSync(join(root, 'queue'), { recursive: true });
   enqueue(root, 'held', { command: 'echo ran', input: '' });
   execFileSync('sh', ['-c', `${settings} ${runnerAgentStartCommand(root)}`], { stdio: 'ignore' });
   await until('the hold report', root, () => existsSync(join(root, 'load')) && /state=hold load=12.5 cores=10/.test(readFileSync(join(root, 'load'), 'utf8')));
-  writeFileSync(loadFile, '12.6\n');
+  setLoad('12.6');
   await until('a later tick that still held', root, () => /state=hold load=12.6 /.test(readFileSync(join(root, 'load'), 'utf8')));
   assert.ok(existsSync(join(root, 'queue', 'held')) && !existsSync(join(root, 'running', 'held')), 'the job stays queued while load is above cores');
-  writeFileSync(loadFile, '9.99\n');
+  setLoad('9.99');
   await until('the job to run once load is under cores', root, () => existsSync(join(root, 'done', 'held', 'exit')));
   assert.match(readFileSync(join(root, 'load'), 'utf8'), /state=ok load=9.99 cores=10/);
 });
