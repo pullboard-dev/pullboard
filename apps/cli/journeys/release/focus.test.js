@@ -89,6 +89,7 @@ test('real project state feeds focused draft rows into one Needs-you batch [B26,
   writeFileSync(spec, readFileSync(spec, 'utf8').replace('G1 [approved, must]', 'G1 [draft, must]'));
   const { projectState } = await import('../../../view/index.js');
   const { personNeeds } = await import('../../../../packages/spec/index.js');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const state = projectState(box.repo, { board });
@@ -152,6 +153,7 @@ test('milestone focus records the one-line idle observation and clearing restore
   const takeIdle = box.runAs(box.session, actor.root, 'next', '--take');
   assert.equal(takeIdle.code, 0, takeIdle.err);
   assert.deepEqual(takeIdle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.ok(store.events(board).some(event => event.event_kind === 'next-idle' && JSON.parse(event.event_detail).reason === 'focus'));
