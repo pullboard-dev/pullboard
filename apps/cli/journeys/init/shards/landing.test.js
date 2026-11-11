@@ -48,7 +48,7 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
   assert.equal(landingShardCount(box.repo), 3);
 
   // Green: three shards, one of them on the runner, every file once, one green result.
-  scenario(box, 'green');
+  scenario(box, 'green-runner');
   const green = await landingGate(box, 'green', 120_000);
   assert.equal(green.isGreen, true, green.output);
   const files = mergedFiles(green.output);

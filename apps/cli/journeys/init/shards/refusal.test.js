@@ -17,7 +17,7 @@ import {
 test('a runner refusal in a sharded landing is handled by its class [C7,V4]', { timeout: 300_000 }, async (t) => { // budget: five bounded landings on one fixture.
   const box = fixture();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-  scenario(box, 'green');
+  scenario(box, 'green-runner');
   // The pin covers untracked contents, not only their names: a same-name replacement changes it.
   const loose = join(box.repo, 'loose.txt');
   writeFileSync(loose, 'first\n');

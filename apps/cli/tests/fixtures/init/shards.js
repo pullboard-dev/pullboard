@@ -98,7 +98,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('fixture file ' + name, async () => {
   writeFileSync(${JSON.stringify(markers)} + '/' + name + '.' + host + '.started', '');
   // The dropped runner must receive a shard before the local slots can take them all: hold local files until it started one (a stand-in runner call counts).
-  if ((mode === 'drop' || mode === 'green') && host === 'local') {
+  if ((mode === 'drop' || mode === 'green-runner') && host === 'local') {
     for (let waited = 0; waited < 60_000 && !readdirSync(${JSON.stringify(markers)}).some(file => file.endsWith('.runner.started')); waited += 100) await sleep(100);
   }
   if (mode === 'collect-all' && (name === 'a' || name === 'b')) throw new Error('collect-all deliberate failure ' + name);
