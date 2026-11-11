@@ -132,7 +132,8 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
-  assert.match(box.run(box.web, 'next').err, /To keep looking: pullboard next --take/);
+  const idle = box.run(box.web, 'next');
+  assert.match(idle.err, /To keep looking: pullboard next --take/, JSON.stringify(idle));
   assert.match(box.run(box.web, 'resume').out, /next: pullboard next; take another eligible review or other offered work, or end your turn if none is offered/);
   box.run(box.repo, 'hold', 'web', '--reason', 'G1 is changing');
   assert.match(box.run(box.web, 'resume').out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
