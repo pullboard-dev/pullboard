@@ -12,8 +12,13 @@ export function loadNativeBoard() {
 /** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */
 export function gateWaitReporter(io) {
   let report;
-  const ready = import('../../../../../packages/gate/index.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
-  return (wait) => { if (report) report(wait); else ready.then(() => report(wait)); };
+  let ready;
+  return (wait) => {
+    if (report) return report(wait);
+    // Lines queue on one shared load, so they print in the order they arrived.
+    ready ??= import('../../../../../packages/gate/index.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
+    return ready.then(() => report(wait));
+  };
 }
 
 /** Compose process-only capabilities after a command actually requests them. */
