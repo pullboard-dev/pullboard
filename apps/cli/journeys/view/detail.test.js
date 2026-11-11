@@ -50,12 +50,14 @@ const DETAIL = `(() => {
     title: detail.querySelector('h2')?.innerText ?? null,
     waiting: detail.querySelector('.detail-wait')?.textContent ?? null,
     busy: !!detail.querySelector('[aria-busy]'),
-    criterion: part('Criterion')?.querySelector('.text').innerText ?? null,
-    check: part('Check') ? [part('Check').querySelector('code').textContent, part('Check').querySelector('.chip').textContent] : null,
-    brief: part('Brief')?.querySelector('.text').innerText ?? null,
-    verdicts: [...detail.querySelectorAll('.verdict')].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
-    moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
-    facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
+    criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
+    check: part('Check') ? [part('Check').querySelector('.item-panel-command pre').textContent, part('Check').querySelector('.chip').textContent] : null,
+    brief: part('Brief')?.closest('section').querySelector('.item-panel-brief')?.innerText ?? null,
+    // The Verdicts tab and the History tab list newest first; the helper reads them oldest first.
+    verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<run>')]),
+    moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].reverse().flatMap((move) => move.dataset.eventIds.split(' ').reverse().map(() => move.dataset.timelineKind)),
+    // Gate bookkeeping facts (shadow receipts, review comparisons) are not findings; fact/snapshot.test.js drops them the same way.
+    facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
   };
 })()`;
 
@@ -97,10 +99,10 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       // Lazy panes render when opened; Roadmap still needs no item-detail request.
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
       await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 2");
-      listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.chip').textContent)");
-      assert.deepEqual([...listed.roadmap].sort(), ['#1 accepted', '#2 to verify'], 'the roadmap reads every member and its exact state from summaries');
+      listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.stage-word').textContent)");
+      assert.deepEqual([...listed.roadmap].sort(), ['#1 Verified', '#2 In review'], 'the roadmap reads every member and its exact state from summaries');
       // Positioned work follows the backend queue; accepted items have no queue position.
-      assert.deepEqual(listed.roadmap, ['#2 to verify', '#1 accepted'], 'the roadmap shows queue-positioned work before unpositioned accepted items');
+      assert.deepEqual(listed.roadmap, ['#2 In review', '#1 Verified'], 'the roadmap shows queue-positioned work before unpositioned accepted items');
       assert.deepEqual(itemReads(listed.reads), [], 'Shouts renders the board summaries with no item detail fetched');
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), [], 'opening Roadmap renders summaries without fetching item detail');
       await press(chrome, "document.querySelector('[data-tab=shouts]')");
@@ -120,7 +122,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("view.item === 2 && !document.querySelector('#detail [aria-busy]') && !!document.querySelector('#detail .tl')");
       const farewell = await chrome.stable(DETAIL);
       assert.equal(farewell.criterion, 'The farewell mentions the zeppelin.');
-      assert.deepEqual(farewell.moves, ['add', 'claim', 'proof-run', 'submit']);
+      assert.deepEqual(farewell.moves, ['add', 'claim', 'renew', 'proof-run', 'submit']);
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2'], 'opening an item makes exactly one detail request');
 
       // The verified item opens with its criterion, check, brief, verdicts and thread from one more request.
@@ -139,10 +141,10 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       assert.deepEqual(greeting, {
         title: '#1Offline greeting',
         criterion: 'The greeting renders from the snapshot alone.',
-        check: ['true', 'green'],
+        check: ['true', 'Pending on main'],
         brief: 'Keep the greeting short.',
-        verdicts: [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']],
-        moves: ['add', 'claim', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'proof-run', 'proof-run', 'submit', 'proof-run', 'accept'],
+        verdicts: [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it\nreused submit proof <run>, <run>']],
+        moves: ['add', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'accept'],
         facts: ['The corrected greeting renders offline.'],
       }, 'the detail carries what the summary leaves out');
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1']);
@@ -152,7 +154,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("view.item === 2 && document.querySelector('#detail h2')?.innerText.includes('Farewell page') && !!document.querySelector('#detail .tl')");
       const states = await chrome.stable("window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length");
       box.run(alpha.web, 'claim', '3');
-      await chrome.waitFor(`window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length > ${states} && !!document.querySelector('#chain .row[data-item="3"] .chip.busy')`, 15_000); // budget: hang-only ceiling for the page's 3-second board poll.
+      await chrome.waitFor(`window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length > ${states} && !!document.querySelector('#chain .row[data-item="3"] .item-stage[data-stage="building"]')`, 15_000); // budget: hang-only ceiling for the page's 3-second board poll.
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1'], 'a refresh does not refetch items that have not changed');
 
       // A change to the opened item asks for its detail once more.
@@ -164,7 +166,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
       await chrome.waitFor("!!document.querySelector('#pipeline [data-stage-count=\"building\"]')");
       const stages = await chrome.stable("Object.fromEntries([...document.querySelectorAll('#pipeline [data-stage-count]')].map((count) => [count.dataset.stageCount, count.textContent]))");
-      assert.deepEqual(stages, { gated: '0', unclaimed: '0', building: '1', 'in-review': '1', verified: '1', landing: '0', merged: '0' });
+      assert.deepEqual(stages, { gated: '0', ready: '0', building: '1', 'in-review': '1', verified: '1', landing: '0', merged: '0' });
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1', 'items/2']);
       assert.deepEqual(chrome.exceptions, [], 'the live view opens items without browser exceptions');
       await view.stop();
@@ -177,7 +179,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length && view.item === 1 && !!document.querySelector('#detail .tl')");
       const exported = await chrome.stable(DETAIL);
       assert.equal(exported.criterion, 'The greeting renders from the snapshot alone.');
-      assert.deepEqual(exported.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']]);
+      assert.deepEqual(exported.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it\nreused submit proof <run>, <run>']]);
       assert.deepEqual(exported.facts, ['The corrected greeting renders offline.']);
       await searchFor(chrome, 'zeppelin', 15_000); // budget: hang-only ceiling for a search the page answers itself.
       await chrome.waitFor("!!document.querySelector('#find-results [data-find=\"item:2\"]')");
