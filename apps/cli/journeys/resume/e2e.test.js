@@ -52,10 +52,21 @@ const {
 } = e2e;
 
 /** Assert and remove only the outer command's exact final text action; retain every body byte. */
-function withoutAction(text, action = 'pullboard next --wait 1') {
+function withoutAction(text, action = 'pullboard next --take') {
   const footer = `next: ${action}\n`;
   assert.ok(text.endsWith('\n' + footer), 'the intended final action is present');
   return text.slice(0, -footer.length);
+}
+
+/** File light work at mid, then route it light through the coordinator's diagnosis, as the board now requires. */
+function addDiagnosedLight(box, title, ...flags) {
+  const added = fixtureAdd(box.run, box.repo, 'web', title, ...flags);
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = added.out.match(/^#(\d+)/m)?.[1];
+  assert.ok(id, added.out);
+  const diagnosis = box.run(box.repo, 'fact', id, 'diagnosis', LIGHT_BRIEF);
+  assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
+  return added;
 }
 
 /** Await real production CLI dispatch without repeating cold process startup for fixture state moves. */
@@ -99,7 +110,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   };
   const greet = script('greet.sh', ["echo \"export const title = 'Hi';\" > web/page.js"]);
   const follow = script('follow.sh', ['grep -q "^- #1 Greet: web/page.js$" "$PULLBOARD_PACK" && echo "export const bye = \'Bye\';" >> web/page.js']);
-  fixtureAdd(box.run, box.repo, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
+  addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
   const runner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   assert.match(box.run(runner, 'run', '--agent-light', greet, '--attempts', '1').out, /submitted #1/);
   const firstCommit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
@@ -109,7 +120,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   box.git(box.repo, 'merge', '-q', '--ff-only', firstCommit);
   const landed = box.run(box.repo, 'merged', '1', firstCommit);
   assert.equal(landed.code, 0, landed.err);
-  fixtureAdd(box.run, box.repo, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
+  addDiagnosedLight(box, 'Say bye', '--route', 'mid', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
   const ran = box.run(runner, 'run', '--agent-light', follow, '--attempts', '1');
   assert.match(ran.out, /submitted #2/, ran.out);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
@@ -279,7 +290,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page renders.', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').out, /rejected #1/);
   assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).verdicts[0].verdict_note, note);
   box.git(box.repo, 'switch', '-q', 'main');
-  fixtureAdd(box.run, box.repo, 'web', 'Light', '--route', 'light', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
+  addDiagnosedLight(box, 'Light', '--route', 'mid', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
   const light = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   box.run(light, 'claim', '2');
   assert.match(box.run(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt')).out, /#2 escalated light -> mid/);
