@@ -255,12 +255,19 @@ test('a gate command with npm flags counts as opaque [S1,A1,A2]', async (t) => {
 test('debug probe of rule coverage [S1,A1,A2]', async (t) => {
   const box = fixture();
   t.after(() => store.closeBoard(box.board));
+  seedRun(box, { head: box.original });
+  seedRun(box, { command: 'true' });
+  seedRun(box, { green: false, days: 2, failures: [{ file: 'test/both.test.js', name: 'both' }] });
+  seedRun(box, { green: false, main: box.original, failures: [{ file: 'test/unproven.test.js', name: 'b' }] });
   seedRun(box);
+  const v = await import('../../../../packages/verify/index.js');
+  const g = await import('../../../../packages/git/index.js');
   const out = {};
-  out.cov = (await import('../../../../packages/verify/index.js')).committedRuleCoverage(box.root, box.head);
-  out.counters = box.board.db.prepare("select meta_key from board_meta where meta_key like '%rule%'").all().map(r => r.meta_key);
-  out.root = box.board.db.prepare("SELECT agent_path FROM agent WHERE agent_id='coordinator'").get()?.agent_path;
-  out.boxroot = box.root;
-  out.metaCount = box.board.db.prepare("select count(*) c from board_meta").get().c;
+  const rows = loadSpec(box.root, { spec: 'SPEC.md' }).rows;
+  out.counts = ruleProofCounts(box.root, box.board, rows);
+  out.trunk = g.trunkRevisionReader(g.repoInfo(box.root))();
+  out.head = box.head;
+  out.fp = v.proofCoverageFingerprint();
+  out.keys = box.board.db.prepare("select meta_key, substr(meta_value,1,200) v from board_meta where meta_key like '%rule-%'").all();
   assert.fail('DBGOUT ' + JSON.stringify(out));
 });
