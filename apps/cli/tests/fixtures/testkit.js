@@ -262,6 +262,15 @@ export function fixtureJoinRoute(args, defaultModel) {
   return args;
 }
 
+/**
+ * Give a fixture `add` the strong route unless it names one, in place, and return args.
+ * Why: an unrouted add is routed mid by the board, and a mid item must be buildable cold (Files, Test, criterion, check) and needs a mid seat; fixture items are bare rows built and verified by strong seats, as fixtureJoinRoute makes them [C7].
+ */
+export function fixtureAddRoute(args) {
+  if (args[0] === 'add' && !args.some(arg => arg === '--route' || arg.startsWith('--route='))) args.push('--route', 'strong');
+  return args;
+}
+
 /** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
 export function requireSessionIndependence(dir) {
   const file = join(dir, 'pullboard.json');
