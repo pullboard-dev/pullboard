@@ -8,6 +8,7 @@ import {
 } from '../../../store/index.js';
 import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { startGuardian } from './worker.js';
 import { LANDING_BACKOFF_MAX_MS } from '../logic/retry.js';
 import { coordinatorHolder } from '../../../seats/index.js';
 import { localLandingEntry } from '../../../store/index.js';
@@ -78,6 +79,8 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
   const deadlineListeners = new Set();
   let pending = Promise.resolve();
   let lost = null;
+  let guardian = null;
+  let stopWatching = null;
   /** Send only acknowledged deadlines to the independent guardian. */
   const confirmedUntil = until => {
     deadline = Date.parse(until);
@@ -151,6 +154,15 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         if (lost) throw lost;
         confirmedUntil(assertLandingLease(board, { token, branch, generation }).until);
       },
+      /**
+       * Start this landing's guardian before any gate runs and record it on the lease. Dead-command recovery waits for its
+       * drain; a guardian that dies first stops the gate and ends the landing with LAND_WORKER, leaving its batch to adoption.
+       */
+      async guard(controller) {
+        guardian = startGuardian({ onDeath: () => { if (!lost) controller.abort(new Refused('LAND_WORKER', 'the landing guardian stopped; its gate was stopped and the batch stays for pullboard land --adopt')); } });
+        stopWatching = this.watchDeadline(at => guardian?.deadline(at));
+        await this.bindWorker(guardian.pid);
+      },
       /** Keep the guardian's own deadline current even if this parent later stops responding. */
       watchDeadline(listener) { deadlineListeners.add(listener); listener(deadline); return () => deadlineListeners.delete(listener); },
       /** Check the current wall-time fence without adding an await before a physical action. */
@@ -159,6 +171,9 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
       async release() {
         clearInterval(timer);
         clearInterval(watchdog);
+        stopWatching?.();
+        guardian?.end();
+        await guardian?.settle();
         await pending;
         await write('landingLeaseMove', [{ ...parameters, action: 'release', generation }]);
         forgetLocalLanding(board, token);

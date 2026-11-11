@@ -233,9 +233,10 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'superseded by the new layout' });
   const ask = store.shout(board, { from: builders[2], to: 'coordinator', text: 'Which file owns the wording?', lanes: ['core', 'docs', 'review'], decision: true });
   at(HOUR / 6);
-  const parentItem = built('Parent in review', builders[11], parent);
   const conflictHold = built('Conflict hold', builders[0], cleared, 'REJECT');
   store.holdItem(board, conflictHold, { agentId: 'coordinator', reason: 'conflicts with the a.txt batch' });
+  at(HOUR / 20); // under review.starveMinutes (5): a review that just started is moving, not starved
+  const parentItem = built('Parent in review', builders[11], parent);
   addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.1.1', items: [lapsed, rejected, reopened] });
   addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.1.2', items: [later] });
   store.closeBoard(board); // Health opens its own read-only connection.
@@ -537,6 +538,9 @@ test('every printed next step runs as pasted through main() [N2,B13]', async (t)
   // Earlier mid shares src/mid.js with the held claim, so next gives the idle seat only this one (#1114).
   store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Other mid', route: 'mid', ...brief, brief: 'Files:\n- src/other.js\nTest:\n- the other work runs' });
   store.claim(board, later, { agentId: holder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+  // A seat silent for two minutes loses its claim to the board (liveness), so the holder is alive when the printed steps run.
+  at(30_000);
+  heartbeatSeat(board, holder);
   store.closeBoard(board);
 
   const before = await cli(box.root, ['health', '--json']);
