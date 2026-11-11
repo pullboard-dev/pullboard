@@ -416,6 +416,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     }
     stage('drained');
     if (suspendParent) {
+      const hang = new Promise((_, no) => setTimeout(() => no(new Error('DIAG successor open: ' + second.stdoutText.slice(-1800) + ' || ' + second.stderrText.slice(-1500))), 25_000).unref());
+      await Promise.race([second.closed, hang]);
       const successor = await second.closed;
       stage('successor-closed');
       assert.equal(successor.code, 0, successor.failure ?? 'the queued adopter lands only after the previous gate is dead');
