@@ -4,7 +4,6 @@ import { copyPackageFiles } from '../../../index.js';
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
