@@ -1,11 +1,11 @@
 /**
- * Under gate.runnerDispatch pull, a submit offers its whole gate as one runner job row and returns: authorization,
- * doctrine, static checks, cells, test selection and the tests all run inside that job on a runner, which posts one
- * receipt. The submitting host starts no dispatcher, driver or worker process [P7].
+ * Under gate.runnerDispatch pull, or for an item the gate.pullPilot setting picks, a submit offers its whole gate as one
+ * runner job row and returns: authorization, doctrine, static checks, cells, test selection and the tests all run inside
+ * that job on a runner, which posts one receipt. The submitting host starts no dispatcher, driver or worker process [P7].
  */
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
-import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
@@ -76,9 +76,13 @@ process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) +
 process.exitCode = receipt.green ? 0 : 1;
 `;
 
-/** True when this machine runs runner jobs by pull, so a submit offers its gate as a row instead of driving it. */
-export function pullGateWanted() {
-  return runnerDispatchMode() === 'pull';
+/**
+ * True when this item's submit offers its gate as a row instead of driving it: under gate.runnerDispatch pull, or when
+ * the gate.pullPilot setting names the item or takes it in its share; everything else stays on the controller path [P7].
+ * @param {number} item
+ */
+export function pullGateWanted(item) {
+  return pullGateFor(item);
 }
 
 /**
