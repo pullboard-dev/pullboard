@@ -71,7 +71,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   /** Run only real, isolated Git with the private hook executable. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), verify: { policy, family },
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), verify: { policy, family }, review: { independence: 'session' },
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }));
   writeFileSync(join(root, 'SPEC.md'), `# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: ${mainRed ? 'test/main-red.test.js' : 'true'}\n${mainRed ? '- G2 [approved, must] Other work keeps its evidence. | gate: true\n' : ''}`);
   if (mainRed) {
