@@ -93,15 +93,15 @@ test('an unrelated landing during a review keeps the verdict and names the commi
   const item = json(box.run(box.repo, 'show', '1', '--json'));
   assert.equal(item.item_status, 'verified');
   const moved = box.git(box.repo, 'rev-parse', 'HEAD').slice(0, 12);
-  assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}, judged unaffected`, 'u'));
+  assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}.*its files are unchanged`, 'u'));
 });
 
-test('a landing that breaks an affected import refuses the retried composition [V4,C7]', (t) => {
-  const { box, verdict, json } = reviewWithLanding(t, { setting: true, landing: 'web/shared.js' });
+test('a landing that rewrites a file the review judged refuses acceptance and keeps the item submitted [V4,C7]', (t) => {
+  const { box, verdict, json } = reviewWithLanding(t, { setting: true, landing: 'web/lib.js' });
   assert.notEqual(verdict.code, 0);
   const error = JSON.parse(verdict.out).error;
-  assert.equal(error.code, 'CHECK_RED');
-  assert.match(error.message, /retry composition/u);
+  assert.equal(error.code, 'VERDICT_TRUNK_MOVED');
+  assert.match(error.message, /web\/lib\.js/u);
   assert.equal(json(box.run(box.repo, 'show', '1', '--json')).item_status, 'submitted');
 });
 
