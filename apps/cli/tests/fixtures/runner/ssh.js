@@ -32,15 +32,18 @@ const divider = argv.indexOf('--');
 const host = divider >= 0 ? argv[divider + 1] : '';
 const remoteCommand = divider >= 0 ? argv[divider + 2] : '';
 const registrationGuiProbe = remoteCommand.includes('/* pullboard registration GUI probe */');
+// A pull-mode runner is sent short scripts, not a worker launch: only an enqueue is a dispatch, and the agent it starts runs the worker [C7,#5537].
+const pullEnqueue = remoteCommand.includes('IFS= read -r ROW') && remoteCommand.includes('/queue/');
+const pullAux = !pullEnqueue && ['echo "agent $A"', 'for d in done running queue', 'source.pack.ready', 'rm -rf "$R/done/', '/cancel"'].some(part => remoteCommand.includes(part));
 const workerHealthProbe = remoteCommand.includes(' --health ');
 // Registration observations are real transports, recorded separately from job/dispatch statistics.
-const requests = ${JSON.stringify(requests)} + (registrationGuiProbe ? '.gui-probes' : workerHealthProbe ? '.health-probes' : '');
-const starts = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(starts ?? '')};
+const requests = ${JSON.stringify(requests)} + (registrationGuiProbe ? '.gui-probes' : workerHealthProbe ? '.health-probes' : pullAux ? '.pull' : '');
+const starts = registrationGuiProbe || workerHealthProbe || pullAux ? '' : ${JSON.stringify(starts ?? '')};
 const worker = ${JSON.stringify(worker)};
 const home = ${JSON.stringify(home)};
 const machineHome = ${JSON.stringify(machineHome)};
 const configuredNode = ${JSON.stringify(`${shellQuote(nodeCommand)} --input-type=module -e `)};
-const dropAfterMarker = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(dropAfterMarker ?? '')};
+const dropAfterMarker = registrationGuiProbe || workerHealthProbe || pullAux ? '' : ${JSON.stringify(dropAfterMarker ?? '')};
 const secret = ${JSON.stringify(SECRET)};
 const call = existsSync(requests) ? readFileSync(requests, 'utf8').split('\\n').filter(Boolean).length + 1 : 1;
 const stdinHash = createHash('sha256');
@@ -49,7 +52,7 @@ process.stdin.on('data', part => { stdinBytes += part.length; stdinHash.update(p
 const record = extra => appendFileSync(requests, JSON.stringify({ call, host, ...(registrationGuiProbe ? { registrationGuiProbe: true } : {}),
   options: divider < 0 ? [] : argv.slice(0, divider), remoteHasSecret: remoteCommand.includes(secret),
   framed: divider >= 0 && argv[divider] === '--', remoteCommandPresent: Boolean(remoteCommand),
-  remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode),
+  remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode), ...(pullEnqueue ? { pullEnqueue: true } : {}),
   remoteHasLocalPath: remoteCommand.includes(${JSON.stringify(worker)}),
   remoteHasSourceHome: remoteCommand.includes(${JSON.stringify(home)}),
   remoteHasSourceMachineHome: remoteCommand.includes(${JSON.stringify(machineHome)}), ...extra }) + '\\n');
@@ -88,7 +91,7 @@ if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
 if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
 // An unreachable host fails the worker restart a lost transport now tries too [C7,#3128].
 if (remoteCommand.includes(' --restart ') && ${JSON.stringify(workerHealthDown)}) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
-if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
+if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ${JSON.stringify(deferFirstWorker)} && call === 1) {
   writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
   await new Promise(resolve => {
     // stdin carries the tooling capsule record, then the work frame record; keep each for an exact replay.
@@ -115,21 +118,29 @@ if (starts) appendFileSync(starts, JSON.stringify({ call, host }) + '\\n');
 const phases = requests + '.phases';
 const hold = registrationGuiProbe || workerHealthProbe ? '' : ${JSON.stringify(hold)};
 const holdHere = () => new Promise(() => { setInterval(() => {}, 60_000); });
+// A worker launch that never completes: a controller launch hangs; a pulled job is queued but its agent is never started.
+let skipAgent = false;
+const holdWorker = async () => { if (pullEnqueue) skipAgent = true; else await holdHere(); };
+const launchesWorker = remoteCommand.startsWith(configuredNode) || pullEnqueue;
+const withoutAgent = command => {
+  const start = command.indexOf('\n( nohup'), marker = '\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\necho "queued');
+  return start >= 0 && end > start ? command.slice(0, start) + command.slice(end + marker.length) : command;
+};
 if (hold === 'dispatch') await holdHere();
 appendFileSync(phases, 'dispatched\\n');
 if (hold === 'run') await holdHere();
-${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith('-drop') && call === 1) {
+${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && host.endsWith('-drop') && call === 1) {
   process.stdin.once('data', () => {
     record({ dropped: true, stdinBytes, stdinSha256: stdinHash.digest('hex') }); process.exit(255);
   });
   process.stdin.resume();
 } else` : ''} {
   const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
-    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
+    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
     ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
-  const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
+  const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   // READY and ordinary results stream; only a held-return fault withholds its receipt.

@@ -37,9 +37,14 @@ function queue(t) {
   return db;
 }
 
-/** These cases exercise the controller's own worker launch and recovery, so they keep controller dispatch whatever the default becomes [C7,#5535]. */
+/** Pin the dispatch mode a case runs under: the journey's own (pull when its pull file set it), so both modes stay covered [C7,#5537]. */
+function pinDispatch(box, mode = process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller') {
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: mode } });
+}
+
+/** These cases exercise the controller's own worker launch and its delayed installer, so they keep controller dispatch whatever the default becomes [C7,#5535]. */
 function pinControllerDispatch(box) {
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  pinDispatch(box, 'controller');
 }
 
 /** A synthetic identity exercises queue concurrency only, never authorizes an actual worker reply. */
@@ -56,7 +61,7 @@ export function runnerRecoveryTests() {
       const bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
       const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard');
       for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
-      pinControllerDispatch(box);
+      pinDispatch(box);
       const requests = join(box.dir, 'requests.jsonl');
       installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: failures });
       const runner = { host: HOST, node: process.execPath, slots: 1, browser: 0 };
