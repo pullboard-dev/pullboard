@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input SPEC.md */
 /** @pullboard-test-loads packages/store/src/io/board.js apps/cli/src/io/entry.js packages/store/src/io/board/event/log.js */
 /** Criterion preparation must not occupy the actual SQLite writer lease [B2,C7,V2]. */
 import assert from 'node:assert/strict';
