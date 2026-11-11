@@ -23,6 +23,11 @@ const MOVED = 'packages/merge/src/io/trunk/conflict.js';
 // The reopen move reads the conflict predicate through the merge core door, which re-exports this body.
 const REOPEN = 'packages/moves/src/logic/moves/reopen.js';
 const CARRIAGE = 'packages/merge/src/logic/carriage.js';
+/** JSON data the move closure imports, each named with its owner's reason; the walk parses them as data, never as code. */
+const DATA_INPUTS = new Map([
+  // #5605 [P5]: vendor spellings live in data so the core names no vendor; family comparison in moves reads them.
+  ['packages/items/src/logic/vendors.json', 'items: vendor spellings kept in data, not code'],
+]);
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
 function closure(read, identities) {
@@ -54,9 +59,10 @@ test('the conflict predicate stays on the light core door in the accepted main m
   const sources = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT)))
     .map(({ file, body }) => [file, body.toString('utf8')]));
   const manifest = readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8');
-  /** Read only exact finite inventory bytes, with the one explicit JSON data input retained. */
+  /** Read only exact finite inventory bytes, with the explicitly named JSON data inputs retained. */
   const read = file => {
     if (file === 'package.json') return manifest;
+    if (DATA_INPUTS.has(file)) return readFileSync(join(ROOT, file), 'utf8');
     assert.ok(sources.has(file), `closure source belongs to the bounded inventory: ${file}`);
     return sources.get(file);
   };
