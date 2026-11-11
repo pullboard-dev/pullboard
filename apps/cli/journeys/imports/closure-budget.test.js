@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { privateFixtureFiles } from '../fixtures/child.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import budgets from './closure-budget.json' with { type: 'json' };
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
