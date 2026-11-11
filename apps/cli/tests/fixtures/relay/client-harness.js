@@ -611,7 +611,7 @@ export async function competingReplicaClaims(fixture, timing, { ids, tail = true
 }
 
 /** Preserve lost CLI replies, original outcomes and the receipt-missing stack guard. */
-export async function recoverReplicaReplies(fixture, timing) {
+export async function recoverReplicaReplies(fixture, timing, restoreInventories = () => {}) {
   const { scratch, clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
   timing.begin('lost-reply recovery', 'exercise dropped CLI replies, replay recovery, and durable outcome ordering across all replicas');
   // Exercise loss of the add's reply, after the separate one-time legacy migration has completed.
@@ -698,6 +698,7 @@ export async function recoverReplicaReplies(fixture, timing) {
   writeFileSync(join(worktrees[0], 'web', 'lost-submit.txt'), 'the work whose submission reply is lost\n');
   gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
   gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
+  restoreInventories(); // a CLI step in between can drop the published accepted inventory the submit reads
   relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
   const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
@@ -720,6 +721,7 @@ export async function recoverReplicaReplies(fixture, timing) {
   assert.notEqual(gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD'), originalCommit);
   writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
   const afterSubmitRecoverySetup = relay.uploads.length;
+  restoreInventories();
   const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
     const plain = await unseal(key, Buffer.from(upload.sealed, 'base64url'), {
