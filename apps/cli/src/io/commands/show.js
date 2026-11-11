@@ -4,6 +4,8 @@ import { machineVerification } from '../../../../../packages/verify/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
+import { queuedGateLines } from '../../logic/show/gate.js';
+import { supersededStop } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
@@ -75,7 +77,7 @@ export async function run(io, { first, values }) {
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
-    const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}) } : null;
+    const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
     const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
@@ -129,8 +131,7 @@ export async function run(io, { first, values }) {
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
   if (comparison) io.say(renderVerificationComparison(comparison));
   io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
-  if (queuedSubmit) io.say(`queued gate: ${gateText ?? queuedSubmit.state} at ${queuedSubmit.executionCommit}${queuedSubmit.requeuedFor ? `; requeued on the same source after ${queuedSubmit.requeuedFor}` : ''}`);
-  if (queuedSubmit?.error) io.say(`${queuedSubmit.error.code}: ${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);
+  for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);

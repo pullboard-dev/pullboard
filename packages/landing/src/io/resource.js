@@ -49,16 +49,20 @@ export function reclaimReason(holder, local, { now = Date.now(), machine = null 
   return sameMachine && Date.parse(holder.until) <= now ? 'holder process gone and heartbeat older than the lease' : null;
 }
 
+/** Refusals a renewal outlives: momentary write faults, never a lost lease. */
+const RENEW_RETRY = new Set(['BOARD_BUSY', 'POLICY_SNAPSHOT_STALE']);
+
 /**
- * Run one renewal, retrying BOARD_BUSY with doubling backoff until the lease period ends; any other refusal, and the
- * last BOARD_BUSY, propagates. Why: a busy board is a momentary landing fault, and one refusal killed the worker (#3068).
+ * Run one renewal, retrying BOARD_BUSY and POLICY_SNAPSHOT_STALE with doubling backoff until the lease period ends; any
+ * other refusal, and the last retried one, propagates. Why: both are momentary landing faults, and one refusal killed the
+ * worker (#3068, #5672); each attempt opens a fresh write that re-reads current main's policy.
  */
 export async function renewWithBackoff(renew, { now = Date.now, pausing = pause, until = () => now() + LANDING_LEASE_MS, firstMs = 100, marginMs = 1000 } = {}) {
   for (let wait = firstMs; ; wait = Math.min(wait * 2, 2000)) {
     try { return renew(); }
     catch (error) {
       // Stop at the acknowledged lease deadline, re-read after every pause, so a busy board never outlives the lease.
-      if (error?.code !== 'BOARD_BUSY' || now() + wait >= until() - marginMs) throw error;
+      if (!RENEW_RETRY.has(error?.code) || now() + wait >= until() - marginMs) throw error;
       await pausing(wait);
       if (now() >= until() - marginMs) throw error;
     }

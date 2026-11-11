@@ -86,7 +86,7 @@ test('clause 3: cellClaim freezes the criterion with the claim move\'s one freez
   assert.deepEqual([claimed.item_status, claimed.item_owner, claimed.item_claim_head], ['claimed', seat.id, repo.commit]);
   assert.equal(claimed.item_frozen, expected.text);
   assert.equal(claimed.item_frozen_digest, expected.digest);
-  assert.equal(JSON.parse(claimed.item_frozen).policy.commit, repo.commit, 'the freeze pins the committed main policy');
+  assert.equal(JSON.parse(claimed.item_frozen).policy, undefined, 'the freeze holds the bar alone, no policy pin [B4]');
 });
 
 test('clause 1: cellSandbox\'s env equals the e2e sandbox\'s env except PATH, the per-run dir paths and the fixture model its seats share [C7]', t => {

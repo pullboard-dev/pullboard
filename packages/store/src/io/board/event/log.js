@@ -44,7 +44,7 @@ export function afterBoardWrite(board, work) {
  * @param {() => T} work
  * @returns {T}
  */
-export function atomic(board, work, { reviewPolicy = true } = {}) {
+export function atomic(board, work, { reviewPolicy = true, writePolicy = true } = {}) {
   const depth = TRANSACTION_DEPTH.get(board) ?? 0;
   const savepoint = `pullboard_atomic_${depth}`;
   if (!depth) prepareBoardWriteIdentity();
@@ -53,7 +53,8 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
   if (depth) board.db.exec(`SAVEPOINT ${savepoint}`);
   else {
     for (let attempt = 0; ; attempt++) {
-      policy = board.prepareWritePolicy?.();
+      // writePolicy: false is for writes no accepted policy judges (a lease heartbeat), so a policy landing mid-write never refuses them (#5672).
+      policy = writePolicy ? board.prepareWritePolicy?.() : null;
       const marker = prepareBoardWriteMarker(board.db, board.writeContext);
       beginImmediateQueued(board.db, startedAt, marker);
       const bookkeepingAt = performance.now();
