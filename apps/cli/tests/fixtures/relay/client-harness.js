@@ -232,14 +232,14 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
  * scripts' own relative imports, so the fixture's Rigor checks count what the repository's do [D1,H3].
  * Reading the gates from the doctrine, not naming files here, keeps the next check that lands from
  * leaving a fixture without its script, which otherwise raises the ratchet and changes the refusal.
- * A apps/cli/pullboard.js row gets the CLI's whole runtime minus the cells plan: it imports lazily and reads skills from disk [C7].
+ * A apps/cli/pullboard.js row gets the CLI's whole runtime minus the cells plan and every test file (a check runs source, never tests, and 1,900 fewer files shorten each clone): it imports lazily and reads skills from disk [C7].
  */
 export function seedDoctrine(seed) {
   const repo = resolve(import.meta.dirname, '../../../../..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
   writeFileSync(join(seed, 'PRACTICE.md'), text);
   const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();
-  if (pending.includes('apps/cli/pullboard.js')) for (const part of ['apps', 'packages', 'skills', 'docs', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') });
+  if (pending.includes('apps/cli/pullboard.js')) for (const part of ['apps', 'packages', 'skills', 'docs', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') && !/\.test\.js$|\/(tests|journeys)(\/|$)/.test(from.slice(repo.length)) });
   while (pending.length) {
     const file = pending.pop();
     if (copied.has(file)) continue;
@@ -305,7 +305,8 @@ export async function threeReplicaFixture(t, timing) {
   gitAt(seed, envs[0], 'add', '-A');
   gitAt(seed, envs[0], 'commit', '-q', '-m', 'test: seed relay claim fixture');
 
-  for (const clone of clones) gitAt(scratch, envs[0], 'clone', '-q', seed, clone);
+  // Only clone A is ever a working tree (init, worktree registration); B and C only host their worktrees, so skipping their checkouts saves thousands of file writes [C7].
+  clones.forEach((clone, index) => gitAt(scratch, envs[0], 'clone', '-q', ...(index === 0 ? [] : ['--no-checkout']), seed, clone));
   for (let index = 0; index < clones.length; index += 1) {
     gitAt(clones[index], envs[index], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
     gitAt(clones[index], envs[index], 'worktree', 'add', '-q', '-b', `web/race-${index + 1}`, worktrees[index], 'main');
