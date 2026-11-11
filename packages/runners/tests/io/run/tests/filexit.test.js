@@ -18,7 +18,7 @@ import { startFixtureChild } from '../../../../../../apps/cli/tests/fixtures/chi
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { focusedPoolSnapshot } from '../../../fixtures/pool.js';
 
-const runner = fileURLToPath(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const fixtureExitCeilingMs = '500';
 const fixtureCleanupMs = '100';
 
@@ -33,7 +33,7 @@ function makeFileExitFixture(t, source) {
   writeFileSync(testFile, source);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
-    root, runner: join(root, 'packages/gate/src/io/run/tests.js'), testFile,
+    root, runner: join(root, 'apps/cli/src/io/run/tests.js'), testFile,
     cleanupFile: join(root, 'cleanup.txt'), portFile: join(root, 'port.txt'),
   };
 }
@@ -231,7 +231,7 @@ test('second focused run starts after the slot is released [C7]', () => {
 });
 `);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, runner: join(root, 'packages/gate/src/io/run/tests.js'), machine, ready, nestedDone, release, firstDone, secondStarted };
+  return { root, runner: join(root, 'apps/cli/src/io/run/tests.js'), machine, ready, nestedDone, release, firstDone, secondStarted };
 }
 
 /** Launch one direct fixture runner with an explicit, cleared inherited-slot marker. */

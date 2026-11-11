@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { gitSpawn } from '../../../git/index.js';
 import {
   posix,
   resolve,
@@ -141,7 +142,7 @@ export function lightDoorRefused(candidate, main) {
 export async function mainRootOf(root) {
   const out = await new Promise(done => {
     let text = '';
-    const child = spawn('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
+    const child = gitSpawn(['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
     child.stdout.on('data', chunk => { text += chunk; });
     child.on('error', () => done(''));
     child.on('close', status => done(status === 0 ? text.trim() : ''));

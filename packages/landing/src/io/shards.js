@@ -444,7 +444,7 @@ class NotNeeded extends Error {}
  *
  * @param {{ root: string, runner: string, files: string[], count: number, inherited?: object|null,
  *   needsBrowser?: (files: string[]) => Promise<boolean>, write?: (text: string) => void }} options
- *   `runner` is this repository's packages/gate/src/io/run/tests.js; `inherited` is the gate lease this process already
+ *   `runner` is this repository's apps/cli/src/io/run/tests.js; `inherited` is the gate lease this process already
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
@@ -533,7 +533,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './packages/gate/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './apps/cli/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
@@ -579,8 +579,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       entry.claimed = false;
       entry.localOnly = true;
       acquire(entry);
-    } else if ((status === 'refused' || status === 'infrastructure') && !release && !stop.aborted && entry.attempts.length < 3) {
-      // One runner refusing or dropping a shard is that runner's fault, not the batch's: the shard queues again and
+    } else if (status === 'infrastructure' && !release && !stop.aborted && entry.attempts.length < 3) {
+      // One runner dropping a shard is that runner's fault, not the batch's; a refusal (changed source, unknown code) fails with no retry: the shard queues again and
       // the pool hands it to an available runner. Why: one RUNNER_UNAVAILABLE stopped every other shard and blocked an
       // 8-item batch with no test red at all [C7].
       write(`landing shard ${entry.label}: runner ${record.host} ${status}${record.reason ? ` (${record.reason})` : ''}; queuing shard ${entry.label} again (attempt ${entry.attempts.length + 1})\n`);

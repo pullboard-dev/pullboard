@@ -12,7 +12,7 @@ import { cellSandbox } from '../../../packages/store/tests/fixtures/cell.js';
 import { runFixtureChild } from '../../cli/tests/fixtures/child.js';
 
 const SELECTORS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY'];
-const RUNNER = fileURLToPath(new URL('../../../packages/gate/src/io/run/tests.js', import.meta.url));
+const RUNNER = fileURLToPath(new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /** Create only disposable repositories; every deliberately supplied Git selector stays inside this fixture. */
 function fixture(t) {

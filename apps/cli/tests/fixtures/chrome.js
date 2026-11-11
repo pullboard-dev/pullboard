@@ -173,11 +173,11 @@ export function requireBrowserSlot() {
 
 let runnerAncestor;
 
-/** The environment variable packages/gate/src/io/run/tests.js sets to its own pid for every test it runs (#896). */
+/** The environment variable apps/cli/src/io/run/tests.js sets to its own pid for every test it runs (#896). */
 export const RUNNER_PID_ENV = 'PULLBOARD_TEST_RUNNER_PID';
 
 /**
- * Find the test runner above this process: the pid packages/gate/src/io/run/tests.js left in this process's environment, kept
+ * Find the test runner above this process: the pid apps/cli/src/io/run/tests.js left in this process's environment, kept
  * only while it is a real ancestor of this process. Why not read command lines: ps prints argv without quoting,
  * so no parser tells a runner started with `--import data:…` or a path with spaces from one of its workers (#896).
  * The walk reads parent pids only, which macOS and Linux both print; no runner, or a stale pid from another tree,

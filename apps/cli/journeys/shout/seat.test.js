@@ -45,6 +45,7 @@ function wakeFixture(t) {
   const seat = JSON.parse(joined.out).agent;
   let at = Date.now();
   const clock = { now: () => new Date(at) };
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   heartbeatSeat(board, seat);

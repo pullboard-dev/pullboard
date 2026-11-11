@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { cellSandbox } from '../../../../../store/tests/fixtures/cell.js';
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 
-const RUNNER = fileURLToPath(new URL('../../../../src/io/run/tests.js', import.meta.url));
+const RUNNER = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const REFUSAL = '[TEST_SELECTION_EMPTY]';
 
 /** A disposable repository with one passing test file, so a run that is admitted has something to run. */

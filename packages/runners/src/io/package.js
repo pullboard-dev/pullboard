@@ -74,12 +74,12 @@ export function workerEntry(root) {
 }
 
 /** Reuse only successful exact-source analysis inside this reader; every read validates fresh paths and bytes. */
-export function runnerPackageReader(root, entry = workerEntry(root)) {
+export function runnerPackageReader(root, entry = workerEntry(root), step = () => {}) {
   let analyses = new Map();
   return () => {
     const parser = createRunnerModuleParser();
     try {
-      const current = derivePackage(root, entry, analyses, parser.parse);
+      const current = derivePackage(root, entry, analyses, parser.parse, step);
       analyses = current.analyses;
       return current.runtime;
     } finally { parser.close(); }
@@ -90,15 +90,16 @@ export function runnerPackageReader(root, entry = workerEntry(root)) {
  * Return all actual worker dependencies plus the real manifest, with stable path-bound bytes. The transfer bound applies to
  * the gzipped capsule that carries them (remoteWorkerLaunch), and the raw size is ratcheted by packages/gate/data/ceilings/worker-bundle.json (#4140).
  */
-export function runnerPackage(root, entry = workerEntry(root)) {
-  return runnerPackageReader(root, entry)();
+export function runnerPackage(root, entry = workerEntry(root), step = () => {}) {
+  return runnerPackageReader(root, entry, step)();
 }
 
-/** Resolve the complete closure again, retaining pure analysis only for this successful generation's exact bytes. */
-function derivePackage(root, entry, previous, parse) {
+/** Resolve the complete closure again, retaining pure analysis only for this successful generation's exact bytes; `step` names each phase as it starts. */
+function derivePackage(root, entry, previous, parse, step) {
   let allowed;
   let manifest;
   try {
+    step('list the package files');
     allowed = new Set(packageFiles(root));
     manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   } catch (error) { unavailable('package.json', error.message); }
@@ -109,6 +110,7 @@ function derivePackage(root, entry, previous, parse) {
     const level = [...new Set(pending)].filter(file => !Object.hasOwn(files, file)).sort();
     pending = [];
     if (!level.length) break;
+    step(`read ${level.length} closure files from ${level[0]}`);
     for (const file of level) {
       if (!allowed.has(file)) unavailable(file, 'the import closure leaves package.json files');
       files[file] = readFileSync(join(root, file), 'utf8');
@@ -120,6 +122,7 @@ function derivePackage(root, entry, previous, parse) {
     const sources = changed.map(file => files[file]);
     // Without either loader spelling or an identifier escape, the CommonJS probe has no candidates.
     // importsIn still compiles every changed module; potential loader text keeps the full V8 probe.
+    step(`parse ${changed.length} changed modules`);
     const suspects = changed.filter(file => files[file].includes('require')
       || files[file].includes('createRequire') || files[file].includes('\\u'));
     const findings = suspects.length ? commonJsIn(suspects.map(file => files[file]), parseWithPaths(parse, suspects.map(file => join(root, file)))) : [];
@@ -143,9 +146,9 @@ function derivePackage(root, entry, previous, parse) {
 }
 
 
-/** The uncompressed size of the worker bundle a launch installs, as JSON of every closure file (#4140). */
-export function workerBundleBytes(root, entry = workerEntry(root)) {
-  return Buffer.byteLength(JSON.stringify(runnerPackage(root, entry).files));
+/** The uncompressed size of the worker bundle a launch installs, as JSON of every closure file (#4140); `step` hears each phase, so a hang can be named. */
+export function workerBundleBytes(root, entry = workerEntry(root), step = () => {}) {
+  return Buffer.byteLength(JSON.stringify(runnerPackage(root, entry, step).files));
 }
 
 /** The gate-policy loader the runner controller loads; it and its static imports are fingerprinted for a warmed controller (#1510). */

@@ -86,6 +86,9 @@ process.stdout.write(JSON.stringify({ declared: [...declaredProseCommands(HELP)]
   return JSON.parse(child.stdout);
 }
 
+/** The measurement takes about a second; a minute is ample on a loaded gate and still ends a hung child [5642]. */
+const WORKER_BUNDLE_TIMEOUT_MS = 60_000;
+
 /**
  * Measure the runner worker bundle in a child process and compare it with its recorded ceiling.
  *
@@ -95,9 +98,14 @@ process.stdout.write(JSON.stringify({ declared: [...declaredProseCommands(HELP)]
 function workerBundleRows(root) {
   // The runner worker bundle's raw size may only fall; growth fails here, never silently at a runner (#4140).
   const recorded = JSON.parse(readFileSync(join(root, 'packages/gate/data/ceilings/worker-bundle.json'), 'utf8')).bytes;
-  const program = `const { workerBundleBytes } = await import(${JSON.stringify(pathToFileURL(join(root, 'packages/runners/index.js')).href)});\nprocess.stdout.write(String(workerBundleBytes(${JSON.stringify(root)})));`;
-  const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8' });
-  if (child.status !== 0) return [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle could not be measured: ${child.stderr.trim().split('\n').at(-1)}`];
+  // Each phase is written to stderr as it starts, so a measurement past its deadline names the step that hung [5642].
+  const program = `const { workerBundleBytes } = await import(${JSON.stringify(pathToFileURL(join(root, 'packages/runners/index.js')).href)});\nprocess.stdout.write(String(workerBundleBytes(${JSON.stringify(root)}, undefined, step => process.stderr.write('step: ' + step + '\\n'))));`;
+  const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8', timeout: WORKER_BUNDLE_TIMEOUT_MS, killSignal: 'SIGKILL' });
+  const lines = (child.stderr ?? '').trim().split('\n');
+  const step = lines.filter(line => line.startsWith('step: ')).at(-1)?.slice(6) ?? 'start the measuring process';
+  if (child.error?.code === 'ETIMEDOUT') return [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle measurement passed ${WORKER_BUNDLE_TIMEOUT_MS / 1000} s at the step: ${step}`];
+  const error = lines.find(line => /^\w*(Error|Refused)\b/u.test(line)) ?? lines.filter(line => !line.startsWith('step: ')).at(-1);
+  if (child.status !== 0) return [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle could not be measured at the step: ${step}: ${error}`];
   const bytes = Number(child.stdout);
   return bytes > recorded ? [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle is ${bytes} raw bytes, over its recorded ${recorded}; cut what the worker imports, or record a lower size when it falls`] : [];
 }

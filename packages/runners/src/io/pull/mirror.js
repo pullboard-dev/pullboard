@@ -85,10 +85,11 @@ function markers(host, dir) {
 export function parseStatus(text) {
   const lines = text.split('\n');
   if (lines.at(-2) !== 'end' && lines.at(-1) !== 'end') return null;
-  let agent = 'absent';
+  let agent = 'absent', load;
   const jobs = {};
   for (const line of lines) {
     if (line.startsWith('agent ')) agent = line.slice(6).trim();
+    if (line.startsWith('load ')) load = parseLoad(line.slice(5));
     if (!line.startsWith('job ')) continue;
     const [, id, ...fields] = line.split(' ');
     const value = Object.fromEntries(fields.map(field => [field.slice(0, field.indexOf('=')), field.slice(field.indexOf('=') + 1)]));
@@ -98,7 +99,20 @@ export function parseStatus(text) {
       alive: value.alive === '-' ? null : value.alive === '1', ...(exit ? { exit } : {}), resultSeen: Number(value.result) > 0,
       ...(value.need && value.need !== '-' ? { need: value.need } : {}) };
   }
-  return { agent, jobs };
+  return { agent, jobs, ...(load ? { load } : {}) };
+}
+
+/**
+ * Read the agent's load line into the mirror: whether it holds new jobs, and why in words.
+ * Why: a runner that stops pulling at its core count must say so, or a queued job looks like a lost one [#5578].
+ */
+function parseLoad(text) {
+  const value = Object.fromEntries(text.trim().split(' ').map(field => [field.slice(0, field.indexOf('=')), field.slice(field.indexOf('=') + 1)]));
+  const average = Number(value.load), cores = Number(value.cores);
+  if (!Number.isFinite(average) || !Number.isFinite(cores) || cores < 1 || (value.state !== 'ok' && value.state !== 'hold')) return undefined;
+  const holding = value.state === 'hold';
+  return { holding, average, cores, perCore: average / cores, at: Number(value.at) * 1000,
+    ...(holding ? { reason: `one-minute load ${average} is at or above its ${cores} cores; takes no new job until it drops below` } : {}) };
 }
 
 /** Publish the mirror whole: a reader sees the old file or the new one. */
