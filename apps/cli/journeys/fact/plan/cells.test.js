@@ -84,10 +84,12 @@ test('no cut edge names a file without a plan row, so the cut reader and the sub
 test('the plan places every tracked module and asset under src/, bin/ and relay/ at its base commit [D3,CD60]', () => {
   assert.match(PLAN.base, /^[0-9a-f]{40}$/u, 'the plan records the commit it was computed at');
   const listed = new Set(git(ROOT, 'ls-tree', '-r', '--name-only', PLAN.base).split('\n'));
-  const rows = PLAN.cells.flatMap(cell => cell.paths.map(([from]) => from));
-  // A module added after the base is placed by name as it lands, so a row may also name a file some later commit added.
-  const added = new Set(git(ROOT, 'log', '--diff-filter=A', '--name-only', '--format=', `${PLAN.base}..HEAD`).split('\n'));
-  assert.deepEqual(rows.filter(file => !listed.has(file) && !added.has(file)), [], 'a moved row names a file neither its base commit nor a later commit holds');
+  const rows = PLAN.cells.flatMap(cell => cell.paths);
+  // A module added after the base is placed by name as it lands, and one born at its final path never held its old one.
+  const added = new Set(git(ROOT, 'log', '--no-renames', '--diff-filter=A', '--name-only', '--format=', `${PLAN.base}..HEAD`).split('\n'));
+  const tracked = new Set(git(ROOT, 'ls-files').split('\n'));
+  assert.deepEqual(rows.filter(([from, to]) => !listed.has(from) && !added.has(from) && !tracked.has(to)).map(([from]) => from), [],
+    'a moved row names a file that neither the base commit, a later commit nor its target holds');
   const stays = new Set(PLAN.stays.map(row => row.path));
   const left = git(ROOT, 'ls-files').split('\n').filter(file => inPlanScope(file) && !stays.has(file));
   assert.deepEqual(left, [], 'the freeze moved every module and asset out of the old roots; place a new one under its cell, not at the root');
