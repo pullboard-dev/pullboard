@@ -293,7 +293,7 @@ export async function threeReplicaFixture(t, timing) {
     return resolve(root, gitAt(root, env, 'rev-parse', '--git-common-dir'));
   }
 
-  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  t.after(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }));
   gitAt(seed, envs[0], 'init', '-q', '-b', 'main');
   writeFileSync(join(seed, 'pullboard.json'), JSON.stringify({
     gate: 'true', lanes: { web: { owns: ['web/'], specs: ['G'] } },
