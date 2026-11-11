@@ -25,7 +25,7 @@ function recorder(out) {
   return ['-e', `require('node:fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify({ pid: process.pid, ppid: process.ppid, marker: process.env.LAUNCH_MARKER }))`];
 }
 
-test('clause 1: on macOS the process runs as a launchd job, so launchd is its parent and responsible process; a later launch boots the finished job out [C7]',
+test('clause 1: on macOS the lander wake runs as a launchd job, so launchd is its parent and responsible process; a later launch boots the finished job out [C7]',
   { skip: !existsSync('/bin/launchctl') && 'launchd is not on this machine' }, async t => {
     const root = home(t), out = join(root, 'first.json');
     const first = await spawnReachable(process.execPath, recorder(out), { home: root, env: { ...process.env, LAUNCH_MARKER: 'kept' } });
@@ -36,6 +36,9 @@ test('clause 1: on macOS the process runs as a launchd job, so launchd is its pa
     assert.equal(seen.pid, first.pid, 'the returned pid is the process itself');
     assert.equal(seen.ppid, 1, 'launchd is the parent, not the app that ran the command');
     assert.equal(seen.marker, 'kept', 'the caller environment reaches the process');
+    /** Whether a pid still names a live process. */
+    const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    await waitForCondition(() => !alive(first.pid), 'the first process ended');
     const second = await spawnReachable(process.execPath, recorder(join(root, 'second.json')), { home: root });
     t.after(() => spawnSync('launchctl', ['bootout', `gui/${process.getuid()}/${second.label}`], { stdio: 'ignore' }));
     const loaded = spawnSync('launchctl', ['print', `gui/${process.getuid()}/${first.label}`], { stdio: 'ignore' }).status;
