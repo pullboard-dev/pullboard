@@ -183,7 +183,7 @@ export { CLAIM_RETURNS_ENGINE } from './src/logic/engines/claim-returns-engine.j
 export { COORDINATOR_ACTIONS_ENGINE } from './src/logic/engines/coordinator-actions-engine.js';
 
 export { earlierHeadFacts, staleHeadClauses, staleHeadLines, linkEarlierFacts, namedEvidence } from './src/logic/stale.js';
-export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateNamedFile, testRunTickNotes, checkRunTickNotes } from './src/logic/clauses.js';
+export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateNamedFile, testRunTickNotes, checkRunTickNotes, checkTestFiles } from './src/logic/clauses.js';
 
 export { STRICT_RENAME_ENGINE } from './src/logic/engines/strict-rename-engine.js';
 

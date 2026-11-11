@@ -76,6 +76,9 @@ import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
 import { proveBatches } from './shards/proof.js';
+import { shardPassStore } from './shards/proof.js';
+import { plainCheckRun } from './shards/green.js';
+import { reusableGreenRun } from './shards/green.js';
 import { readFileTimes } from './test/value/timing.js';
 import { progressingWait } from './progress.js';
 import { whileGateRuns } from './progress.js';
@@ -167,6 +170,28 @@ function submitTestOutcomes(profiles) {
     }
   }
   return testOutcomeFields([...combined.values()]);
+}
+
+/** The runner tooling sha256 this controller sends, or null when it cannot be read: no reuse without it. */
+function runnerTooling(executionServices) {
+  try { return executionServices?.runners?.trustedTooling?.()?.tooling?.sha256 ?? null; } catch { return null; }
+}
+
+/**
+ * The recorded green run of exactly the check's files at the runner source's tree with this controller's tooling, as a
+ * plan executor, or null so the check runs as before. Only a runner lease with a known source tree qualifies; if the
+ * record is gone by the time the plan runs, the plan runs on the runner [C7].
+ *
+ * @returns {((plan: object) => Promise<object>) | null}
+ */
+function reusableCheckRun(root, check, lease, executionServices) {
+  const plain = plainCheckRun(check);
+  const source = lease?.runner ? lease.source : null;
+  if (!plain || !source?.tree || !source.commit) return null;
+  const wanted = { tree: source.tree, head: source.commit, runner: plain.runner, files: plain.files, tooling: runnerTooling(executionServices) };
+  if (!reusableGreenRun(wanted)) return null;
+  return async plan => reusableGreenRun({ ...wanted, timingRunId: plan.remoteOptions?.metadata?.timingRunId ?? null })
+    ?? plan.gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions);
 }
 
 /**
@@ -280,14 +305,18 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         shardSlotOptions(slotOptions, { closed }));
       // A browser proof opens only as many requests as runners have browser slots free, so none waits on its siblings [C7].
       const freeSlots = !lease.runner ? 0 : planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
-      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree });
+      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree,
+        passes: shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([]), { tooling: runnerTooling(executionServices) }) });
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */
     const criterionRun = async () => {
-      const run = check
-        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal })
-        : { isGreen: true, output: '', seconds: 0 };
+      const options = { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal };
+      // A builder's green pullboard test of exactly the check's files at this tree is the check's run; its receipt is recorded as usual [C7].
+      const reused = check ? reusableCheckRun(root, check, criterionLease, executionServices) : null;
+      const run = !check ? { isGreen: true, output: '', seconds: 0 }
+        : reused ? await runProfiledShardsAsync(root, check, options, reused) : await runProfiledShellAsync(root, check, options);
+      if (reused && run.reusedGreen) onMachineryNote(`item check reused a green pullboard test run at tree ${criterionLease.source.tree.slice(0, 12)}; no runner trip`);
       if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
     };
