@@ -55,7 +55,7 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
     const root = ${JSON.stringify(box.repo)}, requests = ${JSON.stringify(requests)}, samples = ${JSON.stringify(samples)}, gitCalls = ${JSON.stringify(gitCalls)};
     const gitBy = pids => existsSync(gitCalls) ? readFileSync(gitCalls, 'utf8').split(String.fromCharCode(10)).filter(line => pids.includes(Number(line))).length : 0;
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
-      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
+      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000, runnerDispatch: 'controller' },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 1 }]
     }));
     let done = false;
