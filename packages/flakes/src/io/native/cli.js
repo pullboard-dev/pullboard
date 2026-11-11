@@ -1,6 +1,7 @@
 import { receiptRecorder } from "./receipts.js";
 import { recordRun } from "../../../../gate/index.js";
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { COORDINATOR } from "../../../../config/index.js";
 import { mappedCheck } from "../../../../codemap/index.js";
@@ -72,7 +73,8 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
   };
   return Object.assign(async (run, { root = ctx.info.root, command, lease }) => {
     if (kind === 'submit' && run.proofReceiptId) await recordRun(run.proofReceiptId);
-    await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
+    // A composed Submit phase runs in a private copy that is gone once the gate returns; its commit lives in the board's repository.
+    await observeNativeFailure({ root: existsSync(root) ? root : ctx.info.root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
       record: observation => recordAll([observation]),
       // One board session records every case after all probes finish, rather than one open per case [#1899].
       recordBatch: observations => recordAll(observations), recordRun });

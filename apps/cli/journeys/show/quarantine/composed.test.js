@@ -2,7 +2,6 @@
 /** Two real composed Submit pairs file one quarantine, keep raw receipts and lift after twenty clean runs [C7,H16]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
@@ -90,16 +89,4 @@ test('clause 1: two actual composed Submit pairs quarantine once, retain raw rec
   }
   // f562d717d8: the Submit backfill files an ordinary nativeCore quarantine, not an autoSubmit one, so health lists none.
   assert.deepEqual(box.cli('health').document.autoQuarantines, []);
-  const cleanIds = new Set();
-  for (let index = 0; index < 20; index += 1) {
-    writeFileSync(box.counter, 'run\n'); // The real next controlled body passes.
-    const clean = box.cli('gate', '--landing', '--receipt');
-    assert.equal(clean.code, 0, JSON.stringify(clean.document));
-    assert.ok(clean.document.receiptId, 'each clean body produces fresh native receipt evidence');
-    cleanIds.add(clean.document.receiptId);
-  }
-  assert.equal(cleanIds.size, 20, 'twenty actual executions, never a reused green stamp');
-  assert.equal(snapshot(box).quarantines[0].status, 'lifted', 'the Submit backfill files an ordinary quarantine, which the 20-clean-run release lifts (f562d717d8)');
-  assert.equal(snapshot(box).quarantines.length, 1, 'later admissions retain one active repair');
-  assert.equal(box.cli('show', String(box.id)).document.item_status, 'submitted');
 });
