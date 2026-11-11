@@ -341,24 +341,22 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
   try {
     const item = store.getItem(source, 1);
     const frozen = JSON.parse(item.item_frozen);
-    assert.deepEqual(frozen.policy.verify, { policy: 'coordinator', family: 'require' }, 'fresh native freeze captures both values from committed main config');
-    const legacyPolicy = { version: 99, commit: frozen.policy.commit, verify: { policy: 'bogus', family: 'off' } };
+    assert.equal(frozen.policy, undefined, 'a fresh native freeze holds the bar alone [B4]');
+    // A bar frozen by the previous release pinned its verify policy; replay keeps enforcing that pin (N-1).
+    const legacyPolicy = { version: 1, commit, verify: { policy: 'coordinator', family: 'require' } };
     const legacyText = JSON.stringify({ ...frozen, policy: legacyPolicy });
     legacyDigest = createHash('sha256').update(legacyText).digest('hex');
     store.refreeze(source, 1, { agentId: 'coordinator', freeze: () => ({ text: legacyText, digest: legacyDigest }) });
   } finally { store.closeBoard(source); }
 
-  const legacyRefreeze = box.cli('refreeze', '1');
-  assert.match(legacyRefreeze, /#1 refrozen/);
   runBuilder('claim', '1');
   const afterRefreeze = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   let document;
   let moves;
   try {
     const refreshed = store.getItem(afterRefreeze, 1);
-    assert.equal(JSON.parse(refreshed.item_frozen).policy.version, 1, 'explicit refreeze repairs malformed captured policy metadata');
-    assert.deepEqual(JSON.parse(refreshed.item_frozen).policy.verify, { policy: 'coordinator', family: 'require' }, 'explicit native refreeze upgrades the legacy claim policy');
-    assert.notEqual(refreshed.item_frozen_digest, legacyDigest, 'explicit refreeze establishes a new digest for the newly captured policy');
+    assert.deepEqual(JSON.parse(refreshed.item_frozen).policy.verify, { policy: 'coordinator', family: 'require' }, 'a renewal keeps the legacy pinned verify policy');
+    assert.equal(refreshed.item_frozen_digest, legacyDigest, 'and its digest, so the legacy bar reads unchanged');
     submitFixture(afterRefreeze, 1, { agentId: builderId, commit, tree, files: [] });
     store.register(afterRefreeze, { lane: 'coordinator', path: box.root, family: 'Coordinator Family' });
     store.register(afterRefreeze, { lane, path: join(box.directory, 'verifier-same'), family: 'Builder Family', createdBy: 'coordinator' });
@@ -445,7 +443,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
   const exported = [firstClient.document, secondClient.document];
   assert.deepEqual(exported[0].tables, exported[1].tables, 'both real clients replay the same refusal and board prefix');
   assert.deepEqual(exported[0].tables.item.filter(item => ![1, 4].includes(item.item_id)), document.tables.item.filter(item => ![1, 4].includes(item.item_id)), 'policy refusals change no refused item state');
-  assert.equal(exported[0].tables.item.find(item => item.item_id === 1).item_status, 'verified', 'an actual legacy refreeze enables a compliant coordinator verification');
+  assert.equal(exported[0].tables.item.find(item => item.item_id === 1).item_status, 'verified', 'a legacy pinned policy enables a compliant coordinator verification');
   assert.equal(exported[0].tables.item.find(item => item.item_id === 4).item_status, 'verified', 'a different declared family is allowed under the frozen require policy');
   assert.equal(exported[0].tables.verdict.length, document.tables.verdict.length + 2, 'only compliant coordinator and cross-family verifications create verdicts');
   const codes = ['forged_coordinator_policy', 'missing_frozen_verify_policy', 'forged_family_policy', 'malformed_frozen_verify_policy', 'unsupported_frozen_policy_version'];
