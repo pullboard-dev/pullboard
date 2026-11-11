@@ -32,7 +32,6 @@ import { REOPEN_CAUSE_ENGINE } from '../../../state/light.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { conflictCause } from '../../../items/index.js';
 import { recordCoordinatorInstructionDrafts } from './broadcasts.js';
-import { loadConfig } from '../../../config/index.js';
 
 /** Prefer structured exact-head failures; a coded fallback is a coarse category, never a root-cause finding. */
 export function deriveRigorCause(board, item, { cause, reason, conflict, landingFailure, agentId }) {
@@ -78,8 +77,6 @@ function proposalSuppressed(board, history, draft, cause) {
 
 /** Draft the existing threshold's ordinary advice inside its triggering board transaction, never proving it. */
 export function recordAutomaticRigorDrafts(board, trigger, shout) {
-  // rigor.autoDraft false stops every unproved draft (GH #26); a missing or bad config keeps the default of drafting.
-  try { if (board.gitRoot && loadConfig(board.gitRoot).rigor?.autoDraft === false) return; } catch { /* default: draft */ }
   if (['shout', 'shout_news'].includes(trigger.event_kind)) return recordCoordinatorInstructionDrafts(board, trigger);
   const detail = JSON.parse(trigger.event_detail);
   const keys = new Set(eventCauses(trigger));
