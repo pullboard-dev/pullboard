@@ -444,7 +444,7 @@ class NotNeeded extends Error {}
  *
  * @param {{ root: string, runner: string, files: string[], count: number, inherited?: object|null,
  *   needsBrowser?: (files: string[]) => Promise<boolean>, write?: (text: string) => void }} options
- *   `runner` is this repository's packages/gate/src/io/run/tests.js; `inherited` is the gate lease this process already
+ *   `runner` is this repository's apps/cli/src/io/run/tests.js; `inherited` is the gate lease this process already
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
@@ -533,7 +533,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './packages/gate/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './apps/cli/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });

@@ -5,7 +5,7 @@ import { coordinatorCheck } from '../../../light.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
-const RUNNER = 'node packages/gate/src/io/run/tests.js';
+const RUNNER = 'node apps/cli/src/io/run/tests.js';
 const APPENDED = /^(?: [A-Za-z0-9_./-]+\.test\.js)+$/u;
 const PLAIN_PART = /^[A-Za-z0-9_ ./=-]+$/u;
 const REFUSAL = 'CHECK_WIDEN_REFUSED';
@@ -13,14 +13,14 @@ const REFUSAL = 'CHECK_WIDEN_REFUSED';
 /**
  * The test files a new check adds to the frozen one, or a refusal naming the first position where they differ.
  * The new check must be the frozen one byte for byte, with plain `.test.js` paths appended, single-space separated,
- * at the end of one or more `node packages/gate/src/io/run/tests.js` parts of a ` && ` chain; no parsing of options or quoting is attempted.
+ * at the end of one or more `node apps/cli/src/io/run/tests.js` parts of a ` && ` chain; no parsing of options or quoting is attempted.
  *
  * @param {string} oldCheck the frozen check
  * @param {string} newCheck the proposed check
  * @returns {string[]} the added files, never empty
  */
 export function widenedCheckFiles(oldCheck, newCheck) {
-  const refuse = (why) => new Refused(REFUSAL, `only the coordinator changes a check beyond appending test files to a node packages/gate/src/io/run/tests.js part: ${why}; shout the coordinator with the exact --check`);
+  const refuse = (why) => new Refused(REFUSAL, `only the coordinator changes a check beyond appending test files to a node apps/cli/src/io/run/tests.js part: ${why}; shout the coordinator with the exact --check`);
   if (typeof oldCheck !== 'string' || !oldCheck.trim()) throw refuse('the item has no frozen check to widen');
   const before = oldCheck.split(' && ');
   const after = newCheck.split(' && ');

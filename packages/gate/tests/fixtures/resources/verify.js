@@ -33,7 +33,7 @@ export function checkProject(box) {
   assert.equal(initialized.status, 0, initialized.stderr);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', affectedTests: 'node packages/gate/src/io/run/tests.js', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
+  writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', affectedTests: 'node apps/cli/src/io/run/tests.js', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), '# CPU check fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n');
   writeFileSync(join(repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(repo, 'bin'), { recursive: true });

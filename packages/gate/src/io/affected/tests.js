@@ -34,7 +34,7 @@ const DOC = /^docs\/.+\.md$/u;
 const TEST_TREE_INPUT = '/** @pullboard-test-input test-tree */';
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
 const COMMAND_REGISTRY = 'apps/cli/src/io/commands/index.js';
-const GLOBAL = new Set(['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
+const GLOBAL = new Set(['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
 function declaredInputs(source, paths) {
@@ -410,7 +410,7 @@ function closuresInGraph(graph) {
     const reached = new Set(entries.filter(path => graph.blobs.has(path)));
     for (const path of reached) {
       let dependencies = forward.get(path) ?? [];
-      if (withoutSelectedRunnerModules && ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'].includes(path)) {
+      if (withoutSelectedRunnerModules && ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'].includes(path)) {
         // These two ** declarations admit caller-selected reporters and test files. The caller
         // refuses custom reporters and keys each selected test's own complete closure. Keep every literal import and URL guard, and all other modules'
         // conservative discovery edges; ordinary affected-test selection still follows **.

@@ -83,8 +83,8 @@ function fixture() {
   git(repo, 'commit', '-q', '-m', 'chore: create bar fixture');
   const web = json(repo, 'worktree', 'web', '--route', 'strong').path;
   const review = json(repo, 'worktree', 'web', '--route', 'strong').path;
-  json(repo, 'add', 'web', 'Widened item', '--specs', 'G1', '--criterion', 'Widened item works', '--check', 'node packages/gate/src/io/run/tests.js test/a.test.js && node packages/codemap/src/io/cells/scripts/plan.js --cuts x && node packages/gate/src/io/run/tests.js --test-force-exit test/b.test.js');
-  json(repo, 'add', 'web', 'Unclaimed item', '--specs', 'G1', '--criterion', 'Unclaimed works', '--check', 'node packages/gate/src/io/run/tests.js test/a.test.js');
+  json(repo, 'add', 'web', 'Widened item', '--specs', 'G1', '--criterion', 'Widened item works', '--check', 'node apps/cli/src/io/run/tests.js test/a.test.js && node packages/codemap/src/io/cells/scripts/plan.js --cuts x && node apps/cli/src/io/run/tests.js --test-force-exit test/b.test.js');
+  json(repo, 'add', 'web', 'Unclaimed item', '--specs', 'G1', '--criterion', 'Unclaimed works', '--check', 'node apps/cli/src/io/run/tests.js test/a.test.js');
   return { repo, web, review, run, json, git };
 }
 
@@ -103,7 +103,7 @@ test('[C7,V4,H16] a holder adds test files to its own check; removing a file or 
   assert.notEqual(unclaimed.code, 0, 'a builder that does not hold the item may not edit its check');
 
   box.json(box.web, 'claim', '1');
-  const widened = 'node packages/gate/src/io/run/tests.js test/a.test.js test/c.test.js && node packages/codemap/src/io/cells/scripts/plan.js --cuts x && node packages/gate/src/io/run/tests.js --test-force-exit test/b.test.js test/d.test.js';
+  const widened = 'node apps/cli/src/io/run/tests.js test/a.test.js test/c.test.js && node packages/codemap/src/io/cells/scripts/plan.js --cuts x && node apps/cli/src/io/run/tests.js --test-force-exit test/b.test.js test/d.test.js';
   const ok = tryCheck(box, box.web, widened);
   assert.equal(ok.code, 0, JSON.stringify(ok.error));
   const shown = box.json(box.repo, 'show', '1');
@@ -133,22 +133,22 @@ test('[C7,V4,H16] a holder adds test files to its own check; removing a file or 
   assert.equal(injected.error?.code, 'CHECK_WIDEN_REFUSED', 'shell syntax is not a plain test file');
   assert.equal(box.json(box.repo, 'show', '1').item_check, widened, 'refused edits change nothing');
 
-  const reordered = tryCheck(box, box.web, 'node packages/gate/src/io/run/tests.js --test-name-pattern test/b.test.js test/a.test.js test/c.test.js');
+  const reordered = tryCheck(box, box.web, 'node apps/cli/src/io/run/tests.js --test-name-pattern test/b.test.js test/a.test.js test/c.test.js');
   assert.equal(reordered.error?.code, 'CHECK_WIDEN_REFUSED', 'an unrelated check is refused');
-  assert.equal(box.json(box.repo, 'edit', '1', '--check', 'node packages/gate/src/io/run/tests.js --test-name-pattern test/a.test.js test/b.test.js', '--reason', 'set up the option case').item.item_check, 'node packages/gate/src/io/run/tests.js --test-name-pattern test/a.test.js test/b.test.js');
-  const swapped = tryCheck(box, box.web, 'node packages/gate/src/io/run/tests.js --test-name-pattern test/b.test.js test/a.test.js test/c.test.js');
+  assert.equal(box.json(box.repo, 'edit', '1', '--check', 'node apps/cli/src/io/run/tests.js --test-name-pattern test/a.test.js test/b.test.js', '--reason', 'set up the option case').item.item_check, 'node apps/cli/src/io/run/tests.js --test-name-pattern test/a.test.js test/b.test.js');
+  const swapped = tryCheck(box, box.web, 'node apps/cli/src/io/run/tests.js --test-name-pattern test/b.test.js test/a.test.js test/c.test.js');
   assert.equal(swapped.error?.code, 'CHECK_WIDEN_REFUSED', 'the option value changed from a to b, so adding c is refused');
   assert.match(swapped.error.message, /differs at character \d+/);
-  assert.equal(tryCheck(box, box.web, 'node packages/gate/src/io/run/tests.js --test-name-pattern test/a.test.js test/b.test.js test/c.test.js').code, 0, 'the same option with an added file is accepted');
+  assert.equal(tryCheck(box, box.web, 'node apps/cli/src/io/run/tests.js --test-name-pattern test/a.test.js test/b.test.js test/c.test.js').code, 0, 'the same option with an added file is accepted');
 
-  box.json(box.repo, 'edit', '1', '--check', "test 'a  b' = 'a  b' && node packages/gate/src/io/run/tests.js test/a.test.js", '--reason', 'set up the quote case');
-  const quoted = tryCheck(box, box.web, "test 'a b' = 'a  b' && node packages/gate/src/io/run/tests.js test/a.test.js test/c.test.js");
+  box.json(box.repo, 'edit', '1', '--check', "test 'a  b' = 'a  b' && node apps/cli/src/io/run/tests.js test/a.test.js", '--reason', 'set up the quote case');
+  const quoted = tryCheck(box, box.web, "test 'a b' = 'a  b' && node apps/cli/src/io/run/tests.js test/a.test.js test/c.test.js");
   assert.equal(quoted.error?.code, 'CHECK_WIDEN_REFUSED', 'whitespace inside quotes changed, so adding c is refused');
-  assert.equal(tryCheck(box, box.web, "test 'a  b' = 'a  b' && node packages/gate/src/io/run/tests.js test/a.test.js test/c.test.js").code, 0, 'appending to the byte-identical frozen check is accepted');
-  assert.equal(tryCheck(box, box.web, "test 'a  b' = 'a  b' && node packages/gate/src/io/run/tests.js test/a.test.js test/c.test.js test/c.test.js").error?.code, 'CHECK_WIDEN_REFUSED', 'a file already present is refused');
+  assert.equal(tryCheck(box, box.web, "test 'a  b' = 'a  b' && node apps/cli/src/io/run/tests.js test/a.test.js test/c.test.js").code, 0, 'appending to the byte-identical frozen check is accepted');
+  assert.equal(tryCheck(box, box.web, "test 'a  b' = 'a  b' && node apps/cli/src/io/run/tests.js test/a.test.js test/c.test.js test/c.test.js").error?.code, 'CHECK_WIDEN_REFUSED', 'a file already present is refused');
 
-  box.json(box.repo, 'edit', '1', '--check', 'node packages/gate/src/io/run/tests.js apps/cli/journeys/check/self.test.js # review-control', '--reason', 'set up the comment case');
-  const commented = tryCheck(box, box.web, 'node packages/gate/src/io/run/tests.js apps/cli/journeys/check/self.test.js # review-control test/review-control-missing.test.js');
+  box.json(box.repo, 'edit', '1', '--check', 'node apps/cli/src/io/run/tests.js apps/cli/journeys/check/self.test.js # review-control', '--reason', 'set up the comment case');
+  const commented = tryCheck(box, box.web, 'node apps/cli/src/io/run/tests.js apps/cli/journeys/check/self.test.js # review-control test/review-control-missing.test.js');
   assert.equal(commented.error?.code, 'CHECK_WIDEN_REFUSED', 'a path appended after a shell comment never runs, so it is refused');
   assert.match(commented.error.message, /not a plain node packages\/gate\/src\/io\/run\/tests\.js part/);
 
