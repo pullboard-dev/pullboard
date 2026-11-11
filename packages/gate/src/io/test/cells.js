@@ -55,9 +55,9 @@ export function installsHooks(source) {
  * launches nothing [C7].
  */
 export function spawnsCli(source) {
-  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*bin\/pullboard\.js/gu)].map(m => m[1]);
+  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*(?:bin|apps\/cli)\/pullboard\.js/gu)].map(m => m[1]);
   for (const call of source.matchAll(SPAWN)) {
-    if (/bin\/pullboard\.js/u.test(call[1])) return true;
+    if (/(?:bin|apps\/cli)\/pullboard\.js/u.test(call[1])) return true;
     if (paths.some(name => new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u').test(call[1]))) return true;
   }
   return false;
