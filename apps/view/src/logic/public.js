@@ -23,6 +23,13 @@ function detailOf(value) {
   catch { throw new Refused('PUBLIC_EXPORT_BLOCKED', `public export blocked: ${PUBLIC_EXPORT_BLOCKS.unreadable}`, 'repair the event detail before exporting publicly'); }
 }
 
+/** The facts submit writes about its own machinery (shadow gate, review comparison) are not person-facing; omit them from public views. */
+function machineFact(value) {
+  if (value.type !== 'fact' && (value.event_kind ?? value.kind) !== 'fact') return false;
+  const text = value.text ?? detailOf(value).text;
+  return typeof text === 'string' && /^(?:Tier-1 shadow for gate receipt [a-f0-9]{8}-|Review comparison: \{)/u.test(text);
+}
+
 /** Identify the existing internal categories consistently in state, event history and item threads. */
 function internalShout(value) {
   const kind = value.event_kind ?? value.kind;
@@ -173,6 +180,7 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       const nativeKind = value.event_kind ?? value.kind;
       if (EVENT_PATH.test(location) && ['usage', 'shared-usage'].includes(nativeKind)) return undefined;
       if (location === 'state/state/needs/*' && value.kind === 'decision') return undefined;
+      if (EVENT_PATH.test(location) && machineFact(value)) return undefined;
       if ((EVENT_PATH.test(location) || /^state\/state\/(?:shouts|asked|decisions|decisionQueue|requests)\/\*$/u.test(location)
         || /^state\/state\/items\/\*\/history\/\*$/u.test(location)) && internalShout(value)) return undefined;
       const kind = EVENT_PATH.test(location) ? value.type === 'fact' ? 'fact' : value.event_kind ?? value.kind : eventKind;
