@@ -275,8 +275,8 @@
         "board: apps/view/src/io/serve.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -602,8 +602,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -656,8 +656,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -769,8 +769,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -811,8 +811,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -999,8 +999,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1054,8 +1054,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1330,8 +1330,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1388,8 +1388,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1467,8 +1467,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1760,8 +1760,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1849,8 +1849,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1891,8 +1891,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1933,8 +1933,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -1984,8 +1984,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2084,8 +2084,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2254,8 +2254,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2445,8 +2445,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2515,8 +2515,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2567,8 +2567,8 @@
         "browser: apps/cli/journeys/red/main-red.test.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2627,8 +2627,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2790,8 +2790,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -2900,8 +2900,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3180,8 +3180,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3441,8 +3441,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3484,8 +3484,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3538,8 +3538,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3580,8 +3580,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3797,8 +3797,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3839,8 +3839,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -3938,8 +3938,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4011,8 +4011,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4168,8 +4168,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4238,8 +4238,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4296,8 +4296,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4338,8 +4338,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4380,8 +4380,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4439,8 +4439,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4481,8 +4481,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4523,8 +4523,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -4638,8 +4638,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -5585,8 +5585,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -7261,8 +7261,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -7319,8 +7319,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -7377,8 +7377,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -7876,8 +7876,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -7928,8 +7928,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -8256,8 +8256,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -8298,8 +8298,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -8340,8 +8340,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -8896,8 +8896,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -8995,8 +8995,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -9208,8 +9208,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -9422,8 +9422,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10391,8 +10391,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10433,8 +10433,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10589,8 +10589,8 @@
         "board: docs/tools/case-study/durations.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10694,8 +10694,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10736,8 +10736,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10778,8 +10778,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10934,8 +10934,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -10981,8 +10981,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11028,8 +11028,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11075,8 +11075,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11117,8 +11117,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11159,8 +11159,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11271,8 +11271,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11313,8 +11313,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11474,8 +11474,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11521,8 +11521,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11563,8 +11563,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11606,8 +11606,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11780,8 +11780,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11827,8 +11827,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11869,8 +11869,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11911,8 +11911,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -11958,8 +11958,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -12237,8 +12237,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -12302,8 +12302,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -13189,8 +13189,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -13599,8 +13599,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -13893,8 +13893,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -14317,8 +14317,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -14879,8 +14879,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -15115,8 +15115,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -16170,8 +16170,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -16276,8 +16276,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -18981,8 +18981,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -19144,8 +19144,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20004,8 +20004,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20361,8 +20361,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20574,8 +20574,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20673,8 +20673,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20715,8 +20715,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20757,8 +20757,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20799,8 +20799,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -20905,8 +20905,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -21575,8 +21575,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -21749,8 +21749,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -21976,8 +21976,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -22540,8 +22540,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -22582,8 +22582,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -22909,8 +22909,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -23249,8 +23249,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -23350,8 +23350,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -23392,8 +23392,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -23434,8 +23434,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -23690,8 +23690,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -24691,8 +24691,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -24806,8 +24806,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -25590,8 +25590,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -25860,8 +25860,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -26474,8 +26474,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -26516,8 +26516,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -26558,8 +26558,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -26600,8 +26600,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -26875,8 +26875,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -26926,8 +26926,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -27269,8 +27269,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -27425,8 +27425,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -27758,8 +27758,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28028,8 +28028,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28075,8 +28075,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28351,8 +28351,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28450,8 +28450,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28497,8 +28497,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28539,8 +28539,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28768,8 +28768,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28815,8 +28815,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -28971,8 +28971,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29029,8 +29029,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29128,8 +29128,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29175,8 +29175,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29219,8 +29219,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29318,8 +29318,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29360,8 +29360,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29402,8 +29402,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -29449,8 +29449,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30040,8 +30040,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30367,8 +30367,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30409,8 +30409,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30451,8 +30451,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30550,8 +30550,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30650,8 +30650,8 @@
         "browser: test/main-red-cache-lock.test.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30700,8 +30700,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30799,8 +30799,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -30955,8 +30955,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31013,8 +31013,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31112,8 +31112,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31159,8 +31159,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31206,8 +31206,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31305,8 +31305,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31412,8 +31412,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -31831,8 +31831,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -32003,8 +32003,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -32175,8 +32175,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -32752,8 +32752,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -33037,8 +33037,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -33136,8 +33136,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -33527,8 +33527,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -33800,8 +33800,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -34462,8 +34462,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -34578,8 +34578,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -34894,8 +34894,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -35237,8 +35237,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -35415,8 +35415,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -35457,8 +35457,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -36085,8 +36085,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -36842,8 +36842,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -40684,8 +40684,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -41008,8 +41008,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -41351,8 +41351,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -41409,8 +41409,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -41858,8 +41858,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -42641,8 +42641,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -42699,8 +42699,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -42911,8 +42911,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -42953,8 +42953,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -42995,8 +42995,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43042,8 +43042,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43141,8 +43141,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43306,8 +43306,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43348,8 +43348,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43396,8 +43396,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/runner/src/io/private/check/worker.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43454,8 +43454,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43620,8 +43620,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43712,8 +43712,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43754,8 +43754,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43806,8 +43806,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43881,8 +43881,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43923,8 +43923,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -43992,8 +43992,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44034,8 +44034,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44259,8 +44259,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44301,8 +44301,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44343,8 +44343,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44390,8 +44390,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44457,8 +44457,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44500,8 +44500,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44542,8 +44542,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44584,8 +44584,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44631,8 +44631,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44689,8 +44689,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -44959,8 +44959,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -45074,8 +45074,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -45121,8 +45121,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -45163,8 +45163,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -45221,8 +45221,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -45352,8 +45352,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -45394,8 +45394,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -46756,8 +46756,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -47008,8 +47008,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -47050,8 +47050,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -47440,8 +47440,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -47482,8 +47482,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -48584,8 +48584,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49151,8 +49151,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49198,8 +49198,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49241,8 +49241,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49288,8 +49288,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49335,8 +49335,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49501,8 +49501,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -49786,8 +49786,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -50307,8 +50307,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -50748,8 +50748,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -51950,8 +51950,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52049,8 +52049,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52091,8 +52091,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52133,8 +52133,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52246,8 +52246,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52345,8 +52345,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52444,8 +52444,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52543,8 +52543,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -52756,8 +52756,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -53515,8 +53515,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -53899,8 +53899,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -53999,8 +53999,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -54048,8 +54048,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -54211,8 +54211,8 @@
         "board: apps/view/src/io/needs.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -54326,8 +54326,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -54368,8 +54368,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -54410,8 +54410,8 @@
         "board: packages/config/src/io/settings/inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/item/folder/identity.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55091,8 +55091,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55148,8 +55148,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55206,8 +55206,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55253,8 +55253,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55311,8 +55311,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55369,8 +55369,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55427,8 +55427,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55485,8 +55485,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55543,8 +55543,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55779,8 +55779,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55869,8 +55869,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55927,8 +55927,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -55985,8 +55985,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56043,8 +56043,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56101,8 +56101,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56222,8 +56222,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56269,8 +56269,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: bin/cells-data-reads.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56327,8 +56327,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56511,8 +56511,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56569,8 +56569,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56627,8 +56627,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56685,8 +56685,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56743,8 +56743,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56801,8 +56801,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56859,8 +56859,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56917,8 +56917,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -56975,8 +56975,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -57033,8 +57033,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -57145,8 +57145,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/io/submit/remote.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -57644,8 +57644,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {
@@ -57701,8 +57701,8 @@
         "browser: packages/landing/src/io/smoke.js",
         "cross-package: imports more than one package",
         "process: apps/view/src/logic/activity/model.js",
-        "runner: packages/gate/src/io/run/tests.js",
-        "unresolved: packages/gate/src/io/run/tests.js"
+        "runner: apps/cli/src/io/run/tests.js",
+        "unresolved: apps/cli/src/io/run/tests.js"
       ]
     },
     {

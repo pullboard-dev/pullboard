@@ -2,7 +2,7 @@
  * Per-test-file results keyed by their inputs: a green result whose inputs did not change is reused, not run again [C7].
  *
  * A test file's action key hashes the file, its transitive import closure (src/affected-tests.js), the non-JS files it
- * declares or names, packages/gate/src/io/run/tests.js, package.json, the Node version and the declared environment. The store sits in
+ * declares or names, apps/cli/src/io/run/tests.js, package.json, the Node version and the declared environment. The store sits in
  * the repository's common git dir, so every worktree on the machine shares it, and every write is a rename, so
  * concurrent runs never read half an entry. Only a green result is reused; a red one marks its key for good, since the
  * same inputs once failing makes a later pass a flake. A missing or unreadable entry runs the file.
@@ -60,7 +60,7 @@ export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
 const VERSION = TEST_RESULT_VERSION;
 const MODULE = /\.[cm]?js$/u;
-const RUNNER_INPUTS = ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
+const RUNNER_INPUTS = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'PULLBOARD_TEST_REAL', 'PULLBOARD_ADAPTER_AUDIT', 'TZ', 'LANG', 'LC_ALL'];
 // Options that choose how a run reports or splits files, never what a file proves.

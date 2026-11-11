@@ -50,7 +50,7 @@ const SOURCE_FILES = new Set([
   'packages/items/src/io/patch/compose.js',
   'packages/items/src/logic/paths.js',
   'packages/items/src/io/authors.js',
-  'package.json', 'pullboard.json', 'packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js',
+  'package.json', 'pullboard.json', 'apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js',
   // Check admission, selection and the evidence that decides whether a failure blocks.
   'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'packages/github/src/io/flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',
   'packages/gate/src/io/affected/tests.js', 'src/test-selection.js', 'src/test-result-store.js', 'src/test-file-dispatch.js',

@@ -80,7 +80,7 @@ function countingRunner(box) {
 /** What the submit command does: four stages each read their part from one shared job. */
 async function submitStages(box, runner, artifacts) {
   const request = { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'c',
-    composition: box.source, staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node packages/gate/src/io/run/tests.js', gate: 'npm test' },
+    composition: box.source, staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node apps/cli/src/io/run/tests.js', gate: 'npm test' },
     browserFreeChecks: true, readCutItems: () => [], perPart: true };
   let leases = 0;
   const read = sharedRemoteAnalysis(() => { leases++; return remoteSubmitAnalysis(box.controller, request, runner.lease, artifacts); });
@@ -92,7 +92,7 @@ test('clause 1: the four analysis parts make one remoteSubmitAnalysis call, one 
   const box = fixture(t), artifacts = join(box.dir, 'artifacts');
   const before = countingRunner(box);
   for (const part of PARTS) await remoteSubmitAnalysis(box.controller, { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'x', criterion: 'c',
-    composition: box.source, staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node packages/gate/src/io/run/tests.js' }, browserFreeChecks: true, readCutItems: () => [], parts: [part] }, before.lease, join(artifacts, 'old'));
+    composition: box.source, staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, browserFreeChecks: true, readCutItems: () => [], parts: [part] }, before.lease, join(artifacts, 'old'));
   assert.equal(before.counts.controllers, 4, 'one controller per part, as before');
   const after = countingRunner(box);
   const { settled, leases } = await submitStages(box, after, join(artifacts, 'new'));

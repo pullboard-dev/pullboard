@@ -1,6 +1,6 @@
 /**
  * A submit gate red only in cases its main base also fails goes to review, never back to its builder, through the
- * gate runner's real output: packages/gate/src/io/run/tests.js ends every stage with its phase line on stderr, after TAP's final count
+ * gate runner's real output: apps/cli/src/io/run/tests.js ends every stage with its phase line on stderr, after TAP's final count
  * (#3794). A case main passes keeps the gate red [C7].
  */
 import assert from 'node:assert/strict';

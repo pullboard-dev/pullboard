@@ -11,7 +11,7 @@ export function proofCoverageFingerprint() {
   // The hashed names keep their historical spelling; each literal URL names the file where it now lives.
   hash.update('./coverage.js').update(readFileSync(new URL('./coverage.js', import.meta.url)));
   hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../../../kernel/src/logic/words.js', import.meta.url)));
-  hash.update('../bin/run-tests.js').update(readFileSync(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url)));
+  hash.update('../bin/run-tests.js').update(readFileSync(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url)));
   return hash.digest('hex');
 }
 
@@ -69,9 +69,9 @@ function includedFiles(root, commit, command, tracked, depth = 0, context = {}) 
   if (words[0] !== 'node' && words[0] !== process.execPath) return [];
   if (words[0] === process.execPath) context.execPath = process.execPath;
   if (words[1] === '--test') return selectedFiles(words.slice(2), tracked, false);
-  if (words[1]?.replace(/^\.\//u, '') === 'packages/gate/src/io/run/tests.js' && tracked.has('packages/gate/src/io/run/tests.js')) {
-    const source = tryGit(root, ['show', `${commit}:packages/gate/src/io/run/tests.js`]);
-    if (source.status !== 0 || source.stdout !== readFileSync(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url), 'utf8')) return [];
+  if (words[1]?.replace(/^\.\//u, '') === 'apps/cli/src/io/run/tests.js' && tracked.has('apps/cli/src/io/run/tests.js')) {
+    const source = tryGit(root, ['show', `${commit}:apps/cli/src/io/run/tests.js`]);
+    if (source.status !== 0 || source.stdout !== readFileSync(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url), 'utf8')) return [];
     return selectedFiles(words.slice(2), tracked, true);
   }
   return [];

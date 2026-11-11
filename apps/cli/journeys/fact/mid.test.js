@@ -28,7 +28,7 @@ test('clause 2: the post-land Main-red filer files a Main red item on a board wi
   const folder = mkdtempSync(join(tmpdir(), 'default-route-mid-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const said = [];
-  const state = { board, config: { lanes: { core: { owns: ['test/'] }, coordinator: { owns: ['docs/'] } }, affectedTests: 'node packages/gate/src/io/run/tests.js' },
+  const state = { board, config: { lanes: { core: { owns: ['test/'] }, coordinator: { owns: ['docs/'] } }, affectedTests: 'node apps/cli/src/io/run/tests.js' },
     write: async (operation, [item]) => { assert.equal(operation, 'addItem'); return store.addItem(board, item); }, say: text => said.push(text), batch: null };
   const land = (id, failures) => {
     state.batch = { id, tip: `${id}`.padEnd(40, 'a'), root: folder, items: [{ id: 1 }] };
@@ -57,12 +57,12 @@ test('clause 3: add --check with no --route succeeds and files mid work [C7,B13]
   assert.equal(onBoard(box, board => store.getItem(board, id).item_route), 'mid');
 });
 
-test("clause 1: pullboard add with --check \"node packages/gate/src/io/run/tests.js 'test/x.test.js'\" and no brief succeeds with a brief naming the test [B14,C7,#3120]", t => {
+test("clause 1: pullboard add with --check \"node apps/cli/src/io/run/tests.js 'test/x.test.js'\" and no brief succeeds with a brief naming the test [B14,C7,#3120]", t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
   const added = fixtureAdd(box.run, box.repo, 'web', 'Quoted check', '--specs', 'G1', '--criterion', 'x passes [test]',
-    '--check', "node packages/gate/src/io/run/tests.js 'test/x.test.js'", '--json');
+    '--check', "node apps/cli/src/io/run/tests.js 'test/x.test.js'", '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const { item } = JSON.parse(added.out);
   assert.match(item.item_brief, /^Test: test\/x\.test\.js$/mu, item.item_brief);

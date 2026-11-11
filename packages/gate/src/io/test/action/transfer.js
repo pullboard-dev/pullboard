@@ -53,7 +53,7 @@ function invocations(root, command, depth = 0) {
       continue;
     }
     if (!['node', 'node.exe'].includes(basename(words[0] ?? '')) || words.length < 2
-      || resolve(root, words[1]) !== resolve(root, 'packages/gate/src/io/run/tests.js')) continue;
+      || resolve(root, words[1]) !== resolve(root, 'apps/cli/src/io/run/tests.js')) continue;
     const selected = selection(words.slice(2));
     if (selected) found.push(selected);
   }

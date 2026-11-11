@@ -42,7 +42,7 @@ import {
 import { focusedPoolSnapshot } from '../../fixtures/pool.js';
 import { stageFixtureTests } from '../../fixtures/tests.js';
 
-const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const shardFileCount = 9;
 
 /** Treat a reaped or zombie fixture PID as drained while waiting for it to stop executing. */

@@ -75,7 +75,7 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
 /** Use only a known structured Node runner; arbitrary shell, Jest and Vitest commands are never replaced. */
 function nodePrefix(command, config, root, pin) {
   const executable = '(?:node|/[^\\s\'";|&`$]+/node)';
-  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?packages/gate/src/io/run/tests\\.js)(?:\\s|$)', 'u');
+  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:packages/gate|apps/cli)/src/io/run/tests\\.js)(?:\\s|$)', 'u');
   const builtin = new RegExp('^(' + executable + ')\\s+--test(?:\\s|$)', 'u');
   const match = own.exec(command);
   if (match) return knownRunner(root, pin) ? match[1] + ' ' + match[2] : null;
@@ -94,11 +94,11 @@ function nodePrefix(command, config, root, pin) {
 /** Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo. */
 function knownRunner(root, pin) {
   try {
-    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../gate/src/io/run/tests.js", import.meta.url))]);
+    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../../apps/cli/src/io/run/tests.js", import.meta.url))]);
     if (bundled.status !== 0) return false;
     return [...new Set([pin.head, pin.main].filter(Boolean))].every(commit => {
-      if (!committedTest(root, commit, 'packages/gate/src/io/run/tests.js')) return false;
-      const source = tryGit(root, ['rev-parse', '--verify', commit + ':packages/gate/src/io/run/tests.js']);
+      if (!committedTest(root, commit, 'apps/cli/src/io/run/tests.js')) return false;
+      const source = tryGit(root, ['rev-parse', '--verify', commit + ':apps/cli/src/io/run/tests.js']);
       return source.status === 0 && source.stdout === bundled.stdout;
     });
   } catch { return false; }

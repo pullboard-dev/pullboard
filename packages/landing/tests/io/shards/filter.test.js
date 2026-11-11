@@ -32,7 +32,7 @@ function project(t, redFile = null, slowFile = null) {
         : `test('target ${name} [C7]', () => assert.equal(${JSON.stringify(name === redFile ? 'red' : 'green')}, 'green'));\n`)
       + `test('unrelated ${name} [C7]', () => assert.fail('the name filter must skip this case'));\n`);
   }
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node packages/gate/src/io/run/tests.js', landingShards: 6 }));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 6 }));
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',
     GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1' };
@@ -43,7 +43,7 @@ function project(t, redFile = null, slowFile = null) {
 
 /** Run the landing gate with a name filter over all six files. */
 function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `test/${name}.test.js`)) {
-  return runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', '--test-name-pattern', pattern, ...extra, ...files],
+  return runFixtureChild(process.execPath, ['apps/cli/src/io/run/tests.js', '--test-name-pattern', pattern, ...extra, ...files],
     { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 240_000 });
 }
 

@@ -33,7 +33,7 @@ export function copyFixtureRunner(source, destination) {
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['apps/cli/src/io/command-docs', 'apps/cli/src/io/documentation', 'apps/cli/src/io/documentation/events'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.json')).map(file => `${folder}/${file}`))]);
-  let pending = ['packages/gate/src/io/run/tests.js',
+  let pending = ['apps/cli/src/io/run/tests.js',
     ...['src/moves', 'packages/moves/src/logic/moves', 'packages/moves/src/io/moves'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['packages/state/src/logic/engines'].filter(folder => existsSync(join(source, folder)))

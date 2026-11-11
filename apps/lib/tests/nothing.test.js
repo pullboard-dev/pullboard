@@ -19,7 +19,7 @@ test('the green-baseline warning names a check that runs the new test file [V2,C
   assert.ok(warning, lines.join('\n'));
   assert.match(warning, /pullboard edit 4 --check "node --test test\/show-the-cart-total\.test\.js"/u, 'the concrete fix is a paste-ready command');
   const named = [];
-  sayCheckBaseline({ say: (line) => named.push(line) }, provesNothing({ item_check: 'node packages/gate/src/io/run/tests.js', item_check_baseline: { result: 'green', main: 'a'.repeat(40), command: 'node packages/gate/src/io/run/tests.js' },
+  sayCheckBaseline({ say: (line) => named.push(line) }, provesNothing({ item_check: 'node apps/cli/src/io/run/tests.js', item_check_baseline: { result: 'green', main: 'a'.repeat(40), command: 'node apps/cli/src/io/run/tests.js' },
     item_criterion: 'Tests in test/cart-total.test.js pass; the first fails before the change.' }));
   assert.match(named.join('\n'), /--check "node packages\/gate\/src\/io\/run\/tests\.js test\/cart-total\.test\.js"/u, 'the named test file and the project runner are used');
 });

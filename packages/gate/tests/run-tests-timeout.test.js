@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DEFAULT_TEST_TIMEOUT_MS } from '../src/io/run-tests.js';
 
-const runner = fileURLToPath(new URL('../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /**
  * Create an isolated fixture and run its tests through the production runner.

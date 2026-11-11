@@ -29,7 +29,7 @@ function nodeFiles(words) {
     files.push(index);
     if (!script) {
       script = true;
-      testMode ||= value === 'packages/gate/src/io/run/tests.js' || value === './packages/gate/src/io/run/tests.js';
+      testMode ||= value === 'apps/cli/src/io/run/tests.js' || value === './apps/cli/src/io/run/tests.js';
       if (!testMode) break; // Every later word belongs to the ordinary script, not Node's options.
     }
   }
