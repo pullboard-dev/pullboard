@@ -47,10 +47,9 @@ import {
 import { readSealedDescriptor } from '../../../../../packages/pages/index.js';
 import { openPagedSnapshot } from '../../../../../packages/pages/index.js';
 import { PROOF_RUN_ENGINE } from '../../../../../packages/state/light.js';
-
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
-
 const LEGACY_BODY_THRESHOLD = 14_000_000;
 const LEGACY_RELAY_THRESHOLD = 10_000_000;
 const SIGNED_IN_BOARD_RENDER_WAIT_MS = 15_000;
@@ -168,7 +167,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   assert.equal((await browserLegacyUpload.json()).state.sealed, legacySealed, 'the browser starts with the exact stored uncompressed bytes');
 
   // The actual browser keeps reading a previously stored uncompressed JSON checkpoint too.
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const phone = await box.phoneSession();
   const cookie = await chrome.send('Network.setCookie', {
@@ -178,14 +177,14 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
   await chrome.navigate(box.origin + '/#board=' + sourceState.board + '&key=' + encodedKey);
   await chrome.waitFor('location.origin === ' + JSON.stringify(box.origin) + ' && document.readyState === "complete"');
-  const inventory = await chrome.evaluate(`(async () => {
+  const inventory = await chrome.stable(`(async () => {
     const response = await fetch('/api/v1/boards', { credentials: 'same-origin' });
     let value = null; try { value = await response.json(); } catch {}
     return { status: response.status, boardIds: (value?.boards ?? []).map(board => board.id), error: value?.error?.code ?? null };
   })()`);
   assert.equal(inventory.status, 200, `the signed-in page reads its relay inventory: ${JSON.stringify(inventory)}`);
   assert.ok(inventory.boardIds.includes(sourceState.board), `the browser account can see this linked board: ${JSON.stringify(inventory)}`);
-  assert.deepEqual(await chrome.evaluate(`(async () => {
+  assert.deepEqual(await chrome.stable(`(async () => {
     const { Refused } = await import('/relay/refused.js');
     const refusal = new Refused('BROWSER_CONTROL', 'module loaded', 'recover here');
     return { name: refusal.name, code: refusal.code, message: refusal.message, next: refusal.next };
@@ -196,19 +195,20 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
       `typeof data !== 'undefined' && data.project?.items?.some(item => item.title === 'legacy snapshot cursor')`, SIGNED_IN_BOARD_RENDER_WAIT_MS,
       'the signed-in page has loaded the legacy snapshot item');
   } catch (error) {
-    t.diagnostic('signed-in relay board read: ' + JSON.stringify(await chrome.evaluate(`(() => ({
+    t.diagnostic('signed-in relay board read: ' + JSON.stringify(await chrome.stable(`(() => ({
       activeTab: typeof view !== 'undefined' ? view.tab : null,
       itemTitles: typeof data !== 'undefined' && Array.isArray(data?.project?.items) ? data.project.items.slice(0, 5).map(item => item.title) : [],
       notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800),
     }))()`)));
     throw error;
   }
-  assert.equal(await chrome.evaluate(`(() => { document.querySelector('[data-tab="items"]')?.click(); return document.querySelector('[data-tab="items"]')?.classList.contains('on'); })()`), true,
+  await chrome.click(`document.querySelector('[data-tab="items"]')`);
+  assert.equal(await chrome.stable(`document.querySelector('[data-tab="items"]')?.classList.contains('on')`), true,
   'the browser shows the Items tab before checking its chain');
   try {
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('legacy snapshot cursor')");
   } catch (error) {
-    t.diagnostic('legacy browser read: ' + JSON.stringify(await chrome.evaluate(`(() => ({
+    t.diagnostic('legacy browser read: ' + JSON.stringify(await chrome.stable(`(() => ({
       title: document.title,
       notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800),
       activeTab: typeof view !== 'undefined' ? view.tab : null,
@@ -259,7 +259,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
 
   // The actual Chrome client reads that same compressed checkpoint and renders the full shout text.
   sourceState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const previousDocument = await chrome.evaluate('performance.timeOrigin');
+  const previousDocument = await chrome.stable('performance.timeOrigin');
   await chrome.navigate(box.origin);
   // The feed renders when its native tab is selected, rather than while Items is open.
   await chrome.waitFor('performance.timeOrigin !== ' + JSON.stringify(previousDocument)
@@ -267,18 +267,18 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     + ' && data.project.root === ' + JSON.stringify(sourceState.board)
     + ' && data.root === view.root && view.root === ' + JSON.stringify(sourceState.board)
     + ' && !document.body.classList.contains("loading")');
-  await chrome.evaluate("document.querySelector('[data-tab=shouts]').click(); true");
-  assert.equal(await chrome.evaluate("document.querySelector('[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
+  await chrome.click("document.querySelector('[data-tab=shouts]')");
+  assert.equal(await chrome.stable("document.querySelector('[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
     true, 'the native Shouts selection is active on the newly loaded board');
   try {
     await chrome.waitFor("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ") || document.querySelector('#relay-notice')?.textContent.includes('Could not open this board with its saved key')");
   } catch (error) {
-    t.diagnostic('compressed browser read: ' + JSON.stringify(await chrome.evaluate("({ title: document.title, notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800), signIn: document.body.textContent.includes('Sign in with GitHub'), hasMarker: document.body.textContent.includes('COMPRESSED_RELAY_SNAPSHOT_EXACT_340_'), selectedShouts: document.querySelector('[data-tab=shouts]')?.classList.contains('on') === true, paneVisible: document.querySelector('[data-pane=shouts]')?.hidden === false, addressReady: typeof addressReady !== 'undefined' && addressReady, boardReady: typeof data === 'object' && !!data?.project && data.root === view.root })")));
+    t.diagnostic('compressed browser read: ' + JSON.stringify(await chrome.stable("({ title: document.title, notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800), signIn: document.body.textContent.includes('Sign in with GitHub'), hasMarker: document.body.textContent.includes('COMPRESSED_RELAY_SNAPSHOT_EXACT_340_'), selectedShouts: document.querySelector('[data-tab=shouts]')?.classList.contains('on') === true, paneVisible: document.querySelector('[data-pane=shouts]')?.hidden === false, addressReady: typeof addressReady !== 'undefined' && addressReady, boardReady: typeof data === 'object' && !!data?.project && data.root === view.root })")));
     throw error;
   }
-  assert.equal(await chrome.evaluate("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ') ?? false'), true, 'the production browser decoder reads the compressed checkpoint');
+  assert.equal(await chrome.stable("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ') ?? false'), true, 'the production browser decoder reads the compressed checkpoint');
   const tablesHash = createHash('sha256').update(JSON.stringify(expected.tables)).digest('hex');
-  const browserRead = await chrome.evaluate(`(async () => {
+  const browserRead = await chrome.stable(`(async () => {
     const { createTransport } = await import('/relay/client.js');
     const transport = await createTransport();
     const document = await transport.request('/api/v1/boards/${sourceState.board}/state');
@@ -298,7 +298,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     }
     return { projectionHash: await digest(document.state), tablesHash: await digest(native.tables),
       observedAt: native.presentation.state.observedAt, displayedObservedAt: document.state.observedAt };
-  })()`, 'hash browser projection and native snapshot');
+  })()`);
   const { observedAt, displayedObservedAt, ...browserHashes } = browserRead;
   assert.equal(displayedObservedAt, observedAt, 'the browser retains the authenticated checkpoint observation');
   const clock = Date.parse(observedAt);
@@ -442,7 +442,7 @@ async function thirtyThousandBoard(t) {
  */
 async function openOnPhone(t, { box, link, heldPage, currentMarker }, { holdStateMs = 0 } = {}) {
   const loadBefore = loadavg()[0];
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -485,13 +485,13 @@ async function openOnPhone(t, { box, link, heldPage, currentMarker }, { holdStat
     await chrome.waitFor('Number.isFinite(window.__phoneTiming?.firstBoardPaint) && typeof transport !== "undefined" && !!transport?.historyProgress', 120_000, 'bounded current board paints before all history'); // budget: generous hang ceiling for a starved harness to observe the paint under gate load (a 30 s wait expired with the page painted at 646 ms); the frozen #903 3000ms bar is asserted on the page-measured firstBoardPaint.
   } catch (error) {
     // Record what the page itself reached, so a miss reads as a page measurement rather than a runner timeout (#953).
-    const page = await chrome.evaluate(`({ ...window.__phoneTiming, sinceNavigationMs: performance.now(), readyState: document.readyState,
+    const page = await chrome.stable(`({ ...window.__phoneTiming, sinceNavigationMs: performance.now(), readyState: document.readyState,
       transport: typeof transport, historyProgress: typeof transport?.historyProgress, chain: Boolean(document.querySelector('#chain')), loading: document.body?.classList.contains('loading') })`).catch(() => null);
     t.diagnostic(JSON.stringify({ phonePageAtTimeout: page }));
     error.message += '; the page reached ' + JSON.stringify(page);
     throw error;
   }
-  const first = await chrome.evaluate(`({ ...__phoneTiming, phone: document.documentElement.dataset.relayDevice, progress: transport.historyProgress('${link.board}') })`);
+  const first = await chrome.stable(`({ ...__phoneTiming, phone: document.documentElement.dataset.relayDevice, progress: transport.historyProgress('${link.board}') })`);
   return { chrome, first: { ...first, loadBefore } };
 }
 
@@ -510,14 +510,14 @@ test('thirty thousand events open on the phone within three seconds and stream a
     assert.equal((await box.cli('add', box.lane, liveMarker)).code, 0, 'ordinary native moves continue while old history is pinned');
     await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes('${liveMarker}')`, 15_000, 'new current state arrives while an older history page is held'); // budget: hang ceiling for the live-move handshake while old history is held, not a throughput claim.
   } finally {
-    await chrome.evaluate('window.__olderHistoryAllowed = true; window.__releaseOlderHistory?.(); true');
+    await chrome.stable('window.__olderHistoryAllowed = true; window.__releaseOlderHistory?.(); true');
   }
   const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const finalSequence = Number(expected.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value);
   // Budget: a complete loopback replay includes both the pinned predecessor and its live successor, never the three-second boot bar.
   await chrome.waitFor(`transport.historyProgress('${link.board}').complete && transport.historyProgress('${link.board}').sequence === ${finalSequence}`, 45_000, 'all sealed history is held at the live checkpoint'); // budget: hang ceiling for two complete pinned background streams; the 3s boot bar is measured separately.
   const oldestHash = createHash('sha256').update(oldestMarker).digest('hex');
-  const read = await chrome.evaluate(`(async () => {
+  const read = await chrome.stable(`(async () => {
     const before = __phoneTiming.objectRequests;
     const reply = await transport.request('/api/v1/boards/${link.board}/shouts/${oldest}');
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(reply.shout.shout_text)));
@@ -526,7 +526,7 @@ test('thirty thousand events open on the phone within three seconds and stream a
   })()`);
   assert.equal(read.hash, oldestHash); assert.equal(read.extraObjectReads, 0, 'the oldest shout is already held after the background stream');
   assert.equal(read.progress.loaded, read.progress.total); assert.equal(read.loopbackReads, 0);
-  await chrome.evaluate(`location.hash = '#shout-${oldest}'; true`);
+  await chrome.stable(`location.hash = '#shout-${oldest}'; true`);
   await chrome.waitFor(`document.body.innerText.includes('${oldestMarker}')`, 3000, 'the actual phone view opens the streamed oldest shout'); // budget: hang ceiling for the addressed-shout render handshake after history completion.
   assert.equal((await second.cli('status')).code, 0, 'an independent paired CLI restores the same paged checkpoint');
   const restored = await second.cli('export');

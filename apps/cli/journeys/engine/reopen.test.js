@@ -491,7 +491,8 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.equal(JSON.parse(nonCoordinator.out).error.code, 'COORDINATOR_ONLY');
 
   const landing = (await fixtureCommand(box, box.repo, 'land', '--max', '1', '--json'));
-  assert.equal(landing.code, 0, `${landing.err}\n${landing.out}`);
+  // land exits 1 when nothing lands and every candidate is a culprit (d8505b797a).
+  assert.equal(landing.code, 1, `${landing.err}\n${landing.out}`);
   const landingResult = JSON.parse(landing.out);
   assert.deepEqual(landingResult.culprits.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult));
   assert.equal(landingResult.culprits[0].mergeCommit, landingResult.batch.tip);

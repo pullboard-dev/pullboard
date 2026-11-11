@@ -61,7 +61,9 @@ function pickRunnerByLoad(compatible, usage, policy, now) {
   if (measured.length) {
     // A host already running a landing shard comes after every host running none: one load reading per minute let
     // three shards of one batch pile onto the lightest host on 6 Nov, each slowing the others [C7].
-    const byHeadroom = (a, b) => a.shards - b.shards || b.headroom - a.headroom || a.runner.cpuLoad.busyPercent - b.runner.cpuLoad.busyPercent;
+    // Lower load per core first (the criterion of #5578): a 4-core box at load 1 is busier than a 10-core box at load 2.5.
+    const perCore = row => (row.cores - row.headroom) / row.cores;
+    const byHeadroom = (a, b) => a.shards - b.shards || perCore(a) - perCore(b) || a.runner.cpuLoad.busyPercent - b.runner.cpuLoad.busyPercent;
     const roomy = measured.filter(row => row.headroom > 0).sort(byHeadroom);
     const tight = measured.filter(row => row.headroom <= 0).sort(byHeadroom);
     const best = roomy[0] ?? open.find(row => !row.fresh) ?? tight[0];

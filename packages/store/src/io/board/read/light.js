@@ -7,7 +7,7 @@ import { Refused } from '../../../../../kernel/light.js';
 import { ENGINE_VERSION } from '../../../../../state/light.js';
 import { SUBMIT_HANDOFF_ENGINE } from '../../../../../state/light.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
-import { submitGateInFlight } from '../../../logic/red/return.js';
+import { itemWorkInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
 import { boardDataVersion } from '../version.js';
@@ -118,7 +118,7 @@ export function listItems(board, { lane, all = false } = {}) {
     if (family !== null) item.item_review_family = family;
     item.item_stage = itemStage(item, records.get(item.item_id) ?? null, Boolean(row.landed), at);
     // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
-    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !submitGateInFlight(board, item)) {
+    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !itemWorkInFlight(board, item)) {
       item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
     }
     if (expectedBuilds && expected !== null) item.item_expected_build_minutes = JSON.parse(expected);

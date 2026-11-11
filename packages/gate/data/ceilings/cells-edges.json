@@ -724,6 +724,10 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/tests/fixtures/cases/registry.js": {
       "cells": 2,
       "deep": 0
@@ -2440,6 +2444,10 @@
       "cells": 5,
       "deep": 0
     },
+    "packages/landing/src/io/derive.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "packages/landing/src/io/docs.js": {
       "cells": 2,
       "deep": 0
@@ -2552,8 +2560,12 @@
       "cells": 9,
       "deep": 0
     },
+    "packages/landing/src/io/step/derive.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/landing/src/io/step/merge.js": {
-      "cells": 5,
+      "cells": 3,
       "deep": 1
     },
     "packages/landing/src/io/step/parallel.js": {
@@ -5134,6 +5146,10 @@
     },
     "apps/cli/tests/fixtures/landing/receipts.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/init/shards.js": {
+      "cells": 1,
       "deep": 0
     }
   },
