@@ -106,12 +106,12 @@ test('clause 2: an agent session takes the thin pre-commit with only the checkou
 test('clause 2: a named staged static check runs inside the pre-commit process and blocks the commit [H24]', () => {
   const box = e2e.project('true');
   mkdirSync(join(box.web, 'web'), { recursive: true });
-  writeFileSync(join(box.web, 'web/page.test.js'), "test('a name without a row id', () => {});\n");
-  box.git(box.web, 'add', 'web/page.test.js');
+  writeFileSync(join(box.web, 'web/page.html'), '<p>hi</p>\n');
+  box.git(box.web, 'add', 'web/page.html');
   const run = counted(box, box.web, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'static-5719',
-    PULLBOARD_HOOK_STATIC: 'packages/gate/src/io/changed/scripts/static.js' }, ['pre-commit']);
+    PULLBOARD_HOOK_STATIC: 'apps/cli/tests/fixtures/hook/static.js' }, ['pre-commit']);
   assert.equal(run.code, 1, run.err);
-  assert.match(run.err, /web\/page\.test\.js:1: /u, 'the static failure blocks the commit');
-  assert.ok(run.pidOf('/packages/gate/src/io/changed/scripts/static.js'), 'the static check loaded');
-  assert.equal(run.pidOf('/packages/gate/src/io/changed/scripts/static.js'), run.pidOf('/apps/cli/src/io/hook/thin.js'), 'in the same process as the hook');
+  const ran = /web\/page\.html:1: fixture static check ran in process (\d+)/u.exec(run.err);
+  assert.ok(ran, `the static failure blocks the commit:\n${run.err}`);
+  assert.equal(ran[1], run.pidOf('/apps/cli/src/io/hook/thin.js'), 'the check ran in the hook process itself');
 });

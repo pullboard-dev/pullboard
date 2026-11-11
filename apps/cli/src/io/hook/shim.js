@@ -2,15 +2,13 @@
  * The commit hook shim: the CLI entry runs a commit hook as a child of this small process, which writes a start row
  * timed from its own process start and an end row when the hook exits, and stops the hook and every process it
  * started after HOOK_TIMEOUT_MS with a next step. Why: seat timing began after imports, so the untimed span (node start,
- * imports, the static check) held the 8- and 20-minute hooks nobody could measure (#5719). Only node: built-ins and
- * the seat timing door load here.
+ * imports, the static check) held the 8- and 20-minute hooks nobody could measure (#5719). Only node: built-ins load
+ * before the hook starts; the seat timing door loads while it runs.
  */
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { appendSeatTiming } from '../../../../../packages/seats/light.js';
-import { timingSeat } from '../../../../../packages/seats/light.js';
 
 /** The hooks the shim wraps: the commit hooks. pre-push runs the gate, which may rightly take longer. */
 export const SHIMMED_HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg'];
@@ -54,7 +52,8 @@ export function wantsHookShim(args, env) {
 }
 
 /**
- * Run one commit hook as a child process group, timed whole, and return its exit code.
+ * Run one commit hook as a child process, timed whole, and return its exit code. The child starts first, so the seat
+ * lookup and timing imports overlap its start instead of adding to the commit.
  *
  * @param {string} entry the CLI entry file the child runs
  * @param {string[]} args hook, the hook name, then git's arguments
@@ -63,11 +62,15 @@ export function wantsHookShim(args, env) {
  */
 export function runHookShim(entry, args, { cwd, env, stderr, timeoutMs = HOOK_TIMEOUT_MS, startedAt = Math.floor(performance.timeOrigin) }) {
   const hook = args[1];
-  const binding = timingSeat(cwd);
-  const base = { version: 1, id: randomUUID(), seat: binding?.seat ?? null, item: binding?.item ?? null, kind: 'hook', command: `hook ${hook}`, pid: process.pid, start: startedAt };
-  if (binding) appendSeatTiming(binding.file, { ...base, phase: 'start' });
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [entry, ...args], { cwd, env: hookEnv(env), stdio: 'inherit' });
+    // The start row carries the shim's process start, whenever it is written.
+    const timing = import('../../../../../packages/seats/light.js').then(({ appendSeatTiming, timingSeat }) => {
+      const binding = timingSeat(cwd);
+      const base = { version: 1, id: randomUUID(), seat: binding?.seat ?? null, item: binding?.item ?? null, kind: 'hook', command: `hook ${hook}`, pid: process.pid, start: startedAt };
+      if (binding) appendSeatTiming(binding.file, { ...base, phase: 'start' });
+      return { binding, base, appendSeatTiming };
+    }, () => ({ binding: null }));
     let timedOut = false;
     let settled = false;
     /** Signal the hook and every process it started, a composed child included, deepest first; any may be gone. */
@@ -90,8 +93,10 @@ export function runHookShim(entry, args, { cwd, env, stderr, timeoutMs = HOOK_TI
           + `next: commit again; if it stops again, run pullboard shout coordinator --kind blocker "${hook} hook stopped after ${seconds} s"\n`);
       }
       const end = Date.now();
-      if (binding) appendSeatTiming(binding.file, { ...base, phase: 'end', end, durationMs: Math.max(0, end - startedAt), exit: code, timedOut });
-      resolve(code);
+      timing.then(({ binding, base, appendSeatTiming }) => {
+        if (binding) appendSeatTiming(binding.file, { ...base, phase: 'end', end, durationMs: Math.max(0, end - startedAt), exit: code, timedOut });
+        resolve(code);
+      });
     };
     child.once('error', (error) => { stderr.write(`pullboard ${hook}: could not start the hook: ${error.message}\n`); settle(1); });
     child.once('exit', (code, signal) => settle(timedOut || signal ? 1 : code ?? 1));
