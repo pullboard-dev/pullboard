@@ -7,7 +7,6 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -152,8 +151,8 @@ test('a runner at or above its core count takes no new job, says why, and pulls 
   enqueue(root, 'held', { command: 'echo ran', input: '' });
   execFileSync('sh', ['-c', `${settings} ${runnerAgentStartCommand(root)}`], { stdio: 'ignore' });
   await until('the hold report', root, () => existsSync(join(root, 'load')) && /state=hold load=12.5 cores=10/.test(readFileSync(join(root, 'load'), 'utf8')));
-  const seen = statSync(join(root, 'load')).mtimeMs;
-  await until('two more ticks that held', root, () => statSync(join(root, 'load')).mtimeMs > seen && /state=hold/.test(readFileSync(join(root, 'load'), 'utf8')));
+  writeFileSync(loadFile, '12.6\n');
+  await until('a later tick that still held', root, () => /state=hold load=12.6 /.test(readFileSync(join(root, 'load'), 'utf8')));
   assert.ok(existsSync(join(root, 'queue', 'held')) && !existsSync(join(root, 'running', 'held')), 'the job stays queued while load is above cores');
   writeFileSync(loadFile, '9.99\n');
   await until('the job to run once load is under cores', root, () => existsSync(join(root, 'done', 'held', 'exit')));
