@@ -33,7 +33,9 @@ const ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_
 /** A scratch result store, so the machine's own store is neither read nor written. */
 function scratchEnv() {
   const store = privateFixtureFiles('pullboard-selection-').root;
-  return { store, env: { ...process.env, PULLBOARD_TEST_RESULT_STORE: store }, done: () => rmSync(store, { recursive: true, force: true }) };
+  // Drop what a runner job sets for its own run (action dir, result exchange, reuse mode), or the planner refuses to consult a green.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^PULLBOARD_TEST_(ACTIONS|STAGE|REUSE|RESULT_\w+)$/u.test(name)));
+  return { store, env: { ...env, PULLBOARD_TEST_RESULT_STORE: store }, done: () => rmSync(store, { recursive: true, force: true }) };
 }
 
 /** The input key a file has at HEAD. */
