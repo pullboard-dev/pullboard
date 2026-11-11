@@ -127,11 +127,12 @@ export function offerGateJob(db, { item, main, source, request, now = Date.now()
  *
  * @param {object} ctx
  * @param {{ held: object, me: { id: string }, commit: string, trunk: { commit: string }, main: { commit: string, config: object },
- *   claimHead: string | null, requireComposition: boolean, authorize: boolean, full: boolean }} submission
+ *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean }} submission - files: what the
+ *   item's commits changed since its claim, which the board records when the receipt submits the item.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function }} ports - The sandbox and store reads the submit command already holds.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, requireComposition, authorize, full }, { frozenCheck, policyAt, listItems }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full }, { frozenCheck, policyAt, listItems }) {
   const { root } = ctx.info;
   const id = held.item_id;
   const configured = submitGateConfig(full ? policyAt(root, commit).config : ctx.config, main.config);
@@ -148,6 +149,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     config, crossRunTests: namedProofTests(root, held, commit, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, commit), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
     authorization: authorize ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : null });
+  // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
+  request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files };
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, commit]);
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source: commit, request }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
