@@ -123,7 +123,7 @@ let skipAgent = false;
 const holdWorker = async () => { if (pullEnqueue) skipAgent = true; else await holdHere(); };
 const launchesWorker = remoteCommand.startsWith(configuredNode) || pullEnqueue;
 const withoutAgent = command => {
-  const start = command.indexOf('\n( nohup'), marker = '\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\necho "queued');
+  const start = command.indexOf('\\n( nohup'), marker = '\\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\\necho "queued');
   return start >= 0 && end > start ? command.slice(0, start) + command.slice(end + marker.length) : command;
 };
 if (hold === 'dispatch') await holdHere();
