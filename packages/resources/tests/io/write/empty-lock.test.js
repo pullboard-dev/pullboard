@@ -7,7 +7,7 @@ import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { enterResourceQueue } from '../../../src/io/write/queue.js';
 import { resourceQueueDirectory } from '../../../src/io/write/queue.js';
 
