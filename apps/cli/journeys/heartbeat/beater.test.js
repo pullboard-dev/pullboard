@@ -12,11 +12,9 @@ import { rmSync } from 'node:fs';
 import { watch } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { agentSession } from '../../src/io/beater.js';
 import { startClaimBeater } from '../../src/io/beater.js';
-import { repoPath } from '../../../../packages/kernel/light.js';
 import {
   createE2eHelpers,
   FIXTURE_MODEL,
@@ -28,7 +26,7 @@ import {
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-const BEATER = pathToFileURL(repoPath('apps/cli/src/io/beater.js')).href;
+const BEATER = new URL('../../src/io/beater.js', import.meta.url).href;
 
 /** Resolve once `check` holds, re-reading it on each change in `dir`; fail after ten seconds without it. */
 async function whenTrue(dir, check, what) {
