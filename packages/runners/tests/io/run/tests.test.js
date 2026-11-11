@@ -376,7 +376,7 @@ test('green file waits for the injected observation', async () => {
     cwd: fixture.root, env, encoding: 'utf8', timeout: 15000,
   });
   assert.ok(existsSync(sampled), 'a live monitor observation failed once');
-  assert.ok(existsSync(drained), 'the final ownership census failed once and was retried');
+  assert.ok(existsSync(drained), `the final ownership census failed once and was retried\n${result.context}\n${String(result.stdout ?? '').slice(-1500)}\n${String(result.stderr ?? '').slice(-2500)}`);
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
   assert.match(result.stdout, /# fail 0/u);
   assert.ok(existsSync(childDrained), 'the owned child acknowledged cleanup after a successful census');
