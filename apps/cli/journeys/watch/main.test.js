@@ -437,10 +437,11 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const observations = new Set(['fact', 'usage', 'activity-delivered']);
   // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
-    'add', 'milestone_placed', ...(added.item_check_baseline.result === 'green' ? ['check-baseline'] : []), 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
+    'add', 'milestone_placed', ...(added.item_check_baseline.result === 'green' ? ['check-baseline', 'hold_item'] : []), 'add', 'milestone_placed', 'claim',
+    ...(added.item_check_baseline.result === 'green' ? ['unhold_item'] : []), 'check_accept', 'release',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
-  ], 'only the explicit moves, rejection escalation, native placements, the baseline when a runner measured it, and submit proofs were recorded');
+  ], 'only the explicit moves, rejection escalation, native placements, the baseline when a runner measured it with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
   const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
   const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
