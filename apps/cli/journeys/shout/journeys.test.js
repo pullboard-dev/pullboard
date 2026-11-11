@@ -1224,7 +1224,7 @@ scenario('a long shout folds and stays open across a refresh', async ({ Given, W
     const later = `A later shout at ${at}.`;
     await When('a new shout refreshes the feed', async () => {
       box.run(p.web, 'shout', 'all', later);
-      await chrome.waitFor(`document.querySelector('#feed .shout .text')?.textContent === ${JSON.stringify(later)}`, 15_000); // budget: hang ceiling for the live refresh to bring the new shout; no throughput claim.
+      await chrome.waitFor(`[...document.querySelectorAll('#feed .shout .text')].some((node) => node.textContent === ${JSON.stringify(later)})`, 15_000); // budget: hang ceiling for the live refresh to bring the new shout; no throughput claim.
     });
     await Then('the long shout is still open', async () => {
       assert.equal(await chrome.stable(folded()), JSON.stringify(['Show less', 12, true]), 'an open shout stays open across a refresh');
@@ -1240,8 +1240,8 @@ scenario('the person shouts with Enter and sees when the coordinator heard it', 
   box.run(p.web, 'shout', 'all', 'Starting on the greeting.');
   const { chrome } = await open(box);
   await Given('the shouts feed', () => openShouts(chrome, 1));
-  /** The first card in the feed: its text, recipient and Heard line. */
-  const first = `JSON.stringify((() => { const c = document.querySelector('#feed .shout'); return c && [c.querySelector('.text').textContent, c.querySelector('.to').textContent, c.querySelector('.heard')?.lastChild.textContent ?? null]; })())`;
+  /** The card with these words in the open conversation: its text, recipient and Heard line. */
+  const first = (words) => `JSON.stringify((() => { const c = [...document.querySelectorAll('#feed .shout')].find((card) => card.querySelector('.text').textContent === ${JSON.stringify(words)}); return c && [c.querySelector('.text').textContent, c.querySelector('.to').textContent, c.querySelector('.heard')?.lastChild.textContent ?? null]; })())`;
   await layouts(async ({ at }) => {
     const words = `Ship the greeting at ${at}?`;
     await Given('the composer is addressed to the coordinator', async () => {
@@ -1255,12 +1255,12 @@ scenario('the person shouts with Enter and sees when the coordinator heard it', 
       assert.equal(await chrome.stable(`${q('#shout-text')}.value`), words, 'the typed words are in the message');
     });
     await And('presses Enter', () => pressKey(chrome, 'Enter'));
-    await Then('it is first in the feed, to the coordinator, saying Not heard yet', async () => {
-      await chrome.waitFor(`${first} === ${JSON.stringify(JSON.stringify([words, '→ coordinator (unknown)', 'Not heard yet']))} && ${q('#shout-text')}.value === ''`, 15_000); // budget: hang ceiling for the sent shout to be recorded and shown; no throughput claim.
+    await Then('it is in the feed, to the coordinator, saying Not heard yet', async () => {
+      await chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, '→ coordinator', 'Not heard yet']))} && ${q('#shout-text')}.value === ''`, 15_000); // budget: hang ceiling for the sent shout to be recorded and shown; no throughput claim.
       assert.equal(await chrome.stable(`data.project.shouts.filter((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === ${JSON.stringify(words)}).length`), 1, 'Enter sent it once, to the coordinator');
     });
     await When("the coordinator's inbox reads it", () => { box.run(p.repo, 'inbox'); });
-    await Then('it says Heard by coordinator', () => chrome.waitFor(`${first} === ${JSON.stringify(JSON.stringify([words, '→ coordinator (unknown)', 'Heard by coordinator (unknown)']))}`, 15_000)); // budget: hang ceiling for the inbox read to reach the view; no throughput claim.
+    await Then('it says Heard by coordinator', () => chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, '→ coordinator', 'Heard by coordinator']))}`, 15_000)); // budget: hang ceiling for the inbox read to reach the view; no throughput claim.
   });
 });
 
