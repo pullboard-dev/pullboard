@@ -78,6 +78,7 @@ const OPTIONS = {
   cycles: { type: 'string' },
   owner: { type: 'string' },
   directory: { type: 'string' },
+  once: { type: 'boolean' },
   timeout: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },

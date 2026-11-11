@@ -45,3 +45,14 @@ export function offerLandingJob(db, { items, expect, config, mode, trunk = 'refs
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, needs, now,
     payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}) } });
 }
+
+/**
+ * The landing job offered and not yet done, or null: a lander offers no second landing while one is open, since its
+ * receipt settles the items first.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @returns {string | null} The open job's id.
+ */
+export function openLandingJob(db) {
+  return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_step <> 'done' ORDER BY job_created LIMIT 1").get(LANDING_JOB_KIND)?.job_id ?? null;
+}
