@@ -455,7 +455,6 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
         const byPid = new Map(landingProcessTable().map(processInfo => [processInfo.pid, processInfo]));
         const parent = byPid.get(process.pid);
         const spawned = byPid.get(child.pid);
-        process.stderr.write(`DIAG-5421 spawn ${JSON.stringify({ pid: child.pid, wpid: process.pid, parent: parent ? parent.pgid : null, spawned: spawned ? spawned.pgid : null, rows: byPid.size })}\n`);
         if (parent && spawned && spawned.pgid !== parent.pgid) {
           appendFileSync(startsPath, `${JSON.stringify({ type: 'child', attempt, parentPid: process.pid,
             pid: spawned.pid, pgid: spawned.pgid, started: spawned.started })}\n`);
@@ -881,9 +880,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       const candidate = current.get(receipt.pid);
       if (!worker || !candidate || candidate.ppid !== worker.pid || candidate.state.startsWith('Z')
           || !Number.isInteger(candidate.pgid) || !candidate.started
-          || !landingChildCommandMatchesSpawn(candidate, receipt)) {
-        process.stderr.write(`DIAG-5421 unbound ${JSON.stringify({ worker: !!worker, candidate: candidate ? { ppid: candidate.ppid, state: candidate.state, pgid: candidate.pgid, started: candidate.started, command: candidate.command.slice(0, 300) } : null, workerPid: worker?.pid, spawnFile: receipt.spawnFile, spawnArgs: receipt.spawnArgs.map(a => String(a).slice(0, 300)) })}\n`);
-        unsettledChild = true; cleanupUnverifiedFiles.add(receipt.file); continue; }
+          || !landingChildCommandMatchesSpawn(candidate, receipt)) { unsettledChild = true; cleanupUnverifiedFiles.add(receipt.file); continue; }
       // Capture ownership before acknowledging. The worker cannot exit/reparent this child first.
       pendingChildBindings.set(key, candidate);
       ownedDescendants.set(`${candidate.pid}:${candidate.pgid}:${candidate.started}`, candidate);
@@ -1057,9 +1054,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     workerDrain = drainLandingWorkerDescendants(ownedDescendants, captureOwnedDescendants, () => runFinished,
       reportCleanupUnverified, cleanupDeadline ?? Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS)
       .catch(error => { reporterError ??= error; });
-    process.stderr.write(`DIAG-5421 drain-start ${JSON.stringify([...ownedDescendants.keys()])}\n`);
     await workerDrain;
-    process.stderr.write('DIAG-5421 drain-done\n');
     clearInterval(descendantMonitor);
     endReporters();
     for (const key of Object.keys(process.env)) delete process.env[key];
