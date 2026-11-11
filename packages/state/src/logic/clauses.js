@@ -88,7 +88,7 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
 /**
  * The one command that ticks an unticked test clause: pullboard check <id> when the item has a frozen check, since it runs
  * the check and writes every test tick itself; otherwise pullboard test on a file a clause names.
- * Why: two Haiku seats released #3544 and #3567 on 8 Nov after green test runs, because the old step said to hand-write a case name [C7].
+ * Why: two light-route seats released #3544 and #3567 on 8 Nov after green test runs, because the old step said to hand-write a case name [C7].
  *
  * @param {object} item - The item row.
  * @param {{ text: string }[]} testClauses - The unticked test clauses.
