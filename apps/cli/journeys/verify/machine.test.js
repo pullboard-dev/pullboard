@@ -568,11 +568,10 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by submit but not declared there',
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
-  // Since #5404 a decline is final for its key, so recordAutomaticRigorDrafts no longer reads decisions: the decision-source readers
-  // left the move paths, and the helpers it still calls (the source writer and reader) carry the audit.
-  for (const [helper, params] of [['automaticRigorSource', 'cause, eventIds'], ['automaticSourceFromText', 'text']]) {
-    const inHistoricalCaller = editedSource('../packages/store/src/logic/board/rigor/auto.js',
-      new RegExp(`^export function ${helper}\\(${params}\\) \\{$`, 'm'),
+  // Since #5404 a decline is final for its key, so recordAutomaticRigorDrafts no longer reads decisions and the two decision-source
+  // readers left the move paths; the drafting entry itself is the one place the audit still reaches release, reopen and submit through.
+  for (const [file, head] of [['../packages/rigor/src/io/auto.js', /^export function recordAutomaticRigorDrafts\(board, trigger, shout\) \{$/m]]) {
+    const inHistoricalCaller = editedSource(file, head,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
