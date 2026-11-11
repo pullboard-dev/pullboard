@@ -27,7 +27,7 @@ function detailOf(value) {
 function machineFact(value) {
   if (value.type !== 'fact' && (value.event_kind ?? value.kind) !== 'fact') return false;
   const text = value.text ?? detailOf(value).text;
-  return typeof text === 'string' && /^(?:Tier-1 shadow for gate receipt |Review comparison: )/u.test(text);
+  return typeof text === 'string' && /^(?:Tier-1 shadow for gate receipt [a-f0-9]{8}-|Review comparison: \{)/u.test(text);
 }
 
 /** Identify the existing internal categories consistently in state, event history and item threads. */
