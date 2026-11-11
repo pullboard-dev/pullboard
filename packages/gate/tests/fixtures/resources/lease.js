@@ -23,6 +23,7 @@ import { SUBMIT_ADMISSION_ENGINE } from '../../../../state/light.js';
 import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';
 
@@ -57,6 +58,7 @@ process.exitCode = await main(process.argv.slice(1), {
 
 /** Run the real CLI with a private file-backed board clock and the fixture's ordinary identity. */
 function clockedCli(box, cwd, ...args) {
+  fixtureJoinRoute(args, box.env.PULLBOARD_MODEL); // fixture items default strong, so a bare join must take the strong route [C7]
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args],
     { cwd, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.failure ?? result.stderr}`);
