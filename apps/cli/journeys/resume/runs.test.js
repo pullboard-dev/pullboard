@@ -74,13 +74,13 @@ test('clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run 
   const id = box.add('Held through the sweep');
   const control = box.add('Control with no run', { brief: 'Files: web/control.js\nTest: a quiet seat without a run is swept.' });
   box.claim(id, seat);
-  box.claim(control, seat);
+  box.claim(control, box.seats.builder);
   // Live holders keep the sweep from reading two quiet claims as the whole machine stalling.
-  const live = [1, 2, 3].map(n => box.add(`Live claim ${n}`, { brief: `Files: web/live${n}.js\nTest: a live seat is never swept.` }));
-  for (const other of live) box.claim(other, box.seats.builder);
+  const holders = [box.seats.sibling, box.seats.sameFamily, box.seats.outside];
+  for (const [n, holder] of holders.entries()) box.claim(box.add(`Live claim ${n}`, { lane: 'review', brief: `Files: web/live${n}.js\nTest: a live seat is never swept.` }), holder);
   const ctx = { clock: box.clock, config: box.config, info: { root: box.root } };
   const sweep = () => {
-    heartbeatSeat(box.board, box.seats.builder.id);
+    for (const holder of holders) heartbeatSeat(box.board, holder.id);
     const snapshot = captureLapsedClaims(ctx, box.board, 'coordinator');
     return snapshot ? snapshot.claims.map(claim => claim.id) : [];
   };
