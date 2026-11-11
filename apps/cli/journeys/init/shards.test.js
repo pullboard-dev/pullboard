@@ -185,6 +185,9 @@ test('six shards land on six different runners [C7,V4]', (t) => {
       { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);
   }
+  // With two or more runners the first is kept for timed checks by default; this test needs all six open to shards.
+  const machineSettings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), keptSettings = JSON.parse(readFileSync(machineSettings, 'utf8'));
+  writeFileSync(machineSettings, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false } }));
   const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
