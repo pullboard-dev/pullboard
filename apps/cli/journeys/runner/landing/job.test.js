@@ -8,16 +8,16 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { git } from '../../../../git/index.js';
-import { jobQueueCall } from '../../../../api/index.js';
-import { jobView } from '../../../../jobs/index.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { closeCellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { offerLandingJob } from '../../../index.js';
-import { runLandingJob } from '../../../index.js';
-import { takeLandingJob } from '../../../index.js';
+import { git } from '../../../../../packages/git/index.js';
+import { jobQueueCall } from '../../../../../packages/api/index.js';
+import { offerLandingJob } from '../../../../../packages/api/index.js';
+import { jobView } from '../../../../../packages/jobs/index.js';
+import { fixtureCommittedGraph } from '../../../tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
+import { closeCellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { runLandingJob } from '../../../../../packages/landing/index.js';
+import { takeLandingJob } from '../../../../../packages/landing/index.js';
 
 const AS = ['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', '-c', 'core.hooksPath=/dev/null'];
 
@@ -181,7 +181,7 @@ test('clause 3: the board host only offers a row and records a receipt; the runn
   assert.equal(view.steps.at(-1).payload.receipt.outcome, 'landed', 'the board keeps the runner\'s receipt');
   assert.deepEqual(readdirSync(host).filter(name => !name.startsWith('board.sqlite')), [], 'no checkout, clone or git object on the board host');
   assert.equal(existsSync(join(host, '.git')), false);
-  for (const source of ['../../../src/io/runner/offer.js', '../../../../api/src/io/jobs.js']) {
+  for (const source of ['../../../../../packages/api/src/io/landing.js', '../../../../../packages/api/src/io/jobs.js']) {
     const text = readFileSync(new URL(source, import.meta.url), 'utf8');
     assert.doesNotMatch(text, /from ['"](?:node:child_process|[./]*(?:packages\/)?git\/)/u, `${source} runs no git and no process on the board host`);
     assert.doesNotMatch(text, /git\/index\.js|child_process/u, `${source} imports no git`);

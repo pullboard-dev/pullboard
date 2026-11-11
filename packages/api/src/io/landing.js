@@ -1,9 +1,9 @@
 /** The board side of a runner landing job: one queue row naming the accepted items and the trunk sha expected [P7]. */
 import { createHash } from 'node:crypto';
-import { Refused } from '../../../../kernel/index.js';
-import { offerJob } from '../../../../api/src/io/jobs.js';
+import { Refused } from '../../../kernel/index.js';
+import { offerJob } from './jobs.js';
 
-/** The job kind a runner asks for to take landings. */
+/** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;

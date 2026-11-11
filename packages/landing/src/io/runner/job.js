@@ -4,8 +4,9 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tryGit } from '../../../../git/index.js';
-import { LANDING_JOB_KIND } from './offer.js';
 
+/** The board's landing job kind, as packages/api offers it. */
+const LANDING_JOB_KIND = 'land';
 // Budget: a landing whose push keeps finding trunk moved tries this many tips, then hands the job back as trunk-busy.
 const PUSH_ATTEMPTS = 5;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';

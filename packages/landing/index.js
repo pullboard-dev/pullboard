@@ -70,5 +70,4 @@ export { refreshMainRedComparisons } from './src/io/main/red.js';
 export { holdRefreshFlight } from './src/io/main/red/refresh/flight.js';
 export { placeUncoveredOnTrunk, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';
 /** Landing as a runner job: the board offers a row, a runner merges and pushes trunk by compare-and-swap [P7]. */
-export { LANDING_JOB_KIND, offerLandingJob } from "./src/io/runner/offer.js";
 export { runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
