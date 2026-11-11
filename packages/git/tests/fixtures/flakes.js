@@ -36,7 +36,13 @@ export const TITLE = 'a controlled intermittent assertion [C7]';
 /** Initialize a real private board and Git history; optional pre-init source seeding can return the fixture CLI path. */
 export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false, beforeInit } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-native-flake-')));
-  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  // A Submit leaves detached diagnostics and workers that still write under the scratch; wait for them before removing it.
+  t.after(() => {
+    // The pattern rides in the environment so the waiting shell's own arguments never match it; capped at 90 s.
+    runFixtureChild('/bin/sh', ['-c', 'n=0; while pgrep -f "$PB_SCRATCH" >/dev/null && [ $n -lt 180 ]; do sleep 0.5; n=$((n+1)); done'],
+      { env: { ...process.env, PB_SCRATCH: scratch }, encoding: 'utf8' });
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  });
   const root = join(scratch, 'repo'); mkdirSync(root);
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.com',
