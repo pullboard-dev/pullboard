@@ -18,15 +18,11 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { TEST_FILE } from '../../../../../packages/codemap/light.js';
 import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
 const HOOKS = ['pre-commit', 'pre-merge-commit'];
 
-/** Paths a hook run never loads: the tests and journeys folders and their fixtures. The composed tree leaves them out (#5498). */
-const UNREAD = [':(exclude,glob)**/tests/**', ':(exclude,glob)**/journeys/**'];
-
-/** Data files the CLI reads at load even though they sit in a folder named tests (packages/verify/data/tests/guard.json). */
-const DATA_IN_TESTS = ':(glob)**/data/tests/**';
 
 /** Files that can change what the CLI does when it loads. */
 const CODE = /\.(?:m?js|cjs|json)$/u;
@@ -87,13 +83,12 @@ export function composeHookTree(root, { indexFile, patches, env, directory }) {
     const applied = git(root, ['apply', '--cached', '--whitespace=nowarn', '-'], composed, patch);
     if (applied.status !== 0) return { refusal: `companion ${key} does not apply to the staged index: ${applied.stderr.trim().split('\n')[0] ?? ''}; merge main or ask its author to re-attach it against this head` };
   }
-  // Only what a hook run loads is written: the temp tree skips tests and journeys, about half of the checkout (#5498).
-  const listed = git(root, ['ls-files', '-z', '--cached', '--', '.', ...UNREAD], composed);
+  // Only what a hook run loads is written: the temp tree skips test source files, about half of the checkout (#5498).
+  const listed = git(root, ['ls-files', '-z', '--cached', '--', '.'], composed);
   if (listed.status !== 0) return { refusal: `could not list the staged tree: ${listed.stderr.trim()}` };
-  // A data folder named tests holds files the CLI reads when it loads, so the tests exclusion must not drop it.
-  const data = git(root, ['ls-files', '-z', '--cached', '--', DATA_IN_TESTS], composed);
-  if (data.status !== 0) return { refusal: `could not list the staged data files: ${data.stderr.trim()}` };
-  const checkout = git(root, ['checkout-index', '-z', '--stdin', `--prefix=${tree}`], composed, listed.stdout + data.stdout);
+  // Test source files are never loaded; data and fixtures under tests folders stay, the hook reads them (#5515).
+  const wanted = listed.stdout.split('\0').filter(path => path && !TEST_FILE.test(path)).map(path => `${path}\0`).join('');
+  const checkout = git(root, ['checkout-index', '-z', '--stdin', `--prefix=${tree}`], composed, wanted);
   if (checkout.status !== 0) return { refusal: `could not write the staged tree: ${checkout.stderr.trim()}` };
   const stagedPaths = new Set(staged.stdout.split('\0').filter(Boolean));
   const all = git(root, ['diff', '--cached', '--name-only', '-z'], composed).stdout.split('\0').filter(Boolean);
