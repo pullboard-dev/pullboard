@@ -95,6 +95,7 @@ function fixture(t, { ruleProof = false } = {}) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: ruleProof ? 'node --test test/proven.test.js' : 'true',
     lanes: { core: { owns: ['src/'], specs: ['C7'] } },
+    submit: { handoff: false }, // no detached gate worker keeps writing into the fixture while it is removed [C7]
   }));
   writeFileSync(join(repo, 'SPEC.md'), '# Test spec\n\n## C · Core\n- C7 [approved, must] A command reads each Git fact once. | gate: apps/cli/journeys/init/calls.test.js\n');
   if (ruleProof) {
