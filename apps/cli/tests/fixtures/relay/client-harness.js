@@ -843,12 +843,14 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
 
   const beforeRecoveredStack = relay.uploads.length;
   relay.dropNextReply({ offline: true, operation: 'submit', item: stackedB, key, boardId });
+  await restoreInventories();
   const lostStackSubmit = await timing.wait('submit recovered-stack item B with its reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB)));
   const afterLostStackSubmit = relay.uploads.length;
   assertDroppedReplyConsumed(relay, 'the recovered-stack submission reply');
   assert.equal(lostStackSubmit.status, 1);
   assert.equal(lostStackSubmit.document.error.code, 'RELAY_UNAVAILABLE');
   relay.failReads(false);
+  await restoreInventories();
   const laterA = await timing.wait('submit stack item A after B has a lost reply', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
   const afterLaterA = relay.uploads.length;
   assert.equal(laterA.status, 0, laterA.stderr);
@@ -864,6 +866,7 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
     bounds: { beforeRecoveredStack, afterLostStackSubmit, afterLaterA, afterStackRecovery, beforeOutcomeRetry },
     key, boardId, replicaFiles, stackedA, stackedB, firstRecoveryCommit, recoveredStackCommit, pendingOutcome,
   });
+  await restoreInventories();
   const originalOutcome = await timing.wait('read the durable original submission outcome for B', () => cli(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
   assert.equal(originalOutcome.commit, recoveredStackCommit);
   assert.match(originalOutcome.gate.report, /recovered the original submission/u);
@@ -903,6 +906,7 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   };
   writeFileSync(freshLinkFile, JSON.stringify(freshLink) + '\n', { mode: 0o600 });
   const beforeFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
+  await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
   assert.equal(freshRefusal.status, 1);
   assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
