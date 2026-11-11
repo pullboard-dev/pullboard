@@ -307,7 +307,7 @@ export function configProblems(config) {
   }
   if (config.landing?.requireReceipts !== undefined && typeof config.landing.requireReceipts !== 'boolean') problems.push('"landing.requireReceipts" is a boolean; omit it or use false to preserve legacy landing records');
   if (config.landing?.trunkRemote !== undefined && (typeof config.landing.trunkRemote !== 'string' || !config.landing.trunkRemote.trim() || config.landing.trunkRemote.startsWith('-') || /\s/u.test(config.landing.trunkRemote))) {
-    problems.push('"landing.trunkRemote" is the git URL of the trunk remote of record, which runners fetch from and a runner landing job pushes to; omit it to keep landing on this machine');
+    problems.push('"landing.trunkRemote" is the old name for "trunk.remote", the git URL runners fetch from and the lander pushes to; set "trunk.remote" instead');
   }
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
@@ -444,7 +444,7 @@ export function configProblems(config) {
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
   }
-  problems.push(...trunkProblems(config.trunk));
+  problems.push(...trunkProblems(config.trunk, config.landing));
   return problems;
 }
 
