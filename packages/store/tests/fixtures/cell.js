@@ -2,12 +2,13 @@
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { closeBoard } from '../../../../apps/lib/board.js';
-import { openBoard } from '../../../../apps/lib/board.js';
-import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
+import { closeBoard } from '../../index.js';
+import { fixtureCommittedGraph } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { openKitBoard } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
 import { addItem } from '../../index.js';
@@ -19,24 +20,6 @@ import { criterionFreezer } from '../../../moves/index.js';
 import { loadConfig } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
-
-/**
- * A private Git repository for tests of how committed files are read: write files, commit them, repeat.
- *
- * Why: a selection or graph test needs real Git objects and nothing else, so the one raw `git init` lives in the cell fixture, which the CLI's test kit re-exports [C7].
- *
- * @param {string} [prefix] - Lowercase name prefix of the private folder.
- * @returns {{ root: string, put: (path: string, body: string) => void, commit: () => string }} The repo root, a writer, and a committer that returns the new commit id.
- */
-export function fixtureCommittedGraph(prefix = 'pullboard-graph-') {
-  const files = privateFixtureFiles(prefix), root = files.root;
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
-    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
-  const git = (...args) => runFixtureGit(args, { cwd: root, env });
-  git('init', '-q', '-b', 'main');
-  return { root, put: (path, body) => files.write(path, body), commit: () => { git('add', '-A'); git('commit', '-qm', 'chore: fixture graph'); return git('rev-parse', 'HEAD').trim(); } };
-}
 
 /** The two-lane policy the e2e project uses, so a converted test keeps the project it asserted against. */
 export const CELL_CONFIG = Object.freeze({
@@ -85,7 +68,7 @@ export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC } = {}) {
  * @returns {object} The open board.
  */
 export function cellBoard(t, file, clock, options) {
-  const board = openBoard(file, clock, options);
+  const board = openKitBoard(file, clock, options);
   t.after(() => { try { closeBoard(board); } catch { /* A test that closed it itself already released it. */ } });
   return board;
 }
@@ -99,7 +82,7 @@ export function cellBoard(t, file, clock, options) {
  * @returns {object} The open board.
  */
 export function openCellBoard(file, clock, options) {
-  return openBoard(file, clock, options);
+  return openKitBoard(file, clock, options);
 }
 
 export { closeBoard as closeCellBoard };
