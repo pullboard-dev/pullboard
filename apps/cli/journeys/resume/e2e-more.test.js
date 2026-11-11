@@ -122,7 +122,7 @@ test('output into a reader that stops early ends quietly [N24]', async () => {
   assert.equal(code, 0);
 });
 
-test('every wait pullboard suggests names its unit and fits one ten-minute tool call [N25]', async () => {
+test('pullboard suggests no timed wait: next steps end at work or end-your-turn [N25]', async () => {
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
@@ -133,11 +133,12 @@ test('every wait pullboard suggests names its unit and fits one ten-minute tool 
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
   assert.match(box.run(box.web, 'next').err, /To keep looking: pullboard next --take/);
-  assert.match(box.run(box.web, 'resume').out, /next: pullboard next --wait 9 \(minutes\); 1 in your lane waits on other work/);
+  assert.match(box.run(box.web, 'resume').out, /next: pullboard next; take another eligible review or other offered work, or end your turn if none is offered/);
   box.run(box.repo, 'hold', 'web', '--reason', 'G1 is changing');
-  assert.match(box.run(box.web, 'resume').out, /next: pullboard next --wait 9 \(minutes\); the lane hold must lift/);
+  assert.match(box.run(box.web, 'resume').out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
   const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
-  assert.match(agents, /`pullboard next --wait 9` keeps looking for up to 9 minutes, which fits one tool call with a ten-minute timeout/);
+  assert.match(agents, /If it prints "nothing for this seat: end your turn", end your turn/);
+  assert.doesNotMatch(agents, /--wait 9/);
   assert.doesNotMatch(agents, /--wait 30/);
 });
 
