@@ -25,7 +25,7 @@ function hookRows(box, command) {
   return rows.filter(row => row.kind === 'hook' && row.command === command && row.seat === 'web-1');
 }
 
-test('a real commit writes start and end rows for each whole commit hook, timed from the shim process start [C7]', () => {
+test('clause 1: a real commit writes start and end rows for each whole commit hook, timed from the shim process start [C7]', () => {
   const box = e2e.project('true');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   const before = Date.now();
@@ -45,7 +45,7 @@ test('a real commit writes start and end rows for each whole commit hook, timed 
   }
 });
 
-test('a hook past its limit is stopped with its children, exits 1 and names a next step [C7]', async () => {
+test('clause 3: a hook past its limit is stopped with its children, exits 1 and names a next step [C7]', async () => {
   const box = e2e.project('true');
   const pidFile = join(box.dir, 'grandchild.pid');
   const entry = join(box.dir, 'hanging-hook.mjs');
@@ -70,7 +70,7 @@ test('a hook past its limit is stopped with its children, exits 1 and names a ne
   assert.equal(end.exit, 1);
 });
 
-test('a hook in an item folder times under the seat and item its marker names [C7]', async () => {
+test('clause 1: a hook in an item folder times under the seat and item its marker names [C7]', async () => {
   const box = e2e.project('true');
   const folder = join(box.dir, 'web-1-item-7');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', folder);

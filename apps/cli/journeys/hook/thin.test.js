@@ -82,7 +82,7 @@ test('a thin hook that refuses prints its refusal and exits 1 instead of crashin
   assert.match(text, /\nnext: /u);
 });
 
-test('an agent session takes the thin pre-commit with only the checkout lease bind added [H24]', () => {
+test('clause 2: an agent session takes the thin pre-commit with only the checkout lease bind added [H24]', () => {
   const box = e2e.project('true');
   const session = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'thin-hook-5719' };
   const binding = join(box.git(box.web, 'rev-parse', '--absolute-git-dir'), 'pullboard-checkout-session.json');
@@ -103,7 +103,7 @@ test('an agent session takes the thin pre-commit with only the checkout lease bi
   assert.match(reference.err, /NOT_YOUR_CHECKOUT/u);
 });
 
-test('a named staged static check runs inside the pre-commit process and blocks the commit [H24]', () => {
+test('clause 2: a named staged static check runs inside the pre-commit process and blocks the commit [H24]', () => {
   const box = e2e.project('true');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.test.js'), "test('a name without a row id', () => {});\n");
