@@ -258,9 +258,9 @@ test('discovery follows a new runner src import and its transitive dependency [C
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), source);
   const runner = readFileSync(join(source, 'apps/cli/src/io/run/tests.js'), 'utf8');
   writeFileSync(join(source, 'apps/cli/src/io/run/tests.js'), runner.replace('\n', "\nimport './discovery-extra.js';\n"));
-  writeFileSync(join(source, 'packages/gate/src/io/run/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
-  writeFileSync(join(source, 'packages/gate/src/io/run/discovery-nested.js'), "export const value = 'closure';\n");
-  writeFileSync(join(source, 'packages/gate/src/io/run/unreferenced.test.js'),
+  writeFileSync(join(source, 'apps/cli/src/io/run/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
+  writeFileSync(join(source, 'apps/cli/src/io/run/discovery-nested.js'), "export const value = 'closure';\n");
+  writeFileSync(join(source, 'apps/cli/src/io/run/unreferenced.test.js'),
     "throw new Error('an unreferenced shipped test must stay outside the discovery fixture');\n");
   runDiscovery(discoveryFixture(t, source));
 });

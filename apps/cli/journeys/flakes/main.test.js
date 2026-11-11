@@ -208,7 +208,7 @@ test('unrelated bundled execution [C7]', () => appendFileSync(${JSON.stringify(u
 test('an unknown script named run-tests cannot rerun unrelated tests or confirm a flake [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'observed-unrelated-runs');
-  mkdirSync(join(box.root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(box.root, 'apps/cli/src/io/run'), { recursive: true });
   writeFileSync(join(box.root, 'apps/cli/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
 // This user's runner deliberately does not implement Node's test-name selector.
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/alternating.test.mjs', 'apps/cli/tests/unrelated.test.mjs'], { env: process.env, stdio: 'inherit' });

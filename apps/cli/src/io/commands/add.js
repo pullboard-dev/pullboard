@@ -266,6 +266,12 @@ export function pathTokens(text) {
  */
 export function coordinatorPaths(config, item, { prose = true } = {}) {
   const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
+  // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
+  const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
+  if (scope) {
+    const scoped = named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`));
+    return [...new Set(scoped)].filter(path => laneOf(config, path) === COORDINATOR);
+  }
   return [...new Set(named)].filter(path => laneOf(config, path) === COORDINATOR);
 }
 

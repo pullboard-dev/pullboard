@@ -96,7 +96,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   // Installed tooling is complete, but its vendor documentation tests are not this project's eight cases.
   box.tool = join(box.repo, '.tooling');
   const shipped = copyPackageFiles(SOURCE, box.tool);
-  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), `/** @pullboard-module-loads .tooling/apps/cli/src/io/run/tests.js */
 /** Invoke the real installed dispatcher without replacing its arguments, output or verdict. */
 import {spawnSync} from 'node:child_process';

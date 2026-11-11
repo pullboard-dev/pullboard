@@ -423,6 +423,12 @@ function landingWorkerCommandMatchesFile(processInfo, file) {
   return false;
 }
 
+/** The spellings `ps` may print for an argument: raw, octal-escaped (macOS), or '?' per control character (Linux). */
+function psSpellings(argument) {
+  const control = /[\u0000-\u001f\u007f]/gu;
+  return [argument, argument.replace(control, c => `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`), argument.replace(control, '?')];
+}
+
 /** Match an announced ChildProcess spawn to the fresh command line without trusting its PID alone. */
 function landingChildCommandMatchesSpawn(processInfo, receipt) {
   const command = processInfo.command.trimEnd();
@@ -433,13 +439,15 @@ function landingChildCommandMatchesSpawn(processInfo, receipt) {
   if (!exactExecutable && (!executable || basename(executable[1] ?? executable[2] ?? executable[3]) !== basename(spawnFile ?? ''))) return false;
   return receipt.spawnArgs.slice(1).every(argument => {
     if (typeof argument !== 'string' || !argument) return false;
-    let offset = command.indexOf(argument);
-    while (offset !== -1) {
-      const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
-      const afterIndex = offset + argument.length;
-      const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
-      if (before && after) return true;
-      offset = command.indexOf(argument, offset + 1);
+    for (const spelling of psSpellings(argument)) {
+      let offset = command.indexOf(spelling);
+      while (offset !== -1) {
+        const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
+        const afterIndex = offset + spelling.length;
+        const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
+        if (before && after) return true;
+        offset = command.indexOf(spelling, offset + 1);
+      }
     }
     return false;
   });
@@ -1170,9 +1178,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   if (fullSuite) {
     let files;
     try {
-      files = isGitWorkTree(process.cwd(), env)
-        ? trackedDefaultTestFiles(process.cwd(), env)
-        : null;
+      files = trackedDefaultTestFiles(process.cwd(), env);
     }
     catch (error) {
       process.stderr.write(`run-tests: could not list tracked test files: ${error.message}\n`);
@@ -1483,7 +1489,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
   if (!landingWorker) cleanupWatchdog = installTestWatchdog();
-  if (process.env.NODE_TEST_CONTEXT === 'child-v8') installTestChildDrain({
+  if (process.env.NODE_TEST_CONTEXT === 'child-v8' && !landingWorker) installTestChildDrain({ // the landing parent owns and signals the leftovers; waiting here holds the run
     sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
     onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
   });

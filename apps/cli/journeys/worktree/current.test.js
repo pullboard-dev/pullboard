@@ -102,6 +102,7 @@ async function project(t, { predates = false } = {}) {
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize current-cli fixture');
   const worktree = join(dir, 'web');
   git(root, 'worktree', 'add', '-q', worktree, '-b', 'web/one');
+  // @pullboard-board-file journey: seed the board file the current CLI opens
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock, { gitRoot: root });
   const seat = register(board, { lane: 'web', path: worktree, family: 'Fixture Vendor' });
   closeBoard(board);

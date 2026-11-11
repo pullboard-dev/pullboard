@@ -91,7 +91,7 @@ test('engine 12 acceptance receipts stay exact and sealed re-review needs a newe
   const seed = submitted(t);
   const one = replica(t, seed);
   const two = replica(t, seed);
-  const old = oldStore.openBoard(join(directory, 'old.sqlite'));
+  const old = oldStore.openBoard(':memory:');
   t.after(() => { oldStore.closeBoard(old); rmSync(directory, { recursive: true, force: true }); });
   oldExchange.importBoard(old, exportBoard(seed));
   const accept = oldEngine.prepareEngineMove(old, 'verify', [1, verdict()], { id: 'old-engine12-accept' });
@@ -248,7 +248,7 @@ test('an actual engine 12 finish records its landing without borrowing a newer c
   const oldMachine = await import(pathToFileURL(join(archived, 'src/machine.js')).href);
   assert.equal(oldMachine.ENGINE_VERSION, 12, 'prepare the in-flight move with the released executable');
   const seed = submitted(t);
-  const old = oldStore.openBoard(join(directory, 'old.sqlite'));
+  const old = oldStore.openBoard(':memory:');
   t.after(() => { oldStore.closeBoard(old); rmSync(directory, { recursive: true, force: true }); });
   oldExchange.importBoard(old, exportBoard(seed));
   const accept = oldEngine.prepareEngineMove(old, 'verify', [1, verdict()], { id: 'legacy-landing-accept' });
