@@ -35,7 +35,6 @@ import { repeatedLandingHoldCleared } from '../../logic/hold.js';
 import { landingContext } from '../../logic/message.js';
 import { requireLandingHost } from '../host.js';
 import { policyAt } from '../../../../sandbox/index.js';
-import { policyVersion } from '../../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { candidates } from './selection.js';
 import { relandAcceptedItems } from '../reland.js';
@@ -78,12 +77,6 @@ import { flakeRatchetBeforeGate } from './trunk.js';
 import { finishTrunk } from './publish.js';
 import { timedPhase } from '../timing.js';
 import { scanRidesRunner } from '../scan.js';
-
-/** The live policy's commit and config digest at a landing's base, recorded on its batch [B4,R2]. */
-function landingPolicy(root, commit) {
-  const { commit: policyCommit, digest } = policyVersion(policyAt(root, commit));
-  return { commit: policyCommit, digest };
-}
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
@@ -474,8 +467,6 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const directory = join(repoInfo(root).commonDir, 'pullboard', 'landings', id);
     batch = { version: 1, id, startedAt: new Date().toISOString(), base: trunk.commit, tip: trunk.commit, branch: trunk.branch, root: join(directory, 'worktree'),
       ...(environment ? { environment } : {}),
-      // The policy version this landing is judged under, read live at its base, so replay sees the same inputs [B4,R2].
-      policy: landingPolicy(root, trunk.commit),
       candidates: selected.ready.map(landingEntry),
       items: selected.ready.map(landingEntry), conflicts: [], blocked: selected.blocked,
       ...(named ? { external: true } : {}),
