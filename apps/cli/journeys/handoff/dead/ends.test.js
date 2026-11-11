@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import {
   driverRecord,
   setDriverProcess,
+  spendDriverRelaunches,
 } from '../../../tests/fixtures/gate/driver.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -16,6 +17,7 @@ import { removeSandboxes } from '../../../tests/fixtures/submit/handoff.js';
 import { openBoard } from '../../../../lib/index.js';
 import * as nativeBoard from '../../../../lib/index.js';
 import { recoverInfrastructureHandoffs } from '../../../src/io/submit/handoff.js';
+import { RUNNING_RELAUNCH_LIMIT } from '../../../src/io/submit/handoff.js';
 import { loadConfig } from '../../../../../packages/config/index.js';
 import { writeBoardCommand } from '../../../../../packages/store/index.js';
 import { randomUUID } from 'node:crypto';
@@ -93,22 +95,24 @@ function fixture(t) {
 }
 
 /** Start a held gate for the item, then kill its worker's whole process group, as a crash would. */
-async function killedRunningHandoff(box) {
+async function killedRunningHandoff(box, { spend = true } = {}) {
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
   await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
   const job = state(box, box.id).job;
   sweep(box);
   assert.equal(state(box, box.id).job.id, job.id, 'a live worker is never replaced');
-  await killWorker(box, job);
+  await killWorker(box, job, { spend });
   return job;
 }
 
 /** Kill only this fixture's recorded detached group and observe its actual exit, not a fabricated pid. */
-async function killWorker(box, job) {
+async function killWorker(box, job, { spend = true } = {}) {
   const owner = driverRecord(box.boardFile, job.id);
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
+  // Relaunching a dead running gate comes first (#3995); a worker that keeps dying has spent that budget before the sweep ends it.
+  if (spend) spendDriverRelaunches(box.boardFile, job.id, RUNNING_RELAUNCH_LIMIT);
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
 }
 
@@ -150,7 +154,7 @@ test('clause 1: one sweep ends a killed worker as infrastructure and retries its
 
 test('a dead handoff on an item its seat no longer holds also ends within one sweep [C7,V4]', async t => {
   const box = fixture(t);
-  const job = await killedRunningHandoff(box);
+  const job = await killedRunningHandoff(box, { spend: false });
   const released = box.run(box.web, 'release', String(box.id), '--reason', 'OTHER', '--note', 'fixture releases the item', '--no-next');
   assert.equal(released.code, 0, `${released.err}\n${released.out}`);
   assert.notEqual(state(box, box.id).item.item_status, 'claimed');

@@ -172,7 +172,7 @@ function gitCall(cwd, args, env) {
 /**
  * Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it.
  * Detached by default; `onMainBranch` puts the commit on main's branch name instead. Why: a detached clone has no
- * accepted main, so packages/gate/src/io/run/tests.js refused a main comparison before any test and it came back a red that proved
+ * accepted main, so apps/cli/src/io/run/tests.js refused a main comparison before any test and it came back a red that proved
  * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
  * Only a run on this machine needs it: a runner comparison reads main from the object store in place [C7,#3323].
  */
@@ -310,7 +310,7 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
     if (diff.status !== 0) return false;
     const changed = new Set(diff.stdout.split('\0').filter(Boolean));
     // These inputs select execution itself; no source-import closure can prove them irrelevant.
-    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'packages/gate/src/io/run/tests.js'].includes(path))) return false;
+    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'apps/cli/src/io/run/tests.js'].includes(path))) return false;
     const selection = selectAffectedTests(root, { base: source, commit: composed, changed: [...changed] });
     if (selection.full || failures.some(failure => selection.files.includes(failure.file))) return false;
     for (const commit of new Set([base, source, composed])) {

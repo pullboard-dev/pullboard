@@ -176,6 +176,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   const peerResult = JSON.parse(readFileSync(peerResultPath, 'utf8'));
   assert.equal(peerResult.status, 0, peerResult.stderr || peerResult.stdout);
 
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const events = store.events(board);

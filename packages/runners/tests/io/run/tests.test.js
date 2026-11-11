@@ -42,7 +42,7 @@ import {
 import { focusedPoolSnapshot } from '../../fixtures/pool.js';
 import { stageFixtureTests } from '../../fixtures/tests.js';
 
-const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const shardFileCount = 9;
 
 /** Treat a reaped or zombie fixture PID as drained while waiting for it to stop executing. */
@@ -159,7 +159,7 @@ test('record ${name} [C7]', recordSelectedFile);
     rmSync(root, { recursive: true, force: true });
   }
   t.after(cleanupFixture);
-  return { root, capture, expected, runner: join(root, 'packages/gate/src/io/run/tests.js') };
+  return { root, capture, expected, runner: join(root, 'apps/cli/src/io/run/tests.js') };
 }
 
 /** Build a fixture with one held sibling, one failure, and queued sentinels beyond worker capacity. */
@@ -226,7 +226,7 @@ test('queued sentinel ${number} releases ordinary sibling', () => {
   stageFixtureTests(root, ['test/01-sibling.test.js', 'test/02-failing.test.js', ...queuedFiles]);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
-    root, runner: join(root, 'packages/gate/src/io/run/tests.js'),
+    root, runner: join(root, 'apps/cli/src/io/run/tests.js'),
     siblingStarted: join(root, 'sibling-started'), siblingFinished: join(root, 'sibling-finished'),
     failure: join(root, 'failure'), queued: join(root, 'queued'), queuedFiles, workerMarker: join(root, 'worker-marker'),
     release: join(root, 'release'),
@@ -452,7 +452,7 @@ test('a landing worker runs after persistent identity snapshot errors [C7,V4]', 
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
-  const fixtureRunner = join(root, 'packages/gate/src/io/run/tests.js');
+  const fixtureRunner = join(root, 'apps/cli/src/io/run/tests.js');
   const workerTest = join(tests, 'worker-start.test.js');
   const preload = join(root, 'worker-snapshot-unavailable.mjs');
   const injected = join(root, 'worker-snapshot-unavailable');
@@ -1153,7 +1153,7 @@ test('ignored test must not run [C7]', failIfIgnoredRuns);
 `);
   stageFixtureTests(root, ['.gitignore', ...trackedSources.keys(), 'tracked.spec.js']);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, runner: join(root, 'packages/gate/src/io/run/tests.js'), capture, expected };
+  return { root, runner: join(root, 'apps/cli/src/io/run/tests.js'), capture, expected };
 }
 
 /** Create a small ESM or CommonJS test that records its discovery-pattern label. */

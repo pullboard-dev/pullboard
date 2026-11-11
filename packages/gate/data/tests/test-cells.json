@@ -2,6 +2,8 @@
   "journeys": {
     "apps/cli/journeys/bar/session.test.js": "drives the real CLI (join, bar sign, claim, submit, verify) through private native sessions and checks its exit codes, refusals and board rows end to end",
     "apps/cli/journeys/blueprint/main.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
+    "apps/cli/journeys/blueprint/init.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
+    "apps/cli/journeys/blueprint/save.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
     "apps/cli/journeys/doctrine/rulings.test.js": "drives the real CLI (resume, doctrine rulings) across several checkouts and the agent move API, and checks its JSON output and exit codes end to end",
     "apps/cli/journeys/fact/admission.test.js": "drives the real CLI in a project checkout and checks its admission output, queue order and board rows end to end",
     "apps/cli/journeys/land/landing/message.test.js": "drives the real CLI (init, claim, submit, verify accept, land) in a project checkout and checks the landed commit header and trailers end to end",

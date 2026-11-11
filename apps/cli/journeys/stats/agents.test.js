@@ -44,6 +44,7 @@ test('rigor drafts and sentinel runs do not count as agent seats [N26]', t => {
 
 test('API cached flow does not count board actors as active agents [N26]', async t => {
   const box = await apiHttpBox(t);
+  // @pullboard-board-file journey: reads the board the HTTP API serves
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     register(board, { lane: 'app', path: join(box.root, 'agent'), family: 'codex' });

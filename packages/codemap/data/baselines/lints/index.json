@@ -113,11 +113,11 @@
       ]
     },
     "fileSize": {
-      "count": 66395,
+      "count": 66304,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/fileSize-001.json",
-          "sha256": "58f8055e8fa4ec4ea9103d1f441cc5b1cdf3ef57a36a857cddcea47c445dd536"
+          "sha256": "3c344c3568690dd2946bfd88e8dc21deaa17c6fecc6dc34e4e0d3f77b74aad7d"
         }
       ]
     },

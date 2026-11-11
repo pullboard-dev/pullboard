@@ -8,9 +8,11 @@
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
 import assert from 'node:assert/strict';
 import { workingSourceInventory } from '../../../../packages/gate/src/io/scan.js';
+import { packageFiles } from '../../../../packages/runners/index.js';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { posix } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -21,9 +23,14 @@ const SECRET_LABELS = /\['(Anthropic|OpenAI) key',/;
 
 /**
  * Every source file of the core, with its lines.
+ * Why: the core is the shipped code that once sat in src/ and bin/; the layout move put it in every cell under
+ * packages/ and apps/ except the hosted relay app, which came from relay/ (packages/codemap/data/plan) [P5].
  */
 function sources() {
-  return workingSourceInventory(ROOT, ['src', 'bin']).map(({ file, body }) => ({
+  const directories = [...new Set(packageFiles(ROOT)
+    .filter((file) => /^(?:packages|apps)\//u.test(file) && !file.startsWith('apps/relay/') && file.endsWith('.js'))
+    .map((file) => posix.dirname(file)))].sort();
+  return workingSourceInventory(ROOT, directories).map(({ file, body }) => ({
     file,
     lines: body.toString('utf8').split('\n'),
   }));
@@ -37,21 +44,33 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
 });
 
 test('clause 1: only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
-  const allowed = (file, line) => file === 'packages/link/src/io/relay.js' ||
-    (file === 'packages/keys/src/io/relay/client.js' && line.trim() === 'response = await fetch(new URL(path, url), {') ||
-    // A board that signs person moves reads its linked relay's person authority, the relay link it already holds (#408).
-    (file === 'src/person-signing-cli.js' && line.trim() === "const response = await fetch(new URL(AUTHORITY_PATH, origin), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });") ||
+  const allowed = (file, line) =>
+    // The relay transport: the one place the sync you turn on reaches the relay (#408 signing reads go through it).
+    (file === 'packages/person/src/io/adapter.js' && line.trim() === 'export const realRelayAdapter = createRelayAdapter((url, options) => globalThis.fetch(url, options));') ||
     // relay on's key hand-over reads a person's public SSH keys from GitHub itself, so the relay cannot add one [E17].
     (file === 'packages/link/src/io/relay/handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
-    (['apps/view/src/io/serve.js', 'src/api.js', 'packages/api/src/io/main.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
+    (['apps/view/src/io/serve.js', 'packages/api/src/io/main.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
     // The resident board serves commands over a Unix-domain socket in the machine folder, never a network address.
     (file === 'apps/cli/src/io/resident/board.js' && line.trim() === "} from 'node:net';") ||
     (file === 'apps/cli/src/io/resident/socket.js' && line.trim() === "* @param {import('node:net').Socket} socket") ||
     (file === 'apps/cli/src/io/resident/client.js' && line.trim() === "import { connect } from 'node:net';") ||
+    // The board writer serves one board over a Unix-domain socket path, never a network address.
+    (file === 'packages/store/src/io/board/writer.js' && ["import { createConnection } from 'node:net';", "import { createServer } from 'node:net';"].includes(line.trim())) ||
+    // The runner controller reads an inherited pipe by file descriptor; it dials nothing.
+    (file === 'packages/runners/src/io/controller/watch.js' && line.trim() === "import { Socket } from 'node:net';") ||
+    // isIP only parses an address string for an explicit LAN view [H19]; it opens nothing.
+    (file === 'apps/view/src/io/address.js' && line.trim() === "import { isIP } from 'node:net';") ||
     (file === 'packages/sync/src/io/local.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
+    // Scanners that name network calls in order to refuse them.
+    (file === 'apps/view/src/io/coverage.js' && /^const BROWSER_CALLS = \/\\b\(\?:/u.test(line.trim())) ||
+    (file === 'packages/gate/src/io/board/write.js' && line.trim() === "if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {") ||
+    (file === 'packages/gate/src/io/relay.js' && /^\['[\w/.-]+', \[.*fetch\(/u.test(line.trim())) ||
     (['apps/view/src/io/serve.js'].includes(file) && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (['apps/view/src/io/session.js'].includes(file) && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
-    (['apps/view/src/logic/cockpit/live.js', 'src/view/cockpit-live.js'].includes(file) && /^\s*const res = await fetch\(path, /.test(line));
+    // The cockpit page calls its own server, and makes the one local discovery request pinned below.
+    (file === 'apps/view/src/io/page/connect.js' && (line.trim() === "try { reply = await fetch(base + '/local/protocol', { signal: AbortSignal.timeout(3000), credentials: 'omit', redirect: 'error' }); }" ||
+      /^const res = await fetch\(path, \{ method: body \? 'POST' : 'GET', /u.test(line.trim()))) ||
+    (file === 'apps/view/src/logic/cockpit/live.js' && /^\s*const res = await fetch\(path, /.test(line));
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
   );
@@ -136,7 +155,7 @@ assert.deepEqual(globalThis.__localFetchRequests, [
   assert.equal(proof.status, 0, `the isolated loopback proof passed:\n${proof.stderr}\n${proof.stdout}`);
   const serve = readFileSync(join(ROOT, 'apps/view/src/io/serve.js'), 'utf8');
   assert.match(serve, /export const LOOPBACK = '127\.0\.0\.1';/);
-  assert.match(serve, /serveView\(\{[^}]*\blan = false\s*\} = \{\}\)/u, 'LAN listening requires an explicit opt-in');
+  assert.match(serve, /serveView\(\{[^}]*\blan = false\b[^}]*\} = \{\}\)/u, 'LAN listening requires an explicit opt-in');
   assert.match(serve, /const address = lan \? viewLanAddress\(\) : LOOPBACK;/u, 'ordinary view selects only loopback');
   assert.match(serve, /server\.listen\(port, address, /u, 'the listener uses only the explicitly selected address');
   const viewSession = readFileSync(join(ROOT, 'apps/view/src/io/session.js'), 'utf8');

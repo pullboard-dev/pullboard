@@ -29,6 +29,7 @@ import {
 } from '../../src/logic/seal.js';
 import {
   findChromeExecutable,
+  stableChrome,
   startChrome,
 } from '../../../../apps/cli/tests/fixtures/chrome.js';
 
@@ -237,7 +238,7 @@ test('headless Chrome loads the unchanged module and exchanges sealed bytes with
   try {
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
-      chrome = await startChrome({ executable, profileDirectory: profile, url: 'http://127.0.0.1:' + server.address().port + '/' });
+      chrome = await stableChrome(await startChrome({ executable, profileDirectory: profile, url: 'http://127.0.0.1:' + server.address().port + '/' }));
       await chrome.waitFor("document.body.dataset.sealResult === 'pass'", 30_000); // budget: hang ceiling for the private browser interoperability result handshake; no throughput claim.
     } catch (error) {
       assert.fail(`Chrome interoperability failed; requested fixture routes: ${[...requests].sort().join(', ')}; ${error.message}`);

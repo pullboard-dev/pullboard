@@ -1,0 +1,6 @@
+{
+  "families": [
+    { "match": "^(claude|anthropic)", "family": "anthropic" },
+    { "match": "^(gpt|codex|o\\d|openai)", "family": "openai" }
+  ]
+}

@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { bindProofRunner } from '../../../../packages/verify/index.js';
 
 // Rule-proof coverage compares committed runner bytes with this installed file; verify never imports the runner's cell.
-bindProofRunner(fileURLToPath(new URL('../../../../packages/gate/src/io/run/tests.js', import.meta.url)));
+bindProofRunner(fileURLToPath(new URL('../../../cli/src/io/run/tests.js', import.meta.url)));
 
 const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];
 /** The milestone operations, each read through its live binding at call time (the same cyclic-load rule). */

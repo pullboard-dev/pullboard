@@ -107,13 +107,13 @@ function firstPathDifference(before, now) {
 
 /**
  * Name the first input that differs between a file's last key and its current key, in this order: the file itself, an
- * import in its closure, packages/gate/src/io/run/tests.js, package.json, any other runner file, a declared data input, the tracked list,
+ * import in its closure, apps/cli/src/io/run/tests.js, package.json, any other runner file, a declared data input, the tracked list,
  * the run options, the Node version, then an environment variable.
  *
  * @param {string} store
  * @param {{ inputKey: string, context: object } | null} before the file's latest earlier key, if any
  * @param {{ inputKey: string, context: object }} now
- * @returns {string} `file`, `import <path>`, `packages/gate/src/io/run/tests.js`, `package.json`, `node`, `env <NAME>`, or a reason it is unknown
+ * @returns {string} `file`, `import <path>`, `apps/cli/src/io/run/tests.js`, `package.json`, `node`, `env <NAME>`, or a reason it is unknown
  */
 export function firstChangedInput(store, before, now) {
   if (!before) return 'no earlier key';
