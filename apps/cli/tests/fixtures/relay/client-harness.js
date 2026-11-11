@@ -305,8 +305,8 @@ export async function threeReplicaFixture(t, timing) {
   gitAt(seed, envs[0], 'add', '-A');
   gitAt(seed, envs[0], 'commit', '-q', '-m', 'test: seed relay claim fixture');
 
-  // Only clone A is ever a working tree (init, worktree registration); B and C only host their worktrees, so skipping their checkouts saves thousands of file writes [C7].
-  clones.forEach((clone, index) => gitAt(scratch, envs[0], 'clone', '-q', ...(index === 0 ? [] : ['--no-checkout']), seed, clone));
+  // Only clone A is ever a working tree (init, worktree registration); B and C only host their worktrees, so skipping their checkouts saves thousands of file writes; copied objects keep a runner whose filesystem refuses git's hardlinks from failing the clone [C7].
+  clones.forEach((clone, index) => gitAt(scratch, envs[0], 'clone', '-q', '--no-hardlinks', ...(index === 0 ? [] : ['--no-checkout']), seed, clone));
   for (let index = 0; index < clones.length; index += 1) {
     gitAt(clones[index], envs[index], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
     gitAt(clones[index], envs[index], 'worktree', 'add', '-q', '-b', `web/race-${index + 1}`, worktrees[index], 'main');
