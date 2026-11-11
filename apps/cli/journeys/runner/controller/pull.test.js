@@ -91,7 +91,7 @@ for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
       gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: ${count}, browser: 1 }] }));
-    const command = 'printf job-finished; sleep 8; exit 3';
+    const command = 'printf job-finished; sleep ${8 + count}; exit 3';
     const shaped = result => ({ exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), kind: result.executionReceipt?.kind, runner: result.executionRunner });
     const settle = promise => promise.catch(error => ({ refused: error.code, message: error.message }));
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
@@ -99,7 +99,7 @@ for (const count of [1, 4, 12]) test(`${count} pulled job${count === 1 ? '' : 's
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
     let counts = [], waiting = 0;
     const sampler = setInterval(() => {
-      if (waiting < 1) return;
+      if (waiting < ${count}) return;
       try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
