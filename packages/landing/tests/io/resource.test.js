@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { reclaimReason } from '../../src/io/resource.js';
+import { renewWithBackoff } from '../../src/io/resource.js';
+import { takeLandingResource } from '../../src/io/resource.js';
+import { retryableLandingRefusal } from '../../src/logic/retry.js';
+import { landingFault } from '../../src/io/step/diagnose.js';
+import * as store from '../../../store/index.js';
+import { register as registerSeat } from '../../../store/index.js';
+import { Refused } from '../../../kernel/index.js';
+import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
 
 /** A pid that certainly belongs to no running process: a child that already exited. */
 function deadPid() { return spawnSync(process.execPath, ['-e', '0']).pid; }
@@ -27,4 +35,61 @@ test('clause 2: a waiting lander never logs foreign holders require explicit rel
   // The waiting loop releases any holder with a reason before it reports a wait, so no wait message names a dead local holder.
   assert.ok(reclaimReason(holder({ machine: 'machine-a' }), null, { now: LATER, machine: 'machine-a' }));
   assert.ok(reclaimReason(holder({ lineage: null }), null, { now: LATER, machine: null }), 'an unlinked board releases a dead holder at once');
+});
+
+/** An open board whose accepted policy moves while any policy-judged write is open, as when main lands a policy change. */
+function boardWithMovingPolicy(t) {
+  let at = Date.parse('2026-01-01T00:00:00Z');
+  const board = openCellBoard(':memory:', { now: () => new Date(at) });
+  registerSeat(board, { lane: 'coordinator', path: '/renew/main' });
+  t.after(() => store.closeBoard(board));
+  let prepared = 0;
+  /** The real frame shape: current at BEGIN, stale by the commit-time check. */
+  const policyLanded = () => {
+    Object.defineProperty(board, 'prepareWritePolicy', { configurable: true, value() {
+      prepared += 1;
+      return { current: () => true, enter() {}, leave() {},
+        assertCurrent() { throw new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed during this write; retry the command against current main'); } };
+    } });
+  };
+  return { board, advance(ms) { at += ms; }, policyLanded, prepared: () => prepared };
+}
+
+test('clause 1 (#5672): a landing lease renewal while main lands a policy change renews the lease, never POLICY_SNAPSHOT_STALE [C7]', async t => {
+  const box = boardWithMovingPolicy(t);
+  const { board } = box;
+  const lost = [];
+  const lease = await takeLandingResource({ board, branch: 'refs/heads/main', onLost: error => lost.push(error.code),
+    write: async (operation, args) => store[operation](board, ...args) });
+  try {
+    box.policyLanded();
+    assert.throws(() => store.atomic(board, () => {}), { code: 'POLICY_SNAPSHOT_STALE' }, 'a policy-judged write refuses, so the board models the 11 Nov landing');
+    const before = Date.parse(lease.assertCurrent().until);
+    box.advance(5000);
+    await lease.assertHeld();
+    assert.ok(Date.parse(lease.assertCurrent().until) > before, 'the heartbeat moved the lease deadline');
+    assert.deepEqual(lost, [], 'the landing kept its lease');
+  } finally { delete board.prepareWritePolicy; await lease.release(); }
+});
+
+test('clause 1 (#5672): a POLICY_SNAPSHOT_STALE that escapes a landing is a retried landing fault, so the automatic worker never rethrows it [C7]', () => {
+  // runLandingWake rethrows only a refusal retryableLandingRefusal rejects; the batch keeps a landing fault for adoption.
+  const stale = new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed during this write; retry the command against current main');
+  assert.equal(retryableLandingRefusal(stale.code), true);
+  assert.equal(landingFault(stale), true);
+  assert.equal(retryableLandingRefusal('LAND_CONFLICT'), false, 'an item defect still parks');
+});
+
+test('clause 1 (#5672): a lease renewal refused POLICY_SNAPSHOT_STALE retries in a fresh write and succeeds [C7]', async () => {
+  let calls = 0;
+  const renew = () => {
+    calls++;
+    if (calls < 3) throw new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed during this write; retry the command against current main');
+    return 'renewed';
+  };
+  const waits = [];
+  assert.equal(await renewWithBackoff(renew, { pausing: async ms => { waits.push(ms); }, until: () => Date.now() + 120_000 }), 'renewed');
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, [100, 200]);
+  await assert.rejects(renewWithBackoff(() => { throw new Refused('LAND_LEASE_LOST', 'lost'); }, { pausing: async () => {} }), { code: 'LAND_LEASE_LOST' });
 });

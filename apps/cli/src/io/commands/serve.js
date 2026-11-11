@@ -1,5 +1,7 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
+import { withBoardRead } from '../context.js';
+import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { openBoardForRead } from '../../../../lib/index.js';
 import { loadKeyedResult } from '../../../../../packages/pin/index.js';
@@ -14,6 +16,9 @@ import { refusalDocument } from '../../logic/step/words.js';
 import {
   traceServeStartup,
 } from '../main.js';
+import { serveListen } from '../../../../../packages/config/index.js';
+import { boardKey } from '../../../../../packages/config/index.js';
+import { boardKeyFile } from '../../../../../packages/config/index.js';
 import {
   DEFAULT_VIEW_PORT,
   defaultViewPort,
@@ -34,6 +39,9 @@ import {
   main,
 } from '../entry.js';
 
+/** The address `pullboard serve` keeps when no setting or flag names another. */
+const LOOPBACK = '127.0.0.1';
+
 /** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
 export async function serveHere(io, values) {
   traceServeStartup('serve-context-start');
@@ -43,15 +51,23 @@ export async function serveHere(io, values) {
   traceServeStartup('serve-registration-start');
   await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io, undefined, projectLinkPorts(io));
   traceServeStartup('serve-registration-ready');
-  const port = values.port === undefined ? 0 : Number(values.port);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
+  const flagPort = values.port === undefined ? undefined : Number(values.port);
+  if (flagPort !== undefined && (!Number.isInteger(flagPort) || flagPort < 0 || flagPort > 65535)) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
+  const { address, port } = serveListen({ address: values.address, port: flagPort });
+  // Off loopback the API answers runners on the network: it needs this machine's lasting board key and serves only this repo's board [P7].
+  const networked = address !== LOOPBACK;
   traceServeStartup('serve-listen-start');
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+    ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
   traceServeStartup('serve-listen-ready');
-  io.result?.({ url: api.url, port: api.port });
+  // The one board served off loopback, by the address runner serve and install-serve take.
+  const boards = networked ? [withBoardRead(ctx, board => store.boardId(board))].map(id => ({ id, runnerUrl: `${new URL(api.url).origin}/api/v1/boards/${id}` })) : [];
+  io.result?.({ url: api.url, port: api.port, address, ...(networked ? { boards, keyFile: boardKeyFile() } : {}) });
   io.say(`Pullboard API v1: ${api.url}`);
-  io.say('Only this machine can reach it, with its session secret. Ctrl-C stops it.');
+  if (!networked) io.say('Only this machine can reach it, with its session secret. Ctrl-C stops it.');
+  for (const board of boards) io.say(`Runners pull from ${board.runnerUrl} with the key in ${boardKeyFile()}:\n  pullboard runner install-serve <ssh-host> --board ${board.runnerUrl}`);
+  if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
   await new Promise((stop) => {
