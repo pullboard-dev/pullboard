@@ -12,7 +12,7 @@
 export function selectionFanOut(selection, changed, top = 5) {
   const counts = new Map();
   for (const reason of Object.values(selection.reasons ?? {})) {
-    const kind = reason.includes(' -> ') ? `reached from ${reason.split(' -> ')[0]}` : reason.replace(/^unresolved closure: [^:]*:?\s*/u, 'unresolved closure: ').slice(0, 120);
+    const kind = reason.includes(' -> ') ? `reached from ${reason.split(' -> ')[0]}` : reason.replace(/^unresolved closure: [^:]*: /u, 'unresolved closure: ').slice(0, 120);
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
   return { changed: [...changed], selected: selection.files.length,
