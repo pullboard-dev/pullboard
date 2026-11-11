@@ -2002,11 +2002,6 @@
     "hand-policy": 2,
     "env-spread": 1
   },
-  "apps/cli/journeys/init/shards.test.js": {
-    "tempdir": 1,
-    "hand-policy": 4,
-    "env-spread": 1
-  },
   "apps/cli/journeys/fact/landing/red.test.js": {
     "model": 1
   },
@@ -3940,5 +3935,10 @@
   },
   "apps/cli/tests/fixtures/relay/auth.js": {
     "tempdir": 1
+  },
+  "apps/cli/tests/fixtures/init/shards.js": {
+    "tempdir": 1,
+    "hand-policy": 4,
+    "env-spread": 1
   }
 }

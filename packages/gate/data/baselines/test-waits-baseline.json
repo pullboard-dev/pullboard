@@ -179,10 +179,6 @@
   "apps/cli/journeys/land/main.test.js": {
     "sleep": 3
   },
-  "apps/cli/journeys/init/shards.test.js": {
-    "poll": 1,
-    "sleep": 4
-  },
   "apps/cli/journeys/gate/landing/stop.test.js": {
     "sleep": 1
   },
@@ -371,5 +367,11 @@
   },
   "apps/cli/journeys/relay/main-pairing.test.js": {
     "sleep": 2
+  },
+  "apps/cli/tests/fixtures/init/shards.js": {
+    "poll": 1
+  },
+  "apps/cli/journeys/init/shards.test.js": {
+    "sleep": 4
   }
 }
