@@ -217,6 +217,11 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
       const group = groups.get(entry.failure.file) ?? [];
       if (!group.some(other => other.failure.name === entry.failure.name)) group.push(entry);
       groups.set(entry.failure.file, group);
+    } else if (config.flakes?.rerun === true && prefix) {
+      // Name the missing fact, so a red that was never paired says which condition kept it unpaired.
+      entry.reason = !entry.failure.file || !entry.failure.name ? 'The red names no test file and case in its output; no paired rerun is possible.'
+        : !entry.named ? `${entry.failure.file} is not a committed test file at the pinned head ${pin.head.slice(0, 12)}; no paired rerun is possible.`
+          : 'A nested failing case has no structured selector; no paired rerun is possible.';
     }
   }
   const pairedReceipts = [];
