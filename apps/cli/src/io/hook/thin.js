@@ -40,6 +40,7 @@ export async function runThinHook(args, streams) {
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
     io.refusal?.(error);
+    await io.prepareRefusal();
     io.err(`pullboard: ${io.guidance(error.message.replace(/\r?\nnext:[ \t]*[^\r\n]*\S[ \t]*(?:\r?\n)*$/u, ''))}\nnext: ${io.refusalDocument(error).error.next}`);
     io.flush(1);
     return 1;
