@@ -2,6 +2,7 @@
 /** @pullboard-test-gui */
 /** Plain presentation over real native events, preserving quoted words and action identities [N26]. */
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
   mkdtempSync,
@@ -100,9 +101,9 @@ async function seedBookkeeping(box, alpha) {
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    // The fixture has no registered runner, so the background baseline stays pending; complete it through the real store call.
-    const pending = store.getItem(held, 1).item_check_baseline;
-    assert.equal(pending.result, 'pending', 'the fixture baseline waits for a runner');
+    // The fixture has no registered runner, so no background baseline ever lands; record a request and complete it through the real store calls.
+    const pending = { command: 'node --version', main: box.git(alpha.repo, 'rev-parse', 'HEAD'), result: 'pending', request: randomUUID() };
+    store.saveCheckBaseline(held, 1, pending);
     store.completeCheckBaseline(held, 1, { agentId: 'coordinator', expected: pending,
       baseline: { command: pending.command, main: pending.main, result: 'green', seconds: 1 } });
     store.board_recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
