@@ -385,21 +385,28 @@ export function sharedRemoteAnalysis(startJob) {
   };
 }
 
+/** True when the check is a plain command naming this file with no flag, filter or shell syntax that could narrow its run. */
+function checkRunsCompletely(check, path) {
+  const words = String(check ?? '').trim().split(/\s+/u);
+  return words.length > 1 && !words.some(word => word.startsWith('-') || /[|&;$`"'<>()*?[\]]/u.test(word)) && words.slice(1).includes(path);
+}
+
 /**
  * Accept a runner's test plan and browser admission for the controller's gate only when they bind the pinned commits and
  * cover the tests this submit must prove; anything else refuses and never runs a smaller selection (#3006).
  *
  * @param {{main?: string, source?: string, plan?: {proofFiles?: string[]}, admission?: object}} analysis
- * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
+ * @param {{main: string, source: string, crossRunTests?: string[], check?: string}} pinned
  * @returns {{plan: object, admission: object|undefined}}
  */
-export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] }) {
+export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [], check = '' }) {
   if (analysis?.main !== main || analysis.source !== source) {
     throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan is not bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; submit again`);
   }
   const files = analysis.plan?.proofFiles;
   if (!Array.isArray(files)) throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan names no proof files; submit again');
-  const missing = crossRunTests.filter(path => !files.includes(path));
+  // Why: the planner leaves out a file the frozen check already runs completely, so only the rest must be in the plan (#5466).
+  const missing = crossRunTests.filter(path => !files.includes(path) && !checkRunsCompletely(check, path));
   if (missing.length) throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan omits call-adjacent tests ${missing.join(', ')}; submit again`);
   // Why: a missing admission would let runSubmitGate admit browser and GUI files on the Mac, the work this item moves off it.
   const admission = analysis.admission;
