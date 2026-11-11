@@ -425,7 +425,11 @@
       "deep": 0
     },
     "apps/cli/src/io/context.js": {
-      "cells": 5,
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/coordinator-file.js": {
+      "cells": 1,
       "deep": 0
     },
     "apps/cli/src/io/docs.js": {
@@ -553,7 +557,7 @@
       "deep": 0
     },
     "apps/cli/src/io/spec.js": {
-      "cells": 6,
+      "cells": 3,
       "deep": 0
     },
     "apps/cli/src/io/submit.js": {
@@ -605,7 +609,7 @@
       "deep": 0
     },
     "apps/cli/src/io/sync.js": {
-      "cells": 10,
+      "cells": 6,
       "deep": 0
     },
     "apps/cli/src/io/tool/build.js": {
@@ -677,7 +681,7 @@
       "deep": 0
     },
     "apps/cli/src/logic/step/words.js": {
-      "cells": 3,
+      "cells": 1,
       "deep": 0
     },
     "apps/cli/tests/fixtures/api.js": {
@@ -717,6 +721,10 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/cases/quarantine.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
       "cells": 1,
       "deep": 0
     },
@@ -1061,7 +1069,11 @@
       "deep": 0
     },
     "apps/lib/src/logic/native.js": {
-      "cells": 18,
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/src/logic/native/ports.js": {
+      "cells": 17,
       "deep": 0
     },
     "apps/lib/tests/fixtures/generated/doc/default.js": {
@@ -2432,6 +2444,10 @@
       "cells": 5,
       "deep": 0
     },
+    "packages/landing/src/io/derive.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "packages/landing/src/io/docs.js": {
       "cells": 2,
       "deep": 0
@@ -2544,8 +2560,12 @@
       "cells": 9,
       "deep": 0
     },
+    "packages/landing/src/io/step/derive.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/landing/src/io/step/merge.js": {
-      "cells": 5,
+      "cells": 3,
       "deep": 1
     },
     "packages/landing/src/io/step/parallel.js": {
@@ -5126,6 +5146,10 @@
     },
     "apps/cli/tests/fixtures/landing/receipts.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/init/shards.js": {
+      "cells": 1,
       "deep": 0
     }
   },

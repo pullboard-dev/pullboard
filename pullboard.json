@@ -296,6 +296,7 @@
         "apps/cli/journeys/shout/rows.test.js",
         "apps/cli/journeys/shout/search.test.js",
         "apps/cli/journeys/shout/shouts.test.js",
+        "apps/cli/journeys/shout/shouts/",
         "apps/cli/journeys/shout/shouts/redesign.test.js",
         "apps/cli/journeys/shout/toggle.test.js",
         "apps/cli/journeys/shout/words.test.js",

@@ -112,6 +112,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', () =
   const stacked = add(box, 'web', 'Historical stacked submission');
   assert.equal(box.run(box.web, 'claim', String(stacked)).code, 0);
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'historical stacked submission');
+  // @pullboard-board-file journey: read the board file the real CLI submission wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     submitFixture(board, stacked, {
@@ -147,6 +148,7 @@ function trunkStack(box, { historical = false } = {}) {
   const trunkHead = box.git(box.repo, 'rev-parse', 'HEAD');
   assert.equal(trunkHead, firstCommit);
   if (historical) {
+    // @pullboard-board-file journey: read the board file the real CLI submission wrote
     const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
     try {
       submitFixture(board, stacked, {

@@ -54,6 +54,7 @@ async function activated(t) {
   const base = commit(repo, 'test/a.test.js', "import {test} from 'node:test';test('a',()=>{});\n", 'chore: base',
     new Date(Date.now() - 3600000).toISOString());
   const file = join(repo, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file journey: the worker's writer and the audit read the same repository board file
   const db = openBoard(file, undefined, { isMain: true, gitRoot: repo });
   let identity, item;
   try {

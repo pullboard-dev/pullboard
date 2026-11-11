@@ -103,7 +103,7 @@ exit 4
 /**
  * Build the status script.
  * Stdin lines `W <id>` keep a job wanted, `C <id>` ask its worker to stop, `A <id>` remove its finished folder.
- * Stdout is `agent present|absent`, one `job <id> state=.. ready=.. beat=.. exit=.. alive=.. result=.. need=..` line per
+ * Stdout is `agent present|absent`, a `load state=ok|hold load=.. cores=.. at=..` line while an agent reports one, one `job <id> state=.. ready=.. beat=.. exit=.. alive=.. result=.. need=..` line per
  * job folder (beat in seconds, `-` when unknown), and a closing `end` so a cut connection is never read as a full answer.
  * @param {{ root?: string }} runner The runner record.
  * @returns {string} The POSIX script.
@@ -132,6 +132,7 @@ if [ -f "$R/agent.lock" ]; then
   if [ -n "$AP" ] && kill -0 "$AP" 2>/dev/null; then A=present; fi
 fi
 echo "agent $A"
+[ "$A" = present ] && [ -f "$R/load" ] && echo "load $(tr -d '\\n' < "$R/load")"
 for d in queue running done; do
   for P in "$R/$d"/*; do
     [ -d "$P" ] || continue

@@ -196,6 +196,7 @@ test('three same-candidate crash retries are bounded and exhaustion stays infras
 test('clause 2: an infrastructure-stopped candidate waits for health, retries three times, and notifies once without builder red [C7,V4]', async t => {
   const box = fixture(t);
   let job = await killedRunningHandoff(box);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   /** Retain the actual canonical infrastructure refusal through the native board command. */
   function stop(current, code) {
@@ -240,6 +241,7 @@ test('clause 3: board and worker share infrastructure codes, including runner re
   assert.ok(boardCodes.has('RUNNER_INFRA_RETRY_EXHAUSTED'));
   const box = fixture(t);
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'ready\n', 'feat(web): infrastructure fixture candidate [G1]').status, 0);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const item = getItem(board, box.id);
@@ -259,6 +261,7 @@ test('clause 3: board and worker share infrastructure codes, including runner re
 test('clause 1: a stopped job whose captured tools are gone spends its retries and notifies the coordinator once [C7,V4]', async t => {
   const box = fixture(t);
   const job = await killedRunningHandoff(box);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     writeBoardCommand(board, 'completeSubmitHandoff', [box.id, { agentId: job.agentId, job: job.id,
