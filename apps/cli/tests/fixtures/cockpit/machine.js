@@ -25,6 +25,7 @@ import {
 import { after } from 'node:test';
 import { disableFixtureBackgroundView } from './view.js';
 import {
+  fixtureAddRoute,
   fixtureJoinRoute,
   joinFixtureSeat,
 } from '../testkit.js';
@@ -36,7 +37,7 @@ const scratch = [];
 const MACHINE_MODEL = 'Test Model';
 
 after(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const SPEC = `# Demo spec
@@ -74,6 +75,7 @@ function machine() {
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
   const runWithEnv = (cwd, commandEnv, ...args) => {
     fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
+    fixtureAddRoute(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: commandEnv, encoding: 'utf8' });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
@@ -149,4 +151,4 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
-export { BIN, scratch, SPEC, machine, project };
+export { BIN, scratch, SPEC, MACHINE_MODEL, machine, project };

@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/resources/index.js packages/gate/index.js packages/resources/src/io/liveness.js packages/resources/src/io/runner/pick.js */
 /** A gate slot held by a live but hung process is terminated, freed and its captured request re-run once [C7]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';

@@ -108,7 +108,7 @@ function project(source) {
   box.git(repo, 'commit', '-qm', 'chore: install synthetic tool source before board initialization');
   const initialized = box.run(repo, 'init');
   assert.equal(initialized.code, 0, initialized.err + initialized.out);
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node packages/gate/src/io/run/tests.js',
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js',
     verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: ['docs/'] }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo spec\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n');
   return { ...box, repo, originalHook };
@@ -192,7 +192,7 @@ test('a native green selected-file gate cannot publish a full tool build [C7]', 
   writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = 'node packages/gate/src/io/run/tests.js apps/cli/tests/pin-audit.test.js';
+  config.gate = 'node apps/cli/src/io/run/tests.js apps/cli/tests/pin-audit.test.js';
   writeFileSync(configFile, JSON.stringify(config));
   const commit = generation(box, 'partial');
   const receipt = gate(box);

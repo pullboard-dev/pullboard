@@ -121,9 +121,9 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
 
 test('the renderer shortens home to ~, escapes hostile text and marks only real differences [O5,O6,N26]', () => {
   const rows = [
-    { scope: 'machine', key: 'name', label: '<b>x</b>', description: 'd <i>', group: 'Capacity', unit: 'text', value: '<img src=x>', default: null, source: '/Users/someone/.pullboard/settings.json', origin: 'configured' },
-    { scope: 'machine', key: 'gateSlots', label: 'Checks at once', description: 'How many.', group: 'Capacity', unit: 'count', cli: 'gateSlots', value: 2, default: 2, source: '/Users/someone/.pullboard/settings.json', origin: 'default' },
-    { scope: 'machine', key: 'gate.shortSlots', label: 'Quick', description: 'Zero.', group: 'Capacity', unit: 'count', value: 0, default: 0, source: '/Users/someone/.pullboard/settings.json', origin: 'default' },
+    { scope: 'machine', key: 'name', label: '<b>x</b>', description: 'd <i>', group: 'Capacity', unit: 'text', value: '<img src=x>', default: null, source: '/Users/example/.pullboard/settings.json', origin: 'configured' },
+    { scope: 'machine', key: 'gateSlots', label: 'Checks at once', description: 'How many.', group: 'Capacity', unit: 'count', cli: 'gateSlots', value: 2, default: 2, source: '/Users/example/.pullboard/settings.json', origin: 'default' },
+    { scope: 'machine', key: 'gate.shortSlots', label: 'Quick', description: 'Zero.', group: 'Capacity', unit: 'count', value: 0, default: 0, source: '/Users/example/.pullboard/settings.json', origin: 'default' },
   ];
   const html = settingsContentHtml({ rows }, 'machine');
   assert.match(html, /From <code>~\/\.pullboard\/settings\.json<\/code> · 1 changed from the default/u);

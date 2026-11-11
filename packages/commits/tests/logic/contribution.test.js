@@ -12,7 +12,7 @@ const lines = (...rows) => rows.flat().join('\n') + '\n';
 const VALID = {
   Bug: lines('version: "0.9.4"', 'ran: pullboard next', 'blocks: every claim', BAR, 'refusal: |', '  [BOARD_BUSY] retry', '  next: retry'),
   Ask: lines('have: a flaky board', 'want: guidance'),
-  Flaky: lines('test: test/a.test.js > b', 'rate: 3/20', 'env: macOS', 'bar:', '  - 1: 0/20 runs fail [measurement]', 'check:', '  - 1: node packages/gate/src/io/run/tests.js test/a.test.js'),
+  Flaky: lines('test: test/a.test.js > b', 'rate: 3/20', 'env: macOS', 'bar:', '  - 1: 0/20 runs fail [measurement]', 'check:', '  - 1: node apps/cli/src/io/run/tests.js test/a.test.js'),
   Performance: lines('metric: ms per claim', 'baseline: 420 at abc1234', 'measured: 90 at def5678', BAR),
   Fix: lines('rows:', '  - G1.2', 'refs:', '  - 42', 'draft: true', 'status: not_run', BAR),
   Proposal: lines('rows:', '  - G9.1', 'decision_needed: approve the new row', BAR),

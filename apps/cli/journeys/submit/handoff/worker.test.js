@@ -64,6 +64,7 @@ function admittedGate(t) {
   assert.equal(built.status, 0, built.stderr);
   const commonDir = join(box.repo, '.git');
   const boardFile = join(commonDir, 'pullboard/board.sqlite');
+  // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
   const board = openBoard(boardFile, undefined, { gitRoot: box.web });
   t.after(() => board.db.close());
   const item = getItem(board, id);
@@ -271,6 +272,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready orphaned worker fixture [G1]').status, 0);
   const boardPath = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
   const board = openBoard(boardPath, undefined, { gitRoot: box.web });
   let orphan;
   try {
@@ -288,6 +290,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
 
   const retried = document(box.run(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(retried.queued, true);
+  // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
   const currentBoard = openBoard(boardPath, undefined, { gitRoot: box.web });
   let current;
   try { current = submitHandoff(currentBoard, id); }
@@ -308,6 +311,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   // The original whole-file gate took 124.6 s while its isolated diagnostic took 100.5 s; allow
   // normal queue variation so this checks eventual completion rather than the runner's speed.
   const completed = await helpers.waitFor(() => { // budget: real worker completion ceiling, not an elapsed-time assertion.
+    // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
     const observed = openBoard(boardPath, undefined, { gitRoot: box.web });
     try {
       const job = submitHandoff(observed, id);

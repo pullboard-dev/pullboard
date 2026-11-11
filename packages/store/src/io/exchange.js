@@ -1,4 +1,7 @@
 import { beginImmediateQueued } from './board/busy.js';
+import { blobDirOf } from "../../../jobs/index.js";
+import { parseStub } from "../../../jobs/index.js";
+import { readBlob } from "../../../jobs/index.js";
 import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board/guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../state/light.js";
@@ -59,8 +62,24 @@ function columnsOf(db, table) {
   return db.prepare(`PRAGMA table_info(${identifier(table)})`).all().map(({ name }) => name);
 }
 
+/**
+ * Every job_step row with each blob stub replaced by the payload it stands for.
+ *
+ * Why: an export or relay snapshot must carry what a reader needs, and the blob store is a local file beside the board.
+ * A stub whose blob was pruned stays a stub: its body is derived data that the importing board produces again.
+ */
+function jobStepRows(db) {
+  const dir = blobDirOf(db);
+  return db.prepare('SELECT * FROM job_step ORDER BY rowid').all().map(row => {
+    const stub = parseStub(row.job_step_payload);
+    const body = stub ? readBlob(dir, stub.blob) : null;
+    return body === null ? row : { ...row, job_step_payload: body };
+  });
+}
+
 /** Read native rows without fetching large local proof projections into an export or digest. */
 function nativeRows(db, table) {
+  if (table === 'job_step') return jobStepRows(db);
   if (table === 'board_meta') return db.prepare('SELECT * FROM board_meta WHERE (meta_key < ? OR meta_key >= ?) AND meta_key NOT GLOB ? AND meta_key NOT GLOB ? ORDER BY rowid')
     .all(PROOF_COUNTER_PREFIX, 'local:proof-stats;', LANDING_LOCAL_PREFIX + '*', FAMILY_RECORD_PREFIX + '*');
   return db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all();

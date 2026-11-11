@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-journey Native long-note expansion and full-hash copy in Timeline, Needs you, and Items [N26]. */
 import assert from 'node:assert/strict';
@@ -59,7 +58,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-tab=history]")');
     await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
-    await chrome.stable(`(document.querySelector('#detail [data-item-panel-history]')?.click(), true)`);
+    await chrome.click(`document.querySelector('#detail [data-item-panel-history]')`);
     // The timeline lists newest first, so the long note is the last note row.
     const noteSelector = '#detail .tl-fact[data-timeline-kind="note"]:not(:has(~ .tl-fact[data-timeline-kind="note"])) .tl-note';
     const bodySelector = noteSelector + ' .tl-body';

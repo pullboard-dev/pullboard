@@ -31,7 +31,7 @@ const MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packag
 const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
 const PRE_RUNNER_MODULE = pathToFileURL(resolve(import.meta.dirname, '../runners.js')).href;
 const SETTINGS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/config/src/io/settings.js')).href;
-const TEST_RUNNER = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
+const TEST_RUNNER = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 const PROCESS_INFO_POLICY = '(version 1)(allow default)(deny process-info*)';
 const SANDBOX_EXEC = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
 const PERL_FORK = process.platform === 'darwin' && existsSync('/usr/bin/perl');

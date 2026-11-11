@@ -29,7 +29,13 @@ import {
   test,
   withBoard,
 } from '../../../tests/fixtures/scenarios/team.js';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { currentGitAdapter } from '../../../../../packages/git/index.js';
+import { realGitAdapter } from '../../../../../packages/git/index.js';
+import { withGitAdapter } from '../../../../../packages/git/index.js';
+import { verdictProjector } from '../../../../../packages/verify/index.js';
+import { temporaryRepository } from '../../../tests/fixtures/board/submit.js';
 
 test('a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
   const box = helpers.project();
@@ -256,4 +262,30 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   syncTrunk();
   assert.ok(items().every(item => !item.item_verdict_state), 'landed items are not waiting for re-review');
   assert.ok(existsSync(join(peer, '.git', 'pullboard', 'board.sqlite')));
+});
+
+test('many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
+  const dir = temporaryRepository(t, 'verdict-ancestry-memo-');
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
+  git('commit', '--allow-empty', '-q', '-m', 'base');
+  const trunk = git('rev-parse', 'HEAD');
+  git('commit', '--allow-empty', '-q', '-m', 'item work');
+  const checked = git('rev-parse', 'HEAD');
+  const tip = git('rev-parse', 'HEAD');
+  const projector = verdictProjector(dir, {}, { main: tip }, {
+    events: () => [], acceptedVerdict: () => ({ review: { trunk, head: checked, paths: ['a.txt'] } }),
+    verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' });
+  const ancestryChecks = [];
+  const counting = { ...realGitAdapter, spawnSync(args, options) {
+    if (args.includes('--is-ancestor')) ancestryChecks.push(args.slice(-2).join(' '));
+    return realGitAdapter.spawnSync(args, options);
+  } };
+  const states = withGitAdapter(counting, () => {
+    const counted = currentGitAdapter() === counting;
+    const out = Array.from({ length: 40 }, (_, index) => projector.state({
+      item_id: index + 1, item_status: 'verified', item_commit: checked, item_claim_head: trunk }));
+    if (counted) assert.deepEqual(ancestryChecks, [`${checked} ${tip}`], 'one ancestry check serves all 40 items at one commit');
+    return out;
+  });
+  assert.ok(states.every(state => state === null), 'every item reads fresh, as it did with a check per item');
 });

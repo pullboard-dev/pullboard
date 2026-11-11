@@ -9,6 +9,7 @@ import { captureLapsedClaims } from '../../../../packages/health/index.js';
 import { writeBoardCommand } from '../../../../packages/store/index.js';
 import { laneSeatContext } from '../../../../packages/seats/index.js';
 import { nextSessionSeats } from '../../../../packages/seats/index.js';
+import { primaryCheckoutRoot } from './worktree.js';
 import { seatRoutingPorts } from './ports/seat.js';
 import { sessionSeatReaders } from './ports/seat.js';
 import { agentSessionDigest } from '../../../../packages/person/index.js';
@@ -77,13 +78,8 @@ export function currentReworkRoutingPolicy(ctx, board) {
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
 async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, agentSessionDigest()); return result; }
 
-/**
- * Whether the board's committed relay.outbox setting queues moves while the relay is down (#922, H21).
- * Why: absent means enabled for existing boards; an explicit false is the shared opt-out.
- */
-export function relayOutboxSetting(root) {
-  try { return configFromSource(coordinatorFile(root, CONFIG_FILE).stdout).relay?.outbox !== false; } catch { return false; }
-}
+export { relayOutboxSetting } from './relay-outbox.js';
+import { relayOutboxSetting } from './relay-outbox.js';
 
 const LAPSE_MAINTENANCE = new WeakSet();
 
@@ -277,7 +273,7 @@ export async function claimOrdered(ctx, board, args) {
   }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
-  // The claiming session's declared model caps its seat's route, so a Haiku in a strong seat cannot claim strong work (#3678).
+  // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
   const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
@@ -326,15 +322,17 @@ export function claimFreezer(ctx, board) {
   };
 }
 
-/** Enrich the ordinary lane refusal with a clean destination owned by this session; never widen claim authority. */
+/** Enrich the ordinary lane refusal with where to build the item; never widen claim authority and never open a seat (GH #16, #27). */
 export async function wrongLaneGuidance(ctx, board, me, id, error) {
   if (!(error instanceof Refused) || error.code !== 'WRONG_LANE') return error;
-  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
-  if (!seats) return error;
   const item = store.getItem(board, id);
   if (item.item_lane === COORDINATOR || store.ROUTES.indexOf(item.item_route) > store.ROUTES.indexOf(me.route)) return error;
-  const { seat } = await laneSeatContext(ctx, board, me, item, seats, context, seatRoutingPorts);
-  return new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}. Build it in ${seat.agent} at ${seat.path}`,
-    `${cdTo(seat.path)} pullboard claim ${id}`);
+  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
+  const free = seats ? (await laneSeatContext(ctx, board, me, item, seats, context, { ...seatRoutingPorts, open: false })).seat : null;
+  const message = `item #${id} is in the ${item.item_lane} lane; this checkout is in ${me.lane}`;
+  if (free) return new Refused('WRONG_LANE', `${message}. Build it in ${free.agent} at ${free.path}`, `${cdTo(free.path)} pullboard claim ${id}`);
+  const primary = primaryCheckoutRoot(ctx.info);
+  const open = `${primary ? `${cdTo(primary)} ` : ''}pullboard worktree ${item.item_lane} --model "${me.model ?? '<model name>'}"`;
+  return new Refused('WRONG_LANE', `${message}. No seat was opened; open one in the ${item.item_lane} lane and claim it there`, `${open}, then in that worktree: pullboard claim ${id}`);
 }
 

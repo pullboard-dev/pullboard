@@ -31,9 +31,10 @@
     "packages/sync/src/io/main.js": 1,
     "packages/verify/src/io/evidence.js": 2,
     "packages/verify/src/io/verdict/trunk.js": 1,
+    "apps/cli/src/io/current.js": 1,
     "apps/cli/src/io/pinned/tool/build.js": 2,
     "apps/cli/src/io/resident/client.js": 1,
-    "apps/cli/src/io/spec.js": 2,
+    "apps/cli/src/io/coordinator-file.js": 2,
     "apps/runner/src/io/handoff.js": 2,
     "apps/runner/src/io/worker/handoff.js": 1,
     "apps/view/src/io/serve.js": 1

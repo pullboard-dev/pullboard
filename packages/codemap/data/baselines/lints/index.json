@@ -2,7 +2,7 @@
   "version": 2,
   "metrics": {
     "boundaries": {
-      "count": 7246,
+      "count": 7247,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-001.json",
@@ -30,7 +30,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-007.json",
-          "sha256": "9dc21fbd2d3c6d8ff3b8b17a0fb6a91237a96a81cf9c6fff7fed6b67b81813bc"
+          "sha256": "a7743aac0bd676eaf32f809cf33391605c5f3f1b60c09825f0c102a58d48e3bb"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-008.json",
@@ -50,7 +50,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-012.json",
-          "sha256": "307d380376f18ed454f7b6179269c53e71f97331b686ae2e9b56e75f65c108bc"
+          "sha256": "f3562f525dda852e28a0bdf8415acf8e4adb7251693e248837a6a3f7383de702"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-013.json",
@@ -113,20 +113,20 @@
       ]
     },
     "fileSize": {
-      "count": 66526,
+      "count": 66395,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/fileSize-001.json",
-          "sha256": "ab763f50b1ff6292c20692bb8fd78f4126983ef24630b2351958d8e1f765846d"
+          "sha256": "58f8055e8fa4ec4ea9103d1f441cc5b1cdf3ef57a36a857cddcea47c445dd536"
         }
       ]
     },
     "strays": {
-      "count": 900,
+      "count": 901,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/strays-001.json",
-          "sha256": "efdd8035062e22140a7ab6856f2692a31480004204307364d3b8bd7a23d78925"
+          "sha256": "1521acc858156c21904da04ae45916fa4f055abd5ae2cc97f0326a1e8c33b36c"
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-002.json",
@@ -147,7 +147,7 @@
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/unreachable-001.json",
-          "sha256": "20fae0504e612c7378b573dc5d78a46c45f00b8f93d4ae415b54656dc6eb5e2f"
+          "sha256": "2b9f186dec4ca878062f1da6c4af438212172937dedd31498de96665bd80d177"
         }
       ]
     },
