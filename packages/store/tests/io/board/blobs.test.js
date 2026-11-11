@@ -8,19 +8,24 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../fixtures/cell.js';
+import { closeCellBoard } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
 import { openCellBoard } from '../../fixtures/cell.js';
-import { closeBoard } from '../../../../../apps/lib/index.js';
 import { createJob } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
 import { jobView } from '../../../../jobs/index.js';
 import { blobDirOf } from '../../../../jobs/index.js';
 import { BLOB_THRESHOLD_BYTES } from '../../../../jobs/index.js';
-import { storedResult } from '../../../../drive/src/logic/keyed.js';
 import { keyedResult } from '../../../../drive/index.js';
 import { exportBoard } from '../../../index.js';
 import { migrateJobBlobs } from '../../../index.js';
 import { compactBoard } from '../../../index.js';
+
+/** The result a finished keyed job stored, or undefined when it was pruned or never finished. */
+function storedResult(view) {
+  const step = view.steps.find(row => row.name === 'result');
+  return step && !step.payload.pruned ? { result: step.payload.result } : undefined;
+}
 
 /** A result body of about `kilobytes` KB, different for every seed. */
 function body(seed, kilobytes) {
@@ -93,10 +98,10 @@ test('clause 2: the upgrade moves oversized payloads, keeps only the newest cell
   board.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   const before = statSync(file).size;
   assert.ok(before > 1_800_000);
-  closeBoard(board);
+  closeCellBoard(board);
 
   board = openCellBoard(file);
-  t.after(() => { try { closeBoard(board); } catch { /* closed below */ } });
+  t.after(() => { try { closeCellBoard(board); } catch { /* closed below */ } });
   const dir = blobDirOf(board.db);
   assert.equal(readdirSync(dir).length, 2, 'the newest inventory and the other big result are blobs; old copies keep no body');
   const old = jobView(board.db, 'cells-inventory:t1');
