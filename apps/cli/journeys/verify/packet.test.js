@@ -122,6 +122,8 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   const git = loggingGit(box);
   const path = box.env.PATH;
   box.env.PATH = `${git.bin}:${path}`;
+  // The resident board process serves show from a warm process that logs no startup phases and runs git outside this shim; this case measures and watches the real CLI process [H24,C7].
+  box.env.PULLBOARD_RESIDENT = '0';
   const startupTrace = join(box.dir, 'review-startup.jsonl');
   box.env.PULLBOARD_STARTUP_TRACE_FILE = startupTrace;
   box.env.PULLBOARD_STARTUP_TRACE_ENTRY = helpers.BIN;
@@ -143,6 +145,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   }
   delete box.env.PULLBOARD_STARTUP_TRACE_FILE;
   delete box.env.PULLBOARD_STARTUP_TRACE_ENTRY;
+  delete box.env.PULLBOARD_RESIDENT;
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
   box.env.PATH = path;
   const calls = existsSync(git.log) ? readFileSync(git.log, 'utf8').split('\n').filter(Boolean) : [];
