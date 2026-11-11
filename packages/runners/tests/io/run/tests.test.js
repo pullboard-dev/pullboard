@@ -327,12 +327,7 @@ test('a green landing run retries transient process snapshot timeouts [C7,V4]', 
   const preload = join(fixture.root, 'snapshot-timeout.mjs');
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import { existsSync, writeFileSync, appendFileSync } from 'node:fs';
-const t0 = Date.now();
-const role = process.argv[1] === ${JSON.stringify(fixture.runner)} ? 'PARENT' : 'W' + process.argv[1]?.slice(-30);
-const trace = (kind, command, args) => appendFileSync(${JSON.stringify(join(fixture.root, 'trace.log'))}, process.pid + ' ' + role + ' ' + (Date.now() - t0) + ' ' + kind + ' ' + command + ' ' + JSON.stringify(args).slice(0, 70) + ' ' + new Error().stack.split('\\n').slice(3, 5).map(l => l.trim().slice(0, 60)).join(' | ') + '\\n');
-for (const name of ['execFile', 'spawn', 'spawnSync', 'execFileSync']) { const o = childProcess[name]; childProcess[name] = (...a) => { try { trace(name, a[0], a[1]); } catch {} return o(...a); }; }
-process.on('exit', () => { try { trace('EXIT', '', []); } catch {} });
+import { existsSync, writeFileSync } from 'node:fs';
 if (process.argv[1] === ${JSON.stringify(fixture.runner)}) {
   const original = childProcess.execFileSync;
   childProcess.execFileSync = (command, args, options) => {
@@ -380,7 +375,6 @@ test('green file waits for the injected observation', async () => {
   const result = runFixtureChild(process.execPath, [fixture.runner, 'test/shard-01.test.js'], {
     cwd: fixture.root, env, encoding: 'utf8', timeout: 15000,
   });
-  try { process.stderr.write('TRACEDUMP\n' + readFileSync(join(fixture.root, 'trace.log'), 'utf8').split('\n').join('\n') + '\nexists: ' + [ready, sampled, drained, childReady, childDrained].map(f => existsSync(f)).join(',') + '\n'); } catch (e) { process.stderr.write('TRACEFAIL ' + e + '\n'); }
   assert.ok(existsSync(sampled), 'a live monitor observation failed once');
   assert.ok(existsSync(drained), 'the final ownership census failed once and was retried');
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
