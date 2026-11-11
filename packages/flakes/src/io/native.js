@@ -75,7 +75,7 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
 /** Use only a known structured Node runner; arbitrary shell, Jest and Vitest commands are never replaced. */
 function nodePrefix(command, config, root, pin) {
   const executable = '(?:node|/[^\\s\'";|&`$]+/node)';
-  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?packages/gate/src/io/run/tests\\.js)(?:\\s|$)', 'u');
+  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:packages/gate|apps/cli)/src/io/run/tests\\.js)(?:\\s|$)', 'u');
   const builtin = new RegExp('^(' + executable + ')\\s+--test(?:\\s|$)', 'u');
   const match = own.exec(command);
   if (match) return knownRunner(root, pin) ? match[1] + ' ' + match[2] : null;
