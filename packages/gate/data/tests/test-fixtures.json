@@ -77,8 +77,14 @@
   "apps/cli/journeys/blueprint/main.test.js": {
     "model": 1,
     "tempdir": 1,
-    "hand-policy": 5,
+    "hand-policy": 2,
     "repo-read": 1
+  },
+  "apps/cli/journeys/blueprint/init.test.js": {
+    "hand-policy": 1
+  },
+  "apps/cli/journeys/blueprint/save.test.js": {
+    "hand-policy": 2
   },
   "packages/gate/tests/allowlist.test.js": {
     "tempdir": 2
