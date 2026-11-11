@@ -124,6 +124,7 @@ import { openHandoff } from "./board/handoff/open.js";
 import { takeHandoff } from "./board/handoff/take.js";
 import { recordNextIdle } from "./board/record/idle.js";
 import { persistShout } from "./board/shout.js";
+import { rigorAutoDraftOn } from "./board/shout.js";
 export { laneLeads };
 
 export { itemPatches, itemPatchDigest, followItemPatches } from "../../../items/index.js";
@@ -398,7 +399,7 @@ export { itemThread } from "./board/query.js";
 export function postRigorNotices(board, trigger) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < RIGOR_NOTICE_ENGINE) return;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_AUTO_ENGINE) {
-    board.nativePorts.recordAutomaticRigorDrafts(board, trigger, persistShout);
+    if (rigorAutoDraftOn(board)) board.nativePorts.recordAutomaticRigorDrafts(board, trigger, persistShout);
     return;
   }
   for (const cause of board.nativePorts.newRigorNotices(events(board), trigger, { person: PERSON })) {

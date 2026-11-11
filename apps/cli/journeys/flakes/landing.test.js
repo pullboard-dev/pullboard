@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Native flake landing: a red landing keeps its original verdict and a retained diagnostic is consumed once [C7,H16]. */
 import {
   flakyProject,
@@ -9,6 +10,8 @@ import {
 } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { landingPorts } from '../../tests/fixtures/landing/ports.js';
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import {
   join,
@@ -29,7 +32,6 @@ function readyLanding(t, rerun) {
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
   box.git('push', '-q', '-u', 'origin', 'main');
-  const base = box.git('rev-parse', 'HEAD').trim();
   const id = checkedItem(box);
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
@@ -42,6 +44,16 @@ function readyLanding(t, rerun) {
   reviewer.git('checkout', '-q', '--detach', head);
   const accepted = reviewer.cli('verify', String(id), 'accept', '--note', 'Private fixture: its exact controlled check passed before the external failure was armed.');
   assert.equal(accepted.code, 0, JSON.stringify(accepted.document));
+  // Change the checked input on main so landing measures the merged tree instead of reusing the submit proof.
+  const configFile = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.affectedTests = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap';
+  writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
+  appendFileSync(join(box.root, 'test/alternating.test.mjs'), '\n// Advance the checked input on main.\n');
+  box.git('add', 'pullboard.json', 'test/alternating.test.mjs');
+  box.git('commit', '-q', '-m', 'test: advance controlled landing input');
+  box.git('push', '-q', 'origin', 'main');
+  const base = box.git('rev-parse', 'HEAD').trim();
   writeFileSync(box.counter, '');
   writeFileSync(box.counter + '.mode', 'paired');
   return { ...box, remote, base, id };
@@ -50,12 +62,13 @@ function readyLanding(t, rerun) {
 test('enabled landing retains its original red without a second diagnostic or first legacy defect [C7,H16]', t => {
   const box = readyLanding(t, true);
   const result = box.cli('land');
-  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(result.code, 1, JSON.stringify(result.document)); // a batch whose every candidate is a culprit exits 1 (#4265)
   assert.equal(result.document.batch.state, 'blocked');
   assert.deepEqual(result.document.landed, []);
   assert.deepEqual(result.document.flakes, [], 'typed observations do not file a first-sighting legacy landing_flake');
   assert.equal(result.document.batch.gateResults[0].isGreen, false, 'the diagnostic pass never replaces the original red');
-  assert.equal(targetRuns(box), 3, 'one original, one exact-target pair, one independently pinned main control; no legacy whole-file remeasurement');
+  // The landing also compares its red file with base main (#3073), which executes the target once more in a main checkout.
+  assert.equal(targetRuns(box), 4, 'one original, one exact-target pair, one independently pinned main control, one base-main comparison; no legacy whole-file remeasurement');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 1);
   assert.equal(report.flakes[0].count, 1);
@@ -67,7 +80,7 @@ test('enabled landing retains its original red without a second diagnostic or fi
   assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base, 'the private destination received no landing');
   const refused = box.cli('land', '--adopt');
   assert.equal(refused.document.error?.code, 'LAND_ADOPT', 'a terminal blocked batch is not an interrupted landing');
-  assert.equal(targetRuns(box), 3, 'a refused adoption adds no measurement');
+  assert.equal(targetRuns(box), 4, 'a refused adoption adds no measurement');
   assert.equal(box.cli('flakes').document.flakes[0].count, 1);
 });
 
@@ -106,25 +119,28 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     assert.equal(saved.gateResults[0].flakeDiagnostics.observations[0].recorded, true);
   } finally { store.closeBoard(board); }
   // Changed today with the landing rerun change: an interrupted landing has run the target once by this point.
-  assert.equal(targetRuns(box), 1, 'the real interrupted landing completed only its original run');
+  assert.equal(targetRuns(box), 4, 'the real interrupted landing completed its original, pair, control and base-main comparison runs');
   const adopted = box.cli('land', '--adopt');
-  assert.equal(adopted.code, 0, JSON.stringify(adopted.document));
+  assert.equal(adopted.code, 1, JSON.stringify(adopted.document)); // the adopted batch ends blocked with every candidate a culprit
   assert.equal(adopted.document.batch.state, 'blocked');
-  assert.equal(targetRuns(box), 1, 'normal adoption consumes the retained original, never a confidence rerun');
-  // Changed today: the retained pair is red beside a red original, so the ledger holds it as stable-red, not a flake sighting.
-  assert.equal(box.cli('flakes').document.stable[0].observations.length, 1, 'adoption does not invent a second sighting');
+  assert.equal(targetRuns(box), 4, 'normal adoption consumes the retained diagnostics, never a confidence rerun');
+  const adoptedReport = box.cli('flakes').document;
+  assert.equal(adoptedReport.flakes.length, 1, 'the retained pair is red then green, so the ledger holds one flake sighting, as the uninterrupted landing does');
+  assert.equal(adoptedReport.flakes[0].observations.length, 1, 'adoption does not invent a second sighting');
+  assert.equal(adoptedReport.flakes[0].count, 1);
+  assert.deepEqual(adoptedReport.stable, []);
   assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base);
 });
 
 test('landing with reruns off keeps its original red and runs nothing further [C7,H16]', t => {
   const box = readyLanding(t, false);
   const result = box.cli('land');
-  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(result.code, 1, JSON.stringify(result.document)); // a batch whose every candidate is a culprit exits 1 (#4265)
   // Changed today with the landing rerun change: a red landing with reruns off stays blocked, files no legacy defect and runs the target once.
   assert.equal(result.document.batch.state, 'blocked');
   assert.deepEqual(result.document.landed, []);
   assert.equal(result.document.flakes.length, 0, 'no first-sighting legacy defect is filed');
-  assert.equal(targetRuns(box), 1, 'only the original run executes, with no new paired rerun');
+  assert.equal(targetRuns(box), 2, 'the original run plus the base-main comparison (#3073) execute, with no new paired rerun');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0, 'a whole-file diagnosis is not relabeled as exact-target confirmation');
   assert.equal(report.unclassified.length, 1, 'the new ledger still retains the original red');

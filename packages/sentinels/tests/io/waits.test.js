@@ -186,10 +186,10 @@ test('a gate with no span progress past five minutes and a landing run past fift
 
 test('a runner job past twenty minutes is filed with its host, job folder and test [C7]', async t => {
   const m = machine(t);
-  const ps = ['  500   90  11:32:22 /u/bin/node /Users/r/.pullboard-runner/runtime/abc/src/runner-worker.js',
-    '  501  500     11:32:00 /u/bin/node /Users/r/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
-    '  600    1     03:00 /u/bin/node /Users/r/.pullboard-runner/runtime/abc/src/runner-worker.js'].join('\n');
-  const cwd = 'p501\nfcwd\nn/Users/r/.pullboard-runner/jobs/job-1/checkout\n';
+  const ps = ['  500   90  11:32:22 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
+    '  501  500     11:32:00 /u/bin/node /Users/example/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
+    '  600    1     03:00 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js'].join('\n');
+  const cwd = 'p501\nfcwd\nn/Users/example/.pullboard-runner/jobs/job-1/checkout\n';
   const exec = (command, args, options, done) => done(null, `${ps}\n__CWD__\n${cwd}`);
   const snapshot = await m.snapshot({ hosts: ['runner@10.0.0.53'], readers: { runners: (hosts, now, options) => readRunnerJobs(hosts, now, { ...options, exec }) } });
   const jobs = snapshot.rows.filter(entry => entry.surface === 'runner-job');

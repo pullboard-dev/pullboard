@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/fixtures/budgets.js */
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
@@ -91,7 +92,7 @@ test('clause 3: packages/gate/src/io/run/tests.js adds no static front-door impo
 test('clause 1: packages/gate/src/io/run/tests.js is a launcher whose only static import of the repository is the gate entry [C7,V4]', () => {
   const source = readFileSync(RUNNER, 'utf8');
   const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+['"]([^'"]+)['"]/gmu)].map(match => match[1]).filter(name => !name.startsWith('node:'));
-  assert.deepEqual(specifiers, ['../../../../packages/gate/bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
+  assert.deepEqual(specifiers, ['../../../bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
   assert.ok(source.split('\n').length < 30, 'the engine lives in gate, not in the launcher');
 });
 
@@ -148,9 +149,9 @@ function sourceTreeReader(source) {
 
 /** Independently trace historical literal importer paths without assuming their cache completeness. */
 function knownLiteralBoardImporters(closures, modules) {
-  const runners = [...modules.keys()].filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
+  const runners = [...modules.keys()].filter(file => /^apps\/cli\/journeys\/runner\/runners\/.*\.test\.js$/u.test(file));
   assert.ok(runners.length > 0, 'the split runner scenarios remain actual importer roots');
-  const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', ...runners];
+  const roots = ['packages/gate/tests/run-tests-kill.test.js', 'packages/gate/tests/run-tests-timeout.test.js', ...runners];
   const releaseSource = modules.get('packages/landing/src/io/queue.js');
   const releaseImports = importsIn([releaseSource])[0];
   assert.ok(!releaseImports.includes('../../../store/index.js'), 'release capture avoids the eager store front door');
@@ -276,6 +277,7 @@ test('importing the runners package spawns nothing and pins no tooling; the firs
   const installed = join(directory, 'installed');
   copyPackageFiles(ROOT, installed);
   mkdirSync(join(installed, 'test'), { recursive: true });
+  mkdirSync(join(installed, 'packages/gate/tests/fixtures'), { recursive: true });
   copyFileSync(join(ROOT, 'packages/gate/tests/fixtures/budgets.js'), join(installed, 'packages/gate/tests/fixtures/budgets.js'));
   const counter = join(directory, 'counter.mjs');
   writeFileSync(counter, SPAWN_COUNTER);
@@ -288,8 +290,10 @@ assert.deepEqual(globalThis.__spawned, [], 'importing the runners package starts
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'import pins no tooling generation');
 // A front-door runner operation pins first; this one then fails on its invalid runner without any SSH.
 await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
-assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
+assert.equal(runners.runnerToolingPinned(), true, 'the first runner operation pins the tooling generation');
+// The closure capture waits for first use, so the generation's first read spawns the capture.
 assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
+assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first use of the pinned generation captures the tooling');
 appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/io/dispatch.js'))}, '\\n// changed after the first dispatch\\n');
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
 `;

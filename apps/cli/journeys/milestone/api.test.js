@@ -1,4 +1,5 @@
 import { viewApiPorts } from '../../../view/index.js';
+import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../../../lib/index.js';
 import { openBoard } from '../../../lib/index.js';

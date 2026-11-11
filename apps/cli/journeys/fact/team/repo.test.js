@@ -1,8 +1,9 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
 import { openBoard } from '../../../../lib/index.js';
+import { fixtureProjectPolicy } from '../../../tests/fixtures/testkit.js';
 import * as linkStore from '../../../../../packages/store/index.js';
-/** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js src/exchange.js src/person-signing.js apps/relay/src/io/passkeys.js */
+/** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js packages/store/src/io/exchange.js packages/person/src/io/signing.js apps/relay/src/io/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
   boardLinkRequest,
@@ -37,6 +38,10 @@ test('an item waits across repos [B24,H16]', async t => {
   writeFileSync(join(parent.root, 'SPEC.md'), '# Synthetic fixture\n\n- B24 [approved, must] Cross-repo fixture. | gate: test/team.test.js\n');
   parent.git('add', 'pullboard.json', 'SPEC.md');
   parent.git('commit', '-q', '-m', 'fixture: configure the private dependency API');
+  // The foreign board seals its own accepted policy on submit, so its repository commits one too (NO_POLICY otherwise).
+  fixtureProjectPolicy(child.root, { config: { name: 'service', project: 'fixture', gate: 'true', lanes: { web: { owns: ['web/'] } } } });
+  child.git('add', 'pullboard.json');
+  child.git('commit', '-q', '-m', 'fixture: configure the private prerequisite board');
   for (const box of [parent, child]) {
     store.register(box.board, { lane: 'coordinator', path: box.root });
     store.register(box.board, { lane: 'web', path: join(box.root, 'synthetic-builder') });

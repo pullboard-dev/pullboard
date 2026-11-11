@@ -4,6 +4,7 @@ import { recordToolCommand } from '../../../../../git/index.js';
 import { withParseScope } from '../../../../index.js';
 import { PLAN_DIR } from '../../../../index.js';
 import { PLAN_FILE } from '../../../../index.js';
+import { planWrites } from '../../../../index.js';
 import { readPlan } from '../../../../index.js';
 import { shardFile } from '../../../../index.js';
 import { importsIn } from '../../../../index.js';
