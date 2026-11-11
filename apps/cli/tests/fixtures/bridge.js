@@ -260,3 +260,8 @@ export function mergeBridgeAs(box, pull, actor, type = 'User') {
   pull.merge_commit_sha = box.git(person, 'rev-parse', 'HEAD');
   pull.merged_by = { login: actor, type, id: pull.number + 1000 };
 }
+
+/** Read the real private gate invocations, retaining their exact Git heads. */
+export function gateHeads(box) {
+  return box.readGateCalls().trim().split('\n').map(line => JSON.parse(line).head);
+}

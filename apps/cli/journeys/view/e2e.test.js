@@ -346,6 +346,13 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
+  // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
+  // wait for it so the history order below does not depend on whether it lands before or after the reject.
+  const comparisonFacts = () => {
+    const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    try { return board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n; } finally { store.closeBoard(board); }
+  };
+  await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
   box.git(box.repo, 'switch', '-q', 'main');
@@ -362,7 +369,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     );
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
-    assert.deepEqual(item.history.map((event) => event.kind), ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'fact', 'submit', 'fact', 'reject', 'escalate']);
+    assert.deepEqual(item.history.map((event) => event.kind), ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'fact', 'submit', 'fact', 'fact', 'reject', 'escalate']);
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);
