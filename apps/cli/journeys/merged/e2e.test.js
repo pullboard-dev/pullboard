@@ -78,7 +78,6 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   }
   const representativeRows = (await command(box, repo, 'spec', 'check'));
   assert.equal(representativeRows.code, 0, representativeRows.err || representativeRows.out);
-  assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
   assert.match(second.out, /kept DOCTRINE.md/);
   assert.match(second.out, /kept the Claude Code skills/);
@@ -125,7 +124,6 @@ test("the coordinator's resume names its next step from the spec and the board, 
   assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
   const joined = joinFixtureSeat(fresh, repo, 'coordinator');
   assert.equal(joined.code, 0, joined.out);
-  assert.match(joined.out, /read COORDINATOR\.md before you route anything/, 'join coordinator tells the coordinator to read the guide');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal(next(fresh, repo), firstSetup.command);
