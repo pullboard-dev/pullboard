@@ -42,6 +42,7 @@ import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { receiptLine as cellsReceiptLine } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { policyVersion } from '../../../../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../../../../packages/doctrine/index.js';
 import {
   pendingSubmitHandoff,
@@ -1066,7 +1067,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
     requireKernelApproval(board, { root, base: currentTrunk.commit, commit: companion?.commit ?? submitted, item: id });
-    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...submitTooling(root, submitted), ...(infraRecord ? { infra: infraRecord } : {}),
+    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, policyVersion: policyVersion(acceptedMain), ...submitTooling(root, submitted), ...(infraRecord ? { infra: infraRecord } : {}),
       ...(inspectClauses ? { inspectClauses: true } : {}),
       ...(machineReceiptIds ? { machineReceiptIds } : {}),
       gateGreen: gate.isGreen && !waived && (!criterionMatched || mainOwnedGreen),

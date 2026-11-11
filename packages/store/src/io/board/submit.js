@@ -85,6 +85,24 @@ export function sealStrictRenames(board, id, options) {
 
 const PREPARED_SUBMITS = new WeakMap();
 
+/**
+ * Validate the policy version a submit sealed: its commit, config digest and the verify rules it pins [B4,R2].
+ *
+ * Why sealed: replay re-judges the move with the same inputs, never with whatever policy is live then.
+ */
+function sealedPolicyVersion(version) {
+  if (version === null || version === undefined) return null;
+  const hex = /^[0-9a-f]{40,64}$/u;
+  const verify = version?.verify;
+  if (!hex.test(version?.commit ?? '') || !/^[0-9a-f]{64}$/u.test(version?.digest ?? '')
+    || !['any', 'coordinator'].includes(verify?.policy) || !['off', 'prefer', 'require'].includes(verify?.family)
+    || (verify.familyRelaxAt !== undefined && !(Number.isSafeInteger(verify.familyRelaxAt) && verify.familyRelaxAt > 0))) {
+    throw new Refused('NO_POLICY', 'the sealed submit policy version is invalid; submit again from current main');
+  }
+  return { commit: version.commit, digest: version.digest, verify: { policy: verify.policy, family: verify.family,
+    ...(verify.familyRelaxAt !== undefined ? { familyRelaxAt: verify.familyRelaxAt } : {}) } };
+}
+
 /** Seal repository reads before taking the write lock, bound to this native connection and snapshot. */
 export function prepareSubmit(board, id, options) {
   const known = PREPARED_SUBMITS.get(options);
@@ -119,7 +137,8 @@ export function prepareSubmit(board, id, options) {
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
-  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null, policyVersion = null } = options;
+  const pinned = sealedPolicyVersion(policyVersion);
   const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
   const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
     ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
@@ -225,9 +244,10 @@ export function submit(board, id, options) {
         },
       },
       before: () => { if (carry) logEvent(board, agentId, 'merge-only-accept', id, { ...mergeOnly, by: basis.by }); },
-      set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
+      set: found => ({ ...submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
+        ...(pinned ? { item_verify_policy: JSON.stringify(pinned) } : {}) }),
     });
-    recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
+    recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, policy: pinned, note, recordedProof, infra, tooling,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
