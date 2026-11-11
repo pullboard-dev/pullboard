@@ -149,39 +149,38 @@ ${executionServicesSource(gate)}
   assert.deepEqual(result.held, [], 'a runner that answers SSH and Node stays in service rather than held (#3738)');
 });
 
-test('an SSH-healthy host whose worker misses READY twice stays in service and only that job wait is refused (#3738) [C7]', t => {
+test('an SSH-healthy host whose worker misses READY once stays in service and its job retries there (#3738) [C7]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
   const before = readFileSync(ssh, 'utf8');
   const dispatch = "if (hold === 'dispatch') await holdHere();";
   assert.ok(before.includes(dispatch), 'the private stand-in exposes the real dispatch phase');
-  // The actual configured Node probe still answers; only a framed worker dispatch never reaches READY.
-  writeFileSync(ssh, before.replace(dispatch, 'if (remoteCommand.startsWith(configuredNode)) await holdHere();'));
+  // The actual configured Node probe still answers; only the first framed worker dispatch never reaches READY.
+  const missed = join(box.dir, 'missed-ready');
+  writeFileSync(ssh, before.replace(dispatch,
+    `if (remoteCommand.startsWith(configuredNode) && !existsSync(${JSON.stringify(missed)})) { appendFileSync(${JSON.stringify(missed)}, 'x'); await holdHere(); }`));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
-  const transport = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
+  // The second miss (RUNNER_WAIT_DEADLINE, runner still in service) waits out the 90 s late-dispatch budget, so packages/gate/tests/runner/probe.test.js owns it.
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
-    import {probeRunnerTransport} from ${JSON.stringify(transport)};
-    import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
-    let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
-      // The retried dispatch gets a full startup budget; the option shortens it to the stand-in's boot budget.
-      { executionServices,remote:true,runnerWaitMs:${STAND_IN_BOOT_BUDGET_MS},onWait(){}});}catch(error){code=error.code;if(code!=='RUNNER_WAIT_DEADLINE')throw error;}
-    const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
-    const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
-    const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
-    const held=db.prepare('SELECT * FROM runner_unavailable').all().length;
-    const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;
-    console.log(JSON.stringify({code,attempts,health:health.healthy,held,leases}));db.close();`);
-  assert.equal(result.code, 'RUNNER_WAIT_DEADLINE', 'disabled local capacity is never invented as a fallback');
-  // Each start is one SSH call: a worker dispatch or its confirming probe. One miss, a healthy probe, one retry, a second
-  // miss and a second probe make four; the old rule stopped after the first miss with one dispatch and one start.
-  assert.ok(result.attempts >= 4, `the first missed READY is confirmed healthy and retried once (${result.attempts} SSH starts)`);
-  assert.equal(result.health, true, 'a real standalone configured Node process answers on this same host');
-  assert.equal(result.held, 0, 'a runner that answers SSH and Node is never held for a missed READY (#3738)');
-  assert.equal(result.leases, 0, 'the failed run leaves no private holder or waiter');
+    import {DatabaseSync} from 'node:sqlite';
+    const attempts=[];
+    const run=await withGateSlot(process.cwd(),lease=>{
+      attempts.push(lease.runner.host);
+      return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'RETRY_EXECUTED\\')"',{gateLease:lease});
+    },{executionServices,remote:true,runnerOnly:true,onWait(){}});
+    const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
+    const held=db.prepare('SELECT host,detail FROM runner_unavailable').all();
+    const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;db.close();
+    console.log(JSON.stringify({green:run.isGreen,output:run.output,attempts,held,leases}));`);
+  assert.equal(result.green, true, 'the retry on the same healthy runner runs the job');
+  assert.match(result.output, /RETRY_EXECUTED/u);
+  assert.deepEqual(result.attempts, [box.runner.host, box.runner.host], 'one missed READY, then one retry on the runner that answered SSH');
+  assert.deepEqual(result.held, [], 'a runner that answers SSH and Node is never held for a missed READY (#3738)');
+  assert.equal(result.leases, 0, 'the finished run leaves no private holder or waiter');
 });
 
 test('a recovered runner is cleared on its first successful probe instead of a five minute expiry [C7]', async t => {
