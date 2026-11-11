@@ -25,6 +25,16 @@ import { seatRoot } from './folder/identity.js';
 import { itemFolderRunner } from '../commands/runner.js';
 import { openHostedItemFolder } from '../commands/runner.js';
 
+/**
+ * Git config arguments that write a checkout's files with parallel workers, one per core, unless the repository sets its own count.
+ * Why: a sequential worktree add wrote this repository's 4,595 files in 2.4-4.3 s, most of a claiming next; parallel workers took 0.9 s [C7,#5776].
+ * @param {string} root any checkout of the repository
+ * @returns {string[]}
+ */
+export function parallelCheckout(root) {
+  return tryGit(root, ['config', '--get', 'checkout.workers']).status === 0 ? [] : ['-c', 'checkout.workers=0'];
+}
+
 /** The item's branch in the seat's lane. */
 function branch(lane, id) { return `${lane}/item-${id}`; }
 
@@ -165,7 +175,7 @@ async function reuseIdleFolder(ctx, me, id, desired, ref, exists, { board }) {
     try { prior = session.endedItemFolderSession(board, me, idle.path); }
     catch (error) { if (error instanceof Refused) continue; throw error; }
     git(ctx.info.root, ['worktree', 'move', idle.path, desired]);
-    try { git(desired, exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)]); }
+    try { git(desired, [...parallelCheckout(desired), ...(exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)])]); }
     catch (error) { git(ctx.info.root, ['worktree', 'move', desired, idle.path]); throw error; }
     if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
     await session.adoptItemFolderSession(desired, me, prior);
@@ -312,8 +322,9 @@ function advanceToMain(path) {
   if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return;
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
   if (status.status !== 0 || status.stdout) return;
-  if (tryGit(path, ['merge', '--ff-only', '-q', trunk]).status === 0) return;
-  if (tryGit(path, ['merge', '--no-edit', '-q', trunk]).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
+  const workers = parallelCheckout(path);
+  if (tryGit(path, [...workers, 'merge', '--ff-only', '-q', trunk]).status === 0) return;
+  if (tryGit(path, [...workers, 'merge', '--no-edit', '-q', trunk]).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
 }
 
 /** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
@@ -366,7 +377,7 @@ async function openFolder(ctx, me, id, options = {}) {
     writeItemMarker(path, me.id, id);
     return path;
   }
-  git(root, exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunkBranch(root)]);
+  git(root, [...parallelCheckout(root), ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunkBranch(root)])]);
   writeItemMarker(path, me.id, id);
   return path;
 }
