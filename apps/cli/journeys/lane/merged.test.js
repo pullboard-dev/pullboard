@@ -60,7 +60,7 @@ async function mergedPlacement(t) {
   writePlan(view, builderPlan);
   box.git(view, 'add', 'packages/codemap/data/plan');
   box.git(view, 'commit', '-q', '-m', 'chore: compose independent placement rows [G1]');
-  assert.notEqual(JSON.parse(claimed.item_frozen).policy.commit, main, 'the claim really retains older policy');
+  assert.notEqual(claimed.item_claim_head, main, 'the claim really predates the accepted main placement');
   assert.equal(box.git(view, 'show', `HEAD:${mainFile}`), box.git(box.repo, 'show', `HEAD:${mainFile}`),
     'the merged main source is unchanged');
   const paths = readPlan(view).cells.find(cell => cell.name === 'app:view').paths;

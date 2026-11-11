@@ -102,8 +102,7 @@ test("clause 1: the coordinator corrects a claimed item's criterion without rele
   assert.deepEqual(JSON.parse(adopted.item_frozen), {
     title: 'Correct a live bar', criterion: 'the corrected criterion', check: 'true && true',
     rows: [{ id: 'G1', text: 'The page renders.', gate: 'web test' }],
-    policy: { version: 1, commit: JSON.parse(before.item_frozen).policy.commit, verify: { policy: 'any', family: 'off' } },
-  });
+  }, 'the corrected freeze is the bar alone, no policy pin [B4]');
 
   const page = join(box.web, 'web', 'page.js');
   mkdirSync(join(box.web, 'web'), { recursive: true });
