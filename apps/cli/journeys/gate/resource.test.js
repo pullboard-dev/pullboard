@@ -229,7 +229,7 @@ test('a short check never waits behind whole suites [C7]', async () => {
       assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
       const gate = status.resources.find(resource => resource.name === 'gate');
       assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
-      assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['seat-test', 'short'], ['gate', 'gate'], ['gate', 'gate']],
+      assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
         'pool status names the slot each run holds');
       const text = pullboard(box, settingsRoot, ['resources']);
       const gateText = text.slice(text.indexOf('\ngate (machine'));
