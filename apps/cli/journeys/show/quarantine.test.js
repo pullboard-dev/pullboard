@@ -45,6 +45,11 @@ process.env.PULLBOARD_MODEL ??= 'Test Model';
 function fixture(t, deterministic = false, companion = false) {
   const box = flakyProject(t, { beforeInit: ({ root, git }) => {
     copyCommittedPackageFiles({ repo: root, git: (_root, ...args) => git(...args) }, resolve(import.meta.dirname, '../../../..'));
+    // The copied test-cell listing guards new root tests; the fixture's own controlled target is a journey it lists.
+    const listing = join(root, 'packages/gate/data/tests/test-cells.json');
+    const cells = JSON.parse(readFileSync(listing, 'utf8'));
+    cells.journeys['test/alternating.test.mjs'] = 'drives the controlled intermittent assertion through the real submit gate';
+    writeFileSync(listing, JSON.stringify(cells, null, 2) + '\n');
     return join(root, 'apps/cli/pullboard.js');
   } });
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
