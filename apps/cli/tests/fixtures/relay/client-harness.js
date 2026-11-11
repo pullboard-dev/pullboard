@@ -21,6 +21,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -722,7 +723,9 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
   const afterSubmitRecoverySetup = relay.uploads.length;
   restoreInventories();
-  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next'));
+  const diagInventory = () => { const lines = []; for (const env of envs) { const dir = join(env.PULLBOARD_MACHINE_HOME, 'cells-cache'); try { lines.push(dir + ': ' + readdirSync(dir, { recursive: true }).join(',')); } catch (error) { lines.push(dir + ': ' + error.code); } } lines.push('stash: ' + readdirSync(join(fixture.scratch, 'inventory-stash'), { recursive: true }).join(',')); lines.push('main tree ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'main^{tree}') + ' head ' + gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD')); return lines.join('\n'); }; // DIAG-TEMP
+  const diagBefore = diagInventory();
+  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next').catch(error => { error.message += '\nDIAG before:\n' + diagBefore + '\nafter:\n' + diagInventory(); throw error; }));
   const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
     const plain = await unseal(key, Buffer.from(upload.sealed, 'base64url'), {
       boardId, kind: 'move', sequence: upload.sequence,
