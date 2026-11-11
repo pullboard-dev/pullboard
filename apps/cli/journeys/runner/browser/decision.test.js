@@ -74,9 +74,9 @@ import { privateCheckAdmission, testsNeedBrowser, withGateSlot, runProfiledShell
 ${executionServicesSource(gate)}
 const root = ${JSON.stringify(box.repo)};
 const commit = ${JSON.stringify(box.git(box.repo, 'rev-parse', 'HEAD'))};
-const proof = 'node packages/gate/src/io/run/tests.js ${PROOF_FILE}';
+const proof = 'node apps/cli/src/io/run/tests.js ${PROOF_FILE}';
 for (const file of ${JSON.stringify(CHECK_FILES)}) {
-  const check = 'node packages/gate/src/io/run/tests.js ' + file;
+  const check = 'node apps/cli/src/io/run/tests.js ' + file;
   const options = { commit, allowBrowserFreeChecks: true };
   assert.equal((await privateCheckAdmission(root, [check], options)).browser, false);
   const admission = await privateCheckAdmission(root, [check, proof], options);

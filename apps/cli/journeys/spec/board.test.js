@@ -50,7 +50,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   commitFixtureFiles(box, ['pullboard.json', 'SPEC.md']);
   box.web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
-  const joined = fixtureJoin(box.run, box.web, 'web');
+  const joined = fixtureJoin(box.run, box.web, 'web', '--route', 'strong');
   assert.match(joined.out, /joined as web-1/u);
 
   const oldId = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Old frozen citation', route: 'strong',
@@ -176,6 +176,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   const peerResult = JSON.parse(readFileSync(peerResultPath, 'utf8'));
   assert.equal(peerResult.status, 0, peerResult.stderr || peerResult.stdout);
 
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const events = store.events(board);

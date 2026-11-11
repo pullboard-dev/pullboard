@@ -14,14 +14,13 @@ import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
 import { shoutReviewCoverStuck } from '../../../health/index.js';
-import { nextSessionSeats } from '../../../seats/index.js';
-import { laneNames } from '../../../seats/index.js';
 import { mainRedReviewItems } from '../../../landing/index.js';
 import { computedReturnArgs } from '../../../landing/index.js';
 import { mainRedReworkItems } from '../../../landing/index.js';
 import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
+import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
@@ -41,9 +40,6 @@ import { criterionFreezer } from './freezer.js';
  *   dirtyFiles: Function, recoverOwnSubmitHandoffs: Function, openItemFolder: Function, liveFolderRefusal: Function,
  *   mainLaneWork: Function, claimWorktreeSnapshot: Function }} NextPorts
  */
-
-/** The agent reader and session digest nextSessionSeats finds this session's seats with. */
-const sessionSeatReaders = Object.freeze({ listAgents: store.listAgents, sessionDigest: agentSessionDigest });
 
 /**
  * The files an agent has been working in (N20): what its latest three items touched, and what is
@@ -268,21 +264,17 @@ function nextPick(ctx, board, values, ports) {
   if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
-  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
-  // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
-  // never this seat's to resume or be pointed at (#958).
-  const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
-    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
-    && !(values.wait > 0 && store.submitHandoffFailure(board, item))
-    && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
-  const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
-  const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
+  const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
+  // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
+  // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
+  const elsewhere = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+  const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';

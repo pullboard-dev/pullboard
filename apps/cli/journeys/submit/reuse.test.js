@@ -11,7 +11,7 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const commit = 'a'.repeat(40), tree = 'b'.repeat(40), main = 'c'.repeat(40), frozen = 'd'.repeat(64);
 const admission = '12345678-1234-1234-1234-123456789abc';
 const item = { item_id: 7, item_frozen_digest: frozen };
-const opts = { item, commit, tree, main, check: 'node check.js', affectedTests: 'node packages/gate/src/io/run/tests.js', gate: 'npm test', supplement: "node packages/gate/src/io/run/tests.js './test/a.test.js'" };
+const opts = { item, commit, tree, main, check: 'node check.js', affectedTests: 'node apps/cli/src/io/run/tests.js', gate: 'npm test', supplement: "node apps/cli/src/io/run/tests.js './test/a.test.js'" };
 const event = (event_id, event_kind, detail) => ({ event_id, event_kind, event_by: 'web-1', event_detail: JSON.stringify(detail) });
 function fixture() {
   const run = (id, phase, command) => ({ id, submitReuse: true, submitAdmission: admission, submitPhase: phase,
@@ -100,6 +100,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
   const { prepareEngineMove, applyEngineMove } = await import('../../../../packages/state/index.js');
   const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../../../../packages/state/light.js');
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-proof-reuse-'));
+  // @pullboard-board-file persistence: the receipt store path derives from this board's file
   const board = openBoard(join(dir, 'board.sqlite')), replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); store.closeBoard(replica); rmSync(dir, { recursive: true, force: true }); });
   let id;

@@ -1,6 +1,6 @@
 /** Injectable Git process boundary; production retains Node's exact process and stream behavior [C7]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Refused } from '../../../kernel/light.js';
+import { Refused } from '../../../kernel/browser.js';
 import {
   execFileSync,
   spawn,

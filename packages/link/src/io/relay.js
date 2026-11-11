@@ -1163,9 +1163,6 @@ export async function relayOperation(root, operation, args, io, command, applyLo
 
 /** Catch up an opted-in replica before/after a CLI command; offline reads retain local evidence. */
 export async function syncRelay(root, io) {
-  const presentationRuntime = io.nativeBoardPorts();
-  const presentationPorts = presentationRuntime.presentation;
-  const senderPolicy = presentationRuntime.enginePorts;
   const roundTripStarted = Date.now();
   // Reuse Git discovery only within this command; still re-read the link before each retry.
   const files = LINK_FILES.get(io) ?? LINK_FILES.set(io, new Map()).get(io);
@@ -1176,6 +1173,10 @@ export async function syncRelay(root, io) {
     const state = loadLink(file);
     if (!state) return null;
     if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }); }
+    // The providers load only once a link exists: an unlinked board never pays for them [C7].
+    const presentationRuntime = io.nativeBoardPorts();
+    const presentationPorts = presentationRuntime.presentation;
+    const senderPolicy = presentationRuntime.enginePorts;
     try {
       if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
       if (!await ensureOrdered(root, file, state, io)) return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard });

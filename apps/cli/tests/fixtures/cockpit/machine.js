@@ -24,7 +24,11 @@ import {
 } from 'node:path';
 import { after } from 'node:test';
 import { disableFixtureBackgroundView } from './view.js';
-import { joinFixtureSeat } from '../testkit.js';
+import {
+  fixtureAddRoute,
+  fixtureJoinRoute,
+  joinFixtureSeat,
+} from '../testkit.js';
 import { withoutPullboardEnv } from '../e2e.js';
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
@@ -33,7 +37,7 @@ const scratch = [];
 const MACHINE_MODEL = 'Test Model';
 
 after(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const SPEC = `# Demo spec
@@ -70,6 +74,8 @@ function machine() {
   const invocations = [];
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
   const runWithEnv = (cwd, commandEnv, ...args) => {
+    fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
+    fixtureAddRoute(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: commandEnv, encoding: 'utf8' });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
@@ -141,8 +147,8 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
   // The seat joins on the strong route so it can claim the strong fixture items.
-  if (joinSeat) joinFixtureSeat(box, web, 'web');
+  if (joinSeat) joinFixtureSeat(box, web, 'web', { model: MACHINE_MODEL });
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
-export { BIN, scratch, SPEC, machine, project };
+export { BIN, scratch, SPEC, MACHINE_MODEL, machine, project };

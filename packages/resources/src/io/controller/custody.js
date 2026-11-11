@@ -294,13 +294,24 @@ export function runnerItemSources(root, hops = 3) {
   return [config, ...(url && isAbsolute(url) && existsSync(url) ? runnerItemSources(url, hops - 1) : [])];
 }
 
-/** Observe only board identity and item terminal state for resource lifecycle; no native or write authority. */
+/** Boards a waiting controller already resolved, by checkout; a board file keeps its place for the controller's whole life. */
+const observedBoards = new Map();
+
+/**
+ * Observe only board identity and item terminal state for resource lifecycle; no native or write authority.
+ * The board's place is found once per checkout and reused while the file exists: finding it asks Git (repo identity, the
+ * origin url), and a controller that wakes on each board write must not start a Git process every time it wakes [C7,#5535].
+ */
 export function runnerItemState(root, item) {
   if (!/^[1-9][0-9]*$/u.test(String(item ?? ''))) return null;
   const id = Number(item);
   if (!Number.isSafeInteger(id)) return null;
-  const boardFile = runnerBoardFile(root);
-  if (!boardFile) return null;
+  let boardFile = observedBoards.get(root);
+  if (!boardFile || !existsSync(boardFile)) {
+    boardFile = runnerBoardFile(root);
+    if (!boardFile) { observedBoards.delete(root); return null; }
+    observedBoards.set(root, boardFile);
+  }
   const db = new DatabaseSync(boardFile, { readOnly: true });
   try {
     const row = db.prepare("SELECT meta.meta_value AS board, item.item_id, item.item_status, item.item_merged_commit FROM item JOIN board_meta meta ON meta.meta_key='board_id' WHERE item.item_id=? AND NOT EXISTS(SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)").get(id);

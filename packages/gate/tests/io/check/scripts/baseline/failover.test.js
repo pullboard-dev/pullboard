@@ -25,7 +25,7 @@ function failover(t, { review = false, dropped = false, timedOut = false, leaked
   const machine = join(home, 'machine');
   mkdirSync(root);
   mkdirSync(machine);
-  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Check failover', GIT_AUTHOR_EMAIL: 'failover@example.invalid',
     GIT_COMMITTER_NAME: 'Check failover', GIT_COMMITTER_EMAIL: 'failover@example.invalid' };
@@ -160,7 +160,7 @@ function phaseEvidence(t, { timedOut = false } = {}) {
   const machine = join(home, 'machine');
   mkdirSync(root);
   mkdirSync(machine);
-  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Phase evidence', GIT_AUTHOR_EMAIL: 'evidence@example.invalid',
     GIT_COMMITTER_NAME: 'Phase evidence', GIT_COMMITTER_EMAIL: 'evidence@example.invalid' };
@@ -168,7 +168,7 @@ function phaseEvidence(t, { timedOut = false } = {}) {
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
     runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 1, browser: 1 })),
-    gate: { runnersFirst: true, memoryFloorMB: 0, timingRunner: false } }));
+    gate: { runnersFirst: true, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner: false } }));
   writeFileSync(join(root, 'source.txt'), 'committed phase evidence source');
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   runFixtureGit(['add', 'source.txt'], { cwd: root, env });
@@ -205,7 +205,9 @@ try { result = await runSubmitGate(process.cwd(), { gate: 'true', affectedTests:
 }); } catch (error) { code = error.code; }
 process.stdout.write(JSON.stringify({ code, result, calls, output: readFileSync(log + '.check.log', 'utf8'),
   expected: output, holders: listResources({ scope: 'machine' }).flatMap(row => row.holders) }));`;
-  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env, encoding: 'utf8' });
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: root, env, encoding: 'utf8', timeout: 20_000,
+  }); // budget: the proof's remote refusal and its one retry must terminate.
   assert.equal(child.status, 0, child.context ?? child.stderr);
   return JSON.parse(child.stdout);
 }

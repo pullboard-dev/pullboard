@@ -86,6 +86,7 @@ import { gateWithRunnerPlan } from '../submit/gate.js';
 import { doctrineRunnerChecks } from '../submit/gate.js';
 export { doctrineExecutionPhases } from '../submit/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import {
@@ -237,6 +238,7 @@ import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit/reds.js';
+import { regressesMain } from '../submit/reds.js';
 import { redsAreMains } from '../submit/reds.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
@@ -253,14 +255,31 @@ import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
 /**
- * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
- * span for an open gate's telemetry [C7].
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's span for an open gate's telemetry [C7].
  */
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
   ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
   const end = Date.now();
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
+}
+
+/**
+ * Run one step of the authorization stage and record it as its own gate span (phase "authorization-<step>"), so the
+ * stage's median can be traced to the step that spends it: the whole stage had no sub-spans (p50 14.5 s, 584 spans) [C7].
+ *
+ * @template T
+ * @param {string} step
+ * @param {() => T} work
+ * @returns {T}
+ */
+function authorizationStep(step, work) {
+  const start = Date.now();
+  const finish = outcome => recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome });
+  let value;
+  try { value = work(); } catch (error) { finish('failed'); throw error; }
+  if (typeof value?.then !== 'function') { finish('done'); return value; }
+  return /** @type {any} */ (value.then(result => { finish('done'); return result; }, error => { finish('failed'); throw error; }));
 }
 
 /**
@@ -405,7 +424,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightWallStart = Date.now();
   const runnerAdmission = { ...gateRunnerAdmission(), ...(ctx.submitHandoffAdmissionCheck
     ? { beforeAdmission: ctx.submitHandoffAdmissionCheck } : {}) };
-  const held = await withBoard(ctx, async (board) => {
+  const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     const folder = itemFolderIdentity(board, ctx.info.root);
@@ -415,7 +434,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) })) : null;
     if (clauseProblem) throw clauseProblem;
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
@@ -426,13 +445,14 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       return store.getItem(board, id);
     }
     return item;
-  });
+  }));
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   ctx.submitAttempt.stage = 'fast';
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
-  if (!isClean(root)) {
+  const dirty = authorizationStep('tree-state', () => !isClean(root));
+  if (dirty) {
     // Preserve the typed grammar refusal without starting gates for a dirty candidate.
     try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
     catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
@@ -443,22 +463,22 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A live handoff owns its captured source; never rewrite it underneath its queued worker.
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? (await (await import('../submit/handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held))) : null;
+  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? await authorizationStep('handoff-recover', async () => (await (await import('../submit/handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held)))) : null;
   const pending = pendingHandoff && pendingHandoff.commit !== commit ? await (await import('../submit/handoff.js')).replaceSubmitHandoff(ctx, id, held.item_owner, pendingHandoff) : pendingHandoff;
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx) && !pending) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
-    try { mainMerge = mergeSubmissionMain(root, acceptedMain.commit); }
+    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit)); }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
     if (mainMerge) commit = mainMerge.commit;
     if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
-  requireNonEmptySubmit(root, id, commit, acceptedMain.commit);
+  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
   let trunk;
   let regenerated = null;
-  try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
+  try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
   catch (error) {
     if (error?.code !== 'MERGE_CONFLICT') throw error;
     if (!isSubmitHandoffWorker(ctx)) {
@@ -476,19 +496,19 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   const remoteMode = isSubmitHandoffWorker(ctx) && remoteGateWanted(runnerAdmission);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
-  withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
-  withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id }));
-  const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
+  authorizationStep('proves-nothing', () => withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id))));
+  authorizationStep('kernel-approval', () => withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id })));
+  const dependencies = authorizationStep('dependencies', () => withBoard(ctx, board => dependencySnapshots(board.db, held)));
   let mechanicalPaths = [];
   let ownershipRefusal = null;
   try {
-    submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
-      onMechanicalPaths: paths => { mechanicalPaths = paths; } });
+    authorizationStep('submission-paths', () => submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
+      onMechanicalPaths: paths => { mechanicalPaths = paths; } }));
   } catch (error) {
     if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
     ownershipRefusal = error;
   }
-  const { me, claimHead } = withBoard(ctx, (board) => {
+  const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== who.id) {
@@ -513,13 +533,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       }
     }
     return { me: who, claimHead: item.item_claim_head };
-  });
+  }));
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
-  const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
-  const preflightLines = changedLines(root, acceptedMain.commit, commit);
+  // gate.mainComparison off: no base, so no main comparison and no carried-red acceptance; a red gate is red [C7,#5565].
+  const mainFailureBase = mainComparisonMode() === 'off' ? null
+    : acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
+  const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
-    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
+    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
@@ -530,7 +552,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     else ctx.io.say(`precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
     return 0;
   }
-  const companion = await withBoard(ctx, async board => {
+  const companion = await authorizationStep('item-patches', () => withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
       try { patchStat = statSync(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
@@ -550,18 +572,18 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
     }
     return prepareItemPatchSubmit(root, board, held, commit);
-  });
+  }));
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-  if (!pending) withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit));
+  if (!pending) authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
     text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
-  const barWarning = await withBoard(ctx, async board => {
+  const barWarning = await authorizationStep('bar-warning', () => withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
     await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: `bar.check warning: ${warning}` }]);
     return warning;
-  });
+  }));
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
@@ -632,7 +654,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const judgeTests = async (signal) => {
   await preflightPassed;
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
-  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
+  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests, check: frozenCheck(held) },
     runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
   if (signal.aborted) throw signal.reason;
   // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
@@ -781,7 +803,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // The proof is judged like the check: a case an open Main red repair's own check fails on this main is known main (#2594).
   let proofMainRed = [];
-  if (failures && mainFailureBase && !proofMatched && !companion) {
+  if (failures && mainFailureBase && !proofMatched && !companion && !regressesMain(failures, comparison)) {
     try {
       const items = mainRedItems();
       const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
@@ -830,7 +852,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-        if (!remoteMode && !companion && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+        if (!remoteMode && !companion && /\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
           const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
           const report = await runPreflight(root, changed);
           if (!report.ok) {
@@ -892,7 +914,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         if (remoteMode) return await runRemotePart('static', signal);
         const changedStaticStart = performance.now();
         try {
-          if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+          if (/\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
             await withItemPatchSubmit(root, companion, async gateRoot => {
               const checker = fileURLToPath(new URL('../static/checks.js', import.meta.url));
               const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
@@ -1074,7 +1096,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   } else if (gate.isGreen && !waived && (!criterionMatched || mainOwnedGreen)) {
     try { if (submissionReceiptIds.length) for (const line of countTrialGate(root, { id: JSON.stringify([...submissionReceiptIds].sort()) })) ctx.io.say(line); }
     catch { ctx.io.err('could not record this gate in the refusal-trial ledger'); }
-    try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
+    try { if (mainComparisonMode() !== 'off') await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
     catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
   }
   recordGateSpan({ phase: 'post-submit', start: postSubmitStart, outcome: 'done' });

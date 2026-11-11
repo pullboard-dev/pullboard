@@ -37,7 +37,7 @@ test('a green dot-reporter gate records both selected files and accepts with its
   let box;
   t.after(() => helpers.cleanup());
   box = helpers.project('true');
-  const runner = `${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'))} --test-reporter=dot`;
+  const runner = `${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'))} --test-reporter=dot`;
   const check = `node -e "if (!require('node:fs').readFileSync('packages/alpha/index.js', 'utf8').includes('value = 2')) process.exit(1)"`;
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   const config = { ...helpers.CONFIG, gate: runner, affectedTests: runner, submitGate: 'landing',
@@ -46,7 +46,7 @@ test('a green dot-reporter gate records both selected files and accepts with its
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'packages/alpha'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'packages/alpha/index.js'), 'export const value = 1;\n');
+  writeFileSync(join(box.repo, 'packages/alpha/index.js'), 'export const value = 1;\n\n\n\n\n');
   const files = ['test/alpha-one.test.js', 'test/alpha-two.test.js'];
   for (const file of files) writeFileSync(join(box.repo, file), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -59,7 +59,8 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const id = (await json(box, box.repo, 'add', 'web', 'Native account covers both files', '--specs', 'G1',
     '--criterion', 'Both selected unit files pass.', '--check', check, '--wait')).item.item_id;
   await json(box, box.web, 'claim', String(id));
-  writeFileSync(join(box.web, 'packages/alpha/index.js'), 'export const value = 2;\n');
+  const builtInput = join(box.web, 'packages/alpha/index.js');
+  writeFileSync(builtInput, readFileSync(builtInput, 'utf8').replace('value = 1', 'value = 2'));
   const head = commit(box, box.web, 'feat(web): satisfy both unit files [G1]');
   const submitted = await json(box, box.web, 'submit', String(id), '--wait', '--no-next');
   assert.equal(submitted.gate.green, true);
@@ -78,14 +79,16 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   assert.match(observed.comparison.error, /no configured runner/u);
 
 
-  // Changing accepted main requires a private review run instead of sealed submit-proof reuse.
+  // Move a checked input on accepted main so a private review cannot reuse the earlier submit proof.
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/account.txt'), 'Review against the current accepted main.\n');
+  const input = join(box.repo, 'packages/alpha/index.js');
+  writeFileSync(input, readFileSync(input, 'utf8') + '// main changed this checked input\n');
   commit(box, box.repo, 'docs: advance main after the selected gate [G1]');
   const reviewer = join(box.dir, 'account-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  await json(box, reviewer, 'join', 'api', '--model', 'Private account reviewer');
-  const accepted = await json(box, reviewer, 'verify', String(id), 'accept', '--no-next', '--read', 'all',
+  await json(box, reviewer, 'join', 'api', '--model', 'Private account reviewer', '--route', 'strong');
+  const accepted = await json(box, reviewer, 'verify', String(id), 'accept', '--no-next',
     '--note', 'Both selected files have a native source-bound account.');
   assert.equal(accepted.decision, 'ACCEPT');
   const directory = join(box.repo, '.git/pullboard/check-output');

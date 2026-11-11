@@ -169,7 +169,8 @@ test('watch uses its explicit view provider in global then scoped order before o
     const controller = new AbortController();
     const server = createServer((request, response) => {
       assert.equal(request.headers['x-pullboard-key'], 'fixture-session');
-      assert.equal(request.url, '/api/v1/boards/fixture-board/events');
+      // Without --work, watch reads events only: it asks for no changed notices, which cost the server a state revision on every write.
+      assert.equal(request.url, '/api/v1/boards/fixture-board/events?signals=none');
       response.writeHead(200, { 'content-type': 'text/event-stream' });
       response.write(': ready\n\n');
     });
@@ -195,6 +196,36 @@ test('watch uses its explicit view provider in global then scoped order before o
       await new Promise((done) => server.close(done));
     }
   }
+});
+
+test('watch --work keeps the changed notices its work check needs, and every other watch drops them [A2,N26,C7]', async () => {
+  const requested = [];
+  const box = project();
+  const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  for (const work of ['app', null]) {
+    const controller = new AbortController();
+    const server = createServer((request, response) => {
+      requested.push(request.url);
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.write(': ready\n\n');
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const port = server.address().port;
+    const inputs = { file, mainRoot: box.root, commonDir: '/fixture/common', options: { work, reviewWaitMs: 0, since: null, kinds: null, item: null, to: null }, start: { id: 'fixture-board', sequence: 0 },
+      config: {}, write: () => assert.fail('no event was sent'), note: () => controller.abort(),
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]), // budget: bound a broken private stream, not a latency claim.
+      serveApi: () => assert.fail('the explicit view must prevent direct API startup'),
+      runningView: async () => ({ port, url: `http://127.0.0.1:${port}/?k=fixture-session` }) };
+    try {
+      assert.equal(await followBoard(inputs), 0);
+    } finally {
+      controller.abort();
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
+  }
+  assert.deepEqual(requested.map((url) => url.endsWith('?signals=none')), [false, true], '--work keeps the notices and a plain watch asks for events alone');
 });
 
 test('pullboard watch prints a move as it happens [A2,N26]', async (t) => {

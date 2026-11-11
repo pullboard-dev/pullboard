@@ -117,6 +117,11 @@ test('lane and item messages follow worker aliases without granting a helper the
   const reply = store.shout(f.board, { from: f.sibling, to: 'api', item: id, text: 'Item reply', lanes: ['coordinator', 'web', 'api'] });
   assert.equal(store.unreadCount(f.board, 'coordinator'), store.inbox(f.board, 'coordinator', { markRead: false }).length);
   assert.ok(store.inbox(f.board, 'coordinator', { markRead: false }).some(row => row.shout_id === reply), 'the coordinator reads an item shout');
+  // Only an exact item target counts: a number with trailing text, an unknown item and a bare prefix name no item [C7].
+  const before = store.unreadCount(f.board, 'coordinator');
+  const insert = f.board.db.prepare("INSERT INTO shout (shout_from, shout_to, shout_text, shout_at) VALUES (?, ?, 'Malformed target', '2026-01-01T00:00:00.000Z')");
+  for (const to of [`item:${id}x`, `item:${id + 1000}`, 'item:', `item:0${id}`]) insert.run(f.sibling, to);
+  assert.equal(store.unreadCount(f.board, 'coordinator'), before, 'a target that is not exactly item:<id> reaches no seat, the coordinator included');
 });
 
 /** Run one actual CLI command in a private fixture session, never the operational session. */

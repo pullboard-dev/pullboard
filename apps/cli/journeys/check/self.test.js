@@ -74,7 +74,7 @@ function fixture() {
   assert.equal(run(repo, 'init').code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
-    lanes: { web: { owns: ['web/'], specs: ['G1'] } },
+    lanes: { web: { owns: ['web/', 'test/', 'packages/gate/src/io/run/', 'packages/codemap/src/io/cells/scripts/'], specs: ['G1'] } },
   }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   mkdirSync(join(repo, 'web'));
@@ -150,7 +150,7 @@ test('[C7,V4,H16] a holder adds test files to its own check; removing a file or 
   box.json(box.repo, 'edit', '1', '--check', 'node packages/gate/src/io/run/tests.js apps/cli/journeys/check/self.test.js # review-control', '--reason', 'set up the comment case');
   const commented = tryCheck(box, box.web, 'node packages/gate/src/io/run/tests.js apps/cli/journeys/check/self.test.js # review-control test/review-control-missing.test.js');
   assert.equal(commented.error?.code, 'CHECK_WIDEN_REFUSED', 'a path appended after a shell comment never runs, so it is refused');
-  assert.match(commented.error.message, /not a plain node bin\/run-tests\.js part/);
+  assert.match(commented.error.message, /not a plain node apps\/cli\/src\/io\/run\/tests\.js part/);
 
   const criterion = box.run(box.web, 'edit', '1', '--criterion', 'easier', '--json');
   assert.notEqual(criterion.code, 0, 'a builder still cannot edit anything but the check');

@@ -26,7 +26,7 @@ test('matching pre-existing edits are untouched, but later content changes count
   const file = join(seat.root, 'already-dirty.txt');
   writeFileSync(file, 'before');
   const take = () => box.json(box.runAs(box.session, seat.root, 'next', '--take', '--json'));
-  const release = () => box.json(box.runAs(box.session, seat.root, 'release', String(id), '--reason', 'ROUTED_ELSEWHERE', '--note', 'Routed elsewhere.', '--no-next', '--json'));
+  const release = () => box.json(box.runAs(box.session, seat.root, 'release', String(id), '--reason', 'BUDGET', '--note', 'Budget spent.', '--no-next', '--json'));
   assert.equal(take().item.item_id, id); release();
   assert.equal(take().item.item_id, id); release();
   assert.equal(take().item.item_id, id);

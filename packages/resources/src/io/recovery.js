@@ -28,7 +28,7 @@ export const READINESS_HOLD_MAX_MS = 30 * 60_000;
 
 /**
  * How long a runner whose worker just failed readiness stays out before any probe may lift it, and how many lifted
- * readiness failures preceded this one [C7,#3692]. Why: on 7 Nov the Studio's worker missed READY again and again, yet
+ * readiness failures preceded this one [C7,#3692]. Why: on 7 Nov the big runner worker missed READY again and again, yet
  * each idle proof (no live job, root writable) returned it within seconds, and every pass took more shards that then
  * missed READY. A first failure is probed at once; a recurrence waits 1, 2, 4 ... up to 30 minutes.
  */

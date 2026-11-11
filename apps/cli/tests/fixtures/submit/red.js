@@ -80,7 +80,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
     "const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { encoding: 'utf8', env: process.env });",
     "process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');",
     'process.exitCode = run.status ?? 1;',
-    // With `phases`, the runner ends like packages/gate/src/io/run/tests.js: its phase line on stderr after TAP's final count (#3794).
+    // With `phases`, the runner ends like apps/cli/src/io/run/tests.js: its phase line on stderr after TAP's final count (#3794).
     ...(phases ? ["process.stdout.write('', () => process.stderr.write('run-tests: phases selection 0.1s, admission 0.0s, tests 0.4s, cleanup 0.0s, total 0.5s\\n'));"] : []),
   ].join('\n') + '\n');
   box.main = commit(box, root);

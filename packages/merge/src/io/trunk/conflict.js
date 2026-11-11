@@ -8,10 +8,6 @@
  * builder claims it with its bar unchanged, merges main and resubmits; the re-review checks the
  * frozen check at the new head and nothing else.
  */
-import {
-  ENGINE_VERSION,
-  SUBMITTED_CONFLICT_ENGINE,
-} from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { conflictNote } from '../../../../kernel/index.js';
 import { shownPaths } from '../../../../kernel/index.js';
@@ -78,14 +74,16 @@ export function reopenConflict({ item, coordinator, values, trunkMerge }) {
  * @param {(accept: number) => void} found - receives the id of the accept the reopen sets aside
  * @param {number} conflictEngine - the engine that introduced conflict reopens, passed in by the caller: the constant lives in
  *   the state cell, and merge importing state would close a cell cycle (state reaches merge through store) [R27]
+ * @param {number} currentEngine - the engine a board without its own execution engine runs, passed in by the caller for the same reason
+ * @param {number} submittedEngine - the engine that introduced the automatic return of a submitted conflict, passed in by the caller
  * @returns {Refused | null}
  */
-export function conflictProblem(board, item, conflict, found, conflictEngine) {
-  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+export function conflictProblem(board, item, conflict, found, conflictEngine, currentEngine, submittedEngine) {
+  const engine = board.executionEngineVersion ?? currentEngine;
   if (engine < conflictEngine) return new Refused('ENGINE_VERSION', `a reopen for a main merge requires engine ${conflictEngine}; this board uses engine ${engine}; upgrade Pullboard before using --conflict`);
   // A submitted head that no longer merges goes back to its builder before anyone reviews it (#807).
   // Only the automatic return names Git's trunk for a submission; a hand-written --conflict on one stays refused.
-  const returning = item.item_status === 'submitted' && engine >= SUBMITTED_CONFLICT_ENGINE && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(conflict?.trunk ?? '');
+  const returning = item.item_status === 'submitted' && engine >= submittedEngine && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(conflict?.trunk ?? '');
   if (item.item_status !== 'verified' && !returning) return new Refused('NOT_ACCEPTED', `item #${item.item_id} is ${item.item_status}; --conflict reopens accepted work for a main merge, and a submission reopens with --note "why"`);
   const shape = /** @type {any} */ (conflict);
   const files = Array.isArray(shape?.files) ? shape.files : [];

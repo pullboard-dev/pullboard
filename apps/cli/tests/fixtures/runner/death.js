@@ -1,4 +1,4 @@
-/** Exercise actual remote parent-death custody, optionally forcing a real release write conflict [C7]. */
+/** Exercise actual remote parent-death custody, optionally holding the database so the release queues [C7]. */
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -22,8 +22,8 @@ import {
 } from './holders.js';
 
 /**
- * Keep the original custody assertions identical in ordinary and forced ordering cases: `holdRelease` forces a real
- * release write conflict, `chatty` makes the command keep writing output, so some always arrives after the
+ * Keep the original custody assertions identical in ordinary and forced ordering cases: `holdRelease` holds the database so the
+ * worker's release queues (#3084) and a later resource write drains it, `chatty` makes the command keep writing output, so some always arrives after the
  * transport drops (#888: a forwarded write then waited forever for a drain from a destroyed stdout), and `epermOnce`
  * arms after the child's TERM handler starts, then makes the worker's next real group signal answer EPERM (#945).
  * The marker is a fixture phase, not an OS-dependent second signal to the same group: the worker's fresh-census retry
@@ -100,7 +100,7 @@ export async function parentDeathDrainFixture(t, tools, { holdRelease = false, c
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) {
     mkdirSync(folder, { recursive: true });
   }
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -216,30 +216,21 @@ process.kill = (pid, signal) => {
     await waitForMarker(childGone);
     await waitForCondition(() => !processIsAlive(detachedPid), 'the detached child PID exits');
     if (holdRelease) {
-      await waitForCondition(() => {
-        const jobs = join(remoteHome, '.pullboard-runner', 'jobs');
-        const id = remoteAgent.slice('pullboard-ssh-'.length);
-        for (const name of existsSync(jobs) ? readdirSync(jobs) : []) {
-          if (!name.startsWith(id + '-')) continue;
-          const pending = join(jobs, name, 'release-pending.json');
-          if (!existsSync(pending)) continue;
-          const diagnostic = JSON.parse(readFileSync(pending, 'utf8'));
-          assert.equal(diagnostic.id, id);
-          assert.equal(diagnostic.stage, 'lease release');
-          assert.equal(diagnostic.pending, true);
-          t.diagnostic('observed real failed holder deletion in private job: ' + JSON.stringify(diagnostic));
-          return true;
-        }
-        assert.equal(processIsAlive(held[0].pid), true,
-          'a failed raw release keeps its worker alive to retry instead of stranding a dead holder');
-        return false;
-      }, 'the actual remote release reaches the held database transaction',
-      { signal: t.signal, state: () => ({ workerAlive: processIsAlive(held[0].pid),
-        holders: readRemoteGateHolders(remoteDatabase).map(({ pid, agent, kind }) => ({ pid, agent, kind })) }),
-        onTimeout: message => t.diagnostic(message) });
+      // Since #3084 a release enqueues its resource write and never throws, so the write waits in the queue while the raw lock stays held.
+      const queued = () => existsSync(remoteDatabase + '.writes') && readdirSync(remoteDatabase + '.writes').filter(name => name.includes('-o-')).length;
+      await waitForCondition(() => queued() > 0,
+        'the worker queues its release behind the held database transaction',
+        { signal: t.signal, state: () => ({ workerAlive: processIsAlive(held[0].pid), queued: queued(),
+          holders: readRemoteGateHolders(remoteDatabase).map(({ pid, agent, kind }) => ({ pid, agent, kind })) }),
+          onTimeout: message => t.diagnostic(message) });
       assert.equal(readRemoteGateHolders(remoteDatabase).some(holder => holder.agent === remoteAgent), true,
-        'the holder remains until its real deletion can commit');
+        'the holder remains until the queued release can commit');
       unlockRelease();
+      // The release lands when the next resource write drains the queue: take and release an unrelated machine resource on the worker's database.
+      process.env.PULLBOARD_MACHINE_HOME = remoteMachineHome;
+      try { (await takeResource({ name: 'drain-probe', capacity: 1, scope: 'machine', agent: 'drain-probe' })).release(); }
+      finally { process.env.PULLBOARD_MACHINE_HOME = machineHome; }
+      assert.equal(queued(), 0, 'the later write drained the queued release');
     }
     let lastReleaseState = 'not observed';
     await waitForCondition(() => {
@@ -252,6 +243,7 @@ process.kill = (pid, signal) => {
       t.diagnostic(message);
       t.diagnostic('worker cleanup report ' + JSON.stringify(workerCleanupReport()));
     } });
+    if (holdRelease) await waitForCondition(() => !processIsAlive(held[0].pid), 'the worker exits after its queued release lands', { signal: t.signal });
     if (epermOnce) assert.equal(existsSync(epermAnswered), true, 'a group signal really answered EPERM before the release');
     const controller = await remoteRun.closed;
     remoteRun = null;

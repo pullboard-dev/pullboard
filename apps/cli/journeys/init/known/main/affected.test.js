@@ -41,7 +41,7 @@ test('an affected case red only on the item still refuses [V4,B3]', t => {
 });
 
 test('an affected case that fails differently on the item than on main refuses [V4,B3]', t => {
-  const box = fixture(t, { main: 2, candidate: 3 });
+  const box = fixture(t, { main: 2, candidate: 3, criterion: 'test/affected.test.js retains its behavior.' });
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');

@@ -104,7 +104,7 @@ test('the view chips a command the CLI adds [N26]', async (t) => {
   mkdirSync(cli);
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), cli);
   // These unpublished browser/test fixtures are deliberately additional to the installed tool.
-  for (const entry of ['relay', 'test']) {
+  for (const entry of ['apps/cli/tests', 'apps/relay/tests']) {
     cpSync(resolve(import.meta.dirname, '../../../..', entry), join(cli, entry), { recursive: true });
   }
   // The CLI help lives in its cell since ea011aa6ff removed the src/help.js shim.

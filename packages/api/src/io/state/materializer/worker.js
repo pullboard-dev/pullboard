@@ -1,3 +1,4 @@
+/** @pullboard-module-loads apps/cli/src/io/commands/serve.js */
 /**
  * The state materializer's worker thread: it builds each board's state as its reads ask, one build at a time,
  * extending the board's last build from its new events, and posts each build's materialized record [A2,C7].

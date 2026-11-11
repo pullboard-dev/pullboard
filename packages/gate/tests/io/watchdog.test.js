@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { DefaultSerializer } from 'node:v8';
 import { rawOutputObserver } from '../../src/io/watchdog.js';
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('protocol-only frames never count as output, including split headers [C7,V10]', () => {
   const serializer = new DefaultSerializer();
