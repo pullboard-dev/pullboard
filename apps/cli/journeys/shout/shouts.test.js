@@ -24,6 +24,8 @@ import {
 import {
   MACHINE_MODEL,
 } from '../../tests/fixtures/cockpit/machine.js';
+import { nativeBoardPorts } from '../../../lib/index.js';
+
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
