@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** Value placement and incremental audit control contracts, without executing repository journeys [C7]. */
 import { flakeLedger } from '../../../../../packages/flakes/index.js';
 import { auditFailureItem as focusedAuditFailureItem } from '../../../../../packages/items/index.js';
@@ -186,7 +186,7 @@ test('production landing projection leaves CLI journeys for audit and preserves 
   writePlacementIndex(box.repo, report);
   assert.deepEqual(placementSubmitSelection(box.repo, uncertain), { ...uncertain, full: false, files: [], reason: 'unknown reach deferred to audit: undeclared reach' });
   assert.deepEqual(placementSubmitSelection(box.repo, { full: false, files: report.files.map(row => row.file) }).files, ['test/unit.test.js']);
-  const selected = placementLandingGate(box.repo, { gate: 'node bin/static.js && node packages/gate/src/io/run/tests.js' },
+  const selected = placementLandingGate(box.repo, { gate: 'node bin/static.js && node apps/cli/src/io/run/tests.js' },
     { full: false, files: report.files.map(row => row.file) }, ['test/mandatory.test.js']);
   assert.match(selected.gate, /^node bin\/static.js &&/u);
   assert.match(selected.gate, /test\/contract\.test\.js/u);
@@ -194,14 +194,14 @@ test('production landing projection leaves CLI journeys for audit and preserves 
   assert.doesNotMatch(selected.gate, /test\/journey\.test\.js|test\/unknown\.test\.js/u);
   assert.deepEqual(paidTests(box.repo, report.files.map(row => row.file), 'submit'), ['test/unit.test.js']);
   assert.equal(selected[VALUE_GATE], true, 'a selected gate cannot stamp full-suite green');
-  const plan = placementLandingPlan(box.repo, { gate: 'node packages/gate/src/io/run/tests.js' },
+  const plan = placementLandingPlan(box.repo, { gate: 'node apps/cli/src/io/run/tests.js' },
     { full: false, files: report.files.map(row => row.file) }, ['test/mandatory.test.js', 'test/deferred.test.js']);
   assert.deepEqual(plan.files, ['test/contract.test.js', 'test/deferred.test.js', 'test/mandatory.test.js']);
   assert.equal(plan.subset, true, 'local-trunk composition retains selected-proof semantics and explicit deferred obligations');
   assert.match(plan.config.gate, /test\/deferred\.test\.js/u);
 
-  assert.equal(valueGateCommand(box.repo, 'node packages/gate/src/io/run/tests.js --test-name-pattern=required', []), null, 'explicit check filters remain separate required obligations');
-  assert.equal(valueGateCommand(box.repo, 'node packages/gate/src/io/run/tests.js | cat', []), null, 'opaque gate keeps legacy behavior');
+  assert.equal(valueGateCommand(box.repo, 'node apps/cli/src/io/run/tests.js --test-name-pattern=required', []), null, 'explicit check filters remain separate required obligations');
+  assert.equal(valueGateCommand(box.repo, 'node apps/cli/src/io/run/tests.js | cat', []), null, 'opaque gate keeps legacy behavior');
 });
 
 test('production audit runs a CLI journey, reuses an unchanged unit and files a real main-red item for a seeded failure [C7]', { timeout: 180_000 }, async t => {

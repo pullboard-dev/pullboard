@@ -411,6 +411,7 @@ test('a new preconfigured board waits for every initial approval [I1,I2]', async
   assert.equal(started.type, 'pullboard.setup.started');
   assert.equal(started.version, 1);
   assert.equal(statSync(marker).mode & 0o077, 0);
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     assert.equal(started.boardId, store.boardId(board));

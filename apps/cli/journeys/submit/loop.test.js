@@ -16,6 +16,7 @@ function document(result) {
 
 /** Read one item's actual persisted handoff without mutating the board. */
 function state(box, id) {
+  // @pullboard-board-file journey: read the handoff state the real CLI persisted
   const board = openBoard(box.boardFile);
   try { return { item: store.getItem(board, id), job: store.submitHandoff(board, id), proofs: store.proofReceipts(board, id) }; }
   finally { board.db.close(); }

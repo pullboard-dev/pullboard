@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree package.json */
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js apps/runner/src/io/worker.js packages/resources/src/io/artifact.js packages/runners/src/io/main.js */
 /** The worker includes the artifact receiver without loading the controller [C7]. */
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';

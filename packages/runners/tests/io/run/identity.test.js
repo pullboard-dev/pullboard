@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Prove a landing worker obtains a bounded identity receipt before its body [C7,V4]. */
 import { copyPackageFiles } from '../../../index.js';
 import assert from 'node:assert/strict';
@@ -26,7 +26,7 @@ function makeIdentityFixture(t) {
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
-  const fixtureRunner = join(root, 'packages/gate/src/io/run/tests.js');
+  const fixtureRunner = join(root, 'apps/cli/src/io/run/tests.js');
   assert.equal(realpathSync(fixtureRunner), fixtureRunner, 'the copied runner uses its physical path');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return { root, runner: fixtureRunner, workerTest: join(root, 'test/worker-start.test.js') };

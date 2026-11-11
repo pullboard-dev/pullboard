@@ -15,6 +15,7 @@ test('clause 1: a worktree command records the family from the canonical model-t
   const created = box.run(box.repo, 'worktree', 'web', '--model', 'claude-sonnet-5-5', '--json');
   assert.equal(created.code, 0, created.err || created.out);
   const result = JSON.parse(created.out);
+  // @pullboard-board-file journey: read the seat the real worktree command registered in the board file
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const seat = store.agentAt(board, result.path);
@@ -29,6 +30,7 @@ test('an unfamiliar model label declares no family [C7]', t => {
   const box = helpers.project('true');
   const created = box.run(box.repo, 'worktree', 'web', '--model', 'some-unknown-model', '--json');
   assert.equal(created.code, 0, created.err || created.out);
+  // @pullboard-board-file journey: read the seat the real worktree command registered in the board file
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.ok(!store.agentAt(board, JSON.parse(created.out).path).agent_family);
@@ -39,6 +41,7 @@ test('clause 2: a submit without usage lists reviewers by the builder seat famil
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // @pullboard-board-file journey: read the seat the real worktree command registered in the board file
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.register(board, { id: 'coordinator', lane: 'coordinator', path: box.repo, family: 'person-family', model: 'fixture model' });

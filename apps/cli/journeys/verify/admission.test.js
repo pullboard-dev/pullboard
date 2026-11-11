@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Verification carries the gate's explicit desktop requirement into real admission [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';
@@ -41,21 +41,21 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
-    // The explicit-file classifier only reads checks run through packages/gate/src/io/run/tests.js, so the web lane owns the runner and the test dir here.
+    // The explicit-file classifier only reads checks run through apps/cli/src/io/run/tests.js, so the web lane owns the runner and the test dir here.
     const configPath = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
-    config.lanes.web.owns = [...config.lanes.web.owns, 'packages/gate/', 'test/'];
+    config.lanes.web.owns = [...config.lanes.web.owns, 'apps/cli/src/io/run/', 'test/'];
     writeFileSync(configPath, JSON.stringify(config, null, 2));
-    mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+    mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
     mkdirSync(join(box.repo, 'test'));
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
     // A literal fixture runner executes the selected file, without importing the real project's test pool.
-    writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "await import(new URL('../../../../../' + process.argv[2], import.meta.url));\n");
+    writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), "await import(new URL('../../../../../' + process.argv[2], import.meta.url));\n");
     writeFileSync(join(box.repo, 'test/desktop.test.js'), `${liveGui ? '/** @pullboard-test-gui */\n' : ''}import { test } from 'node:test';\ntest('desktop fixture executes', () => {});\n`);
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'test: explicit desktop admission fixture [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    const check = 'node packages/gate/src/io/run/tests.js test/desktop.test.js';
+    const check = 'node apps/cli/src/io/run/tests.js test/desktop.test.js';
     document(fixtureAdd(box.run, box.repo, 'web', 'Desktop admission', '--criterion', 'the selected check executes', '--check', check, '--specs', 'G1', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));
     const head = box.git(box.web, 'rev-parse', 'HEAD');

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input docs/lifecycle.md packages/landing/index.js packages/state/index.js packages/state/src/logic/engines/source-advance-engine.js */
 /** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/logic/engines/source-advance-engine.js packages/landing/index.js */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';

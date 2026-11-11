@@ -266,7 +266,7 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   assert.equal(taken.code, 0, taken.out + taken.err);
   const held = store.getItem(box.board, id);
   const changed = await cli(box, box.root, ['edit', String(id), '--criterion', 'The corrected held criterion',
-    '--check', 'true && true', '--reason', 'Correct the held fixture bar', '--wait']);
+    '--check', 'true && true', '--reason', 'Correct the held fixture bar']);
   assert.equal(changed.code, 0, changed.out + changed.err);
   const current = store.getItem(box.board, id);
   assert.equal(current.item_owner, held.item_owner);

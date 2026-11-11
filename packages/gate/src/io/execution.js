@@ -176,6 +176,21 @@ export function committedTree(root) {
 }
 
 /**
+ * Record that the gate passed on this committed tree, as a full gate run does, so pre-push accepts it.
+ * Landing reuses the submit receipt as its proof and runs no gate, so without this stamp pre-push ran the whole
+ * gate again on the pushed tree. A tree that is not the checkout's committed one is never stamped [C7].
+ *
+ * @param {string} root
+ * @param {string} tree - The tree a green receipt proved.
+ * @returns {boolean} True when the stamp was written.
+ */
+export function stampGreen(root, tree) {
+  if (committedTree(root) !== tree) return false;
+  writeFileSync(gitPath(root, STAMP), `${tree}\n`);
+  return true;
+}
+
+/**
  * True when the gate already passed on exactly this committed tree.
  *
  * @param {string} root
@@ -475,7 +490,7 @@ export async function withLandingGateSlot(root, action, options = {}) {
  * Where a landing gate's own command runs. A sharded landing runs its controller here, so run-tests fans one shard out
  * to each runner; placed whole on a runner, it was already inside a runner slot and never sharded, so every landing ran
  * its selection serially on one runner (about 30 minutes) [C7,#3158].
- * A runners-only machine (the coordinator) keeps the runner placement: its controller is a packages/gate/src/io/run/tests.js process,
+ * A runners-only machine (the coordinator) keeps the runner placement: its controller is a apps/cli/src/io/run/tests.js process,
  * which the coordinator test guard refuses at once, so every landing gate there went red in 3 s with no named
  * failure and every landing ended LAND_DIAGNOSTIC from 06:57Z on 9 Nov (#3899). There the placement is the machine's
  * runner-only admission, so the gate, or a local-trunk guard, runs on a runner like a submit gate does.
@@ -621,7 +636,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
     const store = receiptStore(root);
     const focusedWord = comparison && "'" + ('./' + comparison.path).replaceAll("'", "'\\''") + "'";
     const expected = kind === 'main-red' ? comparison && `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${focusedWord}`
-      : kind === 'suite' ? 'node packages/gate/src/io/run/tests.js --all'
+      : kind === 'suite' ? 'node apps/cli/src/io/run/tests.js --all'
       : auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
     if (expected !== config.gate || !head || !store
       || kind === 'main-red' && !pinned && !sameTimingSource(comparison?.source, timingSourceForReceipt(root))) return null;

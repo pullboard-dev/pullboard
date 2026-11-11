@@ -54,7 +54,7 @@ test('an actual engine12 person waiver keeps its exact receipt and history on bo
   const base = 'a'.repeat(40);
   const commit = 'b'.repeat(40);
   const digest = 'd'.repeat(64);
-  old = oldStore.openBoard(join(directory, 'old.sqlite'), { now: () => new Date(at) });
+  old = oldStore.openBoard(':memory:', { now: () => new Date(at) });
   oldStore.ensureCoordinator(old, '/fixture');
   oldStore.register(old, { lane: 'web', path: '/fixture/builder' });
   oldStore.register(old, { lane: 'web', path: '/fixture/reviewer' });

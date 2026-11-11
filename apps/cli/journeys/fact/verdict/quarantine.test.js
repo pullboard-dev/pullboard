@@ -21,7 +21,7 @@ const FILE = 'test/control.test.js';
 function quarantineProject(t, { legacy = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project(`node tooling/packages/gate/src/io/run/tests.js ${FILE}`, helpers.sandbox(), { withWorktree: false });
+  const box = helpers.project(`node tooling/apps/cli/src/io/run/tests.js ${FILE}`, helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   // Shipped code is a committed tooling dependency; the private project root remains the test universe.
@@ -29,7 +29,7 @@ function quarantineProject(t, { legacy = false } = {}) {
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, flakes: { rerun: false, quarantine: true },
     lanes: { web: { owns: ['test/'], specs: [] } },
-    gate: legacy ? `node --test --test-reporter=tap ${FILE}` : `node tooling/packages/gate/src/io/run/tests.js ${FILE}` }) + '\n');
+    gate: legacy ? `node --test --test-reporter=tap ${FILE}` : `node tooling/apps/cli/src/io/run/tests.js ${FILE}` }) + '\n');
   writeFileSync(join(box.repo, 'SPEC.md'), spec);
   writeFileSync(join(box.repo, FILE), `import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -207,7 +207,7 @@ const guards=await runLocalLandingGuard(root,config,{files:['test/control.test.j
  quarantines,proofContext:{...proofContext,kind:'land'}});
 assert.equal(guards.isGreen,true);assert.equal(guards.exitCode,1);
 assert.ok(guards.proofReceiptId,'a selective landing exception keeps its own actual native receipt');
-const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'node tooling/packages/gate/src/io/run/tests.js'},['test/control.test.js'],
+const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'node tooling/apps/cli/src/io/run/tests.js'},['test/control.test.js'],
  {directory:root+'/../logs',quarantines,proofContext:{...proofContext,kind:'land'}});
 assert.equal(deferred.isGreen,true);assert.equal(deferred.exitCode,1);assert.ok(deferred.proofReceiptId);
 const checkedItem=await withBoard(ctx,async board=>{

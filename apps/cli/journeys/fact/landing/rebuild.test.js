@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** A batch whose trunk moved outside its files while it gated is rebuilt on the new tip and lands; the rebuild records the base it left [C7]. */
 import assert from 'node:assert/strict';
 import {

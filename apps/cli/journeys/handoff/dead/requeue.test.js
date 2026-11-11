@@ -8,6 +8,8 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { driverRecord } from '../../../tests/fixtures/gate/driver.js';
+import { spendDriverRelaunches } from '../../../tests/fixtures/gate/driver.js';
+import { RUNNING_RELAUNCH_LIMIT } from '../../../src/io/submit/handoff.js';
 import {
   document,
   fixture,
@@ -25,6 +27,8 @@ async function killWorker(box, job) {
   const owner = driverRecord(box.boardFile, job.id);
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
+  // Relaunching a dead running gate comes first (#3995); a worker that keeps dying has spent that budget before recovery requeues.
+  spendDriverRelaunches(box.boardFile, job.id, RUNNING_RELAUNCH_LIMIT);
 }
 
 /** Run one health sweep as the coordinator from the main checkout: the real dispatcher path; no command by the item's seat runs. */

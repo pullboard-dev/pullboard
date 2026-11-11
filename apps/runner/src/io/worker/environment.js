@@ -2,7 +2,11 @@
 import { Refused } from '../../../../../packages/kernel/light.js';
 import * as resourceApi from '../../../../../packages/resources/light.js';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,12 +37,30 @@ function childEnvironment(S, home, temporary, machineHomePath = '', nodeOptions 
   };
 }
 
+const CLI_NAME = 'pullboard';
+
+/**
+ * Put the job checkout's own CLI first on PATH as `pullboard`, so a fixture hook or script that finds the command by
+ * name never runs an older global install in the runner's nvm bin (11 Nov: vanilla's 0.9.2 failed every fixture commit).
+ * The job's directory holds `checkout` and `tmp` side by side; the link points into the checkout and resolves once
+ * the history is received. Any other temporary folder (not a job's) leaves PATH alone.
+ */
+function withCheckoutCli(env, temporary) {
+  const jobDirectory = dirname(temporary);
+  const checkout = join(jobDirectory, 'checkout');
+  if (!existsSync(checkout)) return env;
+  const bin = join(jobDirectory, 'cli-bin');
+  mkdirSync(bin, { recursive: true, mode: 0o700 });
+  symlinkSync(join(checkout, 'apps/cli/pullboard.js'), join(bin, CLI_NAME));
+  return { ...env, PATH: [bin, env.PATH].filter(Boolean).join(delimiter) };
+}
+
 /** Add this worker's remote gate lease so nested test runners reuse the remote slot instead of deadlocking. */
 export function scopedEnvironment(S, home, temporary, machineHomePath, gateLease, resourcesApi, nodeOptions = '') {
-  return {
+  return withCheckoutCli({
     ...childEnvironment(S, home, temporary, machineHomePath, nodeOptions),
     ...resourcesApi.gateSlotEnvironment(gateLease),
-  };
+  }, temporary);
 }
 
 /** Check that this already installed capsule matches the controller before using its static API. */

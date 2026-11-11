@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 // fixture-subject: addItem
 /** A shared native session's tokens divide between its items by each item's claimed time [N2]. */
 import assert from 'node:assert/strict';

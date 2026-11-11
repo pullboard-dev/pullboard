@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/serve.js packages/api/src/io/http.js */
 /** @pullboard-test-input docs-tree */
 /** Keep the public API guide aligned with the CLI's versioned shape catalog [A1]. */
 import assert from 'node:assert/strict';

@@ -20,6 +20,10 @@ import { execFileSync } from 'node:child_process';
 import { selectAffectedTests } from '../../index.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
+/** Test files whose subject is the raw Chrome client itself, each with the written reason its raw calls are allowed [C7]. */
+const RAW_CLIENT_TESTS = new Map([
+  ['packages/gate/tests/io/clone.test.js', "tests the raw CDP client's own evaluate formats, labels and navigation errors"],
+]);
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 
 /** Find complete top-level exception bodies without exempting the rest of stable.js. */
@@ -74,6 +78,7 @@ function rawChromeBypasses(root = ROOT) {
   } else walk(root);
   const violations = [];
   for (const path of files) {
+    if (RAW_CLIENT_TESTS.has(relative(root, path).split('\\').join('/'))) continue;
     let source = readFileSync(path, 'utf8');
     if (basename(path) === 'stable.js' && (relative(root, path) === 'stable.js' || path.endsWith(join('tests', 'fixtures', 'cockpit', 'stable.js')))) {
       source = maskSharedChromeFunctions(source);
@@ -91,6 +96,15 @@ function rawChromeBypasses(root = ROOT) {
 
 test('real Chrome tests measure and click only through the shared wait [N26,C7]', () => {
   assert.deepEqual(rawChromeBypasses(), [], 'every cockpit test uses the stable API; raw CDP plumbing stays in the four named helpers');
+});
+
+test('each raw-client allowance names a real file, a written reason, and still holds raw calls [N26,C7]', () => {
+  for (const [file, reason] of RAW_CLIENT_TESTS) {
+    assert.ok(existsSync(join(ROOT, file)), `${file} exists`);
+    assert.ok(reason.length >= 20, `${file} states why its raw calls are allowed`);
+    const raw = /(?<!Runtime)\.\s*evaluate\b|\bstartChrome\s*\(/u.test(readFileSync(join(ROOT, file), 'utf8'));
+    assert.ok(raw, `${file} no longer holds raw calls; remove its allowance`);
+  }
 });
 
 test('the shared-wait guard reports a synthetic direct Chrome evaluation by file and line [N26,C7]', () => {

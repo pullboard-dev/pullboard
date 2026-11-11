@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The sentinel shouts when red gates come back unaccounted, and stays quiet when every red names its failures [C7]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';

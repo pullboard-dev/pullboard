@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /**
  * A tiered one-item landing reuses its green submit proof when main moved since the submit: it reruns only the tests
  * whose import closure main's commits reach, so a batch whose closures did not move runs no test and lands [C7].

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .githooks/pre-commit apps/cli/journeys/resume/board.test.js packages/gate/data/baselines/test-waits-baseline.json packages/gate/data/tests/test-fixtures.json */
 /** The repository pre-commit hook refuses the gate's test fixture and test-name reds on staged files, with the gate's messages [C7]. */
 import assert from 'node:assert/strict';
 import {

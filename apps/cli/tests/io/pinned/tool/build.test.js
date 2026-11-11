@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** Command entry reads the toolBuild policy with a single Git show [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

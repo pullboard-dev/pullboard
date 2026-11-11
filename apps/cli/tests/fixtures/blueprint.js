@@ -18,7 +18,7 @@ import { runFixtureGit } from './child.js';
 import { createE2eHelpers } from './e2e.js';
 import { writeLegacyWebQuestions } from './blueprint/question.js';
 
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/blueprints/data/blueprints/web-app.json */
 /** pullboard blueprint add: a blueprint lands on a board as drafts, once [S1,I1]. */
 
 export const BIN = resolve(import.meta.dirname, '../../pullboard.js');

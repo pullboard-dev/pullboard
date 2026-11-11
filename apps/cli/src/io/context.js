@@ -7,7 +7,6 @@ import {
   syncRelay,
 } from '../../../../packages/link/index.js';
 import { executePersonRequests } from '../../../../packages/link/index.js';
-import { executeMove } from '../../../../packages/api/index.js';
 import { moveArgs } from '../../../../packages/person/index.js';
 import { refusalDocument } from '../logic/step/words.js';
 import {
@@ -48,6 +47,8 @@ export function nativeBoardOpeners(io) {
 
 /** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */
 export function nativePersonRequestPorts(io) {
+  // The API (and the health, gate and landing it reaches) loads only when a waiting request runs a move [C7].
+  const executeMove = async (...args) => (await import('../../../../packages/api/index.js')).executeMove(...args);
   return { ...nativeBoardOpeners(io), executeMove, refusalDocument };
 }
 

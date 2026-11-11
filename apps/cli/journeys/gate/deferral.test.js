@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/sandbox/src/io/trusted/policy.js */
 /** Deferred landing of a large affected selection at submit (C7). */
 import assert from 'node:assert/strict';
 import {
@@ -131,7 +131,7 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   assert.deepEqual(red.ran, ['guard'], 'a red deferred file is not run at submit');
   on.accept(red.id, red.receipt.commit);
   const blocked = on.box.run(on.box.repo, 'land', '--json');
-  assert.equal(blocked.code, 0, blocked.err + blocked.out);
+  assert.equal(blocked.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${blocked.err}${blocked.out}`);
   assert.deepEqual(JSON.parse(blocked.out).landed, [], 'a red deferred selection lands nothing');
   const reopened = JSON.parse(on.box.run(on.box.repo, 'show', String(red.id), '--json').out);
   assert.notEqual(reopened.item_status, 'verified', 'the red item is sent back like a red submit');
@@ -143,7 +143,7 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   assert.deepEqual(inlineRed.ran, ['guard']);
   inline.accept(inlineRed.id, inlineRed.receipt.commit);
   const inlineLanding = inline.box.run(inline.box.repo, 'land', '--json');
-  assert.equal(inlineLanding.code, 0, inlineLanding.err + inlineLanding.out);
+  assert.equal(inlineLanding.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${inlineLanding.err}${inlineLanding.out}`);
   assert.deepEqual(JSON.parse(inlineLanding.out).landed, [], 'an inline landing whose gate passes anything still runs the deferred files and lands nothing on red');
   const inlineItem = JSON.parse(inline.box.run(inline.box.repo, 'show', String(inlineRed.id), '--json').out);
   assert.notEqual(inlineItem.item_status, 'verified', 'the inline red item is sent back');
@@ -162,7 +162,7 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   split.accept(itemA.id, itemA.receipt.commit);
   split.accept(itemB.id, itemB.receipt.commit);
   const splitLanding = split.box.run(split.box.repo, 'land', '--json');
-  assert.equal(splitLanding.code, 0, splitLanding.err + splitLanding.out);
+  assert.equal(splitLanding.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${splitLanding.err}${splitLanding.out}`);
   assert.deepEqual(JSON.parse(splitLanding.out).landed, [], 'B does not land on a rebuilt tree that lost A\'s fix');
   for (const id of [itemA.id, itemB.id]) {
     const shown = JSON.parse(split.box.run(split.box.repo, 'show', String(id), '--json').out);
@@ -190,7 +190,7 @@ test('a red deferred landing keeps its real failing file and durable log [C7]', 
   const red = project.submitChange('red');
   project.accept(red.id, red.receipt.commit);
   const result = project.box.run(project.box.repo, 'land', '--json');
-  assert.equal(result.code, 0, result.err + result.out);
+  assert.equal(result.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${result.err}${result.out}`);
   const shown = JSON.parse(project.box.run(project.box.repo, 'show', String(red.id), '--json').out);
   assert.ok(shown.thread.some(entry => entry.kind === 'reopen' && /web\/selected-00\.test\.js/u.test(entry.detail.note)), 'the refusal retains the actual failing file');
   const logs = deferredLandingLogs(project.box);

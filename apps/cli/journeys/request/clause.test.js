@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Review requests bind to the frozen bar without changing older replay [V6,R2,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -68,6 +67,7 @@ test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H
   const builder = box.seat('request-builder', 'web', 'request-builder-session');
   const reviewer = box.seat('request-reviewer', 'api', 'request-reviewer-session');
   const id = box.add('web', 'Render the title');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const freeze = () => ({ text: JSON.stringify({ criterion, check: 'true', rows: [],
@@ -81,6 +81,7 @@ test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H
   assert.equal(JSON.parse(missing.out).error.code, 'BAR_CLAUSE_REQUIRED');
   const accepted = box.runAs('request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--clause', clause, '--json');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try { assert.match(store.getShout(after, JSON.parse(accepted.out).id).shout_text, /Bar: The page renders its title\./u); }
   finally { store.closeBoard(after); }

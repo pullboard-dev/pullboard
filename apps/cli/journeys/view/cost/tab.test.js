@@ -200,8 +200,8 @@ test('clause 1: the private view shows its last twenty native landings; a public
       usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 0 },
     },
   }) + '\n');
-  // @pullboard-board-file journey: the private Chrome view renders this persisted project board after landings seeded through the board API.
   let clock = Date.now() - 3_600_000;
+  // @pullboard-board-file journey: the private Chrome view renders this persisted project board after landings seeded through the board API.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(clock) });
   try {
     const agent = store.listAgents(board).find(row => row.agent_lane === 'web');

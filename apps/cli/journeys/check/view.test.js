@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input test-tree */
 /**
  * The view-pure source adapter and its gate hook [N26,C7]: it compiles source, never runs a browser,
