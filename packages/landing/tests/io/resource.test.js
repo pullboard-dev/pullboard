@@ -14,7 +14,7 @@ import * as store from '../../../store/index.js';
 import { register as registerSeat } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 /** A pid that certainly belongs to no running process: a child that already exited. */
 function deadPid() { return spawnSync(process.execPath, ['-e', '0']).pid; }
