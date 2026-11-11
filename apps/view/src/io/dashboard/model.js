@@ -64,7 +64,7 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     latest.set(event.event_kind + ':' + id, event);
     if (event.event_kind === 'merged') {
       const item = byId.get(id);
-      if (item?.status === 'verified' && merged.get(id)?.commit === d.commit && !landed.has(id)) landed.set(id, at);
+      if (item && typeof d.commit === 'string' && d.commit && merged.get(id)?.commit === d.commit && !landed.has(id)) landed.set(id, at);
     }
     if (['claim', 'renew'].includes(event.event_kind)) {
       // Renewals extend the same stay; a replacement closes the prior actor's stay.

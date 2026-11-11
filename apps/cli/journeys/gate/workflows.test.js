@@ -52,7 +52,7 @@ function checkRunner(name, system, shardList, total) {
   assert.ok(text.includes(`\n        shards: [${total}]\n`), `${name} declares the shard count`);
   assert.ok(text.includes(`\n    name: ${name} (\${{ matrix.node }}) \${{ matrix.shard }}/\${{ matrix.shards }}\n`),
     `${name} job names show OS, Node and shard`);
-  const specChecks = [...text.matchAll(/\n {6}- run: node bin\/pullboard\.js spec check(?=\n)/gu)];
+  const specChecks = [...text.matchAll(/\n {6}- run: node apps\/cli\/pullboard\.js spec check(?=\n)/gu)];
   assert.equal(specChecks.length, 1, `${name} runs spec check exactly once in every matrix job`);
   assert.ok(text.includes('npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}'),
     `${name} passes the native shard to the test runner`);
@@ -157,7 +157,7 @@ test('clause 1: the CLA workflow runs on pull requests and PR comments with only
   assert.match(CLA_WORKFLOW, /github\.event\.issue\.pull_request/u, 'comments on plain issues are skipped');
   const used = [...CLA_WORKFLOW.matchAll(/^\s*-\s+uses: ([^\s]+)/gmu)].map((m) => m[1].split('@')[0]);
   assert.deepEqual([...new Set(used)].sort(), ['actions/checkout', 'actions/setup-node']);
-  assert.match(CLA_WORKFLOW, /node bin\/check-cla\.js/u);
+  assert.match(CLA_WORKFLOW, /node packages\/gate\/src\/io\/check\/cla\.js/u);
   assert.doesNotMatch(CLA_WORKFLOW, /pull_request_target/u);
   assert.deepEqual([...CLA_WORKFLOW.matchAll(/^ {2}([\w-]+): write$/gmu)].map((m) => m[1]), ['statuses'],
     'statuses is the only write permission');

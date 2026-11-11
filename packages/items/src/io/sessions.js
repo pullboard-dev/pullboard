@@ -92,15 +92,17 @@ function boundSeats(info, digest) {
 /**
  * Refuse a verdict from the agent session that built or submitted the item: its digest is on the item's ledger, or it
  * is bound right now to any seat in its recorded author history. A shell with no agent session (the person's terminal) is never refused.
+ * Skipped when review.independence is off, which the CLI passes by default; a caller that names no setting keeps this strict rule.
  *
  * @param {{ commonDir: string }} info
  * @param {{ item_id: number, item_built_by?: string|null, item_owner?: string|null }} item
  * @param {string|null} [digest] - Current local session digest.
  * @param {string[]} [authors] - Historical author seats from the board's claim and submit events.
+ * @param {{ independence?: 'off'|'session' }} [options] - review.independence from the repo configuration.
  */
-export function refuseSelfSession(info, item, digest, authors = [], { commitOnly = false, currentAuthorSessions } = {}) {
+export function refuseSelfSession(info, item, digest, authors = [], { commitOnly = false, currentAuthorSessions, independence = 'session' } = {}) {
   requireCapturedSession(digest);
-  if (!digest) return;
+  if (!digest || independence === 'off') return; // review.independence off: only the seat itself is refused, by the board.
   const builders = [item.item_built_by, ...(commitOnly ? [] : [item.item_owner]), ...authors].filter(Boolean);
   const seats = boundSeats(info, digest);
   const recorded = currentAuthorSessions === undefined ? ledgerDigests(info, item.item_id, commitOnly).has(digest) : currentAuthorSessions.includes(digest);

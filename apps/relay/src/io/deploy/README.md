@@ -2,8 +2,9 @@
 
 ## Deploy the service
 
-The container definition is `relay/Dockerfile`; its build context must be the
-repository root because the service imports `src/` modules. The service listens on
+The container definition is `apps/relay/src/io/deploy/Dockerfile`; its build context
+must be the repository root because the service imports files from `apps/` and
+`packages/`. The service listens on
 Railway's `PORT` at `0.0.0.0`, and `GET /health` returns `200` after startup.
 It stores the auth database at `/data/auth.sqlite`, board journals under
 `/data/boards/`, and private backups under `/data/backups/`. Attach one Railway
@@ -20,9 +21,9 @@ For #113, the person completes these account steps:
    read-only permission, and enable device flow. Create its client id, client
    secret and RSA private key.
 2. Create the Railway project and service for this repository. In service
-   settings, keep the root directory `/` so the Docker build can copy `src/`,
-   choose `relay/Dockerfile`, set the start command to
-   `node relay/server.mjs`, and set the health check path to `/health`. Attach
+   settings, keep the root directory `/` so the Docker build can copy `apps/` and
+   `packages/`, choose `apps/relay/src/io/deploy/Dockerfile`, set the start command to
+   `node apps/relay/src/io/deploy/server.mjs`, and set the health check path to `/health`. Attach
    one persistent volume at `/data`; the auth database, board journals and
    backups live at `/data/auth.sqlite`, `/data/boards/` and `/data/backups/`.
    Set `RAILWAY_RUN_UID=0` so startup can prepare the root-mounted volume before
@@ -35,7 +36,7 @@ For #113, the person completes these account steps:
    Railway provides. Wait for the `/health` check to pass before directing
    clients to it.
 
-The smoke command is `node relay/smoke.mjs <address>`. It uses the current
+The smoke command is `node apps/relay/src/io/deploy/smoke.mjs <address>`. It uses the current
 repository as a disposable smoke board: it links, creates one uniquely named
 item, reads and unseals its mirrored move, then unlinks. Use a throwaway
 repository and relay when running it against a live deployment. Unlink removes

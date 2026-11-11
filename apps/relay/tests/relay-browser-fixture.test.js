@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { ENGINE_VERSION } from '../../../../../packages/state/src/io/machine.js';
-import { legacyRelayClientFixture as relayClientFixture } from '../../../tests/fixtures/relay/client.js';
+import { ENGINE_VERSION } from '../../../packages/state/index.js';
+import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
 import {
   findChromeExecutable,
   relayWorkBudgetMs,
   startChrome,
-} from '../../../tests/fixtures/relay/browser.js';
+} from '../../cli/tests/fixtures/relay/browser.js';
 
 /** Assert the fixed CDP bound reports its command context and relay-request state. */
 async function stalledCommand(chrome, label, pending) {
@@ -44,7 +44,8 @@ test('real Chrome names a stalled command when it exceeds the CDP bound [H16,C7]
 test('paired Chrome excludes idle event streams and reports only held state requests [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
+  const box = await relayDirectFixture(t);
+  box.legacySnapshotApi();
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const chrome = await startChrome({ commandTimeoutMs: 15000 });
@@ -92,7 +93,8 @@ test('paired Chrome excludes idle event streams and reports only held state requ
 test('relay idle readiness waits for a real held request and then observes its completion [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
+  const box = await relayDirectFixture(t);
+  box.legacySnapshotApi();
   await box.link();
   const chrome = await startChrome();
   t.after(() => chrome.close());

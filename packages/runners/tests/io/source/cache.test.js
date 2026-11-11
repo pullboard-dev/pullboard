@@ -32,6 +32,27 @@ import { prepareTestResultExchange } from '../../../../gate/index.js';
 const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../../../src', import.meta.url));
 
+test('runner source scan reuses only clean matching verdicts from the export root manifest [C7]', t => {
+  const { root } = makeFixture(t);
+  writeFileSync(join(root, '.pullboard-runner-source.json'), JSON.stringify({ tree: 'a'.repeat(40) }));
+  const script = `import assert from 'node:assert/strict';
+import { cachedScan } from './packages/runners/src/io/source/scan.js';
+let calls = 0;
+const scan = () => ({ count: ++calls });
+assert.deepEqual(cachedScan('source', ['one'], scan), { count: 1 });
+assert.deepEqual(cachedScan('source', ['one'], scan), { count: 1 });
+assert.deepEqual(cachedScan('source', ['two'], scan), { count: 2 });
+let refused = 0;
+for (let i = 0; i < 2; i++) assert.throws(() => cachedScan('refusal', [], () => { refused++; throw new Error('refused'); }), /refused/);
+assert.equal(refused, 2);
+`;
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: root, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine') }, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(join(root, 'packages/.pullboard-runner-source.json')), false);
+});
+
 /** A fixture test that records its own name, then passes when its module says so. */
 function fixtureTest(name, module) {
   return `import { appendFileSync } from 'node:fs';
@@ -49,7 +70,7 @@ import { appendFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 /** Record that this file ran, then scan the probe's text. */
-function scan() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'd\\n'); if (readFileSync(new URL('../src/probe.js', import.meta.url), 'utf8').includes('forbidden')) throw new Error('d found a forbidden word'); }
+function scan() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'd\\n'); if (readFileSync(new URL('../apps/example/probe.js', import.meta.url), 'utf8').includes('forbidden')) throw new Error('d found a forbidden word'); }
 test('d [C7]', scan);
 `;
 
@@ -58,7 +79,7 @@ const NOTES_TEST = `import { appendFileSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
-const root = join(import.meta.dirname, '../../..');
+const root = join(import.meta.dirname, '..');
 /** Record that this file ran, then scan every listed note. */
 function scanNotes() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'e\\n'); const tracked = execFileSync('git', ['ls-files', 'CHANGELOG.md'], { cwd: root, encoding: 'utf8' }).trim().split('\\n'); for (const name of tracked) if (readFileSync(join(root, name), 'utf8').includes('forbidden')) throw new Error('e found a forbidden word'); }
 test('e [C7]', scanNotes);
@@ -87,7 +108,8 @@ function makeFixture(t) {
   writeFileSync(join(root, 'test/d.test.js'), SCAN_TEST);
   writeFileSync(join(root, 'test/e.test.js'), NOTES_TEST);
   writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
-  writeFileSync(join(root, 'src/probe.js'), "// A probe source file.\nexport const probe = 1;\n");
+  mkdirSync(join(root, 'apps/example'), { recursive: true });
+  writeFileSync(join(root, 'apps/example/probe.js'), "// A probe source file.\nexport const probe = 1;\n");
   const capture = join(root, 'machine', 'ran.txt');
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_ACTION_CAPTURE: capture, PULLBOARD_LANDING_RUN: '0',
     GIT_AUTHOR_NAME: 'Action Fixture', GIT_AUTHOR_EMAIL: 'action@example.test', GIT_COMMITTER_NAME: 'Action Fixture', GIT_COMMITTER_EMAIL: 'action@example.test' };
@@ -97,7 +119,7 @@ function makeFixture(t) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
   git('add', '.gitignore', 'package.json', 'CHANGELOG.md', 'lib', 'test');
-  git('add', '-f', 'src/probe.js');
+  git('add', '-f', 'apps/example/probe.js');
   // A shipped nested .gitignore may unignore itself; keep this real Git configuration tracked.
   const copiedIgnores = copied.filter(file => file.endsWith('/.gitignore'));
   if (copiedIgnores.length) git('add', '-f', '--', ...copiedIgnores);
@@ -108,7 +130,7 @@ function makeFixture(t) {
   /** Run the whole suite through the real runner; return its status, output and the files that ran. */
   const run = (files = []) => {
     writeFileSync(capture, '');
-    const result = runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', ...files], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
+    const result = runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', ...(files.length ? files : ['--all'])], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
     const ran = readFileSync(capture, 'utf8').trim().split('\n').filter(Boolean).sort();
     return { status: result.status, output: `${result.stdout}\n${result.stderr}`, ran, context: result.context };
   };
@@ -166,7 +188,7 @@ test('an unchanged closure reuses its green result and a changed import reruns i
 
   // Cached versus fresh: only a comment changes, in a source file nothing imports. D reads it as data, so D runs and
   // its fresh verdict differs from the green it would otherwise have reused.
-  fixture.change('src/probe.js', "// A probe source file with a forbidden word.\nexport const probe = 1;\n");
+  fixture.change('apps/example/probe.js', "// A probe source file with a forbidden word.\nexport const probe = 1;\n");
   const sixth = fixture.run();
   assert.deepEqual(sixth.ran, ['d', 'e'], sixth.output);
   assert.equal(sixth.status, 1, sixth.output);

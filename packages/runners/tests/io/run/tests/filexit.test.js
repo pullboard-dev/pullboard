@@ -203,7 +203,6 @@ function makeFocusedPoolFixture(t) {
   writeFileSync(join(tests, 'nested.test.js'), `import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
 test('nested focused run inherits the held slot [C7]', () => {
   if (process.env.PULLBOARD_GATE_SLOT_HELD !== '1') throw new Error('nested run lost its held-slot marker');
   writeFileSync(process.env.PULLBOARD_C7_NESTED_DONE, 'nested completed');
@@ -213,7 +212,6 @@ test('nested focused run inherits the held slot [C7]', () => {
 import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
 test('focused holder remains live through nested run [C7]', async () => {
   writeFileSync(process.env.PULLBOARD_C7_FIRST_READY, 'ready');
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: process.env.PULLBOARD_C7_POOL };
@@ -229,7 +227,6 @@ test('focused holder remains live through nested run [C7]', async () => {
   writeFileSync(join(tests, 'second.test.js'), `import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
 test('second focused run starts after the slot is released [C7]', () => {
   writeFileSync(process.env.PULLBOARD_C7_SECOND_STARTED, 'second started');
 });

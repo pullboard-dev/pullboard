@@ -135,6 +135,7 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project && document.querySelector('#needs')");
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     // Inject the declared shared-builder output, independent of which API release supplies that field.
     const call = { kind: 'relay-health', id: 'relay-canary', ref: 'relay', text, what: nextStep,
       at: new Date().toISOString(), target: 'relay:relay-canary' };
@@ -336,7 +337,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
       'the shared Questions segment retains the one native pending ask');
     page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
     const waitingMessage = conversationMessage(page, 1);
-    assert.match(waitingMessage, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
+    assert.match(waitingMessage, /<b class="who"[^>]* title="Fixture Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
       'the opened native question retains its exact author, model hover and recipient');
     assert.match(waitingMessage, new RegExp('<div class="text">' + question + '</div>'), 'its entire escaped question remains visible');
     assert.match(waitingMessage, /<div class="band">Decision needed<\/div>/, 'the native pending status is retained');
@@ -399,7 +400,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     page.run("openTab('shouts'); view.shoutThread = 'none'; render();");
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who"[^>]* title="Fixture Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
     assert.match(feed, /<b class="who"[^>]* title="unknown">you<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
@@ -463,12 +464,12 @@ test("needs-you holds only the person's calls; the rest show on the board with w
 
     // Each of the rest is on the board, with who holds it.
     page.run("openTab('shouts'); view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
-    assert.match(page.show('feed'), /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
+    assert.match(page.show('feed'), /<b class="who"[^>]* title="Fixture Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
       "the native agent question waits on its coordinator in the Questions conversation");
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">In review<\/b>/, 'work waiting for a verdict keeps its approved stage');
     assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail" title="awaiting a verdict">awaiting a verdict<\/small>/, 'unassigned submitted work retains its truthful detail below the stage');
-    assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no farewell yet'), 'and work sent back, with why');
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">no farewell yet'), 'and work sent back, with why');
     page.run("openTab('shouts'); view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: Gated · Lane held · Sent back', '#1 Greeting: In review'], 'the agent retains both built items, with the shared stages and every applicable mark');
     page.run('view.agent = null; render();');
@@ -587,7 +588,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
         // An agent's row: its name and state in words, then what it holds at the full width.
         const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage and full holder detail: ${JSON.stringify(holder)}`);
+        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Fixture Model' && /^(?:now|\d+[mhd])Buildingby web-1 \(Fixture Model\)$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage and full holder detail: ${JSON.stringify(holder)}`);
       }
     }
 
@@ -796,7 +797,7 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
     })))`));
     for (const row of rows) {
       assert.deepEqual(row.actions, [['approve', 'Approve'], ['decline', 'Decline']], 'each pending proposal has explicit person controls');
-      assert.match(row.text, /node bin\/checks\/file-size\.js/u, 'the person sees the proposed command');
+      assert.ok(row.text.includes(command), 'the person sees the exact proposed command');
       assert.equal(row.directory, 'checks', 'the person sees the working folder');
       assert.match(row.text, /hourly/u, 'the person sees the schedule');
       assert.match(row.text, /coordinator/u, 'the person sees the owner');

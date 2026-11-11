@@ -48,7 +48,7 @@ test('relay pages and presentation browser entries reach no Node built-ins [C7,H
     '/relay/pages.js': 'apps/relay/src/logic/browser/pages.js',
     '/relay/presentation.js': 'packages/pages/src/logic/relay/presentation.js',
   } });
-  assert.ok(modules.has('/relay/m/packages/pages/core.js'));
+  assert.ok(modules.has('/relay/m/packages/pages/light.js'));
   assert.ok(![...modules.keys()].some(path => path.includes('/shell/')));
   const imports = importsIn([...modules.values()]);
   assert.equal(imports.flat().filter(name => name.startsWith('node:')).length, 0);

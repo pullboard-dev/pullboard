@@ -310,7 +310,7 @@ test('a staged diff beyond the safe output limit is a private coded refusal [P4]
   assert.throws(() => stagedProblems(box.root), (error) => {
     assert.ok(error instanceof Refused);
     assert.equal(error.code, 'DIFF_TOO_LARGE');
-    assert.match(error.message, /split the change into smaller commits, then retry/);
+    assert.match(error.message, /large\.txt alone exceeds the safe scan limit; split that file into smaller commits, then retry/);
     assert.ok(!error.message.includes(marker));
     return true;
   });
@@ -605,6 +605,7 @@ function cellRepo(t) {
   const box = stagedRepo(t);
   mkdirSync(join(box.root, 'bin/checks'), { recursive: true });
   mkdirSync(join(box.root, 'test'), { recursive: true });
+  mkdirSync(join(box.root, 'packages/gate/data/tests'), { recursive: true });
   writeFileSync(join(box.root, 'packages/gate/data/tests/test-cells.json'), JSON.stringify({ journeys: { 'test/listed.test.js': 'drives the CLI end to end' } }) + '\n');
   writeFileSync(join(box.root, 'test/old.test.js'), "import { test } from 'node:test';\n");
   box.git('add', '-A');
@@ -619,7 +620,7 @@ test('#4005 clause 1: committing a new unlisted root test is refused naming the 
   assert.throws(() => stagedProblems(box.root), (error) => {
     assert.ok(error instanceof Refused);
     assert.equal(error.code, 'ROOT_TEST_UNLISTED');
-    assert.match(error.message, /test\/new\.test\.js is a new root test that bin\/checks\/test-cells\.json does not list as a journey/u);
+    assert.match(error.message, /test\/new\.test\.js is a new root test that packages\/gate\/data\/tests\/test-cells\.json does not list as a journey/u);
     assert.match(error.next, /packages\/<cell>\/tests\//u);
     return true;
   });

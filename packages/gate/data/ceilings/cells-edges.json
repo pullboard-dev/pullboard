@@ -5119,6 +5119,10 @@
     "src/trusted-policy-read.js": {
       "cells": 1,
       "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
+      "deep": 0
     }
   },
   "cells": {
@@ -5952,6 +5956,9 @@
     }
   },
   "lightDoors": {
+    "apps/cli/light.js": 2,
+    "apps/runner/light.js": 24,
+    "apps/view/light.js": 1,
     "packages/drive/light.js": 9,
     "packages/commits/light.js": 12,
     "packages/verify/light.js": 17,

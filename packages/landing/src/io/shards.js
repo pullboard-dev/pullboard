@@ -719,7 +719,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       }) }) + '\n');
   }
   write(`# landing timing: every shard settled at +${sinceStart()} s\n`);
-  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
+  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), text => process.stderr.write(text));
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
   return { isGreen, balance, full: fullScope && shards.every(entry => entry.attempts.at(-1)?.collectionComplete === true),

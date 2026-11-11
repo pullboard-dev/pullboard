@@ -25,7 +25,7 @@ function fixture() {
 }
 
 test('exact admission, criterion and proof reuse their sealed run ids [C7,H16]', () => {
-  assert.deepEqual(reusableSubmitProof(fixture(), opts), { ids: ['criterion-id', 'proof-id'] });
+  assert.deepEqual(reusableSubmitProof(fixture(), opts), { ids: ['criterion-id', 'proof-id'], environment: null });
 });
 
 test('changed source, main, criterion or incomplete evidence fails closed [C7,H16]', () => {
@@ -45,14 +45,19 @@ test('changed source, main, criterion or incomplete evidence fails closed [C7,H1
 async function nativeProofScenario(t, moveMain) {
   const { createE2eHelpers } = await import('../../tests/fixtures/e2e.js');
   const { join } = await import('node:path');
-  const { readFileSync } = await import('node:fs');
+  const { mkdirSync, readFileSync, writeFileSync } = await import('node:fs');
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'proof-reuse-builder';
   sandbox.env.CODEX_THREAD_ID = 'proof-reuse-builder-session';
   const box = helpers.project('true', sandbox);
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/proof-input.txt'), 'original\n');
+  box.git(box.repo, 'add', 'web/proof-input.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'test(web): seed proof input [G1]');
+  box.git(box.web, 'merge', '--ff-only', 'main');
   const marker = join(box.dir, 'check-count');
-  const check = `printf x >> '${marker}'`;
+  const check = `test -f web/proof-input.txt && printf x >> '${marker}'`;
   const added = fixtureAdd(box.run, box.repo, 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check, '--route', 'strong');
   assert.equal(added.code, 0, added.err || added.out);
   const claimed = box.run(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
@@ -63,10 +68,12 @@ async function nativeProofScenario(t, moveMain) {
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   box.env.CODEX_THREAD_ID = 'proof-reuse-reviewer-session';
-  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'proof-reuse-reviewer'); assert.equal(joined.code, 0, joined.err || joined.out);
+  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'proof-reuse-reviewer', '--route', 'strong'); assert.equal(joined.code, 0, joined.err || joined.out);
   if (moveMain) {
     box.env.CODEX_THREAD_ID = 'proof-reuse-builder-session';
-    box.git(box.repo, 'commit', '--allow-empty', '-m', 'chore: advance fixture main');
+    writeFileSync(join(box.repo, 'web/proof-input.txt'), 'changed\n');
+    box.git(box.repo, 'add', 'web/proof-input.txt');
+    box.git(box.repo, 'commit', '-q', '-m', 'test(web): change proof input [G1]');
     box.env.CODEX_THREAD_ID = 'proof-reuse-reviewer-session';
   }
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
@@ -131,7 +138,7 @@ test('a complete tiered unit proof is reusable while journeys stay deferred [C7,
     value.receipt.submitReusePlan = submitReusePlanDigest({ check: opts.check, files: expectedPlan.files, full: false, deferred: true, proofCommand: opts.supplement });
     row.event_detail = JSON.stringify(value);
   }
-  assert.deepEqual(reusableSubmitProof(rows, { ...opts, expectedPlan }), { ids: ['criterion-id', 'proof-id'] });
+  assert.deepEqual(reusableSubmitProof(rows, { ...opts, expectedPlan }), { ids: ['criterion-id', 'proof-id'], environment: null });
   assert.ok(reusableSubmitProof(rows, { ...opts, expectedPlan: { ...expectedPlan, tiered: false } }).reason, 'ordinary deferred proof still cannot be cited');
   const missing = rows.filter(row => row.event_id !== 3);
   assert.ok(reusableSubmitProof(missing, { ...opts, expectedPlan }).reason, 'a missing unit proof receipt is never deferred away');

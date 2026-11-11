@@ -213,9 +213,21 @@ function archiveDirectory(common, id) {
   return join(directory, '..');
 }
 
-/** Free and total bytes on the volume holding the archives; unknown space refuses the copy rather than guessing. */
-function archiveVolume(common) {
-  const state = statfsSync(common, { bigint: false });
+/**
+ * Free and total bytes on the volume that actually holds the archives; unknown space refuses the copy rather than guessing.
+ * The archive directory may be a symlink to another volume, so measure its resolved target, or the nearest existing parent.
+ */
+export function archiveVolume(common, statfs = statfsSync) {
+  let target = join(realpathSync(common), 'pullboard', 'worktree-archives');
+  for (;;) {
+    try { target = realpathSync(target); break; }
+    catch (error) {
+      const parent = resolve(target, '..');
+      if (error.code !== 'ENOENT' || parent === target) throw error;
+      target = parent;
+    }
+  }
+  const state = statfs(target, { bigint: false });
   return { freeBytes: state.bavail * state.bsize, totalBytes: state.blocks * state.bsize };
 }
 

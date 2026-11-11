@@ -621,7 +621,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
     const store = receiptStore(root);
     const focusedWord = comparison && "'" + ('./' + comparison.path).replaceAll("'", "'\\''") + "'";
     const expected = kind === 'main-red' ? comparison && `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${focusedWord}`
-      : kind === 'suite' ? 'node ./bin/run-tests.js'
+      : kind === 'suite' ? 'node packages/gate/src/io/run/tests.js --all'
       : auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
     if (expected !== config.gate || !head || !store
       || kind === 'main-red' && !pinned && !sameTimingSource(comparison?.source, timingSourceForReceipt(root))) return null;

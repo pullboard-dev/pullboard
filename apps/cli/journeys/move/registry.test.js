@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
+/** @pullboard-test-input apps/cli/tests/fixtures/move/registry/baseline.json packages/state/data/history/** */
 /** @pullboard-test-loads packages/moves/src/io/registry.js packages/moves/src/logic/moves/*.js packages/moves/src/io/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from '../../tests/fixtures/cases/registry.js';

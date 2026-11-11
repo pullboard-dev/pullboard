@@ -13,13 +13,13 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
 
-const MAIN_RED = pathToFileURL(join(import.meta.dirname, '../../../../src/io/main/red.js')).href;
-const CLI = join(import.meta.dirname, '../../../../../../apps/cli/pullboard.js');
-const KNOWN_MAIN = pathToFileURL(join(import.meta.dirname, '../../../../src/io/known/main.js')).href;
-const ENVIRONMENT = pathToFileURL(join(import.meta.dirname, '../../../../../sandbox/src/io/environment.js')).href;
+const MAIN_RED = pathToFileURL(join(import.meta.dirname, '../../../../packages/landing/src/io/main/red.js')).href;
+const CLI = join(import.meta.dirname, '../../pullboard.js');
+const KNOWN_MAIN = pathToFileURL(join(import.meta.dirname, '../../../../packages/landing/src/io/known/main.js')).href;
+const ENVIRONMENT = pathToFileURL(join(import.meta.dirname, '../../../../packages/sandbox/src/io/environment.js')).href;
 const RED = "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('inherited red [G1]', () => assert.equal(1, 2));\n";
 
 /** Write one file under the fixture repo. */

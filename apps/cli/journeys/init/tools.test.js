@@ -144,7 +144,9 @@ test('an installed cell resolver upgrade invalidates memo keys outside the candi
   const originalResolver = readFileSync(resolver, 'utf8');
   const revisedResolver = originalResolver + '\n// Installed resolver revision: candidate tree deliberately unchanged.\n';
   // Reproduce the old installed analyzer in this private copy only; the owning checkout stays untouched.
-  writeFileSync(analyzer, fixedAnalyzer.replace(", '../../../codemap/src/core/import-map.js'", ''));
+  const oldAnalyzer = fixedAnalyzer.replace(", '../../../../../codemap/src/logic/imports.js'", '');
+  assert.notEqual(oldAnalyzer, fixedAnalyzer, 'the old control actually removes the installed resolver input');
+  writeFileSync(analyzer, oldAnalyzer);
   const oldBefore = key();
   writeFileSync(resolver, revisedResolver);
   const oldAfter = key();

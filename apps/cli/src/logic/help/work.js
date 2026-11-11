@@ -104,6 +104,7 @@ export const workHelp = `Work
   pullboard test <files>                run named test files on the runner pool with the per-file timeout, uncommitted
                                         changes included; a red file is compared with main and named known or new
                                         one file skips the main comparison; --compare-main runs it
+                                        --diagnose prioritizes one file and prints full failure output
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
                                         in an agent seat it queues on the board and returns at once with a run id;

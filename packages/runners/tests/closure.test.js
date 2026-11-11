@@ -20,8 +20,8 @@ test('the runner worker closure holds the same gate modules after the move, with
   for (const body of bodies) assert.ok(files.includes(body), `${body} stays in the closure`);
   for (const old of BEFORE) assert.ok(!files.includes(old), `${old} left no shim in the closure`);
   const gate = files.filter(file => file.startsWith('packages/gate/'));
-  // Two deliberate additions: the preload's journal source split into its own module (d75861e52d), which the preload imports, and the user directory read that the Chrome clone check, now in this cell, imports (#4808).
-  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/io/journal/source.js', 'packages/gate/src/io/directory.js', 'packages/gate/light.js'].sort(), 'no other gate module enters the closure');
+  // Three deliberate additions: the preload's journal source split into its own module (d75861e52d), which the preload imports; the user directory read that the Chrome clone check, now in this cell, imports (#4808); and the runner source identity that gate/light.js re-exports for the runner main, request and result modules.
+  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/io/journal/source.js', 'packages/gate/src/io/directory.js', 'packages/gate/src/logic/runner-source.js', 'packages/gate/light.js'].sort(), 'no other gate module enters the closure');
   assert.ok(!files.includes('packages/gate/index.js'), 'the worker does not load the gate front door');
 });
 
@@ -29,6 +29,6 @@ test('the runner worker closure holds the same gate modules after the move, with
 test('runner reads the native user directory body without widening its closure [C7]', () => {
   const files = Object.keys(runnerPackage(ROOT).files);
   assert.ok(files.includes('packages/gate/src/io/directory.js'));
-  assert.deepEqual(files.filter(file => file.endsWith('native-user-directory.js')), ['packages/gate/src/io/directory.js']);
+  assert.deepEqual(files.filter(file => file.endsWith('/directory.js')), ['packages/gate/src/io/directory.js']);
   assert.ok(!files.includes('packages/store/index.js'));
 });

@@ -18,8 +18,8 @@ function fixture(t, gate = 'true') {
   const box = privateRepo(t);
   const config = { gate, affectedTests: 'node --test', spec: 'SPEC.md', view: { background: false } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
-  put(box.root, 'packages/kernel/index.js', "export { one } from './src/core/value.js';\n");
-  put(box.root, 'packages/kernel/light.js', "export { one } from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/index.js', "export { one } from './src/logic/value.js';\n");
+  put(box.root, 'packages/kernel/light.js', "export { one } from './src/logic/value.js';\n");
   put(box.root, 'packages/kernel/src/logic/value.js', 'export const one = 1;\nexport const two = 2;\n');
   const mainRoot = box.root;
   const build = builderRepo(box, ['packages/kernel/']);
@@ -57,7 +57,7 @@ function refused(box, commit, names) {
 
 test('submit refuses a changed Kernel door and names exports before any test gate [C7]', t => {
   const box = fixture(t);
-  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose two [G1]');
   const change = kernelGateChange(box.root, box.base, commit);
   assert.deepEqual(change.changes, [{ file: 'packages/kernel/index.js', names: ['two'] }]);
@@ -80,7 +80,7 @@ test('an internal Kernel behavior change reaches normal submit without person co
 
 test('only the person can approve the exact item and Kernel interface for submit [C7]', t => {
   const box = fixture(t);
-  put(box.root, 'packages/kernel/light.js', "export { one, two } from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/light.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose pure two [G1]');
   const change = kernelGateChange(box.root, box.base, commit);
   const token = kernelApprovalText(1, change.digest);
@@ -97,21 +97,21 @@ test('only the person can approve the exact item and Kernel interface for submit
 
 test('person consent cannot carry to another export contract and a later decline revokes it [C7]', t => {
   const box = fixture(t);
-  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose two [G1]');
   const change = kernelGateChange(box.root, box.base, commit);
   answer(box, kernelApprovalText(1, change.digest));
   answer(box, kernelApprovalText(1, change.digest, false));
   refused(box, commit, ['two']);
   answer(box, kernelApprovalText(1, change.digest));
-  put(box.root, 'packages/kernel/index.js', "export { one as renamed, two } from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/index.js', "export { one as renamed, two } from './src/logic/value.js';\n");
   const changed = commitAll(box, 'feat(kernel): rename one [G1]');
   refused(box, changed, ['one', 'renamed']);
 });
 
 test('star-forwarded public names are checked while private body changes preserve approval scope [C7]', t => {
   const box = fixture(t);
-  put(box.root, 'packages/kernel/index.js', "export * from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/index.js', "export * from './src/logic/value.js';\n");
   const before = commitAll(box, 'feat(kernel): forward the public module [G1]');
   put(box.root, 'packages/kernel/src/logic/value.js', 'export const one = 4;\nexport const two = 2;\n');
   const internal = commitAll(box, 'fix(kernel): preserve public identity [G1]');
@@ -135,7 +135,7 @@ test('submit rechecks a person decline recorded while the real gate runs [C7]', 
   ].join('\n');
   const command = "node --input-type=module -e '" + source.replaceAll("'", "'\\''") + "'";
   const box = fixture(t, command);
-  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/core/value.js';\n");
+  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose two before reconsideration [G1]');
   const change = kernelGateChange(box.root, box.base, commit);
   answer(box, kernelApprovalText(1, change.digest));

@@ -67,7 +67,7 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, api, 'api', '--route', 'strong').code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const add = (lane, title) => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
     '--criterion', `${title} passes its gate.`, '--check', 'true', '--json')).item.item_id;

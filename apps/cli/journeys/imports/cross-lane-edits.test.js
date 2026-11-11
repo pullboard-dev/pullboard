@@ -10,11 +10,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { importOnlyChange } from '../../../../commits/light.js';
-import { submissionPaths } from '../../../../sandbox/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { importOnlyChange } from '../../../../packages/commits/light.js';
+import { submissionPaths } from '../../../../packages/sandbox/index.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 
-const BIN = join(import.meta.dirname, '../../../../../apps/cli/pullboard.js');
+const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Create a private initialized board with independently owned core and view files. */
 function nativeFixture(t) {

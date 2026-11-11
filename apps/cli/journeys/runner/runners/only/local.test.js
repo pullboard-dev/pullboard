@@ -52,8 +52,9 @@ async function directRun(t, runnersOnly, landing = false, inheritedLocal = false
   return await withMainCheckout(SOURCE, head, async root => {
     // The real landing reader requires this owned fixture's coordinator checkout on main.
     runFixtureGit(['checkout', '-B', 'main'], { cwd: root, env: box.env });
-    const file = 'test/private-no-local-body.test.js';
+    const file = 'packages/gate/tests/io/run/fixtures/private-no-local-body.test.js';
     assert.equal(existsSync(join(root, file)), false);
+    mkdirSync(join(root, 'packages/gate/tests/io/run/fixtures'), { recursive: true });
     writeFileSync(join(root, file), "import { test } from 'node:test';\nimport { writeFileSync } from 'node:fs';\n"
       + `test('private actual body [C7]', () => writeFileSync(${JSON.stringify(box.marker)}, 'ran'));\n`);
     runFixtureGit(['add', file], { cwd: root, env: box.env });
@@ -132,6 +133,7 @@ test('landing cleanup failure stops named under runner-only and retains opt-out 
   const box = helpers.project('node packages/gate/src/io/run/tests.js', helpers.sandbox(), { withWorktree: false });
   mkdirSync(join(box.repo, 'bin'));
   mkdirSync(join(box.repo, 'test'));
+  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "require('node:fs').writeFileSync(process.env.PULLBOARD_PRIVATE_MARKER, 'ran');\n");
   writeFileSync(join(box.repo, 'test/probe.test.js'), '// the local recovery executable records its actual body\n');
   box.git(box.repo, 'add', 'packages/gate/src/io/run/tests.js', 'test/probe.test.js');

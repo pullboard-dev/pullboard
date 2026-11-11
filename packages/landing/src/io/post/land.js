@@ -18,7 +18,15 @@ export function newRedCases(previous, failures) {
   if (!previous) return [];
   const before = new Set(previous.failures.map(row => keyOf(row.file, row.name)));
   const fresh = failures.filter(row => !before.has(keyOf(row.file, row.name)));
-  return fresh.map(({ file, name }) => ({ file, name }));
+  return fresh;
+}
+
+/** Group only evidence with a recorded root cause, keeping unclassified failures separate by file. */
+function rootCause(row) {
+  if (typeof row.stable === 'string' && row.stable.trim()) return `frame:${row.stable}`;
+  const error = typeof row.firstError === 'string' ? row.firstError.trim() : '';
+  if (error && !/^(?:expected values|assertionerror|error|\[redacted error\])/iu.test(error)) return `error:${error}`;
+  return `file:${row.file}`;
 }
 
 /** Read the previous result; an absent or unreadable file is no baseline, said loudly by the caller. */
@@ -64,18 +72,31 @@ export async function postLandSuite(state, ports) {
       const items = readItems(state.board);
       const missing = unownedMainReds({ failures: fresh }, items, null, true);
       if (missing === null) throw new Error('a new red case already has several open owners; ask the coordinator to settle which repair owns it');
+      const groups = new Map();
       for (const { file, names: cases } of missing) {
         const lane = laneOf({ lanes: state.config.lanes }, file);
         if (!lane || lane === 'coordinator') {
           state.say(`${label}: ${file} newly fails (${cases.join('; ')}) but no lane owns it; the coordinator must file its repair`);
           continue;
         }
+        for (const row of fresh.filter(row => row.file === file && cases.includes(row.name))) {
+          const cause = rootCause(row);
+          const key = JSON.stringify([lane, cause]);
+          if (!groups.has(key)) groups.set(key, { lane, cause, rows: [] });
+          groups.get(key).rows.push(row);
+        }
+      }
+      for (const { lane, cause, rows } of [...groups.values()].sort((a, b) => a.cause.localeCompare(b.cause) || a.lane.localeCompare(b.lane))) {
+        rows.sort((a, b) => a.file.localeCompare(b.file) || a.name.localeCompare(b.name));
+        const files = [...new Set(rows.map(row => row.file))];
+        const cases = rows.map(row => `${row.file} :: ${row.name}`);
         const criterion = `Repair these exact cases on main ${batch.tip}: ${cases.join('; ')}. First red in batch ${batch.id} (${names}); the previous batch's full suite did not fail them. Filed by the post-land suite.`;
-        const id = await state.write('addItem', [{ by: 'coordinator', lane, title: `Main red: ${file}`, route: defaultItemRoute(criterion, criterionCells(batch.root)), specIds: [], parentId: null, after: [],
+        const title = files.length > 1 ? `Red cluster: ${cause.slice(0, 120)}` : `Main red: ${files[0]}`;
+        const id = await state.write('addItem', [{ by: 'coordinator', lane, title, route: defaultItemRoute(criterion, criterionCells(batch.root)), specIds: [], parentId: null, after: [],
           criterion,
-          brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}`,
-          check: `${String(state.config.affectedTests ?? '').trim()} ${word(file)}` }]);
-        filed.push({ file, item: id });
+          brief: `Files: ${files.join(', ')}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}`,
+          check: `${String(state.config.affectedTests ?? '').trim()} ${files.map(word).join(' ')}` }]);
+        for (const file of files) filed.push({ file, item: id });
       }
     }
     writePrevious(path, { version: 1, batch: batch.id, items: batch.items.map(entry => entry.id), tip: batch.tip, failures: result.failures });

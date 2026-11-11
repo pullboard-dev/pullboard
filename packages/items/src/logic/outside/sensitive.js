@@ -5,7 +5,8 @@ import { Refused } from "../../../../kernel/index.js";
 /** Fixed trust boundaries cannot be removed by a project's extensions or the contributed configuration. */
 export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   '.githooks/', '.husky/', '.github/workflows/', 'packages/kernel/src/logic/seal.js', 'packages/link/src/io/relay/requests.js',
-  'packages/link/src/io/relay/execution.js', 'packages/state/src/logic/relay/sender.js', 'packages/store/src/io/board/ports.js',
+  'packages/link/src/io/relay/execution.js', 'src/relay-sender.js', 'packages/state/src/logic/relay/sender.js',
+  'src/board-engine-ports.js', 'packages/store/src/io/board/ports.js',
   'packages/commits/src/io/hooks.js', 'apps/cli/src/io/commands/hook.js', 'apps/cli/src/io/commands/hooks.js', 'pullboard.json', 'apps/relay/',
   'apps/cli/pullboard.js', 'apps/cli/src/io/current.js', 'apps/cli/src/io/gate/drive.js', 'apps/cli/src/io/hook/composed.js',
   'apps/cli/src/io/landing/', 'apps/cli/src/io/ports/process.js', 'apps/cli/src/io/resident/', 'apps/cli/src/io/static/',
