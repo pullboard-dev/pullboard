@@ -218,7 +218,9 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   env.PULLBOARD_MODEL = 'Test Model'; env.PULLBOARD_OWN_CLI = '1'; // #2458: tests run the candidate's own CLI.
   env.PULLBOARD_MACHINE_HOME = join(sandbox, 'machine');
   // A test finds its runner by this pid, never by parsing ps text; a nested runner sets its own (#1073).
-  env.PULLBOARD_TEST_RUNNER_PID = String(process.pid);
+  // Behind the shim at packages/gate/src/io/run/tests.js the shim is the runner a SIGKILL can reach, so it is the one named.
+  env.PULLBOARD_TEST_RUNNER_PID = String(Number(process.env.PULLBOARD_RUN_SHIM_PID) || process.pid);
+  delete env.PULLBOARD_RUN_SHIM_PID;
   // #1046: every file of every run takes a token from one machine pool; a nested run keeps its parent's loan.
   env[TEST_FILE_POOL_ENV] = testFilePoolValue(process.env);
   isolateTestMachine(env, sandbox); // #1068: no settings, resources, runners or host markers of the real machine.
