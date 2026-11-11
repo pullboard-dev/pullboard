@@ -90,12 +90,17 @@ test('a builder editing the accepted main row itself still fails public submit b
   const invalid = box.git(box.view, 'commit-tree', box.git(box.view, 'write-tree'), '-p', parent,
     '-m', 'fixture: unauthorized foreign-row edit');
   box.git(box.view, 'reset', '--hard', invalid);
-  const refused = box.run(box.view, 'submit', String(box.id), '--no-next', '--json');
-  assert.equal(refused.code, 1, refused.out + refused.err);
-  assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE');
-  assert.match(refused.out, /dashboard\.css/);
+  // Ownership routing (814a7def2a): proved foreign paths wait on their owner instead of refusing OUTSIDE_LANE; the builder is freed.
+  const submitted = box.run(box.view, 'submit', String(box.id), '--no-next', '--json');
+  assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  const waiting = JSON.parse(submitted.out).waitingOwner;
+  assert.deepEqual(waiting.owners, ['core']);
+  assert.equal(waiting.paths.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
   assert.equal(existsSync(box.marker), false, 'no gate runs for the unauthorized foreign edit');
-  assert.equal(success(box, box.view, 'show', String(box.id)).item_status, 'claimed');
+  const item = success(box, box.view, 'show', String(box.id));
+  assert.equal(item.item_status, 'open');
+  assert.equal(item.item_commit, null, 'owner waiting is not a submission');
+  assert.match(item.item_hold_reason, /^waiting on ownership /u);
 });
 
 /** Probe row authority only; these synthetic blobs are not native claim or execution evidence. */
