@@ -61,7 +61,7 @@ const dropFlag = ${JSON.stringify(dropOnce ?? '')};
 const drop = Boolean(dropFlag);
 const env = { PATH: process.env.PATH, HOME: ${JSON.stringify(home)}, TMPDIR: process.env.TMPDIR,
   PULLBOARD_HOME: ${JSON.stringify(home)}, PULLBOARD_MACHINE_HOME: ${JSON.stringify(machineHome)}, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' };
-const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: ${JSON.stringify(worker)}, env, stdio: ['pipe', 'pipe', 'pipe'] });
+const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: ${JSON.stringify(worker)}, env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
 child.stdout.pipe(process.stdout);
 child.stderr.pipe(process.stderr);
 process.stdin.pipe(child.stdin);
@@ -73,7 +73,8 @@ if (drop) {
     // and history sessions before it end on their own and must not use up the drop.
     if (existsSync(dropFlag)) return;
     writeFileSync(dropFlag, 'dropped\\n');
-    process.kill(child.pid, 'SIGHUP');
+    // The worker leads its own process group, so the whole tree it started dies with it, as on a lost runner.
+    try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already gone */ }
     process.exit(255);
   }, 20);
 }
