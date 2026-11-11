@@ -18,6 +18,8 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
 const RECEIPT_BYTES = 64 * 1024;
 // Budget: a queue scan reads at most this many open rows per claim, so one claim stays a small read on any board.
 const SCAN_ROWS = 500;
+// Budget: a job's request (a gate's pinned commits, config and trusted entries) stays inline, under the 64 KiB blob threshold the claim scan reads.
+const REQUEST_BYTES = 60 * 1024;
 
 /** The sha256 hex of a lease token: the board keeps only this, so its rows never hold a usable token. */
 function tokenHash(token) {
@@ -43,16 +45,35 @@ function runnerId(runner) {
  * stands, so a retried offer never resets a job a runner already holds.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ id: string, kind: string, needs?: string[], item?: number | null, candidate?: string | null, base?: string | null, now?: number }} fields
+ * A request is the job's own input, read back by the runner holding it with jobRequest: for a gate, the argv to run and
+ * the data it reads on stdin [P7].
+ *
+ * @param {{ id: string, kind: string, needs?: string[], item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], item = null, candidate = null, base = null, now = Date.now() }) {
+export function offerJob(db, { id, kind, needs = [], item = null, candidate = null, base = null, request = null, now = Date.now() }) {
   const wanted = names(needs, 'needs');
+  if (request !== null && (typeof request !== 'object' || Array.isArray(request) || Buffer.byteLength(JSON.stringify(request)) > REQUEST_BYTES)) {
+    throw new Refused('JOB_REQUEST', `a job request is a JSON object of at most ${REQUEST_BYTES} bytes; keep large inputs in git and name them`);
+  }
   return atomically(db, () => {
     const job = createJob(db, { id, kind, item, candidate, base, now });
-    if (job.step === 'queued' && job.steps.length === 0) writeStep(db, id, 'offered', { needs: wanted }, { now });
+    if (job.step === 'queued' && job.steps.length === 0) writeStep(db, id, 'offered', { needs: wanted, ...(request ? { request } : {}) }, { now });
     return jobView(db, id);
   });
+}
+
+/**
+ * The job of a kind offered for one item's candidate that has not finished, or null: a retried offer reuses it.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ kind: string, item: number, candidate: string }} fields
+ * @returns {ReturnType<typeof jobView> | null}
+ */
+export function openJob(db, { kind, item, candidate }) {
+  const row = db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step <> 'done' ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
+  return row ? jobView(db, row.job_id) : null;
 }
 
 /**
@@ -124,6 +145,21 @@ export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = L
 }
 
 /**
+ * The input of a job, for the runner holding its current claim only: its candidate, base and the request it was offered with.
+ * Why a separate call: the claim stays one small scan, and only the winner reads the request.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ job: string, runner: string, token: string }} request
+ * @returns {{ job: string, kind: string, item: number | null, candidate: string | null, base: string | null, request: Record<string, unknown> | null }}
+ */
+export function jobRequest(db, { job, runner, token }) {
+  heldBy(db, job, runner, token);
+  const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
+    ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
+  return { job, kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, base: row.job_base, request: JSON.parse(row.job_step_payload).request ?? null };
+}
+
+/**
  * Hand a job back to the queue at once, before its lease would lapse: a runner that cannot finish it frees it now.
  *
  * @param {import('node:sqlite').DatabaseSync} db
@@ -156,7 +192,7 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now() 
 }
 
 /**
- * Answer one queue call as the board API carries it: `{ action: 'claim' | 'renew' | 'release' | 'receipt', ... }`.
+ * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'release' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it.
  *
  * @param {import('node:sqlite').DatabaseSync} db
@@ -168,8 +204,9 @@ export function jobQueueCall(db, body, { mode, now = Date.now() }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, job, token, receipt } = body ?? {};
   if (action === 'claim') return { claim: claimJob(db, { runner, capabilities, kinds: kinds ?? null, now }) };
+  if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, now });
   if (action === 'receipt') return postReceipt(db, { job, runner, token, receipt, now });
-  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, renew, release or receipt');
+  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, release or receipt');
 }
