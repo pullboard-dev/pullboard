@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/fixtures/budgets.js */
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
@@ -104,7 +105,6 @@ function moduleObserver(box) {
     "import { appendFileSync } from 'node:fs';",
     'let trace;',
     'export function initialize(data) { trace = data.trace; }',
-    "export async function resolve(spec, context, nextResolve) { const r = await nextResolve(spec, context); appendFileSync(trace + '.edges', JSON.stringify({from:context.parentURL,to:r.url}) + '\\n'); return r; }",
     "export async function load(url, context, nextLoad) { const result = await nextLoad(url, context); appendFileSync(trace, JSON.stringify({pid:process.pid,url}) + '\\n'); return result; }",
   ].join('\n'));
   writeFileSync(probe, `import { register } from 'node:module';\nregister(${JSON.stringify(pathToFileURL(hook).href)}, { data: { trace: ${JSON.stringify(trace)} } });\n`);
@@ -155,7 +155,9 @@ function knownLiteralBoardImporters(closures, modules) {
   const releaseSource = modules.get('packages/landing/src/io/queue.js');
   const releaseImports = importsIn([releaseSource])[0];
   assert.ok(!releaseImports.includes('../../../store/index.js'), 'release capture avoids the eager store front door');
-  assert.ok(releaseImports.includes('../../../store/light.js'), 'release capture reads the board through the store light door');
+  for (const reader of ['../../../store/src/shell/board-event-log.js', '../../../store/src/shell/board-query.js', '../../../store/src/core/board-milestones-read.js']) {
+    assert.ok(releaseSource.includes(`load('${reader}')`), `release capture loads its lazy read-only store module ${reader}`);
+  }
   for (const name of ['openBoardReadOnly', 'boardId', 'listItems', 'milestones']) assert.match(releaseSource, new RegExp(`\\b${name}\\b`), `release capture uses canonical reader ${name}`);
   assert.ok(!releaseImports.includes('../../../store/src/shell/board.js'), 'release capture does not import the writer facade');
   const parsed = new Map();
@@ -189,12 +191,9 @@ test('clause 1: a plain test run loads no gate board or machine modules through 
   assert.match(child.stdout, /# pass 1\b/u);
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/io/slot.js')).href), 'ordinary admission actually ran');
-  const edges = readFileSync(box.trace + '.edges', 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  const chain = target => { const out = []; let cur = target; for (let i = 0; i < 30 && cur; i++) { out.push(cur.replace(/^.*\/(checkout|pullboard-local)\//u, '')); const e = edges.find(x => x.to === cur && x.from); cur = e?.from; } return out.map(x => x.replace('packages/', 'P/').replace('src/io/', '')).join('<'); };
-  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `TRACE ${file} chain: ${chain(pathToFileURL(join(ROOT, file)).href)}`);
+  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
 });
 
-function chain2(target, box) { const edges = readFileSync(box.trace + '.edges', 'utf8').trim().split('\n').map(l => JSON.parse(l)); const out = []; let cur = target; for (let i = 0; i < 30 && cur; i++) { out.push(cur.replace(/^.*\/(checkout|pullboard-local)\//u, '').replace('packages/', 'P/').replace('src/io/', '')); const e = edges.find(x => x.to === cur && x.from); cur = e?.from; } return out.join('<'); }
 test('clause 2: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
 () => {
   const box = fixture({ currentReleaseFirst: true });
@@ -204,7 +203,7 @@ test('clause 2: a plain run retains lazy modules with current-release-first queu
   assert.match(child.stdout, /# pass 1\b/u);
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/io/slot.js')).href), 'ordinary policy-enabled admission actually ran');
-  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `TRACE ${file} chain: ${chain2(pathToFileURL(join(ROOT, file)).href, box)}`);
+  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy with currentReleaseFirst on`);
 });
 
 test('the actual test-file preload loads no gate board or machine modules [C7,V4]', { timeout: 90_000 }, // budget: one private Node test-file process with ordinary preload and watchdog; hang ceiling only.
@@ -278,6 +277,7 @@ test('importing the runners package spawns nothing and pins no tooling; the firs
   const installed = join(directory, 'installed');
   copyPackageFiles(ROOT, installed);
   mkdirSync(join(installed, 'test'), { recursive: true });
+  mkdirSync(join(installed, 'packages/gate/tests/fixtures'), { recursive: true });
   copyFileSync(join(ROOT, 'packages/gate/tests/fixtures/budgets.js'), join(installed, 'packages/gate/tests/fixtures/budgets.js'));
   const counter = join(directory, 'counter.mjs');
   writeFileSync(counter, SPAWN_COUNTER);
@@ -290,8 +290,10 @@ assert.deepEqual(globalThis.__spawned, [], 'importing the runners package starts
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'import pins no tooling generation');
 // A front-door runner operation pins first; this one then fails on its invalid runner without any SSH.
 await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
-assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
+assert.equal(runners.runnerToolingPinned(), true, 'the first runner operation pins the tooling generation');
+// The closure capture waits for first use, so the generation's first read spawns the capture.
 assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
+assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first use of the pinned generation captures the tooling');
 appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/io/dispatch.js'))}, '\\n// changed after the first dispatch\\n');
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
 `;
