@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -72,7 +73,7 @@ ${subtest ? '});' : ''}
   box.git(box.repo, 'commit', '-q', '-m', 'test: commit declared CPU placement probe');
   stage('source-committed');
   installSshStandIn({ bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, requests, nodeCommand: process.execPath });
-  const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
+  const env = { ...box.env, PATH: `${bin}:${dirname(process.execPath)}:${box.env.PATH}` }; // The stand-in ssh starts with env node, which a vanilla runner's PATH lacks.
   for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_TEST_CONTEXT') delete env[key];
   /** Use the ordinary fixture CLI to configure its own genuine runner registration and policy. */
   function command(...args) {
