@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('the test runner names itself to the tests it starts [C7]', async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-pid-')));

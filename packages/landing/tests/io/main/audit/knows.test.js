@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import { compareMainFailures } from '../../../../index.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 
-const RUN_TESTS = join(import.meta.dirname, '../../../../../gate/src/io/run/tests.js');
+const RUN_TESTS = join(import.meta.dirname, '../../../../../../apps/cli/src/io/run/tests.js');
 
 /** Write one fixture source file. */
 function put(root, file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
@@ -51,7 +51,7 @@ function compare(box, file) {
   return compareMainFailures(box.root, { tests: [{ file, passed: false }] }, undefined, '', { commit: box.main });
 }
 
-test('packages/gate/src/io/run/tests.js runs a green main file in the comparison checkout instead of refusing on accepted main [C7]', { timeout: 120000 }, async t => {
+test('apps/cli/src/io/run/tests.js runs a green main file in the comparison checkout instead of refusing on accepted main [C7]', { timeout: 120000 }, async t => {
   const box = fixture(t, `node '${RUN_TESTS}'`);
   const result = await compare(box, 'test/pass.test.js');
   assert.equal(result.unavailable, undefined, result.unavailable);

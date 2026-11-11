@@ -64,7 +64,7 @@ test('manifest exclusions never become subset destination or path-map instructio
 test('the guard names hand copies including imported aliases, finite lists and read-write copies [C7]', () => {
   for (const source of [
     "import { cpSync } from 'node:fs'; cpSync(new URL('../../../src', import.meta.url), target);",
-    "import { copyFileSync as duplicate } from 'node:fs'; const input = new URL('../../gate/src/io/run/tests.js', import.meta.url); duplicate(input, target);",
+    "import { copyFileSync as duplicate } from 'node:fs'; const input = new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url); duplicate(input, target);",
     "import * as fs from 'node:fs'; for (const entry of ['src', 'bin']) fs.cpSync(join(root, entry), join(target, entry));",
     "import { readFileSync, writeFileSync } from 'node:fs'; const body = readFileSync(new URL('../../../src/a.js', import.meta.url)); writeFileSync(target, body);",
     "import { cpSync, mkdtempSync } from 'node:fs'; function privateFixture(){const root=mkdtempSync('/tmp/x');return root;} function installed(){const root=new URL('../../..',import.meta.url);cpSync(new URL('../../../src',import.meta.url),target);}",

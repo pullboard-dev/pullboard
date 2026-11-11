@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const runner = fileURLToPath(new URL('../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const CAP_MS = 2000;
 const SLACK_MS = 10_000;
 

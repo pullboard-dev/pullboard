@@ -27,7 +27,7 @@ function reviewWithLanding(t, { setting, landing }) {
   for (const folder of ['test', 'web', 'api', 'bin', 'packages/gate/src/io/run']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   // This is the fixture project's real runner; the installed CLI remains outside the project.
-  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
 const child = spawnSync(process.execPath, ['--test', ...process.argv.slice(2)], { stdio: 'inherit' });
 if (child.error) throw child.error;
 if (child.signal) process.kill(process.pid, child.signal);
@@ -63,7 +63,7 @@ test('page is built', () => {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node packages/gate/src/io/run/tests.js test/page.test.js', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node apps/cli/src/io/run/tests.js test/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), "export const page = 'built';\n");
   box.git(box.web, 'add', 'web/lib.js');

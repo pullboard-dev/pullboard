@@ -97,7 +97,7 @@ test('ordinary fake-SSH source carries its actual trunk policy into a detached n
   const box = fixture(t);
   const registered = cli(box.source, box.env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(registered.status, 0, registered.context);
-  const result = await runThroughGate(box.source, box.env, 'node packages/gate/src/io/run/tests.js test/nested.test.js', { landing: true, requests: box.requests });
+  const result = await runThroughGate(box.source, box.env, 'node apps/cli/src/io/run/tests.js test/nested.test.js', { landing: true, requests: box.requests });
   assert.equal(result.status, 0, fixtureResultContext(result) + (existsSync(box.stderrLog) ? box.readStderr() : ''));
   assert.equal(gateResult(result.stdout).runner, HOST, 'the positive policy proof must execute remotely, never pass by local fallback');
   assert.match(result.stdout, /nested shard uses carried admitted policy/u);
@@ -121,7 +121,7 @@ console.log(JSON.stringify(result.privateCheck)); process.exitCode = result.isGr
   const missing = join(box.dir, 'missing-policy');
   git(box.repo, box.env, 'clone', '--no-local', '--no-checkout', box.repo, missing);
   git(missing, box.env, 'checkout', '--detach', box.candidate);
-  const refused = await runThroughGate(missing, box.env, 'node packages/gate/src/io/run/tests.js test/nested.test.js', { landing: true, requests: box.requests });
+  const refused = await runThroughGate(missing, box.env, 'node apps/cli/src/io/run/tests.js test/nested.test.js', { landing: true, requests: box.requests });
   assert.equal(refused.status, 1, fixtureResultContext(refused));
   assert.match(refused.stdout, /NO_POLICY/u, 'a real nested job without carried provenance refuses loudly');
   const requestsBeforeProtection = box.readRequests();

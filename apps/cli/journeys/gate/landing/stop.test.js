@@ -19,7 +19,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const runner = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
+const runner = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 
 /** Run only three private fixture files; the held earlier file makes the failure out of order. */
 test("a landing stop keeps the failing test's report [C7,V4]", () => {

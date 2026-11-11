@@ -8,7 +8,7 @@ import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.j
 import { runFixtureChild as spawnSync } from '../../../../apps/cli/tests/fixtures/child.js';
 import { tapFailures } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /** Run the real runner on a fixture holding one failing and one passing case, and return its exact output. */
 function runRedFixture() {

@@ -1,4 +1,6 @@
 /** The runner agent: a small shell loop that claims queued jobs by rename and runs the existing worker command on files [C7,#5467]. */
+import { createHash } from 'node:crypto';
+
 /** Quote one literal value as a single POSIX shell word. */
 function shellWord(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
@@ -12,6 +14,11 @@ function shellWord(value) { return `'${String(value).replaceAll("'", "'\\''")}'`
  * waiting for work costs the kernel one directory read a second. The text holds no backtick or dollar-brace, so it
  * can sit in a template literal.
  *
+ * Handover [#5590]: argument 2 is the digest of this script. The agent writes it to <lock>/version. A start that carries a
+ * different digest writes it to <root>/wanted-version, then waits (PULLBOARD_AGENT_HANDOVER_SECONDS, 3600; one waiter at a
+ * time) for the old agent to leave and takes over. An agent that sees a wanted-version other than its own stops claiming,
+ * lets its running jobs finish, then exits and frees the lock, so no job is killed or lost; queued jobs wait for the new agent.
+ *
  * Job folder <root>/queue/<id>/ holds `input` (capsule plus spec frame, the worker's stdin), `command` (the worker's remote
  * command), and later `source.pack` then `source.pack.ready`; the coordinator touches `wanted` and may touch `cancel`.
  * Claim is mv queue/<id> running/<id>. The agent writes owner.json, pid and beat; the job wrapper writes out.bin, control.log
@@ -20,6 +27,8 @@ function shellWord(value) { return `'${String(value).replaceAll("'", "'\\''")}'`
 export const RUNNER_AGENT_SCRIPT = String.raw`
 ROOT=$1
 [ -n "$ROOT" ] || exit 2
+VERSION=$2
+HANDOVER=$PULLBOARD_AGENT_HANDOVER_SECONDS; [ -n "$HANDOVER" ] || HANDOVER=3600
 POLL=$PULLBOARD_AGENT_POLL; [ -n "$POLL" ] || POLL=1
 IDLE=$PULLBOARD_AGENT_IDLE_SECONDS; [ -n "$IDLE" ] || IDLE=600
 WANTED=$PULLBOARD_AGENT_WANTED_SECONDS; [ -n "$WANTED" ] || WANTED=120
@@ -39,13 +48,30 @@ load1() {
 }
 mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
-if ! mkdir "$LOCK" 2>/dev/null; then
-  held=$(cat "$LOCK/pid" 2>/dev/null)
-  [ -n "$held" ] || { sleep 1; held=$(cat "$LOCK/pid" 2>/dev/null); }
-  alive "$held" && exit 0
-  rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null || exit 0
-fi
+acquire() {
+  waited=0; waiting=0
+  while :; do
+    if mkdir "$LOCK" 2>/dev/null; then return 0; fi
+    held=$(cat "$LOCK/pid" 2>/dev/null)
+    [ -n "$held" ] || { sleep 1; held=$(cat "$LOCK/pid" 2>/dev/null); }
+    if ! alive "$held"; then rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null && return 0; return 1; fi
+    theirs=$(cat "$LOCK/version" 2>/dev/null)
+    [ -n "$VERSION" ] && [ "$theirs" != "$VERSION" ] || return 1
+    if [ "$waiting" = 0 ]; then
+      nextpid=$(cat "$ROOT/agent.next" 2>/dev/null)
+      alive "$nextpid" && return 1
+      echo $$ > "$ROOT/agent.next"; waiting=1
+    fi
+    printf '%s\n' "$VERSION" > "$ROOT/wanted-version"
+    [ "$waited" -lt "$HANDOVER" ] || return 1
+    sleep 1; waited=$((waited + 1))
+  done
+}
+acquire || exit 0
+[ -f "$ROOT/agent.next" ] && [ "$(cat "$ROOT/agent.next" 2>/dev/null)" = "$$" ] && rm -f "$ROOT/agent.next"
 echo $$ > "$LOCK/pid"
+echo "$VERSION" > "$LOCK/version"
+[ "$(cat "$ROOT/wanted-version" 2>/dev/null)" = "$VERSION" ] && rm -f "$ROOT/wanted-version"
 trap 'rm -rf "$LOCK"' EXIT
 trap 'exit 0' TERM INT HUP
 WRAP='trap : TERM INT HUP
@@ -111,17 +137,21 @@ while :; do
     queued=1; break
   done
   if [ "$queued" = 1 ] || [ "$ticks" -ge 10 ]; then gate; ticks=0; fi
+  want=$(cat "$ROOT/wanted-version" 2>/dev/null); leaving=0
+  if [ -n "$want" ] && [ "$want" != "$VERSION" ]; then leaving=1; full=1; fi
   for d in "$Q"/*/; do
     [ -d "$d" ] || continue
     id=$(basename "$d")
     case $id in .*) continue ;; esac
     busy=1; [ "$full" = 1 ] || claim "$id"
   done
+  running=0
   for d in "$R"/*/; do
     [ -d "$d" ] || continue
     id=$(basename "$d")
-    busy=1; tend "$id"
+    busy=1; running=1; tend "$id"
   done
+  if [ "$leaving" = 1 ] && [ "$running" = 0 ]; then exit 0; fi
   find "$D" -mindepth 1 -maxdepth 1 -mmin +"$KEEP" -exec rm -rf {} + 2>/dev/null
   if [ "$busy" = 1 ]; then idle_since=$(now)
   elif [ $(( $(now) - idle_since )) -ge "$IDLE" ]; then exit 0; fi
@@ -129,11 +159,14 @@ while :; do
 done
 `;
 
+/** The digest of the agent script (first 16 hex of sha256); a start that carries another digest asks the live agent to hand over. */
+export function agentVersion() { return createHash('sha256').update(RUNNER_AGENT_SCRIPT).digest('hex').slice(0, 16); }
+
 /**
  * One shell command that starts the agent in the background unless a live one holds agent.lock, and returns at once.
  * Why: runners need no setup, because the first enqueue starts the agent; an empty root means the default ~/.pullboard-runner.
  */
-export function runnerAgentStartCommand(root = '') {
+export function runnerAgentStartCommand(root = '', version = agentVersion()) {
   const folder = root ? shellWord(root) : '"$HOME"/.pullboard-runner';
-  return `nohup sh -c ${shellWord(RUNNER_AGENT_SCRIPT)} pullboard-runner-agent ${folder} < /dev/null > /dev/null 2>&1 &`;
+  return `nohup sh -c ${shellWord(RUNNER_AGENT_SCRIPT)} pullboard-runner-agent ${folder} ${shellWord(version)} < /dev/null > /dev/null 2>&1 &`;
 }

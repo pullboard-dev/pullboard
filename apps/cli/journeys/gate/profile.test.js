@@ -39,12 +39,12 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-const RUNNER = resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js');
+const RUNNER = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
 const CALLER_REPORTER = resolve(import.meta.dirname, '../../tests/fixtures/reporter.js');
 const RESOURCE_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
-const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/', '.timed/', 'timed/', 'packages/gate/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
+const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/', '.timed/', 'timed/', 'apps/cli/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
 // budget: run-tests SIGKILLs a file that has not exited 30 s after its last test, so cleanup stops retrying well inside that ceiling.
@@ -579,9 +579,9 @@ test('a submit timing profile records both phases and one queue wait for selecte
     box.env.PROFILE_TRACE = trace;
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false } }));
-    const checkCommand = 'node packages/gate/src/io/run/tests.js timed/check.test.js';
+    const checkCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js';
     // Select the same three private bodies while the copied runtime remains the unchanged production runner.
-    const gateCommand = 'node packages/gate/src/io/run/tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
+    const gateCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
     writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }));
     copyProfileRunner(box);
     mkdirSync(join(box.repo, 'timed'), { recursive: true });
@@ -615,7 +615,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
       '  assert.equal(1, 1);',
       '});',
     ].join('\n') + '\n');
-    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node packages/gate/src/io/run/tests.js' }) }, null, 2));
+    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node apps/cli/src/io/run/tests.js' }) }, null, 2));
     box.git(box.repo, 'add', '-A');
     // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
     box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');

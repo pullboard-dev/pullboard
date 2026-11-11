@@ -289,3 +289,31 @@ test('many verified items at one commit cost one ancestry check per state build,
   });
   assert.ok(states.every(state => state === null), 'every item reads fresh, as it did with a check per item');
 });
+
+test('legacy receipts on a cold state build spawn a bounded number of Git processes, whatever the item count [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 80 projected items; not a speed target.
+  const dir = temporaryRepository(t, 'verdict-legacy-bounded-');
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
+  git('commit', '--allow-empty', '-q', '-m', 'base');
+  const trunk = git('rev-parse', 'HEAD');
+  git('commit', '--allow-empty', '-q', '-m', 'item work');
+  const checked = git('rev-parse', 'HEAD');
+  git('commit', '--allow-empty', '-q', '-m', 'main moves');
+  const tip = git('rev-parse', 'HEAD');
+  /** Project this many legacy-receipt items (no sealed review) and return every Git spawn made, with the states. */
+  const build = (count, claimHead) => {
+    const projector = verdictProjector(dir, {}, { main: tip }, {
+      events: () => [], acceptedVerdict: () => null, verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' });
+    const spawns = [];
+    const counting = { ...realGitAdapter, spawnSync(args, options) { spawns.push(args.join(' ')); return realGitAdapter.spawnSync(args, options); } };
+    const states = withGitAdapter(counting, () => Array.from({ length: count }, (_, index) => projector.state({
+      item_id: index + 1, item_status: 'verified', item_commit: checked, item_claim_head: claimHead })));
+    return { spawns, states, counted: currentGitAdapter() !== counting };
+  };
+  for (const claimHead of [trunk, tip]) {
+    const few = build(5, claimHead);
+    const many = build(80, claimHead);
+    assert.ok(many.states.every(state => state === null), 'every legacy item reads fresh, as it did with a read per item');
+    if (few.spawns.length) assert.equal(many.spawns.length, few.spawns.length, `80 items spawn no more Git processes than 5 (claim head ${claimHead === tip ? 'at the tip' : 'behind it'})`);
+    if (few.spawns.length) assert.ok(many.spawns.length <= 4, `a handful of Git reads serve all 80 items, saw ${many.spawns.length}`);
+  }
+});

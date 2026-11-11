@@ -21,7 +21,7 @@ function setup(t) {
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   const agentId = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Prepared outside the writer',
-    criterion: 'The actual fixture check passes', check: 'node packages/gate/src/io/run/tests.js apps/cli/journeys/status/writer.test.js',
+    criterion: 'The actual fixture check passes', check: 'node apps/cli/src/io/run/tests.js apps/cli/journeys/status/writer.test.js',
     brief: 'Files: src/board.js\nTest: observes the actual private SQLite writer', route: 'strong' });
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
   const peer = new DatabaseSync(file);

@@ -63,11 +63,11 @@ function fixtureGit(cwd, ...args) {
 }
 
 test('only the two exact named-file Node check forms are eligible [C7]', () => {
-  assert.deepEqual(mainRedCheckFiles('node packages/gate/src/io/run/tests.js test/a.test.js test/b.test.js'), ['test/a.test.js', 'test/b.test.js']);
+  assert.deepEqual(mainRedCheckFiles('node apps/cli/src/io/run/tests.js test/a.test.js test/b.test.js'), ['test/a.test.js', 'test/b.test.js']);
   assert.deepEqual(mainRedCheckFiles('node --test test/a.test.js'), ['test/a.test.js']);
-  for (const check of ['node packages/gate/src/io/run/tests.js --test test/a.test.js', 'node --test --test-reporter=tap test/a.test.js',
+  for (const check of ['node apps/cli/src/io/run/tests.js --test test/a.test.js', 'node --test --test-reporter=tap test/a.test.js',
     'node --test test/a.test.js && true', 'node  --test test/a.test.js', 'node --test test/../outside.test.js',
-    'node --test test/a.test.js test/a.test.js', 'node packages/gate/src/io/run/tests.js']) assert.equal(mainRedCheckFiles(check), null, check);
+    'node --test test/a.test.js test/a.test.js', 'node apps/cli/src/io/run/tests.js']) assert.equal(mainRedCheckFiles(check), null, check);
 });
 
 test('the check comes from a digest-matching frozen bar, never the mutable check field [C7]', () => {

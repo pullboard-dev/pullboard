@@ -61,7 +61,7 @@ const remoteRun = async (_root, _command, options) => {
 };
 // Actual private SQLite leases occupy both local slots, forcing the planner to choose a runner.
 const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ parseProcessCensus, root,
-  runner: ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))}, files: ['./test/a.test.js'], count: 1,
+  runner: ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))}, files: ['./test/a.test.js'], count: 1,
   needsBrowser: async () => true, needsGui: async () => true, remoteRun, write: () => {},
 }), { executionServices, remote: false, kind: 'check' }), { executionServices, remote: false, kind: 'check' });
 process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
@@ -96,7 +96,7 @@ const result = await withGateSlot(root, async () => {
   await ready;
   const timer = setTimeout(release, 250);
   try {
-    return await runLandingShards({ parseProcessCensus, root, runner: ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))},
+    return await runLandingShards({ parseProcessCensus, root, runner: ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))},
       files: ['./test/a.test.js'], count: 1, needsBrowser: async () => false, needsGui: async () => true,
       remoteRun: async () => { throw new Error('an unknown GUI runner must not execute this shard'); }, write: () => {} });
   } finally { clearTimeout(timer); release(); await held; }
@@ -139,7 +139,7 @@ const result = await withGateSlot(root, async () => {
       assert.equal(inherited.runner.host, ${JSON.stringify(HOST)});
       assert.equal(inherited.runner.gui, false);
       const timer = setTimeout(release, 250);
-      try { return await runLandingShards({ parseProcessCensus, root, inherited, runner: ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))},
+      try { return await runLandingShards({ parseProcessCensus, root, inherited, runner: ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))},
         files: ['./test/a.test.js'], count: 1, needsBrowser: async () => false, needsGui: async () => true,
         remoteRun: async () => { throw new Error('a no-GUI inherited runner must not execute this shard'); }, write: () => {} }); }
       finally { clearTimeout(timer); }
@@ -184,7 +184,7 @@ const remoteRun = async (_root, _command, options) => {
 };
 // Hold the two real local slots, so all six shards must acquire actual registered runner leases.
 const result = await withGateSlot(root, () => withGateSlot(root, () => runLandingShards({ parseProcessCensus, root,
-  runner: ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))},
+  runner: ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))},
   files: ${JSON.stringify(NAMES.map(name => `./test/${name}.test.js`))}, count: 6, remoteRun, write: () => {},
 }), { executionServices, remote: false, kind: 'check' }), { executionServices, remote: false, kind: 'check' });
 process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
@@ -294,7 +294,7 @@ import {withGateSlot} from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
 import {parseCollectionReports} from ${JSON.stringify(reportUrl)};
 await withGateSlot(process.cwd(),async lease=>{
- const child=spawn(process.execPath,['packages/gate/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/1',PULLBOARD_LANDING_COLLECT_ALL:'1',PULLBOARD_LANDING_COLLECTION_ID:${JSON.stringify(id)}},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['apps/cli/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/1',PULLBOARD_LANDING_COLLECT_ALL:'1',PULLBOARD_LANDING_COLLECTION_ID:${JSON.stringify(id)}},stdio:['ignore','pipe','pipe']});
  let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
  const closed=once(child,'close');
  process.once('message',()=>child.kill('SIGTERM'));
@@ -337,7 +337,7 @@ test('a shard the landing stops blames none of its aborted in-flight files [C7,V
 import {withGateSlot} from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
 await withGateSlot(process.cwd(),async lease=>{
- const child=spawn(process.execPath,['packages/gate/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/2'},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['apps/cli/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/2'},stdio:['ignore','pipe','pipe']});
  let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
  const closed=once(child,'close');
  process.once('message',()=>child.kill('SIGTERM'));

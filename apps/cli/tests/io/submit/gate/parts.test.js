@@ -36,7 +36,7 @@ function countingRunner(box) {
 /** The request one part sends: pinned commits and data only. */
 function partRequest(box, part) {
   return { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'fixture criterion',
-    staticChecks: '', ...(box.tooling ? { tooling: box.tooling } : {}), config: { affectedTests: 'node packages/gate/src/io/run/tests.js' }, readCutItems: () => [{ item_id: 7 }], parts: [part] };
+    staticChecks: '', ...(box.tooling ? { tooling: box.tooling } : {}), config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, readCutItems: () => [{ item_id: 7 }], parts: [part] };
 }
 
 /** Run every analysis part for one attempt, as the submit gate does, and return the elapsed milliseconds and each result. */

@@ -43,7 +43,7 @@ function fixture(t, { historical = false } = {}) {
   }
   /** The declared check names the real module test, without pretending this synthetic lifecycle ran it. */
   const add = () => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Review policy fixture',
-    check: 'node packages/gate/src/io/run/tests.js apps/cli/journeys/show/review/tier.test.js' });
+    check: 'node apps/cli/src/io/run/tests.js apps/cli/journeys/show/review/tier.test.js' });
   /** Capture the submitted native source inventory through production claim and submit guards. */
   const submit = (id, files) => {
     store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
@@ -70,7 +70,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'apps/cli/journeys/spec/person.test.js', 'test/check.test.js', 'test/flakes-ledger.test.js', 'apps/cli/journeys/show/review/tier.test.js', 'packages/gate/tests/io/test/selection.test.js',
     'apps/cli/journeys/relay/expired.test.js', 'test/engine.test.js', 'apps/cli/journeys/init/shards.test.js',
     'packages/gate/src/logic/test-selection.js', 'packages/gate/src/io/run/receipt.js', 'packages/gate/src/io/test/selection.js',
-    'apps/cli/journeys/baseline/check.test.js', 'packages/gate/tests/io/gui/admission.test.js', 'packages/landing/tests/io/guards.test.js', 'packages/gate/src/io/run/tests.js', 'packages/gate/src/io/test/names.js',
+    'apps/cli/journeys/baseline/check.test.js', 'packages/gate/tests/io/gui/admission.test.js', 'packages/landing/tests/io/guards.test.js', 'apps/cli/src/io/run/tests.js', 'packages/gate/src/io/test/names.js',
     '.github/workflows/ci.yml', 'pullboard.json']) assert.equal(gateJudgmentPath(path), true, path);
   assert.equal(gateJudgmentPath('packages/github/src/io/pr.js'), false, 'no widening to the other github modules');
   for (const path of ['docs/gate.md', 'README.md', 'apps/relay/src/io/deploy/README.md', 'packages/gate/README.md',

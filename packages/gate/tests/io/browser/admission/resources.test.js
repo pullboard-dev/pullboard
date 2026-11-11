@@ -55,7 +55,7 @@ import { writeMemoryReading } from '../../../../../../apps/cli/tests/fixtures/re
 test('single-quoted named-test checks skip the browser slot [C7]', async () => {
   const box = fixture();
   const { repo } = cpuCheckRepo(box);
-  const itemCheck = 'node packages/gate/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
+  const itemCheck = 'node apps/cli/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
   /** Keep assertions about the parser independent of worker custody inherited by the test process. */
   const classify = command => checkNeedsBrowser(repo, command, { env: { ...process.env, NODE_OPTIONS: '' } });
   assert.equal(await classify(itemCheck), false, 'an explicit CPU-only test file is classifiable');
@@ -84,7 +84,7 @@ test('single-quoted named-test checks skip the browser slot [C7]', async () => {
   const substituted = capturedCheck(accepted[0].formats, accepted[0].patternQuotes)
     .replace('printf \'%s\\n\' "$out"', 'printf \'%s\\n\' "$(printf %s "$out")"');
   assert.equal(await classify(substituted), true, 'a command substitution remains outside the exact printf wrapper');
-  assert.equal(await classify('node packages/gate/src/io/run/tests.js test/cockpit/brief.test.js'), true,
+  assert.equal(await classify('node apps/cli/src/io/run/tests.js test/cockpit/brief.test.js'), true,
     'a named file with no readable declaration stays browser-gated');
   assert.equal(await checkNeedsBrowser(repo, itemCheck, {
     env: { ...process.env, NODE_OPTIONS: '--import=unknown-preload.mjs' },

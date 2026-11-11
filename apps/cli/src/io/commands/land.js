@@ -24,6 +24,7 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { requireManualLanding } from '../../../../../packages/merge/index.js';
 import { flakeLedger } from '../../../../../packages/flakes/index.js';
 import { badgeCounts } from '../../../../view/index.js';
+import { badgeDocuments } from '../../../../view/index.js';
 import { writeBadges } from '../../../../view/index.js';
 import { flakeSource } from '../../../../../packages/flakes/index.js';
 import { observeNativeFailure } from '../../../../../packages/flakes/index.js';
@@ -197,7 +198,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}, named = n
   const progress = landingProgress();
   const watch = { stallAfterMs: ctx.config?.landing?.stallMs, lastProgressAt: progress.lastProgressAt, stall: progress.stall };
   /** One landing through the batch engine; a real one runs in this process as a drive-cell job [C7]. */
-  const landOnce = async () => land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
+  const landOnce = async () => land({ landingPorts: { badgeCounts, badgeDocuments, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     runBatch: values['dry-run'] ? undefined : await landingBatchRunner(progress),
     write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner,
     ...(named ? { named } : {}), maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });

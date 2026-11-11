@@ -139,7 +139,7 @@ test('record real file ${id} [C7]', async () => {
       const env = { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
         PULLBOARD_MACHINE_HOME: join(root, `machine-${setting.files}-${caseIndex}`) };
       env.PULLBOARD_LANDING_RUN = example.landing ? '1' : '0';
-      const result = runFixtureChild(process.execPath, [join(root, 'packages/gate/src/io/run/tests.js'), ...example.args, ...selected], {
+      const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...example.args, ...selected], {
         cwd: root, env, encoding: 'utf8',
       });
       assert.equal(result.status, 0, `${example.name}: ${result.stdout}${result.stderr}`);
@@ -156,7 +156,7 @@ test('record real file ${id} [C7]', async () => {
   writeFileSync(config, JSON.stringify({ testConcurrency: { files: 3, browser: 2 } }));
   for (const value of ['4294967296', '9'.repeat(400)]) {
     const capture = join(root, `invalid-concurrency-${value.length}.jsonl`);
-    const result = runFixtureChild(process.execPath, [join(root, 'packages/gate/src/io/run/tests.js'),
+    const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'),
       `--test-concurrency=${value}`, ...selected], {
       cwd: root, env: { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_CAP_CAPTURE: capture,
         PULLBOARD_MACHINE_HOME: join(root, `machine-invalid-${value.length}`) }, encoding: 'utf8',
@@ -170,7 +170,7 @@ test('record real file ${id} [C7]', async () => {
     '--experimental_test_isolation', '--experimental_test-isolation', '--experimental-test_isolation']) {
     for (const args of [[`${flag}=none`], [flag, 'none']]) {
       const capture = join(root, `isolation-${isolationCase++}.jsonl`);
-      const result = runFixtureChild(process.execPath, [join(root, 'packages/gate/src/io/run/tests.js'), ...args, selected.at(-1)], {
+      const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...args, selected.at(-1)], {
         cwd: root, env: { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
           PULLBOARD_MACHINE_HOME: join(root, 'machine-isolation') }, encoding: 'utf8',
       });
@@ -643,7 +643,7 @@ test('output after the match', async () => {
   process.stdout.write('x'.repeat(1024 * 1024));
 });
 `);
-  const runner = resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js');
+  const runner = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
   const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1`;
   const captured = (probe, assertion = `printf '%s\\n' "$out"`) => `out=$(${probe}) && ${assertion}`;
   const commands = [
