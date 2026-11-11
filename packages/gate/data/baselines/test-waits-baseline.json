@@ -11,7 +11,7 @@
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "sleep": 3
   },
-  "packages/landing/tests/io/main/red.test.js": {
+  "apps/cli/journeys/red/main-red.test.js": {
     "sleep": 2
   },
   "apps/cli/journeys/relay/confirmation.test.js": {
@@ -41,10 +41,10 @@
   "apps/relay/tests/approval-revoke.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/relay/activation/browser.test.js": {
+  "apps/relay/tests/relay-browser-fixture.test.js": {
     "sleep": 2
   },
-  "apps/cli/journeys/relay/activation/client.test.js": {
+  "apps/relay/tests/relay-client-fixture.test.js": {
     "sleep": 1
   },
   "apps/cli/journeys/verify/check.test.js": {
@@ -69,7 +69,7 @@
   "packages/gate/tests/parser.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/check-baseline/main.test.js": {
+  "apps/cli/tests/fixtures/check-baseline.js": {
     "sleep": 1
   },
   "packages/gate/tests/fixtures/clone.js": {
@@ -205,7 +205,7 @@
     "poll": 1,
     "sleep": 1
   },
-  "packages/gate/tests/io/affected/graph/cache/lock.test.js": {
+  "apps/cli/journeys/gate/main-red-lock.test.js": {
     "poll": 1,
     "sleep": 1
   },
@@ -276,9 +276,6 @@
   },
   "packages/pages/tests/fixtures/study.js": {
     "sleep": 1
-  },
-  "apps/cli/journeys/relay/main.test.js": {
-    "sleep": 2
   },
   "packages/gate/tests/fixtures/resources/verify.js": {
     "sleep": 1
@@ -371,5 +368,8 @@
   },
   "apps/relay/tests/fixtures/relay-phone-fixture.js": {
     "sleep": 1
+  },
+  "apps/cli/journeys/relay/main-pairing.test.js": {
+    "sleep": 2
   }
 }

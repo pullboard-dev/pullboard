@@ -217,17 +217,28 @@ test('the import scan finds a package however it is imported, and nothing that i
 });
 
 /**
- * The two source-directory loaders import only a discovered file beneath their declared local URL.
- * Normalize that exact relative discovery expression, not arbitrary computed imports; recursively
- * scanning their leaves below keeps a package import in any discovered module visible to P3.
+ * Every deliberate computed loader is declared here, by file and by its exact expression; an
+ * undeclared computed import, or a declared file with a second one, still fails the scan. Two are
+ * source-directory loaders that import a discovered file beneath their local URL; the rest load a
+ * caller-selected module (a reporter, a tool, a worker port, a checker) or a guard at a runtime
+ * path. Each declared expression is normalized to a relative import; recursively scanning their
+ * leaves below keeps a package import in any discovered module visible to P3.
  */
+const LOADERS = {
+  'packages/moves/src/io/registry.js': ['import(new URL(file, directory).href)'],
+  'apps/cli/src/io/commands/index.js': ['import(new URL(file, FOLDER).href)'],
+  'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
+  'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
+  'apps/view/src/io/page/actions.js': ['import(configuredTransportModule)'],
+  'packages/api/src/io/state/materializer/worker.js': ['import(workerData.portsModule)'],
+  'packages/codemap/src/io/freeze.js': ['import(pathToFileURL(checker).href)'],
+  'packages/doctrine/src/io/fast.js': ["import(pathToFileURL(join(root, 'packages/gate/src/io/scan.js')).href)", 'import(pathToFileURL(join(root, script)).href)'],
+  'packages/gate/src/io/run-tests.js': ["import(reporter.startsWith('.') || reporter.startsWith('/')\n    ? pathToFileURL(resolve(reporter)).href : reporter)", 'import(moduleSpecifier)', 'import(guard.href)'],
+};
 function packageSource(file, source) {
-  const loaders = {
-    [join(ROOT, 'packages/moves/src/io/registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
-    [join(ROOT, 'apps/cli/src/io/commands/index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
-  };
-  const loader = loaders[file];
-  return loader ? source.replace(loader[0], loader[1]) : source;
+  let text = source;
+  for (const expression of LOADERS[file.startsWith(ROOT) ? file.slice(ROOT.length + 1) : file] ?? []) text = text.replace(expression, "import('./')");
+  return text;
 }
 
 /** Parse one edited source control using exactly the package discovery policy. */

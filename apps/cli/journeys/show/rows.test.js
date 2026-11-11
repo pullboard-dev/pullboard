@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Native lifecycle rows retain their identities while the approved compact presentation changes [N26]. */
 import assert from 'node:assert/strict';

@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 export function commandDocs(root = dirname(fileURLToPath(new URL('../../../../package.json', import.meta.url)))) {
   const directory = join(root, 'apps/cli/src/io/command-docs');
   const names = new Set();
-  return readdirSync(directory).filter(file => file.endsWith('.json')).sort().map(file => {
+  return readdirSync(directory, { recursive: true }).filter(file => file.endsWith('.json')).sort().map(file => {
     const path = join(directory, file);
-    if (!/^[a-z][a-z0-9-]*\.json$/u.test(file) || !lstatSync(path).isFile()) throw new Error(`invalid command documentation ${file}`);
+    if (!/^(?:[a-z][a-z0-9-]*\/)*[a-z][a-z0-9-]*\.json$/u.test(file) || !lstatSync(path).isFile()) throw new Error(`invalid command documentation ${file}`);
     const entry = JSON.parse(readFileSync(path, 'utf8'));
     if (!entry || !/^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/u.test(entry.name ?? '') || names.has(entry.name)
         || typeof entry.help !== 'string' || !entry.help.startsWith(`  pullboard ${entry.name}`)

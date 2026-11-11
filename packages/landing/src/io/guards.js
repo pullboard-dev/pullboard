@@ -1,5 +1,8 @@
 /** Validate the composed source before any landing publication [B35]. */
+import { addedPlacementProblems } from '../../../codemap/index.js';
 import { cellInventory } from '../../../codemap/index.js';
+import { readPlan } from '../../../codemap/index.js';
+import { unplanned } from '../../../codemap/index.js';
 import { updateCellInventory } from '../../../codemap/index.js';
 import { commonJsIn } from '../../../gate/index.js';
 import { importsIn } from '../../../gate/index.js';
@@ -102,4 +105,9 @@ export async function requireLandingModuleResolution(root, base, tip) {
   const inherited = new Set(missingImports(before).map(edgeKey));
   const missing = missingImports(after).filter(row => !inherited.has(edgeKey(row)));
   if (missing.length) throw new Refused('LAND_MODULE_RESOLUTION', `the composed landing leaves missing module targets: ${missing.map(row => `${row.file}: ${row.specifier} (${row.reason})`).join('; ')}; restore or repoint every importer before landing`);
+}
+
+/** The placement problems the composed tree at `root` adds over `base`: tracked sources with no cells-plan row [C7,#5559]. */
+export function landingPlacementProblems(root, base) {
+  return withMainCheckout(root, base, checkout => addedPlacementProblems(checkout, root, { unplanned, readPlan }));
 }

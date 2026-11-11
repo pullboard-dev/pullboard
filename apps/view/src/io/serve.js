@@ -857,7 +857,12 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   // way out rather than a stack trace.
   const asked = port;
   const last = asked === 0 && !lan ? lastPort() : 0;
-  return new Promise((ready, fail) => {
+  return new Promise((ready, resolveFail) => {
+    /** Refuse the start and stop the state materializer's worker first: a thread left running keeps a foreground process alive after its refusal. */
+    const fail = (error) => {
+      try { apiHandler.close(); } catch { /* A handler that is already closed has nothing left to stop. */ }
+      resolveFail(error);
+    };
     const listen = (port) => {
       const failed = (error) => {
         if (sandboxRefusedListen(error, port)) {

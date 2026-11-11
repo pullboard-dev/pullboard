@@ -192,7 +192,8 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.equal(JSON.parse(nonCoordinator.out).error.code, 'COORDINATOR_ONLY');
 
   const landing = (await fixtureCommand(box, box.repo, 'land', '--max', '1', '--json'));
-  assert.equal(landing.code, 0, `${landing.err}\n${landing.out}`);
+  // land exits 1 when nothing lands and every candidate is a culprit (d8505b797a).
+  assert.equal(landing.code, 1, `${landing.err}\n${landing.out}`);
   const landingResult = JSON.parse(landing.out);
   assert.deepEqual(landingResult.culprits.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult));
   assert.equal(landingResult.culprits[0].mergeCommit, landingResult.batch.tip);
@@ -302,9 +303,11 @@ test('clause 3: retained main controls builder first refusal during detached rev
     'the candidate does not carry the enabled setting');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
-    const rejected = await command(box.repo, 'verify', '1', 'reject', '--no-next', '--as', 'coordinator', '--reason', 'OTHER', '--clause', 'The page renders.', '--note', 'the private proof requires rework');
-    assert.equal(rejected.code, 0, rejected.err);
+    const accepted = await command(box.repo, 'verify', '1', 'accept', '--no-next', '--as', 'coordinator', '--note', 'the private frozen check passed');
+    assert.equal(accepted.code, 0, accepted.err + accepted.out);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
+  const withdrawn = await command(box.repo, 'reopen', '1', '--withdraw-verdict', '--note', 'the private proof requires rework', '--json');
+  assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), main);
   const other = join(box.dir, 'web-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
@@ -315,12 +318,12 @@ test('clause 3: retained main controls builder first refusal during detached rev
   assert.equal(error.code, 'REOPEN_HELD_FOR_BUILDER');
   assert.match(error.message, /web-1/u);
   const board = openFixtureBoard(t, box);
-  const returned = store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject');
+  const returned = store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reopen');
   const window = JSON.parse(returned.event_detail).reopenFirstRefusal;
   assert.equal(window.builder, 'web-1');
   assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
   assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
-  // #2460 (12ee9b638c, d80a319692) restored the first-refusal window after #2779: the claim opens only once it has passed.
+  // #2779 removed the first-refusal window a reject sealed; this clause covers the withdrawal path (#2460), where the claim opens only once the window has passed.
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   t.mock.timers.tick(29 * 60_000);
   // #3447: a builder silent for two minutes is gone and its window ends at once, so the live builder beats before each claim.

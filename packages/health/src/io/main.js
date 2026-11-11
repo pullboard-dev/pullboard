@@ -723,7 +723,9 @@ function readItemHistory(events, history) {
     let entry = history.get(event.item_id);
     if (!entry) history.set(event.item_id, entry = { last: new Map(), lifecycle: null, firstMerged: null });
     entry.last.set(event.event_kind, event);
-    if (LIFECYCLE.has(event.event_kind)) entry.lifecycle = event;
+    // An escalation after a reject or reopen only re-routes the rework: the rework still waits since the return.
+    const reroute = event.event_kind === 'escalate' && ['reject', 'reopen'].includes(entry.lifecycle?.event_kind);
+    if (LIFECYCLE.has(event.event_kind) && !reroute) entry.lifecycle = event;
     if (event.event_kind === 'merged' && !entry.firstMerged) entry.firstMerged = event.event_at;
   }
 }

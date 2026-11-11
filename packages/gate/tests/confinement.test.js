@@ -98,7 +98,7 @@ test('#4633 clause 2: a sealed-cell change with only its own listing rows stays 
   const { root, base } = fixture(t);
   const head = alphaChange(root);
   const plan = selectTestTiers(root, { base, commit: head });
-  assert.deepEqual(plan.changed.filter(file => /^(?:bin|packages\/gate)\//u.test(file)).sort(),
+  assert.deepEqual(plan.changed.filter(file => /^(?:bin|packages\/(?:gate|codemap))\//u.test(file)).sort(),
     ['packages/codemap/data/plan/01-alpha.json', 'packages/gate/data/ceilings/cells-edges.json', 'packages/gate/data/tests/test-cells.json', TIERS], 'every listing file rides with the change');
   assert.deepEqual(plan.units, [ALPHA_TEST, 'packages/alpha/tests/a2.test.js'], 'the cell\'s tests, new one included');
   assert.ok(!plan.journeys.includes('test/journey.test.js'), 'no unrelated root journey');

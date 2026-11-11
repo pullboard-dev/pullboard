@@ -15,6 +15,7 @@ const ROWS = [
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
+  ['gate.runnerDispatch', 'How runner jobs are watched', 'controller keeps one controller process per runner job until its result; pull submits, waits on a shared status file and finishes in short processes, so waiting costs none.', 'Capacity', 'controller/pull'],
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
@@ -93,6 +94,7 @@ const ROWS = [
   ['cells.shimMaxAgeDays', 'Shim removal age', 'Health names compatibility shims left beyond this many days after their cell move landed.', 'Checks', 'days'],
   ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
+  ['rigor.autoDraft', 'Draft unproved Rigor rules', 'Rigor drafts a rule for a repeated failure before any fix is proven; false keeps only drafts you prove with rigor draft --red/--green.', 'Checks', 'on/off'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
   ['flakes.quarantine', 'Quarantine flaky tests', 'A test that keeps flaking is set aside so it stops blocking work.', 'Checks', 'on/off'],
   ['testConcurrency.files', 'Test files at once', 'How many test files run at the same time.', 'Checks', 'count'],
@@ -109,6 +111,7 @@ const ROWS = [
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
+  ['review.independence', 'Reviewer independence', 'Off: any seat but the builder may verify, even a subagent of the builder\'s session. Session: only a different agent session may verify.', 'Review', 'choice'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims

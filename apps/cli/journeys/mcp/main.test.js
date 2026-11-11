@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -30,6 +32,8 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
 import { personNeedsState } from '../../../view/index.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC = `# MCP fixture
@@ -75,10 +79,68 @@ function shellWord(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+/** Stop only this fixture repo's registered landing workers before removing their machine home. */
+async function stopFixtureLanding(root) {
+  const directory = join(root, '.git', 'pullboard', 'automatic-landing');
+  const owners = [];
+  for (const name of ['timer.json', 'pending.json']) {
+    let record;
+    try { record = JSON.parse(readFileSync(join(directory, name), 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (record.root !== root) continue;
+    const owner = name === 'timer.json' ? record : record.running;
+    if (owner) {
+      if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0 || !owner.started) throw new Error('MCP fixture landing worker lacks process identity');
+      owners.push(owner);
+    }
+  }
+  /** A PID is owned only while its recorded OS start identity and exact fixture command match. */
+  const live = owner => {
+    const start = runFixtureChild('/bin/ps', ['-p', String(owner.pid), '-o', 'lstart='], { encoding: 'utf8' });
+    if (start.status !== 0 || start.stdout.trim() !== owner.started) return false;
+    const command = runFixtureChild('/bin/ps', ['-p', String(owner.pid), '-o', 'command='], { encoding: 'utf8' });
+    return command.status === 0 && command.stdout.includes('/landing/automatic.js ') && command.stdout.includes(` ${root} `);
+  };
+  for (const owner of owners) if (live(owner)) {
+    try { process.kill(owner.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  }
+  await createE2eHelpers().waitFor(() => owners.every(owner => !live(owner)), 'MCP fixture landing workers exit');
+}
+
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
 function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const clients = [];
+  t.after(async () => {
+    for (const { child, closed } of clients) {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      let timer;
+      try {
+        await Promise.race([closed, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`MCP fixture child ${child.pid} did not close`)), 10_000); // budget: owned child exit hang ceiling, not a performance assertion.
+        })]);
+      } finally { clearTimeout(timer); }
+    }
+    const jobs = join(dir, 'repo', '.git', 'pullboard', 'submit-handoffs');
+    await createE2eHelpers().waitFor(() => !existsSync(jobs) || readdirSync(jobs).every(job => {
+      const request = join(jobs, job, 'request.json');
+      let tools = null;
+      try { tools = JSON.parse(readFileSync(request, 'utf8')).tools ?? null; } catch { return false; }
+      return !existsSync(join(jobs, job, 'source')) && (!tools || !existsSync(tools));
+    }), 'MCP fixture submit worker cleanup');
+    await stopFixtureLanding(join(dir, 'repo'));
+    try { rmSync(dir, { recursive: true, force: true }); }
+    catch (error) {
+      // Report only fixture-owned paths and processes; preserve the original cleanup failure.
+      const failedPath = error.path ?? dir;
+      let entries = [];
+      try { entries = readdirSync(failedPath).slice(0, 30); } catch { /* The failing path may already be gone. */ }
+      const ps = runFixtureChild('/bin/ps', ['-axo', 'pid,ppid,command'], { encoding: 'utf8' });
+      const processes = (ps.stdout ?? '').split('\n').filter(line => line.includes(dir)).slice(0, 20);
+      error.message += `\nMCP cleanup provenance: ${JSON.stringify({ failedPath, entries, processes })}`;
+      throw error;
+    }
+  });
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
@@ -102,7 +164,7 @@ function project(t) {
   /** Run real Git under the fixture's isolated identity. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the real CLI in its own process; extra holds the environment of the shell it runs from. */
-  const run = (cwd, args, extra = {}) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
+  const run = (cwd, args, extra = {}) => runFixtureChild(process.execPath, [BIN, ...fixtureJoinRoute(args)], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
@@ -120,7 +182,7 @@ function project(t) {
   const joined = run(web, ['join', 'web', '--model', 'fixture-model', '--json'], sessionA);
   assert.equal(joined.status, 0, fixtureChildMessage(joined));
   const agent = JSON.parse(joined.stdout).agent;
-  return { dir, env, run, git, repo, web, agent, sessionA, guard, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
+  return { dir, env, run, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
 /** Run one CLI command with --json and return its single document and status. */
@@ -159,7 +221,7 @@ function mcpClient(t, box, cwd, extra = {}) {
     }
   });
   const closed = once(child, 'close');
-  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+  box.clients.push({ child, closed });
   /** Send one request and wait for the reply with its id. */
   const request = (method, params) => new Promise((done, fail) => {
     const id = nextId++;

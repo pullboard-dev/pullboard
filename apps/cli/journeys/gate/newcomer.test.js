@@ -8,6 +8,7 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -27,6 +28,7 @@ import {
   CHECKOUT_SESSION_TOKEN_ENV,
 } from '../../../../packages/seats/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
@@ -240,16 +242,23 @@ test('a command started under a held checkout acts under it, and a hook that mus
   const before = process.env[CHECKOUT_SESSION_TOKEN_ENV];
   delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
   const holder = await bindLocalSession(info, { agent: 'holding-agent', digest: 'a'.repeat(64), keepLease: true });
+  let takeover;
   try {
     // A child of the holding command (its env carries the lease) proceeds at once instead of queueing behind it.
     assert.ok(process.env[CHECKOUT_SESSION_TOKEN_ENV], 'the holding command passes its lease to what it starts');
     await bindLocalSession(info, { agent: 'holding-agent', digest: 'a'.repeat(64) });
-    // An unrelated command waits, and a hook gives up after its limit with the holder named.
+    // A takeover holds the exclusive lease while it waits for the existing writer to drain.
     delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
+    takeover = bindLocalSession(info, { agent: 'taking-agent', digest: 'b'.repeat(64), takeover: true, recordTakeover: async () => {} });
+    const intent = join(info.gitDir, 'pullboard-checkout-takeover');
+    await waitForCondition(() => existsSync(intent), 'the takeover acquires its checkout lease', { signal: AbortSignal.timeout(10_000) }); // Budget: runaway ceiling for this fixture's takeover.
+    assert.ok(existsSync(intent), 'the takeover holds the checkout while the writer is active');
+    // A hook waiting behind that real holder gives up after its limit with the holder named.
     await assert.rejects(bindLocalSession(info, { agent: 'holding-agent', digest: 'a'.repeat(64), waitLimitMs: 300 }),
-      (error) => error.code === 'CHECKOUT_BUSY' && /in use by holding-agent \(since /u.test(error.message) && /then commit again/u.test(error.message));
+      (error) => error.code === 'CHECKOUT_BUSY' && /in use by taking-agent \(since /u.test(error.message) && /then commit again/u.test(error.message));
   } finally {
     holder.release();
+    if (takeover) await takeover;
     if (before === undefined) delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
     else process.env[CHECKOUT_SESSION_TOKEN_ENV] = before;
   }

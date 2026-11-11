@@ -85,13 +85,20 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
   box.env.PATH = bin + ':' + box.env.PATH;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
+  // Items are added before any runner exists: an add with a runner registered starts a detached baseline run that takes a runner turn.
+  for (const [index, suffix] of ['', ' large'].entries()) {
+    const id = index + 1;
+    document(fixtureAdd(box.run, box.repo, 'web', 'Trusted remote check ' + id, '--criterion', 'the trusted installed check completes at the immutable commit', '--check', 'node web/check.cjs' + suffix, '--specs', 'G1', '--route', 'strong', '--json'));
+  }
   for (const host of [HOST, HOST + '-setup']) document(box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1', '--json'));
+  // The first of two runners is kept for timed checks by default; the rotation under test needs both open to ordinary runs.
+  const machineSettings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), keptSettings = JSON.parse(readFileSync(machineSettings, 'utf8'));
+  writeFileSync(machineSettings, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false } }));
   document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
   document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
   const expectedHosts = [HOST, HOST + '-setup'];
   for (const [index, suffix] of ['', ' large'].entries()) {
     const id = index + 1;
-    document(fixtureAdd(box.run, box.repo, 'web', 'Trusted remote check ' + id, '--criterion', 'the trusted installed check completes at the immutable commit', '--check', 'node web/check.cjs' + suffix, '--specs', 'G1', '--route', 'strong', '--json'));
     document(box.run(box.web, 'claim', String(id), '--json'));
     historicalSubmission(box, id, commit);
     const before = phaseCounts(requests + '.phases');
@@ -122,8 +129,8 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   }
 }
 
-/** Exercise AFTER-only public install, deadline and guard behavior through real Git/SQLite reviews. */
-export async function privateReviewRunnerEdges(t, e2e) {
+/** Exercise AFTER-only public install, deadline and guard behavior through real Git/SQLite reviews; `from`/`to` pick a slice of the nine cases so a file stays under its time budget. */
+export async function privateReviewRunnerEdges(t, e2e, from = 0, to = undefined) {
   /** Build a Node command without relying on the controller shell's quoting rules. */
   const node = source => 'node -e ' + shellQuote(source);
   const cases = [
@@ -137,7 +144,7 @@ export async function privateReviewRunnerEdges(t, e2e) {
     { name: 'an applied guard must turn the restored green check red', install: '', check: 'node web/guard.cjs', guard: 'web/guard.cjs:1-1', marker: 'GUARD_RESTORED_GREEN', applied: true },
     { name: 'successful install cleanup does not shorten a long check', install: node("console.log('INSTALL_DRAINED')"), check: node("setTimeout(()=>console.log('LONG_CHECK_FINISHED'),31000)"), marker: 'LONG_CHECK_FINISHED' },
   ];
-  for (const edge of cases) await t.test(edge.name, async () => {
+  for (const edge of cases.slice(from, to)) await t.test(edge.name, async () => {
     const box = e2e.project('true');
     const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
     config.check = { install: edge.install, timeout: edge.timeout ?? '2m' };
@@ -164,11 +171,12 @@ export async function privateReviewRunnerEdges(t, e2e) {
     installSshStandIn({ bin, worker, home, machineHome, requests });
     box.env.PATH = bin + ':' + box.env.PATH;
     for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
-    document(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json'));
-    document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
-  document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
+    // Added before the runner exists: with one registered, the add starts a detached baseline run that would be a second dispatch.
     const criterion = 'the private runner preserves trusted phase behavior' + (edge.guard ? '; guard: ' + edge.guard : '');
     document(fixtureAdd(box.run, box.repo, 'web', edge.name, '--criterion', criterion, '--check', edge.check, '--specs', 'G1', '--route', 'strong', '--json'));
+    document(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json'));
+    document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
+    document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));
     historicalSubmission(box, 1, commit);
     const before = phaseCounts(requests + '.phases');

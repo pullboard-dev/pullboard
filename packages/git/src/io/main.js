@@ -27,7 +27,7 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Refused } from '../../../kernel/light.js';
+import { Refused } from '../../../kernel/browser.js';
 import { removeGitRepositorySelectors } from '../logic/selectors.js';
 import { localEnvVars } from './env.js';
 

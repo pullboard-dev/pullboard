@@ -89,8 +89,9 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
   /** Follow finite local aliases only; a tool path must be evidenced by a real source expression. */
   function toolPath(start, finish, seen = new Set()) {
     if (seen.size > 128) { problems.push(`${file}: opaque fixture source alias chain`); return true; }
+    // Shipped tool source: root src and bin, any cell src, and packages outside their own tests folders.
     if (strings.some(row => row.start >= start && row.end <= finish
-      && /^(?:\.\.\/|\.\/)*(?:src|bin|packages)(?:\/|$)|^package\.json$/u.test(row.text))) return true;
+      && /^(?:\.\.\/|\.\/)*(?:(?:src|bin)(?:\/|$)|packages(?:$|\/(?![\w-]+\/tests\/))|[\w-]+\/src\/)|^package\.json$/u.test(row.text))) return true;
     for (const match of code.slice(start, finish).matchAll(/\b[\w$]+\b/gu)) {
       if (seen.has(match[0])) continue;
       const next = new Set([...seen, match[0]]);
@@ -196,6 +197,9 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
   }
   return problems;
 }
+
+/** The whole-package copy itself, so a fixture can copy the shipped tool without its own cross-cell import. */
+export { copyPackageFiles };
 
 /** Copy only explicitly requested fixture files, finding moved definitions through the committed source map. */
 export function copyPackageSubset(source, destination, files) {
