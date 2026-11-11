@@ -92,6 +92,20 @@ export async function serveNeed({ id, inventory }) {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
+/**
+ * Read one finished-job file, trying up to three times: a fetch is a read, and one transport hiccup under many concurrent
+ * jobs must not read as an empty file (a missing receipt would then look like a dropped runner).
+ */
+async function fetchBurst(job, name) {
+  let got;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    got = await sshBurst(job, fetchScript(job.runner, { id: job.id, name }));
+    if (burstOk(got)) return got;
+    await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+  return got;
+}
+
 /** Stream a finished job's private-check output to its capture file, keeping the controller's hash and 8 MiB head and tail. */
 async function captureRaw(job) {
   const fd = openSync(job.rawOutputPath, 'w', 0o600);
@@ -134,10 +148,10 @@ export async function finishJob(payload, ports) {
   if (job.hasExchange) request.exchange = { store: await exchangeStore(job.root) };
   try {
     if (reason !== 'result' && reason !== 'ssh-exit') await sshBurst(job, cancelScript(job.runner, job.id));
-    const control = await sshBurst(job, fetchScript(job.runner, { id: job.id, name: 'control.log' }));
+    const control = await fetchBurst(job, 'control.log');
     let output, raw = {}, fetched = control;
     if (job.rawOutputPath) { const captured = await captureRaw(job); output = captured.bounded; raw = captured.extra; fetched = captured.got.error ? captured.got : control; }
-    else { const body = await sshBurst(job, fetchScript(job.runner, { id: job.id, name: 'out.bin' })); output = body.stdout; fetched = body.error ? body : control; }
+    else { const body = await fetchBurst(job, 'out.bin'); output = body.stdout; fetched = body.error ? body : control; }
     if (fetched.error?.code === 'RUNNER_OUTPUT_LIMIT') throw new Refused('RUNNER_OUTPUT_LIMIT', fetched.error.message);
     const stderr = control.stdout;
     const receiptSeen = stderr.toString('utf8').split('\n').some(line => line.startsWith(`PULLBOARD_RUNNER_RESULT ${job.id} `));
