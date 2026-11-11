@@ -2,18 +2,18 @@
 /** A cross-lane verdict is review from its engine on, and older verdicts replay as they were recorded [E21,V2,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
+import * as store from '../index.js';
+import { openCellBoard as openBoard } from './fixtures/cell.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../../packages/store/index.js';
+} from '../index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../../../../packages/state/src/io/engine.js';
-import { REVIEW_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/review-grant-engine.js';
-import { submitFixture } from '../../tests/fixtures/board/submit.js';
+} from '../../state/index.js';
+import { REVIEW_GRANT_ENGINE } from '../../state/index.js';
+import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
 
 const BASE = 'a'.repeat(40);
 const COMMIT = 'b'.repeat(40);

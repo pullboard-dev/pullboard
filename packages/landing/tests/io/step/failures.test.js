@@ -6,7 +6,7 @@ import { landingFailures } from '../../../src/io/step/failures.js';
 import { unwaivedFailures } from '../../../src/io/step/failures.js';
 import { watchdogProof } from '../../../src/io/step/failures.js';
 
-const JOB = '/Users/someone/.pullboard-runner/jobs/8f32e665-yDzw7j/checkout';
+const JOB = '/Users/example/.pullboard-runner/jobs/8f32e665-yDzw7j/checkout';
 
 /** Runner output: one file past its wall, one file aborted by the stop, and one ordinary named red. */
 const OUTPUT = `TAP version 13

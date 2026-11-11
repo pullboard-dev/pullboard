@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { redOnMainUntouched } from '../../../../src/io/known/main.js';
 
 const FILE = 'apps/cli/tests/worktree-maintenance-scheduler.test.js';
-const ABORTED = { file: FILE, name: `/Users/x/.pullboard-runner/jobs/8faf/checkout/${FILE}` };
+const ABORTED = { file: FILE, name: `/Users/example/.pullboard-runner/jobs/8faf/checkout/${FILE}` };
 
 test('an aborted file red on main that no item changed is known-main [C7,#3073]', () => {
   assert.equal(redOnMainUntouched(ABORTED, { files: [{ file: FILE, result: 'red' }] }, new Set(['src/other.js'])), true);
