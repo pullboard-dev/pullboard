@@ -168,7 +168,7 @@ export function definitionUnchanged(root, previous, commands, code) {
     return Boolean(fresh) && JSON.stringify(fresh) === JSON.stringify(previous);
   }
   try {
-    const index = saved.tool.entries.length ? indexedFiles(saved.tool.root) : null;
+    const index = saved.tool.entries.length ? indexedFiles(saved.tool.root, [], { untracked: false }) : null;
     return saved.tool.entries.every(({ path, oid }) => index?.clean.get(path)?.oid === oid)
       && saved.rest.every(({ file, inside, length, digest }) => entryDigest(file, statSync(file, { bigint: true }), inside, length) === digest);
   } catch { return false; }
@@ -188,7 +188,7 @@ export function checkCommandDefinition(root, commands, codeFiles = [], { tool: t
   const indexes = new Map();
   /** The git index answer, asked once and only when a file there needs it. */
   function tracked(base) {
-    if (!indexes.has(base)) indexes.set(base, indexedFiles(base));
+    if (!indexes.has(base)) indexes.set(base, indexedFiles(base, [], { untracked: false }));
     return indexes.get(base);
   }
   let tool = null;
