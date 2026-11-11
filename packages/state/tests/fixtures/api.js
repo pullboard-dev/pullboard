@@ -138,7 +138,7 @@ export async function proveSettingsApi() {
     assert.equal(defaultAdmission.source, join(legacy, 'pullboard.json'));
     assert.equal(find('repo', 'health.sentinel').value, false);
     assert.equal(find('repo', 'testConcurrency.files').value, 3);
-    for (const key of ['checks.provesNothing', 'verify.unrelatedTrunkMoves', 'flakes.rerun', 'flakes.quarantine', 'rigor.budget', 'review.independence', 'relay.outbox', 'submitGate', 'landingShards', 'landing.publish', 'positiveControl', 'affectedTests']) assert.ok(find('repo', key), key);
+    for (const key of ['checks.provesNothing', 'verify.unrelatedTrunkMoves', 'flakes.rerun', 'flakes.quarantine', 'rigor.budget', 'rigor.autoDraft', 'relay.outbox', 'submitGate', 'landingShards', 'landing.publish', 'positiveControl', 'affectedTests']) assert.ok(find('repo', key), key);
     assert.equal(find('board', 'relay.token').value, 'set');
     assert.equal(find('machine', 'relay.session.token').value, 'set');
     assert.equal(find('machine', 'relay.owner.account').value, 'fixture');
