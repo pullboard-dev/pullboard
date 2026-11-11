@@ -277,9 +277,6 @@
   "packages/pages/tests/fixtures/study.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/relay/main.test.js": {
-    "sleep": 2
-  },
   "packages/gate/tests/fixtures/resources/verify.js": {
     "sleep": 1
   },
@@ -371,5 +368,8 @@
   },
   "apps/relay/tests/fixtures/relay-phone-fixture.js": {
     "sleep": 1
+  },
+  "apps/cli/journeys/relay/main-pairing.test.js": {
+    "sleep": 2
   }
 }
