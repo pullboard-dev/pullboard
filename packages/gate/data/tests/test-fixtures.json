@@ -1490,9 +1490,17 @@
     "raw-board": 3,
     "model": 10
   },
+  "apps/cli/journeys/show/policy/dependency.test.js": {
+    "hand-policy": 1,
+    "raw-board": 1
+  },
   "apps/cli/journeys/show/policy/e2e.test.js": {
-    "hand-policy": 5,
-    "raw-board": 5
+    "hand-policy": 3,
+    "raw-board": 2
+  },
+  "apps/cli/journeys/show/policy/refs.test.js": {
+    "hand-policy": 1,
+    "raw-board": 2
   },
   "apps/cli/journeys/verify/checks.test.js": {
     "raw-board": 3,
