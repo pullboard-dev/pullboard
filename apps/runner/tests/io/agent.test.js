@@ -211,7 +211,7 @@ test('a worker whose job folder disappears ends itself within a minute, whatever
   mkdirSync(folder);
   const orphan = pathToFileURL(join(import.meta.dirname, '../../src/io/worker/orphan.js')).href;
   const { exited, hears, stderr } = liveChild(t, `import { watchJobFolder } from ${JSON.stringify(orphan)};
-    watchJobFolder({ workerId: 'job-1', transportDrop() { console.error('dropped'); } }, { everyMs: 50, graceMs: 200 });
+    watchJobFolder({ workerId: 'job-1', transportDrop() { console.error('dropped'); } }, { graceMs: 200 });
     console.error('watching');`, { PULLBOARD_QUEUE_JOB: folder });
   await hears(/watching/);
   rmSync(folder, { recursive: true });
