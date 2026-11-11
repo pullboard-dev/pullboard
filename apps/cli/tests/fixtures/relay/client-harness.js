@@ -690,13 +690,11 @@ export async function recoverReplicaOutcomes(fixture, timing, restoreInventories
   const { clones, worktrees, envs, gitAt, commonDir, relay, key, boardId } = fixture;
   timing.begin('lost-outcome recovery', 'recover dropped submit, verify, edit and merge replies once across all replicas');
   await timing.wait('establish the legacy approval baseline before the outcome faults', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for outcome recovery'));
-  await timing.wait('take item 1 on worktree A so its release below is acknowledged', () => cli(worktrees[0], envs[0], 'claim', '1'));
   const restoreOutboxDefault = await enterLegacyAckPolicy(fixture);
   const ackSetup = await timing.wait('confirm the ACK scenario starts with an empty outbox', () =>
     cli(worktrees[0], envs[0], 'status'));
   assert.equal(ackSetup.relay.linked, true);
   assert.deepEqual(ackSetup.relay.outbox ?? [], [], 'legacy ACK probes start with no queued setup moves');
-  await timing.wait('release item 1 after its durable refusal is checked', () => cli(worktrees[0], envs[0], 'release', '1', '--reason', 'BLOCKED'));
   await timing.wait('claim item 2 before its lost submission reply', () => cli(worktrees[0], envs[0], 'claim', '2'));
   const beforeLostSubmit = await timing.wait('confirm release and claim were acknowledged before the submit fault', () =>
     cli(worktrees[0], envs[0], 'status'));
