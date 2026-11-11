@@ -78,14 +78,16 @@ for (const [kind, code] of [['a red gate result', 'GATE_RED'], ['a submit refusa
  *
  * @param {any} box
  * @param {any} config the coordinator configuration whose claim policy is sealed
+ * @param {boolean} [former] replay the first-refusal policy of engines before REJECT_OPEN_ENGINE (#2779) for the verdict
  * @returns {number} the rejected item
  */
-function reject(box, config) {
+function reject(box, config, former = false) {
   const id = box.add('Rejected work');
   box.submit(id); // Explicit synthetic board-state setup; it claims no gate execution.
   const item = store.getItem(box.board, id);
   const args = firstRefusalArgs('verify', [id, { agentId: box.seats.outside.id, decision: 'REJECT', head: item.item_commit, policy: 'any',
     digest: item.item_frozen_digest, reason: 'TEST_FAILURE', clause: 'The real fixture succeeds.', note: 'Synthetic conveyor rejection' }], config);
+  if (former) box.board.executionEngineVersion = REJECT_OPEN_ENGINE - 1; // The submission above stays current; only the verdict replays the former policy.
   store.verify(box.board, ...args);
   return id;
 }
@@ -98,9 +100,7 @@ test('clause 1: recording a reject with claim.returnToBoard releases the builder
 
 test('clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', t => {
   const box = fixture(t);
-  // This control proves replay of the former first-refusal policy, not the current rejection rule (#2779).
-  box.board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
-  const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30 } });
+  const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30 } }, true);
   assert.equal(store.firstRefusal(box.board, id)?.builder, box.seats.builder.id);
   assert.notEqual(offered(box, box.seats.actor), id);
 });
