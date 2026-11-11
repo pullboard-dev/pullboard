@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 import { committedRunnerController } from '../../../../packages/runners/index.js';
 import { observeDirtyRunnerTooling } from '../../../../packages/runners/index.js';
 import { dirtyToolingFindings } from '../../../../packages/runners/index.js';

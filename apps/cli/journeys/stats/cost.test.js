@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/logic/native.js */
 /** Native provider records, private attribution, and shared item totals [N2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

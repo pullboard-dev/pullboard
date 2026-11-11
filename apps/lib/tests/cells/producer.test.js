@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/main/audit.js */
 /** @pullboard-world-pin: clause 1 reads the shipped producer source to prove it never blocks the lease renewal timer. */
 /** A cells-inventory producer job reaches a result, or its lease lapses and another driver resumes it [C7]. */
 import assert from 'node:assert/strict';

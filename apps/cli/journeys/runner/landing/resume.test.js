@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/kernel/index.js packages/landing/index.js packages/landing/src/io/step/selection.js packages/store/index.js */
 /** Adopted landing batches count every RUNNER_SOURCE attempt and never resume a held item [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

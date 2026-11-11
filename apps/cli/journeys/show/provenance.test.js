@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Native provenance rejects borrowed evidence and keeps unknown facts explicit [C7,H16]. */
 import assert from 'node:assert/strict';
 import {

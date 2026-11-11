@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/state/data/history/legacy.json */
 /** Engine history and the move closure read the moves cell, so deleting src/moves changes neither [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
