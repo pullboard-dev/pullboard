@@ -98,10 +98,11 @@ function pastGap(source, at) {
  *
  * @param {string} source
  * @param {number} at
+ * @param {string} [word] - The loader name at `at`: import, or a createRequire binding.
  * @returns {string}
  */
-function dynamicAt(source, at) {
-  const argument = pastGap(pastGap(source, at + 'import'.length), 1);
+function dynamicAt(source, at, word = 'import') {
+  const argument = pastGap(pastGap(source, at + word.length), 1);
   const literal = /^(['"])(?:\\[\s\S]|(?!\1)[^\\\n\r])*\1/.exec(argument);
   if (!literal) return COMPUTED;
   const after = pastGap(argument, literal[0].length)[0];
@@ -113,6 +114,40 @@ function dynamicAt(source, at) {
   }
 }
 
+/** A whole-word createRequire, the one way a module here makes a require-style loader. */
+const CREATE_REQUIRE = /(?<![\p{ID_Continue}$\u200c\u200d#])createRequire(?![\p{ID_Continue}$\u200c\u200d])/gu;
+
+/**
+ * What each source loads through createRequire [P3]. A require-style call is invisible to V8's
+ * import list, so it is read like import(...): a loader bound as `const name =
+ * createRequire(import.meta.url)` loads its plain string argument, and any other argument, any other
+ * use of that name, or createRequire called any other way is COMPUTED. Words are matched in the
+ * text, not confirmed as code: the scan errs toward a false alarm, never a miss.
+ *
+ * @param {string} source
+ * @returns {string[]}
+ */
+function requiresIn(source) {
+  const found = [];
+  for (const { index } of source.matchAll(CREATE_REQUIRE)) {
+    if (pastGap(source, index + 'createRequire'.length)[0] !== '(') continue;
+    const binding = /(?:const|let|var)\s+([\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*)\s*=\s*$/u.exec(source.slice(0, index));
+    const own = /^import\s*\.\s*meta\s*\.\s*url\s*\)/u.test(pastGap(pastGap(source, index + 'createRequire'.length), 1));
+    if (!binding || !own) {
+      found.push(COMPUTED);
+      continue;
+    }
+    const name = binding[1];
+    const declared = binding.index + binding[0].indexOf(name, binding[0].search(/\s/u));
+    const uses = new RegExp(`(?<![\\p{ID_Continue}$\\u200c\\u200d#])${name.replaceAll('$', '\\$')}(?![\\p{ID_Continue}$\\u200c\\u200d])`, 'gu');
+    for (const use of source.matchAll(uses)) {
+      if (use.index === declared) continue;
+      found.push(pastGap(source, use.index + name.length)[0] === '(' ? dynamicAt(source, use.index, name) : COMPUTED);
+    }
+  }
+  return found;
+}
+
 /**
  * Every module each source imports. V8 lists the static ones: import and export-from statements and
  * side-effect imports. For each import followed by a parenthesis, V8 also decides two things: a NUL
@@ -120,7 +155,8 @@ function dynamicAt(source, at) {
  * comment or regular expression; and putting 1 in its place still compiles only when the word is a
  * call, not a property name after a dot. Only then is the argument read, and an argument that is not
  * one plain string is reported as COMPUTED, which no rule allows. A method named import, in a class
- * or object, still reads as a call: the scan errs toward a false alarm, never a miss.
+ * or object, still reads as a call: the scan errs toward a false alarm, never a miss. Loaders made
+ * with createRequire are added by requiresIn.
  *
  * @param {string[]} sources - Each one a module that compiles.
  * @returns {string[][]}
@@ -140,7 +176,7 @@ function importsIn(sources) {
       next += 2;
       return isCode && isCall;
     });
-    return [...looks[index].imports, ...dynamic.map((at) => dynamicAt(source, at))];
+    return [...looks[index].imports, ...dynamic.map((at) => dynamicAt(source, at)), ...requiresIn(source)];
   });
 }
 
@@ -210,6 +246,12 @@ test('the import scan finds a package however it is imported, and nothing that i
     'const all = [...await import("left-pad")];': ['left-pad'],
     'function later() { return import("left-pad"); }': ['left-pad'],
     "function later() { return \"import('left-pad')\"; }": [],
+    "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); require('left-pad');": ['node:module', 'left-pad'],
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); load('./leaf.js');": ['node:module', './leaf.js'],
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); load(name);": ['node:module', COMPUTED],
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); const other = load;": ['node:module', COMPUTED],
+    "import { createRequire } from 'node:module'; createRequire(import.meta.url)('left-pad');": ['node:module', COMPUTED],
+    "import { createRequire } from 'node:module'; const load = createRequire(elsewhere);": ['node:module', COMPUTED],
   };
   const found = importsIn(Object.keys(forms));
   const set = (names) => [...new Set(names)].sort();
@@ -225,7 +267,7 @@ test('the import scan finds a package however it is imported, and nothing that i
  * leaves below keeps a package import in any discovered module visible to P3.
  */
 const LOADERS = {
-  'packages/moves/src/io/registry.js': ['import(new URL(file, directory).href)'],
+  'packages/moves/src/io/registry.js': ['loadMove(fileURLToPath(new URL(file, directory)))'],
   'apps/cli/src/io/commands/index.js': ['import(new URL(file, FOLDER).href)'],
   'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
   'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
@@ -237,7 +279,7 @@ const LOADERS = {
 };
 function packageSource(file, source) {
   let text = source;
-  for (const expression of LOADERS[file.startsWith(ROOT) ? file.slice(ROOT.length + 1) : file] ?? []) text = text.replace(expression, "import('./')");
+  for (const expression of LOADERS[file.startsWith(ROOT) ? file.slice(ROOT.length + 1) : file] ?? []) text = text.replace(expression, `${expression.slice(0, expression.indexOf('('))}('./')`);
   return text;
 }
 
@@ -267,11 +309,15 @@ test('every import is a node: built-in or a relative file [P3]', () => {
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
   const file = join(ROOT, 'packages/moves/src/io/registry.js');
   const source = readFileSync(file, 'utf8');
-  const site = 'import(new URL(file, directory).href)';
+  const site = 'loadMove(fileURLToPath(new URL(file, directory)))';
   assert.ok(source.includes(site), 'the constrained discovery site is present');
+  assert.deepEqual(importsForPackageFile(file, source).filter(target => !target.startsWith('node:') && !target.startsWith('.')), [], 'the declared site exposes no package or computed target');
+  assert.ok(importsForPackageFile(file, source.replace(site, "loadMove('left-pad')")).includes('left-pad'));
   assert.ok(importsForPackageFile(file, source.replace(site, "import('left-pad')")).includes('left-pad'));
+  assert.ok(importsForPackageFile(file, source.replace(site, 'loadMove(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source.replace(site, 'import(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source + '\nvoid import(otherTarget);').includes(COMPUTED), 'a second computed import has no exemption');
+  assert.ok(importsForPackageFile(file, source + '\nvoid loadMove(otherTarget);').includes(COMPUTED), 'a second computed load has no exemption');
   assert.ok(importsForPackageFile(join(ROOT, 'packages/moves/src/logic/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
 });
 
