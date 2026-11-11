@@ -23,13 +23,15 @@ function beforeMain({ duplicate = false, phases = false, timing = true, corrupt 
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
     const timingModule = new URL('../../../../packages/gate/index.js', import.meta.url).href;
+    // Loading the timing module prints Node's SQLite experimental warning on stderr; after the run's output it would break the TAP trailer the gate accounts for.
+    const quietTimingImport = `process.removeAllListeners('warning');\nconst { beginSuiteTiming } = await import(${JSON.stringify(timingModule)});`;
     const beginTiming = timing ? 'beginSuiteTiming(process.cwd(), process.argv.slice(2));' : '';
     if (duplicate) put(box.root, 'test/second.test.js', source());
     if (phases) {
       put(box.root, 'test/check-only.test.js', "import { test } from 'node:test';\ntest('criterion only pass [G1]', () => {});\n");
       put(box.root, 'test/shared-pass.test.js', "import { test } from 'node:test';\ntest('shared phase pass [G1]', () => {});\n");
       put(box.root, 'test/check-runner.js', `import { spawnSync } from 'node:child_process';
-import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+${quietTimingImport}
 // The actual private controller observes its own clean source and wall duration.
 ${beginTiming}
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js',
@@ -58,7 +60,7 @@ export default async function* report(events) {
 }
 `);
     put(box.root, 'test/runner.js', `import { spawnSync } from 'node:child_process';
-import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+${quietTimingImport}
 // Preserve genuine producer timing; no fabricated frame or completed-file claim.
 ${beginTiming}
 const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js', ...${JSON.stringify(files)}],
