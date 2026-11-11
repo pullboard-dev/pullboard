@@ -70,7 +70,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run = 
   const write = (text) => {
     const header = parseShardHeader(text);
     if (header) { pending = header; return; }
-    if (!pending || text.startsWith('# landing')) return;
+    if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text)) return;
     const shard = plan[Number(pending.label.split('/')[0]) - 1];
     last.set(pending.label, { ...pending, output: text });
     if (shard && finalStatus(pending.status)) emit(shard, { ...pending, output: text });
