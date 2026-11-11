@@ -150,7 +150,9 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required for rare lifecycle routes');
   const box = machine();
-  const demo = project(box, 'lifecycle-native-rare');
+  // The api lane gives the companion author and owner seat a lane other than the builder's.
+  const demo = project(box, 'lifecycle-native-rare', undefined,
+    { lanes: { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } } });
   // @pullboard-board-file journey: this private native board supplies the real receipts compared with its authenticated HTTP state and Chrome chart.
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   let view, chrome;

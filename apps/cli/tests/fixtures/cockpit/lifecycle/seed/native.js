@@ -88,10 +88,12 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
   };
   const reviewers = new Map();
   /** Keep the coordinator on main while a genuinely registered independent seat checks exact source. */
-  const reviewerFor = root => {
-    if (!reviewers.has(root)) reviewers.set(root, json(root, 'worktree', 'web', '--model', 'Lifecycle reviewer fixture'));
-    return reviewers.get(root).path;
+  const seatFor = (root, lane = 'web') => {
+    const key = root + '\0' + lane;
+    if (!reviewers.has(key)) reviewers.set(key, json(root, 'worktree', lane, '--model', 'Lifecycle reviewer fixture'));
+    return reviewers.get(key);
   };
+  const reviewerFor = root => seatFor(root).path;
   /** Independently verify from the submitted source through its registered native reviewer. */
   const accept = (root, id, head) => {
     const reviewer = reviewerFor(root);
@@ -262,12 +264,12 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       box.git(demo.web, 'switch', '-q', demo.baseBranch);
       json(demo.web, 'claim', String(id));
       commit(demo.web, 'web/objected-proof.js', 'export const objected = true;\n', 'feat(web): real objected companion source');
-      const owner = reviewerFor(demo.repo);
-      const patch = patchFile('objected-lifecycle-companion', 'web');
+      const owner = seatFor(demo.repo, 'api');
+      const patch = patchFile('objected-lifecycle-companion', 'api');
       json(demo.web, 'submit', String(id), '--companion', patch.path, '--key', 'objected-lifecycle-route',
-        '--author', reviewers.get(demo.repo).agent, '--wait', '--no-next');
+        '--author', owner.agent, '--wait', '--no-next');
       assert.equal(json(demo.repo, 'show', String(id)).item_status, 'submitted');
-      json(owner, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
+      json(owner.path, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
       assert.equal(json(demo.repo, 'show', String(id)).item_status, 'open');
       return id;
     },
