@@ -458,7 +458,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
     if (recording || !child || typeof child.once !== 'function') return;
     child.once('spawn', () => {
       if (!Number.isInteger(child.pid)) return;
-      recording = true;
+      process.stderr.write(`G8 spawn ${process.pid} ${Date.now()} ${file ?? 'parent'} ${JSON.stringify(child.spawnargs?.slice(0, 3))}\n`); recording = true;
       try {
         const byPid = new Map(landingProcessTable().map(processInfo => [processInfo.pid, processInfo]));
         const parent = byPid.get(process.pid);

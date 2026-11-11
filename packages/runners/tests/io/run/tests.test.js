@@ -359,14 +359,14 @@ import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 test('green file waits for the injected observation', async () => {
   const child = spawn(process.execPath, ['-e', ${JSON.stringify(childCode)}], { detached: true, stdio: 'ignore' });
-  child.unref();
+  child.unref(); process.stderr.write('G8 test spawned ' + Date.now() + '\n');
   const childDeadline = Date.now() + 10000;
   while (!existsSync(${JSON.stringify(childReady)}) && Date.now() < childDeadline) await new Promise(resolve => setTimeout(resolve, 10));
   assert.ok(existsSync(${JSON.stringify(childReady)}), 'owned detached child is ready');
   writeFileSync(${JSON.stringify(ready)}, 'ready');
   const deadline = Date.now() + 10000;
   while (!existsSync(${JSON.stringify(sampled)}) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
-  assert.ok(existsSync(${JSON.stringify(sampled)}), 'the monitor snapshot timeout was injected');
+  process.stderr.write('G8 test sampled ' + Date.now() + '\n'); assert.ok(existsSync(${JSON.stringify(sampled)}), 'the monitor snapshot timeout was injected');
   assert.equal(existsSync(${JSON.stringify(childDrained)}), false, 'a failed snapshot authorizes no signal while the test is active');
 });
 `);
