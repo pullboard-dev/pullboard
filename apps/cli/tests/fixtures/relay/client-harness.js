@@ -725,7 +725,7 @@ export async function recoverReplicaReplies(fixture, timing, restoreInventories 
   const afterSubmitRecoverySetup = relay.uploads.length;
   restoreInventories();
   const diagBefore = diagInventory();
-  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next').catch(error => { error.message += '\nDIAG before:\n' + diagBefore + '\nafter:\n' + diagInventory(); throw error; }));
+  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next').catch(error => { throw new Error('DIAG before:\n' + diagBefore + '\nafter:\n' + diagInventory() + '\n' + error.message.slice(0, 300)); }));
   const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
     const plain = await unseal(key, Buffer.from(upload.sealed, 'base64url'), {
       boardId, kind: 'move', sequence: upload.sequence,
