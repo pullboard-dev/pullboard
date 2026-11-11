@@ -95,6 +95,29 @@ export function openJob(db, { kind, item, candidate }) {
 }
 
 /**
+ * True while the queue holds a job offered through it that has not finished: a gate or landing row a pull submit or
+ * pilot wrote, offered or leased. Why: turning pull or its pilot off must let those jobs drain, so no queued or running
+ * gate is stranded with its builder waiting; new submits already take the controller path [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ */
+export function queueDraining(db) {
+  return Boolean(db.prepare(`SELECT 1 FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_step <> 'done' LIMIT 1`).get());
+}
+
+/**
+ * The mode a board's job queue answers in: pull while this machine wants pull gates (gate.runnerDispatch pull or a
+ * pull pilot), and pull while jobs offered earlier still drain; controller otherwise [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {() => string} wanted - the machine's queue mode (the config cell's jobQueueMode).
+ */
+export function boardQueueMode(db, wanted) {
+  return wanted() === 'pull' || queueDraining(db) ? 'pull' : 'controller';
+}
+
+/**
  * Give the oldest open job this runner can run to it, by lease: a job is open while it is offered or its last claim's
  * lease has lapsed, and the runner can run it when it has every capability the job needs. The take is one guarded
  * UPDATE, so of two claimants only one wins; a lapsed lease needs no sweeper, since the next claim simply takes it.
