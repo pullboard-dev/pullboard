@@ -114,6 +114,13 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const validatedBaselines = new Map();
   const changes = new Map();
   const ancestry = new Map();
+  const reads = new Map();
+  /** One Git read per distinct argument list within this projector; objects are immutable, so a repeat is the same answer [E8]. */
+  const readOnce = args => {
+    const key = JSON.stringify(args);
+    if (!reads.has(key)) reads.set(key, readGit(root, args));
+    return reads.get(key);
+  };
   /** Git's exit status for 'checked is an ancestor of tip', asked once per distinct commit within this projector. */
   const ancestryStatus = (checked, target) => {
     const key = `${checked} ${target}`;
@@ -189,9 +196,11 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       if (!review) {
         // Legacy receipts did not seal a reviewed trunk. Use a conservative claim-base bound,
         // never invent a capture time or rewrite those immutable receipts.
-        const baseline = readGit(root, ['merge-base', item.item_claim_head, tip]).trim();
+        const baseline = readOnce(['merge-base', item.item_claim_head, tip]).trim();
+        // A claim base that is the trunk tip has no commits after it, so no path can have changed: skip the diff.
+        if (baseline === tip) return null;
         review = { trunk: baseline,
-          paths: readGit(root, ['diff', '--no-renames', '--name-only', '-z', baseline, item.item_commit, '--']).split('\0').filter(Boolean), legacy: true };
+          paths: readOnce(['diff', '--no-renames', '--name-only', '-z', baseline, item.item_commit, '--']).split('\0').filter(Boolean), legacy: true };
       }
       if (!review.legacy && verdictReviewProblem(review, item.item_commit)) throw new FreshnessFailure('the sealed review does not match the submitted commit; re-review the clean composition');
       const paths = new Set(review.paths);
