@@ -330,7 +330,11 @@ import { syncBuiltinESMExports } from 'node:module';
 import { existsSync, writeFileSync } from 'node:fs';
 if (process.argv[1] === ${JSON.stringify(fixture.runner)}) {
   const original = childProcess.execFileSync;
+  const t0 = Date.now();
+  const trace = (kind, command, args) => process.stderr.write('TRACE ' + (Date.now() - t0) + ' ' + kind + ' ' + command + ' ' + JSON.stringify(args).slice(0, 80) + ' ' + new Error().stack.split('\\n').slice(2, 5).map(l => l.trim().slice(0, 70)).join(' | ') + '\\n');
+  for (const name of ['execFile', 'spawn', 'spawnSync']) { const o = childProcess[name]; childProcess[name] = (...a) => { trace(name, a[0], a[1]); return o(...a); }; }
   childProcess.execFileSync = (command, args, options) => {
+    trace('execFileSync', command, args);
     if (command === 'ps' && args?.[0] === '-axo' && existsSync(${JSON.stringify(ready)})) {
       const duringDrain = new Error().stack.includes('at snapshot ');
       const marker = duringDrain ? ${JSON.stringify(drained)} : ${JSON.stringify(sampled)};
