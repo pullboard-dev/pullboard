@@ -25,7 +25,6 @@ function miniAgentSource(ssh, runnerHome) {
     export function miniAgent(onWait) {
       return async function waitRunnerJob({ id, check, onNeed, onReady, signal }) {
         const job = JSON.parse(readFileSync(join(home, 'runner-jobs', id + '.json'), 'utf8'));
-        onWait(job);
         const queued = join(runnerRoot, 'queue', id), running = join(runnerRoot, 'running', id), done = join(runnerRoot, 'done', id);
         mkdirSync(join(runnerRoot, 'running'), { recursive: true }); mkdirSync(join(runnerRoot, 'done'), { recursive: true });
         renameSync(queued, running);
@@ -39,7 +38,7 @@ function miniAgentSource(ssh, runnerHome) {
           let newline;
           while ((newline = control.indexOf('\\n')) >= 0) {
             const line = control.slice(0, newline); control = control.slice(newline + 1);
-            if (line === 'PULLBOARD_RUNNER_READY ' + id && !readySeen) { readySeen = true; onReady(); }
+            if (line === 'PULLBOARD_RUNNER_READY ' + id && !readySeen) { readySeen = true; onReady(); onWait(job); }
             if (line.startsWith('PULLBOARD_RUNNER_RESULT ' + id + ' ')) receipt = true;
             if (line.startsWith('PULLBOARD_RUNNER_NEED ' + id + ' ') && !needSeen) {
               needSeen = true; onNeed(line.slice(('PULLBOARD_RUNNER_NEED ' + id + ' ').length));
@@ -91,7 +90,7 @@ test('a pulled job returns the controller path\'s result and leaves no controlle
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
       gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 1 }] }));
-    const command = 'printf job-finished; sleep 3; exit 3';
+    const command = 'printf job-finished; sleep 8; exit 3';
     const shaped = result => ({ exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), kind: result.executionReceipt?.kind, runner: result.executionRunner });
     const settle = promise => promise.catch(error => ({ refused: error.code, message: error.message }));
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
@@ -119,7 +118,7 @@ test('a pulled job returns the controller path\'s result and leaves no controlle
   const actual = JSON.parse(result.stdout.trim().split('\n').at(-1));
   assert.equal(actual.viaController.exitCode, 3, `the control run finished: ${JSON.stringify(actual.viaController)}`);
   assert.deepEqual(actual.viaPull, actual.viaController, 'the pulled job returns the controller path\'s result shape');
-  assert.ok(actual.counts.length >= 4, 'the wait was sampled');
+  assert.ok(actual.counts.length >= 20, 'the wait was sampled');
   assert.equal(Math.max(...actual.counts), 0, 'no controller process lives while a pulled job waits');
   assert.deepEqual(actual.records, [], 'the finished job\'s record is removed');
   assert.deepEqual(actual.runnerLeft, [0, 0, 0], 'the runner forgets the finished job');
