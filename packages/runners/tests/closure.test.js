@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree package.json */
+/** @pullboard-test-input package.json package.json packages/codemap/data/plan/path-map/gate.json packages/gate/index.js packages/gate/light.js packages/gate/src/io/directory.js packages/gate/src/io/journal/source.js packages/gate/src/logic/runner-source.js packages/store/index.js */
 /** The gate move leaves the runner worker closure unchanged: the same eight modules, each at its moved body, plus the preload's journal source split out of it [C7,doctrine:CD60]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

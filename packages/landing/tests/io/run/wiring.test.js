@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run-tests.js */
 /** Build, submit and review test runs split by the shard planner over the slots free after landings [C7]. */
 /** @pullboard-world-pin: clause 1 reads packages/gate/src/io/run-tests.js (the engine packages/gate/src/io/run/tests.js launches) to prove the runner entry calls the ordinary-run shard helper. */
 import assert from 'node:assert/strict';

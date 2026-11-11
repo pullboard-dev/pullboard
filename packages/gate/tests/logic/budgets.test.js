@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .github/workflows/gate.yml packages/gate/src/io/check/budgets.js */
 /** @pullboard-test-input .github/workflows/gate.yml */
 /** CI evaluates synthetic reports without a private 3000-item browser burner [N40,C7]. */
 import assert from 'node:assert/strict';

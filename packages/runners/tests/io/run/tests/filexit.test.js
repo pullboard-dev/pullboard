@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Exercise the production test runner against files that will not exit and focused-pool admission [C7]. */
 import { copyPackageFiles } from '../../../../index.js';
 import assert from 'node:assert/strict';

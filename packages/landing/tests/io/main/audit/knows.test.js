@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A main comparison runs its tests in a checkout that knows it is main, and a run that tested nothing is never a red [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

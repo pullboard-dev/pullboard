@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/child.js packages/gate/src/io/run/tests.js packages/resources/index.js */
 /** A landing gate already inside a runner slot runs as one pass; only the controller fans out [C7,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

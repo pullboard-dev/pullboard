@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A bare run-tests call names no file and is refused outside the machine's own stages; the suite is the gate's job [C7,S10]. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';

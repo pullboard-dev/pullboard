@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/test/action/reporter.js */
 /** Exercise cache exchange through real worker capsules in two isolated SSH fixture machines [C7]. */
 import assert from 'node:assert/strict';
 import {
