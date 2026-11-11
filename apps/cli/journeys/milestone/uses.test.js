@@ -168,18 +168,18 @@ test('native file URL composition retains the actual repository body and refuses
   const proved = fixtureSourceEdits(prefix + root + read, options);
   assert.deepEqual(proved.problems, []);
   assert.equal(proved.edits.length, 1);
-  assert.match(proved.edits[0].text, /packages\/sync\/src\/shell\/local-fetch\.js/u);
-  const moved = read.replace("'src', 'local-fetch.js'", "'packages', 'sync', 'src', 'io', 'local.js'");
+  assert.match(proved.edits[0].text, /packages\/sync\/src\/io\/local\.js/u);
+  const moved = read.replace("'src/local-fetch.js'", "'packages/sync/src/io/local.js'");
   assert.deepEqual(fixtureSourceEdits(prefix + root + moved, options), { edits: [], problems: [] });
   const alias = (prefix + root + read).replace('{fileURLToPath}', '{fileURLToPath as nativePath}').replace('= fileURLToPath(', '= nativePath(');
   assert.deepEqual(fixtureSourceEdits(alias, options).problems, []);
   for (const unknown of [
     root.replace("new URL('../../../..', import.meta.url)", 'unknown'),
     root.replace("new URL('../../../..', import.meta.url)", 'new URL(unknown, import.meta.url)'),
-    root.replace("'..'", "'https://outside.invalid/source'"),
-    root.replace("'..'", "'../%2e/source'"),
-    root.replace("'..'", "'../source?query'"),
-    root.replace("'..'", "'../source#fragment'"),
+    root.replace("'../../../..'", "'https://outside.invalid/source'"),
+    root.replace("'../../../..'", "'../%2e/source'"),
+    root.replace("'../../../..'", "'../source?query'"),
+    root.replace("'../../../..'", "'../source#fragment'"),
     "const URL = unknown;\n" + root,
     root.replace('fileURLToPath(', 'arbitraryPath('),
   ]) assert.ok(fixtureSourceEdits(prefix + unknown + read, options).problems.length, unknown);
@@ -450,7 +450,7 @@ test('repeated constants resolve only in their unique containing lexical scope [
   }`);
   assert.deepEqual(result.problems, []);
   assert.equal(result.edits.length, 1);
-  assert.match(result.edits[0].text, /packages\/git\/src\/shell\/moved\.js/u);
+  assert.match(result.edits[0].text, /packages\/git\/src\/io\/moved\.js/u);
   for (const body of [
     `function outer() { const input = join(import.meta.dirname, '../src/moved.js');
       function inner(input) { readFileSync(input); } }`,
@@ -513,7 +513,7 @@ test('lazy API imports require exact declared origins and never authorize return
 
 test('fixed-leaf producers follow canonical named shims but refuse unresolved or ambiguous star origins [C7]', () => {
   const consumer = "import {readFileSync} from 'node:fs'; import {locate} from '../src/shim.js'; readFileSync(locate(info));";
-  const sources = { 'src/shim.js': "export {leaf as locate} from '../../../../packages/git/index.js';\n",
+  const sources = { 'src/shim.js': "export {leaf as locate} from '../packages/git/index.js';\n",
     'packages/git/index.js': "export * from './body.js';\n",
     'packages/git/body.js': "import {join} from 'node:path';\nexport function leaf(info) { return join(info.commonDir, 'settings.json'); }\n" };
   const options = { file: 'test/shim-producer.js', moves: [['packages/git/index.js', 'packages/git/src/io/main.js']] };
@@ -542,7 +542,7 @@ test('all original git-move fixture groups retain their actual source input obli
     captured.set(file, value);
     return value;
   }
-  for (const file of ['apps/cli/journeys/fact/board/busy.test.js', 'test/cell-lints.test.js', 'apps/cli/journeys/fact/e2e/audit.test.js',
+  for (const file of ['apps/cli/journeys/fact/board/busy.test.js', 'packages/runners/tests/lints.test.js', 'apps/cli/journeys/fact/e2e/audit.test.js',
     'apps/cli/tests/fixtures/landing/queue.js', 'apps/cli/journeys/land/merge.test.js', 'apps/cli/journeys/move/registry.test.js',
     'apps/cli/journeys/fact/receipts.test.js', 'apps/cli/tests/fixtures/evidence.js', 'apps/cli/journeys/relay/canary.test.js',
     'apps/cli/journeys/runner/policy.test.js',
@@ -609,7 +609,7 @@ test('session path producers prove a fixed leaf without granting authority to th
     valid.replace('locate(info)', 'locate(...info)'),
     valid.replace('return join', "if (info) return info.file; return join"),
   ]) assert.ok(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(source) }).problems.length, source);
-  const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../../../../packages/seats/index.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
+  const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../packages/seats/index.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
   assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: mappedProducer('packages/seats/src/io/agent/session.js') }), { edits: [], problems: [] });
 });
 
@@ -619,7 +619,7 @@ test('a producer moved into a package behind its shim resolves its deep relative
   const body = "import { join } from 'node:path';\nimport { Refused } from '../../../../src/refused.js';\n"
     + "import { guard } from '../../../kernel/src/core/guard.js';\n"
     + "export function locate(info) { return join(info.gitDir, 'pullboard-checkout-session.json'); }\n";
-  const sources = { 'src/producer.js': "export { locate } from '../packages/seats/src/shell/producer.js';\n",
+  const sources = { 'src/producer.js': "export { locate } from '../packages/seats/src/io/producer.js';\n",
     'packages/seats/src/io/producer.js': body };
   const inspect = values => fixtureSourceEdits(consumer, { ...options, readSource: file => values[file] ? blob(values[file]) : null });
   assert.deepEqual(inspect(sources), { edits: [], problems: [] }, 'the shim and its ../../../../ body imports resolve');
@@ -629,7 +629,7 @@ test('a producer moved into a package behind its shim resolves its deep relative
 });
 
 test('mapped working source path fields follow the path map while lookalikes, other fields and writes stay unproven [C7]', () => {
-  const head = "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nimport { mappedWorkingSource } from '../bin/checks/scan.js';\n";
+  const head = "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nimport { mappedWorkingSource } from '../packages/gate/src/io/scan.js';\n";
   const options = { file: 'test/mapped-reader.js', moves: [['packages/git/index.js', 'packages/git/src/io/main.js']] };
   const inspect = body => fixtureSourceEdits(head + body, options).problems;
   const valid = "const mapped = mappedWorkingSource(root, 'packages/git/index.js');\nreadFileSync(join(installed, mapped.implementationPath));\nreadFileSync(join(installed, mapped.shimPath));\n";
@@ -638,10 +638,10 @@ test('mapped working source path fields follow the path map while lookalikes, ot
     valid.replace("'packages/git/index.js'", 'identity'),
     valid + 'mapped.implementationPath = other;\n',
     valid.replace("mappedWorkingSource(root, 'packages/git/index.js')", "copy(root, 'packages/git/index.js')"),
-    valid.replace('join(installed, mapped.implementationPath)', "join(installed, mapped.implementationPath, 'git.js')"),
+    valid.replace('join(installed, mapped.implementationPath)', "join(installed, mapped.implementationPath, 'index.js')"),
     valid + 'function shadow(mappedWorkingSource) { return mappedWorkingSource; }\n',
   ]) assert.ok(inspect(body).length, body);
-  assert.ok(fixtureSourceEdits(head.replace('../../../../packages/gate/src/io/scan.js', './scan-lookalike.js') + valid, options).problems.length,
+  assert.ok(fixtureSourceEdits(head.replace('../packages/gate/src/io/scan.js', './scan-lookalike.js') + valid, options).problems.length,
     'only the real scan module export qualifies');
 });
 
@@ -901,8 +901,8 @@ test('named producer front doors retain exact committed intermediate evidence an
   const options = { file: 'test/frontdoor-producer.js', moves: [['src/producer.js', 'packages/seats/src/io/producer.js']] };
   const body = "import {join} from 'node:path'; export function locate(info) { return join(info.gitDir, 'pullboard-checkout-session.json'); }";
   const sources = {
-    'src/producer.js': "export {locate,} from '../../../../packages/seats/index.js';",
-    'packages/seats/index.js': "export {locate,} from './src/shell/producer.js';",
+    'src/producer.js': "export {locate,} from '../packages/seats/index.js';",
+    'packages/seats/index.js': "export {locate,} from './src/io/producer.js';",
     'packages/seats/src/io/producer.js': body,
   };
   const inspect = replacement => fixtureSourceEdits(consumer, { ...options,
@@ -910,9 +910,9 @@ test('named producer front doors retain exact committed intermediate evidence an
   assert.deepEqual(inspect({}), { edits: [], problems: [] });
   for (const replacement of [
     { 'packages/seats/index.js': undefined },
-    { 'packages/seats/index.js': "export {missing as locate,} from './src/shell/producer.js';" },
-    { 'packages/seats/index.js': "export {locate,,} from './src/shell/producer.js';" },
-    { 'packages/seats/index.js': "export {,locate} from './src/shell/producer.js';" },
+    { 'packages/seats/index.js': "export {missing as locate,} from './src/io/producer.js';" },
+    { 'packages/seats/index.js': "export {locate,,} from './src/io/producer.js';" },
+    { 'packages/seats/index.js': "export {,locate} from './src/io/producer.js';" },
     { 'packages/seats/index.js': "export {locate} from '../../src/producer.js';" },
     { 'packages/seats/src/io/producer.js': body.replace('pullboard-checkout-session.json', 'producer.js') },
   ]) assert.ok(inspect(replacement).problems.length, JSON.stringify(replacement));

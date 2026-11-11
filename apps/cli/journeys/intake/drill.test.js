@@ -43,7 +43,7 @@ function actors(box) {
   try {
     store.register(board, { lane: 'coordinator', path: box.repo, parent: 'mixed-mode-fixture-reviewer' });
     store.register(board, { lane: 'web', path: box.web, parent: 'mixed-mode-fixture-local' });
-    store.register(board, { lane: 'web', path: box.runner, parent: 'mixed-mode-fixture-runner' });
+    store.register(board, { lane: 'web', path: box.runner, route: 'mid', parent: 'mixed-mode-fixture-runner' });
   } finally { store.closeBoard(board); }
 }
 
@@ -77,7 +77,7 @@ test('a local developer, a runner developer and a pull-request developer share o
   for (const [name, path, env] of [['local', box.web, box.env], ['runner', box.runner, remoteEnv]]) {
     if (name === 'runner') box.git(path, 'merge', '-q', '--ff-only', 'main');
     const added = await cli(box, box.repo, box.env, 'add', 'web', `mixed mode ${name}`, '--specs', 'G1',
-      '--criterion', 'tracked project content stays green', '--check', 'node web/drill-check.cjs', '--json');
+      '--route', 'mid', '--brief', `Files: web/${name}.js\nTest: node web/drill-check.cjs exits 0 with this file present.`, '--criterion', 'tracked project content stays green', '--check', 'node web/drill-check.cjs', '--json');
     assert.equal(added.code, 0, added.out + added.err);
     const id = JSON.parse(added.out).item.item_id;
     const claim = await cli(box, path, box.env, 'claim', String(id), '--json');
@@ -86,6 +86,8 @@ test('a local developer, a runner developer and a pull-request developer share o
     const commit = box.git(path, 'rev-parse', 'HEAD');
     const submitted = await cli(box, path, box.env, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
+    // Main moves onto a file the item changed (same bytes), so the sealed submit receipt cannot stand and verify runs its own check.
+    assert.equal(box.commitFile(box, box.repo, `web/${name}.js`, 'PASS\n', `chore(web): main reaches the ${name} file [G1]`).status, 0);
     const before = receipts(box.repo).length;
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     let reviewed;
@@ -110,7 +112,9 @@ test('a local developer, a runner developer and a pull-request developer share o
     const landed = await cli(box, box.repo, box.env, 'merged', String(id), box.git(box.repo, 'rev-parse', 'HEAD'), '--json');
     assert.equal(landed.code, 0, landed.out + landed.err);
   }
-  assert.deepEqual(Object.keys(accepted[0].receipt).sort(), Object.keys(accepted[1].receipt).sort(),
+  // runnerDispatch records the remote dispatch only a runner run has; every other field must match.
+  const shape = receipt => Object.keys(receipt).filter(key => key !== 'runnerDispatch').sort();
+  assert.deepEqual(shape(accepted[0].receipt), shape(accepted[1].receipt),
     'local and runner proofs use the same native receipt format');
   const provider = await bridgeProvider(t, box);
   box.git(box.outside, 'switch', '-q', '-c', 'outside/contribution');
@@ -127,6 +131,7 @@ test('a local developer, a runner developer and a pull-request developer share o
   assert.equal(outsideStatus.state, 'failure');
   assert.match(outsideStatus.description, /not verified/u);
   const intaken = await runBridgeCLI(box, 'intake', 'https://github.com/fixture/repository/pull/70', '--lane', 'web',
+    '--route', 'strong',
     '--criterion', 'outside tracked project content stays green', '--check', 'node web/drill-check.cjs', '--json');
   assert.equal(intaken.code, 0, intaken.out + intaken.err);
   const outside = JSON.parse(intaken.out).item;

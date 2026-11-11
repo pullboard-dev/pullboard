@@ -9,6 +9,7 @@ import {
   runFixtureChild,
 } from '../../tests/fixtures/child.js';
 import {
+  appendFileSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -75,6 +76,10 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   const committed = helpers.commitFile(box, box.web, 'web/ready.txt', 'ready\n', 'feat(web): finish the fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   proofDocument(box.run(box.web, 'submit', String(id), '--json'));
+  // A changed check input requires a fresh verdict receipt instead of reusing the submit receipt.
+  appendFileSync(join(box.repo, 'web/proof.test.js'), '// changed on main before review\n');
+  box.git(box.repo, 'add', 'web/proof.test.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test(web): advance the proof input [G1]');
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);

@@ -47,13 +47,13 @@ function fixture(t, { unsealed = [] } = {}) {
     'package.json': '{"type":"module"}\n',
     'packages/base/index.js': 'export { add } from "./src/core/add.js";\n',
     'packages/base/src/core/add.js': 'export const add = (a, b) => a + b;\n',
-    [BASE_TEST]: 'import { add } from "../../../../index.js";\nadd(1, 2);\n',
-    [CONTRACT]: 'import { add } from "../../../../index.js";\nfake.openBoard(":memory:");\nadd(1, 2);\n',
+    [BASE_TEST]: 'import { add } from "../index.js";\nadd(1, 2);\n',
+    [CONTRACT]: 'import { add } from "../index.js";\nfake.openBoard(":memory:");\nadd(1, 2);\n',
     'packages/user/index.js': 'export { total } from "./src/core/total.js";\n',
     'packages/user/src/core/total.js': 'import { add } from "../../../base/index.js";\nexport const total = rows => rows.reduce(add, 0);\n',
-    [USER_TEST]: 'import { total } from "../../../../index.js";\ntotal([1]);\n',
+    [USER_TEST]: 'import { total } from "../index.js";\ntotal([1]);\n',
     'packages/alone/index.js': 'export const alone = 1;\n',
-    'packages/alone/tests/alone.test.js': 'import { alone } from "../../../../index.js";\nvoid alone;\n',
+    'packages/alone/tests/alone.test.js': 'import { alone } from "../index.js";\nvoid alone;\n',
     'test/journey.test.js': 'import "../packages/alone/index.js";\nimport "../packages/user/index.js";\nimport { spawnSync } from "node:child_process";\nspawnSync("git");\n',
   };
   for (const [file, source] of Object.entries(files)) {

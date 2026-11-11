@@ -71,6 +71,8 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
         || top === 'index.js' && tail !== 'index.js'
         || top === 'src' && !/^src\/(?:logic|io)\//u.test(tail)) add('strays', file, 1, `outside accepted cell anatomy; next: ${strayNextStep(file)}`);
       if (/\.(?:md|mdx|rst|txt|adoc|html?)$/iu.test(file)) add('documents', file);
+      // The baseline's own flat shards and descriptor are literal tool data: ordinary stray debt, as the planner records them.
+      if (/^packages\/codemap\/data\/baselines\/lints\/(?:index|[a-zA-Z]+-\d{3})\.json$/u.test(file)) add('strays', file, 1, 'literal tool metadata');
       if (!testFile(file)) graph.set(cell, graph.get(cell) ?? new Set());
     } else if (!pathMapMetadata && !cellBaselineMetadata && !shimBaselineMetadata && !transitionMetadata && !rootAllowed(file)) add('strays', file, 1, `outside cells and the root allowlist; next: ${strayNextStep(file)}`);
     const source = files.get(file).toString('utf8');

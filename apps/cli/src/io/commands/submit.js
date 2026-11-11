@@ -1,3 +1,4 @@
+import { parseSpec } from '../../../../../packages/spec/light.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
@@ -431,7 +432,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
-  if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
+  if (!isClean(root)) {
+    // Preserve the typed grammar refusal without starting gates for a dirty candidate.
+    try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
+    catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
+    throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
+  }
   const stray = untracked(root);
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);
@@ -824,7 +830,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-        if (!remoteMode && !companion && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+        if (!remoteMode && !companion && /\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
           const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
           const report = await runPreflight(root, changed);
           if (!report.ok) {
@@ -886,7 +892,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         if (remoteMode) return await runRemotePart('static', signal);
         const changedStaticStart = performance.now();
         try {
-          if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+          if (/\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
             await withItemPatchSubmit(root, companion, async gateRoot => {
               const checker = fileURLToPath(new URL('../static/checks.js', import.meta.url));
               const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,

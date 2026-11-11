@@ -31,13 +31,13 @@ function fixtureAdmissionProof(t) {
   assert.notEqual(invalidJoin.code, 0, 'an empty model must still fail live admission');
 
   const fixtureFiles = [
-    { name: 'e2e-helpers.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
-    { name: 'land-project-fixture.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
-    { name: 'board-submit-fixture.js', helpers: [] },
-    { name: 'landing-per-item.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
-    { name: 'landing-plan-missing-excluded.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
-    { name: 'submit-outcome-fixture.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
-    { name: 'submit-main-red-fixture.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
+    { name: '../../tests/fixtures/e2e.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/land/project.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/board/submit.js', helpers: [] },
+    { name: '../land/landing/per.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../land/landing/excluded.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/submit/outcome.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
+    { name: '../../tests/fixtures/submit/red.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
   ];
   for (const { name: file, helpers } of fixtureFiles) {
     const source = readFileSync(join(import.meta.dirname, file), 'utf8');

@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-world-pin copies the real detach entry point from bin/ so the dispatcher under test is the shipped file. */
+/** @pullboard-world-pin copies the real detach entry point from packages/resources so the dispatcher under test is the shipped file. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
@@ -20,11 +20,12 @@ test('a handoff dispatcher is re-parented and survives its launcher process tree
   const root = temporaryDirectory('pullboard-handoff-dispatcher-');
   const machine = join(root, 'machine');
   const tools = join(root, 'tools');
-  const entryDir = join(tools, 'bin');
+  const detachDir = join(tools, 'packages/resources/src/io/handoff/worker'), entryDir = join(tools, 'apps/lib/src/io/handoff');
   const marker = join(root, 'dispatcher.json');
+  mkdirSync(detachDir, { recursive: true });
   mkdirSync(entryDir, { recursive: true });
-  copyFileSync(join(import.meta.dirname, '../../../../../src/io/handoff/worker/detach.js'), join(entryDir, 'handoff-worker-detach.js'));
-  writeFileSync(join(entryDir, 'handoff-worker-dispatcher.js'),
+  copyFileSync(join(import.meta.dirname, '../../../../../src/io/handoff/worker/detach.js'), join(detachDir, 'detach.js'));
+  writeFileSync(join(entryDir, 'dispatcher.js'),
     `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, session: process.env.AGENT_SESSION_TOKEN ?? null, home: process.env.PULLBOARD_MACHINE_HOME }));\nsetInterval(() => {}, 60_000);\n`);
   const module = pathToFileURL(join(import.meta.dirname, '../../../../../src/io/handoff/worker/cap.js')).href;
   const launch = `process.env.PULLBOARD_MACHINE_HOME=${JSON.stringify(machine)}; process.env.AGENT_SESSION_TOKEN='private-session'; const { ensureHandoffDispatcher }=await import(${JSON.stringify(module)}); await ensureHandoffDispatcher(${JSON.stringify(tools)}, ${JSON.stringify(root)});`;

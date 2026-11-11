@@ -57,10 +57,10 @@ export function intakeFixture(t, { baseFiles = {} } = {}) {
   const base = box.git(made.repo, 'rev-parse', 'HEAD');
   const fork = join(box.dir, 'outside-fork');
   box.git(box.dir, 'clone', '-q', '--no-hardlinks', made.repo, fork);
-  mkdirSync(join(fork, 'relay'), { recursive: true });
+  mkdirSync(join(fork, 'apps/relay/src/io/deploy'), { recursive: true });
   mkdirSync(join(fork, 'test'), { recursive: true });
   writeFileSync(join(fork, 'apps/relay/src/io/deploy/outside.js'), 'export const outside = true;\n');
-  writeFileSync(join(fork, 'test/contribution.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; import { outside } from '../relay/outside.js'; test('outside change [V2]',()=>assert.equal(outside,true));\n");
+  writeFileSync(join(fork, 'test/contribution.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; import { outside } from '../apps/relay/src/io/deploy/outside.js'; test('outside change [V2]',()=>assert.equal(outside,true));\n");
   box.git(fork, 'add', '-A');
   box.git(fork, 'commit', '-q', '--author', 'Outside Contributor <outside@example.test>', '-m', 'feat: outside fixture\n\nSigned-off-by: Outside Contributor <outside@example.test>');
   const commit = box.git(fork, 'rev-parse', 'HEAD');

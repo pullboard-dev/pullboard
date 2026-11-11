@@ -1,5 +1,6 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -144,6 +145,7 @@ export function fixtureMachineSettings(machineHome, settings) {
  * @returns {void}
  */
 export function fixtureCellsPlan(repo, text) {
+  mkdirSync(join(repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(repo, 'packages/codemap/data/plan/cells.json'), text);
 }
 
@@ -246,4 +248,23 @@ export function fixtureCommittedGraph(prefix = 'pullboard-graph-') {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
   return { root, put: (path, body) => files.write(path, body), commit: () => { git('add', '-A'); git('commit', '-qm', 'chore: fixture graph'); return git('rev-parse', 'HEAD').trim(); } };
+}
+
+/**
+ * Give a fixture `join` the strong route unless it names one or joins a light model, in place, and return args.
+ * Why: the product maps an unlisted model to mid, while fixture items default strong, so a bare fixture join could not claim them [C7].
+ */
+export function fixtureJoinRoute(args, defaultModel) {
+  if (args[0] !== 'join' || args.some(arg => arg === '--route' || arg.startsWith('--route='))) return args;
+  const flag = args.findIndex(arg => arg === '--model' || arg.startsWith('--model='));
+  const model = flag < 0 ? defaultModel : args[flag].startsWith('--model=') ? args[flag].slice(8) : args[flag + 1];
+  if (!/^claude-haiku-/u.test(String(model ?? '')) && model !== 'gpt-6-luna') args.push('--route', 'strong');
+  return args;
+}
+
+/** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
+export function requireSessionIndependence(dir) {
+  const file = join(dir, 'pullboard.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), review: { independence: 'session' } }, null, 2) + '\n');
+  runFixtureGit(['-c', 'core.hooksPath=/dev/null', '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'chore: ask for strict review independence'], { cwd: dir });
 }

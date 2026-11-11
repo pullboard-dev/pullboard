@@ -17,12 +17,13 @@ import {
   join,
   sep,
 } from 'node:path';
+import { gitSpawnSync } from '../../../../packages/git/light.js';
 
 /** Run Git for this check only, never steered by a hook's GIT_DIR or GIT_INDEX_FILE. */
 function git(cwd, args) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  return spawnSync('git', args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return gitSpawnSync(args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 }
 
 /** Resolve a path through symlinks, or null when it is gone. */

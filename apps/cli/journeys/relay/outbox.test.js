@@ -303,13 +303,16 @@ test('a move that names an offline item where the outbox cannot follow it is ref
 test('a milestone edit naming an offline item follows that item when another machine takes its number first [B26,H16,H17]', async (t) => {
   // The milestone is part of the linked baseline, as on a board that already had one before the outage.
   const { box, other } = await twoMachines(t, 'Added before the outage', {
-    beforeLink: async (unlinked) => assert.equal((await unlinked.cli('milestone', 'add', 'next')).code, 0),
+    beforeLink: async (unlinked) => {
+      assert.equal((await unlinked.cli('milestone', 'add', 'next')).code, 0);
+      assert.equal((await unlinked.cli('milestone', 'add', 'target')).code, 0);
+    },
   });
   await box.stopRelay();
   const added = await box.cli('add', box.lane, 'Added here while the relay is down');
   const local = added.document.item.item_id;
-  const listed = await box.cli('milestone', 'items', 'next', '--add', String(local));
-  assert.equal(listed.code, 0, listed.failure);
+  const listed = await box.cli('milestone', 'items', 'target', '--add', String(local), '--reason', 'Exercise offline milestone item remapping');
+  assert.equal(listed.code, 0, listed.failure + JSON.stringify(listed.document));
   await box.restartRelay();
   assert.equal((await (await otherAgent(box, other))('add', box.lane, 'Added there first')).document.item.item_id, local, 'the other machine takes the number used offline');
 
@@ -319,7 +322,7 @@ test('a milestone edit naming an offline item follows that item when another mac
   for (const machine of [box, other]) {
     const exported = (await machine.cli('export')).document;
     const titles = new Map(exported.tables.item.map((row) => [row.item_id, row.item_title]));
-    assert.deepEqual(milestoneItems(exported).next.map((id) => titles.get(id)), ['Added here while the relay is down'],
+    assert.deepEqual(milestoneItems(exported).target.map((id) => titles.get(id)), ['Added here while the relay is down'],
       'the milestone holds the item this machine added, not the other machine\'s');
   }
 });
@@ -352,4 +355,17 @@ test('created-item bindings distinguish repair outputs and survive reordered mul
   rememberCreatedItems(publication, { item: 9, repair: 32 });
   assert.deepEqual(resolveMove(entry, outbox, { local: true }).move.args, [{ parentId: 32, after: [33, 34, 9] }],
     'partial replay uses each newly shown local repair identity');
+});
+
+test('selector gap binds only a newly filed repair item [B26,H16]', () => {
+  const created = { move: { id: 'gap', operation: 'recordSelectorGap' } };
+  rememberCreatedItems(created, { item: 7, filed: true });
+  const existing = { move: { id: 'existing', operation: 'recordSelectorGap' } };
+  rememberCreatedItems(existing, { item: 9, filed: false });
+  assert.deepEqual(existing.created, [], 'an existing repair is not newly created');
+  const outbox = { moves: [created, existing], results: { gap: { item: 12, filed: true } } };
+  const move = { operation: 'addItem', args: [{ parentId: 7, after: [9] }] };
+  const refs = bindRefs(outbox, move);
+  assert.equal(refs.length, 1, 'only the newly filed item receives a binding');
+  assert.deepEqual(resolveMove({ move, refs }, outbox).move.args, [{ parentId: 12, after: [9] }]);
 });

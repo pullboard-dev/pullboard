@@ -56,7 +56,13 @@ function controllerProviderReader(root, source) {
 
 /** The controller facade file this tree pins: packages/runners/index.js in a 0.9.3 layout while it exists, else the cell door. */
 export function controllerFile(root) {
-  return existsSync(join(root, 'packages/runners/index.js')) ? 'packages/runners/index.js' : 'packages/runners/index.js';
+  return existsSync(join(root, 'src/runners.js')) ? 'src/runners.js' : 'packages/runners/index.js';
+}
+
+/** Select the controller entry present in the captured tree, including the legacy layout. */
+function controllerEntryFile(root) {
+  return existsSync(join(root, 'apps/runner/src/io/controller.js'))
+    ? 'apps/runner/src/io/controller.js' : 'bin/runner-controller.js';
 }
 
 // Linux stamps files from a tick-granular clock that can lag Date.now() by up to 10 ms.
@@ -79,21 +85,23 @@ function changedSince(root, files, since) {
  */
 export function captureRunnerTooling(root, { since } = {}) {
   const absoluteRoot = resolve(root);
-  const controllerEntry = readFileSync(join(root, 'apps/runner/src/io/controller.js'), 'utf8');
-  if (lastCaptureReaders?.root !== absoluteRoot || lastCaptureReaders.entry !== controllerEntry) {
+  const entryFile = controllerEntryFile(root);
+  const controllerEntry = readFileSync(join(root, entryFile), 'utf8');
+  if (lastCaptureReaders?.root !== absoluteRoot || lastCaptureReaders.entry !== controllerEntry || lastCaptureReaders.entryFile !== entryFile) {
     lastCaptureReaders = {
       root: absoluteRoot,
       entry: controllerEntry,
+      entryFile,
       read: runnerPackageReader(absoluteRoot),
       providers: controllerProviderReader(absoluteRoot, controllerEntry),
     };
   }
   const { read, providers } = lastCaptureReaders;
   const loaded = { ...read(), controller: readFileSync(join(root, controllerFile(root)), 'utf8'),
-    controllerEntry, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
+    controllerEntry, controllerEntryFile: entryFile, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
   if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), controllerFile(root),
-    'apps/runner/src/io/controller.js', ...CONTROLLER_STEPS, ...providers.files], since)) return null;
+    entryFile, ...CONTROLLER_STEPS, ...providers.files], since)) return null;
   readers.set(loaded, { root: resolve(root), read, providers });
   return loaded;
 }
@@ -114,7 +122,8 @@ export function currentRunnerTooling(root, loaded, { rescan = true } = {}) {
   const reader = readers.get(loaded);
   try {
     if (readFileSync(join(root, controllerFile(root)), 'utf8') !== loaded.controller
-      || readFileSync(join(root, 'apps/runner/src/io/controller.js'), 'utf8') !== loaded.controllerEntry
+      || controllerEntryFile(root) !== loaded.controllerEntryFile
+      || readFileSync(join(root, loaded.controllerEntryFile), 'utf8') !== loaded.controllerEntry
       || JSON.stringify(controllerSteps(root)) !== JSON.stringify(loaded.controllerSteps)
       || !sameControllerPolicy(root, loaded.controllerPolicy)
       || (reader?.root === resolve(root) ? reader.providers() : controllerProviderReader(root, loaded.controllerEntry)()) !== loaded.controllerProviders

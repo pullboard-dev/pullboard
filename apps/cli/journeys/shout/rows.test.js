@@ -39,6 +39,8 @@ test('Needs you summarizes item809, keeps raw questions in details and places na
     chrome=await openSnapshotChrome(executable,'about:blank',join(box.dir,'needs-you-chrome'));
     await chrome.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     await chrome.send('Page.navigate',{url:server.link.href});
+    await chrome.waitFor('typeof view === "object" && !!view.root');
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
     for(const width of [1440,375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});

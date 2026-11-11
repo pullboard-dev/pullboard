@@ -73,7 +73,7 @@ test(scenario === 'unreadable item status'
     const initialProblems = runnerLeaseHealth().filter(row=>row.problem);
     const children = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split(String.fromCharCode(10))
       .map(line => line.trim().split(/ +/u))
-      .filter(row => Number(row[1]) === process.pid && row.slice(2).join(' ').includes('runner-controller.js'))
+      .filter(row => Number(row[1]) === process.pid && row.slice(2).includes('--pullboard-runner-controller'))
       .map(row => Number(row[0]));
     let observation;
     ${scenario === 'unreadable item status' ? `

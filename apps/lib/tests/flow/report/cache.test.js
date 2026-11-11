@@ -21,6 +21,7 @@ import { FLOW_REPORT_VERSION } from '../../../../../packages/stats/index.js';
 import { ensureProofCounters } from '../../../../../packages/verify/index.js';
 import { runFixtureGit } from '../../../../cli/tests/fixtures/child.js';
 import { submitFixture } from '../../../../cli/tests/fixtures/board/submit.js';
+import { repositoryBoardFile } from '../../../../cli/tests/fixtures/board/submit.js';
 import { MILESTONE_PLACEMENT_ENGINE } from '../../../../../packages/state/light.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
@@ -30,8 +31,8 @@ const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCo
 /** Construct a native board whose append path maintains current report shards. */
 function fixture(t, { item = true, now } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-report-cache-'));
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
-  const board = openBoard(join(root, '.git', 'board.sqlite'), now ? { now } : undefined);
+  // The board sits where the native CLI keeps it, inside a repository with committed policy, so submit can seal it.
+  const board = openBoard(repositoryBoardFile(root), now ? { now } : undefined);
   store.register(board, { lane: 'coordinator', path: root });
   if (item) store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Known open history' });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });

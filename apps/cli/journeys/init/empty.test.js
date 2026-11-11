@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
 // pullboard: browser
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The default Items view gives finished work a clear next step [N26]. */
 import assert from 'node:assert/strict';

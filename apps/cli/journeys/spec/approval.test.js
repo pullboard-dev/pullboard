@@ -62,10 +62,11 @@ test('a row approved without a person move reads as agent-approved until the per
   box.git(box.web, 'add', 'web/page.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add the fixture page [G1]');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  document(box, box.web, 'submit', String(id));
+  document(box, box.web, 'submit', String(id), '--wait', '--no-next');
   const review = join(box.dir, 'independent-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  document(box, review, 'join', 'api');
+  // An unrouted item is strong, so its reviewer joins strong.
+  document(box, review, 'join', 'api', '--route', 'strong');
   const verified = box.run(review, 'verify', String(id), 'accept', '--note', 'The real fixture gate passed on the submitted commit.');
   assert.equal(verified.code, 0, `${verified.out}\n${verified.err}`);
   assert.match(verified.out, /verified against agent-approved G1/u);

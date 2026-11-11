@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/gate/src/io/browser/admission.js */
 /** Browser admission reads each test file's first-line declaration, and the launcher enforces it at run time [C7]. */
+import { repoPath } from '../../../../packages/kernel/light.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -158,7 +159,7 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
     'apps/cli/tests/fixtures/chrome.js': "throw new Error('admission must never launch or evaluate Chrome');\n",
     'test/declared.test.js': `${BROWSER_MARKER}\nimport '../../tests/fixtures/chrome.js';\n${EXECUTES}`,
     'test/declared-crlf.test.js': `\uFEFF${BROWSER_MARKER}  \r\nimport '../../tests/fixtures/chrome.js';\n`,
-    'test/launcher.test.js': `import { startChrome } from '../../tests/fixtures/chrome.js';\nvoid startChrome;\n${EXECUTES}`,
+    'test/launcher.test.js': `import { startChrome } from '../apps/cli/tests/fixtures/chrome.js';\nvoid startChrome;\n${EXECUTES}`,
     'test/direct.test.js': "import { spawnSync } from 'node:child_process';\nspawnSync('google-chrome', ['--version']);\n",
     'test/second-line.test.js': `/** A browser test whose marker is not the first line. */\n${BROWSER_MARKER}\n`,
     'test/near.test.js': '//pullboard: browser\n',
@@ -201,7 +202,7 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
   const repository = resolve(import.meta.dirname, '../../../..');
   const reader = readFileSync(join(repository, 'packages/gate/src/io/browser/admission.js'), 'utf8');
   assert.doesNotMatch(reader, /module-imports|browser-module-reach|browser-launch-source|importsIn|commonJsIn/u, 'the browser decision parses no import graph');
-  const callers = ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/test/run.js', 'packages/gate/src/io/test/file/dispatch.js',
+  const callers = ['packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/run.js', 'packages/gate/src/io/test/file/dispatch.js',
     'packages/gate/src/io/submit.js', 'packages/gate/src/io/static/check.js', 'packages/gate/src/io/admission/private/check.js',
     'packages/landing/src/io/main/red.js', 'packages/landing/src/io/deferred/run.js', 'packages/landing/src/io/doctrine.js',
     'packages/landing/src/logic/land/guard.js', 'packages/items/src/io/outside/verify.js', 'packages/sandbox/src/io/smoke.js',
@@ -231,7 +232,11 @@ function runnerFixture(t, tests) {
   mkdirSync(join(root, 'machine'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
-  for (const helper of ['chrome-fixture.js', 'chrome-graceful-shutdown.js', 'chrome-launch-args.js', 'fixture-child.js']) copyFileSync(resolve(import.meta.dirname, helper), repoPath(root, `test/${helper}`));
+  const fixtures = resolve(import.meta.dirname, '../../tests/fixtures');
+  for (const helper of ['chrome.js', 'chrome/args.js', 'chrome/shutdown.js', 'child.js']) {
+    mkdirSync(dirname(repoPath(root, `apps/cli/tests/fixtures/${helper}`)), { recursive: true });
+    copyFileSync(join(fixtures, helper), repoPath(root, `apps/cli/tests/fixtures/${helper}`));
+  }
   for (const [path, source] of Object.entries(tests)) writeFileSync(join(root, path), source);
   const chrome = join(root, 'stand-in-browser');
   writeFileSync(chrome, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$PULLBOARD_FIXTURE_LAUNCHES"\n');
@@ -273,7 +278,7 @@ test('clause 2: an undeclared test file that launches Chrome through the shared 
   await browser.close();
 });
 `;
-  const imports = "import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\nimport { launchChromeProcess } from './chrome-fixture.js';\n";
+  const imports = "import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\nimport { launchChromeProcess } from '../apps/cli/tests/fixtures/chrome.js';\n";
   const runner = runnerFixture(t, {
     'test/declared.test.js': `${BROWSER_MARKER}\n${imports}${launch('declared')}`,
     'test/undeclared.test.js': `${imports}${launch('undeclared')}`,
@@ -285,7 +290,7 @@ test('child launches from a process the test starts', () => {
   assert.equal(result.status, 0, result.stderr);
 });
 `,
-    'test/launch-helper.mjs': "import { launchChromeProcess } from '../../tests/fixtures/chrome.js';\nconst browser = launchChromeProcess({ executable: process.env.FIXTURE_BROWSER, args: ['child'] });\nawait browser.stopped;\nawait browser.close();\n",
+    'test/launch-helper.mjs': "import { launchChromeProcess } from '../apps/cli/tests/fixtures/chrome.js';\nconst browser = launchChromeProcess({ executable: process.env.FIXTURE_BROWSER, args: ['child'] });\nawait browser.stopped;\nawait browser.close();\n",
   });
   const ran = runner.run(['test/declared.test.js', 'test/undeclared.test.js', 'test/child.test.js']);
   assert.notEqual(ran.status, 0, ran.output);
@@ -309,7 +314,6 @@ test('shell starts the browser through exec', () => { execSync(\`'\${process.env
 `,
     'test/spawned.test.js': `import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { repoPath } from '../../../../packages/kernel/light.js';
 test('spawned starts a Node child that starts the browser', () => {
   const result = spawnSync(process.execPath, ['test/direct-helper.mjs'], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(result.stderr);

@@ -14,8 +14,8 @@ import {
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
-// Straight to the one module: the kernel front door would load 13 modules into every thin resident client.
-import { Refused } from '../../../../../../packages/kernel/index.js';
+// Use the public browser-safe door to keep the thin resident client from loading the full kernel.
+import { Refused } from '../../../../../../packages/kernel/browser.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 

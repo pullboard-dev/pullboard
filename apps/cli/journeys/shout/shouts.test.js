@@ -20,6 +20,7 @@ import {
   shout as shoutOnBoard,
 } from '../../../../packages/store/index.js';
 import { nativeBoardPorts } from '../../../lib/index.js';
+import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import {
   BIN,
@@ -154,7 +155,7 @@ test('a shout shows the evidence it carries [B22]', async () => {
     const page = await openPage(view);
     page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     const feed = page.show('feed');
-    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
+    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (${FIXTURE_MODEL}) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
     const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button" aria-expanded="false">Show all<\/button>/, '');
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
@@ -191,7 +192,7 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     page.run("view.shoutThread = 'none'; render();");
     const cards = () => [...page.show('feed').matchAll(/<b class="who"[^>]* title="([^"]*)">([^<]*)<\/b><span class="to">→ (?:<span[^>]*>)?([^<]*)(?:<\/span>)?<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
-      ['Test Model', 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
+      [FIXTURE_MODEL, 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
       ['unknown', 'you', 'coordinator', 'Hello from the person'],
       ['unknown', 'you', 'web', 'Web, keep it short'],
     ], 'the conversation keeps native author and recipient order, naming the model only on hover');
@@ -199,7 +200,7 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
     assert.deepEqual(said(JSON.parse(box.run(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');
     const lines = box.run(alpha.repo, 'log').split('\n').filter((line) => / shout /.test(line));
-    assert.deepEqual(lines.map((line) => line.slice(21, 45).trim()), ['web-1 (Test Model)', 'person', 'person'], `pullboard log names the person: ${lines.join('\n')}`);
+    assert.deepEqual(lines.map((line) => line.slice(21, 45).trim()), [`web-1 (${FIXTURE_MODEL})`, 'person', 'person'], `pullboard log names the person: ${lines.join('\n')}`);
     assert.ok(lines.every((line) => !line.includes('coordinator (unknown)')), 'never as coordinator (unknown)');
 
     // An agent never shouts as the person: through the view's API under its own name, through the
@@ -659,7 +660,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below its header`);
           for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no colored border edge`);
         }
-        assert.deepEqual([old.who.text, old.who.model, old.to], ['web-1', 'Test Model', '→ coordinator'], `${at}: the exact sender, model hover and recipient`);
+        assert.deepEqual([old.who.text, old.who.model, old.to], ['web-1', FIXTURE_MODEL, '→ coordinator'], `${at}: the exact sender, model hover and recipient`);
         assert.equal(asking.who.color, old.who.color, `${at}: agent names use the same approved violet`);
         assert.notEqual(answer.who.color, old.who.color, `${at}: the coordinator uses the accent color`);
         assert.ok(answer.classes.includes('lead') && answer.who.text === 'coordinator', `${at}: a native coordinator answer keeps its identity`);
@@ -705,7 +706,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
 
         // Evidence: a receipt with kind, outcome and a footer of item, agent and short sha.
         assert.deepEqual([receipt.receipt.badge, receipt.receipt.outcome], ['receipt', 'measured 80ms']);
-        assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 (Test Model) · ') && receipt.receipt.sha === head.slice(0, 12) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
+        assert.ok(receipt.receipt.foot.startsWith(`#1 · web-1 (${FIXTURE_MODEL}) · `) && receipt.receipt.sha === head.slice(0, 12) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
 
         // The approved three-line disclosure applies to messages, while native person-only Answer controls remain.
         assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [3, true, 'Show all'], `${at}: a long native message folds at three lines`);
@@ -960,7 +961,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
         // A picked agent's chip has an x that is a 44px square target; picking the agent again puts it back.
         await chrome.click(`document.querySelector('#agents [data-agent="web-1"]')`);
         const picked = await read();
-        assert.ok(picked.chip === 'to web-1 (Test Model)×' && picked.clear[0] >= tapTarget(width) && picked.clear[1] >= tapTarget(width), `${at}: the chip's x is a square target: ${JSON.stringify(picked.clear)}`);
+        assert.ok(picked.chip === `to web-1 (${FIXTURE_MODEL})×` && picked.clear[0] >= tapTarget(width) && picked.clear[1] >= tapTarget(width), `${at}: the chip's x is a square target: ${JSON.stringify(picked.clear)}`);
         await chrome.click(`document.querySelector('#agents [data-agent="web-1"]')`);
         assert.equal((await read()).chip, null, `${at}: picking the agent again returns the composer to the coordinator`);
       }
@@ -983,12 +984,12 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     box.run(alpha.web, 'inbox');
     await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000); // budget: hang ceiling for both inbox reads to appear; no throughput claim.
     const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
-    assert.deepEqual(all.slice(2), [0, 'Heard by coordinator, web-1 (Test Model)'], 'with no avatars, retaining every native recipient name on hover');
+    assert.deepEqual(all.slice(2), [0, `Heard by coordinator, web-1 (${FIXTURE_MODEL})`], 'with no avatars, retaining every native recipient name on hover');
 
     // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
     await chrome.click(`document.querySelector('#agents [data-agent="web-1"]')`);
     let r = await read();
-    assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1 (Test Model)×', 'web-1', 'Shout to web-1 (Test Model)'], 'a picked agent shows as a chip');
+    assert.deepEqual([r.chip, r.to, r.placeholder], [`to web-1 (${FIXTURE_MODEL})×`, 'web-1', `Shout to web-1 (${FIXTURE_MODEL})`], 'a picked agent shows as a chip');
     const clearAt = tapTarget(await chrome.stable('innerWidth'));
     assert.ok(r.clear[0] >= clearAt && r.clear[1] >= clearAt, 'whose x is a square target');
     await chrome.click(`document.querySelector('#shout-to-chip [data-to-clear]')`);
@@ -1157,7 +1158,7 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
           over:cards.flatMap(card=>[...card.querySelectorAll('header,header>*')].filter(e=>edge(e).right>width).map(e=>({kind:e.className||e.tagName,...edge(e)})))};
       })()`);
       assert.equal(metrics.width,360, scheme+': actual page content is 360px, including on classic-scrollbar Chrome');
-      assert.ok(metrics.models.some(text=>text.includes('Test Model')), 'the regression fixture includes real API model names');
+      assert.ok(metrics.models.some(text=>text.includes(FIXTURE_MODEL)), 'the regression fixture includes real API model names');
       assert.ok(metrics.scroll<=metrics.width&&metrics.body<=metrics.width, scheme+': no sideways scroll: '+JSON.stringify({width:metrics.width,scroll:metrics.scroll,body:metrics.body,over:metrics.over,contentOver:metrics.contentOver}));
       assert.ok(metrics.headers.every(h=>h.children.every(e=>e.left>=h.box.left-1&&e.right<=h.box.right+1)&&h.age.whole&&Math.abs(h.age.right-h.box.right)<=1&&h.age.bottom<=h.text.top+1),
         scheme+': each header fits one line with its complete age at the right: '+JSON.stringify(metrics.headers));
