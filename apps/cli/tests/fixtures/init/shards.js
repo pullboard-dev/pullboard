@@ -45,7 +45,7 @@ export function git(cwd, env, ...args) {
 
 /**
  * Make a local ssh stand-in that runs the worker command in a second private machine home.
- * With `dropOnce`, its first session kills the worker as soon as a test file starts on the runner,
+ * With `dropOnce`, the first session alive when a test file starts on the runner kills the worker,
  * the way a runner that loses power mid-shard looks to the controller.
  */
 export function installSshStandIn({ bin, worker, home, machineHome, markers, dropOnce }) {
@@ -58,8 +58,7 @@ const host = argv[divider + 1];
 const remoteCommand = argv[divider + 2];
 if (host !== ${JSON.stringify(HOST)}) process.exit(255);
 const dropFlag = ${JSON.stringify(dropOnce ?? '')};
-const drop = dropFlag && !existsSync(dropFlag);
-if (drop) writeFileSync(dropFlag, 'dropped\\n');
+const drop = Boolean(dropFlag);
 const env = { PATH: process.env.PATH, HOME: ${JSON.stringify(home)}, TMPDIR: process.env.TMPDIR,
   PULLBOARD_HOME: ${JSON.stringify(home)}, PULLBOARD_MACHINE_HOME: ${JSON.stringify(machineHome)}, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' };
 const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: ${JSON.stringify(worker)}, env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -70,6 +69,10 @@ if (drop) {
   const timer = setInterval(() => {
     if (!readdirSync(${JSON.stringify(markers)}).some(name => name.endsWith('.runner.started'))) return;
     clearInterval(timer);
+    // Only the session that was alive when a test file started on the runner is dropped, and only once; the connect
+    // and history sessions before it end on their own and must not use up the drop.
+    if (existsSync(dropFlag)) return;
+    writeFileSync(dropFlag, 'dropped\\n');
     process.kill(child.pid, 'SIGHUP');
     process.exit(255);
   }, 20);
