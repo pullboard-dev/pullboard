@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/codemap/src/io/cells/scripts/plan.js packages/gate/src/io/execution.js packages/landing/index.js packages/landing/src/io/main/red.js packages/landing/src/io/smoke.js packages/landing/src/io/step/trunk.js packages/runners/index.js */
 /** With gate.runnersOnly on, main comparisons, the landing CLI smoke and the cells-plan check run on a runner and queue, never local [C7,#3011]. */
 import assert from 'node:assert/strict';
 import {

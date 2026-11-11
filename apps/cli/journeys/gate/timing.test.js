@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js packages/resources/index.js */
 /** A gate receipt splits waiting for a machine slot from running the check, and the stats line reports both [C7,V10]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

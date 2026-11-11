@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/lib/src/io/check/baseline.js */
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';

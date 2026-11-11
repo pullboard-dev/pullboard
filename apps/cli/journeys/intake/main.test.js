@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/kernel/src/logic/seal.js */
 /** Outside-source intake/guards use real Git/SQLite and declared transport stand-ins [V1,V2,V3,B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

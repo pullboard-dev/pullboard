@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/resume.js packages/config/src/io/templates.js */
 /** The default agent loop takes independent work immediately and ends an empty turn [N41,N42,C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

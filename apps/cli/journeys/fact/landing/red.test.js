@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** Under landing.splitRed a red pair is not bisected: the batch ends blocked and its items land one at a time, the red one returning to its builder [C7]. */
 import assert from 'node:assert/strict';
 import {
