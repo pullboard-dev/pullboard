@@ -229,6 +229,8 @@ process.exit(lines.length?1:0);
     ledger.gates = 20;
     for (const row of trials) row.start = 0;
     writeFileSync(ledgerFile, JSON.stringify(ledger) + '\n');
+    // The probe measured main once; clear that machine-wide cache so the item under test really runs the baseline command.
+    rmSync(join(paths.remoteMachine, 'doctrine-main'), { recursive: true, force: true });
     rmSync(marker, { force: true });
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
