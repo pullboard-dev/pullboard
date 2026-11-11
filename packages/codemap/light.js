@@ -3,7 +3,7 @@ export { isDefaultTestFile } from './src/logic/discovery.js';
 export { rootAllowed, strayNextStep } from './src/logic/allowlist.js';
 export { shimCountProblems } from './src/logic/ratchet.js';
 export { compareItemFunctions } from './src/logic/functions.js';
-export { importsIn } from './src/io/module/imports.js';
+export { importsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
 export { readPathMap } from './src/logic/path/map.js';
 export { narrowedTo } from './src/io/check-walk.js';
 export { readText } from './src/io/check-walk.js';

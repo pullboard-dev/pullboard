@@ -9,7 +9,10 @@ export const AUTHORITY_TRIGGERS = [
 ].map(([name, on]) => ({ name, sql: `CREATE TRIGGER IF NOT EXISTS ${name} ${on}\nBEGIN SELECT RAISE(ABORT, 'PERSON_AUTHORITY: the pinned relay key is kept for good'); END` }));
 
 
-/** Rows a board export leaves out: the pinned relay key belongs to this board file alone [E22]. */
+/** The row that says this board file already moved its big job payloads to blobs; it describes the file, not the board. */
+export const BLOBS_MIGRATED_KEY = 'job_blobs:1';
+
+/** Rows a board export leaves out: the pinned relay key and the blob-move mark belong to this board file alone [E22]. */
 export function exportedMeta(rows) {
-  return rows.filter((row) => row.meta_key !== AUTHORITY);
+  return rows.filter((row) => row.meta_key !== AUTHORITY && row.meta_key !== BLOBS_MIGRATED_KEY);
 }
