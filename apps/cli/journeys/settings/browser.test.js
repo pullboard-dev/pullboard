@@ -47,6 +47,8 @@ test('a passkey on the paired browser confirms a terminal-started person move on
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
+  await chrome.waitFor('typeof data === "object" && !!data?.project', relayWorkBudgetMs(), "the paired board loads");
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('PASSKEY_BROWSER_READY')");
 
   await chrome.waitFor("!!document.querySelector('#person-passkey-add')", relayWorkBudgetMs(), 'the page offers to add a passkey');
