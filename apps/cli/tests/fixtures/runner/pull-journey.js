@@ -43,20 +43,20 @@ export function definePullJourney(count) {
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
-    let counts = [], inflight = 0;
+    let counts = [];
     const readyJobs = () => {
       const running = join(${JSON.stringify(home)}, '.pullboard-runner', 'running');
       try { return readdirSync(running).filter(id => { try { return readFileSync(join(running, id, 'control.log'), 'utf8').includes('PULLBOARD_RUNNER_READY'); } catch { return false; } }).length; } catch { return 0; }
     };
     const sampler = setInterval(() => {
       const waiting = readyJobs();
-      if (waiting < 1 || waiting < inflight) return;
+      if (waiting < 1) return;
       try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
-    const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => { inflight += 1; return settle(runPulled(root, command, {
+    const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => settle(runPulled(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata },
-      {})).then(result => { inflight -= 1; return result; }); },
+      {})),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} })));
     clearInterval(sampler);
     const left = dir => { try { return readdirSync(dir); } catch { return []; } };
