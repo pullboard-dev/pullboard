@@ -86,6 +86,7 @@ export { INFRASTRUCTURE_CODES, RERUNNABLE_RUNNER_REFUSALS, INFRASTRUCTURE_RETRY_
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/io/queued/red.js';
 export { redReturnLeaseHolds } from './src/logic/red/return.js';
 export { submitGateInFlight } from './src/logic/red/return.js';
+export { itemWorkInFlight } from './src/logic/red/return.js';
 export { ITEM_STAGES, itemStage, stageCounts } from './src/logic/item/stage.js';
 export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/logic/pinned.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/logic/rework.js';
