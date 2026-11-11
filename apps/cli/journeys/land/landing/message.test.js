@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A real landing writes the shared header and trailers for an item citing 36 rows and for one refrozen after its claim (RFC 0005) [C7,B3,R3]. */
 import assert from 'node:assert/strict';
 import {

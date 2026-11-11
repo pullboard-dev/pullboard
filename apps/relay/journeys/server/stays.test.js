@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/index.js packages/codemap/src/io/cells/scripts/plan.js */
 /** @pullboard-test-input source-tree packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
 /** A stay may name its owner cell: the file keeps its path, and cuts count it as that cell's file [C7]. */
 import assert from 'node:assert/strict';

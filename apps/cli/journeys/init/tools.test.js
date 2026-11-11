@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/commands/version.js packages/codemap/src/logic/imports.js packages/gate/index.js packages/gate/src/io/run/tests.js packages/gate/src/io/test/action/cache.js */
 /** Cell tool prerequisites use real committed graphs and the actual CLI catalogs [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

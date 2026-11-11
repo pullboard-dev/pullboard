@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /**
  * Submit labels a sandbox-blocked or ordinary child failure, and selects the affected tests its change can reach [V4,C7,V16].
  */

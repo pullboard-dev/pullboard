@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/view.js */
 /**
  * Every query the hot commands run reaches events and shouts through an index, never a full scan, on a
  * seeded board of 1,000 items, 45,000 events and 23,000 shouts [C7]. The commands run as the real CLI

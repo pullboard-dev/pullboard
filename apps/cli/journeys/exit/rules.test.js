@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads apps/cli/pullboard.js */
 /** Fixture claims exercise real native atomic exit and same-family continuation, never shared sessions [B3,C7,N2]. */
 import assert from 'node:assert/strict';

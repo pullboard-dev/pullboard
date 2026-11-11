@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Live routing uses computed native eligibility; legacy rule records and coded releases retain compatibility [C7,H16]. */
 import assert from 'node:assert/strict';
 import {

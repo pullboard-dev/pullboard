@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/logic/native.js packages/kernel/index.js packages/kernel/light.js packages/store/index.js */
 /** Real committed Kernel contracts and authenticated decision approvals [C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

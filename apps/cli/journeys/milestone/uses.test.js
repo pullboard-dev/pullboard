@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 import assert from 'node:assert/strict';

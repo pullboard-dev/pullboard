@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js */
 /** A gate's infrastructure stops rotate to another runner with back-off for up to 30 minutes before the gate gives up [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** Durable B0: driveOnce runs a whole submit gate with the hand-off worker's own sections and result [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

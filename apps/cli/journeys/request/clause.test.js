@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Review requests bind to the frozen bar without changing older replay [V6,R2,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
