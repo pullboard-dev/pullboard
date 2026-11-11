@@ -267,17 +267,17 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
   const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
     import {existsSync,readFileSync,writeFileSync} from 'node:fs';
     const worker=${JSON.stringify(join(installed, 'apps/runner/src/io/scripts/worker.js'))};
-    const controller=${JSON.stringify(join(installed, 'packages/runners/index.js'))};
-    writeFileSync(${JSON.stringify(join(installed, 'src/after-controller-load.js'))},'export {};\\n');
-    writeFileSync(controller,readFileSync(controller,'utf8').replace('const RUNTIME_NAMES = [',"const RUNTIME_NAMES = ['after-controller-load.js', "));
-    writeFileSync(worker,"import './after-controller-load.js';\\n"+readFileSync(worker,'utf8').replace('const runtimeNames = [',"const runtimeNames = ['after-controller-load.js', "));
+    // The upgrade lands after this controller loaded: the worker on disk is newer than the controller's pinned bytes.
+    writeFileSync(worker,readFileSync(worker,'utf8')+'\\n// upgraded worker generation\\n');
     let failure;
     try {await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});process.exitCode=1;}
     catch(error){failure={name:error.name,code:error.code,diagnostic:error.diagnostic};}
-    const sentBeforeFresh=existsSync(${JSON.stringify(box.requests)});
-    const fresh=await import(${JSON.stringify(url + '?upgraded=1')});
-    const valid=await fresh.runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});
-    console.log(JSON.stringify({...failure,sentBeforeFresh,freshGreen:valid.isGreen}));`);
+    console.log(JSON.stringify({...failure,sentBeforeFresh:existsSync(${JSON.stringify(box.requests)})}));`);
+  // A fresh controller process loads the upgraded controller and worker together, so the pair is coherent.
+  const fresh = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
+    const valid=await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});
+    console.log(JSON.stringify({freshGreen:valid.isGreen}));`);
+  result.freshGreen = fresh.freshGreen;
   assert.equal(result.name, 'Refused');
   assert.equal(result.code, 'RUNNER_TOOLING_CHANGED');
   assert.equal(result.sentBeforeFresh, false, 'no host is contacted or quarantined for a stale controller');

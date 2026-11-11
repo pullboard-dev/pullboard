@@ -143,16 +143,17 @@ export async function runnerFirstPolicyCase(e2e) {
   for (const folder of [runnerBin, worker, remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
   integrated.env.PATH = `${runnerBin}:${integrated.env.PATH}`;
   installSshStandIn({ bin: runnerBin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
+  // Filed before any runner exists, and waited for: with one registered the add's baseline run would be a fourth request.
+  const added = fixtureAdd(integrated.run, integrated.repo, 'web', 'Runner-first public submit', '--specs', 'G1',
+    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--wait', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
   const registered = integrated.run(integrated.repo, 'runner', 'add', runner, '--slots', '1', '--browser', '1');
   assert.equal(registered.code, 0, registered.err);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
     const setting = integrated.run(integrated.repo, 'settings', key, value);
     assert.equal(setting.code, 0, `${key} ${value}: ${setting.err}`);
   }
-  const added = fixtureAdd(integrated.run, integrated.repo, 'web', 'Runner-first public submit', '--specs', 'G1',
-    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--wait', '--json');
-  assert.equal(added.code, 0, added.err);
-  const id = JSON.parse(added.out).item.item_id;
   assert.equal(integrated.run(integrated.web, 'claim', String(id)).code, 0);
   const built = e2e.commitFile(integrated, integrated.web, 'web/runner-first.txt', 'submitted on runner\n', 'feat(web): add runner-first fixture [G1]');
   assert.equal(built.status, 0, built.stderr);
