@@ -82,3 +82,6 @@
   .dash-list li { flex-wrap: wrap; gap: 0; padding-bottom: var(--space-2); }
   .dash-list small { margin-left: auto; }
 }
+.dash-stage-strip .dash-chips { margin-top: 0; }
+.dash-stage-link { display: inline-flex; gap: var(--space-2); align-items: baseline; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-card); padding: var(--space-0) var(--space-3); font-size: var(--text-2xs); color: var(--ink-muted); text-decoration: none; }
+.dash-stage-link b { color: var(--ink); }
