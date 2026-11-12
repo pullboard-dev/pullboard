@@ -1,3 +1,5 @@
+// pullboard: browser
+/** @pullboard-test-gui */
 /** Sealed relay recovery keeps two future-engine blockers recovering one durable position at a time [H3,H16]. */
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
 import { fixture } from '../../../tests/fixtures/relay/sealed.js';
