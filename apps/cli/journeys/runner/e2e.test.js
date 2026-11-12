@@ -167,7 +167,7 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   assert.match((await box.runLocal(webRunner, 'run', '--agent-light', good, '--attempts', '1')).out, /submitted #1/);
   const commit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', commit);
-  assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
+  assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--no-next', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
   const apiRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'mid')).out.match(/^made (\S+) /)[1];
   const ran = await box.runLocal(apiRunner, 'run', '--agent-light', weak, '--agent-mid', strong, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
