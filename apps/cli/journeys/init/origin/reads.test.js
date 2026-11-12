@@ -264,7 +264,7 @@ test('a hosted wait that times out names the page state and Chrome\'s network se
 test('a hosted wait census reports unknown when the real process lookup is unavailable [N26]', () => {
   const emptyPath = mkdtempSync(join(tmpdir(), 'pullboard-census-no-ps-'));
   try {
-    const module = new URL('../../tests/fixtures/cockpit/health.js', import.meta.url).href;
+    const module = new URL('../../../tests/fixtures/cockpit/health.js', import.meta.url).href;
     const code = `import { execFileSync } from 'node:child_process';
       import { networkServicePids } from ${JSON.stringify(module)};
       let code = null;

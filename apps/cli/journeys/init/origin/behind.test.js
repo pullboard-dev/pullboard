@@ -69,7 +69,7 @@ async function howFarBehind(t, { linked }) {
     for (const permissions of [['loopbackNetwork', 'localNetwork', 'localNetworkAccess'], ['localNetworkAccess']]) {
       try { await chrome.send('Browser.grantPermissions', { origin: HOSTED, permissions }); break; } catch { /* Chrome versions expose different permission names */ }
     }
-    const changelog = readFileSync(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8');
+    const changelog = readFileSync(new URL('../../../../../CHANGELOG.md', import.meta.url), 'utf8');
     const versionOrder = (version) => version.split('.').map(Number);
     const compareVersions = (left, right) => {
       const a = versionOrder(left), b = versionOrder(right);
