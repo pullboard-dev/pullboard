@@ -2,7 +2,7 @@
   "version": 2,
   "metrics": {
     "boundaries": {
-      "count": 7241,
+      "count": 7259,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-001.json",
@@ -50,7 +50,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-012.json",
-          "sha256": "f3562f525dda852e28a0bdf8415acf8e4adb7251693e248837a6a3f7383de702"
+          "sha256": "f9d4cd7e368c0949c57efeccfb47a049a76a6a90f04a082cadb39c006824e165"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-013.json",
