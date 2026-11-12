@@ -1,0 +1,5 @@
+{
+  "name": "stats runners",
+  "help": "  pullboard stats runners --health [--window <duration>] [--until <ISO time>]  run time per job kind per runner (p50/p90) and runner up spans, lost leases, retries and re-placed jobs\n",
+  "required": { "runners": "object" }
+}
