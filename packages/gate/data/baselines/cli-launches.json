@@ -8,14 +8,11 @@
   "apps/cli/journeys/add/lanes.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/agents/actors.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/agents/independence.test.js": {
     "launch": 4
   },
   "apps/cli/journeys/agents/main.test.js": {
-    "launch": 28
+    "launch": 6
   },
   "apps/cli/journeys/agents/session.test.js": {
     "launch": 43
@@ -176,17 +173,11 @@
   "apps/cli/journeys/doctrine/checks.test.js": {
     "launch": 15
   },
-  "apps/cli/journeys/doctrine/main.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/doctrine/name.test.js": {
     "launch": 32
   },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/doctrine/redesign.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/doctrine/rulings.test.js": {
     "launch": 9
@@ -557,17 +548,8 @@
   "apps/cli/journeys/inbox/filters.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/inbox/projects.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/inbox/shims.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/inbox/sidebar.test.js": {
-    "launch": 22
-  },
-  "apps/cli/journeys/inbox/tabs.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/init/api/commit.test.js": {
     "launch": 2
@@ -1144,9 +1126,6 @@
   },
   "apps/cli/journeys/release/focus.test.js": {
     "launch": 8
-  },
-  "apps/cli/journeys/release/header.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/release/metadata.test.js": {
     "launch": 6
