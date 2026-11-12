@@ -71,7 +71,7 @@ function sandbox() {
     const result = await runCliInProcess(args, { cwd, env });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  /** Process-level by nature: submit hands its gate to a detached child that outlives the call, which in-process dispatch cannot reproduce. */
+  /** A real CLI process, for the cases named process-level where in-process dispatch skips the child they start. */
   const spawn = (cwd, ...args) => {
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
@@ -157,7 +157,8 @@ test('accept records none or green in its event and JSON, and says when unchecke
     const reference = runFixtureChild(process.execPath, ['--check', checkedSource], { cwd: repo, env: box.env, encoding: 'utf8' });
     assert.equal(reference.status, 1, safeFixtureDiagnostic(JSON.stringify({ phase: 'direct compiler reference', status: reference.status,
       stdout: reference.stdout, stderr: reference.stderr, source: readFileSync(checkedSource, 'utf8'), inheritedTestContext: Boolean(box.env.NODE_TEST_CONTEXT) }), box.env));
-    const redCheck = await box.run(repo, 'check', String(checked.id), '--yes', '--json');
+    // Process-level by nature: the failure-diagnostics notice comes from a child the check starts, which in-process dispatch does not reproduce.
+    const redCheck = box.spawn(repo, 'check', String(checked.id), '--yes', '--json');
     assert.equal(redCheck.code, 1, safeFixtureDiagnostic(JSON.stringify({ phase: 'real check after direct compiler red', redCheck, source: readFileSync(checkedSource, 'utf8') }), box.env));
     assert.equal(JSON.parse(redCheck.out).green, false);
     assert.match(redCheck.err, /failure diagnostics could not finish \(NO_POLICY\).*original result stays red/u);
