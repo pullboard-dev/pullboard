@@ -23,9 +23,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
-  DatabaseSync,
-} from 'node:sqlite';
-import {
   runCliInProcess,
 } from '../../../tests/fixtures/process.js';
 import {
@@ -171,24 +168,6 @@ test('explicit SessionStart observation upgrades an existing resume hook without
   assert.equal(again.code, 0, again.err + again.out);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), after, 'repeated init never duplicates the observation hook');
 });
-
-/** Read or change only the named, disposable fixture SQLite file, closing it before CLI work resumes. */
-function fixtureDatabase(file, work) {
-  const db = new DatabaseSync(file);
-  try { return work(db); }
-  finally { db.close(); }
-}
-
-/** Count this diagnostic's one requested operation independently from presentation uploads. */
-function operationCount(file, text) {
-  return fixtureDatabase(file, db => db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_text=?').get(text).n);
-}
-
-/** Keep diagnostics to checkpoint metadata: no sealed contents, credentials or board body. */
-function traceEvidence(result) {
-  return { code: result.code, refusalCode: result.document?.error?.code ?? null, uploads: result.snapshotUploads,
-    trace: result.snapshotTrace.map(({ sequence, ciphertext, callers, status, abort }) => ({ sequence, ciphertext, callers, status, abort })) };
-}
 
 test('checkpoint fingerprints retain hidden-seat heartbeats without treating clock movement as a write [B3,H16]', async t => {
   const { createE2eHelpers } = await import('../../../tests/fixtures/e2e.js');

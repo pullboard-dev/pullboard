@@ -6,6 +6,9 @@ import {
 import {
   test,
 } from 'node:test';
+import {
+  DatabaseSync,
+} from 'node:sqlite';
 import * as store from '../../../../../packages/store/index.js';
 import {
   fixtureBoard,
@@ -29,6 +32,24 @@ import {
 import {
   relayWorkBudgetMs,
 } from '../../../tests/fixtures/relay/budget.js';
+
+/** Read or change only the named, disposable fixture SQLite file, closing it before CLI work resumes. */
+function fixtureDatabase(file, work) {
+  const db = new DatabaseSync(file);
+  try { return work(db); }
+  finally { db.close(); }
+}
+
+/** Count this diagnostic's one requested operation independently from presentation uploads. */
+function operationCount(file, text) {
+  return fixtureDatabase(file, db => db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_text=?').get(text).n);
+}
+
+/** Keep diagnostics to checkpoint metadata: no sealed contents, credentials or board body. */
+function traceEvidence(result) {
+  return { code: result.code, refusalCode: result.document?.error?.code ?? null, uploads: result.snapshotUploads,
+    trace: result.snapshotTrace.map(({ sequence, ciphertext, callers, status, abort }) => ({ sequence, ciphertext, callers, status, abort })) };
+}
 
 test('a write after a heartbeat uploads once [B3,H16]', {
   timeout: relayWorkBudgetMs(), // budget: unchanged six-attempt relay fixture allowance, not a speed target.
