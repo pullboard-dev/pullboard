@@ -15,9 +15,9 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const MAIN_RED = pathToFileURL(join(import.meta.dirname, '../../../../packages/landing/src/io/main/red.js')).href;
-const CLI = join(import.meta.dirname, '../../pullboard.js');
 const KNOWN_MAIN = pathToFileURL(join(import.meta.dirname, '../../../../packages/landing/src/io/known/main.js')).href;
 const ENVIRONMENT = pathToFileURL(join(import.meta.dirname, '../../../../packages/sandbox/src/io/environment.js')).href;
 const RED = "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('inherited red [G1]', () => assert.equal(1, 2));\n";
@@ -96,6 +96,7 @@ function compare(box, mode, commitId, publishedId) {
     '  console.log(JSON.stringify(await knownMainAccount({ batch: { root, base: commit } }, gate)));',
     '}',
   ].join('\n'));
+  // Process-level: a generated driver module reads its own argv, cwd and machine home, so it stays a child process.
   const result = runFixtureChild(process.execPath, [driver, box.root, mode, commitId, publishedId ?? ''], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context ?? result.stdout + result.stderr);
   return JSON.parse(result.stdout.trim().split('\n').at(-1));
@@ -116,6 +117,7 @@ function probeRefresh(box, previous, published) {
     '});',
     'console.log(JSON.stringify({ maximum, calls, compared }));',
   ].join('\n'));
+  // Process-level: a generated driver module reads its own argv and cwd, so it stays a child process.
   const result = runFixtureChild(process.execPath, [driver, box.root, previous, published], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context ?? result.stdout + result.stderr);
   return JSON.parse(result.stdout.trim().split('\n').at(-1));
@@ -234,9 +236,10 @@ test('clause 3: two cold readers of the same content run main once even with fre
     "const [root, commit] = process.argv.slice(2);",
     "console.log(JSON.stringify(await compareMainFailures(root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', { commit, detailed: true, fresh: true })));",
   ].join('\n'));
-  const configured = runFixtureChild(process.execPath, [CLI, 'settings', 'gateSlots', '4', '--json'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(configured.status, 0, configured.context ?? configured.stdout + configured.stderr);
+  const configured = await runCliInProcess(['settings', 'gateSlots', '4', '--json'], { cwd: box.root, env: box.env });
+  assert.equal(configured.status, 0, configured.stdout + configured.stderr);
   const env = box.env;
+  // Process-level: two cold readers must race as separate processes to prove the content flight.
   const child = () => new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [driver, box.root, first], { cwd: box.root, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
