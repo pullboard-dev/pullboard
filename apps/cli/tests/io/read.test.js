@@ -34,9 +34,8 @@ function commandContext(box, command) {
 
 /** Move main with a real empty commit every 500 ms from another process until stopped. */
 function moveMainEvery500ms(t, repo) {
-  const script = `const { execFileSync } = require('node:child_process');
-    setInterval(() => { try { execFileSync('git', ['-C', ${JSON.stringify(repo)}, 'commit', '-q', '--allow-empty', '--no-verify', '-m', 'chore: lander moves main'], { stdio: 'ignore' }); } catch {} }, 500);`;
-  const child = spawn(process.execPath, ['-e', script], { stdio: 'ignore' });
+  const loop = 'while :; do git -C "$1" commit -q --allow-empty --no-verify -m "chore: lander moves main" >/dev/null 2>&1; sleep 0.5; done';
+  const child = spawn('/bin/sh', ['-c', loop, 'mover', repo], { stdio: 'ignore' });
   const stop = () => { if (child.exitCode === null && !child.killed) child.kill(); };
   t.after(stop);
   return stop;
