@@ -32,7 +32,8 @@ test('clause 1: search lists the nearest item first with its id, score and title
   const { box, landing, cockpit } = seeded();
   const found = await box.runLocal(box.web, 'search', 'quarantined runners stall the landing queue');
   assert.equal(found.code, 0, `${found.out}\n${found.err}`);
-  const lines = found.out.trim().split('\n').filter(line => !line.startsWith('next:'));
+  const lines = found.out.trim().split('\n');
+  assert.ok(lines.every(line => !line.startsWith('next:')), 'the results are the whole output');
   assert.match(lines[0], new RegExp(`^\\d\\.\\d{3}  #${landing}  \\w+  Landing queue stalls`), lines[0]);
   const scores = lines.map(line => Number(line.split('  ')[0]));
   assert.deepEqual(scores, [...scores].sort((a, b) => b - a), 'best first');
@@ -44,8 +45,7 @@ test('clause 2: a query with no match prints one line saying so and exits 0 [C7]
   const { box } = seeded();
   const none = await box.runLocal(box.web, 'search', 'zebra');
   assert.equal(none.code, 0, `${none.out}\n${none.err}`);
-  // The dispatcher appends its own `next:` hint to every command; the search itself prints one line.
-  assert.deepEqual(none.out.trim().split('\n').filter(line => !line.startsWith('next:')), ['no matching items']);
+  assert.equal(none.out, 'no matching items\n');
 });
 
 test('clause 3: search writes nothing to the board [C7]', async () => {

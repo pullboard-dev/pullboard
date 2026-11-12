@@ -74,11 +74,11 @@ export function commandName(argv) {
   return flags.find(arg => !arg.startsWith('-')) ?? null;
 }
 
-/** Preserve diagnostic reports, byte-oriented exports and long-running protocols; interactive commands own one final action. */
+/** Preserve diagnostic reports, byte-oriented exports, search results and long-running protocols; interactive commands own one final action. */
 export function interactiveNext(command, argv = []) {
   // Rigor's plain diagnostic report owns its body; drafting and quality commands still guide an action.
   if (command === 'rigor' && !argv.some(arg => ['draft', 'quality', '--draft-splits', '--draft-quality'].includes(arg.split('=')[0]))) return false;
-  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health', 'maintenance'].includes(command);
+  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health', 'maintenance', 'search'].includes(command);
 }
 
 /** Choose one immediate action from acknowledged output, without reserving work or guessing a verdict. */
