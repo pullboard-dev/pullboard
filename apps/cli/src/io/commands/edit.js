@@ -1,5 +1,6 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireOwnLaneCheck } from '../lane.js';
+import { guardBar } from '../../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
@@ -93,6 +94,7 @@ export async function run(io, args) {
     if (authors.length) change.referenceAuthors = authors;
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
+  const barWarnings = sealed ? [] : guardBar(change.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
   // A changed bar may not name a path missing from main, refused before any other bar rule; an edit that leaves the
   // criterion and check alone never refuses on it (#5709).
   if (change.criterion !== undefined || change.check !== undefined) {
@@ -107,6 +109,7 @@ export async function run(io, args) {
   }
   if (command && command !== item.item_check) refuseCheckSyntax(command);
   if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command && command !== item.item_check && !sealed) store.guardGreenCheck(board, change.checkBaseline, values['accept-green']);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
   await ordered(ctx, board, 'editItem', [id, change]);
   if (change.checkBaseline?.result === 'pending') {
@@ -125,8 +128,9 @@ export async function run(io, args) {
       while (measuring()) await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
-  io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
-  for (const warning of evidenceWarnings) io.err(warning.message);
+  const warnings = [...evidenceWarnings, ...barWarnings];
+  io.result?.({ item: store.getItem(board, id), ...(warnings.length ? { warnings } : {}) });
+  for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`edited #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
   return 0;
