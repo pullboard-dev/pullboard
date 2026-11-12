@@ -47,6 +47,15 @@ function tree() {
   return fixture;
 }
 
+/** The combined baseline before the split, as readCellLintBaseline answers it: legacy rows with the demo cell's delta applied. */
+function effectiveBefore() {
+  const allowances = { fileSize: { [OLD]: 200, 'apps/big.js': 40 }, boundaries: { [`${OLD}->apps/x.js`]: 1, [`${OLD}->src/gone.js`]: 1 }, strays: { [OLD]: 1 } };
+  return { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => {
+    const row = allowances[metric] ?? {};
+    return [metric, { count: Object.values(row).reduce((a, b) => a + b, 0), allowances: row }];
+  })) };
+}
+
 /** The measured lint debt after the split, and main's before it. */
 const lints = async () => ({
   report: { metrics: { fileSize: { findings: [{ key: NEW, count: 120 }] }, boundaries: { findings: [{ key: `${OLD}->apps/x.js`, count: 1 }, { key: `${NEW}->apps/x.js`, count: 1 }] } } },
@@ -61,8 +70,7 @@ test('a split moves every per-file registry row to its new files in one command 
     write(OLD, [LAUNCH, ''].join('\n'));
     write(NEW, [LAUNCH, SLEEP, OPEN, ''].join('\n'));
     write(HELPER, 'export const part = 1;\n');
-    const effective = readCellLintBaseline(root);
-    const { rows, written } = await splitRegistries(root, OLD, [NEW, HELPER], { lints: async () => ({ ...await lints(), effective }), tiers });
+    const { rows, written } = await splitRegistries(root, OLD, [NEW, HELPER], { lints: async () => ({ ...await lints(), effective: effectiveBefore() }), tiers });
     const text = file => read(file).toString('utf8'), data = file => JSON.parse(text(file));
     assert.deepEqual(data('packages/gate/data/baselines/cli-launches.json'), { 'apps/other.test.js': { launch: 1 }, [OLD]: { launch: 1 }, [NEW]: { launch: 1 } }, 'launches are counted per new file and keep their total');
     assert.deepEqual(data('packages/gate/data/baselines/test-waits-baseline.json'), { [NEW]: { sleep: 1 } }, 'the wait moved with its code');
@@ -91,12 +99,11 @@ test('a split that raises any budget writes nothing [C7]', async () => {
   try {
     write(OLD, [LAUNCH, ''].join('\n'));
     write(NEW, [LAUNCH, SLEEP, SLEEP, ''].join('\n'));
-    const before = read('packages/gate/data/baselines/test-waits-baseline.json').toString('utf8');
-    const effective = readCellLintBaseline(root);
-    await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: async () => ({ ...await lints(), effective }), tiers }),
+    const kept = ['packages/gate/data/baselines/test-waits-baseline.json', `${LINTS}/index.json`, `${LINTS}/cells/demo.json`, `${LINTS}/fileSize-001.json`];
+    const before = kept.map(file => read(file).toString('utf8'));
+    await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: async () => ({ ...await lints(), effective: effectiveBefore() }), tiers }),
       error => error.code === 'SPLIT_RATCHET' && /waits 1 -> 2 \(sleep\)/u.test(error.message) && Boolean(error.next));
-    assert.equal(read('packages/gate/data/baselines/test-waits-baseline.json').toString('utf8'), before, 'the ceiling is unchanged');
-    assert.deepEqual(readCellLintBaseline(root), effective, 'the lint baseline is unchanged');
+    assert.deepEqual(kept.map(file => read(file).toString('utf8')), before, 'the ceilings and the lint baseline are unchanged');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
