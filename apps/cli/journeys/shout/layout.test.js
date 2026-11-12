@@ -81,7 +81,7 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
 test('no box carries a coloured edge [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   sendBackWithClause(box, alpha, 1, 'no greeting yet', 'greets');
   const view = await startView(box);
@@ -105,7 +105,7 @@ test('no box carries a coloured edge [N26]', async () => {
 test("the authenticated local view assembles its shared and private styles [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   accept(box, alpha, 1);
   const view = await startView(box);
