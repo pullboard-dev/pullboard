@@ -32,6 +32,7 @@ test('clause 1: next with a live claim answers you hold it, and with a lapsed le
   const lapsed = await cli(box, seat.path, ['next']);
   assert.equal(lapsed.code, 0, lapsed.out + lapsed.err);
   assert.notEqual(lapsed.document.held, true, `a lapsed lease is never printed as held: ${lapsed.out}`);
-  assert.notEqual(lapsed.document.item?.item_id, mine);
+  // Selection ran again: the lapsed claim is claimed afresh or other work is offered, never reported as still held.
+  assert.ok(lapsed.document.item, 'selection offers work after the lapse');
   void other;
 });
