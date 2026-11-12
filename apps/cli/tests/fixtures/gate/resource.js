@@ -184,11 +184,11 @@ await withGateSlot(process.cwd(), async () => {
 }
 
 /** Fill both gate slots with real whole-suite runs and wait until each one's probe is running. */
-export async function wholeSuiteHolders(box, names) {
+export async function wholeSuiteHolders(box, names, add = child => child) {
   const runs = names.map(name => {
     const marker = join(box.dir, `${name}.started`);
     const release = join(box.dir, `${name}.release`);
-    return { marker, release, child: launchTestRunner(box, probeSuite(box, name), [], marker, release) };
+    return { marker, release, child: add(launchTestRunner(box, probeSuite(box, name), [], marker, release)) };
   });
   try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
     throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);

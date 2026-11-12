@@ -64,41 +64,41 @@ test('[V1] a topic merged --no-ff onto main still names its item, so the wrong s
   refuseWrongBranch(root, { item_id: 7 }, merged, { commit: main });
 });
 
-/** Run the real fixture CLI and retain both output streams when setup or submission fails. */
-function nativeJson(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+/** Run the production dispatch in this process and retain both output streams when setup or submission fails. */
+async function nativeJson(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args, '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return JSON.parse(result.out);
 }
 
-test('native submit refuses another item trailer and records a submission for its own trailer [V1,V4]', t => {
+test('native submit refuses another item trailer and records a submission for its own trailer [V1,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   for (const wrong of [true, false]) {
     const box = helpers.project('true');
     /** Add a diagnosed fixture item whose frozen check requires the feature committed below. */
-    const add = title => nativeJson(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'mid',
+    const add = async title => (await nativeJson(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'mid',
       '--criterion', 'The committed feature is submitted.', '--check', 'test -f web/feature.txt', '--brief',
-      'Files: web/feature.txt\nChange: commit the native submit fixture payload.\nTest: native submit preserves the matching item trailer [V1,V4]').item.item_id;
-    const target = add('Target item');
-    const author = wrong ? add('Source item') : target;
-    nativeJson(box, box.web, 'claim', String(author));
+      'Files: web/feature.txt\nChange: commit the native submit fixture payload.\nTest: native submit preserves the matching item trailer [V1,V4]')).item.item_id;
+    const target = await add('Target item');
+    const author = wrong ? await add('Source item') : target;
+    await nativeJson(box, box.web, 'claim', String(author));
     const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add feature [G1]');
     assert.equal(committed.status, 0, committed.stderr);
     const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
     assert.match(box.git(box.web, 'show', '-s', '--format=%B', head), new RegExp(`Pullboard-Item: #${author}\\b`));
     if (wrong) {
-      nativeJson(box, box.web, 'release', String(author), '--reason', 'OTHER', '--note', 'Retain source to exercise wrong-item submission.', '--no-next');
-      nativeJson(box, box.web, 'claim', String(target));
-      const refused = box.run(box.web, 'submit', String(target), '--no-next', '--json');
+      await nativeJson(box, box.web, 'release', String(author), '--reason', 'OTHER', '--note', 'Retain source to exercise wrong-item submission.', '--no-next');
+      await nativeJson(box, box.web, 'claim', String(target));
+      const refused = await box.runLocal(box.web, 'submit', String(target), '--no-next', '--json');
       assert.notEqual(refused.code, 0);
       const refusal = JSON.parse(refused.out);
       assert.equal(refusal.error.code, 'WRONG_BRANCH');
       assert.match(refusal.error.message, new RegExp(`#${author}\\b`));
-      assert.equal(nativeJson(box, box.web, 'show', String(target)).item_status, 'claimed');
+      assert.equal((await nativeJson(box, box.web, 'show', String(target))).item_status, 'claimed');
     } else {
-      nativeJson(box, box.web, 'submit', String(target), '--no-next');
-      const shown = nativeJson(box, box.web, 'show', String(target));
+      await nativeJson(box, box.web, 'submit', String(target), '--no-next');
+      const shown = await nativeJson(box, box.web, 'show', String(target));
       assert.equal(shown.item_status, 'submitted');
       assert.equal(shown.item_commit, head);
       const submission = shown.thread.findLast(row => row.kind === 'submit');

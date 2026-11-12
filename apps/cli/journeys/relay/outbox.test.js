@@ -79,7 +79,7 @@ test('a move on an accepted relay link waits in the ordered outbox while the rel
   const last = await box.cliLocal('shout', 'all', 'queued last while the relay is down');
   assert.equal(last.code, 0, last.failure);
 
-  const waiting = await box.cli('status');
+  const waiting = await box.cliLocal('status');
   assert.deepEqual(waiting.document.relay.outbox.map((move) => [move.operation, move.item]), [['shout', null], ['withdraw', contested], ['shout', null]],
     'pullboard status lists the queued moves in the order they were made');
   const shown = await box.cliLocal('show', String(contested));
@@ -94,7 +94,7 @@ test('a move on an accepted relay link waits in the ordered outbox while the rel
   const raced = await other.cli('withdraw', String(contested), 'the other machine withdrew it first');
   assert.equal(raced.code, 0, raced.failure);
 
-  const replayed = await box.cli('status');
+  const replayed = await box.cliLocal('status');
   assert.equal(replayed.code, 0, replayed.failure);
   assert.equal(replayed.document.relay.outbox, undefined, 'the outbox is empty once it replays');
   const refusals = replayed.document.relay.outboxRefusals;
@@ -131,7 +131,7 @@ test('an item added while the relay is down keeps its queued moves when another 
   assert.equal(first.code, 0, first.failure);
   assert.equal(first.document.item.item_id, local, 'the other machine takes the number this machine used offline');
 
-  const replayed = await box.cli('status');
+  const replayed = await box.cliLocal('status');
   assert.equal(replayed.code, 0, replayed.failure);
   assert.equal(replayed.document.relay.outbox, undefined, 'the outbox is empty once it replays');
   assert.equal(replayed.document.relay.outboxRefusals, undefined, 'nothing is refused: the queued withdraw follows its own item');
@@ -172,7 +172,7 @@ test('an offline hand-off keeps its own item number after another machine adds [
   const remote = await (await otherAgent(box, other))('add', box.lane, 'Remote item takes the offline number');
   assert.equal(remote.code, 0, remote.failure);
   assert.equal(remote.document.item.item_id, local);
-  const replayed = await box.cli('status');
+  const replayed = await box.cliLocal('status');
   assert.equal(replayed.code, 0, replayed.failure);
   assert.equal(replayed.document.relay.outboxRefusals, undefined, 'the fact and take follow their own hand-off instead of the remote item');
   assert.deepEqual(replayed.document.relay.outboxRenumbered, [{ was: local, is: local + 1 }]);
@@ -201,7 +201,7 @@ test('an offline item stays bound to its queued moves through a replay that stop
   assert.equal((await agent('add', box.lane, 'Remote item takes the first number')).document.item.item_id, first);
   // The relay takes the first replayed add, then stops answering reads and moves, so the replay stops part way.
   box.beforeNextMove(() => { box.refuseReads(true); box.refuseMoves(true); });
-  await box.cli('status');
+  await box.cliLocal('status');
   const shown = (await box.cliLocal('export')).document.tables.item.find((row) => row.item_title === 'Second item added here offline').item_id;
   assert.notEqual(shown, second, 'the part-way replay shows the second item under a new number here');
   const withdrawn = await box.cliLocal('withdraw', String(shown), 'withdrawn here at the number this machine shows');
@@ -211,7 +211,7 @@ test('an offline item stays bound to its queued moves through a replay that stop
   assert.equal((await agent('add', box.lane, 'Remote item takes the shown number')).document.item.item_id, shown,
     'the other machine takes the number this machine showed');
 
-  const replayed = await box.cli('status');
+  const replayed = await box.cliLocal('status');
   assert.equal(replayed.code, 0, replayed.failure);
   assert.equal(replayed.document.relay.outbox, undefined, 'the outbox is empty once it replays');
   for (const machine of [box, other]) {
@@ -316,7 +316,7 @@ test('a milestone edit naming an offline item follows that item when another mac
   await box.restartRelay();
   assert.equal((await (await otherAgent(box, other))('add', box.lane, 'Added there first')).document.item.item_id, local, 'the other machine takes the number used offline');
 
-  const replayed = await box.cli('status');
+  const replayed = await box.cliLocal('status');
   assert.equal(replayed.code, 0, replayed.failure);
   assert.equal(replayed.document.relay.outboxRefusals, undefined, 'nothing is refused');
   for (const machine of [box, other]) {

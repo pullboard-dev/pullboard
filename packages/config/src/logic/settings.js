@@ -124,6 +124,7 @@ export function loadMachineSettings() {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.pullPilot in ${file} must be { "items": [item numbers], "share": 0 through 100 }; remove it to send every submit through the controller path`);
   }
   if (value.gate?.localRunner !== undefined && typeof value.gate.localRunner !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.localRunner in ${file} must be true or false`);
+  if (value.gate?.localLoadShare !== undefined && (!Number.isFinite(value.gate.localLoadShare) || value.gate.localLoadShare <= 0)) throw new Refused('BAD_MACHINE_SETTINGS', `gate.localLoadShare in ${file} must be a number above 0: the load per core below which the local runner takes a job`);
   if (value.gate?.submitAuthorization !== undefined && !['runner', 'local'].includes(value.gate.submitAuthorization)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.submitAuthorization in ${file} must be "runner" or "local"`);
   }
@@ -213,6 +214,7 @@ export function validateRunner(value) {
     }
   }
   if (value.fixed !== undefined && typeof value.fixed !== 'boolean') throw new Refused('BAD_RUNNER', 'runner fixed must be true or false');
+  if (value.drain !== undefined && typeof value.drain !== 'boolean') throw new Refused('BAD_RUNNER', 'runner drain must be true or false');
   for (const key of ['cores', 'memoryMB']) {
     if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 1)) throw new Refused('BAD_RUNNER', `runner ${key} must be a positive whole number measured on the runner`);
   }
@@ -221,7 +223,7 @@ export function validateRunner(value) {
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
-    ...(value.fixed === true ? { fixed: true } : {}),
+    ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
     ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };
 }
 

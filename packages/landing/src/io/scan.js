@@ -22,6 +22,7 @@ const PLAN = 'packages/codemap/data/plan/cells.json';
 /** The `file:line: text` rows the static-check reader attributes to items, from a module-resolution refusal. */
 function resolutionRows(error) {
   if (error.code === 'LAND_MODULE_PARSE') return (error.broken?.length ? error.broken : ['(composed tree)']).map(file => `${file}:1: ${error.code} ${error.message}`);
+  if (error.code === 'LANDING_SECRET') return error.found.map(where => `${where.slice(where.lastIndexOf(' at ') + 4)}: ${error.code} ${where.slice(0, where.lastIndexOf(' at '))}`);
   if (error.code !== 'LAND_MODULE_RESOLUTION') throw error;
   const listed = error.message.replace(/^[^:]*targets: /u, '').replace(/; restore or repoint.*$/u, '');
   return listed.split('; ').map(part => `${part.split(': ')[0]}:1: ${error.code} ${part}`);

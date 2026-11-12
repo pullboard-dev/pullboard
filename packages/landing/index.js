@@ -60,7 +60,7 @@ export * from "./src/io/history.js";
 export * from "./src/io/train/repoints.js";
 export * from "./src/io/post/land.js";
 export * from "./src/io/plan/check.js";
-export { requireLandingCompanions, requireLandingModuleResolution } from './src/io/guards.js';
+export { requireLandingCompanions, requireLandingModuleResolution, requireLandingSecretFree } from './src/io/guards.js';
 export { finishLanding, LANDING_FINISH_STEPS } from './src/io/finish.js';
 export * from './light.js';
 export { PHASE_LINE } from './src/io/timing.js';

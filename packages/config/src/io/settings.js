@@ -176,11 +176,12 @@ export function submitAuthorizationMode() {
 }
 
 /**
- * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
- * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
+ * How a runner job is watched: `pull` (default) offers each job as a row a runner takes and waits on a shared status
+ * mirror in the caller; `controller` holds one process per job until its result [C7,P7,#5465]. Why pull by default: a
+ * fresh board's gate then runs on the zero-setup loopback runner, so no command holds this machine while it runs.
  */
 export function runnerDispatchMode() {
-  return loadMachineSettings().gate?.runnerDispatch === 'pull' ? 'pull' : 'controller';
+  return loadMachineSettings().gate?.runnerDispatch === 'controller' ? 'controller' : 'pull';
 }
 
 /**
@@ -212,6 +213,15 @@ export function pullGateFor(item) {
  */
 export function localRunnerEnabled() {
   return loadMachineSettings().gate?.localRunner !== false;
+}
+
+/**
+ * The load per core below which the local runner takes a job: gate.localLoadShare, default 1.0. Why: with no runners the
+ * machine runs its own gates, and taking one at any load thrashed a busy Mac; a job waits in the queue instead [P7].
+ */
+export function localLoadShare() {
+  const share = loadMachineSettings().gate?.localLoadShare;
+  return Number.isFinite(share) && share > 0 ? share : 1;
 }
 
 /**
@@ -444,6 +454,28 @@ export function recordRunnerMeasurement(host, observation) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/**
+ * Take a registered runner out of rotation (`drain`) or back in: dispatch and pull claims give it no new job, its running
+ * jobs keep their leases and finish. Why: a runner jammed overnight and nothing could rest it while a fix rolled out.
+ */
+export function setRunnerDrain(host, drain) {
+  return updateRunnerSettings(host, () => {
+    const current = loadMachineSettings();
+    const index = (current.runners ?? []).findIndex(runner => runner.host === host);
+    if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is not registered`, 'run pullboard runner list');
+    const { drain: _drained, ...rest } = current.runners[index];
+    const runner = validateRunner(drain ? { ...rest, drain: true } : rest);
+    const runners = [...current.runners]; runners[index] = runner;
+    writeMachineSettings({ ...current, runners });
+    return runner;
+  }, { observation: true });
+}
+
+/** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */
+export function drainedRunnerHosts() {
+  return (loadMachineSettings().runners ?? []).filter(runner => runner.drain === true).map(runner => runner.host);
 }
 
 /** Stop dispatching to a runner immediately; admitted jobs keep their leases until they finish. */

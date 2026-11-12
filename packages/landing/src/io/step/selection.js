@@ -194,9 +194,11 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const pending = all.filter((item) => (proven ? proven.has(item.item_id) && item.item_status !== 'withdrawn' : item.item_status === 'verified') && !item.item_merged_commit)
     .map((item) => (proven ? { ...item, item_commit: proven.get(item.item_id) } : item));
   const order = new Map();
-  // Only accept rows set the order; reading every event (380,000 on 9 Nov) cost each selection about 2 s [C7].
-  const accepts = board.db ? board.db.prepare("SELECT item_id, event_id, event_kind FROM event WHERE event_kind = 'accept' ORDER BY event_id").all() : store.events(board);
-  for (const event of accepts) if (event.event_kind === 'accept') order.set(event.item_id, event.event_id);
+  // Only each item's newest accept sets the order: one grouped query on the kind index, never the whole log (380,000 events cost about 2 s on 9 Nov) [C7].
+  const accepts = board.db
+    ? board.db.prepare("SELECT item_id, MAX(event_id) AS event_id FROM event WHERE event_kind = 'accept' GROUP BY item_id").all()
+    : store.events(board).filter((event) => event.event_kind === 'accept');
+  for (const event of accepts) order.set(event.item_id, event.event_id);
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
