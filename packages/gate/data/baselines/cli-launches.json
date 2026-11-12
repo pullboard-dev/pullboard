@@ -1713,7 +1713,7 @@
     "launch": 1
   },
   "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "packages/landing/tests/io/step/gate/reporter.test.js": {
     "launch": 1
