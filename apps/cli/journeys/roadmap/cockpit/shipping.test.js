@@ -5,10 +5,12 @@ import assert from 'node:assert/strict';
 import {
   mkdtempSync,
   rmSync,
+  readFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import {
   machine,
   project,
@@ -26,21 +28,29 @@ import {
   landRoadmapItem,
 } from '../../../tests/fixtures/cockpit/roadmap.js';
 
+/** Pins controller dispatch: the fixture's accept reads the commit a controller submit records at once; pull leaves it to the gate job [P7]. */
+function pinController(box) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let settings = {};
+  try { settings = JSON.parse(readFileSync(file, 'utf8')); } catch { /* no settings written yet */ }
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
+}
+
 test('a milestone lists work to ship first, shipped below, and no withdrawn items [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for shipping-order checks.');
-  const box = machine();
+  const box = machine(); pinController(box);
   const alpha = project(box, 'shipping-rows');
   for (const title of ['First verified', 'First open', 'Second verified', 'Dropped idea', 'Second open']) {
-    box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   }
   for (const id of [1, 3]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
-  box.run(alpha.repo, 'withdraw', '4', 'not needed');
+  await box.inProcess(alpha.repo, 'withdraw', '4', 'not needed');
   // Placing an item in an open release takes it out of the other open ones (2a3a0f7555), so Shipped ships before Next
   // takes the same items; a shipped release keeps its history.
-  box.run(alpha.repo, 'milestone', 'add', 'Shipped', '--reason', 'Arrange fixture release', '--items', '1,4,3');
-  box.run(alpha.repo, 'milestone', 'ship', 'Shipped');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '3,2,4,1,5');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Shipped', '--reason', 'Arrange fixture release', '--items', '1,4,3');
+  await box.inProcess(alpha.repo, 'milestone', 'ship', 'Shipped');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '3,2,4,1,5');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shipping-rows-chrome-'));
   let chrome;
@@ -100,12 +110,12 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
 test('the roadmap chips keep their scroll through a redraw with wide fonts [N26]', async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Roadmap chip row.');
-  const box = machine();
+  const box = machine(); pinController(box);
   const alpha = project(box, 'roadmap-chips-wide');
-  box.run(alpha.repo, 'add', 'web', 'Next release item', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Next release item', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '1');
   for (const name of ['0.8.8', '0.8.9', '0.8.10', '0.8.11', '0.8.12', '0.8.13', '0.8.14', '0.8.15', '0.8.16', '0.8.17', '0.8.18', '0.8.19']) {
-    box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Queued after the next release.');
+    await box.inProcess(alpha.repo, 'milestone', 'add', name, '--note', 'Queued after the next release.');
   }
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-chips-wide-'));
@@ -167,17 +177,17 @@ test('the roadmap keeps every upcoming release open [N26]', {
 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for roadmap disclosure checks.');
-  const box = machine();
+  const box = machine(); pinController(box);
   const alpha = project(box, 'all-upcoming-open');
-  for (const title of ['Shipped one', 'Shipped two', 'Next release', 'Later release']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Shipped one', 'Shipped two', 'Next release', 'Later release']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   for (const id of [1, 2]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
-  box.run(alpha.repo, 'milestone', 'add', '0.1', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.2', '--reason', 'Arrange fixture release', '--items', '2');
-  box.run(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3');
-  box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued next.', '--reason', 'Arrange fixture release', '--items', '4');
-  box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'No work filed yet.');
-  box.run(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
-  box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3', '--as', 'person', '--reason', 'Arrange fixture release'); // a second ship is the person's past the coordinator-actions ratchet
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.1', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.2', '--reason', 'Arrange fixture release', '--items', '2');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued next.', '--reason', 'Arrange fixture release', '--items', '4');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Later', '--note', 'No work filed yet.');
+  await box.inProcess(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
+  await box.inProcess(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3', '--as', 'person', '--reason', 'Arrange fixture release'); // a second ship is the person's past the coordinator-actions ratchet
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-all-upcoming-open-chrome-'));
   let chrome;
