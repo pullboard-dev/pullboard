@@ -114,10 +114,10 @@ test('a line setting change is a recorded move with its reason and its range [R1
   let board, replica;
   t.after(() => { if (replica) store.closeBoard(replica); if (board) store.closeBoard(board); fixtures.cleanup(); });
   const box = fixtures.project('true');
-  const initial = (await box.runLocal(box.repo, 'settings', 'line', '--json'));
+  const initial = box.run(box.repo, 'settings', 'line', '--json');
   const numbers = { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 };
-  const changed = (await box.runLocal(box.repo, 'settings', 'line', 'reviewsFirst', 'on', '--reason', 'Review waiting exceeds the target',
-    '--window', JSON.stringify(numbers), '--json'));
+  const changed = box.run(box.repo, 'settings', 'line', 'reviewsFirst', 'on', '--reason', 'Review waiting exceeds the target',
+    '--window', JSON.stringify(numbers), '--json');
   assert.equal(changed.code, 0, `a board setting change succeeds: ${changed.err}${changed.out}`);
   assert.equal(initial.code, 0, initial.err);
   const defaults = { 'route.liveOnly': false, order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, requireReviewFamilies: false, reworkSameFamily: false, returnRejectedWork: false, wipPerReviewer: false, barReady: false,

@@ -146,21 +146,21 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
 
 test('a read command loads only its own modules [C7]', async (t) => {
   const box = fixture(t);
-  const version = (await box.runLocal('--version'));
+  const version = box.run('--version');
   assert.match(version.stdout, /^\d+\.\d+\.\d+/u);
   assert.ok(version.modules.length <= 10, `--version loaded ${version.modules.length} repository modules: ${version.modules.join(', ')}`);
   assert.equal(version.gitCalls.length, 0, `--version started Git: ${version.gitCalls.join(' | ')}`);
-  const show = (await box.runLocal('show', '1'));
+  const show = box.run('show', '1');
   assert.match(show.stdout, /^#1 {2}/u);
   assert.deepEqual(show.modules.filter((path) => HEAVY.includes(path)), [], 'show loads no gate, relay or land module');
   assert.ok(show.gitCalls.length <= 2, `show started ${show.gitCalls.length} Git processes: ${show.gitCalls.join(' | ')}`);
-  const status = (await box.runLocal('status', '--json'));
+  const status = box.run('status', '--json');
   assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
   assert.deepEqual(status.modules.filter((path) => HEAVY.includes(path)), [], 'offline status loads no gate, relay or land module');
   // Status prints its review-queue line without the move registry, which loads every move and the engines behind them.
   assert.deepEqual(status.modules.filter((path) => path.startsWith('src/moves/') || path.startsWith('packages/moves/src/')), [],
     'offline status loads no move module');
-  const list = (await box.runLocal('list', '--json'));
+  const list = box.run('list', '--json');
   assert.equal(JSON.parse(list.stdout).items.length, 1);
   assert.deepEqual(list.modules.filter((path) => HEAVY.includes(path)), [], 'list loads no gate, relay or land module');
   // One rev-parse in the worktree answers top level, Git dirs, HEAD and the primary checkout for the whole process;

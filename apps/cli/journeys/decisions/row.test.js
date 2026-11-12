@@ -34,6 +34,7 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
 import { fetchFresh } from "../../tests/fixtures/http.js";
+import { runCliInProcess } from "../../tests/fixtures/process.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC_FILE = 'SPEC.md';
@@ -107,7 +108,12 @@ function sandbox() {
       cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv }, encoding: 'utf8',
     });
   }
-  return { dir, env, git, run };
+  /** The same command through the production dispatch in this process, in the child result's shape [C7]. */
+  async function runLocal(cwd, args, extraEnv = {}) {
+    const result = await runCliInProcess(args, { cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv } });
+    return { status: result.code, stdout: result.stdout, stderr: result.stderr };
+  }
+  return { dir, env, git, run, runLocal };
 }
 
 test('[C7] the private runner keeps Git identity detection disabled after fixtures strip GIT_* variables', () => {

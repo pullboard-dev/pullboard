@@ -109,8 +109,8 @@ function freshBoard() {
 }
 
 /** Run one command with --json and return its document, failing with its output. */
-async function json(box, ...args) {
-  const result = (await box.runLocal(...args, '--json'));
+function json(box, ...args) {
+  const result = box.run(...args, '--json');
   assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
   return JSON.parse(result.stdout);
 }
@@ -176,7 +176,7 @@ function noticeHistory(box) {
   return history(box.file, { freeze: item => frozenCriterion(loadSpec(box.repo, config), item, loadDoctrine(box.repo, config)) });
 }
 
-test('engine 43 repeated-cause notices retain their deferred proved-draft workflow [D1,D3,H16]', async () => {
+test('engine 43 repeated-cause notices retain their deferred proved-draft workflow [D1,D3,H16]', () => {
   const box = freshBoard();
   const proof = noticeProof(box);
   const historyBox = noticeHistory(box);
@@ -185,49 +185,49 @@ test('engine 43 repeated-cause notices retain their deferred proved-draft workfl
   const ids = ['First', 'Second', 'Third', 'After decline', 'Still quiet'].map(historyBox.add);
   const notices = () => store.allShouts(historyBox.board).filter(shout => shout.shout_from === 'rigor');
   historyBox.submit(ids[0], proof.red); historyBox.reject(ids[0], cause);
-  assert.equal((await notices()).length, 0);
+  assert.equal(notices().length, 0);
   historyBox.submit(ids[1], proof.red); historyBox.reject(ids[1], cause);
-  assert.equal((await notices()).length, 1, 'the reject crossing the repeat threshold tells the coordinator');
-  assert.equal((await notices())[0].shout_to, 'coordinator');
-  assert.ok((await notices())[0].shout_text.includes(cause));
-  for (const id of ids.slice(0, 2)) assert.ok((await notices())[0].shout_text.includes(`#${id}`));
-  assert.ok((await notices())[0].shout_text.includes('pullboard rigor draft'));
-  assert.ok((await notices())[0].shout_text.includes('--red <commit> --green <commit>'));
+  assert.equal(notices().length, 1, 'the reject crossing the repeat threshold tells the coordinator');
+  assert.equal(notices()[0].shout_to, 'coordinator');
+  assert.ok(notices()[0].shout_text.includes(cause));
+  for (const id of ids.slice(0, 2)) assert.ok(notices()[0].shout_text.includes(`#${id}`));
+  assert.ok(notices()[0].shout_text.includes('pullboard rigor draft'));
+  assert.ok(notices()[0].shout_text.includes('--red <commit> --green <commit>'));
   historyBox.submit(ids[2], proof.red); historyBox.reject(ids[2], cause);
-  assert.equal((await notices()).length, 1, 'a third failure posts no duplicate');
-  assert.equal((await json(box, 'resume')).rigor.undrafted.find(entry => entry.key === cause).items.length, 3);
-  const text = (await box.runLocal('resume'));
+  assert.equal(notices().length, 1, 'a third failure posts no duplicate');
+  assert.equal(json(box, 'resume').rigor.undrafted.find(entry => entry.key === cause).items.length, 3);
+  const text = box.run('resume');
   assert.equal(text.status, 0, text.stderr);
   assert.ok(text.stdout.includes(`Rigor needs a proved draft: ${cause}`));
-  const draft = (await json(box, 'rigor', 'draft', cause, 'No TODO markers in source', '--check', 'grep -rn TODO src', '--red', proof.red, '--green', proof.green));
-  assert.equal((await json(box, 'resume')).rigor.undrafted.some(entry => entry.key === cause), false);
-  (await json(box, 'spec', 'decline', `doctrine:${draft.drafts[0].id}`, '--reason', 'This is not the rule we want'));
+  const draft = json(box, 'rigor', 'draft', cause, 'No TODO markers in source', '--check', 'grep -rn TODO src', '--red', proof.red, '--green', proof.green);
+  assert.equal(json(box, 'resume').rigor.undrafted.some(entry => entry.key === cause), false);
+  json(box, 'spec', 'decline', `doctrine:${draft.drafts[0].id}`, '--reason', 'This is not the rule we want');
   historyBox.submit(ids[0], proof.green); historyBox.reject(ids[0], cause);
-  assert.equal((await notices()).length, 1, 'a new commit on an old item does not undo the person’s decline');
-  assert.equal((await json(box, 'resume')).rigor.undrafted.some(entry => entry.key === cause), false);
+  assert.equal(notices().length, 1, 'a new commit on an old item does not undo the person’s decline');
+  assert.equal(json(box, 'resume').rigor.undrafted.some(entry => entry.key === cause), false);
   historyBox.submit(ids[3], proof.red); historyBox.reject(ids[3], cause);
-  assert.equal((await notices()).length, 2, 'a new item repeating after the decline tells the coordinator once');
+  assert.equal(notices().length, 2, 'a new item repeating after the decline tells the coordinator once');
   historyBox.submit(ids[4], proof.red); historyBox.reject(ids[4], cause);
-  assert.equal((await notices()).length, 2);
+  assert.equal(notices().length, 2);
   const receipts = store.events(historyBox.board).filter(event => event.event_kind === 'rigor-notice');
   assert.equal(receipts.length, 2);
   assert.ok(receipts.every(event => event.event_by === 'rigor' && JSON.parse(event.event_detail).engine === RIGOR_NOTICE_ENGINE));
   historyBox.close();
 });
 
-test('a Rigor draft reaches Needs-you with its proof [D1,D3,S1,P6]', async () => {
+test('a Rigor draft reaches Needs-you with its proof [D1,D3,S1,P6]', () => {
   const box = freshBoard();
   const proof = noticeProof(box);
   const historyBox = noticeHistory(box);
   const ids = ['Product first', 'Product second'].map(historyBox.add);
   for (const id of ids) { historyBox.submit(id, proof.red); historyBox.reject(id, 'row:G1'); }
   historyBox.close();
-  const draft = (await json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', '--check', 'test -f fixed.txt', '--red', proof.red, '--green', proof.green));
+  const draft = json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', '--check', 'test -f fixed.txt', '--red', proof.red, '--green', proof.green);
   const source = readRigorSource(draft.drafts[0].line.split(' | source: ')[1]);
   assert.equal(source.key, 'row:G1');
   assert.deepEqual(source.evidence.items.map(item => item.id), ids);
   assert.deepEqual([source.proof.red.commit, source.proof.red.exit, source.proof.green.commit, source.proof.green.exit], [proof.red, 1, proof.green, 0]);
-  const pending = (await json(box, 'resume'));
+  const pending = json(box, 'resume');
   const need = pending.needsYou.find(entry => entry.kind === 'rigor-draft');
   assert.ok(need, 'the proved Rigor row is an individual Needs-you call');
   assert.equal(need.target, `spec:${draft.drafts[0].id}`);
@@ -239,17 +239,17 @@ test('a Rigor draft reaches Needs-you with its proof [D1,D3,S1,P6]', async () =>
   assert.ok(need.text.includes(proof.red) && need.text.includes(proof.green));
   assert.equal(pending.rigor.undrafted.length, 0);
   assert.equal(pending.needsYou.filter(entry => entry.kind === 'draft').reduce((sum, entry) => sum + entry.count, 0),
-    (await json(box, 'spec')).rows.filter(row => row.status === 'draft' && row.id !== draft.drafts[0].id).length, 'the generic draft count does not count the Rigor row twice');
-  (await json(box, 'spec', 'approve', draft.drafts[0].id));
-  assert.equal((await json(box, 'resume')).needsYou.some(entry => entry.kind === 'rigor-draft'), false, 'the person’s pending approval closes the call');
-  (await json(box, 'spec', 'apply'));
-  const approved = (await json(box, 'spec')).rows.find(row => row.id === draft.drafts[0].id);
+    json(box, 'spec').rows.filter(row => row.status === 'draft' && row.id !== draft.drafts[0].id).length, 'the generic draft count does not count the Rigor row twice');
+  json(box, 'spec', 'approve', draft.drafts[0].id);
+  assert.equal(json(box, 'resume').needsYou.some(entry => entry.kind === 'rigor-draft'), false, 'the person’s pending approval closes the call');
+  json(box, 'spec', 'apply');
+  const approved = json(box, 'spec').rows.find(row => row.id === draft.drafts[0].id);
   assert.equal(approved.status, 'approved');
   assert.equal(approved.gate, 'test -f fixed.txt');
-  assert.equal((await json(box, 'resume')).rigor.undrafted.length, 0);
+  assert.equal(json(box, 'resume').rigor.undrafted.length, 0);
 });
 
-test('independent Rigor writer respects a lane draft reservation [D1,S1,B26]', async () => {
+test('independent Rigor writer respects a lane draft reservation [D1,S1,B26]', () => {
   const box = freshBoard();
   const config = join(box.repo, 'pullboard.json');
   writeFileSync(config, `${JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), lanes: { app: { owns: ['app/'] } } }, null, 2)}\n`);
@@ -262,35 +262,35 @@ test('independent Rigor writer respects a lane draft reservation [D1,S1,B26]', a
   box.git('worktree', 'add', '-q', lane, '-b', 'app/rows');
   /** Run the real CLI in the lane worktree. */
   const inLane = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: lane, env: box.env, encoding: 'utf8' });
-  const joined = (await inLane('join', 'app', '--model', 'Lane model'));
+  const joined = inLane('join', 'app', '--model', 'Lane model');
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   /** Draft a spec row from the lane and return its id. */
-  const laneDraft = async (text) => {
-    const drafted = (await inLane('spec', 'draft', text, '--json'));
+  const laneDraft = (text) => {
+    const drafted = inLane('spec', 'draft', text, '--json');
     assert.equal(drafted.status, 0, drafted.stdout + drafted.stderr);
     return JSON.parse(drafted.stdout).id;
   };
   // Lane first, then Rigor in the main checkout; then the lane again, while Rigor's row is still uncommitted there.
-  const laneFirst = (await laneDraft('A lane row drafted before Rigor'));
-  const rigor = (await json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', '--check', 'test -f fixed.txt', '--red', proof.red, '--green', proof.green));
+  const laneFirst = laneDraft('A lane row drafted before Rigor');
+  const rigor = json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', '--check', 'test -f fixed.txt', '--red', proof.red, '--green', proof.green);
   const rigorId = rigor.drafts[0].id;
-  const laneAfter = (await laneDraft('A lane row drafted after Rigor'));
+  const laneAfter = laneDraft('A lane row drafted after Rigor');
   assert.equal(new Set([laneFirst, rigorId, laneAfter]).size, 3, `every writer keeps its own id: ${laneFirst}, ${rigorId}, ${laneAfter}`);
   assert.equal(runFixtureGit(['status', '--porcelain'], { cwd: lane, env: box.env, encoding: 'utf8' }).trim(), '', 'the lane edits no file outside its lane');
 
-  const applied = (await box.runLocal('spec', 'apply'));
+  const applied = box.run('spec', 'apply');
   assert.equal(applied.status, 0, applied.stdout + applied.stderr);
   assert.doesNotMatch(applied.stdout, /holds other text/u);
-  const rows = (await json(box, 'spec')).rows;
+  const rows = json(box, 'spec').rows;
   const text = (id) => rows.find((row) => row.id === id)?.text ?? '';
   assert.equal(text(laneFirst), 'A lane row drafted before Rigor');
   assert.equal(text(laneAfter), 'A lane row drafted after Rigor');
   assert.match(text(rigorId), /^The fixed file exists Why: rigor row:G1/u);
   assert.ok([laneFirst, rigorId, laneAfter].every((id) => rows.find((row) => row.id === id)?.status === 'draft'), 'all three stay drafts for the person');
-  assert.notEqual((await inLane('spec', 'approve', laneFirst)).status, 0, 'a lane cannot approve its own draft; the person does');
+  assert.notEqual(inLane('spec', 'approve', laneFirst).status, 0, 'a lane cannot approve its own draft; the person does');
 });
 
-test('a lane draft made while a Rigor proof runs still keeps its id [D1,S1,B26]', async () => {
+test('a lane draft made while a Rigor proof runs still keeps its id [D1,S1,B26]', () => {
   const box = freshBoard();
   const config = join(box.repo, 'pullboard.json');
   writeFileSync(config, `${JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), lanes: { app: { owns: ['app/'] } } }, null, 2)}\n`);
@@ -315,15 +315,15 @@ test('a lane draft made while a Rigor proof runs still keeps its id [D1,S1,B26]'
     '}',
   ].join('\n'));
   const check = `node ${drafter} && test -f fixed.txt`;
-  const rigor = (await json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', '--check', check, '--red', proof.red, '--green', proof.green));
+  const rigor = json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', '--check', check, '--red', proof.red, '--green', proof.green);
   const midProof = JSON.parse(readFileSync(result, 'utf8'));
   assert.equal(midProof.status, 0, midProof.out);
   const laneId = JSON.parse(midProof.out).id;
   assert.notEqual(rigor.drafts[0].id, laneId, `Rigor's ${rigor.drafts[0].id} skips the lane draft made during its proof`);
-  const applied = (await box.runLocal('spec', 'apply'));
+  const applied = box.run('spec', 'apply');
   assert.equal(applied.status, 0, applied.stdout + applied.stderr);
   assert.doesNotMatch(applied.stdout, /holds other text/u);
-  assert.equal((await json(box, 'spec')).rows.find((row) => row.id === laneId)?.text, 'A lane row drafted mid-proof');
+  assert.equal(json(box, 'spec').rows.find((row) => row.id === laneId)?.text, 'A lane row drafted mid-proof');
 });
 
 test('automatic Rigor notices retain old replay and include reopen and never-again [D1,H16]', () => {
@@ -380,9 +380,9 @@ test('unreadable historical decline metadata cannot abort or silence a repeated 
   recorded.close();
 });
 
-test('a repeated failure cause is noticed [D1,V1]', async () => {
+test('a repeated failure cause is noticed [D1,V1]', () => {
   const box = freshBoard();
-  const before = (await json(box, 'rigor'));
+  const before = json(box, 'rigor');
   assert.deepEqual(before.causes, [], 'an empty board has no repeated cause');
 
   const catalog = 'test:apps/cli/journeys/milestone/api.test.js::[A1] every catalog command and subcommand has a real CLI exercise';
@@ -404,7 +404,7 @@ test('a repeated failure cause is noticed [D1,V1]', async () => {
   board.submit(conflictB); board.landReopen(conflictB, { file: 'src/sample-conflict.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
   board.close();
 
-  const repeated = (await json(box, 'rigor'));
+  const repeated = json(box, 'rigor');
   assert.deepEqual(repeated.causes.map((cause) => cause.key), [catalog, 'refusal:UNDECLARED_REFUSAL'],
     'the two repeats list, the single and the merge conflicts do not');
   const [test, refusal] = repeated.causes;
@@ -419,15 +419,15 @@ test('a repeated failure cause is noticed [D1,V1]', async () => {
   assert.equal(test.items.length, 2, 'the uncaused reject does not join the catalog cause');
 
   // A person's never-again lists at once, from one fact and no failure at all.
-  const marked = (await json(box, 'fact', String(single), 'root-cause', 'Every function keeps its JSDoc block', '--cause', 'doctrine:C3', '--never-again', '--as', 'person'));
+  const marked = json(box, 'fact', String(single), 'root-cause', 'Every function keeps its JSDoc block', '--cause', 'doctrine:C3', '--never-again', '--as', 'person');
   assert.equal(marked.fact.by, store.PERSON, 'the fact is the person’s');
   assert.equal(marked.fact.neverAgain, true);
-  const never = (await json(box, 'rigor'));
+  const never = json(box, 'rigor');
   assert.deepEqual(never.causes[0], { key: 'doctrine:C3', reads: 'work', occurrences: 0, neverAgain: true, items: [{ id: single, commits: [] }] },
     'the never-again lists first, at once');
   assert.equal(never.causes.length, 3);
 
-  const text = (await box.runLocal('rigor'));
+  const text = box.run('rigor');
   assert.equal(text.status, 0, text.stderr);
   const lines = text.stdout.trim().split('\n');
   assert.match(lines[0], /^doctrine:C3 {2}reads as work {2}never again \(the person\) {2}items #\d+$/u);
@@ -438,16 +438,16 @@ test('a repeated failure cause is noticed [D1,V1]', async () => {
   assert.equal(lines[4], 'coordinator instructions: none in 7 days; draft threshold 3');
   assert.equal(lines.length, 5, 'the single coarse verdict is not a repeat; the zero-uncaused footer remains explicit');
 
-  const help = (await box.runLocal('rigor', '--help'));
+  const help = box.run('rigor', '--help');
   assert.equal(help.status, 0, help.stderr);
   // One command's help ends at its example with no next line (041dbbaccc, json-output.js helpSubject).
   assert.doesNotMatch(help.stdout, /^next:/mu, 'Rigor help ends at its example');
-  const draft = (await box.runLocal('rigor', 'draft'));
+  const draft = box.run('rigor', 'draft');
   assert.notEqual(draft.status, 0, 'an incomplete drafting command remains refused');
   assert.match(draft.stdout + draft.stderr, /(?:^|\n)next: /u, 'actionable drafting refusals retain their guidance');
 });
 
-test('rigor reads old events by their structured fields only, never by their notes [D1,V1]', async () => {
+test('rigor reads old events by their structured fields only, never by their notes [D1,V1]', () => {
   const box = freshBoard();
   const board = history(box.file);
   board.board.executionEngineVersion = RIGOR_NOTICE_ENGINE;
@@ -461,15 +461,15 @@ test('rigor reads old events by their structured fields only, never by their not
   board.submit(third); board.reject(third, undefined, note);
   board.submit(fourth); board.reject(fourth, undefined, note);
   board.close();
-  const report = (await json(box, 'rigor'));
+  const report = json(box, 'rigor');
   assert.deepEqual(report.causes.map((cause) => [cause.key, cause.items.map((item) => item.id)]),
     [[`test:${landing.file}::${landing.name}`, [first, second]]], 'only the structured landing tests count');
   assert.equal(report.uncaused, 2, 'the two causeless rejects are counted as uncaused');
-  const text = (await box.runLocal('rigor'));
+  const text = box.run('rigor');
   assert.match(text.stdout, /^2 rejects and reopens carry no cause key; name one with --cause <key>/mu);
 });
 
-test('a cause key is checked, recorded on reject and reopen, and the person alone marks never-again [D1,V1,H16]', async () => {
+test('a cause key is checked, recorded on reject and reopen, and the person alone marks never-again [D1,V1,H16]', () => {
   const box = freshBoard();
   const board = history(box.file);
   const id = board.add('Checked');
@@ -499,31 +499,31 @@ test('a cause key is checked, recorded on reject and reopen, and the person alon
   board.close();
 
   // The coordinator's reopen records --cause through the CLI.
-  const reopenItem = (await json(box, 'add', 'coordinator', 'Reopen with a cause', '--criterion', 'Reopen records its cause.', '--check', 'true')).item;
+  const reopenItem = json(box, 'add', 'coordinator', 'Reopen with a cause', '--criterion', 'Reopen records its cause.', '--check', 'true').item;
   // The private person's acceptance permits this intentionally pre-green fixture check.
-  (await json(box, 'check', 'accept', String(reopenItem.item_id)));
-  (await json(box, 'claim', String(reopenItem.item_id)));
+  json(box, 'check', 'accept', String(reopenItem.item_id));
+  json(box, 'claim', String(reopenItem.item_id));
   // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit.
   writeFileSync(join(box.repo, 'reopen-cause.txt'), 'the work\n');
   box.git('add', 'reopen-cause.txt'); box.git('commit', '-q', '-m', 'chore: work for the reopen cause fixture');
-  (await json(box, 'submit', String(reopenItem.item_id), '--wait', '--no-next'));
-  refused((await box.runLocal('reopen', String(reopenItem.item_id), '--note', 'wrong bar', '--cause', 'wrong bar', '--json')), 'BAD_CAUSE', 'a reopen refuses a malformed cause');
-  (await json(box, 'reopen', String(reopenItem.item_id), '--note', 'the bar cites the wrong row', '--cause', 'row:G1'));
-  const reopened = (await json(box, 'log', String(reopenItem.item_id))).events.at(-1);
+  json(box, 'submit', String(reopenItem.item_id), '--wait', '--no-next');
+  refused(box.run('reopen', String(reopenItem.item_id), '--note', 'wrong bar', '--cause', 'wrong bar', '--json'), 'BAD_CAUSE', 'a reopen refuses a malformed cause');
+  json(box, 'reopen', String(reopenItem.item_id), '--note', 'the bar cites the wrong row', '--cause', 'row:G1');
+  const reopened = json(box, 'log', String(reopenItem.item_id)).events.at(-1);
   assert.equal(reopened.event_kind, 'reopen');
   assert.equal(JSON.parse(reopened.event_detail).cause, 'row:G1', 'the reopen records its cause key');
 
   // Only the person marks never-again; the coordinator alone, or without a cause, is refused.
-  refused((await box.runLocal('fact', String(id), 'root-cause', 'never again', '--cause', 'row:G1', '--never-again', '--json')), 'RIGOR_PERSON_ONLY', 'the coordinator alone cannot mark never-again');
+  refused(box.run('fact', String(id), 'root-cause', 'never again', '--cause', 'row:G1', '--never-again', '--json'), 'RIGOR_PERSON_ONLY', 'the coordinator alone cannot mark never-again');
   const agentShell = runFixtureChild(process.execPath, [BIN, 'fact', String(id), 'root-cause', 'never again', '--cause', 'row:G1', '--never-again', '--as', 'person', '--json'],
     { cwd: box.repo, env: { ...box.env, CLAUDECODE: '1' }, encoding: 'utf8' });
   refused(agentShell, 'B26_PERSON_CHANNEL', 'an agent shell cannot act as the person');
-  refused((await box.runLocal('fact', String(id), 'root-cause', 'never again', '--never-again', '--as', 'person', '--json')), 'BAD_CAUSE', 'a never-again names its cause');
-  const logged = (await json(box, 'log')).events.length;
-  const report = (await json(box, 'rigor'));
+  refused(box.run('fact', String(id), 'root-cause', 'never again', '--never-again', '--as', 'person', '--json'), 'BAD_CAUSE', 'a never-again names its cause');
+  const logged = json(box, 'log').events.length;
+  const report = json(box, 'rigor');
   assert.deepEqual(report.causes.map((cause) => cause.key), ['row:G1'], 'row:G1 on two items repeats');
   assert.equal(report.causes[0].reads, 'product');
-  assert.equal((await json(box, 'log')).events.length, logged, 'rigor is read-only: it records no move');
+  assert.equal(json(box, 'log').events.length, logged, 'rigor is read-only: it records no move');
 });
 
 test('reject, reopen and fact moves without a cause replay unchanged from engines 11 and 12 [D1,H16]', async (t) => {
@@ -628,29 +628,29 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
 
   // Without proof, or with a proof that is not red then green, nothing is drafted.
   const flags = (check, red, green) => ['--check', check, '--red', red, '--green', green];
-  const unrelatedRed = (await box.runLocal('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn TODO src', unrelatedBad, fix), '--json'));
+  const unrelatedRed = box.run('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn TODO src', unrelatedBad, fix), '--json');
   refused(unrelatedRed, 'RIGOR_UNPROVEN', 'a red commit outside the noticed failure receipts cannot prove this cause');
   assert.ok(JSON.parse(unrelatedRed.stdout).error.message.includes(bad), 'the refusal names the actual noticed receipt commit');
-  const unrelatedCheck = (await box.runLocal('rigor', 'draft', bothKey, 'Page titles are escaped', ...flags('! grep -rn TODO src', bad, fix), '--json'));
+  const unrelatedCheck = box.run('rigor', 'draft', bothKey, 'Page titles are escaped', ...flags('! grep -rn TODO src', bad, fix), '--json');
   refused(unrelatedCheck, 'RIGOR_UNPROVEN', 'an unrelated check cannot prove the named failing test');
   assert.ok(JSON.parse(unrelatedCheck.stdout).error.message.includes(bad), 'an unrelated check refusal names the noticed receipt commit');
-  refused((await box.runLocal('rigor', 'draft', bothKey, 'Page titles are escaped', ...flags('node --test test/page.test.js', bad, skippedGreen), '--json')), 'RIGOR_UNPROVEN', 'a skipped green test is no passing proof');
-  refused((await box.runLocal('rigor', 'draft', bothKey, 'Page titles are escaped', ...flags("node --test --test-name-pattern 'a different test' test/page.test.js", bad, fix), '--json')), 'RIGOR_UNPROVEN', 'a selector that excludes the noticed test is no proof');
-  const unchecked = (await box.runLocal('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', '--json'));
+  refused(box.run('rigor', 'draft', bothKey, 'Page titles are escaped', ...flags('node --test test/page.test.js', bad, skippedGreen), '--json'), 'RIGOR_UNPROVEN', 'a skipped green test is no passing proof');
+  refused(box.run('rigor', 'draft', bothKey, 'Page titles are escaped', ...flags("node --test --test-name-pattern 'a different test' test/page.test.js", bad, fix), '--json'), 'RIGOR_UNPROVEN', 'a selector that excludes the noticed test is no proof');
+  const unchecked = box.run('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', '--json');
   refused(unchecked, 'RIGOR_UNPROVEN', 'a draft without a check is unproven');
   assert.match(JSON.parse(unchecked.stdout).error.message, /no --check names the command that proves it/u, 'the refusal names the missing check');
-  const ungreen = (await box.runLocal('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', '--check', 'grep -rn TODO src', '--red', bad, '--json'));
+  const ungreen = box.run('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', '--check', 'grep -rn TODO src', '--red', bad, '--json');
   refused(ungreen, 'RIGOR_UNPROVEN', 'a draft without its green commit is unproven');
   assert.match(JSON.parse(ungreen.stdout).error.message, /no --green names the commit where the check passes/u);
-  refused((await box.runLocal('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn NEVER_PRESENT src', bad, fix), '--json')), 'RIGOR_UNPROVEN', 'a work check that finds no problem at red proves nothing');
-  refused((await box.runLocal('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn TODO src', fix, bad), '--json')), 'RIGOR_UNPROVEN', 'a check green at red and red at green proves nothing');
-  refused((await box.runLocal('rigor', 'draft', 'row:G1', 'The fixed file exists', ...flags('true', bad, fix), '--json')), 'RIGOR_UNPROVEN', 'a test that never fails proves nothing');
-  refused((await box.runLocal('rigor', 'draft', 'refusal:LONELY', 'Lonely rule', ...flags('test -f fixed.txt', bad, fix), '--json')), 'RIGOR_UNNOTICED', 'a cause that has not repeated cannot be drafted');
+  refused(box.run('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn NEVER_PRESENT src', bad, fix), '--json'), 'RIGOR_UNPROVEN', 'a work check that finds no problem at red proves nothing');
+  refused(box.run('rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn TODO src', fix, bad), '--json'), 'RIGOR_UNPROVEN', 'a check green at red and red at green proves nothing');
+  refused(box.run('rigor', 'draft', 'row:G1', 'The fixed file exists', ...flags('true', bad, fix), '--json'), 'RIGOR_UNPROVEN', 'a test that never fails proves nothing');
+  refused(box.run('rigor', 'draft', 'refusal:LONELY', 'Lonely rule', ...flags('test -f fixed.txt', bad, fix), '--json'), 'RIGOR_UNNOTICED', 'a cause that has not repeated cannot be drafted');
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specBefore, 'a refused draft writes no spec row');
   assert.equal(readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8'), doctrineBefore, 'a refused draft writes no doctrine row');
 
   // A work cause becomes a Doctrine row: gate: check, count: 0, its evidence and its proof.
-  const work = (await json(box, 'rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn TODO src', bad, fix)));
+  const work = json(box, 'rigor', 'draft', 'doctrine:C3', 'No TODO markers in shipped source', ...flags('grep -rn TODO src', bad, fix));
   assert.equal(work.reads, 'work');
   assert.deepEqual(work.evidence.items.map((item) => item.id), [workA, workB]);
   assert.deepEqual([work.proof.red.commit, work.proof.red.problems, work.proof.green.commit, work.proof.green.problems], [bad, 1, fix, 0]);
@@ -662,7 +662,7 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specBefore, 'a work cause writes no spec row');
 
   // A product cause becomes a spec row gated by its failing test.
-  const product = (await json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', ...flags('test -f fixed.txt', bad, fix)));
+  const product = json(box, 'rigor', 'draft', 'row:G1', 'The fixed file exists', ...flags('test -f fixed.txt', bad, fix));
   assert.equal(product.reads, 'product');
   assert.deepEqual([product.proof.red.exit, product.proof.green.exit], [1, 0], 'the test fails on the bad commit and passes on the fix');
   assert.equal(product.drafts.length, 1);
@@ -672,7 +672,7 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   assert.equal(readRigorSource(specRow.line.split(' | source: ')[1]).key, 'row:G1');
 
   // An unclear cause drafts both, and the person picks.
-  const both = (await json(box, 'rigor', 'draft', bothKey, 'Page titles are escaped', ...flags("node --test test/page.test.js", bad, fix)));
+  const both = json(box, 'rigor', 'draft', bothKey, 'Page titles are escaped', ...flags("node --test test/page.test.js", bad, fix));
   assert.equal(both.reads, 'both');
   assert.deepEqual(both.drafts.map((draft) => draft.file), ['DOCTRINE.md', 'SPEC.md']);
   const scanner = both.drafts.find(draft => draft.file === 'DOCTRINE.md').row.gate.slice('check '.length);
@@ -704,21 +704,21 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   } finally { store.closeBoard(sealedBoard); }
 
   // Nothing is approved or applied: every drafted row is a draft, and the board records no decision.
-  const rows = (await json(box, 'spec')).rows.filter((row) => [doctrineRow.id, specRow.id, ...both.drafts.map((draft) => draft.id)].includes(row.id));
+  const rows = json(box, 'spec').rows.filter((row) => [doctrineRow.id, specRow.id, ...both.drafts.map((draft) => draft.id)].includes(row.id));
   assert.equal(rows.length, 4);
   assert.ok(rows.every((row) => row.status === 'draft'), 'every drafted row is still a draft');
   assert.equal(rows.find((row) => row.id === doctrineRow.id).gate, 'check grep -rn TODO src');
-  const check = (await box.runLocal('spec', 'check'));
+  const check = box.run('spec', 'check');
   assert.equal(check.status, 0, `the drafted rows parse cleanly: ${check.stdout}${check.stderr}`);
-  assert.ok(!(await json(box, 'log')).events.some((event) => ['row_decision', 'row_apply'].includes(event.event_kind)), 'the command approved and applied nothing');
+  assert.ok(!json(box, 'log').events.some((event) => ['row_decision', 'row_apply'].includes(event.event_kind)), 'the command approved and applied nothing');
 
   // The person's approval applies through the usual spec apply, with no extra item filed.
-  const itemsBefore = (await json(box, 'list', '--all')).items.length;
-  (await json(box, 'spec', 'approve', `doctrine:${doctrineRow.id},${specRow.id}`));
-  (await json(box, 'spec', 'apply'));
-  const applied = (await json(box, 'spec')).rows.filter((row) => drafted.includes(row.id));
+  const itemsBefore = json(box, 'list', '--all').items.length;
+  json(box, 'spec', 'approve', `doctrine:${doctrineRow.id},${specRow.id}`);
+  json(box, 'spec', 'apply');
+  const applied = json(box, 'spec').rows.filter((row) => drafted.includes(row.id));
   assert.deepEqual(applied.map((row) => row.status), ['approved', 'approved'], 'the person approved both rows and spec apply applied them');
-  assert.equal((await json(box, 'list', '--all')).items.length, itemsBefore, 'approval files no proof-building item; the draft already carries its proof');
+  assert.equal(json(box, 'list', '--all').items.length, itemsBefore, 'approval files no proof-building item; the draft already carries its proof');
 });
 
 
