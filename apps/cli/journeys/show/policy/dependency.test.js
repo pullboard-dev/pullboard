@@ -21,6 +21,8 @@ import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
+// Claim and submit stay processes: in-process, a later board write by another identity runs the lapsed-claim sweep, which
+// returns an api claim that waits on a submitted but unlanded dependency, so submit refuses NOT_YOURS (#6003).
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -54,11 +56,11 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   };
   /** Claim, commit, and submit one fixture item through the real CLI lifecycle. */
   const buildAndSubmit = async (cwd, lane, id, path, content) => {
-    assert.equal((await box.runLocal(cwd, 'claim', String(id))).code, 0, `claim #${id}`);
+    assert.equal(box.run(cwd, 'claim', String(id)).code, 0, `claim #${id}`);
     const spec = lane === 'api' ? 'G2' : 'G1';
     const commit = commitFile(box, cwd, path, content, `feat(${lane}): fixture item [${spec}]`);
     assert.equal(commit.status, 0, commit.stderr || commit.failure || `commit #${id}`);
-    const submitted = await box.runLocal(cwd, 'submit', String(id), '--json');
+    const submitted = box.run(cwd, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.err || submitted.out);
     return box.git(cwd, 'rev-parse', 'HEAD');
   };
@@ -79,11 +81,11 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   await accept(box.web, apiItem, 'the api middle submitted cleanly');
 
   const designItem = await add('design', 'transitive design target', apiItem);
-  assert.equal((await box.runLocal(design, 'claim', String(designItem))).code, 0);
+  assert.equal(box.run(design, 'claim', String(designItem)).code, 0);
   box.git(design, 'merge', '-q', '--ff-only', 'api/one');
   const targetChange = commitFile(box, design, 'design/target.txt', 'target bytes\n', 'feat(design): target fixture [G1]');
   assert.equal(targetChange.status, 0, targetChange.stderr || targetChange.failure || 'target commit');
-  const submitted = await box.runLocal(design, 'submit', String(designItem), '--json');
+  const submitted = box.run(design, 'submit', String(designItem), '--json');
   const submitFailure = submitted.out ? JSON.parse(submitted.out).error?.code : submitted.err;
   assert.equal(submitted.code, 0, submitFailure);
   const targetCommit = box.git(design, 'rev-parse', 'HEAD');
