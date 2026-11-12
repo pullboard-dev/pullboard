@@ -1877,9 +1877,6 @@
   "apps/cli/journeys/sync/main.test.js": {
     "launch": 9
   },
-  "apps/cli/journeys/test/budget.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/test/command.test.js": {
     "launch": 5
   },
@@ -1892,17 +1889,11 @@
   "apps/cli/journeys/test/placement.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/test/pull.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/test/resources.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/test/run/binding.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/test/run/compare.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/test/run/queued.test.js": {
     "launch": 6
@@ -1910,11 +1901,8 @@
   "apps/cli/journeys/test/runners.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/test/selection.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/test/selection/landing.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
