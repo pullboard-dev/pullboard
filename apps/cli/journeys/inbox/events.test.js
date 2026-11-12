@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -29,6 +30,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { liveFrames } from '../../tests/fixtures/http/stream.js';
 import { largeBoard } from '../../tests/fixtures/board/large.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
 import { residentPoolSize } from '../../src/io/resident/client.js';
 import { residentSocket } from '../../src/io/resident/client.js';
@@ -80,6 +82,10 @@ async function viewHttpBox(t, existing = null) {
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {
   const box = await httpBox(t);
+  // This test never registers a runner, so its submit and next --verify must settle in the command: pin controller dispatch [P7].
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   const one = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-one');
   const two = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-two');
   const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1', brief: FIXTURE_BRIEF } });
