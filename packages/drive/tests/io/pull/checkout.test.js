@@ -11,7 +11,7 @@ import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
-/** A trunk repository with two commits: one ignoring `*.log`, and one adding `second.txt`; and an empty runner cache. */
+/** A trunk repository with two commits: one ignoring `*.log` and tagged v0.0.1, and one adding `second.txt`; and an empty runner cache. */
 function trunkRepo(t) {
   const { root: trunk } = privateFixtureFiles('pullboard-reuse-trunk-');
   const { root: cache } = privateFixtureFiles('pullboard-reuse-cache-');
@@ -23,6 +23,7 @@ function trunkRepo(t) {
   sh('add', '.');
   sh('commit', '-q', '-m', 'one');
   const first = sh('rev-parse', 'HEAD');
+  sh('tag', '-a', 'v0.0.1', '-m', 'release');
   writeFileSync(join(trunk, 'second.txt'), 'two\n');
   sh('add', '.');
   sh('commit', '-q', '-m', 'two');
@@ -54,6 +55,7 @@ function fakeBoard(trunk, jobs) {
 function job(stamp) {
   const script = `const fs=require('node:fs');const cp=require('node:child_process');console.log('START '+Date.now());console.log('CWD '+process.cwd());`
     + `console.log('FILES '+JSON.stringify(fs.readdirSync('.').filter(f=>f!=='.git').sort()));`
+    + `console.log('RELEASE '+cp.execFileSync('git',['rev-parse','v0.0.1^{commit}'],{encoding:'utf8'}).trim());`
     + `console.log('TRUNK '+cp.execFileSync('git',['config','pullboard.trunk'],{encoding:'utf8'}).trim());`
     + `console.log('STATUS '+JSON.stringify(cp.execFileSync('git',['status','--porcelain','--ignored'],{encoding:'utf8'})));`
     + (stamp ? `fs.writeFileSync('tracked.txt','dirty\\n');fs.writeFileSync('left.txt','x');fs.writeFileSync('run.log','x');fs.mkdirSync('out/deep',{recursive:true});fs.writeFileSync('out/deep/a','x');` : '');
@@ -72,7 +74,7 @@ async function serveAll(t, jobs) {
   const board = fakeBoard(trunk, jobs({ first, second }));
   const stop = new AbortController();
   const sleep = async () => { stop.abort(); };
-  await serveRunner({ board: BOARD, runner: 'r-reuse', capabilities: [], cache, signal: stop.signal, fetchImpl: board.fetchImpl, sleep, timing: { idleMs: 1 } });
+  await serveRunner({ board: BOARD, runner: 'r-reuse', capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep, timing: { idleMs: 1 } });
   return { ...board, first, second };
 }
 
@@ -95,4 +97,11 @@ test('clause 2: a reused checkout carries no file from the previous job [P7]', {
     assert.deepEqual(JSON.parse(field(receipts[1], 'FILES')), ['.gitignore', 'tracked.txt'], 'only the second commit\'s files, none the first job wrote or its commit had');
     assert.equal(JSON.parse(field(receipts[1], 'STATUS')), '', 'no tracked change, untracked or ignored file survives');
     assert.equal(readFileSync(join(field(receipts[1], 'CWD'), 'tracked.txt'), 'utf8'), 'original\n');
+  });
+
+test('a fresh and a reused checkout both resolve the trunk\'s release tags, which pulled proofs unpack old releases from [P7]', { timeout: 60_000 }, // budget: as clause 1.
+  async t => {
+    const { receipts, first } = await serveAll(t, ({ first, second }) => [{ id: 'j1', commit: second, run: job(false) }, { id: 'j2', commit: first, run: job(false) }]);
+    assert.equal(receipts.length, 2, JSON.stringify(receipts));
+    assert.deepEqual(receipts.map(receipt => field(receipt, 'RELEASE')), [first, first], receipts.map(receipt => receipt.tail).join('\n'));
   });
