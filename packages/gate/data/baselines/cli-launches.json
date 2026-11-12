@@ -333,7 +333,7 @@
     "launch": 7
   },
   "apps/cli/journeys/worktree/current.test.js": {
-    "launch": 9
+    "launch": 10
   },
   "apps/cli/journeys/handoff/dead/running.test.js": {
     "launch": 1
