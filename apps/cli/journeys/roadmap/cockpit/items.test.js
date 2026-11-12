@@ -26,6 +26,9 @@ import {
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 
 test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_000 }, async () => {
+  const began = performance.now();
+  /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
+  const stage = phase => console.log('roadmap-items-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
   const executable = chromeExecutable(); assert.ok(executable, 'Chrome is required for the roadmap header check.');
   const box=machine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
   const names=['Landed A','Accepted A','Waiting A','Shipped B','Landed C','Accepted C','In review C','Building C','Approve the release','Held C','Withdrawn C','Landed D','Withdrawn D'];
@@ -55,6 +58,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
   const rawRoadmap=JSON.parse(box.run(alpha.repo,'roadmap','--json'));
   assert.equal(rawRoadmap.milestones.find(m=>m.name==='State summary').total,6,'649: the milestone total leaves the withdrawn member out, like the summary');
   assert.deepEqual(rawRoadmap.milestones.find(m=>m.name==='State summary').summary,{total:6,left:5,landed:1,landing:1,review:1,building:1,waiting:1,held:1,needsYou:[9],pace:{last6h:4,last2h:4,last24h:4},estimate:{low:2.5,high:7.5},window:'6h',reason:null},'real roadmap JSON owns every header field');
+  stage('setup-end');
   const view=await startView(box),profile=mkdtempSync(join(tmpdir(),'pullboard-roadmap-truth-'));let chrome;
   const milestone=name=>`document.querySelector('[data-key="m:${name}"]')`;
   try {
@@ -86,7 +90,9 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
     // An empty plan has nothing left either: no header, its No items yet reading as before the header (tests-28, 18 Oct).
     const empty=JSON.parse(await chrome.stable(`JSON.stringify({summary:Boolean(${milestone('Empty plan')}?.querySelector('.roadmap-summary,.roadmap-left')),zero:/0 (left|remaining)|0 of 0|About 0/u.test(${milestone('Empty plan')}?.textContent||''),empty:${milestone('Empty plan')}?.querySelector('.milestone-empty')?.textContent||''})`));
     assert.deepEqual(empty,{summary:false,zero:false,empty:'No items yet.'},`an empty plan shows no header: ${JSON.stringify(empty)}`);
+    stage('legend-start');
     for(const width of [320,375,1280]) {
+      stage('legend-'+width);
       await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:false});
       for(const scheme of ['light','dark']) {
         await chrome.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:scheme}]});
@@ -229,13 +235,13 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
       assert.equal(style.top, 'start', `${scheme}: labels stay at the first value line`);
       assert.ok(Math.abs(style.labelTop-style.valueTop)<2, `${scheme}: wrapped values keep their top-aligned label`);
       assert.notEqual(style.danger, 'rgba(0, 0, 0, 0)', `${scheme}: send-back reason is tinted`);
-      const colors = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const panel=${row('#6')}.parentElement.querySelector('.milestone-why');const probe=document.createElement('span');panel.append(probe);probe.style.color='var(--reject)';const danger=getComputedStyle(probe).color;probe.style.color='var(--accent)';const success=getComputedStyle(probe).color;probe.remove();return {danger,success,reject:getComputedStyle(panel.querySelector('.roadmap-step.no')).backgroundColor,reason:getComputedStyle(panel.querySelector('.roadmap-return')).color};})())`));
-      assert.equal(colors.reject, colors.danger, `${scheme}: send-back history uses the danger token`);
-      assert.equal(colors.reason, colors.danger, `${scheme}: the callout uses the danger token`);
+      const colors = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const panel=${row('#6')}.parentElement.querySelector('.milestone-why');const probe=document.createElement('span');panel.append(probe);probe.style.color='var(--mark-back)';const danger=getComputedStyle(probe).color;probe.style.color='color-mix(in oklab, var(--mark-back) 60%, var(--ink))';const callout=getComputedStyle(probe).color;probe.style.color='var(--stage-merged)';const success=getComputedStyle(probe).color;probe.remove();return {danger,callout,success,reject:getComputedStyle(panel.querySelector('.roadmap-step.no')).backgroundColor,reason:getComputedStyle(panel.querySelector('.roadmap-return')).color};})())`));
+      assert.equal(colors.reject, colors.danger, `${scheme}: send-back history uses the back-edge token (--mark-back, as the stylesheet and colors.test.js ship it)`);
+      assert.equal(colors.reason, colors.callout, `${scheme}: the callout reads the back-edge token mixed toward the ink, as .chip.no does`);
       await press(chrome, row('#6'));
       await opened('#5');
       const landed = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('#5')},panel=r.parentElement.querySelector('.milestone-why');return {color:getComputedStyle(panel.querySelector('.roadmap-event:last-child .roadmap-step')).backgroundColor,stage:r.querySelector('.stage-word')?.textContent,icon:!!r.querySelector('.roadmap-landed svg')};})())`));
-      assert.equal(landed.color, colors.success, `${scheme}: landing history uses the success token`);
+      assert.equal(landed.color, colors.success, `${scheme}: landing history uses the merged-stage token (--stage-merged)`);
       assert.equal(landed.stage, 'Merged'); assert.equal(landed.icon, false, 'a landed row reads Merged, with no checkmark');
       await press(chrome, row('#5'));
     }
