@@ -98,10 +98,11 @@ function pastGap(source, at) {
  *
  * @param {string} source
  * @param {number} at
+ * @param {string} [word] - The loader name at `at`: import, or a createRequire binding.
  * @returns {string}
  */
-function dynamicAt(source, at) {
-  const argument = pastGap(pastGap(source, at + 'import'.length), 1);
+function dynamicAt(source, at, word = 'import') {
+  const argument = pastGap(pastGap(source, at + word.length), 1);
   const literal = /^(['"])(?:\\[\s\S]|(?!\1)[^\\\n\r])*\1/.exec(argument);
   if (!literal) return COMPUTED;
   const after = pastGap(argument, literal[0].length)[0];
@@ -113,6 +114,83 @@ function dynamicAt(source, at) {
   }
 }
 
+/** One identifier, Unicode letters included. */
+const NAME = '[\\p{ID_Start}$_][\\p{ID_Continue}$\\u200c\\u200d]*';
+
+/** A pattern for the whole word `word`, with its regular-expression characters escaped. */
+function wholeWord(word) {
+  return `(?<![\\p{ID_Continue}$\\u200c\\u200d#])${word.replace(/[$.*+?^()[\]{}|\\]/gu, '\\$&')}(?![\\p{ID_Continue}$\\u200c\\u200d])`;
+}
+
+/** The module that makes require-style loaders, by either of its names. */
+const MODULE = `(?:'(?:node:)?module'|"(?:node:)?module")`;
+
+/**
+ * Every way a source can spell the createRequire factory [P3]: the bare word; each local name a
+ * static import or a destructuring gives it (`{ createRequire as cr }`, `{ createRequire: cr }`); and
+ * a property read on any binding of the whole module (`import * as m`, `import m`, `const m = await
+ * import('node:module')`, `const m = process.getBuiltinModule('module')`), as `m.createRequire`,
+ * `m?.createRequire` or `m['createRequire']`. Any other bracket read on such a binding is computed.
+ *
+ * @param {string} source
+ * @returns {{factories: RegExp[], computed: number, modules: number}} the module-property forms come last, `modules` of them
+ */
+function requireFactories(source) {
+  const names = new Set(['createRequire']);
+  for (const [, alias] of source.matchAll(new RegExp(`(?<![\\p{ID_Continue}$\\u200c\\u200d#])createRequire\\s*(?:as\\s+|:\\s*)(${NAME})`, 'gu'))) names.add(alias);
+  const modules = new Set();
+  for (const [, clause] of source.matchAll(new RegExp(`import\\s+([^'";]*?)\\s*from\\s*${MODULE}`, 'gu'))) {
+    for (const [, name] of clause.matchAll(new RegExp(`(?:^|\\*\\s*as\\s+)(${NAME})`, 'gu'))) modules.add(name);
+  }
+  for (const [, name] of source.matchAll(new RegExp(`(?:const|let|var)\\s+(${NAME})\\s*=\\s*(?:await\\s+import|(?:process\\s*\\.\\s*)?getBuiltinModule)\\s*\\(\\s*${MODULE}`, 'gu'))) modules.add(name);
+  const factories = [...names].map((name) => new RegExp(wholeWord(name), 'gu'));
+  let computed = 0;
+  for (const name of modules) {
+    factories.push(new RegExp(`${wholeWord(name)}\\s*(?:\\?\\.|\\.)\\s*createRequire(?![\\p{ID_Continue}$\\u200c\\u200d])|${wholeWord(name)}\\s*(?:\\?\\.)?\\s*\\[\\s*(?:'createRequire'|"createRequire")\\s*\\]`, 'gu'));
+    for (const read of source.matchAll(new RegExp(`${wholeWord(name)}\\s*(?:\\?\\.)?\\s*\\[`, 'gu'))) {
+      if (!/^\[\s*(['"])createRequire\1\s*\]/u.test(source.slice(read.index + read[0].length - 1))) computed += 1;
+    }
+  }
+  return { factories, computed, modules: modules.size };
+}
+
+/**
+ * What each source loads through createRequire [P3]. A require-style call is invisible to V8's
+ * import list, so it is read like import(...): a loader bound as `const name =
+ * factory(import.meta.url)` loads its plain string argument, and any other argument, any other
+ * use of that name, or the factory called any other way is COMPUTED. The factory is found under any
+ * name requireFactories knows; a factory word inside a module-property read is that read, not a second call. Words are matched in the text, not confirmed as code: the scan errs
+ * toward a false alarm, never a miss.
+ *
+ * @param {string} source
+ * @returns {string[]}
+ */
+function requiresIn(source) {
+  const { factories, computed, modules } = requireFactories(source);
+  const found = Array.from({ length: computed }, () => COMPUTED);
+  const reads = factories.map((factory) => [...source.matchAll(factory)]);
+  const spans = reads.slice(factories.length - modules).flat().map(({ index, 0: word }) => [index, index + word.length]);
+  for (const matches of reads) {
+    for (const { index, 0: word } of matches) {
+      if (pastGap(source, index + word.length)[0] !== '(') continue;
+      if (spans.some(([from, to]) => from < index && index + word.length <= to)) continue;
+      const binding = new RegExp(`(?:const|let|var)\\s+(${NAME})\\s*=\\s*$`, 'u').exec(source.slice(0, index));
+      const own = /^import\s*\.\s*meta\s*\.\s*url\s*\)/u.test(pastGap(pastGap(source, index + word.length), 1));
+      if (!binding || !own) {
+        found.push(COMPUTED);
+        continue;
+      }
+      const name = binding[1];
+      const declared = binding.index + binding[0].indexOf(name, binding[0].search(/\s/u));
+      for (const use of source.matchAll(new RegExp(wholeWord(name), 'gu'))) {
+        if (use.index === declared) continue;
+        found.push(pastGap(source, use.index + name.length)[0] === '(' ? dynamicAt(source, use.index, name) : COMPUTED);
+      }
+    }
+  }
+  return found;
+}
+
 /**
  * Every module each source imports. V8 lists the static ones: import and export-from statements and
  * side-effect imports. For each import followed by a parenthesis, V8 also decides two things: a NUL
@@ -120,7 +198,8 @@ function dynamicAt(source, at) {
  * comment or regular expression; and putting 1 in its place still compiles only when the word is a
  * call, not a property name after a dot. Only then is the argument read, and an argument that is not
  * one plain string is reported as COMPUTED, which no rule allows. A method named import, in a class
- * or object, still reads as a call: the scan errs toward a false alarm, never a miss.
+ * or object, still reads as a call: the scan errs toward a false alarm, never a miss. Loaders made
+ * with createRequire are added by requiresIn.
  *
  * @param {string[]} sources - Each one a module that compiles.
  * @returns {string[][]}
@@ -140,7 +219,7 @@ function importsIn(sources) {
       next += 2;
       return isCode && isCall;
     });
-    return [...looks[index].imports, ...dynamic.map((at) => dynamicAt(source, at))];
+    return [...looks[index].imports, ...dynamic.map((at) => dynamicAt(source, at)), ...requiresIn(source)];
   });
 }
 
@@ -210,6 +289,22 @@ test('the import scan finds a package however it is imported, and nothing that i
     'const all = [...await import("left-pad")];': ['left-pad'],
     'function later() { return import("left-pad"); }': ['left-pad'],
     "function later() { return \"import('left-pad')\"; }": [],
+    "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); require('left-pad');": ['node:module', 'left-pad'],
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); load('./leaf.js');": ['node:module', './leaf.js'],
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); load(name);": ['node:module', COMPUTED],
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); const other = load;": ['node:module', COMPUTED],
+    "import { createRequire } from 'node:module'; createRequire(import.meta.url)('left-pad');": ['node:module', COMPUTED],
+    "import { createRequire } from 'node:module'; const load = createRequire(elsewhere);": ['node:module', COMPUTED],
+    "import { createRequire as cr } from 'node:module'; const load = cr(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import { createRequire as cr } from 'module'; const load = cr(import.meta.url); load(name);": ['module', COMPUTED],
+    "import * as m from 'node:module'; const load = m.createRequire(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import m from 'node:module'; const load = m?.createRequire(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import m from 'node:module'; const load = m['createRequire'](import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "import m from 'node:module'; const key = 'createRequire'; const load = m[key](import.meta.url);": ['node:module', COMPUTED],
+    "import m from 'node:module'; const { createRequire: cr } = m; const load = cr(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "const m = await import('node:module'); const load = m.createRequire(import.meta.url); load('left-pad');": ['node:module', 'left-pad'],
+    "const m = process.getBuiltinModule('module'); const load = m.createRequire(import.meta.url); load('left-pad');": ['left-pad'],
+    "import { isBuiltin } from 'node:module'; const text = 'no loader'; isBuiltin('fs');": ['node:module'],
   };
   const found = importsIn(Object.keys(forms));
   const set = (names) => [...new Set(names)].sort();
@@ -220,13 +315,14 @@ test('the import scan finds a package however it is imported, and nothing that i
  * Every deliberate computed loader is declared here, by file and by its exact expression; an
  * undeclared computed import, or a declared file with a second one, still fails the scan. Two are
  * source-directory loaders that import a discovered file beneath their local URL; the rest load a
- * caller-selected module (a reporter, a tool, a worker port, a checker) or a guard at a runtime
+ * caller-selected module (a reporter, a tool, a worker port, a checker, a hook's staged check) or a guard at a runtime
  * path. Each declared expression is normalized to a relative import; recursively scanning their
  * leaves below keeps a package import in any discovered module visible to P3.
  */
 const LOADERS = {
-  'packages/moves/src/io/registry.js': ['import(new URL(file, directory).href)'],
+  'packages/moves/src/io/registry.js': ['loadMove(fileURLToPath(new URL(file, directory)))'],
   'apps/cli/src/io/commands/index.js': ['import(new URL(file, FOLDER).href)'],
+  'apps/cli/src/io/hook/static.js': ['import(pathToFileURL(file).href)'],
   'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
   'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
   'apps/view/src/io/page/actions.js': ['import(configuredTransportModule)'],
@@ -237,7 +333,7 @@ const LOADERS = {
 };
 function packageSource(file, source) {
   let text = source;
-  for (const expression of LOADERS[file.startsWith(ROOT) ? file.slice(ROOT.length + 1) : file] ?? []) text = text.replace(expression, "import('./')");
+  for (const expression of LOADERS[file.startsWith(ROOT) ? file.slice(ROOT.length + 1) : file] ?? []) text = text.replace(expression, `${expression.slice(0, expression.indexOf('('))}('./')`);
   return text;
 }
 
@@ -267,11 +363,15 @@ test('every import is a node: built-in or a relative file [P3]', () => {
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
   const file = join(ROOT, 'packages/moves/src/io/registry.js');
   const source = readFileSync(file, 'utf8');
-  const site = 'import(new URL(file, directory).href)';
+  const site = 'loadMove(fileURLToPath(new URL(file, directory)))';
   assert.ok(source.includes(site), 'the constrained discovery site is present');
+  assert.deepEqual(importsForPackageFile(file, source).filter(target => !target.startsWith('node:') && !target.startsWith('.')), [], 'the declared site exposes no package or computed target');
+  assert.ok(importsForPackageFile(file, source.replace(site, "loadMove('left-pad')")).includes('left-pad'));
   assert.ok(importsForPackageFile(file, source.replace(site, "import('left-pad')")).includes('left-pad'));
+  assert.ok(importsForPackageFile(file, source.replace(site, 'loadMove(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source.replace(site, 'import(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source + '\nvoid import(otherTarget);').includes(COMPUTED), 'a second computed import has no exemption');
+  assert.ok(importsForPackageFile(file, source + '\nvoid loadMove(otherTarget);').includes(COMPUTED), 'a second computed load has no exemption');
   assert.ok(importsForPackageFile(join(ROOT, 'packages/moves/src/logic/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
 });
 
