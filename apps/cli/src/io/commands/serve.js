@@ -14,6 +14,9 @@ import {
 import { apiBoards } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { spawnReachable } from '../../../../../packages/jobs/index.js';
+import { pullboardHome } from '../../../../../packages/store/index.js';
 import { servedTrunkPack } from '../../../../../packages/runners/index.js';
 import { performanceCores } from '../../../../../packages/gate/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
@@ -86,7 +89,9 @@ export async function serveHere(io, values) {
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
   // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
-  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close, command: () => sameServe(api.port) });
+  const log = join(pullboardHome(), 'serve.log');
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close, log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
+    relaunch: () => spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
   const restarted = await new Promise((stop) => {
     const stopped = (moved) => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(moved === true); };
     process.once('SIGINT', stopped);
@@ -107,10 +112,10 @@ function codeCommit() {
   return read.status === 0 ? read.stdout.trim() : null;
 }
 
-/** This process's own serve command, pinned to the port it holds, so a restart answers at the same address. */
+/** This process's own serve arguments, pinned to the port it holds, so a restart answers at the same address. */
 function sameServe(port) {
   const args = process.argv.slice(2).filter((arg, index, all) => arg !== '--port' && all[index - 1] !== '--port' && !arg.startsWith('--port='));
-  return [process.execPath, ...process.execArgv, process.argv[1], ...args, '--port', String(port)];
+  return [...process.execArgv, process.argv[1], ...args, '--port', String(port)];
 }
 
 /**

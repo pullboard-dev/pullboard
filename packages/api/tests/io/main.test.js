@@ -10,35 +10,38 @@ function refusalDocument(error) {
   return { error: { code: error.code ?? 'INTERNAL', message: String(error.message) } };
 }
 
-/** The served board API a moved checkout restarts: it requires shared.cjs at start and reader.cjs on each request. */
+/**
+ * The served board API a moved checkout restarts, run as a worker: each worker loads its own module graph, as a fresh
+ * process does. It requires shared.cjs at start and reader.cjs on its first request, and asks the test to relaunch it.
+ */
 const MOVING_SERVER = `import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
-const { values } = parseArgs({ options: { port: { type: 'string' }, board: { type: 'string' }, api: { type: 'string' }, drive: { type: 'string' }, store: { type: 'string' }, cell: { type: 'string' } } });
-const { serveApi } = await import(values.api);
-const { restartOnCodeMove } = await import(values.drive);
-const { openBoardForRead } = await import(values.store);
-const { openCellBoard } = await import(values.cell);
+import { parentPort, threadId, workerData } from 'node:worker_threads';
+const { port, board, modules } = workerData;
+const { serveApi } = await import(modules.api);
+const { restartOnCodeMove } = await import(modules.drive);
+const { openBoardForRead } = await import(modules.store);
+const { openCellBoard } = await import(modules.cell);
 const require = createRequire(import.meta.url);
 require('./shared.cjs');
 const viewPorts = Object.fromEntries(['projectState', 'activeViewAgents', 'viewProofSummary', 'compactItemSummaries', 'viewFlowSummary'].map((name) => [name, () => null]));
-const projects = () => { require('./reader.cjs').check(); return [{ root: values.board, name: 'fixture', project: 'fixture', added: '2026-11-12' }]; };
-const api = await serveApi({ port: Number(values.port), projects, secret: 'fixture-secret', runCommand: async () => 0, isMain: false, viewPorts,
+const projects = () => { require('./reader.cjs').check(); return [{ root: board, name: 'fixture', project: 'fixture', added: '2026-11-12' }]; };
+const api = await serveApi({ port, projects, secret: 'fixture-secret', runCommand: async () => 0, isMain: false, viewPorts,
   refusalDocument: (error) => ({ error: { code: error.code ?? 'INTERNAL', message: String(error.message) } }),
   boardOpeners: { openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] } });
-process.stdout.write(JSON.stringify({ pid: process.pid, port: api.port }) + '\\n');
 const here = fileURLToPath(new URL('.', import.meta.url));
 const revision = () => execFileSync('git', ['rev-parse', 'HEAD'], { cwd: here, encoding: 'utf8' }).trim();
 const fresh = restartOnCodeMove({ root: here, revision, close: api.close, interval: 100, log: () => {},
-  command: () => [process.execPath, fileURLToPath(import.meta.url), ...process.argv.slice(2).filter((arg, index, all) => arg !== '--port' && all[index - 1] !== '--port'), '--port', String(api.port)] });
+  relaunch: () => { parentPort.postMessage({ relaunch: api.port }); return { pid: null }; } });
+parentPort.postMessage({ started: threadId, port: api.port });
 await fresh.restarted;
 `;
 
 test('clause 1 [P7]: a served board keeps answering after a commit lands that changes a module the server loads lazily (#6157)', { timeout: 120_000 }, async (t) => {
-  const { spawn } = await import('node:child_process');
+  const { once } = await import('node:events');
   const { join } = await import('node:path');
-  const { createInterface } = await import('node:readline');
+  const { Worker } = await import('node:worker_threads');
   const cell = await import('../../../store/tests/fixtures/cell.js');
   const store = await import('../../../store/index.js');
   const project = cell.cellProject(t);
@@ -51,26 +54,27 @@ test('clause 1 [P7]: a served board keeps answering after a commit lands that ch
   code.put('server.mjs', MOVING_SERVER);
   code.commitAll();
   const url = (path) => new URL(path, import.meta.url).href;
-  // The restarted server inherits the first one's stdout, so each start is one line on the same pipe.
-  const child = spawn(process.execPath, [join(code.root, 'server.mjs'), '--port', '0', '--board', project.repo,
-    '--api', url('../../index.js'), '--drive', url('../../../drive/index.js'), '--store', url('../../../store/index.js'), '--cell', url('../../../store/tests/fixtures/cell.js')],
-  { cwd: code.root, stdio: ['ignore', 'pipe', 'inherit'] });
-  const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
-  const started = [];
-  t.after(() => { for (const { pid } of started) try { process.kill(pid); } catch { /* That server already stopped. */ } child.stdout.destroy(); });
-  const nextStart = async () => {
-    const { value, done } = await lines.next();
-    assert.equal(done, false, 'the server printed its start');
-    started.push(JSON.parse(value));
-    return started.at(-1);
+  const modules = { api: url('../../index.js'), drive: url('../../../drive/index.js'), store: url('../../../store/index.js'), cell: url('../../../store/tests/fixtures/cell.js') };
+  const servers = [];
+  t.after(() => Promise.all(servers.map((server) => server.terminate())));
+  /** Start the server from the code tree as it is now, and answer its first message: started, port. */
+  const start = async (port) => {
+    const server = new Worker(join(code.root, 'server.mjs'), { workerData: { port, board: project.repo, modules } });
+    servers.push(server);
+    const [message] = await once(server, 'message');
+    assert.ok(message.started, JSON.stringify(message));
+    return { server, ...message };
   };
-  const first = await nextStart();
+  const first = await start(0);
+  const relaunched = once(first.server, 'message');
   // The landing: a module loaded at start gains a name that a module the server has not loaded yet now needs.
   code.put('shared.cjs', 'exports.two = () => 2;\n');
   code.put('reader.cjs', "module.exports.check = () => require('./shared.cjs').two();\n");
   code.commitAll();
-  const second = await nextStart();
-  assert.notEqual(second.pid, first.pid, 'a fresh process serves the new code');
+  const [asked] = await relaunched;
+  assert.equal(asked.relaunch, first.port, 'the old server asks for a relaunch on its own port once it stopped serving');
+  const second = await start(asked.relaunch);
+  assert.notEqual(second.started, first.started, 'a fresh server with its own module graph serves the new code');
   assert.equal(second.port, first.port, 'the restarted server keeps its port');
   const response = await fetch(`http://127.0.0.1:${first.port}/api/v1/boards/${id}/events?k=fixture-secret`);
   const body = await response.json();
