@@ -65,9 +65,6 @@
   "apps/cli/journeys/claim/adopts/folder.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/claim/adopts/session.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/claim/complete.test.js": {
     "launch": 1
   },
