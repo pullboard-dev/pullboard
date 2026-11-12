@@ -1,11 +1,8 @@
 /** A board an older release left drifted gains its additive tables and its guards, and only a matching shape is restamped [A5,M3]. */
-import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { mkdirSync } from 'node:fs';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -107,30 +104,27 @@ test('clause 1: a board with foreign drift gains the additive tables but keeps i
   assert.match(diagnostics.join('\n'), /different shape/u);
 });
 
-/** A committed private project whose board an installed copy of this code owns, as a released CLI does. */
+/** A committed private project whose board the production CLI opens in-process, as a released CLI does. */
 function releaseBox() {
   const box = e2e.project('true', undefined, { withWorktree: false });
-  const release = join(box.dir, 'installed-release');
-  mkdirSync(release);
-  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), release);
-  const run = (...args) => runFixtureChild(process.execPath, [join(release, 'apps/cli/pullboard.js'), ...args], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: box.repo, env: box.env });
   return { run, file: join(box.repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
-test('clause 2: pullboard status restores changed pullboard triggers, and doctor then reports none changed [M3,A5]', () => {
+test('clause 2: pullboard status restores changed pullboard triggers, and doctor then reports none changed [M3,A5]', async () => {
   const box = releaseBox();
-  const created = box.run('status');
+  const created = await box.run('status');
   assert.equal(created.status, 0, created.stderr || created.stdout);
   driftLikeWebsite(box.file);
-  const found = box.run('doctor');
+  const found = await box.run('doctor');
   for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard status`, 'u'));
 
-  const status = box.run('status');
+  const status = await box.run('status');
   assert.equal(status.status, 0, status.stderr || status.stdout);
   const repaired = observe(box.file);
   for (const { name, sql } of storeTriggers()) assert.equal(repaired.triggers.get(name), sql, `${name} is this code's guard again`);
   assert.equal(repaired.standing, 'current');
-  const doctor = box.run('doctor');
+  const doctor = await box.run('doctor');
   assert.doesNotMatch(doctor.stdout, /has changed/u, doctor.stdout);
   assert.doesNotMatch(doctor.stdout + doctor.stderr, /different shape/u);
 });
