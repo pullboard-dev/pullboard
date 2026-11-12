@@ -371,9 +371,6 @@
   "apps/cli/journeys/fact/tests/cpu.test.js": {
     "launch": 10
   },
-  "apps/cli/journeys/next/take.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/milestone/order.test.js": {
     "launch": 9
   },
@@ -472,9 +469,6 @@
   },
   "packages/landing/tests/io/land/numbers.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/next/order.test.js": {
-    "launch": 23
   },
   "packages/resources/tests/io/handoff/worker/dispatcher/eperm.test.js": {
     "launch": 1
@@ -579,7 +573,7 @@
     "launch": 2
   },
   "apps/cli/journeys/next/help.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/merged/receipts-refusal.test.js": {
     "launch": 3
@@ -1014,7 +1008,7 @@
     "launch": 2
   },
   "apps/cli/journeys/next/checkout.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/engine/settings.test.js": {
     "launch": 7
@@ -1505,9 +1499,6 @@
   "apps/cli/journeys/shout/sentinel/model.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/next/claim.test.js": {
-    "launch": 9
-  },
   "packages/doctrine/tests/package.test.js": {
     "launch": 2
   },
@@ -1531,9 +1522,6 @@
   },
   "apps/cli/journeys/submit/isolation.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/next/order/queue.test.js": {
-    "launch": 23
   },
   "apps/cli/journeys/relay/snapshot/size/phone.test.js": {
     "launch": 1
@@ -1586,9 +1574,6 @@
   "apps/cli/journeys/shout/routing.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/next/order/claims.test.js": {
-    "launch": 15
-  },
   "apps/cli/journeys/gate/timing.test.js": {
     "launch": 1
   },
@@ -1617,7 +1602,7 @@
     "launch": 1
   },
   "apps/cli/journeys/next/order/focus.test.js": {
-    "launch": 26
+    "launch": 1
   },
   "apps/cli/tests/io/submit/gate/claim-fetch.test.js": {
     "launch": 1
@@ -1861,9 +1846,6 @@
   },
   "packages/runners/tests/style.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/next/review.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/rigor/checks.test.js": {
     "launch": 1
