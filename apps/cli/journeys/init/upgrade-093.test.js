@@ -1,7 +1,9 @@
 /** A plain project board made by 0.9.3 opens under 0.9.4, keeps every status, and its claimed item submits with a settling gate [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { copyFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,6 +32,22 @@ function unpack(box) {
     db.prepare("UPDATE item SET item_lease_until = '2099-01-01T00:00:00.000Z' WHERE item_status = 'claimed'").run();
   } finally { db.close(); }
   return repo;
+}
+
+/**
+ * Open the board as 0.9.4's own install does on its first command (the owner of a shared board migrates it) and close it.
+ * Why a copy outside the repository layout: a test runs the code from a worktree, which is never a shared board's owner,
+ * so only a private copy opens as owner; the migrated file then takes the board's place.
+ */
+function migrate(box, repo) {
+  const file = join(repo, '.git', 'pullboard', 'board.sqlite');
+  const folder = join(box.dir, 'migrating');
+  mkdirSync(folder);
+  const copy = join(folder, 'board.sqlite');
+  copyFileSync(file, copy);
+  closeBoard(openKitBoard(copy, undefined, { isMain: true }));
+  for (const sidecar of ['-wal', '-shm']) rmSync(`${file}${sidecar}`, { force: true });
+  copyFileSync(copy, file);
 }
 
 /** The first line of `show` for one item, as the person reads it. */
@@ -69,9 +87,7 @@ async t => {
   const box = helpers.sandbox();
   const repo = unpack(box);
   const file = join(repo, '.git', 'pullboard', 'board.sqlite');
-  // The first 0.9.4 command from the project's own install owns the board and migrates it; a seat's read never does.
-  const board = openKitBoard(file, undefined, { gitRoot: repo, isMain: true });
-  closeBoard(board);
+  migrate(box, repo);
   // @pullboard-board-file journey: reads the migrated 0.9.3 file's tables to prove the 0.9.4 job tables arrived.
   const db = new DatabaseSync(file, { readOnly: true });
   try { assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name IN ('job', 'job_step')").get().n, 2, 'the job tables are installed'); } finally { db.close(); }
@@ -87,7 +103,7 @@ async t => {
   const box = helpers.sandbox();
   const repo = unpack(box);
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localLoadShare: 1000 } });
-  closeBoard(openKitBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo, isMain: true }));
+  migrate(box, repo);
   const seat = join(repo, '.claude', 'worktrees', 'web-1');
   mkdirSync(join(seat, 'src'), { recursive: true });
   writeFileSync(join(seat, 'src', 'claimed.txt'), 'built under 0.9.3, submitted under 0.9.4\n');
