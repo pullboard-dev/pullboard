@@ -37,10 +37,10 @@ test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fix
   }
 });
 
-test('clause 2: land batch passes with PULLBOARD_MODEL unset in the parent environment [C7]', { timeout: 320_000 }, () => {
+test('clause 2: a landing journey passes with PULLBOARD_MODEL unset in the parent environment [C7]', { timeout: 320_000 }, () => {
   const env = { ...process.env };
   delete env.PULLBOARD_MODEL;
-  const result = spawnSync(process.execPath, ['--test', resolve(import.meta.dirname, '../land/batch/whole.test.js')], {
+  const result = spawnSync(process.execPath, ['--test', resolve(import.meta.dirname, '../land/main.test.js')], {
     env,
     encoding: 'utf8',
     timeout: 300_000,
