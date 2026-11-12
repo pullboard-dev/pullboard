@@ -1,4 +1,5 @@
 /** A red queued gate leads its builder's next, inbox and claim with the exact refusal [V4,H16,N2]. */
+import { current } from '../board/query.js';
 import { submitHandoff } from '../submit/handoff/records.js';
 import { submitHandoffFailure } from '../submit/handoff/records.js';
 
@@ -17,19 +18,19 @@ export function queuedReds(board, seat) {
       eventId: board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(item.item_id).id }))
     .filter(row => row.error)
     .map(({ item, error, job, eventId }) => ({ id: item.item_id, title: item.item_title, leaseUntil: item.item_lease_until,
-      commit: job.commit, eventId, observedThrough, error }));
+      lapsed: current(board, item).item_status !== 'claimed', commit: job.commit, eventId, observedThrough, error }));
 }
 
 /**
  * What the notice says about the seat's hold on a red item: still held until the lease, or lapsed.
  * Why: a past lease read "stays claimed by you until <past time>" though the claim was gone (SM13).
  *
- * @param {{ id: number, leaseUntil: string }} red
- * @param {number} now - epoch milliseconds
+ * @param {{ id: number, leaseUntil: string, lapsed?: boolean }} red - lapsed is the board's own reading through current()
+ * @param {number} now - epoch milliseconds, used only when the red carries no reading
  * @returns {string}
  */
 function holdSentence(red, now) {
-  const lapsed = Number.isFinite(Date.parse(red.leaseUntil)) && Date.parse(red.leaseUntil) <= now;
+  const lapsed = red.lapsed ?? (Number.isFinite(Date.parse(red.leaseUntil)) && Date.parse(red.leaseUntil) <= now);
   return lapsed
     ? `#${red.id} claim lapsed at ${red.leaseUntil}; re-claim it with pullboard claim ${red.id}, fix it, commit, then pullboard submit ${red.id}`
     : `#${red.id} stays claimed by you until ${red.leaseUntil}; fix it, commit, then pullboard submit ${red.id}`;

@@ -684,20 +684,27 @@ export function withGitCommandMemo(work) {
 
 /** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
 function memoKey(kind, cwd, args, maxBuffer, env) {
-  if (commandMemo === null || env !== process.env) return null;
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
-  const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
+  // The worktree list is asked from many modules and environments; one answer serves all of them [C7].
+  const listing = command === 'worktree' && words[1] === 'list';
+  if (commandMemo === null || (env !== process.env && !listing)) return null;
+  const reads = listing || ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
     || (command === 'diff' && !args.includes('--output'))
     || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
-  return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
+  return reads ? JSON.stringify(listing ? ['wt-raw', cwd, args] : [kind, cwd, args, maxBuffer ?? null]) : null;
 }
 
 /** Forget every remembered answer when a call that is not a known read is about to run. */
-function noteMemoCall(key) {
-  if (key === null) commandMemo?.clear();
+function noteMemoCall(key, args = []) {
+  if (key !== null || commandMemo === null) return;
+  // A worktree list survives unrelated calls and is forgotten by any call that can change what it shows [C7].
+  const [command, sub] = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
+  const moves = (command === 'worktree' && sub !== 'list')
+    || ['checkout', 'switch', 'reset', 'merge', 'rebase', 'commit', 'cherry-pick', 'update-ref', 'branch', 'clone', 'init', 'symbolic-ref'].includes(command);
+  for (const known of [...commandMemo.keys()]) if (moves || !known.startsWith('["wt-')) commandMemo.delete(known);
 }
 
 
@@ -768,9 +775,14 @@ function rememberObjectRead(key, value, size) {
  * @returns {string}
  */
 export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
+  // A worktree list is one memoized answer for every caller, trimmed here as this function does [C7].
+  if (commandMemo !== null && memoKey('git', cwd, args, maxBuffer, env)?.startsWith('["wt-')) {
+    const listed = rawGit(cwd, args, env);
+    if (listed.status === 0) return listed.stdout.trim();
+  }
   const key = memoKey('git', cwd, args, maxBuffer, env);
   if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
-  noteMemoCall(key);
+  noteMemoCall(key, args);
   const objectKey = objectReadKey('git', cwd, args, env);
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   try {
@@ -806,7 +818,7 @@ function rawGit(cwd, args, env) {
   const key = memoKey('raw', cwd, args, undefined, env);
   const memoized = key === null ? undefined : commandMemo.get(key);
   if (memoized) return memoized;
-  noteMemoCall(key);
+  noteMemoCall(key, args);
   const shown = key !== null && args.length === 2 && args[0] === 'show' ? prefetchedShow(cwd, args[1]) : undefined;
   if (shown !== undefined) {
     const outcome = shown === null ? { status: 128, stdout: '', stderr: `fatal: path ${args[1]} is not in the revision` } : { status: 0, stdout: shown, stderr: '' };
