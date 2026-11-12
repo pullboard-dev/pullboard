@@ -51,7 +51,10 @@ test('identical main case is first in text and structured in test and submit, wi
   const submission = JSON.parse(submitted.stdout);
   assert.equal(submission.gate.green, false);
   assert.equal(submission.gate.mainFailures.length, 1);
-  notice(submission.gate.mainFailures[0], box);
+  // The first run filed main's red, so the board now names its owner.
+  const filed = rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red: %'");
+  assert.equal(filed.length, 1, JSON.stringify(filed));
+  notice(submission.gate.mainFailures[0], box, { owner: filed[0].item_id });
 
   const comparison = { main: box.main, files: report.known };
   const failures = report.known[0].failures;
