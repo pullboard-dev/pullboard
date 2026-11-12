@@ -159,9 +159,9 @@ function countPairs() {
     if (release) {
       const entries = release.items.filter(ref => items.some(item => item.id === ref.id));
       const landed = entries.filter(ref => p.dashboardLanded.some(item => item.id === ref.id)).length;
-      const headline = document.querySelector('.dash-release-card .roadmap-left');
-      const progress = headline?.querySelector('[aria-label]')?.getAttribute('aria-label').match(/^(\d+)\/(\d+) landed$/);
-      const summary = document.querySelector('.dash-release-card .roadmap-summary-bar');
+      const headline = document.querySelector('.dash-release-card .dash-release-left');
+      const progress = headline?.querySelector('span')?.textContent.replaceAll(',', '').match(/^(\d+) of (\d+) landed$/);
+      const summary = document.querySelector('.dash-release-card .dash-release-bar');
       add('Dashboard/release remaining', number(headline?.querySelector('b')), entries.length - landed);
       add('Dashboard/release landed', Number(progress?.[1]), landed);
       add('Dashboard/release total', Number(progress?.[2]), entries.length);

@@ -28,8 +28,8 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   const tokyoProgress = roadmapSummary(model.milestone, { now: model.now, locale: 'en-GB', timeZone: 'Asia/Tokyo' })?.header ?? '';
   const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC', progress: utcProgress });
   const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo', progress: tokyoProgress });
-  assert.match(section(utc, 'Shipping now'), /done in about 3 hours, Wednesday afternoon/u);
-  assert.match(section(tokyo, 'Shipping now'), /done in about 3 hours, Thursday overnight/u);
+  assert.match(section(utc, 'Shipping now'), /Done at this pace<\/span><span class="dash-tile-value"><b>2–4 h<\/b><\/span><small>Wednesday, 14 to 16<\/small>/u);
+  assert.match(section(tokyo, 'Shipping now'), /Done at this pace<\/span><span class="dash-tile-value"><b>2–4 h<\/b><\/span><small>Wednesday 23 to Thursday 01<\/small>/u, 'the same estimate on the Tokyo clock crosses midnight');
   assert.match(section(utc, 'Landed per hour'), /28\/10\/2026, 11:00:00 – 12:00:00/u);
   assert.match(section(tokyo, 'Landed per hour'), /28\/10\/2026, 20:00:00 – 21:00:00/u);
   assert.match(utc, /1,234 landed all time/u);
@@ -58,14 +58,13 @@ test('Dashboard renders release, charts, agents, landings and capped lists from 
     const html = dashboardHtml(model, { progress });
     const shipping = section(html, 'Shipping now');
     const summary = model.milestone.summary;
-    assert.match(shipping, new RegExp(`${summary.left} to go`, 'u'));
-    assert.match(shipping, new RegExp(`${summary.landed} of ${summary.total} landed`, 'u'));
-    assert.match(shipping, new RegExp(`data-summary-segment="landed" data-count="${summary.landed}"`, 'u'));
-    assert.match(shipping, new RegExp(`${(model.pace.last6h / 6).toFixed(1)} items an hour`, 'u'));
-    assert.match(shipping, new RegExp(`${model.pace.last6h} landed in the last 6 h, ${model.pace.last2h} in the last 2 h`, 'u'));
-    assert.match(shipping, /done in about 3 hours, Wednesday afternoon/u, 'the shared estimate includes a weekday part of day');
-    assert.doesNotMatch(shipping, /dash-stats|Right now|Done at this pace/u, 'the old pace boxes are removed');
-    assert.match(shipping, /In review 6/u);
+    assert.match(shipping, /<h2>Shipping now<\/h2><p class="dash-release-name">/u, 'the card heads Shipping now, then the release name in the body face');
+    assert.match(shipping, new RegExp(`<b>${summary.left} to go</b><span>${summary.landed} of ${summary.total} landed</span>`, 'u'));
+    assert.match(shipping, new RegExp(`data-release-segment="landed" data-count="${summary.landed}"`, 'u'));
+    assert.match(shipping, new RegExp(`Today’s pace</span><span class="dash-tile-value"><b>${(model.pace.last6h / 6).toFixed(1)}</b><span>items an hour</span></span><small>${model.pace.last6h} landed in the last 6 hours</small>`, 'u'));
+    assert.match(shipping, new RegExp(`Right now</span><span class="dash-tile-value"><b>${(model.pace.last2h / 2).toFixed(1)}</b><span>items an hour</span></span><small>${model.pace.last2h} landed in the last 2 hours</small>`, 'u'));
+    assert.match(shipping, /data-dashboard-tile="eta"/u, 'the three pace tiles are back, as in the mockup');
+    assert.match(shipping, /In review <span>6<\/span>/u);
     assert.match(shipping, /<summary>Show 2 more<\/summary>/u, 'the in-flight review column expands beyond four rows');
 
     const chart = section(html, 'Landed per hour');
