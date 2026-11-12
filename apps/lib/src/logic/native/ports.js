@@ -1,3 +1,5 @@
+/** @pullboard-module-loads apps/view/index.js */
+import { createRequire } from 'node:module';
 import { sealOwnershipWait } from '../../io/seal.js';
 import { claimHealthSnapshot } from '../../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../../packages/health/index.js';
@@ -73,10 +75,6 @@ import {
   declaredMoveActor,
   withMoveNextSteps,
 } from '../../../../../packages/moves/light.js';
-import {
-  activeViewAgents,
-  viewProofSummary,
-} from '../../../../view/index.js';
 import { personSigningPresentation } from '../../../../../packages/person/index.js';
 import {
   personRequestStatuses,
@@ -85,7 +83,6 @@ import {
   relayPerson,
   requestPerson,
 } from '../../../../../packages/link/index.js';
-import { projectState } from '../../../../view/index.js';
 import {
   projectFit,
   pendingFit,
@@ -264,6 +261,17 @@ import {
 } from '../../../../../packages/verify/index.js';
 
 import { normalizeReviewDefaults } from '../../../../../packages/verify/index.js';
+
+const requireModule = createRequire(import.meta.url);
+let viewModule = null;
+/** The view app, loaded on the first projection call: next and other board moves never pay for its modules [C7]. */
+function view() { return viewModule ??= requireModule('../../../../view/index.js'); }
+/** Project the board state through the view app, loading it at this call. */
+function projectState(...args) { return view().projectState(...args); }
+/** The agents the view shows as active, loading the view app at this call. */
+function activeViewAgents(...args) { return view().activeViewAgents(...args); }
+/** The view's proof summary, loading the view app at this call. */
+function viewProofSummary(...args) { return view().viewProofSummary(...args); }
 
 // The CLI's own next-step table, composed here from its state-cell defaults so opening a board never loads the CLI (#3906).
 const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);

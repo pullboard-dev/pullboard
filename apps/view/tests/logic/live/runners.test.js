@@ -11,7 +11,7 @@ const now = Date.parse('2026-11-11T19:00:00.000Z');
 const ago = minutes => new Date(now - minutes * MINUTE).toISOString();
 const BATCH = '0f6a2b7e-1111-4222-8333-944455556666';
 /** Real-looking private names that must never leave the machine. */
-const SECRETS = ['runner-a.example.test', '192.0.2.98', 'user', 'core-1898', 'auxiliary-53-anvil-8b9e36', '/home/user/Code/pullboard', 'gate:52:abc:x', BATCH, 'view-336'];
+const SECRETS = ['runner-a.example.test', '192.0.2.98', 'user', 'core-1898', 'auxiliary-53-runner-8b9e36', '/home/user/Code/pullboard', 'gate:52:abc:x', BATCH, 'view-336'];
 
 /** Raw runner records as readLiveRunners returns them: two pushed runners on a landing and a test, one idle, one pulling a gate. */
 function sources({ job = {} } = {}) {
@@ -26,7 +26,7 @@ function sources({ job = {} } = {}) {
       { host: '192.0.2.98', holders: [{ agent: 'view-336', repo: `/home/user/landings/${BATCH}/x/`, since: ago(30), item: '', kind: 'landing', landing: 1 }] },
       { host: 'user@mini', holders: [] },
     ],
-    jobs: [{ id: 'gate:52:abc:x', kind: 'gate', item: 52, runner: 'auxiliary-53-anvil-8b9e36', claimedAt: now - 2 * MINUTE,
+    jobs: [{ id: 'gate:52:abc:x', kind: 'gate', item: 52, runner: 'auxiliary-53-runner-8b9e36', claimedAt: now - 2 * MINUTE,
       files: ['apps/a.test.js', 'apps/b.test.js', 'apps/c.test.js', '/home/user/Code/pullboard/private.test.js'], progress: null, ...job }],
     landings: [{ batch: BATCH, items: [1196, 1197], startedAt: now - 30 * MINUTE, label: 'candidate', files: null, selected: 4, progress: null }],
     fileTimes: { 'apps/a.test.js': 2 * MINUTE, 'apps/b.test.js': 4 * MINUTE, 'apps/c.test.js': 6 * MINUTE },
@@ -87,7 +87,7 @@ test('the fail-closed text blocks still refuse a private name that reaches the r
 
 test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy per runner and no host, address or user name [N26]', () => {
   const raw = sources({ job: { progress: { finished: 1, load: { at: ago(0), average: [6, 5, 4], cpus: 8, freeMB: 4096, memoryMB: 16384 } } } });
-  raw.runners[0].load = { busyPercent: 91.6, freeMB: 1024, memoryMB: 32768, host: 'mac-studio-7.local', user: 'corey', address: '192.168.1.98' };
+  raw.runners[0].load = { busyPercent: 91.6, freeMB: 1024, memoryMB: 32768, host: 'runner-a.example.test', user: 'user', address: '192.0.2.98' };
   const { live } = publicSnapshot({ live: raw });
   assert.deepEqual(live.runners.map(({ runner, busy, cpu, ram }) => ({ runner, busy, cpu, ram })), [
     { runner: 1, busy: true, cpu: 92, ram: 97 },
@@ -96,7 +96,7 @@ test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy pe
     { runner: 4, busy: true, cpu: 75, ram: 75 },
   ], 'a sampled busy percent, else load over cores; RAM is the used share; an unsampled runner reads null');
   const text = JSON.stringify(live);
-  for (const secret of [...SECRETS, 'mini']) assert.equal(text.includes(secret), false, `the runner load leaks ${secret}`);
+  for (const secret of [...SECRETS, 'mini', 'runner-a.example.test', '192.0.2.98']) assert.equal(text.includes(secret), false, `the runner load leaks ${secret}`);
   assert.equal(/freeMB|memoryMB|cpus|average|busyPercent/u.test(text), false, 'only the two percents leave the machine');
   assert.deepEqual(loadPercents({ average: [40], cpus: 8, freeMB: 9, memoryMB: 4 }), { cpu: 100, ram: 0 }, 'percents clamp to 0..100');
   assert.deepEqual(loadPercents(null), { cpu: null, ram: null });
