@@ -34,6 +34,7 @@ const OPTIONS = {
   'new-browser': { type: 'boolean' },
   node: { type: 'string' },
   root: { type: 'string' },
+  toolchain: { type: 'string' },
   project: { type: 'boolean' },
   export: { type: 'string' },
   public: { type: 'boolean' },
