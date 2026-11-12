@@ -23,10 +23,8 @@ import {
   resolve,
 } from 'node:path';
 import { tmpdir } from 'node:os';
-import {
-  runFixtureChild,
-  runFixtureGit,
-} from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   after,
   test,
@@ -86,16 +84,16 @@ function privateBox() {
   };
   for (const key of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_VIEW_FOREGROUND', 'AI_AGENT']) delete env[key];
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), ...args], { cwd, env, encoding: 'utf8' });
-  return { dir, env, git, run };
+  const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
+  return { dir, env, git, runLocal };
 }
 
 /** Initialize one private board with a short name and a lane suitable for fixture items. */
-function privateProject(box, name) {
+async function privateProject(box, name) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  const init = box.run(repo, 'init', '--json');
+  const init = await box.runLocal(repo, 'init', '--json');
   assert.equal(init.status, 0, init.failure ?? init.stderr);
   const configPath = join(repo, 'pullboard.json');
   // View fixtures file "true" checks to show items, so they keep a board with no hold setting.
@@ -254,12 +252,12 @@ test('row text is escaped, so a row cannot inject markup [S7]', () => {
 
 test("pullboard view --project scopes the view to this repository's project and refuses before registering outsiders [N26]", async (t) => {
   const box = privateBox();
-  const project = privateProject(box, 'view-local');
-  const outside = privateProject(box, 'view-outsider');
+  const project = await privateProject(box, 'view-local');
+  const outside = await privateProject(box, 'view-outsider');
   const restore = usePrivateEnvironment({ ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' });
   t.after(restore);
 
-  const worktree = box.run(project.repo, 'worktree', 'app', '--model', 'fixture-agent', '--json');
+  const worktree = await box.runLocal(project.repo, 'worktree', 'app', '--model', 'fixture-agent', '--json');
   assert.equal(worktree.status, 0, worktree.failure ?? worktree.stderr);
   const linkedPath = JSON.parse(worktree.stdout).path;
   assert.equal(forgetProject(outside.repo), true, 'the outsider is deliberately absent from the project registry');
@@ -316,23 +314,23 @@ test("pullboard view --project scopes the view to this repository's project and 
 
 test('scoped API answers and its cache and stream never resolve a foreign roadmap [N26,A2]', async (t) => {
   const box = privateBox();
-  const local = privateProject(box, 'view-local');
-  const foreign = privateProject(box, 'view-foreign');
+  const local = await privateProject(box, 'view-local');
+  const foreign = await privateProject(box, 'view-foreign');
   const restore = usePrivateEnvironment(box.env);
   t.after(restore);
 
-  const add = (project, title) => {
-    const result = fixtureAdd(box.run, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'strong',
+  const add = async (project, title) => {
+    const result = await fixtureAdd(box.runLocal, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'strong',
       '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--json');
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     return JSON.parse(result.stdout).item;
   };
-  const localItem = add(local, 'Local scoped item');
+  const localItem = await add(local, 'Local scoped item');
   const foreignTitle = `FOREIGN-ROADMAP-${randomUUID()}`;
-  const foreignItem = add(foreign, foreignTitle);
-  const milestone = box.run(local.repo, 'milestone', 'add', 'External obligation', '--items', `${foreign.name}#${foreignItem.item_id}`, '--json');
+  const foreignItem = await add(foreign, foreignTitle);
+  const milestone = await box.runLocal(local.repo, 'milestone', 'add', 'External obligation', '--items', `${foreign.name}#${foreignItem.item_id}`, '--json');
   assert.equal(milestone.status, 0, milestone.failure ?? milestone.stderr);
-  const localAgent = box.run(local.repo, 'worktree', 'app', '--model', 'fixture-agent', '--json');
+  const localAgent = await box.runLocal(local.repo, 'worktree', 'app', '--model', 'fixture-agent', '--json');
   assert.equal(localAgent.status, 0, localAgent.failure ?? localAgent.stderr);
   const localLinkedPath = JSON.parse(localAgent.stdout).path;
 
@@ -410,10 +408,10 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   const initial = await reader.read();
   assert.ok(new TextDecoder().decode(initial.value).includes(': API v1'));
 
-  const agent = box.run(foreign.repo, 'worktree', 'app', '--model', 'fixture-agent', '--json');
+  const agent = await box.runLocal(foreign.repo, 'worktree', 'app', '--model', 'fixture-agent', '--json');
   assert.equal(agent.status, 0, agent.failure ?? agent.stderr);
   const agentPath = JSON.parse(agent.stdout).path;
-  const claimed = box.run(agentPath, 'claim', String(foreignItem.item_id), '--json');
+  const claimed = await box.runLocal(agentPath, 'claim', String(foreignItem.item_id), '--json');
   assert.equal(claimed.status, 0, claimed.failure ?? claimed.stderr);
 
   const scopedAgain = await (await viewApiFetch(scoped, `/api/v1/boards/${localBoard.id}/state`)).json();
@@ -424,7 +422,7 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
     'the unscoped resolver still follows the registered foreign board');
 
   const localStreamTitle = `LOCAL-STREAM-${randomUUID()}`;
-  const localStreamItem = add(local, localStreamTitle);
+  const localStreamItem = await add(local, localStreamTitle);
   const localFrame = await nextViewStreamEvent(reader, frame => frame.event?.event_kind === 'add'
     && frame.event.item_id === localStreamItem.item_id);
   assert.ok(!JSON.stringify(localFrame).includes(foreignTitle), 'stream event data contains no foreign item title');

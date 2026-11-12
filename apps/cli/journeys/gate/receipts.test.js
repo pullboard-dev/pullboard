@@ -10,11 +10,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Create isolated main and core worktrees with Pullboard's real installed commit hooks. */
-function fixture(t) {
+async function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-precommit-merged-main-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const shims = join(dir, 'bin'), main = join(dir, 'main'), lane = join(dir, 'lane');
@@ -32,9 +33,9 @@ function fixture(t) {
     HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'board-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   });
   const git = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
-  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const cli = (cwd, ...args) => runCliInProcess(args, { cwd, env });
   assert.equal(git(main, 'init', '-q', '-b', 'main').status, 0);
-  assert.equal(cli(main, 'init').status, 0, 'the native CLI initializes the private fixture and installs hooks');
+  assert.equal((await cli(main, 'init')).status, 0, 'the native CLI initializes the private fixture and installs hooks');
   writeFileSync(join(main, 'pullboard.json'), JSON.stringify({
     spec: 'SPEC.md', practice: 'PRACTICE.md', gate: '', lease: '2h', verify: { policy: 'any' },
     lanes: { core: { owns: ['core/'], specs: ['L3'] }, view: { owns: ['view/'], specs: ['L3'] } }, shared: [],
@@ -48,7 +49,7 @@ function fixture(t) {
   const seed = git(main, 'commit', '-q', '-m', 'chore: seed the private fixture [L3]');
   assert.equal(seed.status, 0, seed.stderr);
   assert.equal(git(main, 'worktree', 'add', '-q', '-b', 'core/fixture', lane).status, 0);
-  const joined = cli(lane, 'join', 'core', '--model', 'gpt-6-luna', '--family', 'openai');
+  const joined = await cli(lane, 'join', 'core', '--model', 'gpt-6-luna', '--family', 'openai');
   assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   return { main, lane, git };
 }
@@ -67,15 +68,15 @@ function squashAcceptedMain(box) {
   assert.equal(box.git(box.lane, 'add', 'core/file.js').status, 0);
 }
 
-test('a lane may commit an accepted-main squash together with its own change [L3,C7]', t => {
-  const box = fixture(t);
+test('a lane may commit an accepted-main squash together with its own change [L3,C7]', async t => {
+  const box = await fixture(t);
   squashAcceptedMain(box);
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): keep accepted main change [L3]');
   assert.equal(commit.status, 0, `${commit.stderr}\n${commit.stdout}`);
 });
 
-test('the accepted-main allowance does not permit a builder edit to the same foreign file [L3,C7]', t => {
-  const box = fixture(t);
+test('the accepted-main allowance does not permit a builder edit to the same foreign file [L3,C7]', async t => {
+  const box = await fixture(t);
   squashAcceptedMain(box);
   writeFileSync(join(box.lane, 'view', 'file.js'), 'export const accepted = false;\nexport const builder = true;\n');
   assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
@@ -85,8 +86,8 @@ test('the accepted-main allowance does not permit a builder edit to the same for
 });
 
 /** Create the mixed accepted-main and deleted-shim case seen in the archived #1673 merge. */
-function mixedMainAndShim(t) {
-  const box = fixture(t);
+async function mixedMainAndShim(t) {
+  const box = await fixture(t);
   writeFileSync(join(box.main, 'core', 'new.js'), 'export const value = 1;\n');
   writeFileSync(join(box.main, 'core', 'old.js'), "export { value } from './new.js';\n");
   writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../core/old.js';\nexport const accepted = value;\n");
@@ -105,14 +106,14 @@ function mixedMainAndShim(t) {
   return box;
 }
 
-test('a merge accepts main lines plus the deleted-shim import repoint [L3,C7]', t => {
-  const box = mixedMainAndShim(t);
+test('a merge accepts main lines plus the deleted-shim import repoint [L3,C7]', async t => {
+  const box = await mixedMainAndShim(t);
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge accepted main [L3]');
   assert.equal(commit.status, 0, commit.stderr + commit.stdout);
 });
 
-test('a merge still refuses a builder edit beside the deleted-shim import repoint [L3,C7]', t => {
-  const box = mixedMainAndShim(t);
+test('a merge still refuses a builder edit beside the deleted-shim import repoint [L3,C7]', async t => {
+  const box = await mixedMainAndShim(t);
   writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\nexport const foreignEdit = true;\n");
   assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): edit a foreign file [L3]');
@@ -121,8 +122,8 @@ test('a merge still refuses a builder edit beside the deleted-shim import repoin
 });
 
 /** A lane and main both change core/file.js, and main also adds more text than the scan limit allows. */
-function bigTrunkMerge(t) {
-  const box = fixture(t);
+async function bigTrunkMerge(t) {
+  const box = await fixture(t);
   writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = "lane";\n');
   assert.equal(box.git(box.lane, 'commit', '-qam', 'feat(core): lane change [L3]').status, 0);
   writeFileSync(join(box.main, 'core', 'file.js'), 'export const owned = "main";\n');
@@ -138,16 +139,16 @@ function bigTrunkMerge(t) {
   return box;
 }
 
-test('clause 1: a merge of a trunk that moved past the scan limit scans only the small resolution [L3,C7]', t => {
-  const box = bigTrunkMerge(t);
+test('clause 1: a merge of a trunk that moved past the scan limit scans only the small resolution [L3,C7]', async t => {
+  const box = await bigTrunkMerge(t);
   writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = "both";\n');
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
   assert.equal(commit.status, 0, commit.stderr + commit.stdout);
 });
 
-test('clause 1: a merge resolution that itself exceeds the scan limit is still refused [L3,C7]', t => {
-  const box = bigTrunkMerge(t);
+test('clause 1: a merge resolution that itself exceeds the scan limit is still refused [L3,C7]', async t => {
+  const box = await bigTrunkMerge(t);
   writeFileSync(join(box.lane, 'core', 'file.js'), 'ordinary text\n'.repeat(700_000));
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
@@ -155,8 +156,8 @@ test('clause 1: a merge resolution that itself exceeds the scan limit is still r
   assert.match(commit.stdout + commit.stderr, /DIFF_TOO_LARGE/u);
 });
 
-test('clause 1: a merge whose trunk added past the scan limit to a file the lane also changed passes [L3,C7]', t => {
-  const box = fixture(t);
+test('clause 1: a merge whose trunk added past the scan limit to a file the lane also changed passes [L3,C7]', async t => {
+  const box = await fixture(t);
   const laneFile = join(box.lane, 'core', 'file.js');
   writeFileSync(laneFile, '// lane\n' + readFileSync(laneFile, 'utf8'));
   assert.equal(box.git(box.lane, 'commit', '-qam', 'feat(core): lane change [L3]').status, 0);

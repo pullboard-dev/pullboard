@@ -9,6 +9,10 @@ import { unownedMainReds } from "./reworks.js";
 import { linkKnownMainReworks } from "./reworks.js";
 import { validateItemAddition } from "../../../io/board/add.js";
 import { insertItem } from "../../../io/board/add.js";
+import { appendFact } from "../../../io/board/fact.js";
+import { splitMainReds } from "../../../../../items/index.js";
+import { mainRedFact } from "../../../../../items/index.js";
+import { mainRedKeyLines } from "../../../../../items/index.js";
 
 /** Quote one derived literal file without interpreting its bytes as shell syntax. */
 function word(file) { return "'" + file.replaceAll("'", "'\\''") + "'"; }
@@ -68,9 +72,13 @@ export function fileKnownMainAutofile(board, id, options, items, runningFile = f
   for (const { file, names } of missing) {
     const lane = laneOf({ lanes: options.autoMainReds.lanes }, file);
     if (!lane || lane === 'coordinator') throw new Refused('SUBMISSION_PROOF', `automatic Main red repair has no declared owner lane for ${file}; ask the coordinator to file or route its repair`);
+    // One cause key for every filer: a case an open repair owns gets a fact there, never a second item.
+    const { owned, fresh } = splitMainReds(items, names.map(name => ({ file, name })));
+    for (const [owner, rows] of owned) appendFact(board, owner, { agentId: options.agentId, kind: 'measurement', text: mainRedFact(rows, `submit #${id}; main ${known.main}`) });
+    if (!fresh.length) continue;
     const item = { by: options.agentId, lane, title: `Main red: ${file}`, route: 'strong', specIds: [], parentId: null, after: [],
-      criterion: `Repair these exact cases on main ${known.main}: ${names.join('; ')}. First introducing landing: unknown. Filed by submit #${id} from identical native candidate/main failure signatures.`,
-      brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: submit #${id}; main ${known.main}` };
+      criterion: `Repair these exact cases on main ${known.main}: ${fresh.map(row => row.name).join('; ')}. First introducing landing: unknown. Filed by submit #${id} from identical native candidate/main failure signatures.`,
+      brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: submit #${id}; main ${known.main}\n${mainRedKeyLines(fresh)}` };
     const validated = validateItemAddition(board, item);
     // This engine's approved authority derives this one check; it does not impersonate the coordinator or widen addItem.
     const repair = insertItem(board, item, { ...validated, command: `${options.autoMainReds.runner.trim()} ${word(file)}` });

@@ -29,11 +29,11 @@ export function timingSource(root) {
     const env = gitChildEnv(root);
     const status = tryGit(root, ['status', '--porcelain=v1', '--untracked-files=all'], { env });
     if (status.status !== 0 || status.stdout) return null;
-    const revision = tryGit(root, ['rev-parse', '--verify', 'HEAD'], { env });
-    const treeRevision = tryGit(root, ['rev-parse', '--verify', 'HEAD^{tree}'], { env });
-    if (revision.status !== 0 || treeRevision.status !== 0) return null;
-    const head = revision.stdout, tree = treeRevision.stdout;
-    return SHA.test(head ?? '') && SHA.test(tree ?? '') ? { head, tree } : null;
+    // One process answers both: the trailing -- reads both words as revisions, as --verify did, never as paths (#5900).
+    const revisions = tryGit(root, ['rev-parse', 'HEAD', 'HEAD^{tree}', '--'], { env });
+    if (revisions.status !== 0) return null;
+    const [head, tree, end, ...rest] = revisions.stdout.split('\n');
+    return end === '--' && !rest.length && SHA.test(head ?? '') && SHA.test(tree ?? '') ? { head, tree } : null;
   } catch { return null; }
 }
 

@@ -60,6 +60,7 @@ test('a real pre-commit hook waiting on file I/O leaves the board writer availab
     };
     syncBuiltinESMExports();
   `);
+  // Process-level: a real pre-commit hook child blocked mid-read by a preload while a peer takes the board lock.
   const child = startFixtureChild(process.execPath, ['--import', preload, helpers.BIN, 'hook', 'pre-commit'], {
     cwd: box.web, env: { ...box.env, HOOK_IO_SIGNAL: signal, HOOK_IO_RELEASE: release }, stdio: ['ignore', 'pipe', 'pipe'],
   });

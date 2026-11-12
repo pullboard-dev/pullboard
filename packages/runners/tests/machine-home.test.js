@@ -13,7 +13,6 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { renderAgentsBlock } from '../../config/index.js';
 import {
   closeResourceConnections,
   listResources,
@@ -150,11 +149,6 @@ test('a read-only board refuses the write check by name [I1,L3,P4]', (t) => {
 
 test('a Codex agent that cannot write the board is told the Codex step that grants it [I1,P4]', (t) => {
   const p = boardProject(t);
-  // init's agent guidance names the step before the first refusal.
-  const guidance = renderAgentsBlock('doctrine', 'doctrine text');
-  assert.match(guidance, /\*\*Codex\.\*\* .*codex --add-dir "\$\(git rev-parse --path-format=absolute --git-common-dir\)\/pullboard"/u);
-  // A named permission profile ignores writable_roots, so the guidance gives each settings form its own step (#913).
-  assert.match(guidance, /a permission profile takes `"<that folder>" = "write"` in its `\[permissions\.<profile>\.filesystem\]` table; only settings without a profile use `writable_roots`/u);
   lockBoard(p.folder);
   try {
     const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });

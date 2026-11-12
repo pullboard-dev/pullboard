@@ -12,7 +12,6 @@ import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
 import { landingReceiptReuse } from '../reuse.js';
-import { landingSpan } from '../../../../resources/index.js';
 import { reusableSubmitFiles } from '../reuse.js';
 import { gateVerdictOf } from '../main/red/receipt.js';
 import { toolingFor } from '../../../../pin/index.js';
@@ -24,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -39,6 +39,7 @@ import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
 import { selectAffectedTests } from '../../../../gate/index.js';
 import { testClosures } from '../../../../gate/index.js';
+import { ledgerFromOutput } from '../../../../gate/index.js';
 import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { literalShellWords } from '../../../../kernel/index.js';
 import { mappedCheck } from '../../../../codemap/index.js';
@@ -156,8 +157,20 @@ function planKey(state, focus) {
   catch { return null; }
 }
 
+/**
+ * Whether the landing pushes the remote main itself: the default shape, every project without landing.publish
+ * "separate" (landsOnTrunk in publish.js, which imports this file). Why: 0.9.3's promise is that the remote main only
+ * gets a tree that passed the whole suite, so this shape lands only on whole-suite proof [C7,#6271].
+ */
+function pushesOnLanding(config) {
+  return config?.landing?.publish !== 'separate';
+}
+
 /** The plan batchGatePlan keeps: the selected plan, or the full gate for a per-item landing with no narrower plan. */
 function choosePlan(state, options) {
+  // The default shape pushes what it lands, so a landing that cannot reuse a whole-suite receipt runs the whole
+  // configured gate on the merged tree; a bisection round keeps its focus, its final tree still runs this plan [C7,#6271].
+  if (pushesOnLanding(state.config) && !options.focus?.length) return fullGatePlan(state);
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
@@ -309,7 +322,7 @@ async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
   // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
-  await landingSpan('smoke', () => smokeCandidate(state.batch.root, { record: true }));
+  await timedPhase(state.say, 'cli smoke', () => smokeCandidate(state.batch.root, { record: true }));
   state.smoked.add(tree);
 }
 
@@ -376,7 +389,7 @@ async function runGateGroup(state, label, options) {
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
-  let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
+  let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, wholeSuite: pushesOnLanding(state.config), files, treeOf,
     generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
   // T3 journeys are deferred to the landing batch by design: no submit ran them, so no submit receipt answers for the ones it did not run.
   // Why: a one-item bisect half reused its submit receipt, ran no journey and passed the item that broke it [C7,CS4,V4].
@@ -424,6 +437,7 @@ async function runGateGroup(state, label, options) {
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
+  state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
@@ -443,8 +457,10 @@ async function runGateGroup(state, label, options) {
   // cases red there too are filed as Main red and never charged to the items.
   const known = await knownMainAccount(state, result);
   // A per-item landing cannot tell its item's red from main's without the comparison: it blocks as a landing fault and
-  // the verified item stays verified, never reopened on a guess [C7,#3065].
-  if (singleItemLanding(state) && known?.unavailable?.length) {
+  // the verified item stays verified, never reopened on a guess [C7,#3065]. With no focused runner configured (the init
+  // default) no comparison can ever run, so the per-item rule holds: the one item's red is its own and goes back to its
+  // builder; parked, nobody could move it [C7,#6270].
+  if (singleItemLanding(state) && known?.unavailable?.length && state.config.affectedTests?.trim()) {
     throw new Refused('LAND_MAIN_COMPARISON', `the per-item landing could not compare its red cases with base main ${state.batch.base.slice(0, 12)} (${known.unavailable.join('; ')}); retry the landing once main can run those files`);
   }
   if (known?.known.length) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
@@ -474,7 +490,7 @@ async function runGateGroup(state, label, options) {
  * Why: the trunk's static checks waited 80 to 230 s on a runner after a green candidate gate on 9 Nov [C7].
  */
 function earlyStaticChecks(state) {
-  return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+  return timedPhase(state.say, 'static checks', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
     agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
     .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
 }
@@ -598,4 +614,14 @@ export function deferredSelections(state, readEvents = id => store.events(state.
     const files = detail?.commit === entry.commit ? detail.submissionProof?.deferredFiles ?? [] : [];
     return files.length ? [{ entry, files }] : [];
   });
+}
+
+/**
+ * The reuse ledger line of a finished gate's log, or a line saying the log holds none. Why: reuse fails open, and a
+ * landing that reused nothing looked only slow until this line named its keyless files and why (#5839).
+ */
+function runLedger(log) {
+  let output = '';
+  try { output = readFileSync(log, 'utf8'); } catch { /* An unreadable log reports no account below. */ }
+  return ledgerFromOutput(output) ?? 'ledger: the run log holds no per-file reuse account';
 }

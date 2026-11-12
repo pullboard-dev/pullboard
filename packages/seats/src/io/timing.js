@@ -11,6 +11,14 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+/** The seat and item an item folder's private marker names, or null. */
+function itemMarker(gitDir) {
+  try {
+    const marker = JSON.parse(readFileSync(join(gitDir, 'pullboard-item.json'), 'utf8'));
+    return typeof marker.seat === 'string' && Number.isSafeInteger(marker.item) ? marker : null;
+  } catch { return null; }
+}
+
 /** Resolve an existing checkout and seat without creating or locking a board. */
 export function timingSeat(cwd) {
   try {
@@ -33,8 +41,12 @@ export function timingSeat(cwd) {
       // The seat registered at this exact path is found by index; only a moved or aliased path reads every seat.
       const exact = db.prepare('SELECT agent_id, agent_path FROM agent WHERE agent_path=?').get(root);
       const rows = exact ? [exact] : db.prepare('SELECT agent_id, agent_path FROM agent').all();
-      const seat = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
+      const found = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
+      // An item folder names its seat and item in its private marker, so its commit hooks time under that seat (#5719).
+      const marker = found ? null : itemMarker(gitDir);
+      const seat = found ?? (marker && db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(marker.seat));
       if (!seat) return null;
+      if (marker) return { seat: seat.agent_id, item: marker.item, file: join(common, 'pullboard', 'seat-timing.jsonl') };
       const item = db.prepare("SELECT item_id FROM item WHERE item_owner=? AND item_status='claimed' ORDER BY item_id LIMIT 1").get(seat.agent_id)?.item_id ?? null;
       return { seat: seat.agent_id, item, file: join(common, 'pullboard', 'seat-timing.jsonl') };
     } finally { db.close(); }

@@ -11,6 +11,7 @@ import {
 import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
+import * as store from '../../../../../packages/store/index.js';
 import {
   actOn,
   idArg,
@@ -42,6 +43,10 @@ export async function run(io, { first, second, rest, values }) {
     ref: values.ref ?? null, ...(implies ? { implies } : {}), ...marked }]);
   io.result?.({ item: id, fact });
   io.say(`fact ${fact.id} appended to #${id} as ${fact.kind}`);
+  if (second === 'diagnosis' && store.getItem(board, id).item_route === 'strong') {
+    io.say(`#${id} stays strong: a diagnosis never lowers a strong route by itself; suggested route: light`);
+    io.say(`next: the coordinator runs: pullboard edit ${id} --route light`);
+  }
   return 0;
 });
 }

@@ -31,7 +31,7 @@ export function dispatchHealth(board, config = {}) {
   const previous = row ? JSON.parse(row.event_detail).dispatch ?? [] : [];
   const active = row ? JSON.parse(row.event_detail).active ?? [] : [];
   const at = board.clock.now();
-  const dispatch = [], findings = [], items = new Set();
+  const dispatch = [], findings = [];
   const agents = store.listAgents(board);
   const roadmap = store.roadmap(board);
   const current = roadmap.find(milestone => !milestone.shipped && milestone.items.some(item => item.status !== 'verified'));
@@ -47,10 +47,9 @@ export function dispatchHealth(board, config = {}) {
       throw error;
     }
     const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds });
-    if (!selected.item || selected.held || items.has(selected.item.item_id)) continue;
+    if (!selected.item || selected.held) continue;
     const item = selected.item.item_id;
     if (current && !current.items.some(entry => entry.id === item)) continue;
-    items.add(item);
     const before = previous.find(entry => entry.seat === seat.agent_id && entry.item === item && entry.review === selected.review);
     const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE (item_id=? AND event_kind IN ('add','claim','release','submit','accept','reject','reopen','refreeze','escalate','withdraw','edit','hold_item','unhold_item','reserve')) OR (event_by=? AND event_kind IN ('claim','reserve','release','submit'))").get(item, seat.agent_id)?.at;
     const lastWork = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE event_by=? AND event_kind IN ('claim','reserve','release','submit')").get(seat.agent_id)?.at ?? seat.agent_created_at;

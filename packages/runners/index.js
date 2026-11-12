@@ -15,6 +15,7 @@ export { enqueueRunnerJob, uploadRunnerPack, fetchRunnerFile } from "./src/io/pu
 export { enqueueScript, packScript, fetchScript, statusScript } from "./src/io/pull/scripts.js";
 export { runnerStatusDir, runnerSshArgs, runRunnerScript } from "./src/io/pull/ssh.js";
 export { readRunnerCapacities } from "./src/io/capacity.js";
+export { readPulledCapacity, SERVE_RECENT_MS } from "./src/io/pulled.js";
 export { runnerUtilization, readRunnerUtilization } from "./src/io/utilization.js";
 export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, computeRunnerSlots, runnerIsComputed, effectiveRunner, effectiveRunners, RUNNER_MEASUREMENT_MS, refreshRunnerMeasurements } from "./src/io/slots.js";
 export { installRunnerPackage } from "./src/io/package/install.js";
@@ -35,6 +36,7 @@ export { PULL_MODES } from './src/io/pull/serve.js';
 export { packText, commitWork, runItems } from "./src/io/run.js";
 /** Private runner checkout reuse behind the runner cell's front door [C7,P3]. */
 export { hostedItemFolderPath, hostedFolderScript, runOnRunnerShell, createHostedItemFolder, runInHostedItemFolder, returnHostedBranch, pushHostedItemBranch } from './src/io/worktree.js';
+export { cachedTrunkPack, servedTrunkPack } from './src/io/worktree.js';
 export { borrowWarmCheckout, snapshotWarmCheckout, recycleWarmCheckout, discardWarmCheckout } from './src/io/checkouts.js';
 export { captureSubmitTooling, prepareSubmitToolingRetry, retrySubmitTooling } from './src/io/retry.js';
 export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupProcessText } from './src/logic/diagnostics.js';
@@ -43,3 +45,7 @@ export { committedRunnerController, archivedToolingSource } from './src/io/tooli
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/tooling/dirty.js';
 export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/io/handoff/capacity.js';
 export { staleDispatcherTools, dispatcherPass, handOver } from './src/io/handoff/handover.js';
+export { installRunnerService, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { expandTestFolders } from "./src/io/pull/folders.js";
+export { mainRedUpdates } from './src/logic/main/reds.js';
+export { filesOfMain } from './src/io/main/reds.js';

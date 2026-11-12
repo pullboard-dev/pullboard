@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -73,6 +74,9 @@ async function privateRepo(t) {
   };
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.NODE_TEST_CONTEXT;
+  // These submits hold their gate in the submitting process, so the fixture pins controller dispatch [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   /** Run real Git in this fixture with only the fixture's configured identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */

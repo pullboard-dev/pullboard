@@ -34,7 +34,7 @@ function submitSettled(board, id, options) {
  * A board whose review ratio is reached by one submission built by a Haiku seat, with one buildable item waiting.
  * The frozen relaxation threshold of 1 makes the same-family review offerable, as on a busy board with familyRelaxAt.
  */
-function familyReviewBoard(t) {
+async function familyReviewBoard(t) {
   const box = crossLaneFixture(t);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -42,14 +42,14 @@ function familyReviewBoard(t) {
     verify: { ...config.verify, family: 'require', reviewRatio: 1, familyRelaxAt: 1 } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: require a different review family');
-  const joinFamily = (name, family) => {
+  const joinFamily = async (name, family) => {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    const seat = box.json(box.runAs(`${name}-session`, root, 'join', 'web', '--family', family, '--model', SEAT_MODEL, '--route', 'strong', '--json'));
+    const seat = box.json((await box.runAsLocal(`${name}-session`, root, 'join', 'web', '--family', family, '--model', SEAT_MODEL, '--route', 'strong', '--json')));
     return { ...seat, root, session: `${name}-session` };
   };
-  const author = joinFamily('haiku-author', 'Haiku');
-  const builder = joinFamily('haiku-builder', 'Haiku');
+  const author = await joinFamily('haiku-author', 'Haiku');
+  const builder = await joinFamily('haiku-builder', 'Haiku');
   const review = box.add('web', 'A review only the Haiku family waits on');
   const build = box.add('web', 'Buildable work for the Haiku seat');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
@@ -62,9 +62,9 @@ function familyReviewBoard(t) {
   return { box, joinFamily, builder, review, build };
 }
 
-test('clause 1: with the review ratio reached and every awaiting review built by its own family, next claims build work [N2,V1]', t => {
-  const { box, builder, review, build } = familyReviewBoard(t);
-  const result = box.runAs(builder.session, builder.root, 'next', '--json');
+test('clause 1: with the review ratio reached and every awaiting review built by its own family, next claims build work [N2,V1]', async t => {
+  const { box, builder, review, build } = await familyReviewBoard(t);
+  const result = (await box.runAsLocal(builder.session, builder.root, 'next', '--json'));
   assert.equal(result.code, 0, result.out + result.err);
   const next = JSON.parse(result.out);
   assert.equal(next.review, false, `the same-family review is not offered: ${result.out}`);
@@ -73,10 +73,10 @@ test('clause 1: with the review ratio reached and every awaiting review built by
   assert.equal(next.offer, undefined, 'no review offer stands in front of the build');
 });
 
-test('clause 2: a seat whose family can review still gets the review first [N2,V1]', t => {
-  const { box, joinFamily, review } = familyReviewBoard(t);
-  const reviewer = joinFamily('openai-builder', 'OpenAI');
-  const result = box.runAs(reviewer.session, reviewer.root, 'next', '--json');
+test('clause 2: a seat whose family can review still gets the review first [N2,V1]', async t => {
+  const { box, joinFamily, review } = await familyReviewBoard(t);
+  const reviewer = await joinFamily('openai-builder', 'OpenAI');
+  const result = (await box.runAsLocal(reviewer.session, reviewer.root, 'next', '--json'));
   assert.equal(result.code, 0, result.out + result.err);
   const next = JSON.parse(result.out);
   assert.equal(next.item.item_id, review, `the other-family seat is offered the review first: ${result.out}`);

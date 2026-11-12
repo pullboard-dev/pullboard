@@ -8,7 +8,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
+import { workProgress } from '../../../../packages/roadmap/src/logic/progress.js';
 import {
   SPEC,
   machine,
@@ -43,6 +45,26 @@ async function readRows(chrome) {
           && rect.width > 0 && rect.height > 0 };
     });
   })())`));
+}
+
+/**
+ * Drop the one derived, clock-read field (idleMinutes, at the milestone and on each item), so two reads a
+ * few seconds apart compare on membership and order only. Why: idle is a count of whole minutes since the
+ * last board event, so a run that crosses a minute boundary legitimately reads 0 then 1 [N26].
+ */
+function withoutIdle(value) {
+  if (Array.isArray(value)) return value.map(withoutIdle);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'idleMinutes').map(([key, entry]) => [key, withoutIdle(entry)]));
+}
+
+/** Check that the second read's idle ages never fall and, at the milestone, rise by at most the elapsed whole minutes. */
+function assertIdleOnlyAged(first, second, message) {
+  const idle = row => row?.progress?.idleMinutes;
+  assert.ok(idle(second) >= idle(first), `${message}: idle never falls`);
+  for (const [index, item] of (first.items ?? []).entries()) {
+    assert.ok(idle(second.items[index]) >= idle(item), `${message}: item ${item.id} idle never falls`);
+  }
 }
 
 /** Read the genuine native milestone without deriving expected order from the renderer under test. */
@@ -114,7 +136,9 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
       await proofShot(chrome, 'milestone-state-order', width);
     }
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
-    assert.deepEqual(nativeMilestone(box, demo), before, 'rendering and expanding rows do not mutate native milestone membership');
+    const after = nativeMilestone(box, demo);
+    assert.deepEqual(withoutIdle(after), withoutIdle(before), 'rendering and expanding rows do not mutate native milestone membership');
+    assertIdleOnlyAged(before, after, 'rendering and expanding rows only age the idle clock');
     const afterQueue = JSON.parse(box.run(demo.repo, 'queue', '--json'));
     assert.deepEqual(afterQueue.releases.find(row => row.name === 'State order').items.map(row => row.id), queueIds,
       'rendering and expanding rows do not change the native work queue or pin priority');
@@ -125,4 +149,22 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
     await view.stop();
     rmSync(profile, { recursive: true, force: true });
   }
+});
+
+test('Idle minutes read from a clock one second before a minute boundary differ only in idle [N26]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE item (item_id INTEGER, item_status TEXT, item_merged_commit TEXT, item_lease_until TEXT, item_review_until TEXT,
+    item_review_by TEXT, item_owner TEXT, item_lane TEXT, item_created_at TEXT, item_after TEXT, item_hold_reason TEXT, item_hold_by TEXT);
+    CREATE TABLE event (item_id INTEGER, event_kind TEXT, event_at TEXT);
+    CREATE TABLE hold (hold_lane TEXT, hold_reason TEXT, hold_by TEXT);
+    INSERT INTO item (item_id, item_status, item_lane, item_created_at) VALUES (1, 'open', 'web', '2026-01-01T00:00:00.000Z');`);
+  const board = { db, clock: { now: () => { throw new Error('the clock is read once, by the caller'); } } };
+  const boundary = Date.parse('2026-01-01T00:05:00.000Z');
+  const first = workProgress(board, { now: new Date(boundary - 1000) }).get(1);
+  const second = workProgress(board, { now: new Date(boundary + 1000) }).get(1);
+  assert.equal(first.idleMinutes, 4, 'one second before the boundary reads four whole minutes');
+  assert.equal(second.idleMinutes, 5, 'one second after reads five');
+  assert.deepEqual(withoutIdle({ progress: second }), withoutIdle({ progress: first }), 'the two reads differ only in idleMinutes');
+  assertIdleOnlyAged({ progress: first, items: [{ id: 1, progress: first }] }, { progress: second, items: [{ id: 1, progress: second }] }, 'across the boundary');
+  db.close();
 });
