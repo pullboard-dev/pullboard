@@ -1134,10 +1134,10 @@
     "launch": 8
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "launch": 30
+    "launch": 4
   },
   "apps/cli/journeys/shout/http/agent.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/shout/item.test.js": {
     "launch": 1
@@ -1156,9 +1156,6 @@
   },
   "apps/cli/journeys/shout/people.test.js": {
     "launch": 10
-  },
-  "apps/cli/journeys/shout/phone.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/shout/prose.test.js": {
     "launch": 5
