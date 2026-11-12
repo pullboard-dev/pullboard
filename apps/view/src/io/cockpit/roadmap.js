@@ -68,7 +68,7 @@ function milestoneItem(entry, p) {
     titles: renderIndex(source).titles,
     state: read ? stateOf(read) : null,
     stageHtml: read ? stageMarkup(item || { ...read, status: entry.state === 'accepted' || entry.state === 'landed' ? 'verified' : read.status,
-      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : []) : '',
+      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : [], false, true) : '',
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry, Date.now()) : null,
     block: block(!expanded && !Array.isArray(detail?.item?.history)),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
