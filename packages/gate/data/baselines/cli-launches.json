@@ -150,7 +150,7 @@
     "launch": 4
   },
   "apps/cli/journeys/decisions/row.test.js": {
-    "launch": 2
+    "launch": 8
   },
   "apps/cli/journeys/digest/main.test.js": {
     "launch": 3
