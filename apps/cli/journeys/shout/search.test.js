@@ -160,7 +160,7 @@ test('row ages read from one captured commit [N26]', () => {
   }
 });
 
-test('search wrappers run when Node lives at a path with spaces [C7]', { timeout: 480_000 }, () => {
+test('search wrappers run when Node lives at a path with spaces [C7]', { timeout: 150_000 }, () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-search-spaced-node-'));
   try {
     const node = nodeWithSpaces(root);
@@ -168,15 +168,15 @@ test('search wrappers run when Node lives at a path with spaces [C7]', { timeout
     const args = ['--test', '--test-reporter=tap', '--test-name-pattern', pattern, 'apps/cli/journeys/shout/search.test.js'];
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const result = spawnSync(node, args, { cwd: process.cwd(), env, encoding: 'utf8', timeout: 150_000 });
-      const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
-      assert.equal(result.status, 0, `spaced Node run ${attempt}/3 failed: ${output}`);
-      assert.match(output, /^ok \d+ - row ages read from one captured commit \[N26\]$/m, `spaced Node run ${attempt}/3 omitted row-age case`);
-      assert.match(output, /^ok \d+ - spec rows keep newest-first order across a capture that moves \[N26\]$/m, `spaced Node run ${attempt}/3 omitted moving-capture case`);
-      assert.match(output, /^# pass 2$/m, `spaced Node run ${attempt}/3 did not complete both cases`);
-      assert.doesNotMatch(output, /# SKIP\b/, `spaced Node run ${attempt}/3 skipped a case`);
-    }
+    // One spaced run: it re-runs the two cases above under the spaced Node, and each of them already runs its own wrapper
+    // several times, so repeating the whole run three times only tripled the file's cost.
+    const result = spawnSync(node, args, { cwd: process.cwd(), env, encoding: 'utf8', timeout: 120_000 });
+    const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+    assert.equal(result.status, 0, `spaced Node run failed: ${output}`);
+    assert.match(output, /^ok \d+ - row ages read from one captured commit \[N26\]$/m, 'spaced Node run omitted row-age case');
+    assert.match(output, /^ok \d+ - spec rows keep newest-first order across a capture that moves \[N26\]$/m, 'spaced Node run omitted moving-capture case');
+    assert.match(output, /^# pass 2$/m, 'spaced Node run did not complete both cases');
+    assert.doesNotMatch(output, /# SKIP\b/, 'spaced Node run skipped a case');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
