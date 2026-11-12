@@ -173,7 +173,7 @@
   "apps/cli/tests/fixtures/hosted/shapes.js": {
     "sleep": 2
   },
-  "apps/cli/journeys/shout/journeys.test.js": {
+  "apps/cli/tests/fixtures/cockpit/journey/every.js": {
     "sleep": 1
   },
   "apps/cli/journeys/init/known/main/output.test.js": {
