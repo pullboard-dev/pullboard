@@ -31,6 +31,8 @@ import {
 } from '../../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
+// Process-level: the remaining launches here run preloads, IPC lock holders, installed copies and other-process
+// SQLite contention, none of which an in-process call can reproduce.
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
@@ -306,10 +308,10 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const fact = box.run(box.repo, 'fact', String(id), 'note', 'private native index input', '--json');
+  const fact = await box.runLocal(box.repo, 'fact', String(id), 'note', 'private native index input', '--json');
   assert.equal(fact.code, 0, fact.err);
   const before = snapshot(file);
   const fixture = new DatabaseSync(file);

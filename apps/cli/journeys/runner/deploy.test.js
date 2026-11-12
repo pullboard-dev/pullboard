@@ -32,6 +32,7 @@ function lanAddress() {
 
 /** Start the real `pullboard serve --json` and resolve its startup document; it stops when the test ends. */
 async function startServe(t, box, args = []) {
+  // Process-level: serve is a long-lived child stopped by signal.
   const child = startFixtureChild(process.execPath, [BIN, 'serve', ...args, '--json'], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const closed = new Promise(done => child.once('close', done));
   const stop = async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); await closed; };
@@ -139,6 +140,7 @@ async (t) => {
   writeFileSync(config, JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), trunk: { remote: trunk } }, null, 2));
   const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
   delete env.PULLBOARD_BOARD_KEY;
+  // Process-level: install-serve drives launchd and a PATH-shimmed runner.
   const cli = (...args) => runFixtureChild(process.execPath, [BIN, 'runner', ...args, '--json'], { cwd: box.root, env, encoding: 'utf8' });
 
   const unknown = cli('install-serve', 'runner-z', '--board', `${box.origin}${box.path}?k=${box.key}`);
