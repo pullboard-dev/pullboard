@@ -2,7 +2,6 @@
 /** A landing whose items already landed pushes nothing, and a dirty landing checkout is reset on each attempt, so its dirt never lands [B35,B3,P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
