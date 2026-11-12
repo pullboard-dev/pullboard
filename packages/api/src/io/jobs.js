@@ -8,6 +8,7 @@ import { atomically } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { upsertProgressStep } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
@@ -262,8 +263,7 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
   return atomically(db, () => {
     const { attempt, step } = heldBy(db, job, runner, token);
     if (step === 'done') throw new Refused('JOB_DONE', `job ${job} already posted its receipt; progress ends with the receipt`);
-    db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'progress', ?, ?, ?)
-      ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, attempt, text, now);
+    upsertProgressStep(db, job, attempt, text, now);
     return { job, attempt, recorded: true };
   });
 }

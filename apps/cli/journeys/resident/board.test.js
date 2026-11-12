@@ -131,6 +131,7 @@ before(() => {
   const runIn = (cwd, args, { modules = false } = {}) => {
     if (modules) writeFileSync(env.RESIDENT_MODULE_LOG, '');
     const started = performance.now();
+    // Process-level: the thin client and the resident process it reaches are the subject, so every call is a real child.
     const result = runFixtureChild(process.execPath, [...(modules ? ['--import', hook] : []), bin, ...args], { cwd, env, encoding: 'utf8' });
     const ms = performance.now() - started;
     const loaded = modules ? [...new Set(readFileSync(env.RESIDENT_MODULE_LOG, 'utf8').split('\n').filter(Boolean))] : null;
@@ -138,6 +139,7 @@ before(() => {
   };
   /** Run the copied CLI under bash's `time` and return its user plus system CPU seconds (last stderr line). */
   const cpuSecondsIn = (cwd, args) => {
+    // Process-level: bash time measures the CPU of a real CLI process.
     const result = runFixtureChild('bash', ['-c', 'TIMEFORMAT="%U %S"; time "$@" >/dev/null', 'bash', process.execPath, bin, ...args], { cwd, env, encoding: 'utf8' });
     const [user, sys] = result.stderr.trim().split('\n').pop().split(' ').map(Number);
     return { status: result.status, cpu: user + sys, stderr: result.stderr };
@@ -258,6 +260,7 @@ test('the resident process holds the board open: reads reuse its connection, and
   assert.ok(after.reused >= before.reused + 3, `each warm read reuses the held connection (${after.reused - before.reused} reuses)`);
   // Two commands at once run on two connections, and each answers as it would alone.
   const alone = fx.runIn(fx.repo, ['show', '2', '--json']);
+  // Process-level: two concurrent real clients prove each owns one resident connection.
   const [first, second] = await Promise.all([0, 1].map(() => runFixtureChildAsync(process.execPath,
     [join(fx.code, 'apps/cli/pullboard.js'), 'show', '2', '--json'], { cwd: fx.repo, env: fx.env })));
   for (const result of [first, second]) {
@@ -368,6 +371,7 @@ test('clause 1: an idle resident process closes its board connections and exits 
   const start = Date.parse('2026-11-03T00:00:00.000Z');
   writeFileSync(clockFile, String(start));
   const env = { ...fx.env, PULLBOARD_RESIDENT_IDLE_MS: '60000', PULLBOARD_RESIDENT_CLOCK: clockFile };
+  // Process-level: a spawned resident daemon on a fake clock.
   const daemon = spawn(process.execPath, [join(fx.code, 'apps/cli/src/io/resident/board.js'), place.socket, bin, codeVersion(bin).version, place.pid],
     { cwd: fx.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
@@ -421,6 +425,7 @@ async function whileResidentBlocked(check) {
   lock.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
   let slow, exited = false;
   try {
+    // Process-level: a real slow command holds the resident process while other clients are timed.
     slow = runFixtureChildAsync(process.execPath, [join(fx.code, 'apps/cli/pullboard.js'), 'shout', 'all', 'a slow write'],
       { cwd: fx.worktree, env: { ...fx.env, PULLBOARD_BOARD_QUEUE_MS: '60000' } });
     slow.then(() => { exited = true; }, () => { exited = true; });
@@ -476,6 +481,7 @@ test('clause 1: a command running past the per-command ceiling is ended with an 
   fx.awaitResident();
   const entry = join(fx.code, 'apps/cli/pullboard.js');
   const socket = join(fx.dir, 'ceiling.sock'), pidFile = join(fx.dir, 'ceiling.pid');
+  // Process-level: a spawned resident process proves the per-command ceiling ends it.
   const child = spawn(process.execPath, [join(fx.code, 'apps/cli/src/io/resident/board.js'), socket, entry, 'ceiling-test', pidFile],
     { env: { ...fx.env, PULLBOARD_RESIDENT_COMMAND_MS: '1500' }, stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(done => child.on('exit', done));

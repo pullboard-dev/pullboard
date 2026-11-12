@@ -135,13 +135,17 @@ const runPhase = (role, command, PATH) => {
     env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }));
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
+  let ledger = null;
+  try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
   const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures: failingCases(ran.status, text, run), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}) });
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}) });
 };
 if (shard) runPhase('proof', shard.command, cliPath());
 else {
@@ -184,6 +188,12 @@ else {
 // A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
 receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
   : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
+// Ledger rows give way first when the receipt nears its cap; each phase counts what it left out. Then the rest is fitted.
+for (let phase; Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES} && (phase = receipt.phases.findLast(row => row.ledger?.files.length));) {
+  const drop = Math.ceil(phase.ledger.files.length / 4);
+  phase.ledger.files.splice(-drop);
+  phase.ledger.omitted += drop;
+}
 fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
