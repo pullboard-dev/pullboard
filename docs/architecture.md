@@ -594,7 +594,7 @@ Every build claim and every review reservation is checked in one write transacti
 | dead reviewer | the review job lapses after 2 minutes and the item is offered again | same | `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js` |
 | red gate | the hand-off ends red; the builder keeps the claim with a renewed lease and next tells it once | same | `apps/cli/journeys/submit/handoff.test.js` |
 | red notice after the claim lapsed | next still says the item stays claimed by you until a past time | the notice reads the live lease and says the claim lapsed | NONE |
-| a red from an older head shown at claim | returnedRecord shows the newest red or infrastructure gate without matching the current commit | only a red at the item's current commit is shown | NONE |
+| a red from an older head shown at claim | returnedRecord shows the newest red or infrastructure gate without matching the current commit | only a red at the item's current commit is shown | `packages/gate/tests/fixtures/pipeline/a-red-from-an-older-head-shown-at-claim.js` |
 | main moved while an item was in review | a clean move keeps the verdict; a real conflict reopens the item naming the file | same | `apps/cli/journeys/lifecycle/merge.test.js` |
 | main moved after acceptance, before landing | the lander reopens a stale verdict to its lane with the file named | same | `apps/cli/journeys/reopen/landing/stale.test.js` |
 | gate driver lease lost | a refused renewal retakes the lease on the next tick | same, but only while its item still is in its serving state | `apps/cli/journeys/handoff/dead/running.test.js` |

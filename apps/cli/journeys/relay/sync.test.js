@@ -202,3 +202,12 @@ test('on an accepted baseline a stalled relay refuses once with a reason and the
   assert.deepEqual(run.document.local, [], 'nothing commits outside the relay order');
 });
 });
+
+test('export --json writes exactly one document, with nothing after it [C7]', async t => {
+  const box = await relayClientFixture(t);
+  const exported = await box.cliLocal('export', '--json');
+  assert.equal(exported.code, 0);
+  // The fixture parses all of stdout as one document, so a second document after the export would have failed it.
+  assert.ok(exported.document.tables?.shout, 'the one document is the board export');
+  assert.equal(exported.document.messages, undefined, 'no second envelope is merged or printed');
+});

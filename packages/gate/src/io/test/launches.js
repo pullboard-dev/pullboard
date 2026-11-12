@@ -17,14 +17,18 @@ const MESSAGE = 'launches the CLI or a node child process; call runCliInProcess 
 /** Direct child-process calls; a launch only when the call names node or the CLI entry (git, sh and tar calls are not). */
 const SPAWN = /(?<![\w$])(?:(?:[\w$]+\s*\.\s*)?(?:spawnSync|execFileSync|execFile|execSync|spawn|fork)|runFixtureChild|runFixtureChildAsync|startFixtureChild|runFixtureExecFile|runFixtureExec)\s*\(/gu;
 /** Node or the CLI named in the call's text: a `node` string or the CLI entry file. */
-const NODE_OR_CLI_TEXT = /['"`]node['"`]|\bnode\s|pullboard\.js/u;
+const NODE_OR_CLI_TEXT = /['"`]node['"`]|\bnode\s|pullboard\.js\b/u;
 /** Node or the CLI named by an identifier, read with strings masked so '/bin/sh' and 'bin/*.js' are not the `bin` entry. */
 const NODE_OR_CLI_NAME = /\bexecPath\b|pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bin)\b/u;
 /** The pullboard CLI named in a launch's text or by identifier; any other node child (run-tests, node --test, script mains, -e) is not a CLI launch. */
 const CLI_TEXT = /pullboard\.js/u;
 const CLI_NAME = /pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bin)\b/u;
-/** The kit box methods that run the CLI as a child process (apps/cli/tests/fixtures/e2e.js); `box` is the kit's own name. */
-const BOX_LAUNCH = /(?<![\w$.])box\s*\.\s*(?:run|runAs|cli|cliAt|runGate|launch)\s*\(/gu;
+/** Any call on a box (`box` is the kit's own name); the member counts only when its helper starts a process. */
+const BOX_CALL = /(?<![\w$.])box\s*\.\s*([\w$]+)\s*\(/gu;
+/** The kit box members that run the CLI as a child process (apps/cli/tests/fixtures/e2e.js), for a box the test file does not build itself. */
+const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'runGate', 'launch']);
+/** A bare call of a name, not a member call; the name is the helper a local closure may define. */
+const BARE_CALL = /(?<![\w$.])([\w$]+)\s*\(/gu;
 
 /** The offset of the bracket closing the one opened at `open` in masked code. */
 function closingAt(code, open) {
@@ -51,14 +55,166 @@ export function cliLaunchSites(source, path) {
   const found = [];
   /** Record one site at an offset of the source. */
   const add = (at, target) => found.push({ path, line: lineAt(source, at), kind: 'launch', target, text: MESSAGE });
-  for (const match of code.matchAll(SPAWN)) {
-    const open = match.index + match[0].length - 1;
+  for (const at of spawnSites(source, code, 0, code.length)) {
+    const open = code.indexOf('(', at);
     const close = closingAt(code, open);
-    if (!NODE_OR_CLI_TEXT.test(source.slice(open, close)) && !NODE_OR_CLI_NAME.test(code.slice(open, close))) continue;
-    add(match.index, CLI_TEXT.test(source.slice(open, close)) || CLI_NAME.test(code.slice(open, close)) ? 'cli' : 'other');
+    add(at, CLI_TEXT.test(source.slice(open, close)) || CLI_NAME.test(code.slice(open, close)) ? 'cli' : 'other');
   }
-  for (const match of code.matchAll(BOX_LAUNCH)) add(match.index, 'cli');
+  const launches = launchReach(source, code);
+  for (const match of code.matchAll(BOX_CALL)) if (launches(match[1], true, match.index, match.index + match[0].length - 1)) add(match.index, 'cli');
   return found.sort((left, right) => left.line - right.line);
+}
+
+/** Offsets of direct child-process calls of node or the CLI within [from, to) of masked code. */
+function spawnSites(source, code, from, to) {
+  const sites = [];
+  for (const match of code.slice(from, to).matchAll(SPAWN)) {
+    const open = from + match.index + match[0].length - 1;
+    if (namesNodeOrCli(source, code, open)) sites.push(from + match.index);
+  }
+  return sites;
+}
+
+/** Whether the call whose argument list opens at `open` names node or the CLI entry. */
+function namesNodeOrCli(source, code, open) {
+  const close = closingAt(code, open);
+  return NODE_OR_CLI_TEXT.test(source.slice(open, close)) || NODE_OR_CLI_NAME.test(code.slice(open, close));
+}
+
+/** The end of the expression starting at `start`: the first `,` `;` or unopened closer at depth 0, or a line end not after `=>`. */
+function expressionEnd(code, start) {
+  let depth = 0;
+  for (let at = start; at < code.length; at++) {
+    const char = code[at];
+    if ('([{'.includes(char)) depth++;
+    else if (')]}'.includes(char)) { if (depth === 0) return at; depth--; }
+    else if (depth === 0 && (char === ',' || char === ';')) return at;
+    else if (depth === 0 && char === '\n' && !code.slice(start, at).trimEnd().endsWith('=>')) return at;
+  }
+  return code.length;
+}
+
+/** The span from `start` to the end of a function body whose parameter list opens at `start - 1`. */
+function bodySpan(code, start) {
+  const body = code.indexOf('{', closingAt(code, start - 1));
+  return [start, body < 0 ? code.length : closingAt(code, body) + 1];
+}
+
+/**
+ * The span of masked code that defines local closure `name` (`function name(` or `const name =`) as seen from `at`:
+ * the nearest definition before it, else the first after; none when the file never defines it.
+ */
+function closureSpans(code, word, at) {
+  const spans = [];
+  for (const match of code.matchAll(new RegExp(`(?<![\\w$.])(?:function\\s*\\*?\\s*${word}\\s*\\(|(?:const|let|var)\\s+${word}\\s*=(?!=))`, 'gu'))) {
+    const start = match.index + match[0].length;
+    spans.push({ at: match.index, span: match[0].endsWith('(') ? bodySpan(code, start) : [start, expressionEnd(code, start)] });
+  }
+  const nearest = spans.findLast(row => row.at < at) ?? spans.find(row => row.at > at);
+  return nearest ? [nearest.span] : [];
+}
+
+/** The parameter names of the helper whose span starts at `from`: after `function name(`, or an arrow or function value. */
+function paramNames(code, from) {
+  let params = '';
+  if (code[from - 1] === '(') params = code.slice(from, closingAt(code, from - 1));
+  else {
+    const head = code.slice(from).match(/^\s*(?:async\s*)?(?:function\s*\*?\s*[\w$]*\s*)?(\(|[\w$]+\s*=>)/u);
+    if (head?.[1] === '(') { const open = from + head[0].length - 1; params = code.slice(open, closingAt(code, open)); }
+    else if (head) params = head[1];
+  }
+  return new Set(params.match(/[\w$]+/gu) ?? []);
+}
+
+/**
+ * The spans of masked code that define helper `name`: as an object member (`name:`, `name() {` or shorthand `name`
+ * standing for its closure) when `member`, else as a local closure.
+ *
+ * Why: a box member is judged by what its helper does, so a renamed helper keeps the count its body earns; a closure
+ * that is never put on an object does not shadow the kit's member of the same name.
+ */
+function helperSpans(code, name, member, scopes, at) {
+  const word = name.replaceAll('$', '\\$');
+  if (!member) return closureSpans(code, word, at);
+  /** Whether a member definition sits inside the box's builder. */
+  const inside = at => scopes.some(([from, to]) => at >= from && at < to);
+  const spans = [];
+  for (const match of code.matchAll(new RegExp(`(?<=[{,]\\s*)${word}\\s*:(?!:)`, 'gu'))) {
+    const start = match.index + match[0].length;
+    if (inside(match.index)) spans.push([start, expressionEnd(code, start)]);
+  }
+  for (const match of code.matchAll(new RegExp(`(?<=[{,]\\s*)(?:async\\s+)?${word}\\s*\\(`, 'gu'))) {
+    const close = closingAt(code, match.index + match[0].length - 1);
+    if (inside(match.index) && /^\s*\{/u.test(code.slice(close + 1))) spans.push(bodySpan(code, match.index + match[0].length));
+  }
+  for (const match of code.matchAll(new RegExp(`(?<=[{,]\\s*)${word}(?=\\s*[,}])`, 'gu'))) {
+    if (inside(match.index)) spans.push(...closureSpans(code, word, match.index));
+  }
+  return spans;
+}
+
+/** A `box =` binding and the callee that builds it, e.g. `const box = fixture(t)` or `box = helpers.project('true')`. */
+const BOX_BINDING = /(?<![\w$.])box\s*=(?![=>])\s*(?:await\s+)?([\w$.]+)\s*\(/gu;
+
+/**
+ * Judge calls by what the called helper does: `launches(name, member, at, open)` says whether the call at `at`, with its
+ * argument list opening at `open`, starts node or the CLI as a child process, whatever the helper is called.
+ *
+ * Why: the ratchet must key on behaviour, so renaming box.cli to box.inProcess while it still spawns keeps its count,
+ * and a helper that truly runs the CLI in this process (runCliInProcess, main) never counts. A helper that starts
+ * whatever command it is handed launches the CLI when the call names node or the CLI. A box member the file never
+ * builds falls back to the kit's spawning members.
+ */
+function launchReach(source, code) {
+  const memo = new Map();
+  const bindings = [...code.matchAll(BOX_BINDING)].map(match => ({ at: match.index, callee: match[1] }));
+  /**
+   * The builder spans of the box a call at `at` uses: the nearest `box =` before it (else after), built by a local
+   * fixture; null for a kit box built by an imported helper; the whole file when the file never binds `box`.
+   */
+  const boxScopes = at => {
+    const binding = bindings.findLast(row => row.at < at) ?? bindings.find(row => row.at > at);
+    if (!binding) return [[0, code.length]];
+    const spans = /^[\w$]+$/u.test(binding.callee) ? closureSpans(code, binding.callee.replaceAll('$', '\\$'), binding.at) : [];
+    return spans.length ? spans : null;
+  };
+  /**
+   * What calling helper `name` does: 'cli' when it launches node or the CLI itself, 'process' when it starts a
+   * command it is handed, 'kit' for an unbuilt kit member, or null; a helper being resolved counts as null.
+   */
+  const effect = (name, member, at) => {
+    const scopes = member ? boxScopes(at) : null;
+    const spans = member && !scopes ? [] : helperSpans(code, name, member, scopes, at);
+    const key = `${member}:${name}:${JSON.stringify(spans)}`;
+    if (memo.has(key)) return memo.get(key);
+    memo.set(key, null);
+    const effects = spans.map(([from, to]) => spanEffect(from, to));
+    const result = !spans.length ? (member && KIT_LAUNCH.has(name) ? 'cli' : null)
+      : effects.includes('cli') ? 'cli' : effects.includes('process') ? 'process' : null;
+    memo.set(key, result);
+    return result;
+  };
+  /** Whether the call at `at` whose argument list opens at `open` launches node or the CLI. */
+  const launches = (name, member, at, open) => {
+    const done = effect(name, member, at);
+    return done === 'cli' || (done === 'process' && namesNodeOrCli(source, code, open));
+  };
+  /** What a helper body does: a direct launch or a launching call is 'cli'; any other child-process start is 'process'. */
+  const spanEffect = (from, to) => {
+    const body = code.slice(from, to);
+    if (spawnSites(source, code, from, to).length) return 'cli';
+    const alias = body.match(/^\s*(?:(box)\s*\.\s*)?([\w$]+)\s*$/u);
+    if (alias) return effect(alias[2], Boolean(alias[1]), from);
+    const params = paramNames(code, from);
+    for (const [pattern, member] of [[BOX_CALL, true], [BARE_CALL, false]]) {
+      for (const match of body.matchAll(pattern)) {
+        if (!member && params.has(match[1])) continue;
+        if (launches(match[1], member, from + match.index, from + match.index + match[0].length - 1)) return 'cli';
+      }
+    }
+    return [...body.matchAll(SPAWN)].length ? 'process' : null;
+  };
+  return launches;
 }
 
 /** Inspect every test file as text; `cache` keeps a file's sites by blob. */

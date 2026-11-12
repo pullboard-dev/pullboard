@@ -160,6 +160,7 @@ import {
   headCommit,
   headTree,
   isClean,
+  treeUntouched,
   tryGit,
   untracked,
 } from '../../../../../packages/git/index.js';
@@ -469,14 +470,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
-  const dirty = authorizationStep('tree-state', () => !isClean(root));
+  // One status clears an untouched tree; only a tree it flags is read again to say which refusal applies.
+  const dirty = authorizationStep('tree-state', () => !treeUntouched(root) && !isClean(root));
   if (dirty) {
     // Preserve the typed grammar refusal without starting gates for a dirty candidate.
     try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
     catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
     throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
   }
-  const stray = untracked(root);
+  const stray = treeUntouched(root) ? [] : untracked(root);
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
