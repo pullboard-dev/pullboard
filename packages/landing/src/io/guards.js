@@ -127,3 +127,56 @@ export async function requireLandingModuleResolution(root, base, tip) {
 export function landingPlacementProblems(root, base) {
   return withMainCheckout(root, base, checkout => addedPlacementProblems(checkout, root, { unplanned, readPlan }));
 }
+
+/** Landing refuses a rename of a tracked file that the cells path map does not record [C7]. */
+const SHARDS = 'packages/codemap/data/plan/path-map/';
+
+/** Read one Git result as text, or null when Git refuses. */
+function readGit(root, args) {
+  const result = tryGit(root, ['--no-replace-objects', ...args]);
+  return result.status === 0 ? result.stdout : null;
+}
+
+/** The path map at a commit: old path to new path across every shard. */
+function recordedMoves(root, commit) {
+  const moves = new Map();
+  const listing = readGit(root, ['ls-tree', '-z', '--name-only', commit, '--', SHARDS]) ?? '';
+  for (const file of listing.split('\0').filter(name => /\/[^/]+\.json$/u.test(name))) {
+    let shard;
+    try { shard = JSON.parse(readGit(root, ['show', `${commit}:${file}`]) ?? '{}'); } catch { continue; }
+    for (const [from, to] of Object.entries(shard ?? {})) if (typeof to === 'string') moves.set(from, to);
+  }
+  return moves;
+}
+
+/** The shard a rename belongs in: the one named for the package or app the new path lives in. */
+function shardFor(to) {
+  const parts = to.split('/');
+  const name = (parts[0] === 'packages' || parts[0] === 'apps') && parts[1] ? parts[1] : 'untangle';
+  return `${SHARDS}${name}.json`;
+}
+
+/**
+ * Refuse a candidate that renames a tracked file without recording old to new in a path-map shard.
+ * Only renames the landing would perform count: the old path is still on the landing base and the new one is not.
+ * Why: a rename with no entry cuts the census, items and history off from the file's earlier life (10 Nov cell seals).
+ *
+ * @param {string} root - a checkout holding both commits.
+ * @param {string} base - the commit the candidate lands on.
+ * @param {string} commit - the candidate.
+ */
+export function requireRecordedMoves(root, base, commit) {
+  const fork = (readGit(root, ['merge-base', base, commit]) ?? '').trim();
+  if (!fork) return;
+  const changes = (readGit(root, ['diff', '--name-status', '-z', '-M', '--diff-filter=R', fork, commit, '--']) ?? '').split('\0').filter(Boolean);
+  const present = path => readGit(root, ['cat-file', '-e', `${base}:${path}`]) !== null;
+  const recorded = recordedMoves(root, commit);
+  const missing = [];
+  for (let at = 0; at + 2 < changes.length; at += 3) {
+    const from = changes[at + 1], to = changes[at + 2];
+    if (present(from) && !present(to) && recorded.get(from) !== to) missing.push({ from, to });
+  }
+  if (!missing.length) return;
+  const shown = missing.slice(0, 3).map(move => `${move.from} -> ${move.to}`).join(', ') + (missing.length > 3 ? `, and ${missing.length - 3} more` : '');
+  throw new Refused('LAND_MOVE_UNRECORDED', `the candidate renames ${shown} with no path-map entry; add ${JSON.stringify(missing[0].from)}: ${JSON.stringify(missing[0].to)} to ${shardFor(missing[0].to)}, and every other rename likewise, then land again`);
+}
