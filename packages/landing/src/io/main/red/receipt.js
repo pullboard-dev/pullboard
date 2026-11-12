@@ -7,6 +7,7 @@ import { createJob } from '../../../../../jobs/index.js';
 import { jobView } from '../../../../../jobs/index.js';
 import { writeStep } from '../../../../../jobs/index.js';
 import { mainRedKey } from '../../../../../receipt/index.js';
+import { classifyMainRed } from '../../../../../receipt/index.js';
 import { mainRedStatus } from '../../../../../receipt/index.js';
 import { MAIN_TEST_JOB } from '../../../../../receipt/index.js';
 import { mainTestJobId } from '../../../../../receipt/index.js';
@@ -66,16 +67,19 @@ export function mainReceipts(root, commit, files) {
  * @param {string} root
  * @param {string} commit - the gate's main
  * @param {string} file
- * @returns {ReturnType<typeof mainReceipts> | null} the receipts at the nearest such main, or null when there is none.
+ * @param {string[]} reds - the gate's failing case titles in the file
+ * @returns {(ReturnType<typeof classifyMainRed> & { row: object | undefined, job: null }) | null} the classification from the
+ *   nearest such main's receipt, or null when there is none.
  */
-export function nearbyMainReceipts(root, commit, file) {
+export function nearbyMainClass(root, commit, file, reds) {
   let entries;
   try { entries = readCache(cacheFile(root)).entries; } catch { return null; }
   const quiet = (...args) => gitSpawnSync(['--no-replace-objects', ...args], { cwd: root }).status === 0;
   for (const later of Object.keys(entries)) {
     if (later === commit || !entries[later]?.[file] || !quiet('merge-base', '--is-ancestor', commit, later) || !quiet('diff', '--quiet', commit, later, '--', file)) continue;
     const known = mainReceipts(root, later, [file]);
-    if (known && mainRedStatus(known.receipts, { tree: known.tree, file, command: known.command }).status !== 'missing') return known;
+    const status = known && mainRedStatus(known.receipts, { tree: known.tree, file, command: known.command });
+    if (status && status.status !== 'missing') return { ...classifyMainRed(reds, status), row: known.rows.get(file), job: null };
   }
   return null;
 }
