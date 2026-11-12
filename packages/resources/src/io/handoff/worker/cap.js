@@ -645,6 +645,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       throw error;
     }
     beatDispatcherHeartbeat();
+    recordDispatcherReceipt(startOf);
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
     // A busy drain sweeps again every sweepEveryMs, so a failed sweep is retried while workers still run (#3450).
     await sweeps.now();
@@ -827,6 +828,16 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
   } finally { if (idle) recordIdleSpan(idle, Date.now()); }
 }
 
+/**
+ * Record the process holding the dispatcher lock in dispatcher.json. Why: the launcher wrote the pid it started, which
+ * is not the lock holder when that process deferred to another; on 6 Nov the receipt named 56321 while 24080 held the
+ * lock [C7]. A receipt that cannot be written never stops the dispatcher.
+ */
+function recordDispatcherReceipt(startOf) {
+  try { writeFileSync(join(handoffQueueDirectory(), 'dispatcher.json'), JSON.stringify({ pid: process.pid, started: startOf(process.pid) }) + '\n', { mode: 0o600 }); }
+  catch (error) { logDispatcher(`dispatcher receipt not written: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+}
+
 /** Whether a live dispatcher holds the machine's dispatcher lock. */
 function dispatcherHeld() {
   return Boolean(listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders?.length);
@@ -881,7 +892,8 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', 
     if (code !== 0) throw new Error(Buffer.concat(errors).toString('utf8').trim() || `detached launcher exited ${signal ?? code}`);
     const pid = Number(Buffer.concat(output).toString('utf8').trim());
     if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('detached launcher did not report its dispatcher pid');
-    try { writeFileSync(receipt, JSON.stringify({ pid, started: startOf(pid) }) + '\n', { mode: 0o600 }); }
+    // A dispatcher that already holds the lock wrote its own receipt; the launched pid may be one that deferred to it.
+    try { if (!dispatcherHeld()) writeFileSync(receipt, JSON.stringify({ pid, started: startOf(pid) }) + '\n', { mode: 0o600 }); }
     catch (error) {
       try { process.kill(pid, 'SIGTERM'); } catch (killError) { if (killError.code !== 'ESRCH') throw killError; }
       throw error;
