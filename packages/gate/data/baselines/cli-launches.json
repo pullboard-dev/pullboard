@@ -1511,9 +1511,6 @@
   "apps/cli/journeys/rigor/view.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/claim/adopts/folder.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "launch": 3
   },
