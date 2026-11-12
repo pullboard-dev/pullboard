@@ -69,3 +69,24 @@ test('add accepts three numbered clauses and refuses a fourth even inside one ce
   assert.equal(JSON.parse(refused.out).error.code, 'ITEM_TOO_LARGE');
   assert.match(JSON.parse(refused.out).error.next, /at most three numbered clauses/u);
 });
+
+test('add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
+  const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const bad = 'node apps/cli/pullboard.js test web/handler.test.js';
+  const good = 'node packages/gate/src/io/run/tests.js web/handler.test.js';
+  const criterion = 'the handler returns the canonical result [test]';
+  const refused = await fixtureAdd(box.runLocal, box.repo, 'web', 'Pull check', '--criterion', criterion, '--check', bad, '--json');
+  assert.notEqual(refused.code, 0);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RUNS_PULLBOARD_TEST');
+  assert.match(error.next, /node packages\/gate\/src\/io\/run\/tests\.js <files>/u);
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Run-tests check', '--criterion', criterion, '--check', good, '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const edited = await box.runLocal(box.repo, 'edit', id, '--check', bad, '--json');
+  assert.notEqual(edited.code, 0);
+  const editError = JSON.parse(edited.out).error;
+  assert.equal(editError.code, 'CHECK_RUNS_PULLBOARD_TEST');
+  assert.match(editError.next, /node packages\/gate\/src\/io\/run\/tests\.js <files>/u);
+});

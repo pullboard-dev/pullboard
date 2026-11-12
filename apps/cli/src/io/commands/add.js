@@ -29,6 +29,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -145,6 +146,7 @@ export async function run(io, args) {
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
+  if (command) refuseCheckPullboardTest(command);
   if (command) refuseCheckSyntax(command);
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });

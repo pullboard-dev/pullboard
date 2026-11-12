@@ -21,6 +21,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -103,6 +104,7 @@ export async function run(io, args) {
     change.correction = true;
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
   }
+  if (command && command !== item.item_check) refuseCheckPullboardTest(command);
   if (command && command !== item.item_check) refuseCheckSyntax(command);
   if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
