@@ -178,9 +178,8 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
-/** The paired board has been read and its tabs are drawn; pages land on the Dashboard, not Items. */
-const PAIRED_BOARD_READY = "!!document.querySelector('[data-tab=\"items\"]') && typeof data === 'object' && !!data?.project";
-const ITEMS_TAB = `document.querySelector('[data-tab="items"]')`;
+/** Pages land on the Dashboard; these cases read the item list, so the person last chose Items on this device. */
+const ITEMS_TAB_CHOSEN = "localStorage.setItem('pb.tab', 'items');";
 
 /** Rethrow a stalled pairing wait with the page and relay-call state that explain it, masking every board key. */
 async function pairingFailure(chrome, box, error, { boards, keys, since }) {
@@ -237,7 +236,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: 'window.setInterval = () => 0;'
+    source: ITEMS_TAB_CHOSEN + ' window.setInterval = () => 0;'
       + ' window.__relayPageErrors = [];'
       + " addEventListener('error', event => window.__relayPageErrors.push(String(event.error?.stack ?? event.message).slice(0, 400)));"
       + " addEventListener('unhandledrejection', event => window.__relayPageErrors.push(String(event.reason?.stack ?? event.reason).slice(0, 400)));",
@@ -253,8 +252,6 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
 
   const beforePairing = box.calls.length;
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
-  await chrome.waitFor(PAIRED_BOARD_READY);
-  await chrome.evaluate(ITEMS_TAB + '.click()'); // a person opens Items before the list is drawn, since pages open on the Dashboard.
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')')
     .catch(error => pairingFailure(chrome, box, error, { boards: [link.board, second.id], keys: [encoded, second.encoded], since: beforePairing }));
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'the pairing key is removed from browser history');
@@ -307,6 +304,7 @@ test('the relay reads an addressed shout [H5,N38]', {
   const key = readFileSync(box.keyFile, 'utf8').trim();
   const chrome = await startChrome();
   t.after(() => chrome.close());
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: ITEMS_TAB_CHOSEN });
   await signIn(chrome, box);
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')");
@@ -331,9 +329,7 @@ test('the relay reads an addressed shout [H5,N38]', {
     };
   })()`;
   // Start observing before the hash-only navigation so a stalled pairing leaves its page state in the failure.
-  const pairedBoardWait = chrome.waitFor(PAIRED_BOARD_READY, relayWorkBudgetMs(), 'the addressed-shout board is read')
-    .then(() => chrome.evaluate(ITEMS_TAB + '.click()')) // pages open on the Dashboard; the item list is on Items.
-    .then(() => chrome.waitFor(pairedBoardExpression, relayWorkBudgetMs(), 'the addressed-shout board appears'))
+  const pairedBoardWait = chrome.waitFor(pairedBoardExpression, relayWorkBudgetMs(), 'the addressed-shout board appears')
     .catch(async error => {
       const capture = {
         relayNotice: null, chainFirst200: null, locationHashMasked: null, deviceKeyForBoard: null,
@@ -408,7 +404,7 @@ test('a board without a snapshot waits without reloading the page [H5,H16]', {
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: 'sessionStorage.setItem("pullboard.test.page-starts", String(Number(sessionStorage.getItem("pullboard.test.page-starts") || 0) + 1)); localStorage.setItem("pullboard.relay.keys.v1", ' +
+    source: ITEMS_TAB_CHOSEN + ' sessionStorage.setItem("pullboard.test.page-starts", String(Number(sessionStorage.getItem("pullboard.test.page-starts") || 0) + 1)); localStorage.setItem("pullboard.relay.keys.v1", ' +
       JSON.stringify(JSON.stringify({ [healthy.board]: healthyKey, [waiting.id]: waiting.encoded, [waitingEvents.id]: waitingEvents.encoded })) + ');',
   });
   await signIn(chrome, box);
