@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
 import { checkOutSubmitted } from '../../fixtures/api.js';
@@ -31,15 +31,8 @@ async function served(box, cwd, ...args) {
 function onRemoteSeats(body) {
   return async (t) => {
     const seats = await remoteSeats(t);
-    try { await body(seats); } finally { await seats.box.api.close(); quiet(seats.box.dir); }
+    try { await body(seats); } finally { await seats.box.api.close(); }
   };
-}
-
-/** Name every process that still holds a file or working directory under the fixture's tree, for the run log. */
-function quiet(dir) {
-  const held = spawnSync('lsof', ['-Fpn', '+D', dir], { encoding: 'utf8' }).stdout.split('\n').map(line => line.replace(dir, '~')).join(' ');
-  const ps = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' }).stdout.split('\n').filter(line => line.includes(dir)).join('\n');
-  console.log('moves-quiet self ' + process.pid + ' holders: ' + held + '\nmoves-quiet ps: ' + ps);
 }
 
 /** A served board with a builder and a verifier seat, and a boardless clone on its own machine home set to its URL. */
@@ -48,6 +41,10 @@ async function remoteSeats(t) {
   // A served claim starts a detached claim beater bound to this test process and queues a detached usage checkpoint;
   // both write under .git/pullboard after the claim returns, so the fixture's removal raced them: ENOTEMPTY. The seats
   // here start neither: no beater, and the checkpoint runs inside the move [P7,C7].
+  // A landing verdict starts a detached main-red refresh in the cwd of this tree, unless one started within the spacing
+  // window: stamp a start now, so none starts and nothing is left writing when the fixture removes its tree [P7,C7].
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'main-red-refresh.started'), String(Date.now()));
   Object.assign(box.env, { PULLBOARD_CLAIM_BEATER: '0', PULLBOARD_USAGE_CHECKPOINT: 'inline' });
   const builder = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
   const verifier = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL_EARLIER, '--family', 'claude');
