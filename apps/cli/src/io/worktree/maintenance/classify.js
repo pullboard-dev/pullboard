@@ -152,7 +152,10 @@ export function classifyMaintenanceTree(tree, {
   for (const seat of matchingSeats) {
     // A joined seat keeps its checkout until a completed takeover retires it. Presence comes from hook heartbeats,
     // which a hookless, rejoined or pooled seat never refreshes, so "gone" never proves the seat has left (#5969).
-    if (timestamp(seat.completedTakeoverAt) === null) return result('active', true, 'seat-joined', agentIds, itemIds);
+    if (timestamp(seat.completedTakeoverAt) === null) {
+      const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
+      return result('active', true, reason, agentIds, itemIds);
+    }
     const activity = seatActivity(seat);
     if (activity === null) return result('active', true, 'seat-age-unknown', agentIds, itemIds);
     if (now < activity || now - activity < grace) return result('active', true, 'seat-recent-or-clock-rollback', agentIds, itemIds);
