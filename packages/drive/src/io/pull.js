@@ -32,6 +32,7 @@ import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
+import { pruneStaleSlots } from './prune.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -547,6 +548,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   // Job environment folders a running job owns, which a prune never removes.
   const liveEnvironments = new Set();
   let prunedAt = 0;
+  // Earlier serves' slot folders are dead once this one starts, so they go before the first job [P7].
+  try { const gone = await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
   /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
   const prune = () => {
     if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
