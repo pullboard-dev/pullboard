@@ -22,14 +22,20 @@ import {
   heldCheck,
   cleanupFixtures,
 } from '../../tests/fixtures/check-baseline.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+
+/** Run the CLI through production dispatch in this process; same result shape as box.run [C7]. */
+async function local(box, cwd, args, input, options = {}) {
+  return runCliInProcess(args, { cwd, env: options.env ?? box.env, ...(input === undefined ? {} : { input }) });
+}
 
 after(cleanupFixtures);
 
-test('[V2,H16] --wait keeps the check blocking and the captured base survives a later main commit', (t) => {
+test('[V2,H16] --wait keeps the check blocking and the captured base survives a later main commit', async (t) => {
   const box = project({ content: 'original' });
   const held = heldCheck(box, 'wait-background');
   t.after(() => writeFileSync(held.release, 'release'));
-  const waited = box.run(box.repo, ['add', 'web', 'Wait for check', '--check', held.command, '--wait', '--json']);
+  const waited = await local(box, box.repo, ['add', 'web', 'Wait for check', '--check', held.command, '--wait', '--json']);
   assert.equal(waited.status, 0, `${waited.stdout}${waited.stderr}`);
   assert.equal(existsSync(held.finished), true, '--wait returns only after the held check finishes');
   assert.equal(JSON.parse(waited.stdout).item.item_check_baseline.result, 'green');
@@ -68,7 +74,7 @@ test('[V2,H3,H16] baseline comes from committed main while manual check uses the
   assert.ok(locations[0] !== box.repo && locations[0] !== box.web, 'it runs in neither live checkout');
   assert.equal(existsSync(locations[0]), false, 'the temporary checkout is removed after recording the result');
 
-  const manual = box.run(box.web, ['check', String(item.item_id), '--yes', '--json']);
+  const manual = await local(box, box.web, ['check', String(item.item_id), '--yes', '--json']);
   assert.equal(manual.status, 0, `${manual.stdout}${manual.stderr}`);
   assert.equal(JSON.parse(manual.stdout).green, true, 'manual check runs against the green branch');
   assert.equal(readFileSync(join(box.web, marker), 'utf8'), 'ran');

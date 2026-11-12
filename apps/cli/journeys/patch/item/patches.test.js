@@ -315,7 +315,7 @@ test('mixed-lane attach reports three owners and writes only unconfirmed per-lan
   assert.deepEqual(exportBoard(box.board), before, 'draft planning never attaches, confirms or mutates the board');
   const text = await box.runLocal(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source);
   assert.equal(text.needsConfirmation, true);
-  const collision = await box.cli(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory, '--json');
+  const collision = await box.runLocal(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory, '--json');
   assert.equal(collision.code, 1);
   assert.equal(JSON.parse(collision.out).error.code, 'ITEM_PATCH_OUTPUT');
   assert.equal(readFileSync(result.parts[0].file, 'utf8'), changes[0]);
