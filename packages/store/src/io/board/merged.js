@@ -1,5 +1,6 @@
 import { requireOutsideOwner } from "../../../../items/index.js";
 import { itemById } from "./query.js";
+import { proofReceipts } from "./query.js";
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { Refused } from "../../../../kernel/index.js";
@@ -17,17 +18,27 @@ import { FORCED_MERGE_ENGINE } from "../../../../state/index.js";
  * withdrawn as met; its event is marked forced, and a withdrawn item with a merged event reads as landed on the board and /live.
  * Why: hand landings were withdrawn as met, which /live and stats do not count [C7].
  *
- * @param {{ agentId: string, commit: string, note?: string, forced?: string }} merge
+ * A forced merge also names its proof: the passing receipt ids covering the item's tip, which the event carries with the tip. A tip with
+ * no covering receipt is refused unless `waiveProof` gives a reason [#4742].
+ *
+ * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string }} merge
  */
-export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof }) {
   coordinatorOnly(agentId, 'records merges');
   const reason = typeof forced === 'string' ? forced.trim() : '';
   if (forced !== undefined && !reason) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
   if (reason && (board.executionEngineVersion !== undefined && board.executionEngineVersion < FORCED_MERGE_ENGINE)) {
     throw new Refused('ENGINE_VERSION', `a forced merge requires engine ${FORCED_MERGE_ENGINE}; upgrade Pullboard before recording one`);
   }
+  const waiver = typeof waiveProof === 'string' ? waiveProof.trim() : '';
+  if (waiveProof !== undefined && !waiver) throw new Refused('WAIVE_PROOF_REASON', 'a proof waiver names why: --waive-proof "<why>"');
   atomic(board, () => {
     const item = itemById(board, id);
+    const tip = item.item_commit ?? null;
+    const receipts = reason && tip ? proofReceipts(board, id).filter(run => run.commit === tip && !(run.exitCode > 0)).map(run => run.id) : [];
+    if (reason && tip && !receipts.length && !waiver) {
+      throw new Refused('FORCED_NO_PROOF', `no passing receipt covers item #${id}'s tip ${tip.slice(0, 12)}; run its check there, or record the landing with --waive-proof "<why>"`);
+    }
     if (!reason && item.item_status !== 'verified') {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
@@ -38,7 +49,7 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
     }
     setItem(board, id, { item_merged_commit: commit });
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
-      ...(reason ? { forced: true, reason, from: item.item_status } : {}),
+      ...(reason ? { forced: true, reason, from: item.item_status, itemTip: tip, receipts, ...(waiver ? { waivedProof: waiver } : {}) } : {}),
       ...(flakeRatchet === undefined ? {} : { flakeRatchet }) });
   });
 }

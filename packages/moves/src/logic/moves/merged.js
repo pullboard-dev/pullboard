@@ -26,5 +26,7 @@ export default Object.freeze({ operation: "merged", order: 19, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
   "NOT_VERIFIED": "merge only verified items; see pullboard list --all",
+  "FORCED_NO_PROOF": 'run the item check at its tip, or pass --waive-proof "<why>"',
+  "WAIVE_PROOF_REASON": 'name why the proof is waived: --waive-proof "<why>"',
   "FORCED_REASON": 'name why this merge bypassed the gate: pullboard merged <id> <commit> --forced "<why>"'
 }) });
