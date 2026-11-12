@@ -71,6 +71,9 @@ export function handoffRecords(db) {
   return records;
 }
 
+/** How long an offered gate job may sit unclaimed before the board reads it as having no runner. */
+export const NO_RUNNER_MS = 30_000;
+
 /**
  * The claimed items whose newest gate job is a pulled one still on its way (offered, claimed by a runner, or its receipt
  * not yet applied), as the queued or running record their stage reads, by item id.
@@ -80,16 +83,19 @@ export function handoffRecords(db) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {number | null} [only] - Read this one item, for a single-item read.
- * @returns {Map<number, {state: string, agentId: string, digest: string | null}>}
+ * @param {number} [nowMs] - The observation time, for the no-runner read.
+ * @returns {Map<number, {state: string, agentId: string, digest: string | null, noRunner: boolean}>}
+ * noRunner is true when no runner is working the job: still offered after 30 s, or claimed with a lapsed lease (#6554).
  */
-export function pulledGateRecords(db, only = null) {
+export function pulledGateRecords(db, only = null, nowMs = Date.now()) {
   const pulled = new Map();
   if (!hasJobTables(db)) return pulled;
-  const rows = db.prepare(`SELECT j.job_item AS item, j.job_step AS step, i.item_owner AS owner, i.item_frozen_digest AS digest
+  const rows = db.prepare(`SELECT j.job_item AS item, j.job_step AS step, j.job_updated AS updated, j.job_lease_until AS lease, i.item_owner AS owner, i.item_frozen_digest AS digest
     FROM job j JOIN item i ON i.item_id = j.job_item
     WHERE j.job_kind = 'gate' AND i.item_status = 'claimed' ${only === null ? '' : 'AND j.job_item = ?'} AND j.job_step IN ('offered', 'claimed', 'receipt')
       AND j.job_created = (SELECT MAX(job_created) FROM job newest WHERE newest.job_kind = 'gate' AND newest.job_item = j.job_item)`).iterate(...(only === null ? [] : [only]));
-  for (const row of rows) pulled.set(row.item, { state: row.step === 'offered' ? 'queued' : 'running', agentId: row.owner, digest: row.digest });
+  for (const row of rows) pulled.set(row.item, { state: row.step === 'offered' ? 'queued' : 'running', agentId: row.owner, digest: row.digest,
+    noRunner: row.step === 'offered' ? nowMs - row.updated > NO_RUNNER_MS : row.step === 'claimed' && row.lease < nowMs });
   return pulled;
 }
 
