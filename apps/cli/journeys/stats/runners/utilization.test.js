@@ -8,13 +8,12 @@ import { withFixtureBoard } from '../../../tests/fixtures/testkit.js';
 
 const HOUR = 3_600_000, MIN = 60_000;
 
-/** A real project whose board holds seeded job history in whole past hours; its setup events are cleared so only seeded seats count. */
+/** A real project whose board holds seeded job history in whole past hours. */
 function fixture(t) {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const h = Math.floor(Date.now() / HOUR) * HOUR;
   withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => {
-    board.db.exec('DELETE FROM event');
     seed(board.db, h);
   });
   return { box, h };
