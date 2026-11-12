@@ -40,14 +40,28 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   if (check !== null) addArgs.push('--check', check);
   addArgs.push('--brief', buildBrief, ...args, '--json');
   if (wait) addArgs.splice(addArgs.length - 1, 0, '--wait');
-  const result = fixtureResult(run(root, ...addArgs));
-  assert.equal(result.code, 0, `${result.out}\n${result.err}`);
-  const item = JSON.parse(result.out).item;
-  if (check !== null && diagnose) {
-    const recorded = fixtureResult(run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json'));
+  const added = run(root, ...addArgs);
+  const afterAdd = raw => {
+    const result = fixtureResult(raw);
+    assert.equal(result.code, 0, `${result.out}\n${result.err}`);
+    const item = JSON.parse(result.out).item;
+    return { item, fact: check !== null && diagnose ? () => run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json') : null };
+  };
+  const afterFact = raw => {
+    const recorded = fixtureResult(raw);
     assert.equal(recorded.code, 0, `${recorded.out}\n${recorded.err}`);
+  };
+  // An awaited runner (box.runLocal) gets an awaited item; a synchronous runner keeps the synchronous answer.
+  if (typeof added?.then === 'function') {
+    return added.then(async raw => {
+      const step = afterAdd(raw);
+      if (step.fact) afterFact(await step.fact());
+      return step.item;
+    });
   }
-  return item;
+  const step = afterAdd(added);
+  if (step.fact) afterFact(step.fact());
+  return step.item;
 }
 
 /** Create and join a fixture worktree with all current admission identity flags. */
