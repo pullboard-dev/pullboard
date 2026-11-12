@@ -1870,5 +1870,8 @@
   },
   "packages/gate/tests/io/requeue/valid.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/submit/foreign-unverified.test.js": {
+    "launch": 9
   }
 }
