@@ -1,5 +1,5 @@
 /** Compose clean main merges, declared lifecycle output and narrowly keyed data manifests [C7,V4]. */
-import { rowManifest } from '../logic/manifest.js';
+import { mergeableData } from '../logic/manifest.js';
 import { createHash } from 'node:crypto';
 import { gitExecFileSync } from '../../../git/index.js';
 import { mkdtempSync } from 'node:fs';
@@ -61,7 +61,7 @@ async function compose(root, inputHead, trunk, work) {
     catch (error) {
       conflicts = git(directory, ['diff', '--name-only', '--diff-filter=U', '-z']).split('\0').filter(Boolean).sort();
       if (!conflicts.length) throw error;
-      if (conflicts.some(path => path !== 'docs/lifecycle.md' && !rowManifest(path))) {
+      if (conflicts.some(path => !mergeableData(path))) {
         const refusal = new Refused('MERGE_CONFLICT', `main conflicts with ${conflicts.join(', ')}`);
         refusal.files = conflicts; throw refusal;
       }
@@ -70,7 +70,7 @@ async function compose(root, inputHead, trunk, work) {
         const refusal = new Refused('MERGE_CONFLICT', `main conflicts with ${(resolved.rowConflicts ?? resolved.files).join('; ')}`);
         refusal.files = resolved.files; throw refusal;
       }
-      if (resolved.failed || resolved.entries.some(entry => entry.kind !== 'generated' && !(rowManifest(entry.path) && entry.kind === 'json'))) {
+      if (resolved.failed || resolved.entries.some(entry => entry.kind !== 'generated' && !(mergeableData(entry.path) && entry.kind === 'json'))) {
         throw new Refused('SOURCE_ADVANCE_SOURCE', 'the declared lifecycle generator did not produce the exact merged artifact');
       }
       git(directory, ['add', '--', ...conflicts]);

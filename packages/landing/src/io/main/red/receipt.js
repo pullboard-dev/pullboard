@@ -7,6 +7,7 @@ import { createJob } from '../../../../../jobs/index.js';
 import { jobView } from '../../../../../jobs/index.js';
 import { writeStep } from '../../../../../jobs/index.js';
 import { mainRedKey } from '../../../../../receipt/index.js';
+import { classifyMainRed } from '../../../../../receipt/index.js';
 import { mainRedStatus } from '../../../../../receipt/index.js';
 import { MAIN_TEST_JOB } from '../../../../../receipt/index.js';
 import { mainTestJobId } from '../../../../../receipt/index.js';
@@ -55,6 +56,32 @@ export function mainReceipts(root, commit, files) {
     rows.set(row.file, row);
   }
   return { tree, command, receipts, rows };
+}
+
+/**
+ * Main's nearest receipt for one file on a later main: a commit after `commit` that main-test jobs measured the file
+ * at, where the file is unchanged since `commit`. Why: main moves every few minutes, so a gate keyed to its exact main
+ * never finds a receipt a queued job writes at a newer main, and a red only on missing receipts never settles [C7,P7].
+ * Only the file's own content is compared; its imports are not followed.
+ *
+ * @param {string} root
+ * @param {string} commit - the gate's main
+ * @param {string} file
+ * @param {string[]} reds - the gate's failing case titles in the file
+ * @returns {(ReturnType<typeof classifyMainRed> & { row: object | undefined, job: null }) | null} the classification from the
+ *   nearest such main's receipt, or null when there is none.
+ */
+export function nearbyMainClass(root, commit, file, reds) {
+  let entries;
+  try { entries = readCache(cacheFile(root)).entries; } catch { return null; }
+  const quiet = (...args) => gitSpawnSync(['--no-replace-objects', ...args], { cwd: root }).status === 0;
+  for (const later of Object.keys(entries)) {
+    if (later === commit || !entries[later]?.[file] || !quiet('merge-base', '--is-ancestor', commit, later) || !quiet('diff', '--quiet', commit, later, '--', file)) continue;
+    const known = mainReceipts(root, later, [file]);
+    const status = known && mainRedStatus(known.receipts, { tree: known.tree, file, command: known.command });
+    if (status && status.status !== 'missing') return { ...classifyMainRed(reds, status), row: known.rows.get(file), job: null };
+  }
+  return null;
 }
 
 /**

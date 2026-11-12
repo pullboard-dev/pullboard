@@ -22,7 +22,7 @@ export function activityWords(finding, { now, timestampLabels = new Map(), prese
     add: 'added work', claim: 'started building', release: 'let go of the work', renew: 'continued building',
     resume: 'resumed the work', reserve: 'started reviewing', submit: 'submitted for review', 'submit-merge': 'updated submitted work',
     accept: 'passed the work', reject: 'sent the work back', reopen: 'reopened the work', merged: 'landed the work', 'main-moved': 'moved main',
-    withdraw: 'withdrew the work', patch: 'updated the work', edit: 'edited the work',
+    withdraw: 'withdrew the work', milestone_placed: 'placed the work in a milestone', patch: 'updated the work', edit: 'edited the work',
     rehomeImport: 'brought in the work', intake: 'received the work', lapse: 'released an expired lease',
     fact: 'recorded evidence', note: 'added a note', measurement: 'recorded a measurement',
     capture: 'recorded an observation', diff: 'recorded a source comparison', decision: 'recorded a decision',
