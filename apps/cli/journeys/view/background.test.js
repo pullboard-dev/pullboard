@@ -183,7 +183,7 @@ test('resume starts the view once and the setting turns it off [H5,N26]', async 
   assert.deepEqual(viewLines(offInit.out), []);
   assert.equal(await answers(port), null, 'with view.background false, neither init nor resume starts it');
   assert.deepEqual(viewProcesses(port), []);
-  const shown = box.run(repo, 'settings');
+  const shown = await box.runLocal(repo, 'settings');
   assert.match(shown.out, /^view\.background: false/mu, 'pullboard settings shows the setting');
 
   // A busy port is reported once and fails nothing.
