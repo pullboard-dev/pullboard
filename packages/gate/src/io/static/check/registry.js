@@ -117,6 +117,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'markdown-allowlist', run: ({ root, text }) => {
     let source;
     try { source = text(MARKDOWN_ALLOWLIST); } catch { return []; } // a project without the allowlist file has nothing to judge
+    try { if (Object.keys(JSON.parse(source)).length === 0) return []; } catch { /* unreadable JSON is reported by markdownProblems */ } // an empty stand-in is no allowlist
     const listed = gitSpawnSync(['ls-files', '-z', '--', '*.md'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     if (listed.status !== 0) throw new Error('cannot list tracked markdown files');
     return markdownProblems(source, listed.stdout.split('\0').filter(Boolean)).map(row => `${row.path}:${row.line}: ${row.text}`);

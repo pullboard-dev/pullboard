@@ -32,6 +32,7 @@
     { "pattern": "docs/architecture.md", "reason": "temporary: under review (Corey's checklist)" },
     { "pattern": "docs/case-study/0.9.4.md", "reason": "temporary: under review (Corey's checklist)" },
     { "pattern": "apps/relay/src/io/deploy/README.md", "reason": "temporary: under review (Corey's checklist)" },
-    { "pattern": "packages/doctrine/src/io/standard.md", "reason": "temporary: under review (Corey's checklist)" }
+    { "pattern": "packages/doctrine/src/io/standard.md", "reason": "temporary: under review (Corey's checklist)" },
+    { "pattern": "docs/design/mcp-connector.md", "reason": "temporary: under review (Corey's checklist)" }
   ]
 }
