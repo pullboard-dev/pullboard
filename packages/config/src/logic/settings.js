@@ -213,6 +213,7 @@ export function validateRunner(value) {
       throw new Refused('BAD_RUNNER', `runner ${key} must be an absolute remote path${key === 'node' ? ' or node' : ''}`);
     }
   }
+  if (value.toolchains !== undefined) validateToolchains(value.toolchains);
   if (value.fixed !== undefined && typeof value.fixed !== 'boolean') throw new Refused('BAD_RUNNER', 'runner fixed must be true or false');
   if (value.drain !== undefined && typeof value.drain !== 'boolean') throw new Refused('BAD_RUNNER', 'runner drain must be true or false');
   for (const key of ['cores', 'memoryMB']) {
@@ -223,10 +224,38 @@ export function validateRunner(value) {
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
+    ...(value.toolchains && Object.keys(value.toolchains).length ? { toolchains: { ...value.toolchains } } : {}),
     ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
     ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };
 }
 
+
+/**
+ * Check a runner's toolchains: names (node, python, go, cargo, dotnet) mapped to a version string, empty when any version serves.
+ * Why: a job is admitted only where its project's toolchains exist, so the record must be exact and bounded [C7].
+ */
+export function validateToolchains(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Refused('BAD_RUNNER', 'runner toolchains must map names to versions, for example node=22,python=3.12');
+  const names = Object.keys(value);
+  if (names.length > 32) throw new Refused('BAD_RUNNER', 'a runner declares at most 32 toolchains');
+  for (const name of names) {
+    if (!/^[a-z][a-z0-9+_-]{0,31}$/u.test(name)) throw new Refused('BAD_RUNNER', `toolchain name "${name}" must be lowercase letters, digits, +, _ or -; for example node, python, go, cargo`);
+    if (typeof value[name] !== 'string' || !/^[0-9A-Za-z._+-]{0,32}$/u.test(value[name])) throw new Refused('BAD_RUNNER', `toolchain ${name} version must be up to 32 letters, digits, dots, +, _ or -; for example ${name}=22`);
+  }
+  return value;
+}
+
+/** Parse the --toolchain flag text, "node=22,python=3.12,cargo", into the toolchains record. */
+export function parseToolchains(text) {
+  if (typeof text !== 'string' || !text.trim()) throw new Refused('BAD_RUNNER', 'use --toolchain node=22,python=3.12,go=1.23 (a name, optionally =version, comma separated)');
+  const out = {};
+  for (const part of text.split(',')) {
+    const [name, ...version] = part.trim().split('=');
+    if (Object.hasOwn(out, name)) throw new Refused('BAD_RUNNER', `toolchain ${name} is listed twice`);
+    out[name] = version.join('=');
+  }
+  return validateToolchains(out);
+}
 
 /** Validate only execution settings; credentials remain in the existing board link and device key store. */
 export function relayCanaryConfig(value) {
