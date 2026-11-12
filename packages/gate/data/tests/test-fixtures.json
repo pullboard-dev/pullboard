@@ -698,6 +698,9 @@
   "packages/runners/tests/lints.test.js": {
     "tempdir": 2
   },
+  "packages/runners/tests/lints-real.test.js": {
+    "tempdir": 2
+  },
   "apps/cli/journeys/submit/advisory.test.js": {
     "hand-policy": 2
   },
