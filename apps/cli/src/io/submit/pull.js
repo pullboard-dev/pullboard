@@ -44,6 +44,7 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -81,9 +82,27 @@ const cliPath = () => {
   return [bin, dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
 };
 const input = JSON.parse(readFileSync(0, 'utf8'));
-const receipt = { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment: { node: process.versions.node, platform: process.platform, arch: process.arch } };
+// A proof shard the board offered from a gate's plan runs only its part of the proof, with the same trusted runner [P7].
+const shard = input.shard && typeof input.shard.command === 'string' ? input.shard : null;
+const environment = { node: process.versions.node, platform: process.platform, arch: process.arch };
+const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: input.source, shard: { index: shard.index, of: shard.of, files: shard.files }, steps: {}, phases: [], environment }
+  : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
+const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
+/** Run one phase and record it; only the proof's test runner comes from accepted main, the files and the frozen check are the candidate's own. */
+const runPhase = (role, command, PATH) => {
+  // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
+  // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
+  const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
+  const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
+    env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }));
+  const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
+  receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
+    ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
+};
+if (shard) runPhase('proof', shard.command, cliPath());
+else {
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
 writeFileSync(entry, input.analysisEntry, { flag: 'wx', mode: 0o600 });
 const analysed = timed('analysis', () => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', entry, root], { cwd: root, input: JSON.stringify(input.analysis), maxBuffer: 256 * 1024 ** 2, stdio: ['pipe', 'pipe', 'pipe'] }));
@@ -100,23 +119,21 @@ else {
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   if (!refusals.length && !receipt.analysis.infra) {
-    // Only the proof's test runner comes from accepted main; the test files and the frozen check are the candidate's own.
     const PATH = cliPath();
-    const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
-    for (const [role, command] of [['check', input.check], ['proof', analysis.plan?.proofCommand]]) {
+    // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
+    const plan = analysis.plan ?? {}, cores = availableParallelism();
+    const shardable = input.shards === true && !plan.selection?.full && typeof plan.testRunner === 'string' && plan.testRunner.trim() && Array.isArray(plan.proofFiles) && plan.proofFiles.length > cores;
+    for (const [role, command] of [['check', input.check], ['proof', plan.proofCommand]]) {
       if (!command) continue;
-      // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
-      // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
-      const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
-      const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
-        env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }));
-      const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
-      receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
-        ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
+      if (role === 'proof' && shardable && receipt.phases.every(phase => phase.status === 0)) { receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores }; continue; }
+      runPhase(role, command, PATH);
     }
   }
 }
-receipt.green = Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.infra && receipt.phases.every(phase => phase.status === 0);
+}
+// A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
+receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
+  : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
@@ -155,7 +172,7 @@ export function gateJobRequest(pinned) {
   const commits = [...new Set([main, rest.trunk].filter(commit => typeof commit === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(commit)))];
   const analysis = { main, source, ...rest, check, inventory: null, ...(produceInventory.length ? { produceInventory } : {}), staticChecks: rest.config?.staticChecks ?? '',
     collectMachinery: true, perPart: true, ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(authorization ? { authorization } : {}) };
-  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check } }, commits };
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check, shards: true } }, commits };
 }
 
 /**
