@@ -13,7 +13,7 @@ export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserS
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/logic/summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/logic/format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/io/check/baseline/worker.js";
-export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, prepareCheckBaseline } from "./src/io/check/baseline.js";
+export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, refuseCheckPullboardTest, prepareCheckBaseline } from "./src/io/check/baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
@@ -102,6 +102,7 @@ export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
 export { keepClaimsAlive } from "./src/io/keepalive.js";
+export { beatSeat } from "./src/io/keepalive.js";
 export { gateHealthLines } from "./src/logic/health.js";
 export { gateHealthReport } from "./src/io/health.js";
 export { maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';

@@ -176,11 +176,12 @@ export function submitAuthorizationMode() {
 }
 
 /**
- * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
- * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
+ * How a runner job is watched: `pull` (default) offers each job as a row a runner takes and waits on a shared status
+ * mirror in the caller; `controller` holds one process per job until its result [C7,P7,#5465]. Why pull by default: a
+ * fresh board's gate then runs on the zero-setup loopback runner, so no command holds this machine while it runs.
  */
 export function runnerDispatchMode() {
-  return loadMachineSettings().gate?.runnerDispatch === 'pull' ? 'pull' : 'controller';
+  return loadMachineSettings().gate?.runnerDispatch === 'controller' ? 'controller' : 'pull';
 }
 
 /**
@@ -212,6 +213,15 @@ export function pullGateFor(item) {
  */
 export function localRunnerEnabled() {
   return loadMachineSettings().gate?.localRunner !== false;
+}
+
+/**
+ * The load per core below which the local runner takes a job: gate.localLoadShare, default 1.0. Why: with no runners the
+ * machine runs its own gates, and taking one at any load thrashed a busy Mac; a job waits in the queue instead [P7].
+ */
+export function localLoadShare() {
+  const share = loadMachineSettings().gate?.localLoadShare;
+  return Number.isFinite(share) && share > 0 ? share : 1;
 }
 
 /**

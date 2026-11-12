@@ -1,4 +1,4 @@
-/** gate.runnerDispatch names how runner jobs are watched: controller by default, pull only when set exactly [C7,#5465]. */
+/** gate.runnerDispatch names how runner jobs are watched: pull by default, controller only when set exactly [C7,P7,#5465]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,9 +20,9 @@ function withSettings(settings, work) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('the runner dispatch mode is controller until the machine setting is exactly pull [C7,#5465]', () => {
-  assert.equal(withSettings(null, runnerDispatchMode), 'controller');
-  assert.equal(withSettings({ gate: {} }, runnerDispatchMode), 'controller');
+test('clause 1: the runner dispatch mode is pull until the machine setting is exactly controller [C7,P7,#5465]', () => {
+  assert.equal(withSettings(null, runnerDispatchMode), 'pull');
+  assert.equal(withSettings({ gate: {} }, runnerDispatchMode), 'pull');
   assert.equal(withSettings({ gate: { runnerDispatch: 'controller' } }, runnerDispatchMode), 'controller');
   assert.equal(withSettings({ gate: { runnerDispatch: 'pull' } }, runnerDispatchMode), 'pull');
 });

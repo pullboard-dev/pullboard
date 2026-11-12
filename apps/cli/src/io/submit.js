@@ -6,6 +6,8 @@ import { agentDisplayName } from './context.js';
 import { withBoard } from './context.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
+import { checkoutHead } from '../../../../packages/git/index.js';
+import { commandObservation } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { selectTestTiers } from '../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../packages/verify/index.js';
@@ -106,9 +108,13 @@ export function namedProofTests(root, item, commit, { crossRunTests = [] } = {})
  */
 export function filesSince(root, id, from, to) {
   if (!from) return [];
-  const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
-  return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
+  // Asked again for the same commits at several points of one submit; a Git write (the pin) forgets the answer (#6153).
+  const key = JSON.stringify(['filesSince', root, id, from, to === 'HEAD' ? checkoutHead(root) ?? to : to]);
+  return [...commandObservation(key, () => {
+    const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
+    const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
+    return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
+  })];
 }
 
 /** Refuse a candidate containing another item's unverified submitted commit [V1].

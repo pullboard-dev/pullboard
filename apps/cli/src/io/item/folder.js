@@ -25,8 +25,20 @@ import { writeItemMarker } from './folder/identity.js';
 export { itemFolderIdentity, itemFolderPath } from './folder/identity.js';
 import { itemFolderPath } from './folder/identity.js';
 import { seatRoot } from './folder/identity.js';
+import { prepareSpareFolder } from './folder/spare.js';
+import { takeSpareFolder } from './folder/spare.js';
 import { itemFolderRunner } from '../commands/runner.js';
 import { openHostedItemFolder } from '../commands/runner.js';
+
+/**
+ * Git config arguments that write a checkout's files with parallel workers, one per core, unless the repository sets its own count.
+ * Why: a sequential worktree add wrote this repository's 4,595 files in 2.4-4.3 s, most of a claiming next; parallel workers took 0.9 s [C7,#5776].
+ * @param {string} root any checkout of the repository
+ * @returns {string[]}
+ */
+export function parallelCheckout(root) {
+  return tryGit(root, ['config', '--get', 'checkout.workers']).status === 0 ? [] : ['-c', 'checkout.workers=0'];
+}
 
 /** The item's branch in the seat's lane. */
 function branch(lane, id) { return `${lane}/item-${id}`; }
@@ -168,7 +180,7 @@ async function reuseIdleFolder(ctx, me, id, desired, ref, exists, { board }) {
     try { prior = session.endedItemFolderSession(board, me, idle.path); }
     catch (error) { if (error instanceof Refused) continue; throw error; }
     git(ctx.info.root, ['worktree', 'move', idle.path, desired]);
-    try { git(desired, exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)]); }
+    try { git(desired, [...parallelCheckout(desired), ...(exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)])]); }
     catch (error) { git(ctx.info.root, ['worktree', 'move', desired, idle.path]); throw error; }
     if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
     await session.adoptItemFolderSession(desired, me, prior);
@@ -306,17 +318,22 @@ function sameDirectory(first, second) {
  * Bring a clean item folder up to main's tip, keeping every commit the item branch already has.
  * Why: a claim handed over a branch hundreds of commits behind main, so the submit merge was a huge new head every time (#3797).
  * A dirty folder is left as it was; a merge that conflicts is aborted on the clean tree, and submit still merges main then.
+ * A reopened item resumes its earlier builder's branch the same way; a conflict is named file by file (#2906).
  *
  * @param {string} path the item folder
- * @returns {void}
+ * @returns {string[]} the files a conflicting merge with main named; empty when the folder is at main's tip
  */
 function advanceToMain(path) {
   const trunk = trunkBranch(path);
-  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return;
+  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
-  if (status.status !== 0 || status.stdout) return;
-  if (tryGit(path, ['merge', '--ff-only', '-q', trunk]).status === 0) return;
-  if (tryGit(path, ['merge', '--no-edit', '-q', trunk]).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
+  if (status.status !== 0 || status.stdout) return [];
+  const workers = parallelCheckout(path);
+  if (tryGit(path, [...workers, 'merge', '--ff-only', '-q', trunk]).status === 0) return [];
+  if (tryGit(path, [...workers, 'merge', '--no-edit', '-q', trunk]).status === 0 || !unfinishedOperation(path, tryGit)) return [];
+  const conflicted = tryGit(path, ['diff', '--name-only', '--diff-filter=U']);
+  tryGit(path, ['merge', '--abort']);
+  return conflicted.status === 0 ? conflicted.stdout.split('\n').filter(Boolean) : [];
 }
 
 /**
@@ -353,10 +370,17 @@ function replaceGoneFolder(root, path, ref) {
       : `${ref} holds no earlier commits: nothing waits to be submitted.\n`));
 }
 
-/** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
+/**
+ * Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7].
+ * A merge with main that conflicts is left undone and its files go to `options.onConflict`, else one stderr line (#2906).
+ */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
-  if (typeof path === 'string' && existsSync(path)) advanceToMain(path);
+  const conflicts = typeof path === 'string' && existsSync(path) ? advanceToMain(path) : [];
+  if (conflicts.length) {
+    const line = `merging ${trunkBranch(path)} into the item branch conflicts in ${conflicts.join(', ')}; the folder keeps the branch as it was: run git merge ${trunkBranch(path)} there and resolve those files`;
+    if (options.onConflict) options.onConflict(conflicts, line); else process.stderr.write(`warning: ${line}\n`);
+  }
   return path;
 }
 
@@ -404,7 +428,12 @@ async function openFolder(ctx, me, id, options = {}) {
     writeItemMarker(path, me.id, id);
     return path;
   }
-  git(root, exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunkBranch(root)]);
+  // A prepared spare is moved into place and switched to the branch; only without one is every file written (#5776).
+  const seat = seatRoot(ctx, options.board, me), workers = parallelCheckout(root), trunk = trunkBranch(root);
+  if (!takeSpareFolder(root, seat, path, [...workers, ...(exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunk])])) {
+    git(root, [...workers, ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunk])]);
+  }
   writeItemMarker(path, me.id, id);
+  await prepareSpareFolder(root, seat, trunk, workers);
   return path;
 }

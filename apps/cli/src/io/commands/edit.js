@@ -21,6 +21,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -96,6 +97,7 @@ export async function run(io, args) {
   // criterion and check alone never refuses on it (#5709).
   if (change.criterion !== undefined || change.check !== undefined) {
     const before = store.getItem(board, id);
+    if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);

@@ -16,13 +16,13 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
   assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), 'the real child intervals overlap');
   assert.equal(receipts.length, 2, 'each command retains its own native proof receipt');
-  // The slower check is the slower command as its receipt timed it, its own node --test start included; the inner
-  // sleep is only the floor. Either way the overhead left is submit's own, and two serial checks would double it (#5752).
-  const slower = Math.max(...receipts.map(receipt => receipt.durationMs));
-  assert.ok(slower >= Math.max(...runs.map(run => run.end - run.start)), `the receipt times the whole check: ${slower}ms`);
+  // The bound is 1.2x the inner check interval (the longest child run), not a receipt's durationMs: that includes node --test
+  // start, so the bound would loosen as the machine slows. Two serial checks would double it (#5752).
+  const slower = Math.max(...runs.map(run => run.end - run.start));
+  assert.ok(slower >= SLOW_MS, `the inner check interval is at least the fixture sleep: ${slower}ms`);
   const where = `before the checks ${Math.min(...runs.map(run => run.start)) - started}ms, after them ${started + wallMs - Math.max(...runs.map(run => run.end))}ms`;
-  t.diagnostic(`submit ${wallMs}ms; slower check ${slower}ms; ${where}`);
-  assert.ok(wallMs <= slower * 1.2, `submit ${wallMs}ms, slower check ${slower}ms; ${where}`);
+  t.diagnostic(`submit ${wallMs}ms; inner check ${slower}ms; ${where}`);
+  assert.ok(wallMs <= slower * 1.2, `submit ${wallMs}ms, inner check ${slower}ms; ${where}`);
   assert.equal(new Set(receipts.map(receipt => receipt.id)).size, 2);
   assert.ok(receipts.every(receipt => receipt.exitCode === 0 && receipt.environment?.node === process.versions.node));
 });
