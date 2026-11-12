@@ -512,11 +512,12 @@ function gateReceipt(result, commit, durationMs) {
 /**
  * Whether a machine under this load takes another job: its one-minute load is under `share` of its cores [P7].
  * Why: with no runners the machine runs its own gates, and a job taken at any load thrashed a busy Mac; the row waits in the queue instead.
+ * A runner with no job running still takes one at any load, so a person on one busy machine always gets their gate [P7].
  *
- * @param {{ load: number, cores: number, share: number }} machine
+ * @param {{ load: number, cores: number, share: number, running?: number }} machine - running: jobs this runner holds now; default 1.
  */
-export function localLoadAdmits({ load, cores, share }) {
-  return load < share * cores;
+export function localLoadAdmits({ load, cores, share, running = 1 }) {
+  return running === 0 || load < share * cores;
 }
 
 /**
@@ -533,7 +534,7 @@ export function localLoadAdmits({ load, cores, share }) {
  * @param {number | string} [options.jobs] - How many jobs run at once; default PULLBOARD_RUNNER_JOBS, else serveSlots().
  * @param {number} [options.cores] - This runner's cores, shared out between its jobs; default availableParallelism().
  * @param {AbortSignal} [options.signal]
- * @param {() => boolean} [options.admit] - Asked before each claim; false leaves the queue untouched and tries again after the idle wait.
+ * @param {(state: { running: number }) => boolean} [options.admit] - Asked before each claim, with the jobs it holds now; false leaves the queue untouched and tries again after the idle wait.
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
@@ -716,7 +717,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   while (!signal?.aborted && !failure) {
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
-    if (!admit()) {
+    if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([sleep(idleMs), ...active]); continue;
     }
