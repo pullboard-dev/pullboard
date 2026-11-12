@@ -482,7 +482,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
  */
 function derivedState(board, info, config, { all, head, doctrine, specAges, doctrineAges, now }) {
   const rows = (file, ages) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({
-    id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0,
+    id, status: state, tier, text: store.readableRigorText(text), gate, serves, section, added: ages.get(id) ?? 0,
     gateFiles: gate ? gate.split(',').map(value => value.trim()).filter(Boolean).map(name => {
       const path = resolve(info.root, name);
       const inside = !isAbsolute(name) && !relative(info.root, path).split(/[\\/]/u).includes('..');
