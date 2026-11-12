@@ -67,7 +67,7 @@ export function privateRepo(t) {
 }
 
 /** Add items with the criterion, route and brief the board now requires; every other move passes through. */
-function withBrief(...args) {
+export function withBrief(...args) {
   if (args[0] !== 'add' || args.includes('--route')) return args;
   const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
   if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];
