@@ -131,16 +131,16 @@ function checkpointMs(box, id) {
 }
 
 /** Public numeric usage for one item, without its elapsed time. */
-function usage(box, id) {
-  const shown = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage;
+async function usage(box, id) {
+  const shown = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).usage;
   return { inputTokens: shown.inputTokens, outputTokens: shown.outputTokens, freshInputTokens: shown.freshInputTokens,
     cacheReadInputTokens: shown.cacheReadInputTokens, cacheWriteInputTokens: shown.cacheWriteInputTokens, models: shown.models, unknownReasons: shown.unknownReasons };
 }
 
-test('clause 1: 50 MB of session logs add under 50 ms of usage work to a claim and the detached checkpoint matches the in-line totals [N2]', () => {
+test('clause 1: 50 MB of session logs add under 50 ms of usage work to a claim and the detached checkpoint matches the in-line totals [N2]', async () => {
   const inline = fixture();
   journey(inline.box, inline.id, inline.log, 'inline');
-  const expected = usage(inline.box, inline.id);
+  const expected = await usage(inline.box, inline.id);
   assert.equal(expected.inputTokens, 105, 'the in-line checkpoint attributes only post-claim spend, once per streamed message');
   assert.equal(expected.outputTokens, 11);
 
@@ -150,7 +150,7 @@ test('clause 1: 50 MB of session logs add under 50 ms of usage work to a claim a
   const requests = readdirSync(due).filter((name) => name.endsWith('.json'));
   assert.equal(requests.length, 2, 'claim and release each recorded one due checkpoint');
   assert.equal(existsSync(join(deferred.common, 'pullboard', 'cost-ledger.json')), false, 'no command did usage work');
-  assert.equal(JSON.parse(deferred.box.run(deferred.box.repo, 'show', String(deferred.id), '--json').out).usage, undefined, 'nothing is attributed until the worker runs');
+  assert.equal(JSON.parse((await deferred.box.runLocal(deferred.box.repo, 'show', String(deferred.id), '--json')).out).usage, undefined, 'nothing is attributed until the worker runs');
 
   rmSync(join(due, 'worker.lock'));
   const env = { ...deferred.box.env };
@@ -159,7 +159,7 @@ test('clause 1: 50 MB of session logs add under 50 ms of usage work to a claim a
   const worker = runFixtureChild(process.execPath, [usageCheckpointWorkerEntrypoint(), deferred.common], { cwd: deferred.common, env, encoding: 'utf8' });
   assert.equal(worker.status, 0, worker.stdout + worker.stderr);
   assert.deepEqual(readdirSync(due).filter((name) => name.endsWith('.json')), [], 'the worker drained every due checkpoint');
-  assert.deepEqual(usage(deferred.box, deferred.id), expected, 'the detached checkpoint records the in-line totals');
+  assert.deepEqual(await usage(deferred.box, deferred.id), expected, 'the detached checkpoint records the in-line totals');
 
   // The usage step a claim runs after its move, for the 50 MB seat against a seat with no logs; a live worker holds the queue.
   const empty = fixture(0);
@@ -172,7 +172,7 @@ test('clause 1: 50 MB of session logs add under 50 ms of usage work to a claim a
   assert.equal(existsSync(join(empty.common, 'pullboard', 'cost-ledger.json')), false, 'the usage step only marks a checkpoint due');
 });
 
-test('a checkpoint reads only the log bytes added since its last offset [N2]', () => {
+test('a checkpoint reads only the log bytes added since its last offset [N2]', async () => {
   const box = helpers.sandbox();
   const file = join(box.dir, 'native-session.jsonl');
   const source = { provider: 'claude', file };
@@ -198,7 +198,7 @@ test('a checkpoint reads only the log bytes added since its last offset [N2]', (
 });
 
 /** Native Claude message ids stay deduplicated across the complete session, as the old batch reader does. */
-test('a streamed update beyond the cursor window preserves old whole-log totals [N2]', () => {
+test('a streamed update beyond the cursor window preserves old whole-log totals [N2]', async () => {
   const box = helpers.sandbox();
   const file = join(box.dir, 'dedup-session.jsonl');
   const source = { provider: 'claude', file };
