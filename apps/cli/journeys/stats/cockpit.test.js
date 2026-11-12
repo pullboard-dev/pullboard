@@ -589,9 +589,6 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('#proof-stats-summary')");
     await chrome.waitFor("!document.querySelector('#proof-stats-full').hidden");
-    // The Shouts feed draws only on its own tab, so open it now: the day names checked below are its rows.
-    await press(chrome, "document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor("!!document.querySelector('#feed .conversation-row')");
     // Count every redraw from here on, and keep the nodes a person could be pointing at to see they survive.
     await chrome.stable(`(() => {
       const drawn = window.render;
@@ -608,7 +605,7 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
       const oldest = document.querySelector('[data-oldest=open]');
       return JSON.stringify({ redraws: window.__redraws, newer: data.project.proofStats.flow.asOf > before,
         kept: window.__kept.every((node) => node.isConnected), scroll: [scrollX, scrollY], start: window.__scroll,
-        shown: { value: oldest.dataset.value, text: oldest.textContent }, api: data.project.proofStats.flow.queues.open.oldest });
+        shown: oldest ? { value: oldest.dataset.value, text: oldest.textContent } : null, api: data.project.proofStats.flow.queues.open.oldest });
     })()`));
     for (let read = 1; read <= 3; read += 1) {
       await chrome.stable('new Promise((resolve) => setTimeout(() => resolve(true), 5))');
@@ -621,6 +618,15 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
       // What reads relative to now still follows the newest observation, without a redraw.
       assert.deepEqual(after.shown, { value: String(after.api.ageMinutes), text: 'Oldest: #' + after.api.id + ' · ' + displayDuration(after.api.ageMinutes) }, `read ${read}: the oldest age is the newest observation's`);
     }
+    // The Shouts feed draws only on its own tab, so open it for the day names below and count redraws from there.
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await chrome.waitFor("!!document.querySelector('#feed .conversation-row')");
+    await chrome.stable(`(() => {
+      window.__redraws = 0;
+      window.__kept = [...document.querySelectorAll('#tabs .tab, #feed .conversation-row')];
+      window.__scroll = [scrollX, scrollY];
+      return true;
+    })()`);
     // Past midnight, an unchanged read still draws nothing, and the day the page named Today is renamed Yesterday in
     // place, the shouts gaining the rule above it they leave off for today: the page's clock moves a day on, alone.
     const days = `JSON.stringify({ headings: [...document.querySelectorAll('.feed .day')].map((node) => node.textContent),
