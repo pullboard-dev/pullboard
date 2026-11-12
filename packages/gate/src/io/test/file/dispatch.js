@@ -41,6 +41,9 @@ import {
   testRuntimeImport,
 } from '../../../../../sandbox/light.js';
 
+/** The hard stop for an audit file, which runs outside the interactive budget but never without a bound. */
+const AUDIT_FILE_KILL_MS = 600_000;
+
 /** One parent FIFO reservation at a time; transferred actual workers may remain live concurrently. */
 function acquisitionQueue() {
   let tail = Promise.resolve();
@@ -53,14 +56,15 @@ function acquisitionQueue() {
   };
 }
 
-/** Set only this actual worker's legitimately reserved admission before its ordinary runner preload. */
-function admissionImport(value, browser, runner, outputMarker) {
+/** Set only this actual worker's legitimately reserved admission, and its budget row's ms, before its ordinary runner preload. */
+function admissionImport(value, browser, runner, outputMarker, budgetMs) {
   const recorder = testRuntimeImport();
   const source = (recorder ? `await import(${JSON.stringify(recorder)});` : '') + `process.env[${JSON.stringify(TEST_FILE_POOL_ENV)}]=${JSON.stringify(value)};`
     + (browser ? `process.env.PULLBOARD_TEST_BROWSER_OWNER_PID=${JSON.stringify(String(process.pid))};`
       + "process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
       + 'delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;' : '')
     + `process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT=${JSON.stringify(outputMarker)};`
+    + (budgetMs ? `process.env.PULLBOARD_TEST_FILE_ROW_BUDGET_MS=${JSON.stringify(String(budgetMs))};` : '')
     + `await import(${JSON.stringify(pathToFileURL(runner).href)});`;
   return `data:text/javascript,${encodeURIComponent(source)}`;
 }
@@ -166,7 +170,10 @@ export function dispatchTestFiles(options, env) {
       const execArgv = [...options.execArgv];
       const preload = execArgv.indexOf('--import');
       if (preload < 0 || !execArgv[preload + 1]) throw new Error('test-file dispatch requires its ordinary runner preload');
-      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker);
+      // An audit row lifts the watchdog's 180 s kill (the wall and idle limits still bound a stuck file); any other row sets it.
+      const row = budgets.get(testFileRelative(budgetRoot, resolve(cwd, file)));
+      const rowBudget = row?.audit ? AUDIT_FILE_KILL_MS : row?.ms;
+      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker, rowBudget);
       fileExited = fileExitObserver(execArgv[preload + 1], file);
       const source = run({ ...options, files: [file], shard: undefined, concurrency: 1, signal,
         setup: undefined, execArgv });
