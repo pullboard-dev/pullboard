@@ -5,7 +5,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { acceptMachineSubmission } from '../../src/io/machine.js';
 import { machineBarDigest } from '../../src/logic/verdict/machine.js';
-import { moveItem } from '../../../store/src/io/board.js';
 
 const CHECK = 'node --test one.test.js';
 const COMMIT = 'c'.repeat(40);
@@ -28,7 +27,7 @@ function fixture({ status = 'submitted', builtBy = 'seat-1' } = {}) {
     machineReceipts: [receipt('r1', CHECK), receipt('r2', 'node --test two.test.js')] };
   const calls = [];
   const deps = { getItem: (board, id) => ({ ...item, item_id: id }), logEvent: (...args) => calls.push(['event', ...args]),
-    moveItem: (board, id, verb, how) => { calls.push(['move', verb, how]); return moveItem !== undefined ? how : null; } };
+    moveItem: (board, id, verb, how) => { calls.push(['move', verb, how]); return how; } };
   return { db: { db }, item, options, deps, calls };
 }
 
