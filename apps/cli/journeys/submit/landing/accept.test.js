@@ -25,11 +25,11 @@ function sessionEnv(box, identity) {
 }
 
 /** Run one public command as an agent session and demand its JSON success. */
-async function jsonAs(box, identity, cwd, ...args) {
+function jsonAs(box, identity, cwd, ...args) {
   const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
   Object.assign(box.env, sessionEnv(box, identity));
   try {
-    const result = (await box.runLocal(cwd, ...args, '--json'));
+    const result = box.run(cwd, ...args, '--json');
     assert.equal(result.code, 0, result.out + result.err);
     return JSON.parse(result.out);
   } finally {
@@ -74,18 +74,18 @@ function fixture(t, lanes) {
     joinFixtureSeat(box, builders.api, 'api', { model: FIXTURE_MODEL }); // the strong route, as the web seat joined
   }
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
-  const items = lanes.map(async (lane, index) => {
-    const id = (await jsonAs(box, 'coordinator-session', box.repo, 'add', lane, `Build ${lane}`, '--specs', lane === 'api' ? 'G2' : 'G1',
-      '--criterion', `the ${lane} file is built`, '--check', `grep -q built ${files[lane]}`)).item.item_id;
+  const items = lanes.map((lane, index) => {
+    const id = jsonAs(box, 'coordinator-session', box.repo, 'add', lane, `Build ${lane}`, '--specs', lane === 'api' ? 'G2' : 'G1',
+      '--criterion', `the ${lane} file is built`, '--check', `grep -q built ${files[lane]}`).item.item_id;
     const builder = builders[lane];
-    assert.equal((await box.runLocal(builder, 'claim', String(id))).code, 0);
+    assert.equal(box.run(builder, 'claim', String(id)).code, 0);
     writeFileSync(join(builder, files[lane]), 'built\n');
     const head = commit(box, builder, `feat(${lane}): build the ${lane} file [${lane === 'api' ? 'G2' : 'G1'}]`);
-    const submitted = (await box.runLocal(builder, 'submit', String(id)));
+    const submitted = box.run(builder, 'submit', String(id));
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
     const reviewer = join(box.dir, `reviewer-${index}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    (await jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong'));
+    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
     return { id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] };
   });
   return { box, items, binding: mainBinding(box) };
