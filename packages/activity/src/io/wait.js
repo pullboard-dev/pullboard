@@ -67,9 +67,12 @@ export function fileChangeWaiter(paths) {
   }
   /** Replace the input set after configuration or referenced boards change. */
   function update(values) {
+    // An input that changed since the last snapshot must still wake the next wait: a write landing between a caller's read and this update would otherwise be absorbed when the lagging native event is lost under load [C7].
+    const moved = targets.length > 0 && targets.some(target => signatures.has(target) && signatures.get(target) !== signature(target));
     targets = [...new Set(values.filter(Boolean).map(path => resolve(path instanceof URL ? fileURLToPath(path) : path)))];
     refresh();
     snapshot();
+    if (moved && !closed) changed();
   }
   /** Observe future notifications and replay any change that preceded subscription. */
   function subscribe(listener) {
