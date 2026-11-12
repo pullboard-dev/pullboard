@@ -1557,7 +1557,7 @@
     "launch": 3
   },
   "apps/cli/journeys/watch/main.test.js": {
-    "launch": 54
+    "launch": 2
   },
   "apps/cli/journeys/why/main.test.js": {
     "launch": 3
