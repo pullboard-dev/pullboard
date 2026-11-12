@@ -11,10 +11,12 @@ import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
@@ -22,6 +24,8 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { childEnvironment } from '../../../kernel/light.js';
+import { PROGRESS_ENV } from './progress.js';
+import { watchProgress } from './progress.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -39,11 +43,18 @@ const REAP_MS = 2_000;
 const CORES_PER_JOB = 3;
 // Budget: 32 fetched-commit refs give a fetch recent haves; one ref file each.
 const FETCHED_REFS = 32;
+/** The release tags every store refresh fetches, which proofs that unpack an old release read. */
+const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 // Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
 const RECEIPT_LINE_BYTES = 60 * 1024;
+/** The variable a job finds its kept-output folder in; apps/cli's gate entry writes each phase's full output there. */
+export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
+// Budget: the runner keeps the output of its newest 40 jobs, each job's own stream capped at 8 MiB, under <cache>/output.
+const KEPT_JOBS = 40;
+const KEPT_JOB_BYTES = 8 * 1024 ** 2;
 
 /** A refusal by code, as the CLI reports it: what failed and what to do next. Kept local so this runner-side file stays light. */
 class Refused extends Error {
@@ -100,11 +111,12 @@ async function queueCall(endpoint, body, fetchImpl, timeoutMs = 15_000) {
 }
 
 /** Run a git command in a directory, without blocking the lease renewals; resolve its status and text. */
-function git(cwd, args) {
+function git(cwd, args, input = null) {
   return new Promise(resolve => {
-    execFile('git', args, { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, stdout, stderr) => {
+    const child = execFile('git', args, { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, stdout, stderr) => {
       resolve({ status: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout: String(stdout ?? '').trim(), stderr: String(stderr ?? error?.message ?? '').trim() });
     });
+    if (input !== null) child.stdin.end(input);
   });
 }
 
@@ -132,13 +144,28 @@ async function fetchCommit(store, trunk, commit) {
   if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
   // The fetched commit keeps a ref, so the next fetch offers it as a have and takes only new objects. A store with no
   // refs offered none, and every job pulled trunk's whole history, 200k objects and 4-5 minutes per claim (#5805).
-  const byId = await git(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, `+${commit}:refs/pullboard/fetched/${commit}`]);
+  // Release tags ride the same fetch, so a store refresh costs no extra round trip: proofs that unpack an old release
+  // (git archive v0.8.6) found no tag on a pull runner, since --no-tags fetched none.
+  const byId = await git(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, `+${commit}:refs/pullboard/fetched/${commit}`, RELEASE_TAGS]);
   if (byId.status !== 0) {
-    const heads = await git(store, ['fetch', '-q', '--no-tags', '--', trunk, '+refs/heads/*:refs/remotes/trunk/*']);
+    const heads = await git(store, ['fetch', '-q', '--no-tags', '--', trunk, '+refs/heads/*:refs/remotes/trunk/*', RELEASE_TAGS]);
     if (heads.status !== 0) return heads.stderr || byId.stderr;
   }
   await pruneFetched(store);
   return (await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0 ? null : `trunk remote has no commit ${commit}`;
+}
+
+/**
+ * Point the primary's release tags where the store's are, so a job's checkout resolves `v0.8.6` as a clone does.
+ * Why a copy: the primary borrows the store's objects through alternates, but refs are never shared that way.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function shareTags(store, primary) {
+  const listed = await git(store, ['for-each-ref', '--format=update %(refname) %(objectname)', 'refs/tags/v*']);
+  if (listed.status !== 0) return false;
+  if (!listed.stdout) return true;
+  return (await git(primary, ['update-ref', '--stdin'], `${listed.stdout}\n`)).status === 0;
 }
 
 /** Keep the newest fetched-commit refs only: enough haves to negotiate small fetches, without a ref per job ever run. */
@@ -149,12 +176,14 @@ async function pruneFetched(store, keep = FETCHED_REFS) {
 }
 
 /**
- * Fetch one commit from the trunk remote into the runner's cache and check it out in a fresh folder. Every commit in
+ * Fetch one commit from the trunk remote into the runner's cache and check it out in the named folder. Every commit in
  * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
  * from its checkout's own objects) finds them there.
- * Why a primary per job: the folder is a linked worktree of a fresh primary checkout whose main branch is the job's
- * main, borrowing the cache's objects, as an item folder is of the coordinator checkout. A worktree of the bare cache
- * had no main branch and a primary that is not a work tree, so every pulled proof refused NOT_A_REPO (#5781).
+ * Why a primary: the folder is a linked worktree of a primary checkout whose main branch is the job's main, borrowing
+ * the cache's objects, as an item folder is of the coordinator checkout. A worktree of the bare cache had no main
+ * branch and a primary that is not a work tree, so every pulled proof refused NOT_A_REPO (#5781).
+ * Why reuse: a folder left by an earlier job under the same name is reset to the commit and cleaned of every untracked
+ * and ignored file instead of being rebuilt, since preparing a fresh one cost 14 s per job (#5812) [P7].
  *
  * @param {string} cache
  * @param {string} trunk
@@ -162,7 +191,7 @@ async function pruneFetched(store, keep = FETCHED_REFS) {
  * @param {string} name
  * @param {string[]} [also]
  * @param {{ main?: string | null }} [options] - main: the commit the primary's main branch names; default none.
- * @returns {Promise<{ ok: true, folder: string, primary: string } | { ok: false, reason: string }>}
+ * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
 export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null } = {}) {
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
@@ -175,6 +204,9 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
     if (missing) return { ok: false, reason: missing };
   }
   const folder = join(cache, 'work', name), primary = join(cache, 'main', name);
+  if (await resetCheckout({ folder, primary }, commit, main)) {
+    return (await shareTags(store, primary)) ? { ok: true, folder, primary, reused: true } : { ok: false, reason: 'could not copy release tags into the checkout' };
+  }
   await dropCheckout(cache, { folder, primary });
   mkdirSync(primary, { recursive: true });
   for (const args of [['init', '-q'], ['symbolic-ref', 'HEAD', 'refs/heads/main'], ['config', 'gc.auto', '0']]) {
@@ -182,15 +214,40 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
     if (step.status !== 0) return { ok: false, reason: step.stderr };
   }
   writeFileSync(join(primary, '.git', 'objects', 'info', 'alternates'), `${join(store, 'objects')}\n`);
-  if (main) {
-    // The trunk the job's proof reads, as a pushed runner's checkout names it (apps/runner/src/io/worker/checkout.js) [P7].
-    for (const args of [['update-ref', 'refs/heads/main', main], ['config', '--local', '--replace-all', 'pullboard.trunk', 'refs/heads/main']]) {
-      const pinned = await git(primary, args);
-      if (pinned.status !== 0) return { ok: false, reason: pinned.stderr };
-    }
-  }
+  if (!(await pinMain(primary, main))) return { ok: false, reason: `could not point main at ${main}` };
+  if (!(await shareTags(store, primary))) return { ok: false, reason: 'could not copy release tags into the checkout' };
   const added = await git(primary, ['worktree', 'add', '-q', '--detach', folder, commit]);
-  return added.status === 0 ? { ok: true, folder, primary } : { ok: false, reason: added.stderr };
+  return added.status === 0 ? { ok: true, folder, primary, reused: false } : { ok: false, reason: added.stderr };
+}
+
+/**
+ * Point the primary's main branch at the job's main, or leave it unborn when the job names none, and name it the
+ * trunk in `pullboard.trunk` so a proof run in the folder finds its trunk whether the folder is fresh or reused.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function pinMain(primary, main) {
+  const pinned = main ? await git(primary, ['update-ref', 'refs/heads/main', main])
+    : await git(primary, ['update-ref', '-d', 'refs/heads/main']);
+  if (pinned.status !== 0) return false;
+  return (await git(primary, ['config', '--local', '--replace-all', 'pullboard.trunk', 'refs/heads/main'])).status === 0;
+}
+
+/**
+ * Reuse an earlier job's folder for this commit: detach it at the commit, overwrite every tracked change, and delete
+ * every untracked and ignored file and nested repository, so nothing the earlier job wrote survives. False when there
+ * is no earlier folder or any step fails, and the caller builds a fresh one.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function resetCheckout({ folder, primary }, commit, main) {
+  if (!existsSync(join(primary, '.git')) || !existsSync(join(folder, '.git'))) return false;
+  if (!(await pinMain(primary, main))) return false;
+  for (const args of [['checkout', '-q', '-f', '--detach', commit], ['reset', '-q', '--hard', commit], ['clean', '-q', '-ffdx']]) {
+    if ((await git(folder, args)).status !== 0) return false;
+  }
+  const head = await git(folder, ['rev-parse', 'HEAD']);
+  return head.status === 0 && head.stdout.trim() === commit;
 }
 
 /** Remove a job's checkout and its primary from the cache; a cache from before primaries also prunes the store's worktrees. */
@@ -224,20 +281,48 @@ export function jobEnvironment(cache, name, job, host = process.env) {
 }
 
 /**
+ * The folder a job's full output is kept in on this runner, by job id and attempt, so a red receipt's cause stays
+ * readable after its checkout is deleted. Why on the runner: a receipt is capped at 64 KiB, and a proof's output is not.
+ *
+ * @param {string} cache
+ * @param {string} job
+ * @param {number} attempt
+ * @returns {string}
+ */
+export function keptOutputFolder(cache, job, attempt) {
+  return join(cache, 'output', `${String(job).replace(/[^A-Za-z0-9._-]/gu, '-')}-${attempt}`);
+}
+
+/** Make a job's kept-output folder and drop all but the newest KEPT_JOBS; null when the disk refuses, which keeps nothing. */
+function keepFolder(cache, job, attempt) {
+  const folder = keptOutputFolder(cache, job, attempt), parent = join(cache, 'output');
+  try {
+    rmSync(folder, { recursive: true, force: true });
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    const old = readdirSync(parent).map(name => ({ name, at: statSync(join(parent, name)).mtimeMs })).sort((a, b) => b.at - a.at).slice(KEPT_JOBS);
+    for (const { name } of old) rmSync(join(parent, name), { recursive: true, force: true });
+    return folder;
+  } catch { return null; }
+}
+
+/**
  * Run a job's argv in its checkout, in its own process group so a lost lease or the ceiling stops all of it. `input`,
  * when given, is written to its stdin. The last stdout line starting with `receiptLine` is kept whole, apart from the
  * output tail, so a receipt longer than the tail still reaches the board.
  *
  * @param {string[]} argv
  * @param {string} cwd
- * @param {{ ceilingMs?: number, env?: NodeJS.ProcessEnv, input?: string | null, receiptLine?: string | null }} [options]
+ * @param {{ ceilingMs?: number, env?: NodeJS.ProcessEnv, input?: string | null, receiptLine?: string | null, keep?: string | null }} [options] - keep:
+ *   a file the stream's first 8 MiB is copied to.
  * @returns {{ done: Promise<{ status: number | null, signal: string | null, outputSha256: string, outputBytes: number, tail: string, line: string | null }>, stop: () => void }}
  */
-export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null } = {}) {
+export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null, keep = null } = {}) {
   const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const digest = createHash('sha256');
   let bytes = 0, tail = Buffer.alloc(0), partial = '', line = null;
   const take = chunk => {
+    // The kept copy is the stream's first KEPT_JOB_BYTES; the receipt's tail carries its end.
+    if (keep && bytes < KEPT_JOB_BYTES) { try { appendFileSync(keep, chunk.subarray(0, KEPT_JOB_BYTES - bytes), { mode: 0o600 }); } catch { keep = null; } }
     digest.update(chunk); bytes += chunk.length;
     tail = Buffer.concat([tail, chunk]); if (tail.length > TAIL_BYTES) tail = tail.subarray(tail.length - TAIL_BYTES);
   };
@@ -364,7 +449,7 @@ function gateReceipt(result, commit, durationMs) {
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
- * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number }} [options.timing]
+ * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
  * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job. Its cache is the
@@ -377,7 +462,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting);
-  const jobs = [], waits = [];
+  // One checkout folder per slot, reset for each job it runs, since a fresh one cost 14 s per job (#5812) [P7].
+  const jobs = [], waits = [], folders = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
   let delay = firstMs;
   /** Wait out an unreachable board, longer each time in a row, and note the wait. */
   const backoff = async error => { say(`${error.message}; retrying in ${delay} ms`); waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs); };
@@ -440,7 +526,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, held, isLost, whenLost) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [];
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null;
     if (!run.length) {
       let asked;
       try { asked = await reliably({ action: 'request', ...held }); }
@@ -449,25 +535,35 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       if (Array.isArray(request?.run) && request.run.length) {
         run = request.run;
         input = JSON.stringify(request.input ?? null);
+        named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
       }
     }
     // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
     const gate = input !== null;
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
-    const checkout = await serially(() => checkoutCandidate(cache, trunk, claim.candidate, name, also, { main: claim.base ?? null }));
+    // Each slot reuses its own folder: concurrent jobs never share one, and the shared object store fetches one at a time.
+    const checkout = await serially(() => checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null }));
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${checkout.ok ? 'the job names nothing to run' : checkout.reason}`);
-      if (checkout.ok) await dropCheckout(cache, checkout);
       await reliably({ action: 'release', ...held }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
       return { job: claim.job, outcome: 'released' };
     }
-    if (isLost()) { await dropCheckout(cache, checkout); say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
+    if (isLost()) { say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
     const started = Date.now();
     const job = jobEnvironment(cache, name, claim.job), tag = randomBytes(8).toString('hex');
-    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder,
-      { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null, env: { ...job.env, [RUNNER_CLAIM_ENV]: tag } });
+    // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
+    const kept = keepFolder(cache, claim.job, claim.attempt);
+    // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
+    const progressFile = join(cache, 'progress', `${name}.jsonl`);
+    mkdirSync(join(cache, 'progress'), { recursive: true }); rmSync(progressFile, { force: true });
+    const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
+      post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
+    // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
+    const env = { ...job.env, [RUNNER_CLAIM_ENV]: tag, PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
+      env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
     whenLost(() => running.stop());
     if (isLost()) running.stop();
@@ -479,16 +575,16 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // Every process the job started ends before its receipt posts, a detached one too: its group, then its marker (#5805).
     const survivors = await reapJob(claim.job, running.pid, { claim: tag, graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
-    await dropCheckout(cache, checkout);
+    await progress.stop(); rmSync(progressFile, { force: true });
     rmSync(job.folder, { recursive: true, force: true });
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
       return { job: claim.job, outcome: 'released' };
     }
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); return { job: claim.job, outcome: 'lost' }; }
-    const receipt = gate ? gateReceipt(result, claim.candidate, Date.now() - started)
+    const receipt = { ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
-        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started };
+        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       await reliably({ action: 'receipt', ...held, receipt });
       say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}`);
