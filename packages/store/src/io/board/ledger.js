@@ -118,3 +118,19 @@ export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget =
   }
   return rows.length ? { contexts, files: rows } : null;
 }
+
+/**
+ * The test files the ledger holds proof rows for at any of `commits`, sorted: the plan a landing proves, read from the
+ * board instead of a submit receipt or a live import graph. Why: one source of truth for what an item proved [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} commits
+ * @param {{ command?: string }} [options]
+ * @returns {string[]}
+ */
+export function ledgerFiles(db, commits, { command = 'proof' } = {}) {
+  const wanted = [...new Set((commits ?? []).filter(commit => /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(commit))))];
+  if (missingLedgerTable(db) || !wanted.length) return [];
+  const select = db.prepare('SELECT DISTINCT test_result_file AS file FROM test_result WHERE test_result_commit = ? AND test_result_command = ?');
+  return [...new Set(wanted.flatMap(commit => select.all(commit, command).map(row => row.file)))].sort();
+}
