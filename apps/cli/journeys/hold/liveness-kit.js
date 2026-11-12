@@ -39,7 +39,7 @@ const STEPS = {
   async verify(box, id) {
     box.submit(id);
     // A second seat, in another family, holds the verify claim: the reviewer's own `next --verify` reserves the submitted item for it.
-    const reviewer = box.seats.sibling;
+    const reviewer = box.seats.outside;
     const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
     if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
     // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
