@@ -110,6 +110,24 @@ async function whoamiRemote(io, remote, cwd) {
 }
 
 /**
+ * The seat a commit hook checks in a boardless clone with board.url set, read from the served board's state, or null
+ * when board.url is unset so the local check decides. An unreachable board or an unnamed seat refuses, never passes.
+ * Why: the pre-commit lane check needs the seat's lane, and only the board host knows it [P7].
+ * @param {string} cwd
+ * @returns {Promise<{ agent_id: string, agent_lane: string } | null>}
+ */
+export async function remoteHookSeat(cwd) {
+  const remote = remoteBoard();
+  if (!remote) return null;
+  const name = seatAgent(cwd);
+  if (!name) throw new Refused('NO_AGENT', 'this clone has board.url set but no seat name, so its lane is unknown', 'run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
+  const document = await getJson(remote, `${await boardPath(remote)}/state`);
+  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
+  if (!agent?.agent_lane) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}`, 'run pullboard join <lane> with board.url set');
+  return { agent_id: agent.agent_id, agent_lane: agent.agent_lane };
+}
+
+/**
  * Run join, show or whoami against the board host and return the exit code; a refusal prints its code and next step.
  * @param {any} io
  * @param {{ positionals: string[] }} parsed
