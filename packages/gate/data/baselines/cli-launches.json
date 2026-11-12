@@ -201,7 +201,7 @@
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/main.test.js": {
-    "launch": 8
+    "launch": 5
   },
   "apps/cli/journeys/study/metrics.test.js": {
     "launch": 2
