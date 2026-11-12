@@ -575,9 +575,6 @@
   "apps/cli/journeys/relay/person/recovery.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/init/origin/behind.test.js": {
     "launch": 2
   },
@@ -1535,6 +1532,15 @@
   "apps/cli/journeys/stats/cockpit.test.js": {
     "launch": 15
   },
+  "apps/cli/journeys/stats/cockpit/counts.test.js": {
+    "launch": 11
+  },
+  "apps/cli/journeys/stats/cockpit/crowd.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/stats/cockpit/flow.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/fact/landing/moves.test.js": {
     "launch": 1
   },
@@ -1699,6 +1705,30 @@
   },
   "apps/cli/journeys/roadmap/cockpit.test.js": {
     "launch": 99
+  },
+  "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/roadmap/cockpit/items.test.js": {
+    "launch": 32
+  },
+  "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
+    "launch": 6
+  },
+  "apps/cli/journeys/roadmap/cockpit/phone.test.js": {
+    "launch": 11
+  },
+  "apps/cli/journeys/roadmap/cockpit/refs.test.js": {
+    "launch": 9
+  },
+  "apps/cli/journeys/roadmap/cockpit/releases.test.js": {
+    "launch": 13
+  },
+  "apps/cli/journeys/roadmap/cockpit/shipping.test.js": {
+    "launch": 16
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
+    "launch": 9
   },
   "apps/cli/journeys/submit/compose.test.js": {
     "launch": 2
