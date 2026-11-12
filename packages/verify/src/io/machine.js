@@ -49,7 +49,9 @@ export function machineVerificationEligible(board, item, files) {
 export function acceptMachineSubmission(board, item, options, { getItem, moveItem, logEvent }) {
   const authorization = machineVerificationEligible(board, item, options.files ?? []);
   if (!authorization) return false;
-  if (item.item_status !== 'submitted' || item.item_merged_commit || item.item_commit !== options.commit || item.item_tree !== options.tree) {
+  // The accept move's state guard: an item that left submitted (even to verified) is refused by the move's own code.
+  if (item.item_status !== 'submitted') throw new Refused('NOT_SUBMITTED', `item #${item.item_id} is ${item.item_status}; machine acceptance applies to submitted work only`);
+  if (item.item_merged_commit || item.item_commit !== options.commit || item.item_tree !== options.tree) {
     throw new Refused('MACHINE_PROOF', 'machine acceptance binds the current unlanded submitted source only');
   }
   const problem = machineProofProblem(item, authorization, options.machineReceipts, { commit: options.commit, tree: options.tree,
@@ -60,7 +62,9 @@ export function acceptMachineSubmission(board, item, options, { getItem, moveIte
   const note = `machine-verified: ${commands.map(row => `${row.clause ? `clause ${row.clause}` : 'frozen check'}: ${row.command} (receipt ${row.receipt})`).join('; ')}`;
   // All ordinary submit guards have just passed. This transition substitutes native command evidence for agent judgment.
   moveItem(board, item.item_id, 'accept', {
-    checks: Object.fromEntries(MOVES.find(move => move.verb === 'accept').guards.map(name => [name, null])),
+    // The other accept guards were checked by submit just above; this move's own builder check runs here, since the verdict is the coordinator's.
+    checks: { ...Object.fromEntries(MOVES.find(move => move.verb === 'accept').guards.map(name => [name, null])),
+      notBuilder: found => found.item_built_by === 'coordinator' ? new Refused('SELF_VERIFY', `item #${found.item_id} was built by the coordinator, so it cannot also verify it`) : null },
     before: found => recordVerdict(board, found, { agentId: 'coordinator', decision: 'ACCEPT', reason: 'CRITERION_MET', note,
       digest: found.item_frozen_digest, head: options.commit }),
     set: () => ({ item_verdict: 'ACCEPT', item_verified_by: 'coordinator' }),
