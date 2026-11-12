@@ -71,7 +71,7 @@ export { staleClaimRelease } from './src/logic/board/stale/claim.js';
 export { planStaleState } from './src/logic/board/stale/state/maintenance.js';
 export { staleStateLimits, staleInstant, latestStaleActivity, staleStateAge, staleReleaseNote, staleStateLine } from './src/logic/board/stale/state/policy.js';
 export { applyStaleState } from './src/logic/board/stale/apply.js';
-export { automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
+export { readableRigorText, automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
 export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance.js';
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim } from './src/io/board/claim.js';
