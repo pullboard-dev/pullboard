@@ -1,5 +1,5 @@
 {
- "order": 50,
+ "order": 45,
  "name": "search",
  "kind": "package",
  "root": "packages/search",

@@ -240,33 +240,33 @@
     },
     {
       "order": 45,
+      "name": "search",
+      "file": "packages/codemap/data/plan/50-search.json"
+    },
+    {
+      "order": 46,
       "name": "app:view",
       "file": "packages/codemap/data/plan/45-app-view.json"
     },
     {
-      "order": 46,
+      "order": 47,
       "name": "app:runner",
       "file": "packages/codemap/data/plan/46-app-runner.json"
     },
     {
-      "order": 47,
+      "order": 48,
       "name": "app:cli",
       "file": "packages/codemap/data/plan/47-app-cli.json"
     },
     {
-      "order": 48,
+      "order": 49,
       "name": "app:lib",
       "file": "packages/codemap/data/plan/48-app-lib.json"
     },
     {
-      "order": 49,
+      "order": 50,
       "name": "app:relay",
       "file": "packages/codemap/data/plan/49-app-relay.json"
-    },
-    {
-      "order": 50,
-      "name": "search",
-      "file": "packages/codemap/data/plan/50-search.json"
     }
   ],
   "stays": [

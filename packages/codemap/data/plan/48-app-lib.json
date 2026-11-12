@@ -1,5 +1,5 @@
 {
- "order": 48,
+ "order": 49,
  "name": "app:lib",
  "kind": "app",
  "root": "apps/lib",
