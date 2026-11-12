@@ -56,8 +56,8 @@ async function gateRun(t, { stale = false } = {}) {
   const recorded = repo.commit();
   if (stale) repo.commit();
   // The item check takes a runner lease of its own beside the gate's (#3325), so the runner has two slots.
-  fixtureMachineSettings(repo.machine, { gateSlots: 2, browserSlots: 1,
-    runners: [{ host: 'runner-b', slots: 2, browser: 1 }], gate: { runnersFirst: true, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner: false } });
+  fixtureMachineSettings(repo.machine, { gateSlots: 2, browserSlots: 2,
+    runners: [{ host: 'runner-b', slots: 2, browser: 2 }], gate: { runnersFirst: true, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner: false } });
   let outcome;
   const command = async () => {
     process.chdir(repo.root);
