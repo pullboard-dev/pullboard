@@ -1034,6 +1034,7 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
     let waiter;
     let waiterClosed;
     let waiterStarted = false;
+    let waiterReadyFile = null;
     let failChildIdentity = null;
     let lateChildIdentity = null;
     try {
@@ -1041,7 +1042,7 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
         await waitForFixtureMarker(held.failChildReady, 'the failing file launched its held child');
         failChildIdentity = fixtureProcessIdentity(readFileSync(held.failChildPid, 'utf8').trim());
         assert.ok(failChildIdentity, 'the owned child has a capturable cleanup identity');
-        const waiterReadyFile = join(held.root, 'competing-gate-started');
+        waiterReadyFile = join(held.root, 'competing-gate-started');
         const resourceModule = fileURLToPath(new URL('../../../../resources/index.js', import.meta.url));
         const waiterSource = `import { takeResource } from ${JSON.stringify(resourceModule)}; import { writeFileSync } from 'node:fs'; const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(held.root)}, agent: 'cleanup-drain-waiter' }); writeFileSync(${JSON.stringify(waiterReadyFile)}, 'started'); lease.release();`;
         waiter = startFixtureChild(process.execPath, ['--input-type=module', '-e', waiterSource], {
@@ -1073,7 +1074,7 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
         writeFileSync(held.failChildRelease, 'allow exit');
       });
       const [landingResult, waiterResult] = await Promise.all([landingClosed, waiterClosed]);
-      waiterStarted = existsSync(waiterReadyFile);
+      waiterStarted = Boolean(waiterReadyFile) && existsSync(waiterReadyFile);
       assert.equal(landingResult.code, 1, `${landingOutput}\n${landingResult.signal ?? ''}`);
       assert.equal(landingResult.signal, null);
       assert.ok(landingOutput.includes('owned descendants drained after cleanup error: injected one-shot signal failure'), landingOutput);
