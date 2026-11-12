@@ -50,7 +50,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
   const bin = join(dir, 'bin');
   const requests = join(dir, 'ssh-requests.jsonl');
   for (const folder of [repo, worker, bin, home, remoteHome, remoteStateRoot, remoteMachineHome, machineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnerDispatch: 'controller' } }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnerDispatch: 'controller', loadAwareDispatch: false } }));
   const env = {
     ...process.env,
     HOME: home,
@@ -280,7 +280,7 @@ test('a queued runner run finishes or fails by name within its deadline [C7]', {
   const bin = join(dir, 'bin');
   const requests = join(dir, 'ssh-requests.jsonl');
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnerDispatch: 'controller' } }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnerDispatch: 'controller', loadAwareDispatch: false } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
