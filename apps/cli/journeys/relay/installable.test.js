@@ -73,7 +73,7 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
     skip: !findChromeExecutable() && 'Chrome is not installed',
   }, async () => {
     const title = 'INSTALLABLE_PAIRED_BOARD';
-    assert.equal((await box.cli('add', box.lane, title)).code, 0);
+    assert.equal((await box.cliLocal('add', box.lane, title)).code, 0);
     await box.link();
     const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
     const encoded = readFileSync(box.keyFile, 'utf8').trim();

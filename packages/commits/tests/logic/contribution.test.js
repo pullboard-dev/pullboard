@@ -52,7 +52,7 @@ const REFUSED = [
   ['a missing required key', 'have: a flaky board\n', 'Ask', 'CONTRIB_REQUIRED', 'want'],
   ['a bad vocabulary value', VALID.Ask.replace('guidance', 'wish'), 'Ask', 'CONTRIB_VALUE', 'want'],
   ['a bad rate', VALID.Flaky.replace('3/20', 'often'), 'Flaky', 'CONTRIB_VALUE', 'rate'],
-  ['an inline list', VALID.Fix.replace('rows:\n  - G1.2', 'rows: [G1.2]'), 'Fix', 'CONTRIB_FLOW', 'rows'],
+  ['an inline list', VALID.Fix.replace('rows:\n  - G1.2', 'rows: [C7]'), 'Fix', 'CONTRIB_FLOW', 'rows'],
   ['a bar clause without a check', VALID.Fix.replace('  - 1: test/a.test.js > names the file', '  - 2: other'), 'Fix', 'CONTRIB_REQUIRED', 'check'],
   ['a tab in indentation', VALID.Fix.replace('  - G1.2', '\t- G1.2'), 'Fix', 'CONTRIB_TAB', 'line'],
   ['an unclosed quote', VALID.Bug.replace('"0.9.4"', '"0.9.4'), 'Bug', 'CONTRIB_QUOTE', 'version'],

@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
   reportFixtureChildFailure,
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import {
@@ -39,7 +39,7 @@ function blockEventLoop(ms) {
 }
 
 /** Build a private initialized board with its own home, so the view serves only this fixture. */
-function privateBoard(t) {
+async function privateBoard(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-fixture-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
@@ -48,7 +48,7 @@ function privateBoard(t) {
   mkdirSync(home);
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
-  const init = runFixtureChild(process.execPath, [BIN, 'init', '--json'], { cwd: root, env, encoding: 'utf8' });
+  const init = await runCliInProcess(['init', '--json'], { cwd: root, env });
   assert.equal(init.status, 0, init.failure ?? `${init.stdout}${init.stderr}`);
   return { root, env };
 }
@@ -125,7 +125,7 @@ test('[C7] each fixture request opens its own connection, and a failed one names
 });
 
 test('[C7] a fixture request after a blocked event loop reaches the view child and the in-process API', async (t) => {
-  const box = privateBoard(t);
+  const box = await privateBoard(t);
   const view = await startView(t, box);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   t.after(() => api.close());

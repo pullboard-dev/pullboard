@@ -25,7 +25,7 @@ process.exitCode = failures.length ? 1 : 0;`;
 function runOne(root, name, files) {
   const started = performance.now();
   return new Promise(done => {
-    const child = spawn(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', CHILD, root, name, JSON.stringify(files)], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', CHILD, root, name, JSON.stringify(files)], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
     let text = '';
     child.stderr.on('data', chunk => { text += chunk; });
     child.on('error', error => done({ name, failures: [`${name}: could not start (${error.message})`], ms: performance.now() - started }));

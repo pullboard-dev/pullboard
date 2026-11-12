@@ -21,10 +21,10 @@ test('accept reuses sealed submit receipts when clean plan derivation is unavail
   const box = helpers.project(`printf x >> ${quote(gateCount)}`, sandbox);
   const check = `printf x >> ${quote(checkCount)}`;
   fileFixtureItem(box, box.repo, { lane: 'web', title: 'Receipt plan fallback', criterion: 'the check passes', check, args: ['--specs', 'G1'] });
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const committed = helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = await box.runIn(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const checkAfterSubmit = readFileSync(checkCount, 'utf8');
   const gateAfterSubmit = readFileSync(gateCount, 'utf8');
@@ -32,13 +32,13 @@ test('accept reuses sealed submit receipts when clean plan derivation is unavail
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   sandbox.env.CODEX_THREAD_ID = 'receipt-reuse-reviewer-session';
-  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'receipt-reuse-reviewer');
+  const joined = await fixtureJoin(box.runIn, reviewer, 'web', '--model', 'receipt-reuse-reviewer');
   assert.equal(joined.code, 0, joined.err || joined.out);
   // This leaves the reviewed commit unchanged while making clean-plan derivation unavailable.
   writeFileSync(join(reviewer, 'reviewer-note.tmp'), 'uncommitted reviewer-local note');
 
   const started = performance.now();
-  const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The submitted source and its sealed proof match.');
+  const verdict = await box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'The submitted source and its sealed proof match.');
   const elapsed = performance.now() - started;
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   assert.match(verdict.out, /reused submit proof [a-f0-9-]{36}/);

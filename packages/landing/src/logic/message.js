@@ -27,11 +27,24 @@ const TYPE_RANK = Object.freeze(['feat', 'fix', 'perf', 'refactor', 'revert', 'd
  */
 export function itemCommitType(root, base, commit) {
   if (!root || !commit) return null;
+  // Exact object ids name a fixed range, so its answer is kept: a bisecting landing asked again at every merge group [C7].
+  const key = OBJECT_ID.test(commit) && (!base || OBJECT_ID.test(base)) ? `${root}\0${base ?? ''}\0${commit}` : null;
+  if (key !== null && commitTypes.has(key)) return commitTypes.get(key);
   const listed = tryGit(root, ['log', '--no-merges', '--format=%s', base ? `${base}..${commit}` : commit]);
   if (listed.status !== 0) return null;
   const types = new Set(listed.stdout.split('\n').map((subject) => parseCommitMessage(subject).type).filter(Boolean));
-  return TYPE_RANK.find((type) => types.has(type)) ?? null;
+  const type = TYPE_RANK.find((type) => types.has(type)) ?? null;
+  if (key !== null) {
+    commitTypes.set(key, type);
+    if (commitTypes.size > 512) commitTypes.delete(commitTypes.keys().next().value);
+  }
+  return type;
 }
+
+/** A full Git object id, whose commit range never changes. */
+const OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+/** Commit types already read for exact ranges in this process, oldest first. */
+const commitTypes = new Map();
 
 /**
  * The whole landing message from board state through the shared builder [B3,R3]: header
