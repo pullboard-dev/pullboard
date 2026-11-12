@@ -860,9 +860,6 @@
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/show/rules.test.js": {
-    "launch": 10
-  },
   "apps/cli/journeys/bar/session.test.js": {
     "launch": 3
   },
