@@ -177,6 +177,7 @@ Work
                                         the person adds --cause <key> --never-again --as person: rigor lists it at once
   pullboard why <id>                    the decisions that imply an item, newest first, and what superseded them
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
+  pullboard why [<release>] [--json]    the release flow on one screen: each unlanded item's cause, each idle seat, and recent landings
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer

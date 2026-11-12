@@ -173,6 +173,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `fact` | `version:number`, `item:number`, `fact:object` |
 | `why` | `version:number`, `id:number`, `decisions:array` |
 | `why file` | `version:number`, `file:string`, `line:number\|null`, `items:array`, `rows:array`, `decisions:array` |
+| `why release` | `version:number`, `release:string\|null`, `asOf:string`, `items:array`, `idle:array`, `landings:object` |
 | `escalate` | `version:number`, `id:number`, `from:string`, `to:string` |
 | `run` | `version:number`, `messages:array` |
 | `sweep` | `version:number`, `messages:array` |
