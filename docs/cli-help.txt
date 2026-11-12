@@ -411,6 +411,7 @@ Additional commands
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
   pullboard seats                     current seat states and local 24-hour timing ledger
+  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, and the most items held at once
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items

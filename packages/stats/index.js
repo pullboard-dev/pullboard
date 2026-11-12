@@ -195,3 +195,5 @@ export { REVIEW_FLOW_KINDS, reviewFlow, reviewFlowLines } from './src/logic/revi
 export { readReviewFlow } from './src/io/review.js';
 export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
+export { AGENT_FLOW_KINDS, agentFlow, agentFlowLines } from './src/logic/agents.js';
+export { readAgentFlowEvents } from './src/io/agents.js';
