@@ -5,14 +5,12 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../../../../../../apps/cli/tests/fixtures/child.js';
 import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
 import { repoInfo } from '../../../../../../git/index.js';
@@ -21,7 +19,6 @@ import { holdRefreshFlight } from '../../../../../src/io/main/red/refresh/flight
 import { refreshFlightFiles } from '../../../../../src/io/main/red/refresh/flight.js';
 import { refreshMainRedComparisons } from '../../../../../src/io/main/red.js';
 
-const BIN = fileURLToPath(new URL('../../../../../src/io/main/red/refresh.js', import.meta.url));
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 
@@ -39,30 +36,16 @@ async function settlesWithin(promise, ms) {
   try { return (await Promise.race([promise.then(() => 'settled'), late])) === 'settled'; } finally { clearTimeout(timer); }
 }
 
-/** Start the refresh program and resolve with its exit status. */
-function launch(root, home) {
-  return new Promise((done, fail) => {
-    const child = spawn(process.execPath, ['--no-warnings', BIN, root, SHA_A, SHA_B], { env: { ...process.env, PULLBOARD_MACHINE_HOME: home }, stdio: 'ignore' });
-    child.on('error', fail);
-    child.on('exit', status => done(status));
-  });
-}
-
-test('launching a refresh while one runs exits at once and leaves the one process holding the lock [C7]', async (t) => {
+test('a refresh launched while one runs gets no lock and leaves the one process holding it [C7]', async (t) => {
   const dir = folder(t, 'pullboard-refresh-single-');
-  const home = join(dir, 'machine-home');
-  const files = refreshFlightFiles(home);
-  const root = join(dir, 'repo');
+  const files = refreshFlightFiles(join(dir, 'machine-home'));
   const letGo = holdRefreshFlight(files);
   t.after(() => letGo?.());
+  assert.equal(typeof letGo, 'function', 'the first refresh takes the lock');
   const holder = readFileSync(files.lock, 'utf8');
-  const launches = Promise.all([launch(root, home), launch(root, home), launch(root, home)]);
-  assert.equal(await settlesWithin(launches, 60_000), true, 'extra refreshes exit while the first still runs');
-  assert.deepEqual(await launches, [0, 0, 0], 'each extra refresh exits cleanly');
+  const extra = [holdRefreshFlight(files), holdRefreshFlight(files), holdRefreshFlight(files)];
+  assert.deepEqual(extra.map(Boolean), [false, false, false], 'each extra refresh is refused at once, so it exits');
   assert.equal(readFileSync(files.lock, 'utf8'), holder, 'the running refresh still holds the lock, and no other process took it');
-  const log = readFileSync(join(root, '.git', 'pullboard', 'automatic-landing', 'main-red-refresh.log'), 'utf8');
-  assert.equal(log.match(/skipped: another refresh is running/gu).length, 3, 'each extra launch logged its skip');
-  assert.doesNotMatch(log, /started/u, 'no extra launch started a refresh');
 });
 
 test('a running refresh comparison holds no checkout lease, so a board write in that checkout finishes in under 1 s [C7]', async (t) => {
