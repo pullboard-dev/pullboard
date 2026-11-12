@@ -107,7 +107,6 @@ ${executionServicesSource(moduleURL('gate.js'))}
     import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
     import { listResources, takeResource } from ${JSON.stringify(moduleURL('resources.js'))};
     const root = ${JSON.stringify(f.repo)};
-    setTimeout(() => process.stderr.write('DEBUG6403 ' + JSON.stringify(process.getActiveResourcesInfo()) + '\\n'), 12000).unref();
     let refusal;
     try {
       await withGateSlot(root, async () => {
