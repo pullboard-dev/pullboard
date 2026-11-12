@@ -252,6 +252,14 @@ async function nextWithProgress(io, values, progress) {
         for (const reason of found.reasons ?? []) io.say(reason);
         sayReviewOffer(ctx, found); return 0;
       }
+      // "you hold" is printed only after this read finds the item claimed by this seat under a live lease; otherwise selection runs again [C7,#4056].
+      if (found.held && !found.review && !values.verify && !found.waitingOffer) {
+        const stillHeld = withBoardRead(ctx, board => {
+          const fresh = store.getItem(board, found.item.item_id);
+          return fresh?.item_status === 'claimed' && fresh.item_owner === whoAmI(ctx, board).id && fresh.item_lease_until > board.clock.now().toISOString();
+        });
+        if (!stillHeld) { values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.item.item_id])] }; continue; }
+      }
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));

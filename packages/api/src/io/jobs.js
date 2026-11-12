@@ -214,10 +214,11 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
+  // Order: landing jobs first, then an agent's test run, then gate shards and other bulk work, each in creation order [C7].
   return atomically(db, () => {
     const open = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
       ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-      WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY job.job_created, job.job_id LIMIT ?`).all(now, SCAN_ROWS);
+      WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 ELSE 2 END, job.job_created, job.job_id LIMIT ?`).all(now, SCAN_ROWS);
     for (const row of open) {
       const { needs = [], run = [], payload = null } = JSON.parse(row.job_step_payload);
       if (only && !only.has(row.job_kind)) continue;
