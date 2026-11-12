@@ -42,7 +42,9 @@ function selected(ctx, board, values, services) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
   if (mandatory?.mandatory) return { item: mandatory.item, review: true, held: false, reasons: [] };
-  const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
+  // Items this call already passed over (an unbuildable bar, #5786) are never selected again.
+  const omitted = values.omitIds ?? [];
+  const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omitted.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
     workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return withCover({ item: routing.item, reasons: routing.reasons, review: false, held: false });
@@ -51,7 +53,7 @@ function selected(ctx, board, values, services) {
   return withCover(dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
-    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
+    assignedIds: omitted, workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
     reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
   }));
@@ -83,6 +85,29 @@ export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard
         reason: `${row.file} already passes on main ${row.main.slice(0, 12)} (recorded run ${row.receiptId}); fixed by the landing ${(row.turnedGreen ?? row.main).slice(0, 12)}${row.landing ? ` "${row.landing}"` : ''} that turned it green; closed without a builder` }]);
     }
   });
+}
+
+/** Claim refusals of a bar no build can satisfy: next and next --take pass over the item instead of stopping (#5709, #5786). */
+export const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
+
+/**
+ * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
+ *
+ * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
+ * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
+ */
+export async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered) {
+  const text = JSON.stringify({ unbuildableBar: { code: refusal.code, message: refusal.message } });
+  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
+  try {
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
+      // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
+      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);
+  } catch (error) {
+    // A refused report must never stop the seat it only reports on.
+    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
+  }
 }
 
 /** Take one eligible review or build through existing ordered guards, without routing to another seat. */
@@ -137,6 +162,12 @@ export async function nextTake(ctx, values = {}, services) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: looked.item.item_id, rows: error.rows } };
       // A peer taking the selected item is a normal queue race; a held-seat refusal stays actionable.
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: looked.item.item_id, code: error.code, message: error.message } };
+      // A bar no build can satisfy is passed over as plain next does, and the coordinator hears once per bar (#5786).
+      if (error instanceof Refused && UNBUILDABLE.has(error.code)) {
+        await reportUnbuildableOnce(ctx, board, looked.item, me, error, ordered);
+        ctx.io.say?.(`skipped #${looked.item.item_id}: ${error.message}`);
+        return { retry: true, skipItem: looked.item.item_id, retryDetail: { phase: 'claim', item: looked.item.item_id, code: error.code, message: error.message } };
+      }
       throw error;
     }
     return { ...looked, item: store.getItem(board, looked.item.item_id), review: false };
