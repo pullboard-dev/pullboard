@@ -119,6 +119,7 @@ test('[B35,V2,C7] #6560 with no registered runner the baseline is a pulled job o
   const box = project({ content: 'committed' });
   // A real local runner process pulls the job over loopback; no push runner is registered, so it is the only place the check can run.
   assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
+  assert.equal((await box.runLocal(box.repo, ['settings', 'gate.runnerDispatch', 'pull', '--json'])).status, 0, 'the board serves the pull queue');
   const observations = join(box.dir, 'pulled-baseline-locations');
   t.after(() => box.runLocal(box.repo, ['runner', 'local', '--off']));
   const added = await box.runLocal(box.repo, ['add', 'web', 'Pulled baseline', '--check', fileCheck('committed', 'pulled-marker', observations), '--wait', '--json']);

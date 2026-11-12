@@ -67,7 +67,7 @@ function runnerFixture(t) {
   runFixtureGit(['add', '-A'], { cwd: paths.repo, env });
   runFixtureGit(['commit', '-qm', 'test: pin a failing main case'], { cwd: paths.repo, env });
   const runners = [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: remoteRoot }];
-  fixtureMachineSettings(paths.machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false }, runners });
+  fixtureMachineSettings(paths.machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, runnerDispatch: 'controller' }, runners });
   const requests = join(directory, 'ssh-requests.jsonl');
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths['remote-home'], machineHome: remoteMachine, requests, nodeCommand: process.execPath });
   return { ...paths, env, requests, main: runFixtureGit(['rev-parse', 'HEAD'], { cwd: paths.repo, env }).trim() };

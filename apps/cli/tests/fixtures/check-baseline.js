@@ -93,6 +93,8 @@ export function registerRunner(box) {
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   assert.equal(box.run(box.repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json']).status, 0);
   assert.equal(box.run(box.repo, ['settings', 'gate.loadAwareDispatch', 'off', '--json']).status, 0);
+  // The stand-in is a push runner; its baselines go through the controller's gate slot, not the pull queue (#6249).
+  assert.equal(box.run(box.repo, ['settings', 'gate.runnerDispatch', 'controller', '--json']).status, 0);
   return worker;
 }
 
