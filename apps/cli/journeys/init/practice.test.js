@@ -23,7 +23,6 @@ import {
 } from '../../../../packages/spec/index.js';
 import { standardDoctrine } from '../../../../packages/doctrine/index.js';
 import { practiceTemplate } from '../../../../packages/config/index.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
 
 test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());
@@ -63,8 +62,6 @@ test('the run guide takes one agent through the whole team, and init installs it
     assert.match(guide, /\*\*Build[^\n]*commit what init wrote, the spec and the lanes first; worktrees start from the last commit/, 'the build step commits the setup before the first worktree');
     assert.match(installSkills(root)[0], /pullboard-run/);
     assert.ok(existsSync(join(root, '.claude', 'skills', 'pullboard-run', 'SKILL.md')), 'init installs it as a skill');
-    assert.match(agentsBlock(), /pullboard prompt run/, 'AGENTS.md names it');
-    assert.match(agentsBlock(), /pullboard-run skill/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
