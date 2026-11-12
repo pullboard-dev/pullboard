@@ -120,7 +120,8 @@ test('outside sealing and command-bearing changes require owner approval [B26,V3
 });
 
 test('a returned outside pull request cannot be claimed as native build work [V1,V3]', async t => {
-  const box = intakeFixture(t);
+  // The bar's test path must exist on trusted main, or the claim refuses BAR_PATH_MISSING first.
+  const box = intakeFixture(t, { baseFiles: { 'test/contribution.test.js': "import { test } from 'node:test';\ntest('trusted placeholder', () => {});\n" } });
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
   fixtureJSON(box, box.repo, 'reopen', id, '--note', 'outside author must revise its pull request');
