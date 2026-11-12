@@ -37,9 +37,10 @@ test('land names sibling conflicts whose reviews share the unchanged main [B3,R3
   const merged = id => onBoard(box, board => store.getItem(board, id).item_merged_commit);
   // An ACCEPT wakes the automatic lander, which offers the land job after verify returns; wait for both receipts [P7].
   const conflicted = () => landJobs(box).some(job => job.items.includes(entries[1].item) && job.receipt?.outcome === 'conflict');
-  // budget: hang ceiling for two loopback runner land jobs, never a speed assertion.
+  // budget: hang ceiling for two loopback runner land jobs inside the file limit, never a speed assertion.
   await waitForCondition(() => Boolean(merged(entries[0].item)) && conflicted(), 'the first sibling lands and the second records its conflict',
-    { signal: AbortSignal.timeout(150_000), state: () => ({ jobs: landJobs(box) }) });
+    { signal: AbortSignal.timeout(90_000), state: () => ({ jobs: landJobs(box),
+      items: entries.map(entry => onBoard(box, board => store.getItem(board, entry.item).item_status)) }) });
   assert.match(merged(entries[0].item) ?? '', /^[0-9a-f]{40}$/u, 'the first sibling lands by its runner land job');
   assert.equal(box.git(box.repo, 'show', `main:${file}`), 'PASS\n// first sibling', 'trunk holds the first sibling');
   assert.equal(merged(entries[1].item), null, 'the colliding sibling stays accepted and unmerged');
