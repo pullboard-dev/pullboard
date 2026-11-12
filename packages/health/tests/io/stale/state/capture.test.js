@@ -110,10 +110,9 @@ test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a q
 test('clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
-  const second = addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Second claim', criterion: 'Work' });
-  claim(f.board, second, { agentId: quiet.holder, lane: 'core', leaseMs: 7_200_000, freeze: () => ({ text: 'Work', digest: 'bar' }) });
+  // A seat may hold several claims (child items are free), so its sole-claim rule names no item; the folder names one.
+  const second = quiet.id + 1000;
   const claims = [quiet.id, second];
-  // The seat holds two claims, so its sole-claim rule names no item; the item folder it runs from names the first.
   assert.equal(testRunItem({ claims }), undefined);
   const item = testRunItem({ folder: quiet.id, claims });
   assert.equal(item, quiet.id);
