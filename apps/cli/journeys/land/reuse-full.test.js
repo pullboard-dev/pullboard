@@ -1,4 +1,4 @@
-/** A landing that pushes reuses only a whole-suite submit receipt for the same tree [C7,#6271]. */
+/** A landing that pushes reuses a whole-suite submit receipt for the same tree; narrow-receipt cases are unit tests in packages/landing/tests/io/reuse/land.test.js, since this fixture's submit always runs the whole suite [C7,#6271]. */
 import assert from 'node:assert/strict';
 import {
   readFileSync,
@@ -51,28 +51,10 @@ async function landOne(box) {
   return { entry, output, submitFull: before.full - start.full, landingFull: traced(box).full - before.full };
 }
 
-test('clause 1: in the default shape a narrower submit proof is not reused; the landing runs the full gate on the merged tree and pushes it [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
-async () => {
-  const box = shapedProject(config => { delete config.landing.publish; });
-  const { entry, output, submitFull, landingFull } = await landOne(box);
-  assert.equal(submitFull, 0, 'the submit proved a narrower selection, not the whole suite');
-  assert.equal(landingFull, 1, `the landing ran the whole configured gate once: ${output}`);
-  assert.equal(box.git(box.repo, 'rev-parse', 'origin/main'), box.git(box.repo, 'rev-parse', 'main'), 'the whole-suite tree reached origin');
-  assert.ok(box.git(box.repo, 'log', '--format=%H', 'origin/main').includes(entry.commit));
-});
-
 test('clause 1: in the default shape a whole-suite submit receipt for the identical tree is reused with no test run [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
 async () => {
   const box = shapedProject(config => { delete config.landing.publish; delete config.affectedTests; });
   const { output, submitFull, landingFull } = await landOne(box);
   assert.ok(submitFull >= 1, 'the submit ran the whole suite');
   assert.equal(landingFull, 0, `the whole-suite receipt stood for the identical tree: ${output}`);
-});
-
-test('clause 2: with landing.publish "separate" a narrower submit receipt is reused as before [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
-async () => {
-  const box = shapedProject(config => { config.landing.publish = 'separate'; });
-  const { output, submitFull, landingFull } = await landOne(box);
-  assert.equal(submitFull, 0, 'the submit proved a narrower selection, not the whole suite');
-  assert.equal(landingFull, 0, `the separate landing reused the narrower receipt: ${output}`);
 });
