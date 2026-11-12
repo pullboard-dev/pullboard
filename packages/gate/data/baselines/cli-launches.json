@@ -1302,7 +1302,7 @@
     "launch": 3
   },
   "apps/cli/journeys/red/content-cache.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "apps/cli/journeys/handoff/main.test.js": {
     "launch": 13
