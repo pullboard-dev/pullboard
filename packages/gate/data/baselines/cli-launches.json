@@ -1010,9 +1010,6 @@
   "apps/cli/journeys/fact/process.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/shout/words.test.js": {
-    "launch": 13
-  },
   "packages/resources/tests/io/handoff/worker/dispatcher/locked.test.js": {
     "launch": 1
   },
@@ -1723,9 +1720,6 @@
   },
   "apps/cli/journeys/roadmap/cockpit/refs.test.js": {
     "launch": 9
-  },
-  "apps/cli/journeys/roadmap/cockpit/releases.test.js": {
-    "launch": 13
   },
   "apps/cli/journeys/roadmap/cockpit/shipping.test.js": {
     "launch": 16
