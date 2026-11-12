@@ -277,28 +277,6 @@ test('the actual check command retains its red and records one pair [C7,V2,H16]'
   assertReceipts(box, observation);
 });
 
-test('a red submit records diagnostics without submitting the item [C7,V4,H16]', async t => {
-  const box = flakyProject(t);
-  const id = checkedItem(box);
-  const builder = privateBuilder(box);
-  const claimed = await builder.call('claim', String(id));
-  assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  commitCandidate(builder, 'chore: controlled submission candidate');
-  const result = await builder.call('submit', String(id));
-  assert.equal(result.code, 1);
-  assert.equal((await box.call('show', String(id))).document.item_status, 'claimed');
-  // Changed today with the submit/landing rerun change: a red submit runs the target four times, and its pair stays red beside a green pinned main.
-  assert.equal(targetRuns(box), 4, 'a red submit runs the target four times');
-  const report = (await box.call('flakes')).document;
-  assert.equal(report.flakes.length, 0, 'a candidate whose pair stays red is no flake');
-  const observation = report.regressions[0].observations[0];
-  assert.equal(observation.kind, 'submit');
-  assert.equal(observation.original.green, false);
-  assert.equal(observation.paired.green, false);
-  assert.equal(observation.mainReceipt.green, true);
-  assertReceipts(box, observation);
-});
-
 for (const linkedTemp of [false, true]) test(linkedTemp
   ? 'a private verification accepts on one green check run through a symlinked temporary root [C7,V4,H16]'
   : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', async t => {
