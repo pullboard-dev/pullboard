@@ -1422,7 +1422,7 @@
     "launch": 2
   },
   "apps/cli/journeys/test/warning.test.js": {
-    "launch": 0
+    "launch": 1
   },
   "apps/cli/journeys/merged/ratchet.test.js": {
     "launch": 4

@@ -52,7 +52,8 @@ test('clause 1: pullboard test from a checkout with an uncommitted tracked edit 
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
   writeFileSync(join(box.web, 'test/green.test.js'),
     "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('green case', () => assert.ok(true));\n// uncommitted edit\n");
-  const ran = await box.runLocal(box.web, 'test', 'test/green.test.js');
+  // Process-level case: the notice goes to the real process stderr, which the in-process runner does not capture.
+  const ran = box.run(box.web, 'test', 'test/green.test.js');
   assert.equal(ran.code, 0, ran.err);
   const lines = ran.err.split('\n').filter(line => /uncommitted changes/u.test(line));
   assert.equal(lines.length, 1, 'one line names the uncommitted changes');
