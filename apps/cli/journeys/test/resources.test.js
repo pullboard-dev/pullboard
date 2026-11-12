@@ -1,13 +1,12 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/gate/src/io/browser/admission.js */
 /** Browser admission reads each test file's first-line declaration, and the launcher enforces it at run time [C7]. */
-import { repoPath } from '../../../../packages/kernel/light.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
+import { copyModuleClosure } from '../../tests/fixtures/copy.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -232,11 +231,7 @@ function runnerFixture(t, tests) {
   mkdirSync(join(root, 'machine'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
-  const fixtures = resolve(import.meta.dirname, '../../tests/fixtures');
-  for (const helper of ['chrome.js', 'chrome/args.js', 'chrome/shutdown.js', 'child.js']) {
-    mkdirSync(dirname(repoPath(root, `apps/cli/tests/fixtures/${helper}`)), { recursive: true });
-    copyFileSync(join(fixtures, helper), repoPath(root, `apps/cli/tests/fixtures/${helper}`));
-  }
+  copyModuleClosure(resolve(import.meta.dirname, '../../../..'), root, ['apps/cli/tests/fixtures/chrome.js']);
   for (const [path, source] of Object.entries(tests)) writeFileSync(join(root, path), source);
   const chrome = join(root, 'stand-in-browser');
   writeFileSync(chrome, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$PULLBOARD_FIXTURE_LAUNCHES"\n');
@@ -412,7 +407,7 @@ test('clause 4: every test file that launches Chrome on main carries the browser
   const declared = new Set(await browserBoundFiles(repository, launching));
   const undeclared = launching.filter(file => !declared.has(file));
   assert.deepEqual(undeclared, [], `make the first line of each ${BROWSER_MARKER}`);
-  for (const file of ['apps/cli/journeys/shout/journeys.test.js', 'apps/cli/journeys/relay/relay-pairing.test.js', 'packages/gate/tests/stable.test.js', 'packages/gate/tests/fixtures/cockpit/probe.mjs',
+  for (const file of ['apps/cli/journeys/shout/journeys/auth.test.js', 'apps/cli/journeys/relay/relay-pairing.test.js', 'packages/gate/tests/stable.test.js', 'packages/gate/tests/fixtures/cockpit/probe.mjs',
     'packages/kernel/tests/logic/seal.test.js', 'docs/shots/shots.test.js', 'apps/cli/journeys/relay/hosted/shapes.test.js']) {
     assert.equal(declaresBrowser(readFileSync(join(repository, file), 'utf8')), true, `${file} launches Chrome and declares it`);
   }
