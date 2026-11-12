@@ -279,20 +279,28 @@ export function serveSlots(setting, cores = availableParallelism()) {
   return slots;
 }
 
+/** The variable naming one claim of a job, beside PULLBOARD_RUNNER_JOB, so a sweep spares a same-named job of another serve. */
+export const RUNNER_CLAIM_ENV = 'PULLBOARD_RUNNER_CLAIM';
+
 /**
- * The pids of live processes whose environment carries PULLBOARD_RUNNER_JOB=<job>, this process excluded.
+ * The pids of live processes whose environment carries PULLBOARD_RUNNER_JOB=<job> and, when they carry a claim at all,
+ * this claim; this process excluded.
  * Why the environment: a job's child that starts its own session leaves the job's process group, but keeps the marker.
+ * Why the claim: fixture jobs share ids, and two serves on one runner may run two of them at once.
+ * macOS hides the environment of its own platform binaries (sh, sleep); those end with the job's process group.
  *
  * @param {string} job
+ * @param {string | null} [claim] - The claim's PULLBOARD_RUNNER_CLAIM value.
  * @returns {Promise<number[]>}
  */
-export async function jobProcesses(job) {
-  const marker = `PULLBOARD_RUNNER_JOB=${job}`;
+export async function jobProcesses(job, claim = null) {
+  const marker = `PULLBOARD_RUNNER_JOB=${job}`, prefix = `${RUNNER_CLAIM_ENV}=`;
+  const ours = words => words.includes(marker) && (claim === null || !words.some(word => word.startsWith(prefix)) || words.includes(prefix + claim));
   if (process.platform === 'linux') {
     const pids = [];
     for (const entry of readdirSync('/proc')) {
       if (!/^\d+$/u.test(entry) || Number(entry) === process.pid) continue;
-      try { if (readFileSync(`/proc/${entry}/environ`, 'utf8').split('\0').includes(marker)) pids.push(Number(entry)); } catch { /* gone or not ours */ }
+      try { if (ours(readFileSync(`/proc/${entry}/environ`, 'utf8').split('\0'))) pids.push(Number(entry)); } catch { /* gone or not ours */ }
     }
     return pids;
   }
@@ -302,7 +310,7 @@ export async function jobProcesses(job) {
   return listed.split('\n').flatMap(row => {
     const found = /^\s*(\d+)\s(.*)$/u.exec(row);
     if (!found || Number(found[1]) === process.pid) return [];
-    return found[2].split(/\s+/u).includes(marker) ? [Number(found[1])] : [];
+    return ours(found[2].split(/\s+/u)) ? [Number(found[1])] : [];
   });
 }
 
@@ -312,19 +320,19 @@ export async function jobProcesses(job) {
  *
  * @param {string} job
  * @param {number | undefined} group - The job's process group (its first process's pid).
- * @param {{ graceMs?: number, list?: (job: string) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options]
+ * @param {{ claim?: string | null, graceMs?: number, list?: (job: string, claim: string | null) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options]
  * @returns {Promise<number[]>}
  */
-export async function reapJob(job, group, { graceMs = REAP_MS, list = jobProcesses, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export async function reapJob(job, group, { claim = null, graceMs = REAP_MS, list = jobProcesses, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const kill = (pid, name) => { try { process.kill(pid, name); } catch { /* already gone */ } };
   if (group) kill(-group, 'SIGTERM');
-  const found = await list(job);
+  const found = await list(job, claim);
   let left = found;
   for (const pid of left) kill(pid, 'SIGTERM');
-  for (const until = Date.now() + graceMs; left.length && Date.now() < until;) { await pause(100); left = await list(job); }
+  for (const until = Date.now() + graceMs; left.length && Date.now() < until;) { await pause(100); left = await list(job, claim); }
   if (group) kill(-group, 'SIGKILL');
   for (const pid of left) kill(pid, 'SIGKILL');
-  for (let tries = 0; left.length && tries < 20; tries += 1) { await pause(50); left = await list(job); }
+  for (let tries = 0; left.length && tries < 20; tries += 1) { await pause(50); left = await list(job, claim); }
   return found;
 }
 
@@ -457,8 +465,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     if (isLost()) { await dropCheckout(cache, checkout); say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
     const started = Date.now();
-    const job = jobEnvironment(cache, name, claim.job);
-    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null, env: job.env });
+    const job = jobEnvironment(cache, name, claim.job), tag = randomBytes(8).toString('hex');
+    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder,
+      { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null, env: { ...job.env, [RUNNER_CLAIM_ENV]: tag } });
     // An unreachable board only skips a renewal; a moved lease stops the job.
     whenLost(() => running.stop());
     if (isLost()) running.stop();
@@ -468,7 +477,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const result = await running.done.finally(() => { signal?.removeEventListener('abort', stopping); });
     const lost = isLost();
     // Every process the job started ends before its receipt posts, a detached one too: its group, then its marker (#5805).
-    const survivors = await reapJob(claim.job, running.pid, { graceMs: reapMs });
+    const survivors = await reapJob(claim.job, running.pid, { claim: tag, graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await dropCheckout(cache, checkout);
     rmSync(job.folder, { recursive: true, force: true });
