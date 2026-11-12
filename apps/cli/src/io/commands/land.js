@@ -96,7 +96,13 @@ export async function run(io, { first, second, rest, values }) {
   if (values.forced !== undefined) return offerForcedLanding(ctx, io, board, [first, second, ...rest], values);
   // A signed person's waiver and the coordinator's named landing stay open while the board owns landing [#3675,#5559].
   const named = values.items !== undefined || values.commit !== undefined ? namedLanding(ctx.info.root, values) : null;
-  if (values.waive === undefined && !named) requireManualLanding(mainPolicy(ctx.info.root).config);
+  if (values.waive === undefined && !named) {
+    try { requireManualLanding(mainPolicy(ctx.info.root).config); } catch (error) {
+      if (!(error instanceof Refused) || error.code !== 'BOARD_LANDS_ACCEPTED') throw error;
+      // A 0.9.3 user ran land by hand; say what changed and the one setting that brings it back.
+      throw new Refused('BOARD_LANDS_ACCEPTED', 'the board lands accepted items by itself: once an item is accepted, landing starts on its own, so pullboard land is no longer needed by hand', 'to land by hand as before, set landing.manualOverride to true in pullboard.json (the person sets it); otherwise run pullboard next for other work');
+    }
+  }
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
   if (values.waive !== undefined) {
     const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'land-waive', args: { waive: String(values.waive), until: String(values.until ?? ''), reason: String(values.reason ?? '') } });

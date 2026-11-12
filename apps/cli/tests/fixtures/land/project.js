@@ -147,5 +147,15 @@ function moveMainPastSubmit(box, number = 0) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
+/** Prepare four independent submitted items and accept them in a caller-selected verdict order. */
+function verifiedFour(box, { red, flaky, order = [0, 1, 2, 3] } = {}) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
+  for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : (Array.isArray(flaky) ? flaky.includes(index) : index === flaky) ? 'FLAKE\n' : 'PASS\n');
+  for (const index of order) acceptItem(box, entries[index]);
+  delete box.env.LAND_SUPPRESS_RED;
+  return entries;
+}
+
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit, verifiedFour };
 }
