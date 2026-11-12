@@ -1,6 +1,7 @@
 /** Gate commands, item checks and verify share the machine queue in order, and settings and resources print the short-slot state, through the real CLI [Q1,Q2,Q4,C7,V18]. */
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -12,8 +13,6 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { fixtureAddArgv } from '../../tests/fixtures/testkit.js';
-import { fixtureJoinArgv } from '../../tests/fixtures/testkit.js';
 import { fixture } from '../../tests/fixtures/gate/resource.js';
 import { probeSuite } from '../../tests/fixtures/gate/resource.js';
 import { launchTestRunner } from '../../tests/fixtures/gate/resource.js';
@@ -34,20 +33,21 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 after(reapFixtures);
 
 /** Run one pullboard command in a fixture, require success, and return its output. */
-function pullboard(box, root, args) {
-  const result = spawnSync(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
+async function pullboard(box, root, args) {
+  const result = await runCliInProcess(args, { cwd: root, env: box.env });
   assert.equal(result.status, 0, `${args.join(' ')}: ${result.failure ?? ''}${result.stdout}${result.stderr}`);
   return result.stdout;
 }
 
-/** Launch a real gate CLI in its own process group and collect its output. */
+/** Launch a real gate CLI in its own process group and collect its output; a real process on purpose, as queueing and slot lifetime are the case. */
 function launch(box, root, args = ['gate']) {
+  // process-level: a real process: queueing and slot lifetime are the case.
   const child = spawn(process.execPath, [BIN, ...args], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   return trackChild(child);
 }
 
 /** Create a real claimed item whose check can pause after admission and leave an execution marker. */
-function checkProject(box, { releaseCheck = null } = {}) {
+async function checkProject(box, { releaseCheck = null } = {}) {
   const root = join(box.dir, 'check-project');
   const runner = join(box.dir, 'check-runner');
   const script = join(box.dir, 'item-check.cjs');
@@ -66,26 +66,26 @@ function checkProject(box, { releaseCheck = null } = {}) {
   writeFileSync(join(root, 'SPEC.md'), '# Queue fixture\n\n## G · Goals\n- G1 [approved, must] The check runs. | gate: test -f web/result.txt\n- G2 [approved, must] The API responds. | gate: test -f api/result.txt\n');
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root, env: box.env }).status, 0);
   assert.equal(spawnSync('git', ['commit', '-q', '-m', 'chore: queue fixture'], { cwd: root, env: box.env }).status, 0);
-  const initialized = spawnSync(process.execPath, [BIN, 'init'], { cwd: root, env: box.env, encoding: 'utf8' });
+  const initialized = await runCliInProcess(['init'], { cwd: root, env: box.env });
   assert.equal(initialized.status, 0, initialized.stderr);
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', runner, '-b', 'web/runner'], { cwd: root, env: box.env }).status, 0);
-  const joined = spawnSync(process.execPath, [...fixtureJoinArgv(BIN), 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  const joined = await runCliInProcess(['join', 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env });
   assert.equal(joined.status, 0, joined.stderr);
   writeFileSync(script, releaseCheck
     ? `const fs = require('node:fs');\n(async () => {\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check start\\n');\n  while (!fs.existsSync(${JSON.stringify(releaseCheck)})) await new Promise(done => setTimeout(done, 10));\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n');\n  process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n})();\n`
     : `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n'); process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n`);
   if (releaseCheck) writeFileSync(releaseCheck, 'baseline runs without a hold\n');
-  const added = spawnSync(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Check item', '--specs', 'G1', '--route', 'mid', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
+  const added = await runCliInProcess(['add', 'web', 'Check item', '--specs', 'G1', '--route', 'mid', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env });
   assert.equal(added.status, 0, added.stderr);
-  assert.equal(spawnSync(process.execPath, [BIN, 'claim', '1'], { cwd: runner, env: box.env }).status, 0);
+  assert.equal((await runCliInProcess(['claim', '1'], { cwd: runner, env: box.env })).status, 0);
   if (releaseCheck) rmSync(releaseCheck, { force: true });
   writeFileSync(box.events, '');
   return { root, runner };
 }
 
 /** Set the fixture machine pool to one gate slot before starting holders. */
-function setOneGateSlot(box, root) {
-  const configured = spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1'], { cwd: root, env: box.env, encoding: 'utf8' });
+async function setOneGateSlot(box, root) {
+  const configured = await runCliInProcess(['settings', 'gateSlots', '1'], { cwd: root, env: box.env });
   assert.equal(configured.status, 0, configured.failure ?? configured.stderr);
 }
 
@@ -95,8 +95,8 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const checkRelease = join(box.dir, 'release-item-check');
   const firstRoot = gateRepo(box, 'slot-holder', 0.1, release);
   const nextRoot = gateRepo(box, 'ordinary-gate', 0.15);
-  const { root, runner } = checkProject(box, { releaseCheck: checkRelease });
-  assert.equal(spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1'], { cwd: firstRoot, env: box.env }).status, 0);
+  const { root, runner } = await checkProject(box, { releaseCheck: checkRelease });
+  assert.equal((await runCliInProcess(['settings', 'gateSlots', '1'], { cwd: firstRoot, env: box.env })).status, 0);
 
   const first = launch(box, firstRoot);
   await waitFor(() => events(box).includes('slot-holder start') && !events(box).includes('slot-holder end'), 'the first gate to hold the only slot');
@@ -128,14 +128,14 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: runner, env: box.env }).status, 0);
   const commit = spawnSync('git', ['commit', '-q', '-m', 'feat(web): queue item proof [G1]'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(commit.status, 0, commit.stderr);
-  const submitted = spawnSync(process.execPath, [BIN, 'submit', '1', '--wait', '--no-next'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  const submitted = await runCliInProcess(['submit', '1', '--wait', '--no-next'], { cwd: runner, env: box.env });
   assert.equal(submitted.status, 0, submitted.stderr);
   rmSync(checkRelease, { force: true });
   const review = join(box.dir, 'check-review');
   const itemCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runner, env: box.env, encoding: 'utf8' }).stdout.trim();
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', '--detach', review, itemCommit], { cwd: root, env: box.env }).status, 0);
   const reviewBox = { ...box, env: { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'gate-resource-reviewer' } };
-  const reviewer = spawnSync(process.execPath, [...fixtureJoinArgv(BIN), 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env, encoding: 'utf8' });
+  const reviewer = await runCliInProcess(['join', 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env });
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
   // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
@@ -179,17 +179,17 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
 test('a short check never waits behind whole suites [C7]', async () => {
   const box = fixture();
   const settingsRoot = gateRepo(box, 'settings-view');
-  assert.equal(JSON.parse(pullboard(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 0, 'gate.shortSlots defaults to 0');
-  assert.match(pullboard(box, settingsRoot, ['settings']), /^gate\.shortSlots: 0 \(off/mu, 'pullboard settings shows the default');
-  const refused = spawnSync(process.execPath, [BIN, 'settings', 'gate.shortSlots', 'two'], { cwd: settingsRoot, env: box.env, encoding: 'utf8' });
+  assert.equal(JSON.parse(await pullboard(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 0, 'gate.shortSlots defaults to 0');
+  assert.match(await pullboard(box, settingsRoot, ['settings']), /^gate\.shortSlots: 0 \(off/mu, 'pullboard settings shows the default');
+  const refused = await runCliInProcess(['settings', 'gate.shortSlots', 'two'], { cwd: settingsRoot, env: box.env });
   assert.notEqual(refused.status, 0);
   assert.match(`${refused.stdout}${refused.stderr}`, /BAD_SHORT_SLOTS/u);
   // Whole suites take a browser slot too; two of them fill a two-slot gate only with two browser slots.
-  pullboard(box, settingsRoot, ['settings', 'gateSlots', '2']);
-  pullboard(box, settingsRoot, ['settings', 'browserSlots', '2']);
-  pullboard(box, settingsRoot, ['settings', 'gate.shortSlots', '1']);
-  assert.equal(JSON.parse(pullboard(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 1);
-  assert.match(pullboard(box, settingsRoot, ['settings']), /^gate\.shortSlots: 1$/mu, 'pullboard settings shows the value');
+  await pullboard(box, settingsRoot, ['settings', 'gateSlots', '2']);
+  await pullboard(box, settingsRoot, ['settings', 'browserSlots', '2']);
+  await pullboard(box, settingsRoot, ['settings', 'gate.shortSlots', '1']);
+  assert.equal(JSON.parse(await pullboard(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 1);
+  assert.match(await pullboard(box, settingsRoot, ['settings']), /^gate\.shortSlots: 1$/mu, 'pullboard settings shows the value');
 
   const holders = await wholeSuiteHolders(box, ['whole-one', 'whole-two']);
   const waiting = [];
@@ -208,7 +208,7 @@ test('a short check never waits behind whole suites [C7]', async () => {
     directory.child = launchTestRunner(box, shortProbeSuite(box, 'directory-run'), ['test/'], directory.marker, directory.release);
     waiting.push(directory);
     await waitFor(() => directory.child.stderrText.includes('waiting for a gate slot:'), 'a directory run to queue');
-    const queued = JSON.parse(pullboard(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
+    const queued = JSON.parse(await pullboard(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
     assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'seat-test']);
     assert.equal(queued[1].requestedSlot, undefined, 'a whole suite is never offered a short slot');
     assert.equal(queued[2].requestedSlot, undefined, 'a directory run is never offered a short slot');
@@ -220,13 +220,13 @@ test('a short check never waits behind whole suites [C7]', async () => {
     assert.equal(outcome, 'ran', 'with gate.shortSlots 1 a named-file run starts while both gate slots hold whole suites');
     assert.deepEqual([ordinary, wholeWaiter, directory].map(run => existsSync(run.marker)), [false, false, false], 'the runs queued ahead of it still wait');
 
-    const status = JSON.parse(pullboard(box, settingsRoot, ['resources', '--json']));
+    const status = JSON.parse(await pullboard(box, settingsRoot, ['resources', '--json']));
     assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
     const gate = status.resources.find(resource => resource.name === 'gate');
     assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
     assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
       'pool status names the slot each run holds');
-    const text = pullboard(box, settingsRoot, ['resources']);
+    const text = await pullboard(box, settingsRoot, ['resources']);
     const gateText = text.slice(text.indexOf('\ngate (machine'));
     assert.equal((gateText.match(/held by .*\(short slot, seat-test\)/gu) ?? []).length, 1, 'the text status names the short slot');
     assert.equal((gateText.match(/held by .*\(gate slot, gate, browser\)/gu) ?? []).length, 2, 'the text status names each gate slot');
@@ -244,16 +244,16 @@ test('a short check never waits behind whole suites [C7]', async () => {
 
   const off = fixture();
   const offRoot = gateRepo(off, 'settings-off');
-  pullboard(off, offRoot, ['settings', 'gateSlots', '2']);
-  pullboard(off, offRoot, ['settings', 'browserSlots', '2']);
-  pullboard(off, offRoot, ['settings', 'gate.shortSlots', '0']);
+  await pullboard(off, offRoot, ['settings', 'gateSlots', '2']);
+  await pullboard(off, offRoot, ['settings', 'browserSlots', '2']);
+  await pullboard(off, offRoot, ['settings', 'gate.shortSlots', '0']);
   const offHolders = await wholeSuiteHolders(off, ['off-one', 'off-two']);
   const named = { marker: join(off.dir, 'named.started'), release: join(off.dir, 'named.release') };
   try {
     named.child = launchTestRunner(off, shortProbeSuite(off, 'named-off'), ['--test-name-pattern', PROBE_PATTERN, 'test/short-probe.test.js'], named.marker, named.release);
     const outcome = await waitFor(() => (existsSync(named.marker) ? 'ran' : named.child.stderrText.includes('waiting for a gate slot:') ? 'waiting' : false), 'the named-file run to start or queue');
     assert.equal(outcome, 'waiting', 'with gate.shortSlots 0 a named-file run waits for a gate slot, as before');
-    const gate = JSON.parse(pullboard(off, offRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate');
+    const gate = JSON.parse(await pullboard(off, offRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate');
     assert.equal(gate.line.length, 1);
     assert.equal(gate.line[0].requestedSlot, 'short-eligible', 'the waiting run is marked as one that names its files');
     writeFileSync(offHolders[0].release, 'release\n');

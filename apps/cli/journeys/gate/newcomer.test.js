@@ -223,6 +223,7 @@ test('init --yes commits its setup and exits in every agent session [I1,I2]', { 
     box.git('config', 'user.email', 'newcomer@example.invalid');
     box.git('commit', '-q', '--allow-empty', '-m', 'initial');
     // 0.9.1 hung here for good: the pre-commit hook of init's own commit waited on init's checkout lease (#906).
+    // process-level: a real process: 0.9.1 hung here, so the case is the process finishing.
     const running = runFixtureChildAsync(process.execPath, [BIN, 'init', '--yes', '--model', 'Test Model'], { cwd: box.root, env: box.env, detached: true });
     let timer;
     const result = await Promise.race([running, new Promise((done) => { timer = setTimeout(() => done(null), 60_000); })]); // budget: hang ceiling; init --yes takes about 2 s.
