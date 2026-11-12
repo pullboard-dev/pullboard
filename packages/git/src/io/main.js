@@ -673,8 +673,13 @@ let commandMemo = null;
  */
 export function withGitCommandMemo(work) {
   const outer = commandMemo;
+  // A nested scope shares the outer memory, so a whole hook run and its checks ask Git each question once [C7].
+  if (outer !== null) return work();
   commandMemo = new Map();
-  try { return work(); } finally { commandMemo = outer; }
+  let result;
+  try { result = work(); } catch (error) { commandMemo = outer; throw error; }
+  if (typeof result?.then !== 'function') { commandMemo = outer; return result; }
+  return result.finally(() => { commandMemo = outer; });
 }
 
 /** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
@@ -683,7 +688,8 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
   const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
-    || (command === 'diff' && args.includes('--cached'))
+    || (command === 'diff' && !args.includes('--output'))
+    || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
   return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
