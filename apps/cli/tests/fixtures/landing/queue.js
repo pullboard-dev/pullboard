@@ -546,7 +546,8 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const wakeFile = join(directory, 'wake.json');
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
   zt('before first land', zdir(directory));
-  run(box, box.repo, 'land', '--max', '1');
+  const z3land = run(box, box.repo, 'land', '--max', '1');
+  zt('land result', { code: z3land.code, out: String(z3land.out).slice(-300), err: String(z3land.err).slice(-600) });
   zt('after first land', zdir(directory));
   // The actual first landing must schedule this worker; no second nudge can consume its expected generation.
   let zlast = 0;
