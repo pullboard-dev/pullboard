@@ -608,7 +608,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     catch (error) {
       // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${error?.message ?? error}`);
-      await reliably({ action: 'release', ...held }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
+      await reliably({ action: 'release', ...held, reason: String(error?.message ?? error) }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
       return { outcome: 'released' };
     } finally { liveEnvironments.delete(name); }
     try {
@@ -635,7 +635,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
     let lost = false, onLost = () => {}, renewedAt = Date.now(), timer = null, ended = false;
     const lose = () => { lost = true; onLost(); };
-    // A renewal the board never answered, or answered with its own restart trouble, retries every few seconds until the lease has ended.
+    // A renewal the board never answered retries every few seconds, past the lease too: only the board's answer that
+    // another runner holds the job stops it, since the board renews a lapsed lease no one claimed (#6546).
     const renewOnce = () => {
       if (ended || lost) return;
       queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
@@ -643,8 +644,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         renewedAt = Date.now(); timer = setTimeout(renewOnce, renewMs);
       }, error => {
         if (error instanceof Refused && error.code === 'JOB_LEASE_MOVED') { lose(); return; }
-        if (Date.now() - renewedAt >= leaseMs) { say(`renewal failed past the lease: ${error.message}`); lose(); return; }
-        say(`renewal skipped: ${error.message}`); timer = setTimeout(renewOnce, renewRetryMs);
+        say(`renewal ${Date.now() - renewedAt >= leaseMs ? 'still failing past the lease' : 'skipped'}: ${error.message}`); timer = setTimeout(renewOnce, renewRetryMs);
       });
     };
     timer = setTimeout(renewOnce, renewMs);
@@ -675,8 +675,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const checkout = await serially(() => checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack }));
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
-      say(`releasing ${claim.job}: ${checkout.ok ? 'the job names nothing to run' : checkout.reason}`);
-      await reliably({ action: 'release', ...held }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
+      const reason = checkout.ok ? 'the job names nothing to run' : checkout.reason; say(`releasing ${claim.job}: ${reason}`);
+      await reliably({ action: 'release', ...held, reason }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
       return { job: claim.job, outcome: 'released' };
     }
     if (isLost()) { say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
@@ -711,7 +711,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
-      await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      await queueCall(endpoint, { action: 'release', ...held, reason: 'runner stopped', backoff: false }, fetchImpl).catch(() => { /* the lease lapses instead */ });
       return { job: claim.job, outcome: 'released' };
     }
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); return { job: claim.job, outcome: 'lost' }; }
