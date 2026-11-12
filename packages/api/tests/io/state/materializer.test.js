@@ -1,8 +1,8 @@
 /** Closing a materializer whose worker is busy ends the worker within the grace period, not when its work ends [A2,C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { BroadcastChannel } from 'node:worker_threads';
 import { test } from 'node:test';
+import { runUntilExit } from './materializer/exit-fixture.js';
 import { startStateMaterializer } from '../../../src/io/state/materializer.js';
 
 /**
@@ -51,12 +51,7 @@ await busy;
 channel.close();
 console.log('closing');
 materializer.close();`;
-  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, NODE_TEST_CONTEXT: '' } });
-  let closedAt = 0;
-  child.stdout.on('data', (chunk) => { if (String(chunk).includes('closing')) closedAt = Date.now(); });
-  const killer = setTimeout(() => child.kill('SIGKILL'), 10_000);
-  await new Promise((resolve) => child.once('exit', resolve));
-  clearTimeout(killer);
+  const closedAt = await runUntilExit(source, 10_000);
   assert.ok(closedAt, 'the child never reached close()');
   const took = Date.now() - closedAt;
   assert.ok(took < 5_000, `the process took ${took} ms to exit after close(), with 2 s of grace`); // budget: declared ceiling, the clause allows 5 s for a busy process to exit after close().
