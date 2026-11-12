@@ -8,10 +8,14 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 test('doctor on a verified item whose gate names a missing file finishes and names that file [C7]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.privateCheckSubmission({ check: 'node --test test/cockpit.test.js' });
+  const box = helpers.privateCheckSubmission({ check: 'true' });
   // Scratch board owned by this fixture: mark the submission verified so doctor audits its frozen check.
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'));
-  try { db.prepare("UPDATE item SET item_status='verified' WHERE item_id=1").run(); } finally { db.close(); }
+  try {
+    const frozen = JSON.parse(db.prepare('SELECT item_frozen FROM item WHERE item_id=1').get().item_frozen ?? '{}');
+    frozen.check = 'node --test test/cockpit.test.js';
+    db.prepare("UPDATE item SET item_status='verified', item_frozen=? WHERE item_id=1").run(JSON.stringify(frozen));
+  } finally { db.close(); }
   const result = box.run(box.repo, 'doctor');
   assert.equal(result.code, 1, result.out + result.err);
   assert.match(result.out + result.err, /test\/cockpit\.test\.js/u);
