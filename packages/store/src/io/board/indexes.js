@@ -5,6 +5,8 @@ import { missingGrantActivationIndex } from "../../../../state/light.js";
 import { ensureJobTables } from "./jobs.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { missingJobTables } from "./jobs.js";
+import { LEDGER_SCHEMA_SQL } from "./ledger.js";
+import { missingLedgerTable } from "./ledger.js";
 
 /**
  * The indexes and bounded reads behind the board's hot queries [C7]. Status, list, show, next, resume,
@@ -50,7 +52,7 @@ function missingSessionPeersIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db);
+  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db) || missingLedgerTable(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -59,6 +61,7 @@ export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   ensureJobTables(db);
+  db.exec(LEDGER_SCHEMA_SQL);
 }
 
 /**
@@ -68,7 +71,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', 'job_kind_item'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', 'job_kind_item', 'test_result', 'test_result_key'].every(installed);
 }
 
 /** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
@@ -78,6 +81,7 @@ export function ensureAdditiveSchema(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(JOB_SCHEMA_SQL);
+  db.exec(LEDGER_SCHEMA_SQL);
 }
 
 /**

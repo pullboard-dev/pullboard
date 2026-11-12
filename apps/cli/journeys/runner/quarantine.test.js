@@ -107,6 +107,7 @@ test('a gate whose slot release meets a held pool lock records its release once 
   assert.equal(holders(pool, 'locked-host'), 1);
   const script = `const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1]);db.exec('BEGIN EXCLUSIVE');`
     + `process.stdout.write('locked\\n');setTimeout(()=>{db.exec('COMMIT');db.close();},1500);`;
+  // Process-level: a detached child holds a SQLite write lock across processes.
   const child = spawn(process.execPath, ['-e', script, pool], { stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(resolve => child.once('exit', resolve));
   await new Promise(resolve => child.stdout.once('data', resolve));
@@ -173,6 +174,7 @@ test('a controller killed mid-job costs its runner one slot, and proving that ex
     + `const lease=await r.takeResource({name:'gate',capacity:1,browserCapacityProvider:()=>1,scope:'machine',root:${JSON.stringify(dir)},agent:'fixture-controller',remote:true,runnerOnly:true,runnerWaitMs:10000,runnerProvider:()=>${JSON.stringify(runners)}});`
     + `const custody=r.controllerDeadline({token:lease.token,pool:lease.pool},process.pid);custody.job(${JSON.stringify(recovery)});`
     + `process.stdout.write(lease.runner.host+'\\n');setInterval(()=>{},1000);`;
+  // Process-level: a live child holds a runner lease that must outlive this call.
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: process.env, stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(resolve => child.once('exit', resolve));
   const host = await new Promise(resolve => child.stdout.once('data', data => resolve(String(data).trim())));

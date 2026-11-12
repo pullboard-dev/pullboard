@@ -101,7 +101,7 @@ function viewLines(out) {
 
 test('init leaves a view running for pullboard.dev [H5,N26]', async (t) => {
   const { box, repo, port } = await backgroundBox(t, 'init-view');
-  const init = box.run(repo, 'init');
+  const init = await box.runLocal(repo, 'init');
   assert.equal(init.code, 0, init.err || init.out);
   const record = sessionRecord(box, port);
   t.after(() => stopView(record.pid));
@@ -130,7 +130,7 @@ test('init leaves a view running for pullboard.dev [H5,N26]', async (t) => {
     'a background start does not count as the person opening the board');
 
   // A second init leaves the running view alone.
-  const again = box.run(repo, 'init', '--json');
+  const again = await box.runLocal(repo, 'init', '--json');
   assert.equal(again.code, 0, again.err || again.out);
   const view = JSON.parse(again.out).view;
   assert.deepEqual({ state: view.state, pid: view.pid }, { state: 'running', pid: record.pid });
@@ -142,6 +142,7 @@ test('init leaves a view running for pullboard.dev [H5,N26]', async (t) => {
 
 test('resume starts the view once and the setting turns it off [H5,N26]', async (t) => {
   const { box, repo, port } = await backgroundBox(t, 'resume-view');
+  // Process-level: this case starts, reuses and outlives detached views across several commands, which hang the in-process loop; its launches stay real processes.
   box.env.PULLBOARD_VIEW_BACKGROUND = '0';
   const init = box.run(repo, 'init');
   assert.equal(init.code, 0, init.err || init.out);
