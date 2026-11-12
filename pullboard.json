@@ -234,7 +234,7 @@
         "apps/cli/journeys/init/empty.test.js",
         "apps/cli/journeys/init/geometry.test.js",
         "apps/cli/journeys/init/home.test.js",
-        "apps/cli/journeys/init/origin.test.js",
+        "apps/cli/journeys/init/origin/",
         "apps/cli/journeys/init/perf.test.js",
         "apps/cli/journeys/init/provenance.test.js",
         "apps/cli/journeys/init/scope.test.js",

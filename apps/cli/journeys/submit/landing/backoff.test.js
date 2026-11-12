@@ -57,12 +57,12 @@ test('clause 3: a green gate that verifies an item, recorded by the real submit,
   const commands = join(box.dir, 'machine-commands.json');
   writeFileSync(commands, JSON.stringify([{ clause: 1, command: `test "$(cat ${file})" = built` }]));
   command(box, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', commands, '--reason', 'Every clause has an executable check');
-  assert.equal(box.run(path, 'claim', String(id)).code, 0);
+  assert.equal((await box.runLocal(path, 'claim', String(id))).code, 0);
   assert.equal(commitFile(box, path, file, 'built\n', 'feat(web): build the machine fixture [G1]').status, 0);
-  const ticked = box.run(path, 'fact', String(id), 'note', `clause 1 [command]: test "$(cat ${file})" = built exits 0`);
+  const ticked = await box.runLocal(path, 'fact', String(id), 'note', `clause 1 [command]: test "$(cat ${file})" = built exits 0`);
   assert.equal(ticked.code, 0, ticked.out + ticked.err);
   const backed = await backingOff(box);
-  const submitted = box.run(path, 'submit', String(id), '--no-next');
+  const submitted = await box.runLocal(path, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   assert.match(submitted.out + submitted.err, /machine-verified #\d+/u, 'the green gate verified the item');
   assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'verified');

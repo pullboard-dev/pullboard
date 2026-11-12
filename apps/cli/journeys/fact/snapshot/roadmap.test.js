@@ -39,15 +39,15 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   const box = machine();
   const alpha = project(box, 'roadmap-snapshot');
   const beacon = project(box, 'beacon');
-  box.run(alpha.repo, 'add', 'web', 'Verified page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Open page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Verified page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Open page', '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'one.txt');
   accept(box, alpha, 1);
-  box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
-  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
-  box.run(alpha.repo, 'milestone', 'add', 'Later');
+  await box.inProcess(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Later');
   const folder = join(box.dir, 'roadmap-export');
-  box.run(alpha.repo, 'view', '--export', folder);
+  await box.inProcess(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-export-chrome-'));
   const ready = "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length";
@@ -146,10 +146,10 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
     const box = machine();
     const alpha = project(box, 'full-board');
     const criterion = 'The greeting renders from the snapshot alone.';
-    box.run(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', criterion);
+    await box.inProcess(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', criterion);
     build(box, alpha, 1, 'greeting.html');
     sendBack(box, alpha, 1, 'the first greeting needs a correction');
-    box.run(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
+    await box.inProcess(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
     build(box, alpha, 1, 'greeting-fix.html');
     accept(box, alpha, 1);
 
