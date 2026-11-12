@@ -166,7 +166,7 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     return { done: true, ran, job: view };
   }
   if (stoppedAt()) {
-    const ended = holdLease(db, view, owner, now()) ? endStopped(db, job, owner, now) : view;
+    const ended = view.step !== 'done' && holdLease(db, view, owner, now()) ? endStopped(db, job, owner, now) : view;
     return { done: false, ran, job: ended, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
   }
   if (!holdLease(db, view, owner, now())) return { done: false, ran, job: jobView(db, job), code: 'JOB_LEASED' };
