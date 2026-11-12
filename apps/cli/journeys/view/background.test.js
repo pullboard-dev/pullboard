@@ -142,8 +142,9 @@ test('init leaves a view running for pullboard.dev [H5,N26]', async (t) => {
 
 test('resume starts the view once and the setting turns it off [H5,N26]', async (t) => {
   const { box, repo, port } = await backgroundBox(t, 'resume-view');
+  // Process-level: this case starts, reuses and outlives detached views across several commands, which hang the in-process loop; its launches stay real processes.
   box.env.PULLBOARD_VIEW_BACKGROUND = '0';
-  const init = await box.runLocal(repo, 'init');
+  const init = box.run(repo, 'init');
   assert.equal(init.code, 0, init.err || init.out);
   assert.deepEqual(viewLines(init.out), [], 'the opt-out is quiet');
   assert.equal(await answers(port), null, 'with the opt-out, init starts no view');
@@ -151,7 +152,7 @@ test('resume starts the view once and the setting turns it off [H5,N26]', async 
   const started = [];
   t.after(async () => { for (const pid of started) await stopView(pid); });
 
-  const first = await box.runLocal(repo, 'resume');
+  const first = box.run(repo, 'resume');
   assert.equal(first.code, 0, first.err || first.out);
   const record = sessionRecord(box, port);
   started.push(record.pid);
@@ -159,13 +160,13 @@ test('resume starts the view once and the setting turns it off [H5,N26]', async 
   assert.match(viewLines(first.out)[0], new RegExp(`^Pullboard view is running in the background, so https://app\\.pullboard\\.dev finds .* To stop it: kill ${record.pid};`, 'u'));
   assert.equal((await answers(port, record.secret))?.status, 200);
 
-  const second = await box.runLocal(repo, 'resume', '--json');
+  const second = box.run(repo, 'resume', '--json');
   assert.equal(second.code, 0, second.err || second.out);
   const card = JSON.parse(second.out);
   assert.deepEqual({ state: card.view.state, pid: card.view.pid }, { state: 'running', pid: record.pid }, 'a running view is left alone');
   assert.equal(sessionRecord(box, port).pid, record.pid, 'same pid');
   assert.deepEqual(viewProcesses(port), [record.pid], 'one process');
-  const quiet = await box.runLocal(repo, 'resume');
+  const quiet = box.run(repo, 'resume');
   assert.deepEqual(viewLines(quiet.out), [], 'a view already running is not announced at every session start');
 
   await stopView(record.pid);
@@ -174,10 +175,10 @@ test('resume starts the view once and the setting turns it off [H5,N26]', async 
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   writeFileSync(settings, `${JSON.stringify({ view: { background: false } })}\n`);
-  const off = await box.runLocal(repo, 'resume', '--json');
+  const off = box.run(repo, 'resume', '--json');
   assert.equal(off.code, 0, off.err || off.out);
   assert.equal(JSON.parse(off.out).view.state, 'off');
-  const offInit = await box.runLocal(repo, 'init');
+  const offInit = box.run(repo, 'init');
   assert.equal(offInit.code, 0, offInit.err || offInit.out);
   assert.deepEqual(viewLines(offInit.out), []);
   assert.equal(await answers(port), null, 'with view.background false, neither init nor resume starts it');
@@ -190,15 +191,15 @@ test('resume starts the view once and the setting turns it off [H5,N26]', async 
   const held = createServer();
   await new Promise((done, fail) => { held.once('error', fail); held.listen(port, '127.0.0.1', done); });
   t.after(() => new Promise((done) => held.close(done)));
-  const busy = await box.runLocal(repo, 'resume', '--json');
+  const busy = box.run(repo, 'resume', '--json');
   assert.equal(busy.code, 0, busy.err || busy.out);
   assert.equal(JSON.parse(busy.out).view.state, 'busy');
-  const busyText = await box.runLocal(repo, 'resume');
+  const busyText = box.run(repo, 'resume');
   assert.equal(busyText.code, 0, busyText.err || busyText.out);
   const busyLines = viewLines(busyText.out);
   assert.equal(busyLines.length, 1, `one line for a busy port:\n${busyText.out}`);
   assert.match(busyLines[0], new RegExp(`^Port ${port} is in use.*, so the background view did not start, and pullboard\\.dev looks for your view on that port: stop .+, then run pullboard resume$`, 'u'));
-  const busyInit = await box.runLocal(repo, 'init');
+  const busyInit = box.run(repo, 'init');
   assert.equal(busyInit.code, 0, busyInit.err || busyInit.out);
   assert.equal(viewLines(busyInit.out).length, 1);
   assert.deepEqual(viewProcesses(port), [], 'a busy port starts no view');
