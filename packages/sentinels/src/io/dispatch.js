@@ -17,10 +17,10 @@ export function normalizedDispatch(value) {
   return value.map(entry => {
     if (!entry || typeof entry.seat !== 'string' || !entry.seat || entry.seat.length > 256
       || !Number.isSafeInteger(entry.item) || entry.item < 1 || typeof entry.review !== 'boolean'
-      || !Number.isFinite(Date.parse(entry.since)) || seen.has(entry.item)) {
-      throw new Refused('HEALTH_FINDINGS', 'dispatch observations need a unique item, native seat and start time; run the sentinel again');
+      || !Number.isFinite(Date.parse(entry.since)) || seen.has(`${entry.seat}\0${entry.item}`)) {
+      throw new Refused('HEALTH_FINDINGS', 'dispatch observations need a native seat, an item unique within that seat, and a start time; run the sentinel again');
     }
-    seen.add(entry.item);
+    seen.add(`${entry.seat}\0${entry.item}`);
     return { seat: entry.seat, item: entry.item, review: entry.review, since: new Date(entry.since).toISOString() };
   });
 }
