@@ -40,7 +40,7 @@ async function barChangedThenFresh(t) {
 }
 
 test('clause 1: next claims an item whose lane policy changed after its freeze, never skipping it [B4,C7]', async t => {
-  const box = barChangedThenFresh(t);
+  const box = await barChangedThenFresh(t);
   const first = (await box.runLocal(box.web, 'next'));
   assert.equal(first.code, 0, first.err || first.out);
   assert.doesNotMatch(first.out, /skipped #1|NO_POLICY/u);
@@ -48,7 +48,7 @@ test('clause 1: next claims an item whose lane policy changed after its freeze, 
 });
 
 test('clause 2: no stale-policy marker or coordinator shout is raised for a policy change [B4,B7]', async t => {
-  const box = barChangedThenFresh(t);
+  const box = await barChangedThenFresh(t);
   await success(box, box.web, 'next');
   const shown = (await success(box, box.repo, 'show', '1', '--json')).out;
   assert.equal(shown.split('staleFrozenPolicy').length - 1, 0, 'no marker fact');
@@ -70,7 +70,7 @@ test('clause 3: a shrunk owns list that moves no path the bar names refreshes at
 });
 
 test('claim by id on an item whose lane policy changed claims it, never NO_POLICY [B4,C7]', async t => {
-  const box = barChangedThenFresh(t);
+  const box = await barChangedThenFresh(t);
   const result = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(result.code, 0, result.err || result.out);
   assert.doesNotMatch(`${result.out}${result.err}`, /NO_POLICY/u);
