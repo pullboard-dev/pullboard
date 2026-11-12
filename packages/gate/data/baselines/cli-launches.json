@@ -171,13 +171,13 @@
     "launch": 1
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
-    "launch": 13
+    "launch": 11
   },
   "apps/cli/journeys/fact/board/busy/retry.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/fact/board/schema.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/fact/bound.test.js": {
     "launch": 1
