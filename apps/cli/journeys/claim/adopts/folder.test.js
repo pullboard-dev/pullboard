@@ -102,18 +102,6 @@ function priorFolder() {
   return { box, id, first, folder };
 }
 
-test('clause 1: a claim moves a clean idle item folder from a seat that still has a live session and holds no claim, through the real claim [B3,C7]', () => {
-  const { box, id, folder } = priorFolder();
-  const second = seat(box, 'web-b', 'session-b');
-  const claimed = as(box, 'session-b', () => box.run(second.root, 'claim', id));
-  assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
-  const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
-  assert.ok(adopted && adopted !== folder, claimed.out);
-  assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
-  assert.equal(box.git(adopted, 'branch', '--show-current'), `web/item-${id}`, 'the branch is kept');
-  assert.equal(binding(box, adopted).agent, second.id);
-});
-
 /**
  * Run `work` on a PATH that has every tool the box's PATH has except lsof, as a runner without it does.
  *
@@ -139,18 +127,33 @@ function withoutLsof(box, work) {
   try { return work(); } finally { box.env.PATH = previous; }
 }
 
-test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', () => {
+/**
+ * A second seat claims the released item and must adopt its clean idle folder, with lsof present or absent from the PATH.
+ *
+ * @param {boolean} noLsof
+ */
+function adoptsIdleFolder(noLsof) {
   const { box, id, folder } = priorFolder();
   const second = seat(box, 'web-b', 'session-b');
-  const claimed = withoutLsof(box, () => {
-    assert.equal(box.tryGit(box.repo, 'version').status, 0, 'git still runs without lsof');
-    assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
+  const claim = () => {
+    if (noLsof) assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
     return as(box, 'session-b', () => box.run(second.root, 'claim', id));
-  });
+  };
+  const claimed = noLsof ? withoutLsof(box, claim) : claim();
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
   assert.ok(adopted && adopted !== folder, claimed.out);
   assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
+  assert.equal(box.git(adopted, 'branch', '--show-current'), `web/item-${id}`, 'the branch is kept');
+  assert.equal(binding(box, adopted).agent, second.id);
+}
+
+test('clause 1: a claim moves a clean idle item folder from a seat that still has a live session and holds no claim, through the real claim [B3,C7]', () => {
+  adoptsIdleFolder(false);
+});
+
+test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', () => {
+  adoptsIdleFolder(true);
 });
 
 test('clause 2: a dirty folder of a live seat is never touched and the refusal names that seat [B3,C7]', () => {
