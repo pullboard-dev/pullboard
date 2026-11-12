@@ -63,7 +63,7 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     (file === 'packages/sync/src/io/local.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     // The runner pull transport is the named opt-in door: runners or pullboard serve dial it only when the person turns them on (on one machine it is localhost) [P7].
     (file === 'packages/transport/src/io/pull/http.js' && /node:https?\b/u.test(line)) ||
-    // A seat whose board.url names another host reads and writes that board over HTTP; the person sets board.url, so it is the same opt-in door [P7].
+    // The remote-board client is an I/O adapter behind the board.url opt-in: the person sets board.url, so it may import node:http(s) [P7].
     (file === 'apps/cli/src/io/remote/board.js' && /^import \{ request as https?Request \} from 'node:https?';$/u.test(line.trim())) ||
     // Opt-in door: runner pull transport; runs only when the person sets up runners or pullboard serve; localhost on one machine.
     (file === 'packages/transport/src/io/pull/http.js' && /node:https?\b/u.test(line)) ||
