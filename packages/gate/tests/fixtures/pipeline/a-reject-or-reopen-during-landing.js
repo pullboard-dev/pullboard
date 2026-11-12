@@ -45,7 +45,7 @@ test('a reopen between select and merge drops the item from the landing batch; m
     landing.stderr.on('data', part => { err += part; });
     const closed = new Promise(done => landing.once('close', code => done(code)));
     await waitUntil(() => existsSync(box.entered), 'the landing gate holds with both items selected', 120_000, 100);
-    const reopened = box.run(box.repo, 'reopen', String(dropped.item), '--note', 'reopened while its landing gate held');
+    const reopened = box.run(box.repo, 'reopen', String(dropped.item), '--note', `packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js: reopened while its landing gate held; merge commit ${dropped.commit}`);
     assert.equal(reopened.code, 0, reopened.err + reopened.out);
     writeFileSync(box.release, 'release\n');
     const code = await closed;
