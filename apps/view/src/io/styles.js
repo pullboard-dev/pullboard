@@ -1,5 +1,5 @@
-/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/dashboard.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css */
-/** The view's one stylesheet composer: view.css with every @pullboard-*-styles marker filled [N26,C7]. */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/dashboard.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/roadmap.css */
+/** The view's one stylesheet composer: view.css with every @pullboard-*-styles marker filled, then roadmap.css last so its rules win [N26,C7]. */
 import { readFileSync } from 'node:fs';
 
 /** Each marker's stylesheet, in view.css order; its marker keeps the cascade point where its rules stand. */
@@ -26,5 +26,5 @@ export function composeViewStyles() {
   });
   const missing = [...VIEW_STYLESHEETS.keys()].filter(name => !filled.has(name));
   if (missing.length) throw new Error(`view.css has no marker for ${missing.map(name => `@pullboard-${name}-styles`).join(', ')}`);
-  return css;
+  return `${css}\n${readFileSync(new URL('./roadmap.css', import.meta.url), 'utf8').trimEnd()}\n`;
 }

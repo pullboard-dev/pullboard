@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { roadmapSummary } from '../../../../src/logic/summary/roadmap.js';
 
 const DIR = new URL('../../../../src/io/', import.meta.url);
-const FILES = ['main.css', 'stage.css', 'item/rows.css', 'dashboard.css', 'cost.css'];
+const FILES = ['main.css', 'stage.css', 'item/rows.css', 'roadmap.css', 'dashboard.css', 'cost.css'];
 const css = Object.fromEntries(FILES.map((f) => [f, readFileSync(new URL(f, DIR), 'utf8')]));
 const all = Object.values(css).join('\n');
 

@@ -7,7 +7,7 @@ import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
-/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/roadmap.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
