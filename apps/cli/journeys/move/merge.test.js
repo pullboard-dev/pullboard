@@ -29,6 +29,8 @@ const DATA_INPUTS = new Map([
   ['packages/items/src/logic/vendors.json', 'items: vendor spellings kept in data, not code'],
   // #5605 [P5]: the stats pipeline reads model families and ceilings from data, and the moves closure reaches it through the pipeline.
   ['packages/stats/src/logic/models.json', 'stats: model families and ceilings kept in data, not code'],
+  ['packages/stats/data/ceilings/context-ceilings.json', 'stats: context ceilings kept in data, not code'],
+  ['packages/seats/src/logic/tiers.json', 'seats: model tiers kept in data, not code'],
 ]);
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
