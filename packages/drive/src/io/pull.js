@@ -432,16 +432,18 @@ export function serveSlots(setting, cores = availableParallelism()) {
 export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';
 
 /**
- * How many test workers each job of a serve may use: an even share of the runner's cores, at least one.
- * Why: since #5790 a pulled job spreads over every core, so 3 jobs on a 10-core runner ran about 30 workers at once
- * and every job slowed (#5919).
+ * How many test workers a job of a serve may use: twice its even share of the runner's cores, at least 2, never more than its file count.
+ * Why twice: tests mostly wait on spawned processes, git and timers, so an even share left a 10-core runner at 47% CPU while
+ * 4-file jobs ran their files one after another for 640-1055 s (#5919 kept jobs from starving each other; this keeps that and fills idle cores).
  *
  * @param {number} slots - How many jobs the serve runs at once.
  * @param {number} [cores]
+ * @param {number | null} [files] - How many test files the job runs, when known.
  * @returns {number}
  */
-export function jobWorkers(slots, cores = availableParallelism()) {
-  return Math.max(1, Math.floor(cores / Math.max(1, slots)));
+export function jobWorkers(slots, cores = availableParallelism(), files = null) {
+  const share = Math.max(2, Math.ceil(2 * cores / Math.max(1, slots)));
+  return Math.max(1, Number.isInteger(files) && files > 0 ? Math.min(files, share) : share);
 }
 
 /** The variable naming one claim of a job, beside PULLBOARD_RUNNER_JOB, so a sweep spares a same-named job of another serve. */
@@ -562,8 +564,6 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
-  // Each job's test run takes only its share of the cores, so the serve's jobs together never oversubscribe the runner (#5919).
-  const workers = jobWorkers(slots, cores);
   // One checkout folder per slot, reset for each job it runs, since a fresh one cost 14 s per job (#5812) [P7].
   const jobs = [], waits = [], folders = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
   let delay = firstMs;
@@ -692,7 +692,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
     // The gate bootstrap judges a project whose main is not Pullboard's tree with this runner's own install (#6265).
-    const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: fileURLToPath(new URL('../../../../', import.meta.url)), [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(workers), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: fileURLToPath(new URL('../../../../', import.meta.url)), [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(jobWorkers(slots, cores, named)), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
