@@ -21,9 +21,9 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
  * Build a project with an item claimed by the web seat, one committed candidate, and a second seat in the api lane.
  *
  * @param {import('node:test').TestContext} t
- * @returns {{ box: object, id: number, commit: string, other: string }}
+ * @returns {Promise<{ box: object, id: number, commit: string, other: string }>}
  */
-function claimed(t) {
+async function claimed(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true', helpers.sandbox());
@@ -35,7 +35,7 @@ function claimed(t) {
     '--criterion', 'The candidate passes.', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/record.txt', 'x\n', 'feat(web): record candidate [G1]').status, 0);
   return { box, id, commit: box.git(box.web, 'rev-parse', 'HEAD'), other };
 }
@@ -61,7 +61,7 @@ function queue(box, board, id, commit) {
 
 for (const running of [false, true]) {
   test(`clause 1: the holder's gate --withdraw records a ${running ? 'running' : 'queued'} gate as withdrawn and removes its ticket [C7]`, async t => {
-    const { box, id, commit } = claimed(t);
+    const { box, id, commit } = await claimed(t);
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
     t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
@@ -74,7 +74,7 @@ for (const running of [false, true]) {
       queueHandoffLaunch({ directory: box.dir, tools: box.dir, commonDir: join(box.repo, '.git'), job: options.job }, reservation);
       assert.equal(handoffTicketWaiting(options.job), true, 'the gate holds a place in line');
     } finally { board.db.close(); }
-    const withdrawn = box.run(box.web, 'gate', '--withdraw', String(id));
+    const withdrawn = await box.runLocal(box.web, 'gate', '--withdraw', String(id));
     assert.equal(withdrawn.code, 0, `${withdrawn.err}\n${withdrawn.out}`);
     board = fixtureOpenBoard(box);
     try {
@@ -84,36 +84,36 @@ for (const running of [false, true]) {
       assert.equal(handoffTicketWaiting(options.job), false, 'no ticket remains');
       assert.equal(getItem(board, id).item_owner, options.agentId, 'the holder keeps the item');
     } finally { board.db.close(); }
-    const shown = box.run(box.web, 'show', String(id));
+    const shown = await box.runLocal(box.web, 'show', String(id));
     assert.match(shown.out, /withdrawn/u);
   });
 }
 
 test('clause 1: the coordinator may withdraw a gate; any other seat is refused with the next step [C7]', async t => {
-  const { box, id, commit, other } = claimed(t);
+  const { box, id, commit, other } = await claimed(t);
   let board = fixtureOpenBoard(box);
   try { queue(box, board, id, commit); } finally { board.db.close(); }
-  const refused = box.run(other, 'gate', '--withdraw', String(id));
+  const refused = await box.runLocal(other, 'gate', '--withdraw', String(id));
   assert.notEqual(refused.code, 0);
   assert.match(`${refused.err}${refused.out}`, /NOT_YOURS/u);
   assert.match(`${refused.err}${refused.out}`, /next:/u);
   board = fixtureOpenBoard(box);
   try { assert.equal(submitHandoff(board, id).state, 'queued', 'the refused seat changed nothing'); } finally { board.db.close(); }
-  const done = box.run(box.repo, 'gate', '--withdraw', String(id));
+  const done = await box.runLocal(box.repo, 'gate', '--withdraw', String(id));
   assert.equal(done.code, 0, `${done.err}\n${done.out}`);
   board = fixtureOpenBoard(box);
   try { assert.equal(submitHandoff(board, id).state, 'withdrawn'); } finally { board.db.close(); }
 });
 
 test('clause 2: a withdrawn gate never posts a verdict later; its worker result is ignored [C7]', async t => {
-  const { box, id, commit } = claimed(t);
+  const { box, id, commit } = await claimed(t);
   let board = fixtureOpenBoard(box);
   let options;
   try {
     options = queue(box, board, id, commit);
     assert.equal(startSubmitHandoff(board, id, { agentId: options.agentId, job: options.job }).started, true);
   } finally { board.db.close(); }
-  assert.equal(box.run(box.web, 'gate', '--withdraw', String(id)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'gate', '--withdraw', String(id))).code, 0);
   board = fixtureOpenBoard(box);
   try {
     const late = writeBoardCommand(board, 'completeSubmitHandoff', [id, { agentId: options.agentId, job: options.job,
@@ -126,11 +126,11 @@ test('clause 2: a withdrawn gate never posts a verdict later; its worker result 
 });
 
 test('clause 3: a fresh submit of the item starts a new gate at once [C7]', async t => {
-  const { box, id, commit } = claimed(t);
+  const { box, id, commit } = await claimed(t);
   let board = fixtureOpenBoard(box);
   let first;
   try { first = queue(box, board, id, commit); } finally { board.db.close(); }
-  assert.equal(box.run(box.web, 'gate', '--withdraw', String(id)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'gate', '--withdraw', String(id))).code, 0);
   board = fixtureOpenBoard(box);
   try {
     const item = getItem(board, id);
