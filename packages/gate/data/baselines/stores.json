@@ -974,7 +974,7 @@
     },
     "test-journeys.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/test/split.js"
+      "owner": "packages/gate/src/io/test/derived.js"
     },
     "test-path-tables.json": {
       "kind": "json",
