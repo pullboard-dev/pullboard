@@ -2,9 +2,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
@@ -28,25 +25,22 @@ async function served(box, cwd, ...args) {
  * Run one test body on remote seats, then stop the served board before the fixture removes its tree.
  * Why: node:test runs t.after hooks in registration order and the fixture registers its rmSync before the server's close,
  * so the served API (its state materializer and revision watchers write to board.sqlite) was still writing into the tree
- * while it was removed: ENOTEMPTY. Awaiting api.close here ends those writers first [P7].
+ * while it was removed: ENOTEMPTY. Awaiting api.close here ends those writers first; remoteSeats starts no detached ones [P7].
  */
 function onRemoteSeats(body) {
   return async (t) => {
     const seats = await remoteSeats(t);
-    try { await body(seats); } finally {
-      await seats.box.api.close();
-      try { rmSync(seats.box.dir, { recursive: true }); } catch (error) {
-        let left = []; try { left = readdirSync(seats.box.dir, { recursive: true }); } catch { /* gone */ }
-        const ps = String(spawnSync('ps', ['-axo', 'pid,ppid,command']).stdout).split('\n').filter((line) => line.includes('node') && !line.includes(' ps ')).join('\n');
-        throw new Error(`DIAG ${error.code} left=${JSON.stringify(left)}\nps:\n${ps}`);
-      }
-    }
+    try { await body(seats); } finally { await seats.box.api.close(); }
   };
 }
 
 /** A served board with a builder and a verifier seat, and a boardless clone on its own machine home set to its URL. */
 async function remoteSeats(t) {
   const box = await apiHttpBox(t);
+  // A served claim starts a detached claim beater bound to this test process and queues a detached usage checkpoint;
+  // both write under .git/pullboard after the claim returns, so the fixture's removal raced them: ENOTEMPTY. The seats
+  // here start neither: no beater, and the checkpoint runs inside the move [P7,C7].
+  Object.assign(box.env, { PULLBOARD_CLAIM_BEATER: '0', PULLBOARD_USAGE_CHECKPOINT: 'inline' });
   const builder = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
   const verifier = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL_EARLIER, '--family', 'claude');
   const clone = join(box.dir, 'studio');
