@@ -103,7 +103,7 @@ export function judgeWaits(rows, budgets) {
 
 /** The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item. */
 export function waitKey(row) {
-  return `${row.surface}:${row.key ?? row.holder}`.replace(/\s+/gu, ' ').slice(0, 200);
+  return `${row.surface}:${row.key ?? row.holder}`.replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
 }
 
 /** The code behind each surface: where a builder starts reading when the holder's own source is not known. */
@@ -159,7 +159,7 @@ export function waitItemDraft(row) {
     ? row.waiters.slice(0, 12).map(waiter => `- ${waiter.label}${waiter.pid ? ` (pid ${waiter.pid})` : ''}: waited ${sayAge(waiter.ageMs)}`).join('\n')
     : '- none recorded';
   const files = [...new Set([...holderSourceFiles(row.context), SURFACE_FILE[row.surface]].filter(Boolean))];
-  const title = `waits: ${row.surface} ${row.holder} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
+  const title = `waits: ${row.surface} ${String(row.holder).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid')} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
   const brief = [
     `The wait audit (\`pullboard waits\`) found ${row.surface} over its ${row.budgetName} budget of ${sayAge(row.budgetMs)}.`,
     '',
