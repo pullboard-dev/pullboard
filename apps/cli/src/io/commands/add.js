@@ -3,6 +3,7 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { guardBar } from '../../../../../packages/state/index.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
@@ -29,6 +30,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -126,9 +128,12 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
+  // Only the person grants size overrides; an agent or the coordinator splits the item instead [C7].
+  if (sizeReason && !asPerson) throw new Refused('ITEM_FORCE_SIZE_PERSON', '--force-size is a size override only the person grants', 'split the item with --after into pieces of 30 minutes or less, or ask the person');
   if (size.oversized && !sizeReason) throw new Refused('ITEM_TOO_LARGE', `criterion names ${size.cells.length} cells and ${size.clauses} clauses (size ${size.score})`,
     `split it into one item per named cell (${size.cells.join(', ') || 'none'}) and at most three numbered clauses per item; or use --force-size "reason"`);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'add', args: {
@@ -142,11 +147,13 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const id = await ordered(ctx, board, 'addItem', [item]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
@@ -163,8 +170,9 @@ export async function run(io, args) {
       await exited;
     }
   }
-  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
-  for (const warning of evidenceWarnings) io.err(warning.message);
+  const warnings = [...evidenceWarnings, ...barWarnings];
+  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
+  for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));

@@ -13,7 +13,7 @@ export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserS
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/logic/summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/logic/format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/io/check/baseline/worker.js";
-export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, prepareCheckBaseline } from "./src/io/check/baseline.js";
+export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, refuseCheckPullboardTest, prepareCheckBaseline } from "./src/io/check/baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
@@ -58,12 +58,13 @@ export { dispatchTestFiles, reportDispatchedTests, nativeFileArguments, testFile
 export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, awaitNestedPhase, withNestedGroup, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/io/test/file/pool.js";
 export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOAD_ENV } from "./src/io/test/isolation.js";
 export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";
-export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
+export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, allTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
 export { refreshTestPlacement } from "./src/io/test/placement/report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/io/test/placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/io/test/store.js";
 export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNotice } from "./src/io/test/run.js";
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
+export { DEFAULT_TEST_FILE_BUDGET_MS, requireTestFileRatchet, testFileBudgetFailure } from "./src/logic/test/budget/file.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
 export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/io/test/value/timing.js";
 export { testValueReport } from "./src/io/test/value.js";
@@ -112,3 +113,4 @@ export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
+export { deriveTestRegistries } from './src/io/test/derived.js';

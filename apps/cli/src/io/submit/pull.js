@@ -301,7 +301,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   if (ctx.json) ctx.io.result({ item: id, commit, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
-  else ctx.io.say(`#${id} queued as gate job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
+  else ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   return 0;
 }

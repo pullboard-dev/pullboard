@@ -66,14 +66,13 @@ test('read commands never refresh presence while committed writes and hooks do [
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const { runCliInProcess } = await import('../../../tests/fixtures/process.js');
   /** Reuse production parsing/dispatch with the same private identity and captured streams. */
-  box.run = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+  const run = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
   // Complete the genuine baseline before measuring hooks, rather than racing its background event.
-  const added = await fixtureAdd(box.run, box.repo, 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
+  const added = await fixtureAdd(run, box.repo, 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const withdrawn = await box.run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
+  const withdrawn = await run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
   assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(file);
@@ -87,22 +86,22 @@ test('read commands never refresh presence while committed writes and hooks do [
   local.exec('CREATE TABLE writes(n INTEGER NOT NULL); INSERT INTO writes VALUES(0); CREATE TRIGGER count_update AFTER UPDATE ON heartbeat BEGIN UPDATE writes SET n=n+1; END');
   board.db.exec('BEGIN IMMEDIATE');
   try {
-    const status = await box.run(box.web, 'status', '--json');
+    const status = await run(box.web, 'status', '--json');
     assert.equal(status.code, 0, status.err + status.out);
     const summary = JSON.parse(status.out);
     assert.equal(summary.agents.find(seat => seat.agent_id === 'web-1').presence, 'gone', 'status projects the stored observation without reviving it');
     assert.equal(local.prepare('SELECT at FROM heartbeat WHERE seat=?').get(key).at, stale);
     for (const args of [['show', String(id), '--json'], ['list', '--json']]) {
-      const result = await box.run(box.web, ...args);
+      const result = await run(box.web, ...args);
       assert.equal(result.code, 0, result.err + result.out);
       assert.equal(JSON.parse(result.out).version, 1);
     }
-    const next = await box.run(box.web, 'next', '--json');
+    const next = await run(box.web, 'next', '--json');
     assert.ok([0, 1].includes(next.code), next.err + next.out);
     assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM item WHERE item_status='claimed'").get().n, 0, 'the next control really makes no claim');
     assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'none of the read commands writes the private sidecar');
   } finally { board.db.exec('ROLLBACK'); }
-  const shouted = await box.run(box.web, 'shout', 'all', 'Committed write refreshes this seat', '--json');
+  const shouted = await run(box.web, 'shout', 'all', 'Committed write refreshes this seat', '--json');
   assert.equal(shouted.code, 0, shouted.err + shouted.out);
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1);
   const shout = board.db.prepare('SELECT shout_at FROM shout WHERE shout_from=? ORDER BY shout_id DESC LIMIT 1').get('web-1');
@@ -110,19 +109,19 @@ test('read commands never refresh presence while committed writes and hooks do [
   assert.ok(Date.parse(observed) >= Date.parse(shout.shout_at), 'the local refresh follows the committed native shout');
   local.prepare('UPDATE heartbeat SET at=? WHERE seat=?').run(stale, key);
   local.exec('UPDATE writes SET n=0');
-  const refused = await box.run(box.web, 'shout', 'missing-reader', 'This write must refuse', '--json');
+  const refused = await run(box.web, 'shout', 'missing-reader', 'This write must refuse', '--json');
   assert.equal(refused.code, 1, refused.err + refused.out);
   assert.equal(JSON.parse(refused.out).error.code, 'NO_READER');
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'a refused native write cannot refresh presence');
   const events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
-  const hook = await box.run(box.web, 'heartbeat', '--json');
+  const hook = await run(box.web, 'heartbeat', '--json');
   assert.equal(hook.code, 0, hook.err + hook.out);
   assert.equal(JSON.parse(hook.out).presence, 'live');
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1, 'an explicit agent hook still refreshes the stale private observation');
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n, events, 'the hook remains local, not an ordered move');
   local.prepare('UPDATE heartbeat SET at=? WHERE seat=?').run(stale, key);
   local.exec('UPDATE writes SET n=0');
-  const resumed = await box.run(box.web, 'resume', '--json');
+  const resumed = await run(box.web, 'resume', '--json');
   assert.equal(resumed.code, 0, resumed.err + resumed.out);
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'public resume is not an activity hook');
   const { readFileSync } = await import('node:fs');
@@ -130,6 +129,7 @@ test('read commands never refresh presence while committed writes and hooks do [
   const settings = JSON.parse(readFileSync(join(box.web, '.claude', 'settings.json'), 'utf8'));
   const command = settings.hooks.SessionStart[0].hooks[0].command;
   assert.ok(command.includes('hook SessionStart'));
+  // Process-level by nature: the installed hook command runs through a real shell, which in-process dispatch skips (these shell runs and the two below).
   const session = runFixtureChild('sh', ['-c', command], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(session.status, 0, session.failure || session.stderr || session.stdout);
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1, 'SessionStart explicitly observes activity before its read-only resume');
@@ -158,13 +158,13 @@ test('explicit SessionStart observation upgrades an existing resume hook without
   const custom = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo custom; pullboard resume', timeout: 17 }] };
   settings.hooks.SessionStart = [custom];
   writeFileSync(file, JSON.stringify(settings));
-  const upgraded = box.run(box.repo, 'init', '--verbose');
+  const upgraded = await runCliInProcess(['init', '--verbose'], { cwd: box.repo, env: box.env });
   assert.equal(upgraded.code, 0, upgraded.err + upgraded.out);
   const after = JSON.parse(readFileSync(file, 'utf8'));
   assert.equal(after.hooks.SessionStart.length, 2);
   assert.ok(after.hooks.SessionStart[0].hooks[0].command.includes('hook SessionStart'));
   assert.deepEqual(after.hooks.SessionStart[1], custom, 'the existing user hook bytes remain its own command');
-  const again = box.run(box.repo, 'init', '--verbose');
+  const again = await runCliInProcess(['init', '--verbose'], { cwd: box.repo, env: box.env });
   assert.equal(again.code, 0, again.err + again.out);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), after, 'repeated init never duplicates the observation hook');
 });

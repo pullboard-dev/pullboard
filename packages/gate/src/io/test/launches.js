@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /** CLI launches in tests (journeys most) are a ceiling that only falls: convert to runCliInProcess, never add a process [C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { blobOid } from '../static/cache.js';
 import { lex } from '../scan.js';
@@ -218,8 +220,8 @@ function launchReach(source, code) {
 }
 
 /** Inspect every test file as text; `cache` keeps a file's sites by blob. */
-export function cliLaunchReport(root, { cache = null } = {}) {
-  return walk(root, JOURNEY).flatMap(path => {
+export function cliLaunchReport(root, { cache = null, only = null } = {}) {
+  return (only ? only.filter(path => JOURNEY.test(path) && existsSync(join(root, path))).sort() : walk(root, JOURNEY)).flatMap(path => {
     const text = readText(root, path);
     return cache ? cache.get(path, blobOid(text), () => cliLaunchSites(text, path)) : cliLaunchSites(text, path);
   });
@@ -263,11 +265,17 @@ export function cliLaunchGrowth(problems, baseline) {
   });
 }
 
-/** The updater only lowers ceilings: it refuses before writing when any file has grown. */
+/**
+ * The updater only lowers ceilings: a row measured at 0 is dropped, and it refuses before writing when any file
+ * has grown or has no row, naming each such file.
+ *
+ * Why: a stale row of 0 launches is dead weight, and a recount must never raise or add a ceiling (#6228).
+ */
 export function tightenCliLaunchBaseline(problems, baseline) {
   const growth = cliLaunchGrowth(problems, baseline);
-  if (growth.length) throw new Error(growth.map(row => `${row.path}:${row.line}: ${row.text}`).join('\n'));
-  return cliLaunchCounts(problems);
+  if (growth.length) throw new Error(`Refused(CLI_LAUNCH_RAISE, the recount never raises or adds a row; fix the launches in these files): ${[...new Set(growth.map(row => row.path))].join(', ')}\n${growth.map(row => `${row.path}:${row.line}: ${row.text}`).join('\n')}`);
+  const counts = cliLaunchCounts(problems);
+  return Object.fromEntries(Object.entries(counts).filter(([, row]) => Object.values(row).some(count => count > 0)));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

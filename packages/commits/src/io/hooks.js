@@ -29,6 +29,7 @@ import {
   git,
   gitChildEnv,
   gitPath,
+  checkoutHead,
   gitConfig,
   invalidateGitFacts,
   mainCheckout,
@@ -59,7 +60,7 @@ import {
 import { approvedRowProblems } from "../../../spec/index.js";
 import { specGateMoveOnly } from "../../../spec/index.js";
 
-export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
+export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit'];
 export const HOOKS_DIR = '.githooks';
 export const HOOK_MARK = 'Installed by pullboard';
 export const FIX_NOTE = 'Fix what each line names. Never work around a refusal with filler text.';
@@ -264,7 +265,7 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  * @returns {{ touched: string[], written: string[] }}
  */
 export function stagedPaths(root, base = null) {
-  const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
+  const fields = git(root, ['diff', '--cached', '--name-status', '-z', '-M', ...(base ? [base] : [])]).split('\0'); // -M matches the move-detection call below, so one memo answer serves both.
   const touched = [], companion = new Set(JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593, #2614: a companion's own paths are exempt against the merged parent too
   const written = [];
   let index = 0;
@@ -281,6 +282,8 @@ export function stagedPaths(root, base = null) {
 
 /** The reads one pre-commit run shares, so git is asked once per kind of fact instead of once per path (#2232). */
 let readCache = null;
+/** The cells plan folder, listed with the first read of each revision once the shim check runs. */
+const PLAN_DIRECTORY = 'packages/codemap/data/plan/';
 
 /**
  * Run a check with shared git reads: one batched tree or index listing per revision, one resolve-undo
@@ -302,16 +305,21 @@ function withSharedReads(root, paths, check) {
 const sharedReads = (root) => (readCache?.root === root ? readCache : null);
 
 /** List the records of many literal paths at one revision in a few git calls. */
-function fillRecords(root, revision, map, paths) {
+function fillRecords(root, revision, map, paths, directory = null) {
   for (const path of paths) if (!map.has(path)) map.set(path, []);
-  for (let start = 0; start < paths.length; start += 400) {
+  for (let start = 0; start < paths.length || start === 0; start += 400) {
     const specs = paths.slice(start, start + 400).map((path) => `:(literal)${path}`);
+    // The cells plan and its shards are read at every revision by the shim check: list them in the same call [C7].
+    if (directory && start === 0) specs.push(directory);
+    if (!specs.length) continue;
     const raw = revision === ':index'
       ? git(root, ['ls-files', '--stage', '-z', '--', ...specs])
       : git(root, ['ls-tree', '-z', revision, '--', ...specs]);
     for (const record of raw.split('\0').filter(Boolean)) {
       const tab = record.indexOf('\t');
-      map.get(record.slice(tab + 1))?.push(record);
+      const path = record.slice(tab + 1);
+      if (directory && !map.has(path)) map.set(path, []);
+      map.get(path)?.push(record);
     }
   }
 }
@@ -328,9 +336,10 @@ function treeRaw(root, revision, path) {
       : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
   }
   let map = shared.maps.get(revision);
-  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths); }
-  if (!map.has(path)) fillRecords(root, revision, map, [path]);
-  const records = map.get(path);
+  if (!map) { map = new Map(); map.planListed = Boolean(shared.plan); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
+  // A revision listed with the plan folder already knows every plan file it has; the rest are absent.
+  if (!map.has(path) && !(map.planListed && path.startsWith(PLAN_DIRECTORY))) fillRecords(root, revision, map, [path]);
+  const records = map.get(path) ?? [];
   return records.length ? `${records.join('\0')}\0` : '';
 }
 
@@ -552,11 +561,12 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (shimImports) {
     const revisions = new Map();
+    if (readCache) readCache.plan = true;
     problems.push(...shimImports({ paths: written,
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
         if (revision !== ':index') {
-          if (!revisions.has(revision)) revisions.set(revision, tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
+          if (!revisions.has(revision)) revisions.set(revision, (revision === 'HEAD' ? checkoutHead(root) : undefined) ? true : tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
           if (!revisions.get(revision)) return undefined;
         }
         const entry = importFileEntry(root, revision, path);
@@ -647,11 +657,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
  */
 export function deletedGateProblems(root, config) {
   if (!config?.spec) return [];
-  const status = tryGit(root, ['diff', '--cached', '--name-status', '-M', '--no-color']);
-  if (status.status !== 0) return [];
+  let raw;
+  try { raw = git(root, ['diff', '--cached', '--name-status', '-z', '-M']); } catch { return []; } // the same call kind as stagedPaths, so one memo answer serves both
   const gone = new Map();
-  for (const line of status.stdout.split('\n').filter(Boolean)) {
-    const [code, from, to] = line.split('\t');
+  const fields = raw.split('\0');
+  for (let at = 0; at < fields.length - 1;) {
+    const code = fields[at], from = fields[at + 1], to = /^[RC]/u.test(code) ? fields[at + 2] : undefined;
+    at += to === undefined ? 2 : 3;
     if (code.startsWith('D')) gone.set(from, 'deletes');
     else if (code.startsWith('R')) {
       const before = tryGit(root, ['rev-parse', `HEAD:${from}`]);
@@ -825,10 +837,9 @@ export function unwiredHookProblems(root) {
  * @returns {string[] | null}
  */
 function mainMergeHeads(root, preMergeHook) {
-  const gitPath = tryGit(root, ['rev-parse', '--git-path', 'MERGE_HEAD']);
-  if (gitPath.status !== 0) return null;
+  let mergeFile;
+  try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
-  const mergeFile = resolve(root, gitPath.stdout.trim());
   try {
     if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {

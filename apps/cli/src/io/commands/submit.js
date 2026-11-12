@@ -255,7 +255,9 @@ import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit/wait.js';
-import { runPreflight } from '../submit/preflight.js';
+import { runStaticPreflight } from '../submit/preflight.js';
+import { requireStaticPreflight } from '../submit/preflight.js';
+import { changedSince } from '../submit/preflight.js';
 import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
@@ -632,7 +634,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const regeneratedFrom = toolRegenerationSource(root, commit);
   // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes,
   // a companion submit's gate judging its composed source, so no submit reaches the hand-off path [P7].
-  if (pullGate && !pending && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion }, { frozenCheck, policyAt, listItems: store.listItems });
+  if (pullGate && !pending && ownershipRefusal) throw ownershipRefusal;
+  // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
+  if (!companion && (pullGate || pending || handoffEnabled)) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  if (pullGate && !pending) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion }, { frozenCheck, policyAt, listItems: store.listItems });
   if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
@@ -671,7 +676,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
-    onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+    onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig,
+      cachedMain: file => cachedMainComparison(root, acceptedMain.commit, [file]).files[0] }, { ordered, withBoard, resourceAgent, checkAtCommit }),
       { withDb: work => withBoard(ctx, board => work(board.db)), gate: { id: `submit:${id}:${companion?.commit ?? commit}`, item: Number(id), candidate: companion?.commit ?? commit }, repo: root, owner: me.id, cases: failingCases }) }));
   /** Record the runner's authorization result as the local check would have left it; a skipped check runs here. */
   const recordRemoteAuthorization = analysis => {
@@ -903,15 +909,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-        if (!remoteMode && !companion && /\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-          const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
-          const report = await runPreflight(root, changed);
-          if (!report.ok) {
-            const lines = [];
-            reportPreflight(report, line => lines.push(line));
-            throw new Refused('GATE_RED', `preflight is red; no runner was queued. Fix the named source, commit, and submit again:\n${lines.join('\n')}`);
-          }
-        }
+        // A handoff worker's agent already ran this in its own checkout before queueing (#5730).
+        if (!remoteMode && !companion && !isSubmitHandoffWorker(ctx)) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
         settlePreflight.resolve();
         return placed;
       } catch (error) { settlePreflight.reject(error); throw error; }
@@ -1269,7 +1268,7 @@ async function preflightHere(ctx) {
   const { root } = ctx.info;
   const changed = tryGit(root, ['diff', '--name-only', '-z', 'refs/heads/main...HEAD']);
   const files = changed.status === 0 ? changed.stdout.split('\0').filter(Boolean) : [];
-  return reportPreflight(await runPreflight(root, files), line => ctx.io.say(line));
+  return reportPreflight(await runStaticPreflight(root, ctx.config.staticChecks, files, { timeoutMs: ctx.config.check?.timeoutMs }), line => ctx.io.say(line));
 }
 
 /** Run `pullboard submit` and return its exit code. */

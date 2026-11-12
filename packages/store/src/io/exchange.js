@@ -5,6 +5,7 @@ import { readBlob } from "../../../jobs/index.js";
 import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board/guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../state/light.js";
+import { MACHINE } from "../../../state/light.js";
 import { LANDING_LOCAL_PREFIX } from "../logic/board/landing/local.js";
 import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
 import { FAMILY_RECORD_PREFIX } from "../../../items/index.js";
@@ -207,6 +208,14 @@ function validateDocument(db, document, names) {
         throw new Refused('IMPORT_SCHEMA', `a ${table} row does not have exactly its board columns; export it again`);
       }
     }
+  }
+  // An item in a status the lifecycle never declared is refused before anything is inserted: the restore suspends the
+  // board's own triggers, so this is the only place that can stop it (SM15).
+  const declared = MACHINE.states.map((state) => state.id);
+  const unknown = suppliedRows(document, 'item').find((row) => !declared.includes(row.item_status));
+  if (unknown) {
+    throw new Refused('UNDECLARED_STATE', `item #${unknown.item_id} has status ${JSON.stringify(unknown.item_status)}; an item is ${declared.join(', ')}, so nothing was imported`,
+      'export the board again with the pullboard version that wrote this file');
   }
   const eventLog = document.tables.board_meta.find(({ meta_key }) => meta_key === 'event_log_version');
   const eventLogVersion = eventLog && /^(?:0|[1-9]\d*)$/u.test(eventLog.meta_value) ? Number(eventLog.meta_value) : eventLog ? NaN : 0;

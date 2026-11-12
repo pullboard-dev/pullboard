@@ -155,6 +155,22 @@ function offerProofShards(board, { job, receipt, offered }) {
 }
 
 /**
+ * One red shard's own account: each `not ok` case its TAP printed, by file and name, and the full log its runner kept.
+ * Why: a shard's tail often ends on its passing subtests, so without these no one can name the failing test [C7].
+ */
+function redShard(part) {
+  const phase = part.phase ?? {};
+  const rows = Array.isArray(phase.errors) && phase.errors.length ? phase.errors : Array.isArray(phase.failures) ? phase.failures : [];
+  const cases = rows.filter(row => typeof row?.name === 'string' && row.name)
+    .map(row => ({ file: typeof row.file === 'string' && row.file ? row.file : null, name: row.name }));
+  const omitted = Math.max(0, (Number(phase.errorCount) || rows.length) - cases.length);
+  const folder = typeof part.output?.folder === 'string' && part.output.folder ? part.output.folder : null;
+  // The proof phase's own log when the gate entry kept one, else the job's whole output the runner kept beside it.
+  const log = folder ? join(folder, typeof phase.kept === 'string' && /^[\w.-]+$/u.test(phase.kept) ? phase.kept : 'job.log') : null;
+  return { job: part.job, runner: part.output?.runner ?? part.runner, log, cases, omitted };
+}
+
+/**
  * The gate receipt the shards of one proof make together: the gate's own receipt with one proof phase that is green
  * only when every shard is, naming every failing case its red shards name (none when any red shard names none).
  */
@@ -164,7 +180,8 @@ function combinedReceipt(gateReceipt, shards) {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
-    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0 };
+    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
+      output: posted?.receipt?.output ?? null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
@@ -174,7 +191,7 @@ function combinedReceipt(gateReceipt, shards) {
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
-    ...(reds.length ? { failures, errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
+    ...(reds.length ? { failures, shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
       errorCount: reds.reduce((total, part) => total + (part.phase?.errorCount ?? part.phase?.errors?.length ?? 0), 0) } : {}) };
   const { proofPlan, ...rest } = gate;
   const green = !reds.length;
@@ -200,6 +217,12 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   return applyGateReceipt(board, { job: parent, receipt: combined }, ports);
 }
 
+/** Where each red shard of a phase keeps its full log, one line per shard. */
+function shardLogLines(phase) {
+  return (Array.isArray(phase?.shardReds) ? phase.shardReds : [])
+    .map(red => `${phase.role} shard ${red.job} log: ${red.log ? `${red.log} on runner ${red.runner ?? 'unknown'}` : `none kept on runner ${red.runner ?? 'unknown'}`}`);
+}
+
 /** One line per part that failed: analysis refusals, each failing case of a red phase (the lines that explain its exit when it names none), or the job's own error. */
 export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
@@ -213,8 +236,15 @@ export function failingParts(receipt) {
     // A phase whose receipt names its cases lists them as the controller gate does, file :: case name.
     const cases = Array.isArray(phase.failures) ? phase.failures.filter(row => typeof row?.file === 'string' && row.file && typeof row.name === 'string' && row.name) : [];
     if (cases.length) parts.push(...cases.map(row => `${phase.role} failed: ${row.file} :: ${clip(row.name)}`));
+    // A red shard's own 'not ok' cases and its log path come ahead of any tail, which may show only passing subtests [C7].
+    const reds = Array.isArray(phase.shardReds) ? phase.shardReds : [];
+    if (!cases.length) for (const red of reds) {
+      parts.push(...(red.cases ?? []).map(row => `${phase.role} not ok: ${row.file ? `${row.file} :: ` : ''}${clip(row.name)} (shard ${red.job})`));
+      if (red.omitted) parts.push(`${phase.role} not ok: ${red.omitted} more in shard ${red.job}'s log`);
+    }
+    parts.push(...shardLogLines(phase));
     // Why the exit lines first: a plain tail of a crashed proof ends on its closing counts, which name nothing.
-    else parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
+    if (!cases.length) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
   }
   if (gate.proofPlan) parts.push('proof: the gate left its proof to shard jobs the board could not offer; submit again');
   if (!parts.length && receipt?.status !== 0) parts.push(`the gate job exited ${receipt?.status ?? receipt?.signal}`);
@@ -254,10 +284,25 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   return {
     cases: cases.map(row => {
       const one = classes.get(row.file);
-      return { ...row, onMain: one.owner === 'unknown' ? null : !one.own.includes(row.name), receipt: receiptId(one.receipt) };
+      const named = one.owner === 'unknown' ? null : keyedMainFailing(board.db, receiptId(one.receipt));
+      return { ...row, onMain: one.owner === 'unknown' ? null : named ? named.includes(row.name) : !one.own.includes(row.name), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
   };
+}
+
+/**
+ * The case names a main-test job's keyed receipt (step 0) records as failing on main; null when the id names no such
+ * red receipt. Why: the comparison cache keeps a main-test red as the whole file with no case names, so without this
+ * every case of a file a queued main-test job measured red would read as new (#6229).
+ */
+function keyedMainFailing(db, id) {
+  if (typeof id !== 'string') return null;
+  const row = db.prepare(`SELECT step.job_step_payload FROM job_step AS step JOIN job ON job.job_id = step.job_step_job
+    WHERE step.job_step_job = ? AND step.job_step_name = 'receipt' AND step.job_step_seq = 0 AND job.job_kind = ?`).get(id, MAIN_TEST_KIND);
+  let keyed = null;
+  try { keyed = row ? JSON.parse(row.job_step_payload) : null; } catch { keyed = null; }
+  return keyed?.verdict === 'red' && Array.isArray(keyed.failing) && keyed.failing.length ? keyed.failing : null;
 }
 
 /** One line per compared case, saying whether main fails it too. */
@@ -312,7 +357,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   const compared = green ? null : compareGateWithMain(board, receipt, main, compareWithMain);
   const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true);
   const recorded = compared ? { cases: compared.cases } : {};
-  let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared)] : failingParts(receipt);
+  let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
+    ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : failingParts(receipt);
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
@@ -417,8 +463,60 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
-  if (kind === MAIN_TEST_KIND) return applyMainTestReceipt(board, posted);
+  if (kind === MAIN_TEST_KIND) {
+    const applied = applyMainTestReceipt(board, posted);
+    if (applied.applied) settleWaitingGates(board, posted.job, ports);
+    return applied;
+  }
   return { applied: false, outcome: 'recorded' };
+}
+
+/**
+ * Record a red land receipt on each unmerged item the job named, as a note leading with the receipt's first
+ * line (the run-tests refusal or first failing test), so `pullboard show` prints why the landing went red.
+ * Why: the receipt otherwise stayed on the job, and the item sat accepted with no word of its red landing.
+ */
+function recordRedLanding(board, job, named, receipt) {
+  const first = String(receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
+  for (const id of named) {
+    const item = store.getItem(board, id);
+    if (!item || item.item_merged_commit) continue;
+    store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} red: ${first}`.slice(0, 600) });
+  }
+}
+
+/**
+ * Re-apply each red gate receipt waiting on main's receipts at the main a main-test job just recorded: the item's
+ * newest gate job at that same main, red in a case of the job's file, still claimed by its submitter. It re-applies
+ * only once every one of its cases is now keyed, so it turns green when all also fail on main, or red with the new ones.
+ * Why: each resubmit merges a newer main, so the comparison key moved before the queued job recorded and the red
+ * never settled (#6229). Only the gate's own main is read, never another main commit [C7,P7].
+ *
+ * @param {any} board
+ * @param {string} mainTest - The main-test job whose receipt was just recorded.
+ * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} ports
+ * @returns {string[]} the gate jobs re-applied
+ */
+export function settleWaitingGates(board, mainTest, { compareWithMain = null } = {}) {
+  const { db } = board;
+  const main = db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
+  // The keyed main receipt is step 0; a runner's own posts sit above it.
+  const keyed = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(mainTest);
+  const file = keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
+  if (typeof compareWithMain !== 'function' || !SHA.test(String(main ?? '')) || typeof file !== 'string') return [];
+  const settled = [];
+  // Any base: the lookup finds this receipt for a gate on an earlier main where the file is unchanged, and skips the rest (#6333).
+  for (const { job_id: job, job_item: item, job_base } of db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300").all()) {
+    const receipt = postedReceipt(db, job)?.receipt;
+    const gate = receipt?.gate;
+    if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
+    if (!(gate.phases ?? []).some(phase => phase.status !== 0 && (phase.failures ?? []).some(row => row?.file === file))) continue;
+    if (store.getItem(board, item)?.item_status !== 'claimed') continue;
+    const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
+    if (!compared || compared.cases.some(row => row.onMain === null)) continue;
+    if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
+  }
+  return settled;
 }
 
 /**
@@ -431,9 +529,10 @@ export function applyJobReceipt(board, posted, ports = {}) {
  * @returns {{ applied: boolean, outcome: string, merged?: number[] }}
  */
 export function applyLandingReceipt(board, { job, receipt }) {
-  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
+  if (receipt?.outcome === 'red') recordRedLanding(board, job, named, receipt);
+  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
   const merged = [];
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;

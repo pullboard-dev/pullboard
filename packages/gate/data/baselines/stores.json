@@ -320,6 +320,10 @@
       "kind": "json",
       "owner": "packages/gate/src/io/paths/lint.js"
     },
+    "model-names.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/cost/tab.js"
+    },
     "model-tiers.json": {
       "kind": "json",
       "owner": "packages/config/src/io/main.js"
@@ -527,6 +531,10 @@
     "runner-runtimes.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/runtime.js"
+    },
+    "runner-services.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/service.js"
     },
     "runners.json": {
       "kind": "json",
@@ -966,7 +974,7 @@
     },
     "test-journeys.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/test/split.js"
+      "owner": "packages/gate/src/io/test/derived.js"
     },
     "test-path-tables.json": {
       "kind": "json",

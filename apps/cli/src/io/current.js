@@ -5,6 +5,7 @@
  * CLI and its hooks must reach them at once, not at their next rebase.
  */
 import { spawnSync } from 'node:child_process';
+import { gitLocation } from './resident/client.js';
 import {
   accessSync,
   constants,
@@ -47,7 +48,10 @@ export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   try { marker = statSync(join(own, '.git')); } catch { return null; }
   if (!marker.isFile()) return null;
   if (here !== own && !here.startsWith(own + sep) && !sameRepository(own, here)) return null;
-  const located = git(own, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
+  // Git's own files name the checkout and its Git directories; Git is asked only when they cannot (#6170).
+  const files = gitLocation(own, { walk: false });
+  const located = files ? { status: 0, stdout: `${files.root}\n${files.gitDir}\n${files.commonDir}` }
+    : git(own, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
   if (located.status !== 0) return { why: 'git could not locate the main checkout' };
   const [top, gitDir, commonDir] = located.stdout.trim().split('\n');
   if (!top || !gitDir || !commonDir || real(top) !== own || real(gitDir) === real(commonDir)
@@ -64,6 +68,8 @@ export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
 /** Whether two checkouts share one Git common directory, so they are checkouts of the same repository. */
 function sameRepository(own, here) {
   const common = cwd => {
+    const files = gitLocation(cwd);
+    if (files) return real(files.commonDir);
     const result = git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
     return result.status === 0 ? real(result.stdout.trim()) : null;
   };
