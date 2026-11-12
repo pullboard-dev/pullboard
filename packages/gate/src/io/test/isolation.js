@@ -19,6 +19,7 @@ import { declareKnownNodeOption } from '../../../../kernel/index.js';
 import { declareNodeOptionProofs } from '../../../../kernel/index.js';
 import { foreignNodeOptions as classifyNodeOptions } from '../../../../kernel/index.js';
 import { gateRuntimeCaptureSource } from '../../logic/preload.js';
+import { PULLED_JOB_ENV } from './concurrency.js';
 import { childJournalPreloadSource } from '../journal/source.js';
 
 /** Stands in for the OS account home when machine state falls back to it (packages/resources/src/io/home.js). */
@@ -75,6 +76,8 @@ export function isolateTestMachine(env, sandbox) {
   // A runner sets CI=1 and a person may pin their view port; tests that care set either explicitly.
   delete env.CI;
   delete env.PULLBOARD_VIEW_PORT;
+  // A pulled job's marker widens only the run that holds the runner, never a run a test starts.
+  delete env[PULLED_JOB_ENV];
   return env;
 }
 

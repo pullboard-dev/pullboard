@@ -79,6 +79,7 @@ const OPTIONS = {
   owner: { type: 'string' },
   directory: { type: 'string' },
   once: { type: 'boolean' },
+  jobs: { type: 'string' },
   timeout: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },

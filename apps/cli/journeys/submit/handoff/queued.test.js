@@ -16,6 +16,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import {
@@ -111,4 +112,16 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
   assert.equal(existsSync(join(tools, 'apps/cli/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
+});
+
+test('clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
+  const box = fixture(t);
+  for (const name of AGENT_SHELL_MARKERS) delete box.env[name];
+  const ran = box.run(box.web, 'submit', String(box.id), '--wait', '--no-next');
+  assert.equal(ran.code, 0, `${ran.out}${ran.err}`);
+  assert.match(ran.out, new RegExp(`queued gate for #${box.id}`, 'u'), 'submit queued the gate');
+  assert.match(ran.out, /never blocks on its own gate; a red gate comes back through pullboard next/u, 'the reply says the result comes through next');
+  assert.match(ran.out, new RegExp(`pullboard show ${box.id}`, 'u'), 'the reply prints the command that reads the result');
+  assert.equal(existsSync(box.release), false, 'submit --wait returned while the gate was still held');
+  assert.ok(['queued', 'running'].includes(state(box, box.id).job?.state), 'the gate had not finished when submit returned');
 });

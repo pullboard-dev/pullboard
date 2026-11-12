@@ -319,7 +319,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   if (apiVersion === 1) box.legacySnapshotApi(); // Keep explicit historical and current paged wire coverage.
   const initialTitle = 'PHONE_CHECKPOINT_INITIAL_1113';
   const pendingTitles = ['PHONE_PENDING_ONE_1113', 'PHONE_PENDING_TWO_1113', 'PHONE_PENDING_THREE_1113'];
-  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initialTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
