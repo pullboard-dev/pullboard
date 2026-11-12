@@ -1451,9 +1451,6 @@
   "apps/cli/journeys/shout/words.test.js": {
     "launch": 13
   },
-  "apps/cli/journeys/show/calibration.test.js": {
-    "launch": 9
-  },
   "apps/cli/journeys/show/check.test.js": {
     "launch": 2
   },
@@ -1463,29 +1460,14 @@
   "apps/cli/journeys/show/dollars.test.js": {
     "launch": 11
   },
-  "apps/cli/journeys/show/failures.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/show/folder.test.js": {
     "launch": 29
-  },
-  "apps/cli/journeys/show/history.test.js": {
-    "launch": 12
   },
   "apps/cli/journeys/show/main.test.js": {
     "launch": 13
   },
   "apps/cli/journeys/show/policy/dependency.test.js": {
     "launch": 10
-  },
-  "apps/cli/journeys/show/policy/e2e.test.js": {
-    "launch": 25
-  },
-  "apps/cli/journeys/show/policy/refs.test.js": {
-    "launch": 11
-  },
-  "apps/cli/journeys/show/policy/trusted.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/show/provenance.test.js": {
     "launch": 12
