@@ -62,7 +62,7 @@ test('clause 2: next skips the item naming a missing path, claims the next and t
   assert.equal(inbox.split('next passes over #1 (BAR_PATH_MISSING)').length - 1, 1, inbox);
 });
 
-test('next --take skips the item naming a missing path, takes the next and tells the coordinator once [C7,B7]', async () => {
+test('clause 1: next --take skips the item naming a missing path, takes the next and tells the coordinator once [C7,B7]', async () => {
   const box = retiredPathBoard();
   const first = await success(box, box.web, 'next', '--take');
   assert.match(first.out, /skipped #1: \[BAR_PATH_MISSING\]/u, first.out);
