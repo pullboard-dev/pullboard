@@ -660,7 +660,7 @@
     "launch": 9
   },
   "apps/cli/journeys/move/cells.test.js": {
-    "launch": 6
+    "launch": 3
   },
   "apps/cli/journeys/next/checkout.test.js": {
     "launch": 8
