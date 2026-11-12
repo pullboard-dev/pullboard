@@ -354,9 +354,35 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
+/**
+ * Write the proof-ledger rows one gate or shard receipt carries: one test_result row per file its phases ran under a
+ * key, pass or fail by file, whatever the job's own outcome or its item's state. Why before the apply: proof is proof,
+ * so a red or stale job's green files still count, and the shard combine never loses a shard's files [P7,CD2].
+ *
+ * @param {any} board
+ * @param {{ job: string, attempt?: number, receipt: Record<string, any> }} posted
+ * @param {'pulled' | 'shard'} origin
+ * @returns {number} rows written
+ */
+export function recordReceiptLedger(board, { job, attempt = 0, receipt }, origin) {
+  const runner = postedReceipt(board.db, job)?.runner ?? 'unknown';
+  const gate = receipt?.gate ?? {};
+  const commit = SHA.test(String(gate.source ?? '')) ? gate.source : null;
+  const rows = [];
+  for (const phase of Array.isArray(gate.phases) ? gate.phases : []) {
+    const { contexts, files } = phase?.ledger ?? {};
+    if (!Array.isArray(contexts) || !Array.isArray(files)) continue;
+    for (const [file, inputKey, context, status] of files.filter(Array.isArray)) {
+      rows.push({ file, inputKey, command: String(phase.role ?? 'proof'), context: contexts[context], status });
+    }
+  }
+  return store.recordTestResults(board.db, { receipt: `${job}#${attempt}`, origin: `${origin}:${runner}`, commit, rows });
+}
+
 /** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
 export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
+  if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
