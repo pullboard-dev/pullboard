@@ -119,7 +119,7 @@ test('pull-dispatch leases on the board number one runner once per runner, shard
     claimJob(board.db, { runner, capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
   }
   const live = publicLiveRunners(common, { resources, configured: [], openBoardReadOnly: store.openBoardReadOnly });
-  const pulled = live.runners.filter(runner => runner.jobs.some(job => ['gate', 'test run'].includes(job.kind) && job.item !== 5774));
+  const pulled = live.runners.filter(runner => runner.jobs.some(job => ['gate', 'test run'].includes(job.kind) && [7, null].includes(job.item)));
   assert.deepEqual(pulled.map(runner => runner.jobs.map(job => job.kind)), [['gate', 'gate'], ['test run']], 'the two shards of one restarted runner sit on one numbered entry');
   assert.equal(JSON.stringify(live).includes('mill'), false, 'no runner name leaves the machine');
 });
