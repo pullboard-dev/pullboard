@@ -9,6 +9,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runLandingCliSmoke } from '../../../../packages/landing/index.js';
@@ -20,6 +22,11 @@ import {
   privateFixtureFiles,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
+
+/** The folder's path with its parent resolved: the folder itself may be gone by the time it is checked. */
+function resolved(folder) {
+  return join(realpathSync(dirname(folder)), basename(folder));
+}
 
 /** Runs the body with PULLBOARD_SCRATCH set (or cleared), then restores it. */
 async function withScratch(value, body) {
@@ -76,11 +83,11 @@ test('with scratch set, landing smoke, rigor proof and spec signature folders ar
   const repo = temporaryRepository(t, 'pullboard-scratch-rigor-');
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: repo });
   const run = await withScratch(scratch, () => runCheckAt(repo, head, 'unused', { executable: process.execPath, args: ['-e', 'console.log(process.cwd())'] }, { parseProcessCensus }));
-  assert.ok(realpathSync(run.stdout.trim()).startsWith(`${scratch}/pullboard-rigor-proof-`), run.stdout);
+  assert.ok(resolved(run.stdout.trim()).startsWith(`${scratch}/pullboard-rigor-proof-`), run.stdout);
 });
 
 test('with scratch unset, the folders are os.tmpdir() folders as before [C7]', async t => {
   const { root } = box(t);
   const folder = await withScratch(undefined, () => smokeFolder(candidate(root)));
-  assert.ok(realpathSync(folder).startsWith(join(realpathSync(tmpdir()), 'pullboard-landing-smoke-')), folder);
+  assert.ok(resolved(folder).startsWith(join(realpathSync(tmpdir()), 'pullboard-landing-smoke-')), folder);
 });
