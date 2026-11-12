@@ -8,11 +8,14 @@ import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { selectedToolEntry } from '../../../../src/io/pinned/tool/build.js';
+import { toolBuildLocation } from '../../../../src/io/pinned/tool/build.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
 
 /** Run a command and return its trimmed output. */
 function run(cwd, command, args) {
@@ -42,4 +45,26 @@ test('clause 1: selectedToolEntry reads the toolBuild policy with one git show p
     const shows = readFileSync(log, 'utf8').split('\n').filter((line) => line.includes('show') && line.includes('pullboard.json'));
     assert.equal(shows.length, 1);
   } finally { rmSync(box, { recursive: true, force: true }); }
+});
+
+test('tool discovery keeps symlinked and explicitly selected worktrees [C7]', () => {
+  const box = privateFixtureFiles('tool-discovery-').root;
+  const oldDir = process.env.GIT_DIR, oldWorkTree = process.env.GIT_WORK_TREE;
+  try {
+    delete process.env.GIT_DIR;
+    delete process.env.GIT_WORK_TREE;
+    const repo = join(box, 'repo'), nested = join(repo, 'nested'), alias = join(box, 'alias');
+    mkdirSync(nested, { recursive: true });
+    run(repo, 'git', ['init', '-q']);
+    symlinkSync(nested, alias, 'dir');
+    assert.equal(toolBuildLocation(box), null, 'a directory outside a worktree has no tool build');
+    assert.equal(toolBuildLocation(alias).root, repo, 'a symlink into a worktree finds the board');
+    process.env.GIT_DIR = join(repo, '.git');
+    process.env.GIT_WORK_TREE = repo;
+    assert.equal(toolBuildLocation(box).root, repo, 'an explicit Git selector still reaches its worktree');
+  } finally {
+    if (oldDir === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = oldDir;
+    if (oldWorkTree === undefined) delete process.env.GIT_WORK_TREE; else process.env.GIT_WORK_TREE = oldWorkTree;
+    rmSync(box, { recursive: true, force: true });
+  }
 });
