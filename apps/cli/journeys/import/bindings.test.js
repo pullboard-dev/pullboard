@@ -51,15 +51,20 @@ test('a staged two-binding import line lands split and staged, with the same imp
   assert.deepEqual(importsIn([TWO])[0], importsIn([staged])[0], 'the module still imports the same specifiers');
 });
 
-test('a partly staged file is left alone and a clean file is not rewritten [C7]', t => {
+test('clause 1: a partly staged file is fixed in the index and working tree alike, its unstaged edit kept unstaged, and a clean file is not rewritten [C7]', t => {
   const box = repository(t);
   box.put('src/two.js', TWO);
   box.put('src/clean.js', "import { only } from './x.js';\nexport { only };\n");
   box.git('add', '-A');
   writeFileSync(join(box.root, 'src/two.js'), TWO + '// local edit\n');
   const notes = fixStagedImportBindings(box.root);
-  assert.deepEqual(notes, []);
-  assert.equal(readFileSync(join(box.root, 'src/two.js'), 'utf8'), TWO + '// local edit\n');
+  assert.deepEqual(notes, ['split multi-binding import lines in src/two.js in the index and the working tree; their unstaged edits stay unstaged']);
+  const split = splitImportBindings(TWO).source;
+  assert.equal(box.git('show', ':src/two.js').trimEnd(), split.trimEnd(), 'the staged bytes are split');
+  assert.equal(readFileSync(join(box.root, 'src/two.js'), 'utf8'), split + '// local edit\n', 'the working tree is split and keeps its edit');
+  assert.match(box.git('diff'), /^\+\/\/ local edit$/mu, 'only the local edit stays unstaged');
+  assert.equal(box.git('diff').split('\n').filter(line => /^[+-](?![+-])/u.test(line)).length, 1);
+  assert.deepEqual(fixStagedImportBindings(box.root), [], 'a second run finds nothing to fix');
 });
 
 test('splitting handles multi-line import blocks and leaves other lines alone [C7]', () => {

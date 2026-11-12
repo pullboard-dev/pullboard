@@ -9,6 +9,8 @@ export {
   nextTake,
   closePassingMainReds,
   nextProgress,
+  UNBUILDABLE,
+  reportUnbuildableOnce,
 } from './src/io/take.js';
 export {
   runPushReceiptSmoke,
