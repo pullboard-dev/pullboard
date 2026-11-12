@@ -12,6 +12,7 @@ import { fixture } from '../../tests/fixtures/submit/outcome.js';
 import { submittedProof } from '../../tests/fixtures/submit/outcome.js';
 import { put } from '../../tests/fixtures/submit/outcome.js';
 import { source } from '../../tests/fixtures/submit/outcome.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
 import { SUITE_TIMING_PREFIX } from '../../../../packages/gate/index.js';
 import { timingAccountingStages } from '../../../../packages/gate/index.js';
@@ -74,6 +75,8 @@ function remote(box) {
   const bin = join(box.directory, 'remote-bin'), worker = join(box.directory, 'worker'), home = join(box.directory, 'worker-home');
   const machineHome = join(home, '.pullboard'), requests = join(box.directory, 'requests.jsonl');
   for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
+  // The worker side runs the controller too, so its machine home pins controller dispatch [P7].
+  fixtureMachineSettings(machineHome, { gate: { runnerDispatch: 'controller' } });
   box.env.PATH = bin + ':' + box.env.PATH;
   installSshStandIn({ bin, worker, home, machineHome, requests });
   let result = cli(box, box.root, 'runner', 'add', HOST, '--slots', '2', '--browser', '1');
