@@ -501,9 +501,8 @@ function render() {
   const modelLabel = value => {
     const model = String(value || 'unknown').trim();
     if (privateCost) return modelPresentation(model).name;
-    if (/^gpt[- ]6[.]1[- ]sol$/i.test(model)) return 'GPT-6.1 Sol';
-    if (/^(?:claude[- ]?)?opus[- ]5[.]5$/i.test(model)) return 'Claude Opus 5.5';
-    if (/^codex$/i.test(model)) return 'Codex';
+    const rule = modelLabelRules.find(entry => new RegExp(entry.match, 'iu').test(model));
+    if (rule) return rule.label;
     return model;
   };
   const modelOf = id => modelLabel(p.agents.find(agent => agent.agent_id === id)?.model);
