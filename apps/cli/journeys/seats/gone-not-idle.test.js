@@ -5,6 +5,7 @@ import { seatSessionGone } from '../../../../packages/seats/index.js';
 import { compareFlowWindows } from '../../../../packages/stats/index.js';
 import {
   BASE,
+  entries,
   fixture,
 } from '../../../../packages/store/tests/fixtures/stats/compare.js';
 
@@ -35,4 +36,16 @@ test('clause 2: a gone seat is not in the idle share, and a live idle builder st
   assert.equal(gone.agentHours, 1, 'and its hour leaves the budget');
   assert.ok(gone.idleHours < live.idleHours, 'its quiet time is no longer idle time');
   assert.ok(gone.idleShare > 0, 'the live builder core-1 is still idle part of the hour');
+});
+
+test('clause 3: an advisor seat is shown separately and never counted as an idle builder [C7]', t => {
+  const box = fixture(t, [...entries(), [0, 'advisor-1', 'join', null, { lane: 'advisor' }], [30, 'advisor-1', 'shout', null, { to: 'coordinator' }]]);
+  const window = { now: NOW, windowMinutes: 60, complete: true };
+  const withAdvisor = compareFlowWindows(box.history(), window).current;
+  const plain = fixture(t);
+  const without = compareFlowWindows(plain.history(), window).current;
+  assert.equal(withAdvisor.observedSeats, without.observedSeats, 'the advisor is not an observed builder seat');
+  assert.equal(withAdvisor.idleHours, without.idleHours, 'the advisor adds no idle time');
+  assert.equal(withAdvisor.advisorSeats, 1);
+  assert.equal(without.advisorSeats, 0);
 });
