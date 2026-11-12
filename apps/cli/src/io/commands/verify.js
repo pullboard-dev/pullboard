@@ -579,7 +579,9 @@ function packetAcceptance(ctx, board, item, decision, reReview, read) {
     return null;
   }
   const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';
-  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
+  const named = [...readClauses].filter(Number.isInteger).sort((x, y) => x - y);
+  const reviewed = named.length ? `clause${named.length > 1 ? 's' : ''} ${named.join(', ')}` : 'the review packet';
+  return `accepted on the gate's green receipts and your reading of ${reviewed}; review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
 }
 
 /** Run `pullboard verify` and return its exit code. */

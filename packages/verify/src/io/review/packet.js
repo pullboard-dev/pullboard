@@ -411,12 +411,15 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   lines.push('clauses:');
   for (const clause of packet.clauses) {
     lines.push(`  ${clause.n}. ${clause.text}`);
-    if (!clause.runs.length) lines.push(`     ${clause.gap}: read this clause and name it in --read`);
+    // A clause with no mapped test says so and sends the reviewer to the diff; a deferred suite keeps its own reason (UX F6).
+    if (!clause.runs.length) lines.push(clause.gap === 'no recorded run'
+      ? '     no test maps to this clause: read the diff for it and name it in --read' : `     ${clause.gap}: read this clause and name it in --read`);
     for (const earlier of clause.earlier ?? []) {
       lines.push(`     ${earlier.stale ? 'stale' : 'earlier head'}: fact ${String(earlier.fact ?? '').slice(0, 8)} cites ${earlier.cited}; at the exact head ${short(packet.head)}: ${earlier.outcomes.map(row => `${row.outcome} "${row.name}"`).join('; ') || 'no named case to match'}${earlier.stale ? ` (clause ${clause.n} is stale: ${earlier.outcomes.some(row => row.outcome === 'missing') ? 'a named case is missing from the exact-head receipt' : 'the fact names no case the exact-head receipt answers'})` : ''}`);
     }
     for (const run of clause.runs) {
-      lines.push(`     ${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
+      const covered = run.why === "the item's check ran" && run.result === 'pass' ? `covered by the gate's item check (receipt ${run.receipt.slice(0, 8)}); ` : '';
+      lines.push(`     ${covered}${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
     }
   }
   lines.push(packet.failures.length ? 'failures at head:' : 'failures at head: none');

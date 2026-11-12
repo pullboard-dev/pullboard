@@ -172,7 +172,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(packet.clauses[2].gap, 'no recorded run');
   assert.deepEqual(packet.failures, []);
   assert.deepEqual(packet.cells, { before: 0, after: 0, added: [], removed: [], touched: [] });
-  assert.match(review.out, /^ {2}3\. Old browsers fall back to plain text\.\n {5}no recorded run: read this clause and name it in --read$/mu, 'the uncovered clause is named');
+  assert.match(review.out, /^ {2}3\. Old browsers fall back to plain text\.\n {5}no test maps to this clause: read the diff for it and name it in --read$/mu, 'the uncovered clause is named');
   assert.match(review.out, /^failures at head: none$/mu);
   const rerun = packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n);
   assert.ok(rerun.includes(3) && !rerun.includes(1) && !rerun.includes(2) && !rerun.includes(4));
@@ -184,7 +184,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   const offer = ok(box, reviewer, 'next', '--verify', String(id));
   assert.match(offer.out, /^next to verify: #\d+ Greet the visitor/mu);
   assert.match(offer.out, new RegExp(`^review packet #${id} at ${head.slice(0, 12)}`, 'mu'), 'next --verify prints the packet with the offer');
-  assert.match(offer.out, /^ {5}no recorded run: read this clause and name it in --read$/mu);
+  assert.match(offer.out, /^ {5}no test maps to this clause: read the diff for it and name it in --read$/mu);
 
   const refused = box.run(reviewer, 'verify', String(id), 'accept', '--read', '9', '--note', 'read the packet');
   assert.notEqual(refused.code, 0, 'a clause number outside the packet is refused');
