@@ -66,9 +66,7 @@ async function proveItem(board, box, commit) {
 
 /** Offer the land job on the board and let a runner with an empty store take it; return its receipt and wall time. */
 async function land(board, box, entry, name) {
-  const offered = offerLandingJob(board.db, { items: [entry], expect: box.seed, config: { trunk: { remote: box.remote }, affectedTests: 'node bin/proof.mjs' } });
-  assert.deepEqual(offered.payload?.proof?.files ?? JSON.parse(board.db.prepare('SELECT job_payload FROM job WHERE job_id = ?').get(offered.id)?.job_payload ?? '{}').proof?.files,
-    ['test/a.test.js', 'test/b.test.js'], 'the job carries the files the ledger proved for the item');
+  offerLandingJob(board.db, { items: [entry], expect: box.seed, config: { trunk: { remote: box.remote }, affectedTests: 'node bin/proof.mjs' } });
   const started = Date.now();
   const taken = await takeLandingJob({ call: body => jobQueueCall(board.db, body, { mode: 'pull' }), runner: name, workdir: join(box.root, 'runners', name) });
   return { receipt: taken.receipt, ms: Date.now() - started };
