@@ -155,13 +155,14 @@ test('next claims the next free item in its folder; --verify names the next to c
 
 test('next --verify can reserve a named submitted review and default to the lowest free one [V15]', async () => {
   const box = project();
-  const reviewers = ['api-1', 'api-2'].map(async (name) => {
+  const reviewers = [];
+  for (const name of ['api-1', 'api-2']) {
     const path = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path);
     const joined = await fixtureJoin(box.runIn, path, 'api', '--route', 'strong');
     assert.equal(joined.code, 0, joined.err);
-    return path;
-  });
+    reviewers.push(path);
+  }
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let first;
   let second;

@@ -13,6 +13,7 @@ import { readSignoffs } from '../../../../../packages/spec/index.js';
 import { SIGNOFFS_FILE } from '../../../../../packages/spec/index.js';
 import { SPEC } from '../../../tests/fixtures/spec/box.js';
 import { specBox } from '../../../tests/fixtures/spec/box.js';
+import { runInProcessAt } from '../../../tests/fixtures/spec/box.js';
 
 test('signoff prints cited tests, preserves its note and escapes that note in the spec view [S14, S15]', async (t) => {
   const box = specBox(t);
