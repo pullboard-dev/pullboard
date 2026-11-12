@@ -63,7 +63,7 @@ test('a scratch root on another volume never fails on EXDEV: the rigor proof fol
   const { parseProcessCensus } = await import('../../../../packages/kernel/src/logic/census.js');
   const run = await runCheckAt(root, commit, 'unused', { executable: process.execPath, args: ['-e', 'process.stdout.write(process.cwd())'] }, { parseProcessCensus });
   assert.equal(run.exit, 0, run.stderr);
-  assert.ok(realpathSync(run.stdout).startsWith(`${scratch}${sep}pullboard-rigor-proof-`), `${run.stdout} is under ${scratch}`);
+  assert.ok(run.stdout.startsWith(`${scratch}${sep}pullboard-rigor-proof-`), `${run.stdout} is under ${scratch}`);
 });
 
 test('a scratch root on another volume never fails on EXDEV: the sentinel trunk folder sits under scratch [C7]', async t => {
