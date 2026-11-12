@@ -23,7 +23,6 @@ import {
   createE2eHelpers,
   FIXTURE_MODEL,
 } from '../../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
@@ -145,7 +144,7 @@ test('clause 1: with no lsof on the PATH a clean idle item folder is still adopt
   const second = seat(box, 'web-b', 'session-b');
   const claimed = withoutLsof(box, () => {
     assert.equal(box.tryGit(box.repo, 'version').status, 0, 'git still runs without lsof');
-    assert.equal(runFixtureChild('lsof', ['-v'], { env: box.env, encoding: 'utf8' }).error?.code, 'ENOENT', 'lsof is absent from the PATH');
+    assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
     return as(box, 'session-b', () => box.run(second.root, 'claim', id));
   });
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
