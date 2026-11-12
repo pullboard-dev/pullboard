@@ -1,3 +1,6 @@
+import { itemStageKey } from "../../logic/pipeline/model.js";
+import { itemStagePresentation } from "../../logic/pipeline/model.js";
+
 /** Project the Dashboard from one authoritative item snapshot and its complete ordered event prefix [N26]. */
 export function dashboardModel(project, history, { now, complete = true } = {}) {
   if (!Number.isFinite(now)) throw new TypeError('Dashboard projection requires an explicit clock reading');
@@ -11,6 +14,13 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     reviewer: item.status === 'submitted' ? item.reviewer || item.claim?.by : null,
     reviewUntil: item.status === 'submitted' ? item.reviewUntil || item.claim?.until : null }));
   const byId = new Map(items.map(item => [item.id, item]));
+  const stageCounts = Object.fromEntries(['gated','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
+  // The same stage words and keys the Items Pipeline groups by, so the strip and the pipeline agree.
+  for (const item of items) {
+    if (item.status === 'withdrawn') continue;
+    const key = itemStageKey(itemStagePresentation(item, { gated: Boolean(item.blockedBy?.length || item.heldReason || item.laneHoldReason), landingBatchAt: item.landingBatchAt }).stage);
+    if (key in stageCounts) stageCounts[key]++;
+  }
   const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
   const prefix = project.sequence ?? Infinity;
   const events = history.filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
@@ -165,6 +175,7 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     .toSorted((a,b) => (order.get(a.id) ?? Infinity)-(order.get(b.id) ?? Infinity) || a.id-b.id);
   return { now, start, complete, pace, peak: complete ? peakAgents : null, claims, reviewing, agents, milestone, comparison: project.statsComparison ?? null,
     pipeline: project.statsPipeline ?? null,
+    stageCounts,
     inFlight: { building: claims.filter(item => milestoneIds.has(item.id)), review: reviewing.filter(item => milestoneIds.has(item.id)) },
     landed: [...landed].map(([id, at]) => ({ item: byId.get(id), at })).sort((a,b) => b.at-a.at),
     bins, landing, inReview, next, last,

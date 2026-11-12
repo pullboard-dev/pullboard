@@ -2,6 +2,7 @@
 import * as store from '../../../../../packages/store/index.js';
 import {
   actOn,
+  briefArg,
   freezer,
   idArg,
   ordered,
@@ -27,9 +28,14 @@ export async function run(io, { first, second, values }) {
     const lane = values.lane ?? (ctx.config.lanes[me.lane] ? me.lane : Object.keys(ctx.config.lanes)[0]);
     if (!lane || !ctx.config.lanes[lane]) throw new Refused('NO_LANE', 'choose a configured lane with --lane before intake');
     if (source.kind === 'pull-request' && (!values.criterion?.trim() || !values.check?.trim())) throw new Refused('CHECK_REQUIRED', 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout');
-    const item = { lane, title: source.title, criterion: values.criterion ?? '', check: values.check, specIds: [], route: values.route ?? (values.check?.trim() ? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)) : 'strong') };
+    const brief = briefArg(io, values) ?? '';
+    const item = { lane, title: source.title, criterion: values.criterion ?? '', check: values.check, brief, specIds: [], route: values.route ?? (values.check?.trim() ? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)) : 'strong') };
     const frozen = source.kind === 'pull-request' ? freezer(ctx, { board, captureVerifyPolicy: true })({ item_title: item.title, item_criterion: item.criterion, item_check: item.check, item_spec_ids: '' }) : null;
-    const id = await ordered(ctx, board, 'intakeOutside', [{ agentId: me.id, source, item, frozen }]);
+    const id = await ordered(ctx, board, 'intakeOutside', [{ agentId: me.id, source, item, frozen }]).catch(error => {
+      // Intake files on the mid route, which must be buildable cold; edit has no id to name yet, so point at --brief [#5375].
+      if (error?.code === 'NO_BRIEF' && !brief.trim()) throw new Refused('NO_BRIEF', `${error.message.replace(/^\[NO_BRIEF\] /u, '')}; add --brief "Files: ... Test: ..." to intake`, 'pullboard intake <pr> --criterion "..." --check "..." --brief "Files: ... Test: ..."');
+      throw error;
+    });
     io.result?.({ item: store.getItem(board, id) });
     io.say(`intaken ${source.kind} #${source.number} as #${id}; outside code is verified only with --sandbox`);
     return 0;
