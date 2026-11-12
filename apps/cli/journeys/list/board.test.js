@@ -23,60 +23,60 @@ after(e2e.cleanup);
 
 const { SPEC, project, commitFile } = e2e;
 
-test('items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', () => {
+test('items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', async () => {
   const box = project();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1'));
   assert.equal(added.code, 0, added.err);
-  assert.match(box.run(box.repo, 'show', '1').out, /\[doctrine:PB1\]/u);
+  assert.match((await box.runLocal(box.repo, 'show', '1')).out, /\[doctrine:PB1\]/u);
 
   const message = join(box.dir, 'message.txt');
   writeFileSync(message, 'feat(web): use the inherited rule [doctrine:PB1]\n');
-  const namespaced = box.run(box.repo, 'hook', 'commit-msg', message);
+  const namespaced = (await box.runLocal(box.repo, 'hook', 'commit-msg', message));
   assert.equal(namespaced.code, 0, namespaced.err);
   assert.doesNotMatch(namespaced.out, /warning:/u);
 
   const doctrine = readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8');
   writeFileSync(join(box.repo, 'DOCTRINE.md'), `${doctrine}\n## Local\n- G1 [draft] A local rule colliding with SPEC.md.\n`);
   writeFileSync(message, 'feat(web): use the product rule [G1]\n');
-  const warning = box.run(box.repo, 'hook', 'commit-msg', message);
+  const warning = (await box.runLocal(box.repo, 'hook', 'commit-msg', message));
   assert.equal(warning.code, 0, warning.err);
   assert.match(warning.out, /warning: G1 is a known collision at SPEC\.md:4 and DOCTRINE\.md:\d+; bare ids cite SPEC\.md/u);
   assert.match(warning.out, /use doctrine:G1 for a doctrine row/u);
-  const check = box.run(box.repo, 'spec', 'check');
+  const check = (await box.runLocal(box.repo, 'spec', 'check'));
   assert.equal(check.code, 1);
   assert.match(check.out, /duplicate id; also appears at DOCTRINE\.md:/u);
   const legacy = readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8');
   rmSync(join(box.repo, 'DOCTRINE.md'));
   writeFileSync(join(box.repo, 'PRACTICE.md'), legacy);
-  const legacyCheck = box.run(box.repo, 'spec', 'check');
+  const legacyCheck = (await box.runLocal(box.repo, 'spec', 'check'));
   assert.equal(legacyCheck.code, 1);
   assert.match(legacyCheck.out, /SPEC\.md:4 G1 error: duplicate id; also appears at PRACTICE\.md:\d+/u);
   assert.match(legacyCheck.out, /PRACTICE\.md:\d+ G1 error: duplicate id; also appears at SPEC\.md:4/u);
   assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
-test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
+test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', async () => {
   const box = project();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Build', 'the', 'page', '--specs', 'G1')).out.trim().split('\n');
   assert.equal(added[0], '#1');
   assert.match(added.at(-1), /^next: pullboard next$/u);
-  assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
+  assert.match((await box.runLocal(box.web, 'list')).out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
-  assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(fixture-model\) \(web lane\)/);
+  assert.match((await box.runLocal(box.repo, 'whoami')).out, /^coordinator/);
+  assert.match((await box.runLocal(box.web, 'whoami')).out, /^web-1 \(fixture-model\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
   assert.match(fixtureJoin(box.run, second, 'web', '--model', 'Fixture').out, /joined as web-2/);
-  assert.match(box.run(second, 'whoami').out, /^web-2 \(Fixture\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(fixture-model\) \(web lane\)/, 'and the first stays itself');
-  assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
+  assert.match((await box.runLocal(second, 'whoami')).out, /^web-2 \(Fixture\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match((await box.runLocal(box.web, 'whoami')).out, /^web-1 \(fixture-model\) \(web lane\)/, 'and the first stays itself');
+  assert.match((await box.runLocal(box.web, 'init')).err, /NOT_MAIN/);
   assert.match(fixtureJoin(box.run, box.repo, 'web').err, /MAIN_IS_COORDINATOR/);
 });
 
-test('items cite spec ids that exist [B6]', () => {
+test('items cite spec ids that exist [B6]', async () => {
   const box = project();
-  const refused = fixtureAdd(box.run, box.repo, 'web', 'Ghost', '--specs', 'G9');
+  const refused = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Ghost', '--specs', 'G9'));
   assert.equal(refused.code, 1);
   assert.match(refused.err, /UNKNOWN_SPEC\] G9 is not in SPEC.md/);
 });
