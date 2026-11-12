@@ -228,6 +228,7 @@
         "apps/cli/journeys/fact/snapshot.test.js",
         "apps/cli/journeys/fact/snapshot/",
         "apps/cli/journeys/hold/demo.test.js",
+        "apps/cli/journeys/hold/demo-widths.test.js",
         "apps/cli/journeys/inbox/projects.test.js",
         "apps/cli/journeys/inbox/sidebar.test.js",
         "apps/cli/journeys/inbox/tabs.test.js",

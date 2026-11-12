@@ -824,10 +824,6 @@
       "cells": 3,
       "deep": 3
     },
-    "apps/cli/tests/fixtures/land/batch.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/land/board.js": {
       "cells": 1,
       "deep": 0
