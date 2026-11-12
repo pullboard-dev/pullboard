@@ -168,6 +168,7 @@ function phaseEvidence(t, { timedOut = false } = {}) {
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
+    // One slot each, as on main: the frozen check and the proof take a runner apiece, and a runner whose cleanup is unverified has no second slot to take the proof again (#3325).
     runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 1, browser: 1 })),
     gate: { runnersFirst: true, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner: false } }));
   writeFileSync(join(root, 'source.txt'), 'committed phase evidence source');
@@ -191,7 +192,8 @@ const executionServices = { runners: { ...runnerExecutionServices(),
   refreshRunnerMeasurements: async () => {},
   runOnRunnerAsync: async (_root, command, options) => {
     calls.push({ command, host: options.runner.host });
-    if (${JSON.stringify(timedOut)}) return command === 'fixture-check' && options.runner.host === 'first-runner'
+    // The frozen check and the proof hold separate leases at once, so the check times out on whichever runner it gets.
+    if (${JSON.stringify(timedOut)}) return command === 'fixture-check'
       ? { isGreen: false, timedOut: true, exitCode: 124, output }
       : { isGreen: true, exitCode: 0, output: 'ok' };
     if (command === 'fixture-check') return { isGreen: false, exitCode: 1, output };
@@ -216,9 +218,11 @@ process.stdout.write(JSON.stringify({ code, result, calls, output: readFileSync(
 test('a remote proof refusal preserves the completed frozen-check output [C7,V4]', t => {
   const result = phaseEvidence(t);
   assert.equal(result.code, 'RUNNER_UNAVAILABLE');
-  assert.deepEqual(result.calls.map(call => call.command),
-    ['fixture-check', "fixture-proof './test/proof.test.js'", 'fixture-check', "fixture-proof './test/proof.test.js'"]);
-  assert.equal(new Set(result.calls.map(call => call.host)).size, 2, 'the bounded retry uses the other registered runner');
+  // The frozen check ran once on its own lease and is never rerun; only the refused proof asks the other runner again.
+  const proofs = result.calls.filter(call => call.command !== 'fixture-check');
+  assert.equal(result.calls.filter(call => call.command === 'fixture-check').length, 1);
+  assert.equal(proofs.length, 2, 'the refused proof is asked exactly twice');
+  assert.equal(new Set(proofs.map(call => call.host)).size, 2, 'the bounded retry uses the other registered runner');
   assert.equal(result.output, result.expected, 'the red check remains inspectable after the proof refuses');
   assert.equal(result.holders.length, 0, 'the failed proof leaves no private lease behind');
 });
@@ -229,8 +233,7 @@ test('runSubmitGate records a timeout in its frozen check as the check\'s red, w
   assert.equal(run.code, undefined);
   assert.equal(run.result.isGreen, false);
   assert.equal(run.result.check.green, false);
-  assert.deepEqual(run.calls.map(call => call.command), ['fixture-check', "fixture-proof './test/proof.test.js'"]);
-  assert.deepEqual(run.calls.map(call => call.host), ['first-runner', 'first-runner']);
+  assert.deepEqual(run.calls.map(call => call.command).sort(), ['fixture-check', "fixture-proof './test/proof.test.js'"], 'the timed-out check is not run again');
   assert.equal(run.output, run.expected, 'the timed-out check output is the recorded red');
   assert.equal(run.holders.length, 0, 'the one attempt releases its private lease');
 });
