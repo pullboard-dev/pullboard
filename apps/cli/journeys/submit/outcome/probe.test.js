@@ -17,7 +17,7 @@ test('probe stage timings [V4,B3,H16]', async t => {
   const pending = cliAsync(box, box.builder, 'submit', String(box.item));
   const pid = pending.child.pid;
   pending.child.stderr.on('data', d => mark('ERR ' + String(d).slice(0, 300)));
-  for (const at of [30000, 90000]) setTimeout(() => {
+  for (const at of []) setTimeout(() => {
     mark('LSOF ' + sh(`lsof -p ${pid} 2>/dev/null | awk '{print $4, $9}' | grep -v "txt\\|cwd\\|rtd\\|KQUEUE\\|PIPE\\|^0\\|^1\\|^2" | tail -15`));
     mark('MACHINE ' + sh(`ls -la ${box.env.PULLBOARD_MACHINE_HOME} | tail -12; cat ${box.env.PULLBOARD_MACHINE_HOME}/settings.json`));
     mark('SAMPLE ' + sh(`sample ${pid} 1 -file /dev/stdout 2>&1 | grep -E "^\\s+[0-9]+ [A-Za-z_]" | head -12`));
