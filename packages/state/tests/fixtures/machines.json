@@ -53,7 +53,7 @@
       { "from": "withdrawn", "to": "verified", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" }
     ],
     "guardOnly": [
-      { "case": "verified and merged to open or submitted", "enforced": "packages/store/src/io/board/reopen.js:reopen", "note": "the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it", "harness": "apps/cli/journeys/engine/reopen.test.js" }
+      { "case": "verified and merged to open or submitted", "enforced": "packages/store/src/io/board/reopen.js:reopen", "note": "the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it", "harness": "apps/cli/journeys/reopen/command.test.js" }
     ],
     "unguardedWrites": [
       { "at": "packages/store/src/io/exchange.js:restoreDocument", "what": "board import and relay restore drop the machine triggers and insert any item_status" },

@@ -281,7 +281,7 @@ No move declares these, so the board file refuses them whatever command asks. A 
 | withdrawn → claimed | `storeTriggers` in `packages/state/src/io/machine.js` | `apps/cli/journeys/verify/machine.test.js` |
 | withdrawn → submitted | `storeTriggers` in `packages/state/src/io/machine.js` | `apps/cli/journeys/verify/machine.test.js` |
 | withdrawn → verified | `storeTriggers` in `packages/state/src/io/machine.js` | `apps/cli/journeys/verify/machine.test.js` |
-| verified and merged to open or submitted (guard only: the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it) | `reopen` in `packages/store/src/io/board/reopen.js` | `apps/cli/journeys/engine/reopen.test.js` |
+| verified and merged to open or submitted (guard only: the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it) | `reopen` in `packages/store/src/io/board/reopen.js` | `apps/cli/journeys/reopen/command.test.js` |
 
 #### Writes that bypass the declaration
 
