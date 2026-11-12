@@ -3,6 +3,7 @@ import { missingFactIdentityIndexes } from "../../../../spec/index.js";
 import { ensureGrantActivationIndex } from "../../../../state/light.js";
 import { missingGrantActivationIndex } from "../../../../state/light.js";
 import { ensureJobTables } from "./jobs.js";
+import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { missingJobTables } from "./jobs.js";
 
 /**
@@ -58,6 +59,25 @@ export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   ensureJobTables(db);
+}
+
+/**
+ * True when a hot index, an additive index or a job table is not installed, read without the legacy hand-off check.
+ * Why: a drifted board gains only CREATE IF NOT EXISTS objects, never the hand-off adoption that rewrites rows [A5].
+ */
+export function missingAdditiveSchema(db) {
+  const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
+  return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', 'job_kind_item'].every(installed);
+}
+
+/** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
+export function ensureAdditiveSchema(db) {
+  for (const sql of HOT_INDEXES) db.exec(sql);
+  ensureFactIdentityIndexes(db);
+  ensureGrantActivationIndex(db);
+  db.exec(SESSION_PEERS_SQL);
+  db.exec(JOB_SCHEMA_SQL);
 }
 
 /**

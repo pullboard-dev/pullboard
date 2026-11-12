@@ -24,6 +24,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -39,6 +40,7 @@ import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
 import { selectAffectedTests } from '../../../../gate/index.js';
 import { testClosures } from '../../../../gate/index.js';
+import { ledgerFromOutput } from '../../../../gate/index.js';
 import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { literalShellWords } from '../../../../kernel/index.js';
 import { mappedCheck } from '../../../../codemap/index.js';
@@ -424,6 +426,7 @@ async function runGateGroup(state, label, options) {
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
+  state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
@@ -598,4 +601,14 @@ export function deferredSelections(state, readEvents = id => store.events(state.
     const files = detail?.commit === entry.commit ? detail.submissionProof?.deferredFiles ?? [] : [];
     return files.length ? [{ entry, files }] : [];
   });
+}
+
+/**
+ * The reuse ledger line of a finished gate's log, or a line saying the log holds none. Why: reuse fails open, and a
+ * landing that reused nothing looked only slow until this line named its keyless files and why (#5839).
+ */
+function runLedger(log) {
+  let output = '';
+  try { output = readFileSync(log, 'utf8'); } catch { /* An unreadable log reports no account below. */ }
+  return ledgerFromOutput(output) ?? 'ledger: the run log holds no per-file reuse account';
 }
