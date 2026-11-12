@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -25,7 +26,15 @@ import {
 } from '../../tests/fixtures/api.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { liveFrames } from '../../tests/fixtures/http/stream.js';
+import { largeBoard } from '../../tests/fixtures/board/large.js';
+import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
+import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
+import { residentPoolSize } from '../../src/io/resident/client.js';
+import { residentSocket } from '../../src/io/resident/client.js';
+import { performance } from 'node:perf_hooks';
 
 /** Commit a fixture-owned app change so the native submit move has a real head to capture. */
 function commitAppChange(worktree, filename, env) {
@@ -73,8 +82,12 @@ async function viewHttpBox(t, existing = null) {
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {
   const box = await httpBox(t);
-  const one = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-one');
-  const two = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-two');
+  // This test never registers a runner, so its submit and next --verify must settle in the command: pin controller dispatch [P7].
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
+  const one = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-one');
+  const two = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-two');
   const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1', brief: FIXTURE_BRIEF } });
   assert.equal(added.status, 200);
   assert.equal(added.document.event.event_kind, 'add');
@@ -85,7 +98,7 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   assert.equal(claimed.document.event.event_by, one.agent);
   assert.equal(claimed.document.event.event_kind, 'claim');
   const refused = await box.call(box.path + '/moves', { verb: 'claim', item: id, agent: two.agent });
-  const terminal = box.run(two.path, 'claim', String(id), '--json');
+  const terminal = await runCliInProcess(['claim', String(id), '--json'], { cwd: two.path, env: box.env });
   assert.equal(refused.status, 409);
   assert.equal(terminal.status, 1);
   assert.equal(refused.document.error.code, JSON.parse(terminal.stdout).error.code);
@@ -229,7 +242,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
       return { id: Number(match[1]), document: JSON.parse(match[2]) };
     } finally { clearTimeout(timeout); }
   }
-  const added = box.cli(box.root, 'add', 'app', 'Terminal event', '--criterion', 'done', '--specs', 'G1');
+  const added = await box.cliLocal(box.root, 'add', 'app', 'Terminal event', '--criterion', 'done', '--specs', 'G1');
   const live = await frame();
   assert.equal(live.document.version, 1);
   assert.equal(live.document.event.event_kind, 'add');
@@ -251,8 +264,8 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   const externalConfigPath = join(external.root, 'pullboard.json');
   writeFileSync(externalConfigPath, JSON.stringify({ ...JSON.parse(readFileSync(externalConfigPath, 'utf8')), name: 'Roadmap fixture' }));
   runFixtureGit(['commit', '-q', '-m', 'chore: name the roadmap fixture', '--', 'pullboard.json'], { cwd: external.root, env: external.env, stdio: 'pipe' });
-  const externalAdded = external.cli(external.root, 'add', 'app', 'Roadmap item', '--criterion', 'remain open', '--specs', 'G1');
-  const externalAgent = external.cli(external.root, 'worktree', 'app', '--model', 'fixture-agent');
+  const externalAdded = await external.cliLocal(external.root, 'add', 'app', 'Roadmap item', '--criterion', 'remain open', '--specs', 'G1');
+  const externalAgent = await external.cliLocal(external.root, 'worktree', 'app', '--model', 'fixture-agent');
   const box = await httpBox(t, { additionalProjects: [{ root: external.root, name: 'Roadmap fixture' }] });
   // The roadmap resolves other repos through this machine's registry, as an export does.
   const priorHome = process.env.PULLBOARD_HOME;
@@ -264,10 +277,10 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   const configPath = join(box.root, 'pullboard.json');
   const specPath = join(box.root, 'SPEC.md');
   const doctrinePath = join(box.root, 'DOCTRINE.md');
-  box.cli(box.root, 'milestone', 'add', 'External work', '--reason', 'Arrange fixture release', '--items', `Roadmap fixture#${externalAdded.item.item_id}`);
-  box.cli(box.root, 'shout', 'all', 'mark this after the stream starts');
-  const agent = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-agent');
-  const leaseItem = box.cli(box.root, 'add', 'app', 'Expiring stream claim', '--criterion', 'becomes open', '--specs', 'G1').item;
+  await box.cliLocal(box.root, 'milestone', 'add', 'External work', '--reason', 'Arrange fixture release', '--items', `Roadmap fixture#${externalAdded.item.item_id}`);
+  await box.cliLocal(box.root, 'shout', 'all', 'mark this after the stream starts');
+  const agent = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-agent');
+  const leaseItem = (await box.cliLocal(box.root, 'add', 'app', 'Expiring stream claim', '--criterion', 'becomes open', '--specs', 'G1')).item;
   const localClaim = await box.call(box.path + '/moves', { verb: 'claim', item: leaseItem.item_id, agent: agent.agent });
   assert.equal(localClaim.status, 200);
   const leaseUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -368,7 +381,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   renameSync(unavailableRoot, external.root);
   await changedOnce('external-restored');
 
-  box.cli(box.root, 'shout', 'app', 'unread by the joined agent'); assert.equal((await nextFrame()).data.event.event_kind, 'shout'); await changedOnce('unread-shout-state'); // the inbox advances its cursor only past an unread shout
+  await box.cliLocal(box.root, 'shout', 'app', 'unread by the joined agent'); assert.equal((await nextFrame()).data.event.event_kind, 'shout'); await changedOnce('unread-shout-state'); // the inbox advances its cursor only past an unread shout
   const localBoardPath = join(box.root, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const cursorBefore = store.openBoard(localBoardPath);
@@ -381,7 +394,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
     beforeEvent = cursorBefore.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
     beforeHistory = cursorBefore.db.prepare('SELECT * FROM event ORDER BY event_id').all();
   } finally { store.closeBoard(cursorBefore); }
-  box.cli(agent.path, 'inbox');
+  await box.cliLocal(agent.path, 'inbox');
   // @pullboard-board-file journey: the inbox HTTP view and the CLI read this same repo board file.
   const cursorAfter = store.openBoard(localBoardPath);
   try {
@@ -407,6 +420,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   t.mock.timers.tick(Date.parse(leaseUntil) - clockNow + 1);
   await changedOnce('lease-expiry');
 
+  // Process-level: the mocked clock is past the lease here, so an in-process command would sweep the claim first; a child keeps the real clock.
   const evented = box.cli(box.root, 'add', 'app', 'Event plus state notification', '--criterion', 'both frames arrive', '--specs', 'G1');
   const eventFrame = await nextFrame();
   assert.equal(eventFrame.event, 'message');
@@ -450,8 +464,8 @@ test('[A2, N26] one event stream serves many boards', async (t) => {
   // A move on each board arrives on the one connection, tagged with that board, with its changed signal.
   const moves = [];
   let lastId = null;
-  for (const [board, cli, root] of [[box.id, box.cli, box.root], [otherId, other.cli, other.root]]) {
-    const added = cli(root, 'add', 'app', 'Move on ' + board, '--criterion', 'arrives tagged', '--specs', 'G1').item;
+  for (const [board, cli, root] of [[box.id, box.cliLocal, box.root], [otherId, other.cliLocal, other.root]]) {
+    const added = (await cli(root, 'add', 'app', 'Move on ' + board, '--criterion', 'arrives tagged', '--specs', 'G1')).item;
     const frames = await first.until(board, message(board, added.item_id, 'add'), message(board, added.item_id, 'milestone_placed'), is('changed', board));
     assert.deepEqual(frames.map((frame) => frame.data.board), frames.map(() => board), 'every frame names the board that moved');
     const event = frames.find((frame) => frame.event === 'message');
@@ -477,8 +491,8 @@ test('[A2, N26] one event stream serves many boards', async (t) => {
 
   // Resuming from the last id picks up each board where it left off, and nothing earlier.
   const missed = [
-    box.cli(box.root, 'add', 'app', 'Missed on the first board', '--criterion', 'replays', '--specs', 'G1').item.item_id,
-    other.cli(other.root, 'add', 'app', 'Missed on the second board', '--criterion', 'replays', '--specs', 'G1').item.item_id,
+    (await box.cliLocal(box.root, 'add', 'app', 'Missed on the first board', '--criterion', 'replays', '--specs', 'G1')).item.item_id,
+    (await other.cliLocal(other.root, 'add', 'app', 'Missed on the second board', '--criterion', 'replays', '--specs', 'G1')).item.item_id,
   ];
   const resumed = await liveFrames(t, many, { ...headers, 'last-event-id': lastId });
   const replay = await resumed.until('resume', message(box.id, missed[0], 'add'), message(box.id, missed[0], 'milestone_placed'),
@@ -502,3 +516,37 @@ test('[A2, N26] one event stream serves many boards', async (t) => {
   assert.match(repeated.document.error.message, new RegExp(box.id));
 });
 
+
+test('[C7] a fresh seat first inbox on a board of 100k events answers under 300 ms and later reads are unchanged', (t) => {
+  const box = largeBoard(t);
+  box.beforeCleanup(() => {
+    for (let slot = 0; slot < residentPoolSize({}); slot += 1) {
+      const place = residentSocket(box.repo, PULLBOARD_ENTRY, slot);
+      if (!place) continue;
+      try { process.kill(Number(readFileSync(place.pid, 'utf8').trim()), 'SIGKILL'); } catch { /* None started, or it already exited. */ }
+    }
+  });
+  // The resident board process serves the board commands, as on a person's machine; test markers would turn it off.
+  for (const name of ['NODE_TEST_CONTEXT', 'NODE_TEST_WORKER_ID']) delete box.env[name];
+  box.env.PULLBOARD_RESIDENT = '1';
+  // The seat joins after the board is seeded, as a new worker does; it has not yet read its inbox.
+  const seat = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', seat, 'main');
+  const joined = joinFixtureSeat(box, seat, 'web');
+  assert.equal(joined.code, 0, `${joined.err}${joined.out}`);
+  // Two untimed commands start and warm the resident process.
+  const timed = (command = 'inbox') => {
+    const started = performance.now();
+    const result = box.run(seat, command, '--json');
+    return { ms: performance.now() - started, result };
+  };
+  for (let run = 0; run < 2; run += 1) assert.equal(timed('status').result.code, 0);
+  const first = timed();
+  assert.equal(first.result.code, 0, first.result.err + first.result.out);
+  assert.ok(first.ms < 300, `the first inbox took ${first.ms.toFixed(0)} ms, over its 300 ms budget`);
+  const document = JSON.parse(first.result.out);
+  assert.deepEqual(document.activity.interrupts, [], 'nothing from before the seat joined is owed to it');
+  const second = timed();
+  assert.equal(second.result.code, 0, second.result.err + second.result.out);
+  assert.match(second.result.out, /no new shouts or activity|"shouts": \[\]/u);
+});

@@ -107,16 +107,16 @@ test('a queued gate whose tools temp cleanup removed gets an infrastructure stop
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Lost tools', '--specs', 'G1', '--criterion', 'A lost gate stops on infrastructure.', '--wait', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Lost tools', '--specs', 'G1', '--criterion', 'A lost gate stops on infrastructure.', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/lost.txt', 'lost\n', 'feat(web): lost candidate [G1]').status, 0);
   // Hold the dispatcher seat so the ticket waits in the queue, as the 100 lost tickets did.
   const lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'test-dispatcher' });
   let job;
   try {
-    const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+    const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json');
     assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
     job = state(box, id).job;
     assert.equal(job.state, 'queued');
@@ -130,7 +130,7 @@ test('a queued gate whose tools temp cleanup removed gets an infrastructure stop
   const held = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'test-dispatcher' });
   let after;
   try {
-    const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
+    const sweep = await box.runLocal(box.repo, 'sentinel', 'run', '--health-only');
     assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
     after = state(box, id);
   } finally { held.release(); }

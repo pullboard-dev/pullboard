@@ -90,6 +90,19 @@ test('no workflow requires a DCO sign-off [I1]', () => {
   }
 });
 
+/** Clarification issues close after 14 quiet days with no label added; reopening strips only clarify [I1]. */
+test('the stale workflow closes quiet clarify issues without a clarify-inactive label [I1]', () => {
+  const stale = workflowText(resolve(ROOT, '.github/workflows/stale.yml'));
+  assert.match(stale, /uses: actions\/github-script@/u, 'a github-script step does the closing');
+  assert.doesNotMatch(stale, /actions\/stale/u, 'actions/stale is gone');
+  assert.match(stale, /labels: 'clarify'/u, 'only clarify issues are listed');
+  assert.match(stale, /14 \* 24 \* 60 \* 60 \* 1000/u, 'the cutoff is 14 days');
+  assert.match(stale, /Closed\. No response\. Reply to reopen\./u);
+  assert.match(stale, /state_reason: 'completed'/u);
+  assert.doesNotMatch(stale, /addLabels|clarify-inactive/u, 'no label is added');
+  assert.doesNotMatch(workflowText(resolve(ROOT, '.github/workflows/reopen-clarify.yml')), /clarify-inactive/u);
+});
+
 const workflow = readFileSync(new URL('../../../../.github/workflows/release.yml', import.meta.url), 'utf8');
 
 /** Execute the actual workflow extraction against private input; no GitHub or npm command runs. */
@@ -98,6 +111,7 @@ function extract(t, script, changelog, tag = 'v1.2.3') {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'CHANGELOG.md'), changelog);
   const notes = join(root, 'release-notes.md');
+  // process-level: a workflow script run as its own node program.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
     cwd: root, encoding: 'utf8',
     env: { ...process.env, GITHUB_REF_NAME: tag, RUNNER_TEMP: root },
@@ -141,6 +155,7 @@ function runCla(t, pr, signatures) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   fixture.write('pr.json', JSON.stringify(pr));
   fixture.write('signatures.json', JSON.stringify(signatures));
+  // process-level: the CLA check is its own node entry.
   return runFixtureChild(process.execPath, [resolve(ROOT, 'packages/gate/src/io/check/cla.js')], {
     encoding: 'utf8',
     env: { ...process.env, CLA_PR_FILE: join(dir, 'pr.json'), CLA_SIGNATURES_FILE: join(dir, 'signatures.json') },

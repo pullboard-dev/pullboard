@@ -9,6 +9,8 @@ import {
 import { COORDINATOR } from "../../../../config/index.js";
 import { holdItem } from "../board/hold/item.js";
 import { Refused } from "../../../../kernel/index.js";
+import { PROVES_NOTHING_HOLD_REASON } from "../../../../verify/index.js";
+import { checkAcceptance } from "../../../../verify/index.js";
 
 import { coordinatorCheck } from "../../../../verify/light.js";
 export { coordinatorCheck } from "../../../../verify/light.js";
@@ -48,12 +50,12 @@ export function normalizeCheckBaseline(agentId, command, baseline, { authorized 
 }
 
 /** The hold reason an item gets when its first baseline shows its check already passes on main (#5709). */
-export const PROVES_NOTHING_HOLD_REASON = 'check passes on main; edit the bar';
+export { PROVES_NOTHING_HOLD_REASON };
 
 /**
  * Record a captured result only for the still-current authorized background request [V2,H16]. With holdProvesNothing
  * (main's checks.provesNothing is "hold"), a green result also holds an open or claimed item, so next never offers a
- * bar that cannot fail (#5709); the flag rides in the move's own arguments, so a replay holds exactly when it did.
+ * bar that cannot fail (#5709), unless the person already accepted that exact check; the flag rides in the move's own arguments, so a replay holds exactly when it did.
  */
 export function completeCheckBaseline(board, id, { agentId, expected, baseline, holdProvesNothing = false }) {
   return atomic(board, () => {
@@ -68,7 +70,8 @@ export function completeCheckBaseline(board, id, { agentId, expected, baseline, 
     const recorded = { ...result, request: expected.request };
     saveCheckBaseline(board, id, recorded);
     logEvent(board, agentId, 'check-baseline', id, { checkBaseline: recorded });
-    if (holdProvesNothing === true && recorded.result === 'green' && ['open', 'claimed'].includes(item.item_status) && !item.item_hold_reason) {
+    if (holdProvesNothing === true && recorded.result === 'green' && ['open', 'claimed'].includes(item.item_status) && !item.item_hold_reason
+      && !checkAcceptance(board, item)) { // the person accepted this exact check while its baseline was pending
       holdItem(board, id, { agentId: COORDINATOR, reason: PROVES_NOTHING_HOLD_REASON });
     }
     return true;
@@ -94,4 +97,30 @@ export function itemCheckAuthor(board, id) {
     if (detail && Object.hasOwn(detail, 'check')) return detail.check === item.item_check ? edit.event_by : null;
   }
   return item.item_created_by;
+}
+
+/** The id of an item whose recorded baseline shows this exact command green at this main commit, or null [V2]. */
+export function knownGreenBaseline(board, command, main) {
+  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item_check_baseline_%'").all()) {
+    let seen;
+    try { seen = JSON.parse(row.meta_value); } catch { continue; }
+    if (seen?.result === 'green' && seen.command === command && seen.main === main) return Number(row.meta_key.slice('item_check_baseline_'.length));
+  }
+  return null;
+}
+
+/**
+ * Refuse a check that a board observation already shows passing on today's main, unless the author says why it stays.
+ * The observation is one the board already holds; no command runs here.
+ *
+ * @param {any} board
+ * @param {{ command: string, main: string|null }} baseline - the prepared baseline for the new check
+ * @param {string|undefined} accepted - the author's reason from --accept-green
+ */
+export function guardGreenCheck(board, baseline, accepted) {
+  if (!baseline?.main || accepted?.trim()) return;
+  const seen = knownGreenBaseline(board, baseline.command, baseline.main);
+  if (!seen) return;
+  throw new Refused('CRITERION_PROVES_NOTHING', `this check already passes on main ${String(baseline.main).slice(0, 12)} (seen on #${seen}), so it proves nothing: ${baseline.command}`,
+    'use a check that fails before the work and passes after it, such as one that runs the new test; if a passing check is right (a guard against a regression), run the command again with --accept-green "why it stays"');
 }

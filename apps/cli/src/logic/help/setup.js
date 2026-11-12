@@ -36,6 +36,7 @@ export const setupHelp = `Set up
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
                                         measures the runner's cores and memory; --slots declares a fixed count that always wins
   pullboard runner measure [<ssh-host>]  re-measure cores and memory on the runner itself (run it again after a hardware change)
+  pullboard runner drain <ssh-host>     take a runner out of rotation: no new job, running jobs finish; undrain returns it
   pullboard runner list                 each runner's slots and browsers, measured cores and memory, and the slots the formula gives
   pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
   pullboard runner install-serve <ssh-host> --board <board-url> [--key <key>] | --remove
@@ -69,8 +70,10 @@ export const setupHelp = `Set up
   pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard relay recover --skip <sequence>  person-only recovery of one blocked next relay position
   pullboard handoff [--take <id>]        write or take an agent hand-off; keep questions on its item
+                                        agent worktrees only; a coordinator's hand-off is its resume card
   pullboard resume [--diagnostics]      where you are: your claim, branch, what came back,
                                         unread shouts, what to do next; run it to start any session
+                                        --diagnostics adds git checks and verified-not-merged work (merges cleanly, conflicts, claimed for integration)
   pullboard badge                       write board-derived Shields endpoint JSON to docs/badges/
   pullboard hooks [uninstall]           install Git hooks and agent nudges; uninstall removes only Pullboard's agent nudges
   pullboard hook SessionStart|Stop|SessionEnd     native agent nudges; errors/timeouts warn and never block

@@ -60,7 +60,7 @@ export * from "./src/io/history.js";
 export * from "./src/io/train/repoints.js";
 export * from "./src/io/post/land.js";
 export * from "./src/io/plan/check.js";
-export { requireLandingCompanions, requireLandingModuleResolution } from './src/io/guards.js';
+export { requireLandingCompanions, requireLandingModuleResolution, requireLandingSecretFree } from './src/io/guards.js';
 export { finishLanding, LANDING_FINISH_STEPS } from './src/io/finish.js';
 export * from './light.js';
 export { PHASE_LINE } from './src/io/timing.js';
@@ -68,7 +68,7 @@ export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, rep
 export { landingReceiptReuse } from './src/io/reuse.js';
 export { refreshMainRedComparisons } from './src/io/main/red.js';
 export { holdRefreshFlight } from './src/io/main/red/refresh/flight.js';
-export { placeUncoveredOnTrunk, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';
+export { placeUncoveredOnTrunk, recordLandingAudit, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';
 /** Landing as a runner job: the board offers a row, a runner merges and pushes trunk by compare-and-swap [P7]. */
 export { runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */

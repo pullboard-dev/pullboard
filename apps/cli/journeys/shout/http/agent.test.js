@@ -29,8 +29,9 @@ async (t) => {
   writeFileSync(spec, readFileSync(spec, 'utf8') + '\n- G2 [pending, must] Person approval only. | gate: true\n- G3 [pending, must] Person decline only. | gate: true\n');
   runFixtureGit(['add', 'SPEC.md'], { cwd: box.root, env: box.env });
   runFixtureGit(['commit', '-qm', 'chore(test): prepare person-only rows'], { cwd: box.root, env: box.env });
-  const item = box.cli(box.root, 'add', 'app', 'Private channel item', '--specs', 'G1', '--criterion', 'No person bypass').item.item_id;
-  const decision = box.cli(box.root, 'shout', 'person', 'Choose the private fixture decision', '--decision').id;
+  const item = (await box.cliLocal(box.root, 'add', 'app', 'Private channel item', '--specs', 'G1', '--criterion', 'No person bypass')).item.item_id;
+  const decision = (await box.cliLocal(box.root, 'shout', 'person', 'Choose the private fixture decision', '--decision')).id;
+  // Stays a process: a long-lived serve child whose channel is under test.
   const child = startFixtureChild(process.execPath, [BIN, 'serve', '--port', '0', '--json'], {
     cwd: box.root, env: { ...box.env, CLAUDECODE: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -64,7 +65,7 @@ async (t) => {
   const listing = await (await fetchFresh(served.origin + '/api/v1/boards', { headers })).json();
   const id = listing.boards.find(board => resolve(board.root) === resolve(box.root)).id;
   const path = '/api/v1/boards/' + id;
-  const before = box.cli(box.root, 'log').events.length;
+  const before = (await box.cliLocal(box.root, 'log')).events.length;
   const attempts = [
     { verb: 'spec-approve', args: { ids: 'G2' } },
     { verb: 'spec-decline', args: { ids: 'G3', reason: 'Not approved by a person' } },
@@ -77,11 +78,11 @@ async (t) => {
     const document = await response.json();
     assert.equal(document.error?.code, 'B26_PERSON_CHANNEL', move.verb + ' never receives person authority from an API key');
     assert.notEqual(response.status, 200);
-    assert.equal(box.cli(box.root, 'log').events.length, before, move.verb + ' records no event');
+    assert.equal((await box.cliLocal(box.root, 'log')).events.length, before, move.verb + ' records no event');
   }
   const tokenResponse = await fetchFresh(served.origin + path + '/tokens', { method: 'POST', headers, body: JSON.stringify({ id: randomUUID() }) });
   assert.equal((await tokenResponse.json()).error?.code, 'B26_PERSON_CHANNEL', 'API token management has no person authority either');
-  assert.equal(box.cli(box.root, 'log').events.length, before);
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before);
   await stopServer();
   // Denial belongs to the interface, even when the server has no agent-shell marker.
   const plain = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, port: 0, runCommand: main, projects: () => [{ root: box.root, name: 'Plain API fixture' }] });
@@ -92,7 +93,7 @@ async (t) => {
     body: JSON.stringify({ verb: 'spec-approve', args: { ids: 'G2' } }),
   });
   assert.equal((await plainReply.json()).error?.code, 'B26_PERSON_CHANNEL', 'an ordinary-shell API has no person authority');
-  assert.equal(box.cli(box.root, 'log').events.length, before);
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before);
   registerProject(box.root);
   const view = await serveView({ port: 0, runCommand: nativeTestMain });
   t.after(() => view.close());
@@ -104,6 +105,6 @@ async (t) => {
   assert.equal(response.status, 200, 'the actual view keeps the person channel');
   const approved = (await response.json()).event;
   assert.equal(approved.event_by, 'person');
-  assert.equal(box.cli(box.root, 'log').events.length, before + 1);
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before + 1);
 });
 

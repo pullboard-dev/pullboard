@@ -40,6 +40,7 @@ import {
   test,
 } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { resultCommands } from '../../index.js';
 import { createLocalApiHandler } from '../../../../packages/api/index.js';
 import {
@@ -74,6 +75,7 @@ import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/ref
 import {
   FIXTURE_MODEL,
   fixtureJoin,
+  fixtureSettledMachine,
 } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -184,6 +186,8 @@ function sandbox() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     NODE_COMPILE_CACHE: COMPILE_CACHE,
   };
+  // The cases read a submit's or test run's result at once, so it settles whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.PULLBOARD_STARTUP_TRACE_FILE;
   delete env.PULLBOARD_STARTUP_TRACE_ENTRY;
@@ -196,8 +200,14 @@ function sandbox() {
     if (result.status !== 0) throw new Error(result.failure);
     return result.stdout.trim();
   });
-  const run = (cwd, ...args) => withCatalogChild(() => runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' }));
-  return { dir, env, git, run };
+  // In process through the production dispatcher; the fixture's git hooks still launch the real shim.
+  const run = (cwd, ...args) => runCliInProcess(args, { cwd, env });
+  return { dir, env, git, run, runLocal: run };
+}
+
+/** The box with its command runner replaced by a real child process, for the cases that need one. */
+function processBox(box) {
+  return { ...box, runLocal: (cwd, ...args) => withCatalogChild(() => runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' })) };
 }
 
 /** Initialize a real board with an undeclared legacy coordinator for the API protocol fixtures. */
@@ -274,7 +284,7 @@ function assertRequiredShape(value, required, label) {
 
 /** Parse a command's sole JSON document and check its public command shape. */
 async function json(box, cwd, command, args = [], subcommand) {
-  const result = await box.run(cwd, command, ...args, '--json');
+  const result = await box.runLocal(cwd, command, ...args, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
   const document = JSON.parse(result.stdout);
   if (command === 'check' && subcommand !== 'accept') {
@@ -292,7 +302,7 @@ async function json(box, cwd, command, args = [], subcommand) {
 
 /** Run a real CLI root whose result shape predates the versioned shape catalog. */
 async function uncataloguedRootJSON(box, cwd, command, args = []) {
-  const result = await box.run(cwd, command, ...args, '--json');
+  const result = await box.runLocal(cwd, command, ...args, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
   assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   const document = parseOneDocument(result.stdout);
@@ -302,7 +312,7 @@ async function uncataloguedRootJSON(box, cwd, command, args = []) {
 
 /** Check one refusal document, including the exact public code, message and next step. */
 async function jsonError(box, cwd, command, args, { status, code, message, next }, subcommand) {
-  const result = await box.run(cwd, command, ...args, '--json');
+  const result = await box.runLocal(cwd, command, ...args, '--json');
   assert.equal(result.status, status, `${command}: ${result.stdout}${result.stderr}`);
   assert.equal(result.stderr, '', `${command} refusal must be JSON-only`);
   const document = JSON.parse(result.stdout);
@@ -329,7 +339,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assertRequiredShape(box.initialized, shapeFor('init').required, 'init');
 
   for (const [flag, command] of [['--help', 'help'], ['--version', 'version']]) {
-    const output = await box.run(repo, flag, '--json');
+    const output = await box.runLocal(repo, flag, '--json');
     assert.equal(output.status, 0, output.stderr);
     assert.equal(output.stderr, '');
     const document = parseOneDocument(output.stdout);
@@ -373,7 +383,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'doctor');
   assert.deepEqual((await json(box, repo, 'health')).stuck, [], 'a new board has nothing stuck [A6]');
   await json(box, repo, 'skills', ['--update']);
-  const plainStatus = await box.run(repo, 'status');
+  const plainStatus = await box.runLocal(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
   assert.equal(plainStatus.stderr, '');
   assert.match(plainStatus.stdout, /^coordinator \(unknown\): /, 'ordinary text mode remains readable');
@@ -412,10 +422,11 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
 
   const messageFile = join(box.dir, 'commit-message.txt');
   writeFileSync(messageFile, 'chore: valid fixture\n');
-  await json(box, repo, 'hook', ['pre-commit'], 'pre-commit');
-  await json(box, repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
-  await json(box, repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
-  await json(box, repo, 'hook', ['pre-push'], 'pre-push');
+  // Process-level: the hook commands read the real stdin, so they run as child processes.
+  await json(processBox(box), repo, 'hook', ['pre-commit'], 'pre-commit');
+  await json(processBox(box), repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
+  await json(processBox(box), repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
+  await json(processBox(box), repo, 'hook', ['pre-push'], 'pre-push');
 
   const review = await json(box, repo, 'worktree', ['review']);
   const reviewPath = review.path;
@@ -532,25 +543,25 @@ catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only
 
   const app1Queue = (await json(box, app1, 'decisions')).decisions.map(({ shout_id }) => shout_id);
   assert.deepEqual(app1Queue, [laneAsk, app1Ask]);
-  const app1Text = await box.run(app1, 'decisions');
+  const app1Text = await box.runLocal(app1, 'decisions');
   assert.equal(app1Text.status, 0, app1Text.stderr);
   assert.match(app1Text.stdout, new RegExp(`#${laneAsk}\\b`));
   assert.match(app1Text.stdout, new RegExp(`#${app1Ask}\\b`));
   assert.doesNotMatch(app1Text.stdout, new RegExp(`#(?:${app2Ask}|${reviewAsk}|${coordinatorAsk})\\b`));
   assert.deepEqual((await json(box, app2, 'decisions')).decisions.map(({ shout_id }) => shout_id), [laneAsk, app2Ask]);
   assert.deepEqual((await json(box, review, 'decisions')).decisions.map(({ shout_id }) => shout_id), [reviewAsk]);
-  const app2Text = await box.run(app2, 'decisions');
+  const app2Text = await box.runLocal(app2, 'decisions');
   assert.equal(app2Text.status, 0, app2Text.stderr);
   assert.match(app2Text.stdout, new RegExp(`#${laneAsk}\\b`));
   assert.match(app2Text.stdout, new RegExp(`#${app2Ask}\\b`));
-  const reviewText = await box.run(review, 'decisions');
+  const reviewText = await box.runLocal(review, 'decisions');
   assert.equal(reviewText.status, 0, reviewText.stderr);
   assert.match(reviewText.stdout, new RegExp(`#${reviewAsk}\\b`));
   assert.doesNotMatch(reviewText.stdout, new RegExp(`#(?:${laneAsk}|${app1Ask}|${app2Ask}|${coordinatorAsk})\\b`));
 
   await json(box, app2, 'answer', [String(laneAsk), 'Lane answered.']);
   assert.deepEqual((await json(box, app1, 'decisions')).decisions.map(({ shout_id }) => shout_id), [app1Ask]);
-  const answeredText = await box.run(app2, 'decisions');
+  const answeredText = await box.runLocal(app2, 'decisions');
   assert.equal(answeredText.status, 0, answeredText.stderr);
   assert.match(answeredText.stdout, new RegExp(`#${app2Ask}\\b`));
   assert.doesNotMatch(answeredText.stdout, new RegExp(`#${laneAsk}\\b`));
@@ -570,7 +581,7 @@ catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only
     message: `shout #${app2Ask} is addressed to app-2, not your app lane (agent app-1)`,
     next: 'answer only decisions addressed to you; see pullboard inbox',
   });
-  const coordinatorText = await box.run(box.repo, 'decisions');
+  const coordinatorText = await box.runLocal(box.repo, 'decisions');
   assert.equal(coordinatorText.status, 0, coordinatorText.stderr);
   assert.match(coordinatorText.stdout, new RegExp(`#${coordinatorAsk}\\b`));
   assert.doesNotMatch(coordinatorText.stdout, new RegExp(`#(?:${app1Ask}|${app2Ask}|${reviewAsk})\\b`));
@@ -587,7 +598,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   await box.git(repo, 'add', '-A');
   await box.git(repo, 'commit', '-q', '-m', 'chore: set up refusal fixture');
 
-  const noShip = await box.run(repo, 'ship', '--json');
+  const noShip = await box.runLocal(repo, 'ship', '--json');
   assert.equal(noShip.status, 1, noShip.stdout + noShip.stderr);
   assert.equal(noShip.stderr, '', 'ship refuses without mixing text into JSON output');
   const shipDocument = parseOneDocument(noShip.stdout);
@@ -606,7 +617,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   assert.equal(noRow.error.code, 'NO_ROW');
 
   // The plain loop finishes at once: a coordinator seat with nothing to build gets one successful document, not a refusal.
-  const plainLoop = await box.run(repo, 'next', '--json');
+  const plainLoop = await box.runLocal(repo, 'next', '--json');
   assert.equal(plainLoop.status, 0);
   assert.equal(plainLoop.stderr, '');
   assert.deepEqual(JSON.parse(plainLoop.stdout), {
@@ -616,7 +627,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
     reasons: ["no open items in the coordinator lane; lane items are built from each lane's own worktree"],
   });
   // A bounded wait that finds nothing is the refusal: one JSON document with the exact public error fields.
-  const nothingFree = await box.run(repo, 'next', '--wait', '0', '--json');
+  const nothingFree = await box.runLocal(repo, 'next', '--wait', '0', '--json');
   assert.equal(nothingFree.status, 1);
   assert.equal(nothingFree.stderr, '');
   const nextDocument = JSON.parse(nothingFree.stdout);
@@ -630,7 +641,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
     next: 'To keep looking: pullboard next --take',
   });
 
-  const unknown = await box.run(repo, 'status', '--not-a-real-flag', '--json');
+  const unknown = await box.runLocal(repo, 'status', '--not-a-real-flag', '--json');
   assert.equal(unknown.status, 2);
   assert.equal(unknown.stderr, '');
   const unknownDocument = JSON.parse(unknown.stdout);
@@ -642,7 +653,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   assert.match(unknownDocument.error.message, /Unknown option '--not-a-real-flag'/);
   assert.equal(unknownDocument.error.next, 'run pullboard help');
 
-  const unknownCommand = await box.run(repo, 'cliam', '--json');
+  const unknownCommand = await box.runLocal(repo, 'cliam', '--json');
   assert.equal(unknownCommand.status, 2);
   assert.equal(unknownCommand.stderr, '');
   const unknownCommandDocument = JSON.parse(unknownCommand.stdout);
@@ -655,9 +666,9 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
 
   const valid = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(repo, 'SPEC.md'), `${valid}\n- G2 [maybe, must] Bad status.\n`);
-  const textCheck = await box.run(repo, 'spec', 'check');
+  const textCheck = await box.runLocal(repo, 'spec', 'check');
   assert.equal(textCheck.status, 1);
-  const invalid = await box.run(repo, 'spec', 'check', '--json');
+  const invalid = await box.runLocal(repo, 'spec', 'check', '--json');
   assert.equal(invalid.status, 1);
   assert.equal(invalid.stderr, '');
   const invalidDocument = JSON.parse(invalid.stdout);
@@ -796,13 +807,13 @@ catalogCase('[A1,A10] view exports a static folder through its JSON variant', as
 catalogCase('[A1,E13,E14,E15] move returns its real CLI result across local boards', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  const team = await box.cli('add', box.lane, 'Catalog move source');
+  const team = await box.cliLocal('add', box.lane, 'Catalog move source');
   assert.equal(team.code, 0, JSON.stringify(team.document?.error));
-  const local = await box.cli('add', box.lane, 'Catalog move destination', '--private');
+  const local = await box.cliLocal('add', box.lane, 'Catalog move destination', '--private');
   assert.equal(local.code, 0, JSON.stringify(local.document?.error));
 
   const shape = shapeFor('move');
-  const moved = await box.cli('move', String(team.document.item.item_id), '--to', '~fixture/repository');
+  const moved = await box.cliLocal('move', String(team.document.item.item_id), '--to', '~fixture/repository');
   assert.equal(moved.code, 0, JSON.stringify(moved.document?.error));
   assertRequiredShape(moved.document, shape.required, 'move');
   assert.equal(moved.document.source, `fixture/repository#${team.document.item.item_id}`);
@@ -922,7 +933,8 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   await json(source, source.repo, 'spec', ['apply'], 'apply');
 
   /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
-  const sessionSource = { ...source, run: (cwd, ...args) => withCatalogChild(() => runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' }, encoding: 'utf8' })) };
+  // Process-level: takeover refuses without a real agent shell, so it runs as a child with the session id set.
+  const sessionSource = processBox({ ...source, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' } });
   await json(sessionSource, source.repo, 'takeover');
   const fitBlueprint = await json(source, source.repo, 'blueprint', ['add', 'web-app'], 'add');
   const fitTarget = fitBlueprint.rows[0].id;
@@ -992,7 +1004,7 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   const slice = await json(box, box.repo, 'map', ['--for', String(item.item.item_id)]);
   assert.equal(slice.main, main);
   assert.match(slice.map, /src\/map-fixture\.js/u);
-  const plain = await box.run(box.repo, 'map', 'mapFixture');
+  const plain = await box.runLocal(box.repo, 'map', 'mapFixture');
   assert.equal(plain.status, 0, plain.stderr);
   assert.match(plain.stdout, /\nnext: pullboard next\n$/u, 'the text-only footer is present');
   assert.equal(plain.stdout.replace(/\nnext: pullboard next\n$/u, '\n'), `${card.map}\n`,

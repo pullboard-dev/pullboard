@@ -10,8 +10,13 @@ import { timeLines } from '../../../../../packages/stats/index.js';
 import { timeStats } from '../../../../../packages/stats/index.js';
 import { weeklyDue } from '../../../../../packages/stats/index.js';
 import { join } from 'node:path';
+import { runUtilization } from './stats/utilization.js';
 import { coordinatorActions } from '../../../../../packages/stats/index.js';
 import { coordinatorActionLines } from '../../../../../packages/stats/index.js';
+import { runDemand } from './stats/demand.js';
+import { runHealth } from './stats/health.js';
+import { runLag } from './stats/lag.js';
+import { runAgents } from './stats/agents.js';
 import { pipelineLimit } from '../../../../../packages/stats/index.js';
 import { pipelineStats } from '../../../../../packages/stats/index.js';
 import { pipelineLines } from '../../../../../packages/stats/index.js';
@@ -24,6 +29,8 @@ import { resolve } from 'node:path';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
+import { runRunners } from './stats/runners.js';
+import { runReview } from './stats/review.js';
 import { diskLines } from '../disk/use.js';
 import { diskUse } from '../disk/use.js';
 import { pruneDisk } from '../disk/use.js';
@@ -68,10 +75,17 @@ import {
 
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
+  if (first === 'runners' && values.demand) return runDemand(io, { second, rest, values });
+  if (first === 'runners' && values.health) return runHealth(io, context(io), { second, rest, values });
+  if (first === 'runners' && (values.lag || values['main-lag'])) return runLag(io, context(io), { second, rest, values });
+  if (first === 'runners' && values.utilization) return runUtilization(io, { second, rest, values });
   const ctx = context(io);
-  if (first !== undefined && !['pipeline', 'moves', 'time', 'disk'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats disk [--prune], pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
+  if (first === 'agents') return runAgents(io, ctx, { second, rest, values });
+  if (first === 'review') return runReview(io, ctx, { second, rest, values });
+  if (first !== undefined && !['pipeline', 'moves', 'time', 'disk', 'runners'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats disk [--prune], pullboard stats runners, pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
   if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
   if (values.prune && first !== 'disk') throw new Refused('USAGE', '--prune belongs to pullboard stats disk');
+  if (first === 'runners') return runRunners(io, ctx, { second, rest, values });
   if (first === 'disk') {
     if (second !== undefined || rest?.length) throw new Refused('USAGE', 'show disk use with pullboard stats disk, or age out old raw logs and archives with pullboard stats disk --prune [--dry-run]');
     const dir = join(ctx.info.commonDir, 'pullboard');

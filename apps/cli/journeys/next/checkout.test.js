@@ -19,8 +19,10 @@ import {
 import {
   fileFixtureItem,
   joinFixtureSeat,
+  withFixtureBoard,
 } from '../../tests/fixtures/testkit.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import * as store from '../../../../packages/store/index.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 const e2e = createE2eHelpers();
@@ -40,6 +42,20 @@ function as(box, session, work) {
   box.env.CLAUDECODE = '1';
   box.env.CLAUDE_CODE_SESSION_ID = session;
   try { return work(); }
+  finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete box.env[name];
+      else box.env[name] = value;
+    }
+  }
+}
+
+/** The same session swap as `as`, held across an awaited in-process call. */
+async function asAsync(box, session, work) {
+  const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
+  box.env.CLAUDECODE = '1';
+  box.env.CLAUDE_CODE_SESSION_ID = session;
+  try { return await work(); }
   finally {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete box.env[name];
@@ -69,6 +85,17 @@ function binding(box, root) {
   return JSON.parse(readFileSync(join(resolve(root, box.git(root, 'rev-parse', '--git-dir')), 'pullboard-checkout-session.json'), 'utf8'));
 }
 
+/**
+ * Record `agent`'s claim on `id` straight on the board, as a claim that committed before its folder refused once left it.
+ * Why: claim now refuses a folder problem before the move (#5766), but boards still hold claims stranded that way.
+ */
+function strandedClaim(box, id, agent) {
+  const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: 'true', rows: [] }), digest: 'stranded' });
+  const head = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  // @pullboard-board-file journey: the CLI and this fixture share this private board.
+  withFixtureBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), board => store.claim(board, Number(id), { agentId: agent, lane: 'web', leaseMs: 3_600_000, head, freeze }));
+}
+
 /** Escape a path for a regular expression. */
 function literal(text) { return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'); }
 
@@ -76,20 +103,20 @@ function literal(text) { return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'); }
  * Item A, whose folder seat A's still-live session holds after it committed there and released A, and item B filed
  * after it. Seat B joins from its own session.
  */
-function liveFolderBoard() {
+async function liveFolderBoard() {
   const box = e2e.project();
   const first = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Folder held live', check: 'true', args: ['--specs', 'G1'] });
   const second = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Next eligible', check: 'true', args: ['--specs', 'G1'] });
   const a = String(first.item_id), b = String(second.item_id);
   const holder = seat(box, 'web-a', 'session-a');
-  const folder = as(box, 'session-a', () => {
-    const claimed = box.run(holder.root, 'claim', a);
+  const folder = await asAsync(box, 'session-a', async () => {
+    const claimed = (await box.runLocal(holder.root, 'claim', a));
     assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     const path = /item folder: (.+)/u.exec(claimed.out)?.[1];
     assert.ok(path, claimed.out);
     const committed = e2e.commitFile(box, path, 'web/kept.txt', 'kept work\n', 'feat(web): kept prior work [G1]');
     assert.equal(committed.status, 0, committed.stderr);
-    const released = box.run(holder.root, 'release', a, '--reason', 'OTHER', '--note', 'fixture');
+    const released = (await box.runLocal(holder.root, 'release', a, '--reason', 'OTHER', '--note', 'fixture'));
     assert.equal(released.code, 0, `${released.out}\n${released.err}`);
     return path;
   });
@@ -98,25 +125,27 @@ function liveFolderBoard() {
 }
 
 test('clause 1: a seat holding an item whose folder another live session holds is handed a different item in its own item folder by plain pullboard next, never its seat checkout, through the real next path [B3,C7]', async t => {
-  const { box, a, b, claimer, folder, before } = liveFolderBoard();
+  const { box, a, b, claimer, folder, before } = await liveFolderBoard();
   const marker = join(box.dir, 'folder-process-ready');
   const child = runFixtureChildAsync(process.execPath, ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ready'); setInterval(() => {}, 1000);`], { cwd: folder, env: box.env });
   t.after(async () => { child.child.kill('SIGTERM'); await child; });
   await waitForCondition(() => existsSync(marker), 'the live folder process starts', { signal: AbortSignal.timeout(10_000) }); // Budget: runaway ceiling for the owned process to start.
-  as(box, 'session-b', () => {
-    const claimed = box.run(claimer.root, 'claim', a);
+  await asAsync(box, 'session-b', async () => {
+    const claimed = (await box.runLocal(claimer.root, 'claim', a));
     assert.match(`${claimed.out}\n${claimed.err}`, /ITEM_FOLDER_SESSION_LIVE/u);
-    assert.match(box.run(claimer.root, 'show', a).out, new RegExp(`^#${a}\\s+claimed ${claimer.id}\\b`, 'mu'), 'the refused claim left seat B holding A, as builders found it');
-    const shown = box.run(claimer.root, 'show', a).out;
+    assert.match((await box.runLocal(claimer.root, 'show', a)).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'the refusal came before the move (#5766)');
+    strandedClaim(box, a, claimer.id);
+    assert.match((await box.runLocal(claimer.root, 'show', a)).out, new RegExp(`^#${a}\\s+claimed ${claimer.id}\\b`, 'mu'), 'seat B holds A, as builders found it');
+    const shown = (await box.runLocal(claimer.root, 'show', a)).out;
     assert.doesNotMatch(shown, /continue building in this checkout/u, 'show names the item folder, not the seat checkout');
     assert.match(shown, new RegExp(`build and commit in its item folder ${literal(join(box.dir, `web-b-item-${a}`))}`, 'u'), shown);
-    const next = box.run(claimer.root, 'next');
+    const next = (await box.runLocal(claimer.root, 'next'));
     const all = `${next.out}\n${next.err}`;
     assert.equal(next.code, 0, all);
     assert.match(next.out, new RegExp(`claimed #${b}:`, 'u'), all);
     assert.match(next.out, new RegExp(`next: build and commit in ${literal(join(box.dir, `web-b-item-${b}`))},`, 'u'), all);
     assert.doesNotMatch(next.out, new RegExp(`build and commit in ${literal(claimer.root)},`, 'u'), 'next never names the seat checkout');
-    assert.match(box.run(box.repo, 'show', a).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'seat B handed A back');
+    assert.match((await box.runLocal(box.repo, 'show', a)).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'seat B handed A back');
   });
   assert.ok(existsSync(folder), 'the live session keeps its folder');
   assert.deepEqual(binding(box, folder), before, 'the live session still owns the folder binding');

@@ -156,6 +156,7 @@ test('a docs path built inline still selects its reader [V4,C7]', (t) => {
   const base = box.commit();
   box.put('docs/api.md','# Updated API\n');
   const commit = box.commit();
+  // Process-level: runs the committed reader test as its own node process to prove it passes as written.
   const reader = runFixtureChild(process.execPath, [join(box.root,'test/array-reader.test.js')], { cwd:box.root, encoding:'utf8' });
   assert.equal(reader.status,0,reader.failure ?? reader.stderr?.toString('utf8') ?? 'the committed array reader did not run');
   assert.deepEqual(selectAffectedTests(box.root,{base,commit}).files,
@@ -537,7 +538,7 @@ test('gate source changes still select the static failure regression [C7]', () =
   const root = join(import.meta.dirname, '../../../../..');
   const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['packages/gate/src/io/main.js'] });
   assert.equal(selection.full, false, selection.reason);
-  assert.ok(selection.files.includes('apps/cli/journeys/submit/gate.test.js'),
+  assert.ok(selection.files.includes('apps/cli/journeys/submit/gate/sandbox.test.js'),
     'the test that imports refuseSandboxBlocked stays selected for gate changes');
 });
 

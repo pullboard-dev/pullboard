@@ -63,11 +63,11 @@ export function defaults() {
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
-    review: { starveMinutes: 5, independence: 'off' },
+    review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
-    // The route table is data, not code: packages/config/data/model-tiers.json (a fresh copy per call) [P5].
-    modelTiers: JSON.parse(readFileSync(new URL('../../data/model-tiers.json', import.meta.url), 'utf8')),
+    // The route table is data, not code: packages/config/data/ceilings/model-tiers.json (a fresh copy per call) [P5].
+    modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
@@ -380,10 +380,11 @@ export function configProblems(config) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
   if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
-    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
+  if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
   if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
     || config.claim.reopenFirstRefusalMinutes > Math.floor(8_640_000_000_000_000 / 60_000)) {
@@ -404,12 +405,15 @@ export function configProblems(config) {
     problems.push('"map.slice" is true or false');
   }
   if (!config.review || typeof config.review !== 'object' || Array.isArray(config.review)
-    || Object.keys(config.review).some(key => !['starveMinutes', 'independence'].includes(key))
+    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
     problems.push('"review.starveMinutes" is a positive number of minutes');
   }
   if (!['off', 'session'].includes(config.review?.independence)) {
     problems.push('"review.independence" is "off" (any other seat may verify, even under the builder\'s session) or "session" (only another agent session may verify)');
+  }
+  if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
+    problems.push('"review.excludeEarlierHolders" is true or false');
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');

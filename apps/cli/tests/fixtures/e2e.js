@@ -31,6 +31,8 @@ import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
+import { fixtureSettledMachine } from './testkit.js';
+import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
@@ -96,11 +98,15 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
     // A fixture's infrastructure retry does not wait out the real 30 s back-off (#3365).
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
+    // A fixture's claims start no detached claim beater bound to the test process; its own journey turns it on (#5726).
+    PULLBOARD_CLAIM_BEATER: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
+  // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
@@ -354,7 +360,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.check = { install, timeout };
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  fixtureProjectPolicy(box.repo, { config });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -421,10 +427,10 @@ export function crossLaneFixture(t) {
     return JSON.parse(result.out);
   }
   /** An existing seat is joined by the actual owner session, rather than a test-only owner flag. */
-  function seat(name, lane, identity, route = 'strong') {
+  function seat(name, lane, identity, route = 'strong', lockLane = false) {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    return { ...json(joinFixtureSeat(box, root, lane, { route, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
+    return { ...json(joinFixtureSeat(box, root, lane, { route, lockLane, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
   }
   /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {

@@ -50,10 +50,10 @@ const TREE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
  *
  * @param {string|null|undefined} tree - The candidate tree the shards run.
  * @param {string} command - The test command the shard files are appended to.
- * @param {{ folder?: string, now?: () => number }} [options]
- * @returns {{ tree: string, file: string, read: () => object[], record: (pass: object) => void } | null}
+ * @param {{ folder?: string, now?: () => number, tooling?: string|null }} [options] - `tooling`: the runner tooling sha256 a reused pass must carry.
+ * @returns {{ tree: string, file: string, tooling: string|null, read: () => object[], record: (pass: object) => void } | null}
  */
-export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now } = {}) {
+export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now, tooling = null } = {}) {
   if (typeof tree !== 'string' || !TREE.test(tree) || typeof command !== 'string') return null;
   const file = join(folder, `${createHash('sha256').update(JSON.stringify([tree, command])).digest('hex')}.json`);
   /** The passes on disk for exactly this tree and command; anything unreadable or foreign reads as none. */
@@ -76,7 +76,12 @@ export function shardPassStore(tree, command, { folder = join(machineHome(), 'sh
       }
     } catch { /* A pass that cannot be recorded is only run again. */ }
   };
-  return { tree, file, read, record };
+  return { tree, file, tooling, read, record };
+}
+
+/** The files of `files` that recorded green shards already cover on this store's tree. */
+export function reusedShardFiles(passes, files) {
+  return reusablePasses(passes, files, null).flatMap(shard => shard.files);
 }
 
 /**
@@ -98,7 +103,7 @@ function reusablePasses(passes, files, timingRunId) {
     const shardFiles = Array.isArray(pass?.files) ? pass.files : [];
     const run = pass?.run;
     if (!shardFiles.length || run?.isGreen !== true || shardFiles.some(file => !wanted.has(file) || taken.has(file))) continue;
-    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree) continue;
+    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree || passes.tooling && run.executionSource?.tooling?.sha256 && run.executionSource.tooling.sha256 !== passes.tooling) continue;
     for (const file of shardFiles) taken.add(file);
     const rebind = typeof pass.timingRunId === 'string' && pass.timingRunId && timingRunId && pass.timingRunId !== timingRunId;
     reused.push({ files: [...shardFiles], run: rebind ? { ...run, output: String(run.output ?? '').replaceAll(pass.timingRunId, timingRunId) } : run });

@@ -10,28 +10,26 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { Refused } from '../../../../../packages/kernel/light.js';
 import {
-  sessionSource,
-  sessionSnapshot,
-  usageDifference,
-} from '../../../../../packages/stats/index.js';
-import { nativeToolCallIds } from '../../../../../packages/stats/index.js';
-import { nativeLastPrompt } from '../../../../../packages/stats/index.js';
-import { exitContextDecision } from '../../../../../packages/stats/index.js';
-import {
-  parentSessionDigest,
-  runtimeSessionIdentity,
-} from '../../../../../packages/items/index.js';
-import { exitedSessionIdentity } from '../../../../../packages/store/index.js';
-import { Refused } from '../../../../../packages/kernel/index.js';
-import {
-  exitClaim,
-  requireExitActive,
-} from '../../../../../packages/store/index.js';
-import { mainPolicy } from '../../../../../packages/sandbox/index.js';
-import { policyAt } from '../../../../../packages/sandbox/index.js';
-import { trunkRef } from '../../../../../packages/sandbox/index.js';
+  mainPolicy,
+  policyAt,
+  trunkRef,
+} from '../../../../../packages/sandbox/light.js';
 import { tryGit } from '../../../../../packages/git/index.js';
+
+// This module is itself imported only once exit rules are on, so a command on a board without them never pays for these cells [C7].
+const [statsCell, itemsCell, storeCell] = await Promise.all([
+  import('../../../../../packages/stats/light.js'),
+  import('../../../../../packages/items/index.js'),
+  import('../../../../../packages/store/index.js'),
+]);
+/** The stats cell's light door, loaded with this module. */
+function stats() { return statsCell; }
+/** The items cell's session digests, loaded with this module. */
+function items() { return itemsCell; }
+/** The store's exit claims, loaded with this module. */
+function store() { return storeCell; }
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {
@@ -55,9 +53,10 @@ function anchorFile(ctx, claim) { return join(ctx.info.commonDir, 'pullboard', `
 
 /** Capture once after the real claim; renewals and later commands never recreate missing anchors. */
 export function captureExitAnchor(ctx, board, id, actor) {
-  const claim = exitClaim(board, id, actor);
+  const claim = store().exitClaim(board, id, actor);
   if (!claim) return;
   try {
+    const { nativeToolCallIds, sessionSnapshot, sessionSource } = stats();
     const source = sessionSource(), observed = sourceBytes(source);
     const calls = observed ? nativeToolCallIds(source.provider, observed.bytes) : null;
     const baseline = source ? sessionSnapshot(source) : null;
@@ -78,6 +77,7 @@ function counters(ctx, claim, actor, item) {
     if (anchor.actor !== actor || anchor.item !== item || anchor.claim !== claim.key || !anchor.prefix) return { tokens: null, calls: null };
     const observed = sourceBytes(anchor.source, anchor.prefix);
     if (!observed) return { tokens: null, calls: null };
+    const { nativeToolCallIds, sessionSnapshot, usageDifference } = stats();
     const ids = nativeToolCallIds(anchor.source.provider, observed.bytes);
     const calls = ids && Array.isArray(anchor.calls) ? ids.filter(id => !anchor.calls.includes(id)).length : null;
     const current = sessionSnapshot(anchor.source, anchor.baseline);
@@ -112,6 +112,8 @@ export async function enforceExitBoundary(io, command) {
   ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();
   const { seatAt: agentAt } = await import('../item/folder/identity.js');
   const { ordered } = await import('../claim.js');
+  const { exitClaim, exitedSessionIdentity, requireExitActive } = store();
+  const { parentSessionDigest, runtimeSessionIdentity } = items();
   await withBoard(ctx, async board => {
     const native = runtimeSessionIdentity();
     const stopped = native?.session ? exitedSessionIdentity(board, parentSessionDigest(native.session)) : null;
@@ -134,6 +136,7 @@ export async function enforceExitBoundary(io, command) {
  */
 export function contextCeilingRefusal(policy) {
   if (policy?.enabled !== true) return null;
+  const { exitContextDecision, nativeLastPrompt, sessionSource } = stats();
   const source = sessionSource(), observed = sourceBytes(source);
   const last = observed ? nativeLastPrompt(source.provider, observed.bytes) : null;
   const decision = exitContextDecision(policy, last);

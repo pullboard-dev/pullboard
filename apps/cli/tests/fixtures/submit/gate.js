@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
+import { fixtureSettledMachine } from '../testkit.js';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -48,6 +49,8 @@ export function privateRepo(t) {
   };
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.NODE_TEST_CONTEXT;
+  // These submits settle the same way whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run real Git in this fixture with only the fixture's configured identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
@@ -67,7 +70,7 @@ export function privateRepo(t) {
 }
 
 /** Add items with the criterion, route and brief the board now requires; every other move passes through. */
-function withBrief(...args) {
+export function withBrief(...args) {
   if (args[0] !== 'add' || args.includes('--route')) return args;
   const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
   if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];

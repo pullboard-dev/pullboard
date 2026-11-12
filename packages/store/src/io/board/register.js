@@ -18,6 +18,14 @@ import { newSeatId } from "../../../../seats/index.js";
 import { saveAgentModel } from "../../../../seats/index.js";
 import { seatLineage } from "../../../../seats/index.js";
 
+/** The agent_path prefix of a seat joined over the API from another machine: it has no path on the board host [P7]. */
+export const REMOTE_AGENT_PATH = 'remote:';
+
+/** Whether an agent row's path is a remote marker rather than a worktree on the board host [P7]. */
+export function isRemoteAgentPath(path) {
+  return typeof path === 'string' && path.startsWith(REMOTE_AGENT_PATH);
+}
+
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
  * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model
@@ -48,6 +56,12 @@ export function register(board, who) {
     const row = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
     const existing = row && { ...row, agent_model: agentModel(board, row.agent_id) };
     if (existing) {
+      if (who.moveLane && existing.agent_lane !== lane && lane !== COORDINATOR && existing.agent_lane !== COORDINATOR) {
+        // next re-joins this same seat to a lane with takeable work: same id, same worktree, route unchanged (GH #27).
+        board.db.prepare('UPDATE agent SET agent_lane = ? WHERE agent_id = ?').run(lane, existing.agent_id);
+        logEvent(board, existing.agent_id, 'join', null, { lane, moved: true, from: existing.agent_lane });
+        return existing.agent_id;
+      }
       if (existing.agent_lane !== lane || existing.agent_route !== route) {
         throw new Refused(
           'ALREADY_JOINED',
@@ -56,6 +70,7 @@ export function register(board, who) {
       }
       // Read before saveJoinedSession records this join's declaration, which would make the comparison below always equal.
       const priorFamily = seatFamily(board, existing.agent_id);
+      if (who.lockLane) logEvent(board, existing.agent_id, 'join', null, { lane, lockLane: true });
       const locked = saveJoinedSession(board, existing.agent_id, who);
       const stored = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(existing.agent_id)?.family;
       const storedBlank = typeof stored !== 'string' || stored.trim() === '';
@@ -102,7 +117,8 @@ export function register(board, who) {
       if (lineage) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_lineage:${id}`, lineage);
     }
     logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
-      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}) });
+      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}),
+      ...(who.lockLane ? { lockLane: true } : {}) });
     fresh = true;
     return id;
   });

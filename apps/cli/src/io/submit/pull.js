@@ -3,12 +3,14 @@
  * runner job row and returns: authorization, doctrine, static checks, cells, test selection and the tests all run inside
  * that job on a runner, which posts one receipt. The submitting host starts no dispatcher, driver or worker process [P7].
  */
+import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
+import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
@@ -39,6 +41,7 @@ export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
 const KEPT_PHASE_BYTES = 8 * 1024 ** 2;
 /** Budget: the receipt line stays under runner serve's 60 KiB receipt-line cap and the board's 64 KiB receipt cap. */
 const RECEIPT_FIT_BYTES = 56 * 1024;
+const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -127,21 +130,29 @@ const changedRunner = command => {
   return trusted && JSON.stringify(importsOf(join(root, script))) !== JSON.stringify(trusted) ? script : null;
 };
 /** Run one phase as written, inside the candidate checkout, as the controller does; the files and the frozen check are the candidate's own. */
+// The board's ledger hits for this job's files: written once, named to the proof phase only, never to the item's own check.
+const ledger = (shard ? shard.ledger : input.ledger) ?? null;
+let hitsFile = null;
+if (ledger && Array.isArray(ledger.files)) { hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify(ledger), { mode: 0o600 }); }
 const runPhase = (role, command, PATH) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const ran = timed(role, () => spawnSync('(' + command + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
-    env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }));
+    env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] }));
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
+  let ledger = null;
+  try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
   const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures: failingCases(ran.status, text, run), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}) });
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}) });
 };
 if (shard) runPhase('proof', shard.command, cliPath());
 else {
@@ -184,6 +195,12 @@ else {
 // A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
 receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
   : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
+// Ledger rows give way first when the receipt nears its cap; each phase counts what it left out. Then the rest is fitted.
+for (let phase; Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES} && (phase = receipt.phases.findLast(row => row.ledger?.files.length));) {
+  const drop = Math.ceil(phase.ledger.files.length / 4);
+  phase.ledger.files.splice(-drop);
+  phase.ledger.omitted += drop;
+}
 fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
@@ -265,9 +282,11 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
     config, crossRunTests: namedProofTests(root, held, commit, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, commit), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
-    authorization: authorize ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : null });
+    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
   request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files };
+  // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
+  withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, commit]);
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source: commit, request }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
@@ -276,7 +295,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   if (ctx.json) ctx.io.result({ item: id, commit, gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
-  else ctx.io.say(`#${id} queued as gate job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
+  else ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   return 0;
 }

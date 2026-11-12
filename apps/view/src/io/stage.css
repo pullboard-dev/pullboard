@@ -18,6 +18,8 @@
 .roadmap-status .item-stage { flex-direction: row-reverse; align-items: center; gap: var(--space-3); }
 .roadmap-status .stage-line { flex-wrap: nowrap; flex-direction: row-reverse; }
 .roadmap-status .stage-detail { max-width: 230px; font-size: var(--text-xs); }
+/* On a phone the stage cell may not take the title's width: it stops at 9rem and its detail gives way, as .row .item-stage does at 10rem. */
+@media (width < 700px) { .roadmap-status { min-width: 0; max-width: 9rem; } .roadmap-status .item-stage, .roadmap-status .stage-line, .roadmap-status .stage-detail { min-width: 0; } }
 .row .item-stage { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; }
 .pipeline-copy, .dash-item-copy { display: grid; gap: var(--space-0); min-width: 0; }
 .pipeline-copy .item-stage { margin-top: var(--space-1); }
@@ -35,3 +37,28 @@
 #chain .row-side .item-stage { grid-area: auto; align-items: flex-end; }
 #chain .row-side .stage-line { flex-direction: row-reverse; justify-content: flex-start; }
 .claim-overlap { display: block; color: var(--warn); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); }
+
+/* Roadmap and Activity match their approved mockups (#2080); stage hues come from the shared --stage-* tokens. */
+.roadmap-panel h2 { margin: 0 0 var(--space-3); font: 600 var(--text-xs) var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.roadmap-last-shipped > span { font: 600 var(--text-xs) var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.roadmap-release-progress { background: var(--line); }
+.roadmap-has-summary .roadmap-summary-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+/* One line per row: who or why, the sent-back mark, then a plain sans stage chip. */
+.milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) auto 86px; }
+.milestone-item .roadmap-status, .milestone-item .item-stage, .milestone-item .stage-line { display: contents; }
+.milestone-item .stage-word { grid-column: 5; grid-row: 1; justify-self: stretch; text-align: center; padding: 1px 9px; border-radius: var(--radius-pill); font: 600 12px var(--sans); white-space: nowrap; color: color-mix(in oklab, var(--c) 72%, var(--ink)); background: color-mix(in oklab, var(--c) 16%, var(--surface)); }
+.milestone-item .item-stage[data-stage="gated"] .stage-word { background: none; border: 1px dashed var(--line); color: var(--ink-muted); }
+.milestone-item .stage-marks { grid-column: 4; grid-row: 1; display: inline-flex; gap: var(--space-1); }
+.milestone-item .stage-mark { font: 600 11.5px var(--sans); padding: 0 7px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 72%, var(--ink)); }
+.milestone-item .stage-mark.gate { background: none; border: 1px dashed var(--line); color: var(--ink-muted); }
+.milestone-item .roadmap-stage-chip { grid-column: 5; font-family: var(--sans); letter-spacing: normal; }
+@media (max-width: 760px) { .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) 86px; } .milestone-item .stage-marks { display: none; } .milestone-item .stage-word, .milestone-item .roadmap-stage-chip { grid-column: 4; } }
+/* The release header reads title, rate line, full-width bar, one legend line; its note is plain text, never a tinted bar. */
+.roadmap-has-summary .roadmap-forecast { margin-bottom: var(--space-4); font-size: var(--text-sm); }
+.roadmap-has-summary .roadmap-summary-legend { gap: var(--space-2) var(--space-6); }
+.roadmap-has-summary .milestone-note { padding: 0; background: none; }
+/* Activity rows (#2080): overrides of main.css rules, kept here because main.css is not edited. */
+#activity .activity-event > time { font: var(--text-xs)/1.6 var(--mono); color: var(--ink-faint); }
+#activity .activity-who[title] { text-decoration: none; }
+#activity .activity-say a.activity-landed.ref[data-go] { font-weight: 600; }
+#activity a.activity-about.ref[data-go] { font: 500 var(--text-xs) var(--sans); }

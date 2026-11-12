@@ -124,7 +124,7 @@ test('clause 1: after the held cases pass at one trunk commit the automatic land
   assert.equal((await closings(box)).length, 1, 'the closing is recorded once');
 });
 
-test('clause 2: a new red of the same cases after closure files a new defect that holds the trunk again [C7]', { timeout: 300_000 }, async t => { // budget: one real accept-to-merged landing and one held accept in a private repo; hang ceiling, not speed.
+test('clause 2: a new red of the same cases after closure files a new defect, and the next landing goes ahead beside it [C7,#5862]', { timeout: 300_000 }, async t => { // budget: one real accept-to-merged landing and one accept in a private repo; hang ceiling, not speed.
   const { box, reviewer } = await fixture(t);
   const first = await submitted(box, 'first');
   const defect = fileDefect(box, '22222222-2222-4222-8222-222222222222');
@@ -141,10 +141,9 @@ test('clause 2: a new red of the same cases after closure files a new defect tha
   assert.deepEqual(onBoard(box, board => store.landingTestDefects(board)).map(row => row.item), [again.item]);
   assert.deepEqual(held(box).map(row => row.item), [again.item], 'the new defect holds the trunk again');
 
-  const trunk = box.git(box.repo, 'rev-parse', 'main');
   const second = await submitted(box, 'second');
-  await accept(box, reviewer, second);
-  assert.equal((await json(box, box.repo, 'show', String(second.id))).item_merged_commit, null, 'the automatic lander holds the next landing');
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), trunk, 'the held trunk does not move');
-  assert.equal((await closings(box)).length, 1, 'the new defect stays open: no run at this trunk shows its cases passing');
+  const secondAccept = await accept(box, reviewer, second);
+  // The open defect is a repair item, never a trunk hold: the next landing goes ahead beside it [C7,#5862].
+  assert.ok((await json(box, box.repo, 'show', String(second.id))).item_merged_commit, secondAccept.out + secondAccept.err);
+  assert.doesNotMatch(secondAccept.out + secondAccept.err, /LAND_TEST_DEFECT/u);
 });

@@ -7,8 +7,6 @@ import { relayExclusion } from './relay/exclusion.js';
 import { excludeRelayByPerson } from './relay/exclusion.js';
 import { clearRelayExclusion } from './relay/exclusion.js';
 import { reportClearedExclusion } from './relay/exclusion.js';
-import { cancellationOutcome } from '../logic/relay/poll.js';
-import { waitForDevicePoll } from '../logic/relay/poll.js';
 import { formatSnapshotLimit } from '../logic/relay/size.js';
 import { reportedSnapshotSize } from '../logic/relay/size.js';
 import { snapshotSize } from '../logic/relay/size.js';
@@ -24,39 +22,28 @@ import { recoverySummary } from '../logic/relay/fields.js';
 import { recoveryRefusalMatches } from '../logic/relay/fields.js';
 import { unlinkedRelayStatus } from '../logic/relay/fields.js';
 import { originRepository } from '../../../seats/index.js';
-import { clearUploadPauseNotices } from './relay/pause.js';
 import { firstUploadPauseNotice } from './relay/pause.js';
 import { permanentUploadRefusal } from './relay/pause.js';
 import { safePauseMessage } from './relay/pause.js';
 import { uploadPauseType } from './relay/pause.js';
 import { uploadRetryReady } from './relay/pause.js';
 /** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H5,H16,H17,P5]. */
-import {
-  createHash,
-  randomUUID,
-} from 'node:crypto';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { SEALED_SNAPSHOT_BYTES as SEALED_SNAPSHOT_LIMIT } from '../logic/relay/limits.js';
-import {
-  basename,
-  dirname,
-  join,
-  resolve,
-} from 'node:path';
-import {
-  gunzipSync,
-  gzipSync,
-} from 'node:zlib';
+import { basename } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { gunzipSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import * as store from '../../../store/index.js';
 import { exportBoard } from '../../../store/index.js';
 import { importBoard } from '../../../store/index.js';
@@ -83,7 +70,6 @@ import { relaySnapshot } from '../../../pages/index.js';
 import { codeIsFromMain } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
-import { tryGit } from '../../../git/index.js';
 import { forgetBoardKey } from '../../../keys/index.js';
 import { readBoardKey } from '../../../keys/index.js';
 import { storeBoardKey } from '../../../keys/index.js';
@@ -100,7 +86,6 @@ import { baselineNotAccepted } from '../logic/relay/fallback.js';
 import { transientRelayFailure } from '../logic/relay/fallback.js';
 import { transportFailure } from '../logic/relay/fallback.js';
 import { outboxFile } from './relay/summary.js';
-import { readOutboxSummary } from './relay/summary.js';
 import { stampCoordinatorHolder } from '../../../seats/index.js';
 import { computerName } from '../../../seats/index.js';
 import { relayFiles } from '../../../store/index.js';
@@ -112,7 +97,6 @@ import { rememberRelink } from './relay/relink.js';
 import { Refused } from '../../../kernel/light.js';
 import { landingRelayCallbacks } from '../logic/landing.js';
 import { relayOrigin } from '../logic/relay/origin.js';
-import { readRelayLink } from './relay/read.js';
 import { refusalFromReceipt } from '../../../state/index.js';
 import { relayNotices } from '../logic/relay/notices.js';
 import * as relayMachine from './relay/machine.js';
@@ -131,17 +115,36 @@ import { relayStorage } from '../../../pages/index.js';
 import { relayStorageLine } from '../../../pages/index.js';
 export { relayOrigin, relayStorageLine };
 
+import { loadLink } from './relay/link.js';
+import { saveLink } from './relay/link.js';
+import { STATE_FILES } from './relay/link.js';
+import { revokeRelayPersonSession } from './relay/device.js';
+import { deviceSignIn } from './relay/device.js';
+import { relayDeviceRequest } from './relay/device.js';
+import { reportExpiredSignIn } from './relay/notices.js';
+import { expiredSignInMoveRefusal } from './relay/notices.js';
+import { rememberLostReply } from './relay/notices.js';
+import { reportRecoveredReply } from './relay/notices.js';
+import { reportBaselinePause } from './relay/baseline.js';
+import { attemptedBaselineThisCommand } from './relay/baseline.js';
+import { rememberBaselineFailure } from './relay/baseline.js';
+import { safePauseCode } from './relay/baseline.js';
+import { requireUnconflictedBaseline } from './relay/baseline.js';
+import { fenceBaseline } from './relay/baseline.js';
+import { requireAbsentBaseline } from './relay/baseline.js';
+import { acceptBaseline } from './relay/baseline.js';
+import { decideBaseline } from './relay/baseline.js';
+import { keepMoveForLaterBaseline } from './relay/baseline.js';
+import { BASELINE_FAILURES } from './relay/baseline.js';
+export { saveLink };
+export { relayDeviceRequest, revokeRelayPersonSession } from './relay/device.js';
+export { relayRosterRead } from './relay/device.js';
+
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
-const STATE_FILES = new WeakMap();
-const MOVE_FALLBACK_NOTICES = new WeakSet();
 const KEY_WARNED_COMMANDS = new WeakSet();
-const BASELINE_ATTEMPTS = new WeakMap();
-const BASELINE_NOTICES = new WeakSet();
 const CHECKPOINT_NOTICES = new WeakMap();
 const CHECKPOINT_MOVES = new WeakMap();
-const BASELINE_FAILURES = new WeakMap();
-const AUTH_NOTICES = new WeakSet();
 const DELETION_NOTICES = new WeakSet();
 
 /** Refuse a re-home that names an ID still owned by an unacknowledged local add. */
@@ -296,36 +299,6 @@ function forgetDeletedCopy(root, file, state, io) {
   }
 }
 
-/** Validate private link metadata before trusting its destination or acknowledgement cursor. */
-function loadLink(file) {
-  const state = readRelayLink(file);
-  if (!state) return null;
-  if (state.token === undefined || state.token?.startsWith('ps_')) {
-    state.token = null;
-    delete state.tokenId;
-    state.personReauth = true;
-    saveLink(file, state);
-  }
-  STATE_FILES.set(state, file);
-  // A move queues itself without the relay lock, so the outbox summary lives in its own file (#1013).
-  const waiting = readOutboxSummary(file);
-  if (waiting) state.outbox = waiting;
-  else if (!existsSync(outboxFile(file))) delete state.outbox;
-  return state;
-}
-
-/** Atomically persist acknowledgements and an exact sealed retry before attempting its send. */
-export function saveLink(file, state) {
-  STATE_FILES.set(state, file);
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  const temporary = file + '.' + randomUUID() + '.tmp';
-  try {
-    // The outbox summary is the outbox's own file; a link saved by the sender never overwrites a move's (#1013).
-    writeFileSync(temporary, JSON.stringify({ ...state, outbox: undefined }) + '\n', { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
-}
-
 /** Use the page adapter only for snapshot requests; the saved opt-in still owns every network call. */
 export async function request(state, path, options = {}, io) {
   return relaySnapshotRequest(state, path, options, io, {
@@ -461,25 +434,6 @@ export function pendingSnapshotSize(root) {
   return snapshotSize(loadLink(linkFile(root)));
 }
 
-/** Give a local read a single safe explanation when its signed relay read is refused. */
-function reportExpiredSignIn(state, io) {
-  if (AUTH_NOTICES.has(io)) return;
-  AUTH_NOTICES.add(io);
-  const fix = process.env.PULLBOARD_RELAY_TOKEN !== undefined
-    ? 'unset PULLBOARD_RELAY_TOKEN to use this machine credential or supply a current PULLBOARD_RELAY_TOKEN'
-    : 'run pullboard relay on to sign in again or pullboard relay off to stop syncing';
-  io.err(`pullboard: [AUTH_REQUIRED] relay sign-in expired or was revoked for board ${state.board}; ${fix}`);
-}
-
-/** Preserve the ordered-move refusal while naming this board and both recovery choices. */
-function expiredSignInMoveRefusal(state, error) {
-  const reason = safePauseMessage(error);
-  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined) {
-    return new Refused('AUTH_REQUIRED', `the supplied PULLBOARD_RELAY_TOKEN was refused for board ${state.board}: ${reason}; unset PULLBOARD_RELAY_TOKEN to use this machine credential or supply a current PULLBOARD_RELAY_TOKEN`);
-  }
-  return new Refused('AUTH_REQUIRED', `relay sign-in expired or was revoked for board ${state.board}: ${reason}; run pullboard relay on to give this machine a credential or pullboard relay off to stop syncing`);
-}
-
 /** Explain a refused later checkpoint without changing the ordered-move recovery policy. */
 function checkpointProblem(state) {
   const refusal = state.checkpointRefusal;
@@ -512,111 +466,6 @@ function reportCheckpointRefusal(state, io) {
   const line = 'pullboard: ' + checkpointProblem(state).message;
   if (['status', 'doctor'].includes(io.relayCommand?.cliOperation) && io.relayJson === false) io.say(line);
   else io.err(line);
-}
-
-/** Name the safe next step for the saved permanent refusal. */
-function pauseFix(state) {
-  const pause = state.baselinePause;
-  if (pause.size || /(?:exceeds?|over|larger than|too large).{0,40}(?:bytes|snapshot|limit)|(?:snapshot|limit).{0,40}(?:exceeds?|over|too large)/iu.test(pause.message)) {
-    return 'upgrade the configured relay to API version 2 for bounded snapshots, then it resumes automatically';
-  }
-  if ([401, 403].includes(pause.status) || pause.code === 'AUTH_REQUIRED') return 'run pullboard relay on to sign in again';
-  return 'upgrade Pullboard or run pullboard relay on again, then report the refusal if it persists';
-}
-
-/** Render one bounded line with board, safe refusal reason and recovery step. */
-function baselinePauseLine(state) {
-  const pause = state.baselinePause;
-  const code = /^[A-Z][A-Z0-9_]{0,63}$/.test(pause.code) ? pause.code : 'RELAY_REFUSED';
-  const size = pause.size && Number.isSafeInteger(pause.size.sealedBytes) && Number.isSafeInteger(pause.size.limit)
-    ? formatSnapshotLimit({ board: state.board, ...pause.size }, { paused: true }) : `relay paused for ${state.board} before its baseline upload`;
-  return `pullboard: [${code}] ${size}: ${pause.message}; ${pauseFix(state)}`;
-}
-
-/** Report the durable pause once across preflight, move and postflight in one command. */
-function reportBaselinePause(state, io) {
-  if (!BASELINE_NOTICES.has(io)) {
-    BASELINE_NOTICES.add(io);
-    if (firstUploadPauseNotice(state)) io.err(baselinePauseLine(state));
-  }
-}
-
-/** Limit a paused board to one fresh baseline attempt within this command. */
-function attemptedBaselineThisCommand(io, file) {
-  let attempts = BASELINE_ATTEMPTS.get(io);
-  if (!attempts) { attempts = new Set(); BASELINE_ATTEMPTS.set(io, attempts); }
-  if (attempts.has(file)) return true;
-  attempts.add(file);
-  return false;
-}
-
-/** Retain an uncertain attempt in RAM so preflight failure cannot permit local fallback in this command. */
-function rememberBaselineFailure(io, file, error) {
-  let failures = BASELINE_FAILURES.get(io);
-  if (!failures) { failures = new Map(); BASELINE_FAILURES.set(io, failures); }
-  failures.set(file, error);
-}
-
-/** Confirm absence through authenticated API v1; a lost ACK or another live device must stay ordered. */
-async function remoteBaselineAbsent(state, io) {
-  try { await request(state, '/api/v1/boards/' + state.board + '/state', {}, io); }
-  catch (error) {
-    if (await io.remoteBoardMissing(error)) return true;
-    throw error;
-  }
-  return false;
-}
-
-/** Persist only a stable refusal code, never arbitrary relay text masquerading as a code. */
-function safePauseCode(error) {
-  const code = error.relayCode ?? error.code;
-  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'RELAY_REFUSED';
-}
-
-/** Keep a conflicting remote baseline fenced across process restarts without discarding local work. */
-function requireUnconflictedBaseline(state) {
-  if (state.baselineConflict) throw new Refused('RELAY_BASELINE_EXISTS', 'the relay already holds this board; save the local board with pullboard export, then run pullboard relay off to keep working locally; local moves stay off to protect its ordered history');
-}
-
-/** Preserve the unaccepted local candidate and persist a refusal across process restarts. */
-function fenceBaseline(file, state) {
-  state.baselineAccepted = true;
-  state.baselineConflict = true;
-  delete state.baselinePause;
-  delete state.baselineUncertain;
-  saveLink(file, state);
-  requireUnconflictedBaseline(state);
-}
-
-/** Fence another device's baseline before a retry can replace its sequence-zero snapshot. */
-async function requireAbsentBaseline(file, state, io) {
-  if (!await remoteBaselineAbsent(state, io)) {
-    fenceBaseline(file, state);
-  }
-}
-
-/** Record that the relay holds the pending sequence-zero snapshot, from its ACK or an authenticated read of it. */
-function acceptBaseline(root, file, state, io) {
-  state.baselineAccepted = true;
-  state.cursor = Number.isSafeInteger(state.baselineCursor) ? state.baselineCursor : localRecords(io.openBoard, root, (board) => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
-  delete state.baselineCursor;
-  const resumed = Boolean(state.baselinePause);
-  delete state.baselinePause;
-  delete state.baselineStale;
-  delete state.baselineUncertain;
-  delete state.snapshot;
-  state.presentationDigest = state.snapshotPresentationDigest ?? state.presentationDigest;
-  delete state.snapshotPresentationDigest;
-  state.needsPresentation = false;
-  saveLink(file, state);
-  if (resumed) clearUploadPauseNotices(state);
-}
-
-/** Decide a first upload whose reply was lost, through this link's transport and saved state (#919). */
-function decideBaseline(root, file, state, io) {
-  return io.decideUncertainBaseline(state, io, { read: () => request(state, '/api/v1/boards/' + state.board + '/state', {}, io),
-    accept: () => acceptBaseline(root, file, state, io), fence: () => fenceBaseline(file, state),
-    save: () => saveLink(file, state), remember: (error) => rememberBaselineFailure(io, file, error) });
 }
 
 /** Send the sequence-zero board image; only its first permanent HTTP refusal pauses relay sends. */
@@ -910,31 +759,6 @@ export async function restoreCheckpoint(root, state, io, key, restore = restoreR
   localRecords(io.openBoard, root, (board) => restore(board, native, snapshot.sequence));
 }
 
-/**
- * Keep why a move's reply was lost on its durable send record, then return the original refusal.
- * Why: the command that gave up exits here, so only the saved cause lets whichever later command
- * recovers the move say what the earlier request failed with (#642). It holds the cause name only.
- */
-function rememberLostReply(file, state, id, error) {
-  const held = [state.pending, state.recovered].find((record) => record?.move?.id === id);
-  if (held) {
-    held.lostReply = error.transportFailure ?? error.code;
-    saveLink(file, state);
-  }
-  return error;
-}
-
-/**
- * Say once that catch-up recovered a move whose earlier reply was lost, with that request's cause.
- * Why: any later command, a read included, may be the one that recovers it; the saved cause is
- * cleared here so the repeated command does not say it again (#642).
- */
-function reportRecoveredReply(record, io) {
-  if (!record?.lostReply) return;
-  io?.err?.(`pullboard: recovered move ${record.sequence} (${record.move.operation}) whose earlier reply was lost: ${record.lostReply}`);
-  delete record.lostReply;
-}
-
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
 async function orderingServices(io) {
   return io.relayOrdering({ request, localRecords: (root, work) => localRecords(io.openBoard, root, work), decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard: io.openBoard,
@@ -972,18 +796,6 @@ function recoveredMove(root, state, operation, args, command, io) {
     throw new Refused('RELAY_MOVE', 'the recovered operation differs from its durable receipt; restore consistent relay metadata before retrying');
   }
   return recovered.move;
-}
-
-/**
- * Record that a local move happened while the baseline upload was uncertain, and say so once.
- * Why: the saved snapshot predates the move, so the next command seals a fresh baseline that holds it (#919).
- */
-function keepMoveForLaterBaseline(file, state, error, io) {
-  state.baselineStale = true;
-  saveLink(file, state);
-  if (MOVE_FALLBACK_NOTICES.has(io)) return;
-  MOVE_FALLBACK_NOTICES.add(io);
-  io.err(`pullboard: [${safePauseCode(error)}] the move is saved on this machine; ${error.transportFailure ? `the relay did not answer (${error.transportFailure})` : safePauseMessage(error)}; it goes up inside the board baseline on a later command once the relay answers`);
 }
 
 /** The relay transport the ordered outbox queues and replays through (#922). */
@@ -1435,65 +1247,6 @@ export async function relayRecover(root, skip, io) {
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
 export function relayStatus(root, io) { return withRelayExclusion(root, summary(root, loadLink(linkFile(root)), { outboxFields: io?.outboxFields, openBoard: io?.openBoard })); }
 
-/** Cancel one device ticket without the already-aborted caller signal. */
-async function cancelDeviceFlow(url, ticket, io) {
-  let result;
-  try { result = await request({ url }, '/auth/device/cancel', { method: 'POST', body: { ticket } }, io); }
-  catch {
-    throw new Refused('OAUTH_CLEANUP', 'the relay could not confirm cleanup of the cancelled sign-in; retry before linking boards');
-  }
-  if (result.cancelled !== true) throw new Refused('OAUTH_CLEANUP', 'the relay did not confirm cleanup of the cancelled sign-in; retry before linking boards');
-}
-
-/** Revoke only the fresh person session created by this explicit device sign-in. */
-export async function revokeRelayPersonSession(session, io) {
-  if (!session || typeof session.token !== 'string' || !/^ps_[A-Za-z0-9_-]{43}$/.test(session.token) || typeof session.id !== 'string') {
-    throw new Refused('OAUTH_CLEANUP', 'the relay session could not be identified for cancellation cleanup');
-  }
-  const result = await request({ url: session.url, token: session.token }, '/auth/tokens/revoke', { method: 'POST', body: { id: session.id } }, io);
-  if (result.id !== session.id || result.revoked !== true) throw new Refused('OAUTH_CLEANUP', 'the relay did not confirm cleanup of the cancelled sign-in; retry before linking boards');
-}
-
-/** Sign in with the caller's cancellation signal; no board credential is persisted here. */
-async function deviceSignIn(url, io, { signal, intent, onSignIn } = {}) {
-  cancellationOutcome(signal);
-  const client = { url };
-  const flow = await request(client, '/auth/device/start', { method: 'POST', body: intent ? { intent } : {}, signal }, io);
-  try {
-    cancellationOutcome(signal);
-    io.stderr.write(intent
-      ? `Sign in with GitHub for board ${intent.boardName} from ${intent.host}: open ${flow.verificationURL} and enter ${flow.userCode}. After sign-in, confirm the link in your browser: ${flow.confirmationURL}\n`
-      : `Sign in with GitHub: open ${flow.verificationURL} and enter ${flow.userCode}\n`);
-    if (intent && typeof flow.confirmationURL !== 'string') throw new Refused('RELAY_RESPONSE', 'the relay did not provide a board confirmation page; sign in again');
-    let expires = Date.now() + flow.expiresIn * 1000;
-    // The view receives only the public device instructions. The ticket stays in this stack.
-    onSignIn?.({ verificationURL: flow.verificationURL, userCode: flow.userCode, expiresAt: expires, relayUrl: url });
-    let confirmationPending = false;
-    let signed;
-    let wait = flow.interval;
-    do {
-      await waitForDevicePoll(wait, signal);
-      if (!confirmationPending && Date.now() >= expires) throw new Refused('OAUTH_EXPIRED', 'GitHub device sign-in expired; run pullboard relay on again');
-      signed = await request(client, '/auth/device/poll', { method: 'POST', body: { ticket: flow.ticket }, signal }, io);
-      cancellationOutcome(signal);
-      if (signed.pendingConfirmation && Number.isSafeInteger(signed.confirmationExpiresIn)) {
-        confirmationPending = true;
-        expires = Date.now() + signed.confirmationExpiresIn * 1000;
-      }
-      wait = signed.retryAfter ?? flow.interval;
-    } while (signed.pending);
-    const token = signed.token;
-    if (!/^ps_[A-Za-z0-9_-]{43}$/.test(token)) throw new Refused('RELAY_RESPONSE', 'the relay did not issue a person session; sign in again');
-    return signed;
-  } catch (error) {
-    if (signal?.aborted || error.code === 'OAUTH_CANCELLED') {
-      await cancelDeviceFlow(url, flow.ticket, io);
-      throw new Refused('OAUTH_CANCELLED', 'GitHub device sign-in was cancelled; no board was linked');
-    }
-    throw error;
-  }
-}
-
 /** Explicitly sign in through the relay and persist a sealed initial snapshot before uploading it. */
 export async function relayOn(root, address, io, { session, credential, quiet = false, strict = false, name } = {}) {
   const presentationRuntime = io.nativeBoardPorts();
@@ -1689,12 +1442,6 @@ export async function relayMachineSignIn(address, io, { signal, onSignIn } = {})
   return { token: signed.token, id: signed.id, account: signed.user.id, login: typeof signed.user.login === 'string' ? signed.user.login : '', url };
 }
 
-/** Share the existing bounded transport only with fixed account/device endpoints. */
-export async function relayDeviceRequest(session, path, options, io) {
-  if (!path.startsWith('/api/v1/devices/')) throw new Refused('DEVICE_ENDPOINT', 'Use a supported relay device action.');
-  return await request(session, path, options, io);
-}
-
 /** Deliver wraps only from the private local roster, rechecking revocation before each upload. */
 export async function deliverDeviceWraps(root, io) {
   const state = loadLink(linkFile(root));
@@ -1713,20 +1460,6 @@ export async function deliverDeviceWraps(root, io) {
 
 /** Expose board-scoped machine context only to the native setup/approval adapter. */
 export function relayMachineContext(root) { return withProjectGitTimeout(root, () => loadLink(linkFile(root))); }
-
-/** Ignore notices from courtesy roster reads; disconnected boards keep their local labels and dates. */
-function ignoreRosterNotice() {}
-
-const ROSTER_READ_IO = Object.freeze({ ignoreRelayEnvironmentToken: true, err: ignoreRosterNotice });
-
-/** Read only the fixed, board-scoped roster resources through the CLI's existing outbound transport. */
-export async function relayRosterRead(state, path) {
-  const board = typeof state?.board === 'string' && /^[0-9a-f]{32}$/u.test(state.board);
-  const allowed = typeof path === 'string' && (path === '/api/v1/devices' || /^\/api\/v1\/devices\/device-[0-9a-f]{32}$/u.test(path) ||
-    (board && path === `/auth/machines?board=${state.board}`));
-  if (!allowed) throw new Refused('RELAY_ROSTER_PATH', 'the roster requested an unsupported relay resource');
-  return request(state, path, { method: 'GET', signal: AbortSignal.timeout(5000) }, ROSTER_READ_IO);
-}
 
 /** Require one exact phone approval before revoking and removing a device from the trusted roster. */
 export async function relayRevokeDevice(root, deviceId, io) {

@@ -28,8 +28,8 @@ function fixtureResult(result) {
 }
 
 /** Join a fixture worktree with the model and route required by current admission rules; an awaited runner gives an awaited result. */
-export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  const result = run(root, 'join', lane, '--model', model, '--route', route, '--json');
+export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', lockLane = false, run = box.run } = {}) {
+  const result = run(root, 'join', lane, '--model', model, '--route', route, ...(lockLane ? ['--lock-lane'] : []), '--json');
   return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
@@ -66,7 +66,8 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
 
 /** Create and join a fixture worktree with all current admission identity flags. */
 export function createFixtureWorktree(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(run(root, 'worktree', lane, '--model', model, '--route', route, '--json'));
+  const result = run(root, 'worktree', lane, '--model', model, '--route', route, '--json');
+  return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
 /**
@@ -153,6 +154,26 @@ export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
  */
 export function fixtureMachineSettings(machineHome, settings) {
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify(settings));
+}
+
+/**
+ * The gate dispatch under which a fixture's submit, test run or comparison settles inside the command that started it.
+ * Why one constant: a pulled gate runs accepted main's own Pullboard packages, which a fixture project's main lacks, so
+ * fixtures name their dispatch here instead of inheriting the machine default; when controller dispatch goes, only this changes [P7].
+ */
+export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'controller' });
+
+/**
+ * Make a fixture machine home whose submits settle the same way whatever the machine's runnerDispatch default is:
+ * the folder, and its settings with FIXTURE_GATE_DISPATCH under any gate fields the fixture names.
+ *
+ * @param {string} machineHome - The fixture's machine home folder.
+ * @param {object} [settings] - Further machine settings; its gate fields keep their own values beside the dispatch.
+ * @returns {void}
+ */
+export function fixtureSettledMachine(machineHome, settings = {}) {
+  mkdirSync(machineHome, { recursive: true });
+  fixtureMachineSettings(machineHome, { ...settings, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
 }
 
 /**

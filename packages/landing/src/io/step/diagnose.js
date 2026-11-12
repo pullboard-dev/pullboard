@@ -378,18 +378,28 @@ export async function fileFlakes(state, gate, files) {
 
 /** File a neutral test defect for the exact no-culprit red and leave its proof available for a waiver. */
 export async function fileTestDefects(state, gate) {
-  const defects = [];
   const files = [...new Set(gate.failures.map(failure => failure.file).filter(Boolean))];
   if (!files.length) throw new Refused('LAND_DIAGNOSTIC', 'the no-culprit gate did not identify a failing test file');
+  const defects = await fileRepairItems(state, gate.failures);
+  await save(state, { state: 'test-defect', failures: gate.failures, testDefects: defects });
+  state.say(`the trunk is held by a test defect: ${files.join(', ')}; correct the test or ask an approver for an expiring waiver`);
+}
+
+/**
+ * File one repair item per failing file, with its source identity and cases; returns the recorded defects.
+ * Why apart: a quarantine record names its repair item without holding the trunk [C7,#5862].
+ */
+export async function fileRepairItems(state, failures) {
+  const defects = [];
+  const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
   for (const file of files) {
     const owner = laneOf(state.config, file);
     const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
     defects.push(await state.write('recordLandingTestDefect', [{ agentId: 'coordinator', test: file,
       hash: testHash(state.batch.root, file), blob: testBlob(state.batch.root, state.batch.tip, file),
       trunkBlob: testBlob(state.root, state.batch.base, file),
-      names: gate.failures.filter(failure => failure.file === file).map(failure => failure.name),
+      names: failures.filter(failure => failure.file === file).map(failure => failure.name),
       lane, batchId: state.batch.id, branch: state.batch.branch }]));
   }
-  await save(state, { state: 'test-defect', failures: gate.failures, testDefects: defects });
-  state.say(`the trunk is held by a test defect: ${files.join(', ')}; correct the test or ask an approver for an expiring waiver`);
+  return defects;
 }

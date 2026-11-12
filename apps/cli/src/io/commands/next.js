@@ -111,9 +111,23 @@ export async function nextHere(io, values) {
   }
   finally {
     progress.stop(); await monitor?.close();
+    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
+ * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
+ *
+ * @param {any} io
+ * @param {{phase: string, ms: number}[]} phases Slowest first.
+ */
+function sayNextProfile(io, phases) {
+  const write = text => (io.stderr?.write ? io.stderr.write(text + '\n') : io.err?.(text));
+  for (const row of phases) write(`next profile: ${row.phase} ${Math.round(row.ms)} ms`);
+  write(`next profile: total ${Math.round(phases.reduce((sum, row) => sum + row.ms, 0))} ms; slowest three: ${phases.slice(0, 3).map(row => row.phase).join(', ')}`);
 }
 
 /**
@@ -252,6 +266,14 @@ async function nextWithProgress(io, values, progress) {
         for (const reason of found.reasons ?? []) io.say(reason);
         sayReviewOffer(ctx, found); return 0;
       }
+      // "you hold" is printed only after this read finds the item claimed by this seat under a live lease; otherwise selection runs again [C7,#4056].
+      if (found.held && !found.review && !values.verify && !found.waitingOffer) {
+        const stillHeld = withBoardRead(ctx, board => {
+          const fresh = store.getItem(board, found.item.item_id);
+          return fresh?.item_status === 'claimed' && fresh.item_owner === whoAmI(ctx, board).id && fresh.item_lease_until > board.clock.now().toISOString();
+        });
+        if (!stillHeld) { values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.item.item_id])] }; continue; }
+      }
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
@@ -283,8 +305,15 @@ async function nextWithProgress(io, values, progress) {
           return 0;
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
-        io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        // An infrastructure stop is not the candidate's red: next gives the same instruction show does, and nothing to build (#4989).
+        const infraStop = returned?.gate?.code === 'GATE_INFRA_EXHAUSTED';
+        if (!infraStop) io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
         if (returned) {
+          if (infraStop) {
+            io.say(`infrastructure stop at ${String(returned.gate.commit).slice(0, 12)}, not a red on the candidate: GATE_INFRA_EXHAUSTED${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            io.say(`next: ${returned.gate.next ?? 'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'}`);
+            return 0;
+          }
           if (returned.gate) {
             io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
             for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
@@ -300,7 +329,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
-        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
+        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);

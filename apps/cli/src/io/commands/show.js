@@ -13,7 +13,6 @@ import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
-import { handoffWorkerAlive } from '../alive.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
@@ -36,10 +35,6 @@ import {
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
-  retainedGateAssertions,
-  sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
-import {
   mainMergeFor,
   mainMergeLines,
 } from '../../../../../packages/merge/index.js';
@@ -60,7 +55,7 @@ import { relayStateExists } from '../../../../../packages/store/index.js';
 import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { itemFolderPath } from '../item/folder.js';
+import { itemFolderPath } from '../item/folder/identity.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -72,13 +67,14 @@ export async function run(io, { first, values }) {
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
   const prices = loadMachineSettings().costPrices;
-  const { item, queuedSubmit, queuedJobId, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, (board) => {
+  const { item, queuedSubmit, queuedJobId, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
+    const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
     const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
@@ -134,6 +130,8 @@ export async function run(io, { first, values }) {
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
+    // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
+    const { retainedGateAssertions } = await import('../../../../../packages/gate/index.js');
     for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
   }
   if (item.item_rehome_import) {
@@ -170,7 +168,7 @@ export async function run(io, { first, values }) {
       io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
     }
   }
-  sayCheckBaseline(io, item);
+  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item);
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
@@ -185,7 +183,7 @@ export async function run(io, { first, values }) {
   }
   if (frozen) {
     io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
+    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${store.readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
   }
   if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
   if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);
@@ -214,7 +212,7 @@ export async function run(io, { first, values }) {
       if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
     } else {
       const detail = entry.detail;
-      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
+      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.previousTitle ? ` (title was: ${detail.previousTitle})` : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
     }
   }
   return 0;

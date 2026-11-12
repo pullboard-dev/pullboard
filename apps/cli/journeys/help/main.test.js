@@ -18,7 +18,7 @@ import { HELP_SECTIONS } from '../../src/logic/help/sections.js';
 const ROOT = resolve(import.meta.dirname, '../../../..');
 
 /** Read inspectable local module edges without initializing the module under inspection. */
-function localImports(source) {
+function localImports(source, file = '') {
   const found = new Set();
   // The clause before `from` is an import or export binding list, never free text: a string constant that holds an import
   // statement, as packages/state/src/io/engine/numbers.js does, must not read as an edge.
@@ -26,7 +26,10 @@ function localImports(source) {
   const dynamicImport = /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/gu;
   for (const match of source.matchAll(staticImport)) found.add(match[2]);
   for (const match of source.matchAll(dynamicImport)) found.add(match[2]);
-  assert.equal([...source.matchAll(/\bimport\s*\(/gu)].length, [...source.matchAll(dynamicImport)].length,
+  // Since 0b71d48c6e packages/git/src/io/trunk/install.js writes a pre-receive hook whose generated text holds one
+  // dynamic import of a computed path (the guard's folder is known only at install time); no other file may have one.
+  const computed = file.endsWith('packages/git/src/io/trunk/install.js') ? 1 : 0;
+  assert.equal([...source.matchAll(/\bimport\s*\(/gu)].length - [...source.matchAll(dynamicImport)].length, computed,
     'leaf dependencies use inspectable literal dynamic imports');
   return [...found].filter(specifier => specifier.startsWith('.'));
 }
@@ -52,7 +55,7 @@ function helpGraph() {
     if (visited.has(file)) continue;
     visited.add(file);
     if (file.endsWith('.json')) continue;
-    for (const specifier of localImports(readFileSync(file, 'utf8'))) pending.push([...chain, resolveLocal(file, specifier)]);
+    for (const specifier of localImports(readFileSync(file, 'utf8'), file)) pending.push([...chain, resolveLocal(file, specifier)]);
   }
   return visited;
 }
@@ -99,7 +102,7 @@ test('command phrases match help --all, longest first [N26]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
-  const all = box.run(box.repo, 'help', '--all', '--json');
+  const all = await box.runLocal(box.repo, 'help', '--all', '--json');
   assert.equal(all.code, 0, all.err);
   const full = JSON.parse(all.out).help;
   assert.equal(full, HELP.all);
@@ -108,7 +111,7 @@ test('command phrases match help --all, longest first [N26]', async t => {
     for (const phrase of printedPhrases(line)) expected.add(phrase);
   }
   for (const [name, declaration] of Object.entries(HELP.commands)) {
-    const result = box.run(box.repo, 'help', ...name.split(' '), '--json');
+    const result = await box.runLocal(box.repo, 'help', ...name.split(' '), '--json');
     assert.equal(result.code, 0, `${name}: ${result.err}`);
     const usages = JSON.parse(result.out).help.split('\n').filter(line => /^(?:Usage: |\s+)pullboard /u.test(line))
       .filter(line => !line.startsWith('  pullboard ')).map(line => line.replace(/^Usage: /u, '').trim());
@@ -144,11 +147,11 @@ test('command phrases match help --all, longest first [N26]', async t => {
   assert.equal(new Set(added).size, added.length, 'each phrase occurs once');
 });
 
-test('help spec lists every spec subcommand and who runs it [N32]', t => {
+test('help spec lists every spec subcommand and who runs it [N32]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.sandbox();
-  const result = box.run(box.dir, 'help', 'spec');
+  const result = await box.runLocal(box.dir, 'help', 'spec');
   assert.equal(result.code, 0, result.err);
   for (const command of [
     'pullboard spec --json',
@@ -191,7 +194,7 @@ test('clause 1: help lists every edit option [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const full = box.run(box.repo, 'help', '--all', '--json');
+  const full = await box.runLocal(box.repo, 'help', '--all', '--json');
   assert.equal(full.code, 0, full.err);
   const text = JSON.parse(full.out).help;
   const editStart = text.indexOf('pullboard edit <id>');
@@ -204,4 +207,23 @@ test('clause 1: help lists every edit option [C7]', async t => {
   parsed.delete('as'); // the person flag is documented under the person's own commands
   assert.ok(parsed.has('after'), 'the parsed set includes --after');
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
+});
+
+test('clause 1: help says merge conflicts never count, scopes handoff to agent worktrees and names what resume --diagnostics adds [V32]', () => {
+  const text = HELP_SECTIONS.map(section => section.text).join('');
+  const entry = (usage, next) => text.slice(text.indexOf(usage), text.indexOf(next, text.indexOf(usage)));
+  assert.ok(entry('  pullboard rigor  ', '  pullboard rigor --draft-splits').includes('merge conflicts never count'));
+  assert.ok(entry('  pullboard handoff', '  pullboard resume').includes("agent worktrees only; a coordinator's hand-off is its resume card"));
+  assert.ok(entry('  pullboard resume', '  pullboard badge').includes('--diagnostics adds git checks and verified-not-merged work (merges cleanly, conflicts, claimed for integration)'));
+});
+
+test('every flag in pullboard help has a one-line meaning [I11]', () => {
+  const bare = [];
+  for (const [command, declaration] of Object.entries(HELP.commands)) {
+    for (const flag of declaration.flags) {
+      if (flag === '--help') continue;
+      if (!/^--[a-z][a-z-]*(?: \S[^—]*)? — \S/u.test(flag)) bare.push(`${command}: ${flag}`);
+    }
+  }
+  assert.deepEqual(bare, [], `give each flag a meaning in apps/cli/src/logic/help/flag-meanings.js:\n${bare.join('\n')}`);
 });
