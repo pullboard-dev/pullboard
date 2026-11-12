@@ -59,7 +59,10 @@ function runFiles(root, command, files) {
  */
 async function claimedItem(remote, path, agent) {
   const document = await requestJson(remote, `${path}/state`);
-  const claims = ((document.state ?? document).items ?? []).filter((item) => item.status === 'claimed' && item.owner === agent);
+  // A state summary leaves out the owner, which each claimed item's detail carries.
+  const claimed = ((document.state ?? document).items ?? []).filter((item) => item.status === 'claimed');
+  const details = await Promise.all(claimed.map(async (item) => (await requestJson(remote, `${path}/items/${item.id}`)).item ?? {}));
+  const claims = claimed.filter((item, index) => (item.owner ?? details[index].owner) === agent);
   if (claims.length !== 1) {
     throw new Refused('TEST_NO_CLAIM', `${agent} holds ${claims.length} claims on the board at board.url; a test receipt records on exactly one; claim one with pullboard claim <id>, or run pullboard next`);
   }
