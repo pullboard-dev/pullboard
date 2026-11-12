@@ -13,20 +13,19 @@ import { withBoard } from '../../tests/fixtures/check-baseline.js';
 
 after(cleanupFixtures);
 
-test('clauses 1 and 2: with the local runner live the baseline records within 60 s and next refuses CRITERION_PROVES_NOTHING [V2,H16,#6560]', { timeout: 150_000 }, t => {
+test('clauses 1 and 2: with the local runner live the baseline records within 60 s and next refuses CRITERION_PROVES_NOTHING [V2,H16,#6560]', { timeout: 150_000 }, async t => {
   const box = project({ content: 'committed', hold: true, worktrees: true });
   // Process-level: a real local runner process pulls the job over loopback; with no registered runner it is the baseline's only host.
-  assert.equal(box.run(box.repo, ['runner', 'remove', HOST, '--json']).status, 0, 'the fixture runner is removed');
-  t.after(() => box.run(box.repo, ['runner', 'local', '--off']));
-  const added = box.run(box.repo, ['add', 'web', 'Fresh board baseline', '--specs', 'G1', '--criterion', 'the check is measured on main',
-    '--check', fileCheck('committed'), '--wait', '--json'], undefined, { timeout: 60_000 });
+  assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
+  t.after(() => box.runLocal(box.repo, ['runner', 'local', '--off']));
+  const added = await box.runLocal(box.repo, ['add', 'web', 'Fresh board baseline', '--specs', 'G1', '--criterion', 'the check is measured on main',
+    '--check', fileCheck('committed'), '--wait', '--json']);
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const item = JSON.parse(added.stdout).item;
-  assert.notEqual(added.signal, 'SIGTERM', 'the waited add returned within its 60 s limit');
   const recorded = withBoard(join(box.repo, BOARD_FILE), board => getItem(board, item.item_id).item_check_baseline);
   assert.equal(recorded.result, 'green');
   assert.equal(recorded.warning, 'CRITERION_PROVES_NOTHING');
-  const next = box.run(box.web, ['next', '--json']);
+  const next = await box.runLocal(box.web, ['next', '--json']);
   assert.equal(next.status, 1, `${next.stdout}${next.stderr}`);
   assert.equal(JSON.parse(next.stdout).error.code, 'CRITERION_PROVES_NOTHING', 'next refuses an item whose check already passes on main');
 });

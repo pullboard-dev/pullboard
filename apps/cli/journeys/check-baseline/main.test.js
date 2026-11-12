@@ -115,13 +115,13 @@ test('[B35,V2] manual check-baseline is refused because creation owns the observ
   assert.match(`${refused.stdout}${refused.stderr}`, /CHECK_BASELINE_AUTOMATIC.*the board baselines checks on add/u);
 });
 
-test('[B35,V2,C7] #6560 with no registered runner the baseline is a pulled job on the local runner, never run inline on the host', async (t) => {
+test('[B35,V2,C7] #6560 with no registered runner the baseline is a pulled job on the local runner, never run inline on the host', { timeout: 150_000 }, async (t) => {
   const box = project({ content: 'committed' });
-  // Process-level: a real local runner process pulls the job over loopback; no push runner is registered, so it is the only place the check can run.
-  assert.equal(box.run(box.repo, ['runner', 'remove', HOST, '--json']).status, 0, 'the fixture runner is removed');
+  // A real local runner process pulls the job over loopback; no push runner is registered, so it is the only place the check can run.
+  assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
   const observations = join(box.dir, 'pulled-baseline-locations');
-  t.after(() => box.run(box.repo, ['runner', 'local', '--off']));
-  const added = box.run(box.repo, ['add', 'web', 'Pulled baseline', '--check', fileCheck('committed', 'pulled-marker', observations), '--wait', '--json'], undefined, { timeout: 150_000 });
+  t.after(() => box.runLocal(box.repo, ['runner', 'local', '--off']));
+  const added = await box.runLocal(box.repo, ['add', 'web', 'Pulled baseline', '--check', fileCheck('committed', 'pulled-marker', observations), '--wait', '--json']);
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const item = JSON.parse(added.stdout).item;
   assert.equal(withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline.result), 'green', 'the local runner recorded the baseline within the wait');
