@@ -156,9 +156,10 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
   const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
   const untouched = joinedAgent(box, alpha, 'stats-untouched');
   // Record real moves on both sides of the one permitted family declaration.
-  for (let move = 0; move < 11; move += 1) box.run(crewOne, 'shout', 'web-1', `Before family ${move}`);
+  const crewMove = text => box.run(crewOne, 'shout', 'web-1', text);
+  for (let move = 0; move < 11; move += 1) crewMove(`Before family ${move}`);
   box.run(crewOne, 'join', 'web', '--family', 'crew');
-  for (let move = 0; move < 11; move += 1) box.run(crewOne, 'shout', 'web-1', `After family ${move}`);
+  for (let move = 0; move < 11; move += 1) crewMove(`After family ${move}`);
   box.run(crewTwo, 'join', 'web', '--family', 'crew');
   box.run(crewThree, 'join', 'web', '--family', 'crew');
   const expected = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
