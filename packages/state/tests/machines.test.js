@@ -53,7 +53,7 @@ function sources() {
       else if (entry.isFile() && /\.m?js$/u.test(entry.name)) found.push({ path: relative(ROOT, path).split(sep).join('/'), text: readFileSync(path, 'utf8') });
     }
   }
-  return found;
+  return found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 const SOURCES = sources();
@@ -70,7 +70,7 @@ const ALL_TEXT = SOURCES.map(source => source.text).join('\n');
  * @returns {string}
  */
 function constant(name, from) {
-  const declared = new RegExp(`export const ${name} = '([^']+)'`, 'u');
+  const declared = new RegExp(`(?:export )?const ${name} = '([^']+)'`, 'u');
   const own = declared.exec(from.text);
   if (own) return own[1];
   const imported = new RegExp(`(?:import|export) \\{[^}]*\\b${name}\\b[^}]*\\} from '([^']+)'`, 'u').exec(from.text);

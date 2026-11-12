@@ -164,8 +164,15 @@ try {
     if (absent.length) throw Object.assign(refuse('NO_POLICY', 'the claim base or frozen policy commit ' + absent.map(commit => commit.slice(0, 12)).join(', ')
       + ' is not on the trunk remote ' + (remote || '(none named)') + ', so lane ownership cannot be checked on the runner'),
       { next: 'push that commit to the trunk remote, or ask the coordinator to refreeze the item so it is claimed on main, then submit again', rerun: false });
+    // The builder's own head, and every dependency's base and commit, must be here to be judged here; else the controller checks at home.
+    const head = input.authorization.commit ?? input.source;
+    const dependencies = input.authorization.dependencies ?? [];
+    const wanted = [head, ...dependencies.flatMap(dependency => [dependency.base, dependency.commit])];
+    fetchMissing([...new Set(wanted.filter(commit => OBJECT.test(commit ?? '')))], remote);
+    const lacking = wanted.filter(commit => !OBJECT.test(commit ?? '') || spawnSync('git', ['cat-file', '-e', commit + '^{commit}'], { cwd: root }).status !== 0);
+    if (lacking.length) { result.authorization = { skipped: 'the runner lacks ' + lacking.map(commit => String(commit).slice(0, 12)).join(', ') }; return; }
     try {
-      const paths = sandbox.submissionPaths(root, input.authorization.item, input.source, { mainCommit: input.main, dependencies: [], onMechanicalPaths: found => { mechanical = found; } });
+      const paths = sandbox.submissionPaths(root, input.authorization.item, head, { mainCommit: input.main, dependencies, onMechanicalPaths: found => { mechanical = found; } });
       result.authorization = { paths, mechanical, ownership: null };
     } catch (error) {
       if (error?.code === 'OUTSIDE_LANE' && Array.isArray(error.paths)) result.authorization = { mechanical, ownership: { message: String(error.message).replace(/^\\[\\w+\\] /u, ''), paths: error.paths, policy: error.policy ?? null } };

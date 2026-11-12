@@ -39,6 +39,9 @@ export const START_BOUND_MS = LEASE_MS;
 /** The step that ends a run whose worker is gone: it frees the job's lease and reads as lost. */
 export const LOST = 'lost';
 
+/** The step `pullboard test --cancel` writes: it ends a queued or running run and frees its slot. */
+export const CANCELLED = 'cancelled';
+
 /** The last line a finished worker writes to its log: its verdict, runner and seconds. */
 const FINAL_LINE = /^pullboard test: (red|green) on (\S+) in (\d+(?:\.\d+)?)s/mu;
 
@@ -116,11 +119,25 @@ function workerLog(ctx, id) {
 }
 
 /**
+ * The item a test run records on its job: the one `--item` names, else the item folder the command runs in when the
+ * seat holds that claim, else the seat's sole claim. Why: a seat with several claims running from one item folder
+ * left the job with no item, so the stale sweep could not see its run in flight (#6130).
+ *
+ * @param {{ named?: number, folder?: number | null, claims?: number[] }} from
+ * @returns {number | undefined}
+ */
+export function testRunItem({ named, folder = null, claims = [] }) {
+  if (named !== undefined) return named;
+  if (folder !== null && claims.includes(folder)) return folder;
+  return claims.length === 1 ? claims[0] : undefined;
+}
+
+/**
  * Record a queued run on the board and start its detached worker. Returns at once with the run id.
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, files: string[], affected?: boolean, compareMain?: boolean }} run
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number }} [options]
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
@@ -129,13 +146,13 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   const log = workerLog(ctx, id);
   withBoard(board => {
     createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
-    writeStep(board.db, id, 'queued', { agent: run.agent, files: run.files, affected: run.affected === true,
+    writeStep(board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
   });
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
-    const args = [BIN, 'test', '--test-run', id, ...run.files,
+    const args = [BIN, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
@@ -161,6 +178,7 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
  */
 export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, beatSeat = null } = {}) {
   const owner = `test-run:${process.pid}`;
+  if (withBoard(board => jobView(board.db, id))?.steps.some(row => row.name === CANCELLED)) throw new Refused('TEST_RUN_CANCELLED', `test run ${id} was cancelled; queue it again with pullboard test`);
   const taken = withBoard(board => takeJob(board.db, id, owner, { leaseMs: LEASE_MS }));
   if (!taken.taken) throw new Refused('TEST_RUN_TAKEN', `test run ${id} already has a live worker; read it with pullboard test --status ${id}`);
   withBoard(board => { writeStep(board.db, id, 'running', { pid: process.pid }); beatSeat?.(board); });
@@ -191,7 +209,8 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
     failures: [], logPath: queued.log ?? null, files: queued.files ?? [], notices: ['result read from the log: the worker did not record it on the board'] };
   let status;
   let refusal = null;
-  if (result) status = result.green ? 'green' : 'red';
+  if (view.steps.some(row => row.name === CANCELLED)) status = 'cancelled';
+  else if (result) status = result.green ? 'green' : 'red';
   else if (view.steps.some(row => row.name === LOST)) status = 'lost';
   else if (view.leaseOwner) status = view.leaseUntil < now ? 'lost' : 'running';
   else if (view.created + START_BOUND_MS < now) {
@@ -259,6 +278,30 @@ export function readTestRun(board, id) {
   const rows = board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_id LIKE ? LIMIT 2').all(TEST_RUN_KIND, `${String(id).replace(/[%_]/gu, '')}%`);
   if (rows.length !== 1) throw new Refused('NO_TEST_RUN', `${rows.length ? 'more than one' : 'no'} test run matches ${id}; pass the full run id that pullboard test printed`);
   return viewState(jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
+}
+
+/**
+ * Cancel the calling seat's queued or running run: record `cancelled`, end the job so its slot frees, and stop the worker
+ * process group (it owns the runner process). `next` then reports the run once as cancelled.
+ *
+ * Why: two proof runs sat on an overloaded runner for 12+ minutes and the builder had no way to cancel and requeue them.
+ *
+ * @param {any} board - A writable board handle.
+ * @param {string} id - A run id or unique prefix.
+ * @param {string} agent - The calling seat; only the run's owner may cancel it.
+ * @param {{ kill?: (pid: number, signal: string) => void }} [options]
+ * @returns {NonNullable<ReturnType<typeof testRunState>>} The run, now cancelled.
+ */
+export function cancelTestRun(board, id, agent, { kill = process.kill } = {}) {
+  const run = readTestRun(board, id);
+  if (run.agent !== agent) throw new Refused('NOT_YOURS', `test run ${run.id} belongs to ${run.agent ?? 'another seat'}; only its owner cancels it; read it with pullboard test --status ${run.id}`);
+  if (!['queued', 'running'].includes(run.status)) throw new Refused('TEST_RUN_FINISHED', `test run ${run.id} already ${run.status}; nothing to cancel; queue a new one with pullboard test`);
+  const view = jobView(board.db, run.id);
+  const pid = view.steps.find(row => row.name === 'running')?.payload?.pid;
+  writeStep(board.db, run.id, CANCELLED, { pid: Number.isSafeInteger(pid) ? pid : null });
+  finishJob(board.db, run.id, view.leaseOwner);
+  if (Number.isSafeInteger(pid) && pid > 1) for (const target of [-pid, pid]) { try { kill(target, 'SIGTERM'); break; } catch { /* the worker is already gone */ } }
+  return readTestRun(board, run.id);
 }
 
 /** A job view as a run state, reading the worker's log only for a run that has no recorded result. */
@@ -340,6 +383,7 @@ export function testRunLines(run) {
   const files = run.files.length ? run.files.join(' ') : '--affected';
   if (run.status === 'refused') return [`test run ${run.id} refused: [${run.refusal.code}] ${run.refusal.message}; run pullboard test ${files} again`,
     ...(run.log ? [`  log: ${run.log}`] : [])];
+  if (run.status === 'cancelled') return [`test run ${run.id} cancelled: ${files}; queue it again with pullboard test ${files}`];
   if (run.status === 'lost') return [`test run ${run.id} lost: its worker stopped before a result; run pullboard test ${files} again`,
     ...(run.log ? [`  log: ${run.log}`] : [])];
   const result = run.result ?? {};
