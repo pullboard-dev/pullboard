@@ -406,7 +406,8 @@ export async function threeReplicaFixture(t, timing) {
       chmodSync(linkFile, 0o600);
     }
   } finally {
-    if (savedPath === undefined) delete process.env.PATH; else process.env.PATH = savedPath;
+    // sender cleanup runs after this restore and spawns ps and lsof by name, so a runner PATH that omits the system folders still needs them
+    process.env.PATH = [...(savedPath ?? '').split(delimiter).filter(Boolean), ...['/bin', '/usr/bin', '/usr/sbin', '/sbin'].filter((dir) => !(savedPath ?? '').split(delimiter).includes(dir))].join(delimiter);
     if (savedHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = savedHome;
   }
   assert.equal(new Set(cloneCredentials.map(value => value.token)).size, clones.length,
