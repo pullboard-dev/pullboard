@@ -230,9 +230,6 @@
   "apps/cli/journeys/rigor/main.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/shout/shouts/composer.test.js": {
-    "launch": 12
-  },
   "apps/cli/journeys/spec/redesign.test.js": {
     "launch": 1
   },
@@ -1523,9 +1520,6 @@
   "apps/cli/journeys/stats/cockpit.test.js": {
     "launch": 15
   },
-  "apps/cli/journeys/stats/cockpit/counts.test.js": {
-    "launch": 11
-  },
   "apps/cli/journeys/stats/cockpit/crowd.test.js": {
     "launch": 1
   },
@@ -1717,9 +1711,6 @@
   },
   "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
     "launch": 6
-  },
-  "apps/cli/journeys/roadmap/cockpit/phone.test.js": {
-    "launch": 11
   },
   "apps/cli/journeys/roadmap/cockpit/refs.test.js": {
     "launch": 9
