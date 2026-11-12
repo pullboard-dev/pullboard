@@ -27,8 +27,8 @@ after(() => {
 });
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -76,7 +76,7 @@ export default async function* report(events) {
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const CRITERION = 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text.';
 
-test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, () => {
+test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -91,11 +91,11 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   commit(box, box.repo, 'chore: seed review packet fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  ok(box, builder, 'join', 'web', '--model', 'fixture-builder');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', CRITERION,
-    '--check', `${RUN} web/packet.test.js`, '--json').out);
+  await ok(box, builder, 'join', 'web', '--model', 'fixture-builder');
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', CRITERION,
+    '--check', `${RUN} web/packet.test.js`, '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
   writeFileSync(join(builder, 'web/packet.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -109,13 +109,13 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   ].join('\n'));
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
-  const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
+  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
 
   const stored = join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`);
   assert.ok(existsSync(stored), 'the packet is stored when the gate goes green, before anyone asks for it');
 
-  const shown = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out);
+  const shown = JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out);
   const receiptIds = new Set(shown.proofReceipts.map(receipt => receipt.id));
   assert.ok(receiptIds.size > 0, 'the gate recorded proof receipts');
 
@@ -132,7 +132,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   for (let run = 0; run < 3; run += 1) {
     const traceOffset = existsSync(startupTrace) ? readFileSync(startupTrace, 'utf8').split('\n').filter(Boolean).length : 0;
     const started = performance.now();
-    const current = ok(box, box.repo, 'show', String(id), '--review');
+    const current = await ok(box, box.repo, 'show', String(id), '--review');
     const elapsedMs = performance.now() - started;
     review ??= current;
     const traceRows = existsSync(startupTrace)
@@ -146,7 +146,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   delete box.env.PULLBOARD_STARTUP_TRACE_FILE;
   delete box.env.PULLBOARD_STARTUP_TRACE_ENTRY;
   delete box.env.PULLBOARD_RESIDENT;
-  const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
+  const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   box.env.PATH = path;
   const calls = existsSync(git.log) ? readFileSync(git.log, 'utf8').split('\n').filter(Boolean) : [];
   assert.deepEqual(calls.filter(call => /(?:^| )(?:checkout|switch|read-tree|clone|diff|cat-file|worktree add)(?: |$)/u.test(call)), [],
@@ -180,22 +180,22 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
 
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  ok(box, reviewer, 'join', 'api', '--model', 'fixture-reviewer');
-  const offer = ok(box, reviewer, 'next', '--verify', String(id));
+  await ok(box, reviewer, 'join', 'api', '--model', 'fixture-reviewer');
+  const offer = await ok(box, reviewer, 'next', '--verify', String(id));
   assert.match(offer.out, /^next to verify: #\d+ Greet the visitor/mu);
   assert.match(offer.out, new RegExp(`^review packet #${id} at ${head.slice(0, 12)}`, 'mu'), 'next --verify prints the packet with the offer');
   assert.match(offer.out, /^ {5}no recorded run: read this clause and name it in --read$/mu);
 
-  const refused = box.run(reviewer, 'verify', String(id), 'accept', '--read', '9', '--note', 'read the packet');
+  const refused = await box.runLocal(reviewer, 'verify', String(id), 'accept', '--read', '9', '--note', 'read the packet');
   assert.notEqual(refused.code, 0, 'a clause number outside the packet is refused');
-  ok(box, reviewer, 'verify', String(id), 'accept', '--read', '1,2,3', '--note', 'read the packet; reran clause 3 by hand');
-  const verdict = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).verdicts.at(-1);
+  await ok(box, reviewer, 'verify', String(id), 'accept', '--read', '1,2,3', '--note', 'read the packet; reran clause 3 by hand');
+  const verdict = JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out).verdicts.at(-1);
   assert.equal(verdict.verdict_decision, 'ACCEPT');
   assert.match(verdict.verdict_note, new RegExp(`review packet ${head.slice(0, 12)}: read clauses 1, 2, 3; no recorded run: ${rerun.join(', ')}$`, 'mu'),
     'the accept records which clauses it read');
 });
 
-test('a test clause with no case of its own is proved by the item\'s check cases the gate ran; a clause whose own case was skipped is not [V4,C7]', { timeout: 240_000 }, () => {
+test('a test clause with no case of its own is proved by the item\'s check cases the gate ran; a clause whose own case was skipped is not [V4,C7]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -210,11 +210,11 @@ test('a test clause with no case of its own is proved by the item\'s check cases
   commit(box, box.repo, 'chore: seed review packet fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  ok(box, builder, 'join', 'web', '--model', 'fixture-builder');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', '1. The page shows a greeting [test] 2. Legacy callers keep working [test] 3. Old browsers fall back to plain text [test]',
-    '--check', `${RUN} web/packet.test.js`, '--json').out);
+  await ok(box, builder, 'join', 'web', '--model', 'fixture-builder');
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', '1. The page shows a greeting [test] 2. Legacy callers keep working [test] 3. Old browsers fall back to plain text [test]',
+    '--check', `${RUN} web/packet.test.js`, '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
   writeFileSync(join(builder, 'web/packet.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -228,8 +228,8 @@ test('a test clause with no case of its own is proved by the item\'s check cases
   ].join('\n'));
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
-  for (const n of [1, 2, 3]) ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
-  const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
+  for (const n of [1, 2, 3]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
+  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
   const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
   const [greeting, legacy, old] = packet.clauses;
