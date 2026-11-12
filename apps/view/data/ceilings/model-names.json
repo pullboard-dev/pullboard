@@ -18,5 +18,10 @@
     { "match": "^claude-([a-z][a-z-]*)-(\\d+)-(\\d+)$", "vendor": "Anthropic", "style": "versioned" },
     { "match": "^(?:gpt-|o\\d|codex)", "vendor": "OpenAI", "style": "acronym" },
     { "match": "^gemini", "vendor": "Google", "style": "title" }
+  ],
+  "labels": [
+    { "match": "^gpt[- ]6[.]1[- ]sol$", "label": "GPT-6.1 Sol" },
+    { "match": "^(?:claude[- ]?)?opus[- ]5[.]5$", "label": "Claude Opus 5.5" },
+    { "match": "^codex$", "label": "Codex" }
   ]
 }
