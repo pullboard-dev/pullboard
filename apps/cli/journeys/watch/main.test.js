@@ -30,6 +30,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -63,6 +64,8 @@ async function project() {
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec '${process.execPath}' '${BIN}' "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = fixtureEnv(home, bin);
+  // The home is also the machine home; its submits settle whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(home);
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).toString().trim();
   /** Run one CLI command through the production dispatch in this process; a watch stays a child process. */
   const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
