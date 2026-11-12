@@ -1,5 +1,5 @@
 {
   "name": "stats runners",
-  "help": "  pullboard stats runners [--window <duration>] [--until <ISO time>]  runner slot wait (queued to running) p50/p90/max and queue depth per job kind and hour\n",
+  "help": "  pullboard stats runners [--window <duration>] [--until <ISO time>]  runner slot wait (queued to running) p50/p90/max and queue depth per job kind and hour\n  pullboard stats runners --health [--window <duration>] [--until <ISO time>]  run time per job kind per runner (p50/p90) and runner up spans, lost leases, retries and re-placed jobs\n  pullboard stats runners --lag [--window <duration>] [--until <ISO time>]  main check lag: time from each main commit landing to its first full-suite result, and to its first red (--main-lag is the same)\n",
   "required": { "runners": "object" }
 }
