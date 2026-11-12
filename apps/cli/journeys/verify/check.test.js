@@ -56,6 +56,7 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MODEL: 'claude-opus-fixture', // join refuses a session that has not declared its model (MODEL_REQUIRED).
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    PULLBOARD_CLAIM_BEATER: '0', // no detached claim beater writes into the fixture while it is removed (#5726).
   });
   delete env.NODE_TEST_CONTEXT; // A fixture CLI/compiler child is a normal process, not its parent's Node test worker.
   // The fixture acts as the person's own terminal: an inherited agent or SSH session would make its verdicts self-verification.
