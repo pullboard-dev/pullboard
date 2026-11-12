@@ -32,7 +32,10 @@ async function mainBoard(t) {
   mkdirSync(join(box.root, 'tests'), { recursive: true });
   writeFileSync(join(box.root, 'tests/green.test.js'), "import { test } from 'node:test';\ntest('main passes', () => {});\n");
   writeFileSync(join(box.root, 'tests/red.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('main fails', () => { assert.equal(1, 0); });\n");
-  git(box.root, 'add', 'tests');
+  // The committed policy names the test command, which keys main's receipts in the comparison cache.
+  const config = join(box.root, 'pullboard.json');
+  writeFileSync(config, JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), affectedTests: COMMAND }, null, 2));
+  git(box.root, 'add', 'tests', 'pullboard.json');
   git(box.root, 'commit', '-q', '-m', 'test: main test files');
   const trunk = join(box.dir, 'trunk.git');
   git(box.dir, 'clone', '-q', '--bare', box.root, trunk);
