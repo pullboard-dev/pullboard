@@ -208,7 +208,7 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
     await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
     await chrome.waitFor(showing('roadmap', roadmapPath));
     // A page keeps the tab it was last on (landingTab in session.js), so a fresh board starts with nothing remembered.
-    await chrome.stable("(() => { localStorage.removeItem('pb.tab'); return true; })()");
+    await chrome.stable("(() => { Object.keys(localStorage).filter((key) => key.endsWith('pb.tab')).forEach((key) => localStorage.removeItem(key)); return true; })()");
     await chrome.send('Page.navigate', { url: view.link.href });
     await settled(chrome, `!!data?.project && ${showing('dashboard', '/roadmap-demo/dashboard')} && document.querySelector('.tab.on')?.dataset.tab === 'dashboard'`);
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
