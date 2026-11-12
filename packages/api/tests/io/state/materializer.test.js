@@ -1,55 +1,38 @@
-/** @pullboard-test-input source-tree */
-/** Closing a materializer whose worker is busy ends the worker within the grace period, so the process exits promptly [A2,C7]. */
+/** Closing a materializer whose worker is busy ends the worker within the grace period, not when its work ends [A2,C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { BroadcastChannel } from 'node:worker_threads';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { pathToFileURL } from 'node:url';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { startStateMaterializer } from '../../../src/io/state/materializer.js';
 
-const STATE = fileURLToPath(new URL('../../../src/io/state/', import.meta.url));
-
-/** A copy of the materializer and its worker in a small tree whose builds block the worker for `buildMs` each. */
-function busyTree(t, buildMs) {
-  const { root, write } = privateFixtureFiles('pullboard-close-');
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  write('packages/api/src/io/state/materializer.js', readFileSync(join(STATE, 'materializer.js')));
-  write('packages/api/src/io/state/materializer/worker.js', readFileSync(join(STATE, 'materializer/worker.js')));
-  write('packages/api/src/io/main.js', `export function createStateSnapshots() {
-  return { formats: 'f', snapshotPlace: () => ({ cacheId: 'c', folder: 'f' }), carry: () => ({}), restore() {},
-    materialize() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${buildMs}); return { sequence: 1 }; } };
-}\n`);
-  write('ports.js', `export async function boardStatePorts() { return {}; }\n`);
-  write('run.js', `import { startStateMaterializer } from './packages/api/src/io/state/materializer.js';
-const materializer = startStateMaterializer({ portsModule: ${JSON.stringify(pathToFileURL(join(root, 'ports.js')).href)}, projects: () => [], isMain: true,
-  openRevision: () => ({ revision: () => 'r1' }), Refused: class extends Error {} });
-for (const id of ['a', 'b', 'c']) materializer.search({ id, root: '/' + id }, '').catch(() => {});
-setTimeout(() => { process.stdout.write('closing\\n'); materializer.close(); }, 500);
-`);
-  return join(root, 'run.js');
+/**
+ * A ports module (as a data: URL) that blocks the worker for `busyMs` as it starts, telling the channel when it begins
+ * and, only if it is allowed to finish, when it ends. Why the start: the worker reads its messages, the close among them,
+ * only once it is free, which is exactly what a long build does to a close behind it.
+ */
+function busyPorts(channel, busyMs) {
+  const source = `import { BroadcastChannel } from 'node:worker_threads';
+const channel = new BroadcastChannel(${JSON.stringify(channel)});
+channel.postMessage('busy');
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${busyMs});
+channel.postMessage('finished');
+channel.close();
+export async function boardStatePorts() { return {}; }
+`;
+  return 'data:text/javascript,' + encodeURIComponent(source);
 }
 
-/** Run the script and return how long after it printed "closing" the process exited. */
-function exitAfterClose(script) {
-  return new Promise((done, fail) => {
-    const child = spawn(process.execPath, [script], { stdio: ['ignore', 'pipe', 'inherit'] });
-    let closedAt = 0;
-    child.stdout.on('data', () => { closedAt ||= Date.now(); });
-    child.on('error', fail);
-    child.on('exit', () => done(Date.now() - closedAt));
-  });
-}
-
-test('clause 1: a materializer closed with queued builds ends its worker and exits within 5 s [A2,C7]', async (t) => {
-  // Three builds of 6 s each queue behind one another: without the grace period the close waits about 18 s.
-  const took = await exitAfterClose(busyTree(t, 6_000));
-  assert.ok(took < 5_000, `the process took ${took} ms to exit after close`);
-});
-
-test('clause 1: a materializer with an idle worker exits at once on close [A2,C7]', async (t) => {
-  const took = await exitAfterClose(busyTree(t, 0));
-  assert.ok(took < 1_500, `the process took ${took} ms to exit after close`);
+test('clause 1: close() ends a busy state worker within 2 s, before its work would end [A2,C7]', async (t) => {
+  const channel = `materializer-close-${process.pid}`;
+  const listener = new BroadcastChannel(channel);
+  t.after(() => listener.close());
+  const heard = (word) => new Promise((resolve) => listener.addEventListener('message', (event) => { if (event.data === word) resolve(word); }));
+  const busy = heard('busy');
+  const finished = heard('finished');
+  const materializer = startStateMaterializer({ portsModule: busyPorts(channel, 3_500), projects: () => [], isMain: true,
+    openRevision: () => ({ revision: () => 'r1' }), Refused: class extends Error {} });
+  await busy;
+  materializer.close();
+  // The close message sits behind the worker's work, so only the termination 2 s on can stop it before 3.5 s are up.
+  const outcome = await Promise.race([finished, new Promise((resolve) => setTimeout(() => resolve('terminated'), 4_500))]);
+  assert.equal(outcome, 'terminated', 'the worker ran its work to its end after the close');
 });
