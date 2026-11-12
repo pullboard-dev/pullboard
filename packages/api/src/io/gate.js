@@ -253,10 +253,25 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   return {
     cases: cases.map(row => {
       const one = classes.get(row.file);
-      return { ...row, onMain: one.owner === 'unknown' ? null : !one.own.includes(row.name), receipt: receiptId(one.receipt) };
+      const named = one.owner === 'unknown' ? null : keyedMainFailing(board.db, receiptId(one.receipt));
+      return { ...row, onMain: one.owner === 'unknown' ? null : named ? named.includes(row.name) : !one.own.includes(row.name), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
   };
+}
+
+/**
+ * The case names a main-test job's keyed receipt (step 0) records as failing on main; null when the id names no such
+ * red receipt. Why: the comparison cache keeps a main-test red as the whole file with no case names, so without this
+ * every case of a file a queued main-test job measured red would read as new (#6229).
+ */
+function keyedMainFailing(db, id) {
+  if (typeof id !== 'string') return null;
+  const row = db.prepare(`SELECT step.job_step_payload FROM job_step AS step JOIN job ON job.job_id = step.job_step_job
+    WHERE step.job_step_job = ? AND step.job_step_name = 'receipt' AND step.job_step_seq = 0 AND job.job_kind = ?`).get(id, MAIN_TEST_KIND);
+  let keyed = null;
+  try { keyed = row ? JSON.parse(row.job_step_payload) : null; } catch { keyed = null; }
+  return keyed?.verdict === 'red' && Array.isArray(keyed.failing) && keyed.failing.length ? keyed.failing : null;
 }
 
 /** One line per compared case, saying whether main fails it too. */
@@ -411,8 +426,59 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
-  if (kind === MAIN_TEST_KIND) return applyMainTestReceipt(board, posted);
+  if (kind === MAIN_TEST_KIND) {
+    const applied = applyMainTestReceipt(board, posted);
+    if (applied.applied) settleWaitingGates(board, posted.job, ports);
+    return applied;
+  }
   return { applied: false, outcome: 'recorded' };
+}
+
+/**
+ * Record a red land receipt on each unmerged item the job named, as a note leading with the receipt's first
+ * line (the run-tests refusal or first failing test), so `pullboard show` prints why the landing went red.
+ * Why: the receipt otherwise stayed on the job, and the item sat accepted with no word of its red landing.
+ */
+function recordRedLanding(board, job, named, receipt) {
+  const first = String(receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
+  for (const id of named) {
+    const item = store.getItem(board, id);
+    if (!item || item.item_merged_commit) continue;
+    store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} red: ${first}`.slice(0, 600) });
+  }
+}
+
+/**
+ * Re-apply each red gate receipt waiting on main's receipts at the main a main-test job just recorded: the item's
+ * newest gate job at that same main, red in a case of the job's file, still claimed by its submitter. It re-applies
+ * only once every one of its cases is now keyed, so it turns green when all also fail on main, or red with the new ones.
+ * Why: each resubmit merges a newer main, so the comparison key moved before the queued job recorded and the red
+ * never settled (#6229). Only the gate's own main is read, never another main commit [C7,P7].
+ *
+ * @param {any} board
+ * @param {string} mainTest - The main-test job whose receipt was just recorded.
+ * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} ports
+ * @returns {string[]} the gate jobs re-applied
+ */
+export function settleWaitingGates(board, mainTest, { compareWithMain = null } = {}) {
+  const { db } = board;
+  const main = db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
+  // The keyed main receipt is step 0; a runner's own posts sit above it.
+  const keyed = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(mainTest);
+  const file = keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
+  if (typeof compareWithMain !== 'function' || !SHA.test(String(main ?? '')) || typeof file !== 'string') return [];
+  const settled = [];
+  for (const { job_id: job, job_item: item } of db.prepare("SELECT job_id, job_item FROM job WHERE job_kind = 'gate' AND job_base = ? AND job_item IS NOT NULL").all(main)) {
+    const receipt = postedReceipt(db, job)?.receipt;
+    const gate = receipt?.gate;
+    if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
+    if (!(gate.phases ?? []).some(phase => phase.status !== 0 && (phase.failures ?? []).some(row => row?.file === file))) continue;
+    if (store.getItem(board, item)?.item_status !== 'claimed') continue;
+    const compared = compareGateWithMain(board, receipt, main, compareWithMain);
+    if (!compared || compared.cases.some(row => row.onMain === null)) continue;
+    if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
+  }
+  return settled;
 }
 
 /**
@@ -425,9 +491,10 @@ export function applyJobReceipt(board, posted, ports = {}) {
  * @returns {{ applied: boolean, outcome: string, merged?: number[] }}
  */
 export function applyLandingReceipt(board, { job, receipt }) {
-  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
+  if (receipt?.outcome === 'red') recordRedLanding(board, job, named, receipt);
+  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
   const merged = [];
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
