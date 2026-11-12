@@ -35,7 +35,11 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     return held;
   }
   /** Draw immediately from live claims, then enrich only with the complete ordered prefix when available. */
-  function draw(project, needs, { rules = '', capacity = '', needsHeader = '' } = {}) {
+  /**
+   * Draw the Dashboard. With quick, as on a tab switch (#6613), a board that moved since the last model draws from that
+   * model at once and returns true: the caller draws again after the frame, when the model is brought up to date.
+   */
+  function draw(project, needs, { rules = '', capacity = '', needsHeader = '', quick = false } = {}) {
     if (needs !== undefined) lastNeeds = { root: project.root, html: needs, header: needsHeader };
     else { needs = lastNeeds.root === project.root ? lastNeeds.html : ''; needsHeader = lastNeeds.root === project.root ? lastNeeds.header : ''; }
     const region = document.getElementById('dashboard');
@@ -48,10 +52,11 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const now = Number.isFinite(observedAt) ? observedAt : Date.now();
     // Native snapshots are JSON; include every field so changed live data or an observation clock always invalidates.
     const projectKey = JSON.stringify(project), cached = held.modelCache;
-    const state = cached && cached.projectKey === projectKey && cached.events === held.events
-      && cached.prefix === prefix && cached.complete === complete && cached.now === now ? cached.state
-      : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now });
-    held.modelCache = { projectKey, events: held.events, prefix, complete, now, state };
+    const fresh = cached && cached.projectKey === projectKey && cached.events === held.events
+      && cached.prefix === prefix && cached.complete === complete && cached.now === now;
+    const behind = !fresh && quick && Boolean(cached?.state);
+    const state = fresh || behind ? cached.state : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now });
+    if (!behind) held.modelCache = { projectKey, events: held.events, prefix, complete, now, state };
     const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
@@ -85,6 +90,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
       quiet.addEventListener('toggle', () => { if (quiet.open) materializeQuiet(); });
     }
     for (const disclosure of region.querySelectorAll('details')) if (expanded.includes(disclosure.dataset.dashboardDisclosure)) disclosure.open = true;
+    return behind;
   }
   /** Advance the tour on its own, one stop per reading time, until the person steps it by hand or the page is left. */
   function startTour() {

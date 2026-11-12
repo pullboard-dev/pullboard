@@ -233,11 +233,14 @@ function render({ tab: switching = false } = {}) {
   const needsPanel = ${needsPanelHtml.toString()};
   if (view.tab === 'dashboard') {
     const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, compact: true });
-    dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
+    const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
       rules: homeRules(p.spec),
       capacity: homeCapacity(p.capacityForecast),
+      quick: switching,
     });
+    // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
+    if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
   } else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {

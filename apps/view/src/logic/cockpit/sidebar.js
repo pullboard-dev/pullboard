@@ -98,7 +98,7 @@ function writeChrome() {
   const p = data.project, selectedGroup = data.groups.find((group) => group.key === view.root);
   const roadmap = view.tab === 'roadmap' && p && !selectedGroup;
   const next = tabTitle({ shown: Boolean(p || selectedGroup), name: $('proj-name').textContent, tab: view.tab, group: Boolean(selectedGroup),
-    needs: data.projects.reduce((n, x) => n + needCount(x), 0), remaining: roadmap ? roadmapRemainingCount(roadmapReads(p)) : null,
+    needs: data.projects.reduce((n, x) => n + needCount(x), 0), remaining: roadmap ? store.select('roadmap-remaining', [p, data.projects, view.roadmapOnly], (project) => roadmapRemainingCount(roadmapReads(project))) : null,
     cost: privateCost && !snapshot && !hosted.local && !readOnly && !data.group });
   if (document.title !== next) document.title = next;
   // While a switch loads, the board on hand is the last project's: its counts are never shown as the new one's.
