@@ -1434,7 +1434,7 @@
     "launch": 2
   },
   "apps/cli/journeys/sentinels/main.test.js": {
-    "launch": 30
+    "launch": 2
   },
   "apps/cli/journeys/sentinels/needs.test.js": {
     "launch": 37
