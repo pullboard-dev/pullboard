@@ -161,7 +161,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     box.git(box.repo, 'rm', '-q', '--', 'web/legacy.test.js');
     box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test: split legacy test entry');
     const tip = box.git(box.repo, 'rev-parse', 'HEAD').trim();
-    const gate = box.run(box.repo, 'gate', '--landing', '--receipt', '--json');
+    const gate = (await box.runLocal(box.repo, 'gate', '--landing', '--receipt', '--json'));
     assert.equal(gate.code, 0, `${gate.out}${gate.err}`);
     const receiptId = JSON.parse(gate.out).receiptId;
     assert.ok(receiptId);

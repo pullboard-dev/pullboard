@@ -34,8 +34,8 @@ const FILE = 'web/shared.js';
 const SECOND = 'web/other.js';
 
 /** Assert a fixture command succeeded before using its structured receipt. */
-function json(box, path, ...args) {
-  const result = box.run(path, ...args, '--json');
+async function json(box, path, ...args) {
+  const result = (await box.runLocal(path, ...args, '--json'));
   assert.equal(result.code, 0, result.out + result.err);
   return JSON.parse(result.out);
 }
@@ -61,29 +61,29 @@ function project(separate = true) {
 }
 
 /** Submit a genuine branch changing both files, optionally using another joined lane seat. */
-function submit(box, number = 1) {
+async function submit(box, number = 1) {
   const path = number === 1 ? box.web : join(box.dir, 'builder-' + number);
   if (number !== 1) {
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/conflict-' + number, path, 'main');
     const joined = joinFixtureSeat(box, path, 'web');
     assert.equal(joined.code, 0, joined.out + joined.err);
   }
-  const added = json(box, box.repo, 'add', 'web', 'Conflict fixture ' + number, '--specs', 'G1',
-    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE);
+  const added = (await json(box, box.repo, 'add', 'web', 'Conflict fixture ' + number, '--specs', 'G1',
+    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE));
   const id = added.item.item_id;
-  json(box, path, 'claim', String(id));
+  (await json(box, path, 'claim', String(id)));
   for (const file of [FILE, SECOND]) writeFileSync(join(path, file), `export const value = "item-${number}";\n`);
   box.git(path, 'add', FILE, SECOND);
   box.git(path, 'commit', '-q', '-m', 'feat(web): build conflict fixture [G1]');
   const commit = box.git(path, 'rev-parse', 'HEAD');
-  json(box, path, 'submit', String(id));
+  (await json(box, path, 'submit', String(id)));
   return { id, path, commit };
 }
 
 /** Independently check the private fixture submission before restoring its main checkout. */
-function accept(box, entry) {
+async function accept(box, entry) {
   box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
-  try { json(box, box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', 'Both modules parse at the exact submitted commit.'); }
+  try { (await json(box, box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', 'Both modules parse at the exact submitted commit.')); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 
@@ -121,23 +121,23 @@ function assertConflict(record, files) {
   assert.equal(record.detail.landingFailure, undefined, 'a conflict is never recorded as a failed test');
 }
 
-test('manual landing conflict notes are verified by Git and recorded as conflicts [C7,B3]', () => {
+test('manual landing conflict notes are verified by Git and recorded as conflicts [C7,B3]', async () => {
   const box = project();
-  const entry = submit(box);
-  accept(box, entry);
+  const entry = (await submit(box));
+  (await accept(box, entry));
   const merge = conflict(box, entry);
   const note = `${FILE}: does not merge onto the trunk (conflicts: ${merge.files.join(' ')}), reopened for the builder merge; merge commit ${merge.commit}`;
-  json(box, box.repo, 'reopen', String(entry.id), '--note', note);
+  (await json(box, box.repo, 'reopen', String(entry.id), '--note', note));
   assertConflict(latest(box, entry.id), merge.files);
 });
 
-test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', () => {
+test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', async () => {
   const box = project();
-  const entry = submit(box);
-  accept(box, entry);
+  const entry = (await submit(box));
+  (await accept(box, entry));
   const trunk = box.git(box.repo, 'rev-parse', 'main');
   const note = `${FILE}: does not merge onto the trunk (conflicts: ${FILE}), reopened for the builder merge; merge commit ${trunk}`;
-  const refused = box.run(box.repo, 'reopen', String(entry.id), '--note', note, '--json');
+  const refused = (await box.runLocal(box.repo, 'reopen', String(entry.id), '--note', note, '--json'));
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'NOT_CONFLICTING');
   // @pullboard-board-file journey: verify the refused CLI reopen left its actual accepted item and durable event history unchanged
@@ -148,16 +148,16 @@ test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', () =>
   } finally { store.closeBoard(board); }
 });
 
-test('legacy notes preserve ordinary state refusals before a submitted commit exists [C7,B3]', () => {
+test('legacy notes preserve ordinary state refusals before a submitted commit exists [C7,B3]', async () => {
   const box = project();
-  const added = json(box, box.repo, 'add', 'web', 'Still being built', '--specs', 'G1',
-    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE);
+  const added = (await json(box, box.repo, 'add', 'web', 'Still being built', '--specs', 'G1',
+    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE));
   const id = added.item.item_id;
   const trunk = box.git(box.repo, 'rev-parse', 'main');
   const note = `${FILE}: does not merge onto the trunk (conflicts: ${FILE}), reopened for the builder merge; merge commit ${trunk}`;
   for (const claimed of [false, true]) {
-    if (claimed) json(box, box.web, 'claim', String(id));
-    const refused = box.run(box.repo, 'reopen', String(id), '--note', note, '--json');
+    if (claimed) (await json(box, box.web, 'claim', String(id)));
+    const refused = (await box.runLocal(box.repo, 'reopen', String(id), '--note', note, '--json'));
     assert.equal(refused.code, 1);
     assert.equal(JSON.parse(refused.out).error.code, 'NOT_SUBMITTED');
     // @pullboard-board-file journey: read the CLI fixture's current claim state and prove refusal appended no reopen event
@@ -169,10 +169,10 @@ test('legacy notes preserve ordinary state refusals before a submitted commit ex
   }
 });
 
-test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]', () => {
+test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]', async () => {
   const box = project();
-  const entry = submit(box);
-  accept(box, entry);
+  const entry = (await submit(box));
+  (await accept(box, entry));
   const merge = conflict(box, entry);
   // @pullboard-board-file journey: export the native CLI submission and verify replay never changes that durable source board
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -187,30 +187,30 @@ test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]
     assert.equal(oldDetail.causeDerivation, undefined);
     assert.equal(store.getItem(source, entry.id).item_status, 'verified', 'the replay control never changes the native board');
   } finally { store.closeBoard(older); store.closeBoard(source); }
-  json(box, box.repo, 'reopen', String(entry.id), '--conflict', merge.files[0],
-    '--cause', 'test:web/unrelated.test.js::unrelated test');
+  (await json(box, box.repo, 'reopen', String(entry.id), '--conflict', merge.files[0],
+    '--cause', 'test:web/unrelated.test.js::unrelated test'));
   assertConflict(latest(box, entry.id), merge.files);
 });
 
-test('review selection records the actual submitted-head conflict files [C7,B3]', () => {
+test('review selection records the actual submitted-head conflict files [C7,B3]', async () => {
   const box = project();
-  const entry = submit(box);
+  const entry = (await submit(box));
   const merge = conflict(box, entry);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api');
-  box.run(reviewer, 'next', '--verify', '--json');
+  (await json(box, reviewer, 'join', 'api'));
+  (await box.runLocal(reviewer, 'next', '--verify', '--json'));
   assertConflict(latest(box, entry.id), merge.files);
 });
 
-test('local and inline landing trains record sibling conflict files [C7,B3]', () => {
+test('local and inline landing trains record sibling conflict files [C7,B3]', async () => {
   for (const separate of [true, false]) {
     const box = project(separate);
-    const first = submit(box, 1);
-    const second = submit(box, 2);
-    accept(box, first);
-    accept(box, second);
-    const landed = json(box, box.repo, 'land');
+    const first = (await submit(box, 1));
+    const second = (await submit(box, 2));
+    (await accept(box, first));
+    (await accept(box, second));
+    const landed = (await json(box, box.repo, 'land'));
     assert.deepEqual(landed.landed, [first.id]);
     assert.equal(landed.conflicts.length, 1);
     assert.deepEqual([...landed.conflicts[0].files].sort(), [FILE, SECOND].sort());

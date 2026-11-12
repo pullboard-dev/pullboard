@@ -476,6 +476,26 @@ export function failingShardFiles(shards) {
 }
 
 /**
+ * The shards' test-child rows as one list with each PID once: a PID two shards both report is dropped from every
+ * shard, and no row left reads as unknown (null). Why: shards run on different runners (or one runner after its PIDs
+ * wrap), so a PID names a child only within its own shard; the receipt keys rows by PID, and one collision made it
+ * refuse the whole native receipt, so the gate refused PROOF_RUN_UNAVAILABLE for a check that ran [P7,#5763].
+ * @param {object[]} runs
+ * @returns {object[] | null | undefined}
+ */
+function shardTestRuntimes(runs) {
+  if (!runs.some(run => Array.isArray(run.testRuntimes))) return runs[0]?.testRuntimes;
+  const shardsByPid = new Map();
+  runs.forEach((run, index) => {
+    for (const row of Array.isArray(run.testRuntimes) ? run.testRuntimes : []) {
+      shardsByPid.set(row?.pid, (shardsByPid.get(row?.pid) ?? new Set()).add(index));
+    }
+  });
+  const rows = runs.flatMap(run => Array.isArray(run.testRuntimes) ? run.testRuntimes : []).filter(row => shardsByPid.get(row?.pid).size === 1);
+  return rows.length ? rows : null;
+}
+
+/**
  * Merge shard runs into the one run the proof receipt records: one output, green only when every shard is, the first
  * red exit, the first shard's stage accounting (the others' are already profiled in their own slots), and each shard's files, exit, runner and duration kept in `shards`. Execution facts come from the first
  * shard; any shard whose source differs marks the whole run's source as changed, so the receipt is never clean on it.
@@ -491,9 +511,8 @@ export function mergeShardRuns(shards) {
   const red = runs.find(run => run.exitCode !== 0 && run.exitCode !== undefined);
   const source = run => run.executionSource && `${run.executionSource.commit}:${run.executionSource.tree}`;
   const sameSource = runs.every(run => source(run) === source(base));
-  const joined = key => runs.some(run => Array.isArray(run[key])) ? runs.flatMap(run => Array.isArray(run[key]) ? run[key] : []) : base[key];
   const merged = { ...base, isGreen: green, rawIsGreen: rawGreen, exitCode: green ? base.exitCode : red?.exitCode ?? 1,
-    output: runs.map(run => String(run.output ?? '')).join('\n'), testRuntimes: joined('testRuntimes'),
+    output: runs.map(run => String(run.output ?? '')).join('\n'), testRuntimes: shardTestRuntimes(runs),
     executionSourceUnchanged: sameSource && runs.every(run => run.executionSourceUnchanged !== false),
     ...(runs.some(run => run.timedOut) ? { timedOut: true } : {}),
     failingFiles: failingShardFiles(shards),
