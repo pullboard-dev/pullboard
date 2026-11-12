@@ -29,6 +29,7 @@ import {
   git,
   gitChildEnv,
   gitPath,
+  checkoutHead,
   gitConfig,
   invalidateGitFacts,
   mainCheckout,
@@ -565,7 +566,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
         if (revision !== ':index') {
-          if (!revisions.has(revision)) revisions.set(revision, tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
+          if (!revisions.has(revision)) revisions.set(revision, (revision === 'HEAD' ? checkoutHead(root) : undefined) ? true : tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
           if (!revisions.get(revision)) return undefined;
         }
         const entry = importFileEntry(root, revision, path);
@@ -656,10 +657,10 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
  */
 export function deletedGateProblems(root, config) {
   if (!config?.spec) return [];
-  const status = tryGit(root, ['diff', '--cached', '--name-status', '-z', '-M']);
-  if (status.status !== 0) return [];
+  let raw;
+  try { raw = git(root, ['diff', '--cached', '--name-status', '-z', '-M']); } catch { return []; } // the same call kind as stagedPaths, so one memo answer serves both
   const gone = new Map();
-  const fields = status.stdout.split('\0');
+  const fields = raw.split('\0');
   for (let at = 0; at < fields.length - 1;) {
     const code = fields[at], from = fields[at + 1], to = /^[RC]/u.test(code) ? fields[at + 2] : undefined;
     at += to === undefined ? 2 : 3;

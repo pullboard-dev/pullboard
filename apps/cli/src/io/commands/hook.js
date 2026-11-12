@@ -51,6 +51,8 @@ import {
   headCommit,
   tryGit,
   withGitCommandMemo,
+  checkoutBranch,
+  checkoutRefCommit,
   isClean,
   repoInfo,
   untracked,
@@ -100,7 +102,7 @@ import {
  */
 export function refuseSeatItemWork(root, seat) {
   if (!seat?.agent_path) return;
-  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim());
+  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(checkoutBranch(root) ?? '');
   if (!match) return;
   const folder = itemFolderPath(seat.agent_path, Number(match[1]));
   throw new Refused('ITEM_WORK_IN_SEAT', `item work for #${match[1]} is committed in the seat checkout ${root}; item work is built in its item folder ${folder}`,
@@ -138,7 +140,9 @@ export async function hookCommand(io, { first, second }) {
         && !pendingSubmitHandoff(board, item));
       return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
     }) ?? '' : '';
-    const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
+    const trunk = trunkRef(info.root);
+    // The trunk branch's commit comes from Git's ref files when they can answer, so no process is started for it.
+    const accepted = (trunk?.startsWith('refs/heads/') ? checkoutRefCommit(info.root, trunk) : null) || tryGit(info.root, ['rev-parse', '--verify', trunk]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
     const staticProblems = await stagedStaticProblems(info.root, process.env);
     problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
