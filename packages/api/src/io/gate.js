@@ -22,6 +22,8 @@ const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
+// Budget: a red shard names at most this many 'not ok' cases in the fact; its kept log holds the rest.
+const SHARD_CASES = 50;
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
 export const SHARD_JOB_KIND = 'gate-shard';
 /** Budget: a gate request with its ledger hits stays this far under the queue's 60 KiB job-request cap (jobs.js). */
@@ -154,6 +156,22 @@ function offerProofShards(board, { job, receipt, offered }) {
 }
 
 /**
+ * One red shard's own account: each `not ok` case its TAP printed, by file and name, and the full log its runner kept.
+ * Why: a shard's tail often ends on its passing subtests, so without these no one can name the failing test [C7].
+ */
+function redShard(part) {
+  const phase = part.phase ?? {};
+  const rows = Array.isArray(phase.errors) && phase.errors.length ? phase.errors : Array.isArray(phase.failures) ? phase.failures : [];
+  const cases = rows.filter(row => typeof row?.name === 'string' && row.name).slice(0, SHARD_CASES)
+    .map(row => ({ file: typeof row.file === 'string' && row.file ? row.file : null, name: row.name }));
+  const omitted = Math.max(0, (Number(phase.errorCount) || rows.length) - cases.length);
+  const folder = typeof part.output?.folder === 'string' && part.output.folder ? part.output.folder : null;
+  // The proof phase's own log when the gate entry kept one, else the job's whole output the runner kept beside it.
+  const log = folder ? join(folder, typeof phase.kept === 'string' && /^[\w.-]+$/u.test(phase.kept) ? phase.kept : 'job.log') : null;
+  return { job: part.job, runner: part.output?.runner ?? part.runner, log, cases, omitted };
+}
+
+/**
  * The gate receipt the shards of one proof make together: the gate's own receipt with one proof phase that is green
  * only when every shard is, naming every failing case its red shards name (none when any red shard names none).
  */
@@ -163,7 +181,8 @@ function combinedReceipt(gateReceipt, shards) {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
-    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0 };
+    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
+      output: posted?.receipt?.output ?? null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
@@ -173,7 +192,7 @@ function combinedReceipt(gateReceipt, shards) {
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
-    ...(reds.length ? { failures, errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
+    ...(reds.length ? { failures, shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
       errorCount: reds.reduce((total, part) => total + (part.phase?.errorCount ?? part.phase?.errors?.length ?? 0), 0) } : {}) };
   const { proofPlan, ...rest } = gate;
   const green = !reds.length;
@@ -199,6 +218,12 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   return applyGateReceipt(board, { job: parent, receipt: combined }, ports);
 }
 
+/** Where each red shard of a phase keeps its full log, one line per shard. */
+function shardLogLines(phase) {
+  return (Array.isArray(phase?.shardReds) ? phase.shardReds : [])
+    .map(red => `${phase.role} shard ${red.job} log: ${red.log ? `${red.log} on runner ${red.runner ?? 'unknown'}` : `none kept on runner ${red.runner ?? 'unknown'}`}`);
+}
+
 /** One line per part that failed: analysis refusals, each failing case of a red phase (the lines that explain its exit when it names none), or the job's own error. */
 export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
@@ -212,8 +237,15 @@ export function failingParts(receipt) {
     // A phase whose receipt names its cases lists them as the controller gate does, file :: case name.
     const cases = Array.isArray(phase.failures) ? phase.failures.filter(row => typeof row?.file === 'string' && row.file && typeof row.name === 'string' && row.name) : [];
     if (cases.length) parts.push(...cases.map(row => `${phase.role} failed: ${row.file} :: ${clip(row.name)}`));
+    // A red shard's own 'not ok' cases and its log path come ahead of any tail, which may show only passing subtests [C7].
+    const reds = Array.isArray(phase.shardReds) ? phase.shardReds : [];
+    if (!cases.length) for (const red of reds) {
+      parts.push(...(red.cases ?? []).map(row => `${phase.role} not ok: ${row.file ? `${row.file} :: ` : ''}${clip(row.name)} (shard ${red.job})`));
+      if (red.omitted) parts.push(`${phase.role} not ok: ${red.omitted} more in shard ${red.job}'s log`);
+    }
+    parts.push(...shardLogLines(phase));
     // Why the exit lines first: a plain tail of a crashed proof ends on its closing counts, which name nothing.
-    else parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
+    if (!cases.length) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
   }
   if (gate.proofPlan) parts.push('proof: the gate left its proof to shard jobs the board could not offer; submit again');
   if (!parts.length && receipt?.status !== 0) parts.push(`the gate job exited ${receipt?.status ?? receipt?.signal}`);
@@ -310,7 +342,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   const compared = green ? null : compareGateWithMain(board, receipt, main, compareWithMain);
   const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true);
   const recorded = compared ? { cases: compared.cases } : {};
-  let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared)] : failingParts(receipt);
+  let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
+    ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : failingParts(receipt);
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
