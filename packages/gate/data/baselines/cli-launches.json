@@ -657,7 +657,7 @@
     "launch": 2
   },
   "apps/cli/journeys/submit/preflight.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/gate/newcomer.test.js": {
     "launch": 1
