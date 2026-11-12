@@ -102,7 +102,7 @@ Work
                 [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
-  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+  pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
