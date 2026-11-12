@@ -28,7 +28,7 @@ import { shardRows } from '../../logic/census.js';
 
 /** Tracked test entry files at HEAD, the way the gate lists them for a full suite. */
 async function trackedTests(root) {
-  const { trackedDefaultTestFiles } = await import('../../../../../packages/gate/src/io/test/selection.js');
+  const { trackedDefaultTestFiles } = await import('../../../../../packages/gate/index.js');
   return trackedDefaultTestFiles(root, process.env).map(file => file.replace(/^\.\//u, ''));
 }
 
