@@ -5,8 +5,6 @@
  * that always rolls back, with a stand-in proof, so every board guard decides now and nothing is recorded.
  */
 import { tryGit } from "../../../../git/index.js";
-import { inPlanScope } from "../../../../codemap/index.js";
-import { moveHistoryPlacement } from "../../../../codemap/index.js";
 import { Refused } from "../../../../kernel/index.js";
 
 /** Git variables that could narrow which objects a read sees; trunk reads run without them. */
@@ -78,10 +76,6 @@ function trunkSources(root, env) {
     ...(remotes.status === 0 ? remotes.stdout.split('\n').filter(Boolean) : [])])];
 }
 
-/**
- * Bind placement to committed source, never an unstaged plan or the process working directory. With deferUnplaced
- * a missing placement returns to the cells check, which refuses it only on Cells reorg work (#2473).
- */
 /** The cells-plan index whose presence on accepted main turns placement on. */
 const CELLS_PLAN_INDEX = 'packages/codemap/data/plan/cells.json';
 
@@ -96,56 +90,6 @@ const CELLS_PLAN_INDEX = 'packages/codemap/data/plan/cells.json';
  */
 export function hasCellsPlan(root, base) {
   return Boolean(readTrunkEntry(root, base, CELLS_PLAN_INDEX).stdout);
-}
-
-export function requirePlannedSource(root, base, commit, { deferUnplaced = false } = {}) {
-  const index = CELLS_PLAN_INDEX;
-  const accepted = readTrunkEntry(root, base, index);
-  if (!accepted.stdout) return;
-  if (!/^100(?:644|755) blob /u.test(accepted.stdout)) throw new Refused('CELLS_PLAN_UNPLACED', 'restore a regular cells-plan index on accepted main');
-  /** Read only regular committed JSON blobs from the exact candidate. */
-  const read = file => {
-    const mode = tryGit(root, ['ls-tree', '-z', commit, '--', file]);
-    const source = tryGit(root, ['show', `${commit}:${file}`]);
-    if (mode.status !== 0 || !/^100(?:644|755) blob /u.test(mode.stdout) || source.status !== 0) {
-      throw new Refused('CELLS_PLAN_UNPLACED', `restore the committed cells plan: ${file}`);
-    }
-    try { return JSON.parse(source.stdout); }
-    catch { throw new Refused('CELLS_PLAN_UNPLACED', `restore valid committed cells plan JSON: ${file}`); }
-  };
-  const plan = read(index);
-  if (!Array.isArray(plan.cells) || !Array.isArray(plan.stays)) throw new Refused('CELLS_PLAN_UNPLACED', 'restore the committed cells plan cells and stays');
-  const known = new Set();
-  for (const cell of plan.cells) {
-    if (typeof cell.file !== 'string' || !/^packages\/codemap\/data\/plan\/\d{2}-[a-z-]+\.json$/u.test(cell.file)) {
-      throw new Refused('CELLS_PLAN_UNPLACED', 'restore the committed cell shard references');
-    }
-    const shard = read(cell.file);
-    if (shard.name !== cell.name || !Array.isArray(shard.paths)) throw new Refused('CELLS_PLAN_UNPLACED', `restore the committed cell shard: ${cell.file}`);
-    for (const row of shard.paths) {
-      if (!Array.isArray(row) || row.length !== 3 || row.some(value => typeof value !== 'string') || !['seed', 'rule', 'imports'].includes(row[2])) {
-        throw new Refused('CELLS_PLAN_UNPLACED', `restore the committed path rows: ${cell.file}`);
-      }
-      known.add(row[0]); known.add(row[1]);
-    }
-  }
-  for (const stay of plan.stays) {
-    if (typeof stay.path !== 'string' || typeof stay.reason !== 'string' || !stay.reason.trim()) throw new Refused('CELLS_PLAN_UNPLACED', 'restore the committed stay rows');
-    known.add(stay.path);
-  }
-  const tracked = tryGit(root, ['ls-tree', '-r', '-z', commit]);
-  if (tracked.status !== 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the committed source paths could not be read from Git');
-  const missing = [];
-  for (const row of tracked.stdout.split('\0').filter(Boolean)) {
-    const tab = row.indexOf('\t');
-    const file = row.slice(tab + 1);
-    if (tab < 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the committed source inventory is malformed');
-    if (!inPlanScope(file)) continue;
-    if (!/^100(?:644|755) blob /u.test(row)) throw new Refused('CELLS_PLAN_UNPLACED', `restore a regular committed source path before placement: ${file}`);
-    if (!known.has(file) && moveHistoryPlacement(file) === null) missing.push(file);
-  }
-  if (missing.length && deferUnplaced) return { unplaced: missing };
-  if (missing.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${missing.join(', ')}; place each with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
 }
 
 /** Thrown to roll back a preflight that passed; never escapes this module. */
