@@ -26,7 +26,7 @@ async function fixture(t) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'feat(web): land the result by hand [G1]');
   const landing = box.git(box.repo, 'rev-parse', 'HEAD');
-  const { item } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Hand landed result', criterion: 'the result exists', check: 'test -f web/result.txt', run: box.runLocal });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Hand landed result', criterion: 'the result exists', check: 'test -f web/result.txt', run: box.runLocal });
   const id = item.item_id;
   const merged = await box.runLocal(box.repo, 'merged', String(id), landing, '--forced', 'hand landed around the gate');
   assert.equal(merged.code, 0, merged.out + merged.err);
