@@ -8,12 +8,14 @@ import { serveApi } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { apiHttpFixture } from '../../tests/fixtures/api.js';
 import { main } from '../../tests/fixtures/native.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const STATE_PORTS = new URL('../../src/io/commands/serve.js', import.meta.url).href;
 
 test('[A2,C7,N26] a read of an unchanged board reports a newer flow asOf, with the same content and no new build', async (t) => {
   const box = apiHttpFixture(t);
-  box.cli(box.root, 'add', 'app', 'Latest item', '--route', 'strong', '--criterion', 'Detail', '--brief', 'Files:\n- app/latest.js\nChange:\n- Keep it.\nTest:\n- It reads.');
+  const added = await runCliInProcess(['add', 'app', 'Latest item', '--route', 'strong', '--criterion', 'Detail', '--brief', 'Files:\n- app/latest.js\nChange:\n- Keep it.\nTest:\n- It reads.', '--json'], { cwd: box.root, env: box.env });
+  assert.equal(added.status, 0, added.stderr);
   const builds = [];
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, statePorts: STATE_PORTS,
     onStateBuild: (build) => builds.push(build), projects: () => [{ root: box.root, name: 'Latest fixture' }] });

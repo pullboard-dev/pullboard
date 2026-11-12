@@ -30,7 +30,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
 /** Register through the actual join command; the executable records its literal argument vector. */
-function wakeFixture(t) {
+async function wakeFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -40,7 +40,7 @@ function wakeFixture(t) {
   chmodSync(command, 0o755);
   const seatRoot = join(box.dir, 'idle-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/wake', seatRoot);
-  const joined = fixtureJoin(box.run, seatRoot, 'api', '--wake', command, '--json');
+  const joined = await fixtureJoin(box.runIn, seatRoot, 'api', '--wake', command, '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   const seat = JSON.parse(joined.out).agent;
   let at = Date.now();
@@ -49,7 +49,7 @@ function wakeFixture(t) {
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   heartbeatSeat(board, seat);
-  const added = fixtureAdd(box.run, box.repo, 'api', 'Wake the routed seat', '--specs', 'G2', '--criterion', 'The wake receives this item.', '--check', 'test -f api/wake-ready', '--json');
+  const added = await fixtureAdd(box.runIn, box.repo, 'api', 'Wake the routed seat', '--specs', 'G2', '--criterion', 'The wake receives this item.', '--check', 'test -f api/wake-ready', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   /** Execute the real CLI with this fixture's deterministic presence clock. */
@@ -60,7 +60,7 @@ function wakeFixture(t) {
 }
 
 test('coordinator and board routing deliver one literal item argument to an idle local seat [C7]', async t => {
-  const box = wakeFixture(t);
+  const box = await wakeFixture(t);
   assert.equal(agentById(box.board, box.seat).presence, 'live');
   const live = await box.cli(['shout', box.seat, `take #${box.item}`]);
   assert.equal(live.code, 0, live.err + live.out);
@@ -82,7 +82,7 @@ test('coordinator and board routing deliver one literal item argument to an idle
 });
 
 test('a relayed seat cannot carry an executable wake capability onto another machine [C7]', async t => {
-  const box = wakeFixture(t);
+  const box = await wakeFixture(t);
   box.idle();
   const snapshot = exportBoard(box.board);
   assert.equal(JSON.stringify(snapshot).includes(box.command), false, 'the command never enters shared board state');
