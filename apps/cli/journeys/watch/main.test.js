@@ -352,8 +352,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const noticed = events(box).find(event => event.event_id === notice.sequence);
   assert.equal(noticed.item_id, added.item_id, 'the notice follows its new item');
   assert.ok(['add', 'check-baseline'].includes(noticed.event_kind), 'the notice follows the add or its actual baseline observation');
-  // The baseline never runs on this machine: it is measured on a runner (green), or stays pending when none is registered here. Either way its worker has already exited.
-  assert.ok(['green', 'pending'].includes(added.item_check_baseline.result), `the baseline is finished or waiting for a runner before later move assertions: ${added.item_check_baseline.result}`);
+  assert.equal(added.item_check_baseline.result, 'green', 'the baseline is finished before later move assertions');
   const blocked = (await box.local(box.root, 'add', 'app', 'Waits for the fresh work', '--criterion', 'after', '--specs', 'G1', '--after', String(added.item_id), '--route', 'strong',
     '--brief', 'Files: app/after.txt\nChange: exercise a dependency-blocked item in the watch fixture.\nTest: observe the item becoming claimable after acceptance.\nOut of scope: product behavior.')).item;
 
@@ -441,11 +440,11 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const observations = new Set(['fact', 'usage', 'activity-delivered']);
   // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
-    'add', 'milestone_placed', ...(added.item_check_baseline.result === 'green' ? ['check-baseline', 'hold_item'] : []), 'add', 'milestone_placed', 'claim',
-    ...(added.item_check_baseline.result === 'green' ? ['unhold_item'] : []), 'check_accept', 'release',
+    'add', 'milestone_placed', 'check-baseline', 'hold_item', 'add', 'milestone_placed', 'claim',
+    'unhold_item', 'check_accept', 'release',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
-  ], 'only the explicit moves, rejection escalation, native placements, the baseline when a runner measured it with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
+  ], 'only the explicit moves, rejection escalation, native placements, the baseline with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
   const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
   const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));

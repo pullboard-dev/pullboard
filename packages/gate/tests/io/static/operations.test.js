@@ -43,6 +43,17 @@ test('#5846 clause 1: a second spawn of the test runner outside the registered e
   assert.deepEqual(operationSites("spawnSync('git', ['status']);\n", 'packages/demo/src/io/git.js'), [], 'a child that is not the test runner is not a site');
 });
 
+test('#5923 clause 1: a template-string script whose comment names the runner and spawns another command has no run-tests site [C7]', () => {
+  const script = "import { spawnSync } from 'node:child_process';\nconst script = `\n/** Runs bin/run-tests.js is not what this does. */\nspawnSync('git', ['status']);\n// node bin/run-tests.js\n`;\n";
+  assert.deepEqual(operationSites(script, 'packages/demo/src/io/script.js'), [], 'a comment inside a template is prose');
+});
+
+test('#5923 clause 2: a file that spawns the runner script is still a site, even beside a template comment [C7]', () => {
+  const real = "import { spawnSync } from 'node:child_process';\nconst note = `\n// bin/run-tests.js\n`;\nexport const run = () => spawnSync(process.execPath, ['bin/run-tests.js', 'a.test.js']);\n";
+  assert.deepEqual(operationSites(real, 'packages/demo/src/io/runner.js').map(row => [row.operation, row.line]), [['run-tests', 5]]);
+  assert.equal(operationSites(RUNNER_SPAWN, 'packages/demo/src/io/runner.js').length, 1);
+});
+
 test('#5846 clause 1: the repository has no second entry point the baseline does not name [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
   assert.deepEqual(operationEntryGrowth(operationReport(fileURLToPath(ROOT)), baseline), []);

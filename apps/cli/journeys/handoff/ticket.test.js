@@ -39,8 +39,8 @@ function onBoard(box, work) {
 }
 
 /** Run one health sweep as the coordinator, from the main checkout. */
-function sweep(box) {
-  const run = box.run(box.repo, 'sentinel', 'run', '--health-only');
+async function sweep(box) {
+  const run = await box.runLocal(box.repo, 'sentinel', 'run', '--health-only');
   assert.equal(run.code, 0, `${run.err}\n${run.out}`);
   return run;
 }
@@ -78,27 +78,27 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Lost ticket handoff', '--specs', 'G1', '--route', 'strong',
-    '--criterion', 'A lost queued launch ends within one sweep.', '--check', 'true', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Lost ticket handoff', '--specs', 'G1', '--route', 'strong',
+    '--criterion', 'A lost queued launch ends within one sweep.', '--check', 'true', '--wait', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   assert.equal(helpers.commitFile(box, box.web, 'web/lost.txt', 'lost\n', 'feat(web): lost ticket candidate [G1]').status, 0);
-  assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'))).queued, true);
   const job = onBoard(box, board => submitHandoff(board, id));
   assert.equal(job.state, 'queued');
   const tickets = await inMachineHome(box, () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(job.id) && !name.startsWith('.')));
   assert.equal(tickets.length, 1, 'the submit left one place in line');
 
   ageJob(box, id, 3 * 60_000);
-  sweep(box);
+  await sweep(box);
   assert.equal(onBoard(box, board => submitHandoff(board, id)).state, 'queued', 'a job still in line is left queued');
 
   await inMachineHome(box, () => rmSync(join(handoffQueueDirectory(), tickets[0])));
   ageJob(box, id, 30_000);
-  sweep(box);
+  await sweep(box);
   assert.equal(onBoard(box, board => submitHandoff(board, id)).state, 'queued', 'a lost ticket under the grace is left queued');
 
   ageJob(box, id, 3 * 60_000);
-  const replaced = sweep(box);
+  const replaced = await sweep(box);
   // A lost place in line is re-placed once on the same job (b2ed5cf838): the job keeps its id and gets a fresh ticket.
   const again = onBoard(box, board => submitHandoff(board, id));
   assert.equal(again.id, job.id, `the first loss re-places the same job (${replaced.err.slice(-300)}${replaced.out.slice(-300)})`);
@@ -111,7 +111,7 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
     const names = await inMachineHome(box, () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(last.id) && !name.startsWith('.')));
     await inMachineHome(box, () => { for (const name of names) rmSync(join(handoffQueueDirectory(), name)); });
     ageJob(box, id, 3 * 60_000);
-    sweep(box);
+    await sweep(box);
     const next = onBoard(box, board => submitHandoff(board, id));
     if (next.id !== last.id) retried = true;
     last = next;
@@ -127,7 +127,7 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/other-seat', other, 'main');
   // The item routes strong, so the other seat joins on the strong route.
   assert.equal(joinFixtureSeat(box, other, 'web').code, 0);
-  const claimed = box.run(other, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(other, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
 });
 
