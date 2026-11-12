@@ -1316,8 +1316,9 @@ export function contains(root, ancestor, descendant) {
 export function gitPath(root, name) {
   return fact(`gitPath:${JSON.stringify([resolve(root), name])}`, () => {
     // Pullboard's own per-worktree files are names Git does not share, which Git places in the worktree's Git dir.
-    const location = /^pullboard-[\w.-]+$/u.test(name) ? fileLocation(root) : undefined;
-    return location ? join(location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
+    // Git's own rule places MERGE_HEAD in the worktree's dir and info/grafts in the shared one: no process to ask.
+    const location = /^(?:pullboard-[\w.-]+|MERGE_HEAD|info\/grafts)$/u.test(name) ? fileLocation(root) : undefined;
+    return location ? join(name === 'info/grafts' ? location.commonDir : location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
   });
 }
 

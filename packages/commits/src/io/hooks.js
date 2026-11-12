@@ -264,7 +264,7 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  * @returns {{ touched: string[], written: string[] }}
  */
 export function stagedPaths(root, base = null) {
-  const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
+  const fields = git(root, ['diff', '--cached', '--name-status', '-z', '-M', ...(base ? [base] : [])]).split('\0'); // -M matches the move-detection call below, so one memo answer serves both.
   const touched = [], companion = new Set(JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593, #2614: a companion's own paths are exempt against the merged parent too
   const written = [];
   let index = 0;
@@ -656,11 +656,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
  */
 export function deletedGateProblems(root, config) {
   if (!config?.spec) return [];
-  const status = tryGit(root, ['diff', '--cached', '--name-status', '-M', '--no-color']);
+  const status = tryGit(root, ['diff', '--cached', '--name-status', '-z', '-M']);
   if (status.status !== 0) return [];
   const gone = new Map();
-  for (const line of status.stdout.split('\n').filter(Boolean)) {
-    const [code, from, to] = line.split('\t');
+  const fields = status.stdout.split('\0');
+  for (let at = 0; at < fields.length - 1;) {
+    const code = fields[at], from = fields[at + 1], to = /^[RC]/u.test(code) ? fields[at + 2] : undefined;
+    at += to === undefined ? 2 : 3;
     if (code.startsWith('D')) gone.set(from, 'deletes');
     else if (code.startsWith('R')) {
       const before = tryGit(root, ['rev-parse', `HEAD:${from}`]);
@@ -834,10 +836,9 @@ export function unwiredHookProblems(root) {
  * @returns {string[] | null}
  */
 function mainMergeHeads(root, preMergeHook) {
-  const gitPath = tryGit(root, ['rev-parse', '--git-path', 'MERGE_HEAD']);
-  if (gitPath.status !== 0) return null;
+  let mergeFile;
+  try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
-  const mergeFile = resolve(root, gitPath.stdout.trim());
   try {
     if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {

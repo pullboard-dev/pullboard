@@ -213,5 +213,6 @@ export async function hookCommand(io, { first, second }) {
 
 /** Run `pullboard hook` and return its exit code. */
 export async function run(io, args) {
-  return await hookCommand(io, args);
+  // One memo for the whole hook run: the fixers and static checks ask Git the same read-only questions as the hook checks.
+  return await withGitCommandMemo(() => hookCommand(io, args));
 }
