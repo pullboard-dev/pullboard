@@ -386,6 +386,9 @@
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/gate/deferral.test.js": {
+    "launch": 3
+  },
   "apps/cli/journeys/gate/drift.test.js": {
     "launch": 1
   },
@@ -1760,8 +1763,11 @@
   "apps/cli/journeys/sync/main.test.js": {
     "launch": 9
   },
+  "apps/cli/journeys/test/command.test.js": {
+    "launch": 5
+  },
   "apps/cli/journeys/test/knownred.test.js": {
-    "launch": 1
+    "launch": 5
   },
   "apps/cli/journeys/test/placement.test.js": {
     "launch": 6
@@ -1789,6 +1795,9 @@
   },
   "apps/cli/journeys/test/timeout.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/test/warning.test.js": {
+    "launch": 4
   },
   "apps/cli/journeys/tool-build/pinned.test.js": {
     "launch": 13
