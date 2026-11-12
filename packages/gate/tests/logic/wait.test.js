@@ -28,7 +28,6 @@ const RAW_CLIENT_TESTS = new Map([
   ['apps/cli/journeys/relay/browser.test.js', 'drives the sealed relay phone page, not the cockpit, through its own relay browser client'],
   ['apps/cli/journeys/relay/browser/client.test.js', 'tests the relay browser client itself against real Chrome, raw protocol included'],
   ['apps/cli/journeys/relay/hosted/shapes.test.js', 'drives hosted relay pages across browser engines, where the Chrome-only shared wait cannot reach'],
-  ['apps/cli/journeys/relay/setup/once.test.js', 'taps relay phone approvals through the relay browser client, not the cockpit'],
 ]);
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 
