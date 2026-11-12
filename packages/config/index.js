@@ -31,6 +31,7 @@ export {
   loadMachineSettings,
   declaredMachineSlots,
   validateRunner,
+  parseToolchains,
   relayCanaryConfig,
   DEFAULT_RUNNER_WAIT_MS,
   validateRunnerWaitMs,
