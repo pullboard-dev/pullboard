@@ -28,6 +28,7 @@ import {
   context,
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
+import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
 function runHosts(io) {
@@ -54,7 +55,7 @@ export async function run(io, { values = {} } = {}) {
   io.nativeBoard ??= await io.loadNativeBoard();
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
-  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
   // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
   const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
   const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }
