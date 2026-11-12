@@ -11,6 +11,6 @@ for (const fault of FAULTS) {
   test(`clause 1: a ${fault} at the verify step finishes or reopens the item within 3 fake minutes, no person or coordinator acts [C7]`, async t => {
     const result = await runLivenessFlow(t, { step: 'verify', fault, seed: 13 });
     // Finished: the item is verified or landed. Reopened: it is back in the review queue with no live reviewer holding it.
-    assert.ok(result.elapsedMs <= LIVENESS_BOUND_MS, `the board took ${result.elapsedMs} ms (state "${result.state}", reviewer ${result.owner}), past the ${LIVENESS_BOUND_MS} ms bound`);
+    assert.ok(result.elapsedMs <= LIVENESS_BOUND_MS, `the board took ${result.elapsedMs} ms (state "${result.state}", reviewer ${result.reviewer}), past the ${LIVENESS_BOUND_MS} ms bound`);
   });
 }
