@@ -864,7 +864,7 @@
     "launch": 1
   },
   "apps/cli/journeys/view/port.test.js": {
-    "launch": 15
+    "launch": 10
   },
   "apps/cli/journeys/relay/cockpit.test.js": {
     "launch": 9
