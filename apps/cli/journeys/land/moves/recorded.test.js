@@ -23,6 +23,11 @@ async function fixture(t, { recorded = false } = {}) {
   const cli = (cwd, ...args) => captureCommandInProcess(main, args, { cwd, env: box.env });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/old-name.txt'), Array.from({ length: 30 }, (_, line) => `row ${line}`).join('\n') + '\n');
+  if (recorded) {
+    // The coordinator records the move in a path-map shard on main; a web-lane candidate may not write that folder itself.
+    mkdirSync(join(box.repo, 'packages/codemap/data/plan/path-map'), { recursive: true });
+    writeFileSync(join(box.repo, 'packages/codemap/data/plan/path-map/untangle.json'), JSON.stringify({ 'web/old-name.txt': 'web/new-name.txt' }) + '\n');
+  }
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: private tracked file');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -38,10 +43,6 @@ async function fixture(t, { recorded = false } = {}) {
   assert.equal(claim.code, 0, claim.err);
   writeFileSync(join(box.web, 'web/change.txt'), 'source change\n');
   box.git(box.web, 'mv', 'web/old-name.txt', 'web/new-name.txt');
-  if (recorded) {
-    mkdirSync(join(box.web, 'packages/codemap/data/plan/path-map'), { recursive: true });
-    writeFileSync(join(box.web, 'packages/codemap/data/plan/path-map/untangle.json'), JSON.stringify({ 'web/old-name.txt': 'web/new-name.txt' }) + '\n');
-  }
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): private rename source [G1]');
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next', '--json');
@@ -73,7 +74,7 @@ test('landing refuses a candidate that renames a tracked file with no path-map e
   assert.equal((await box.show()).item_merged_commit, null);
 });
 
-test('landing lands the same rename once the candidate records it in a path-map shard [C7]', async t => {
+test('landing lands the same rename once a path-map shard records it [C7]', async t => {
   const box = await fixture(t, { recorded: true });
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
