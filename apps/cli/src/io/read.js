@@ -413,7 +413,8 @@ export function withOpenedBoard(ctx, work, board) {
  */
 export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, readers = store) {
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
-  const seat = environmentAgent(ctx.info.root, board);
+  // A seat joined over the served API acts as itself at the board root, which has no worktree of its own [P7].
+  const seat = environmentAgent(ctx.info.root, board) ?? (ctx.io.remoteAgent ? readers.agentById(board, ctx.io.remoteAgent) : null);
   if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
