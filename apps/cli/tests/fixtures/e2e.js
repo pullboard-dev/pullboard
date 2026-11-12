@@ -5,7 +5,6 @@ import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
-import { runCliInProcess } from './process.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -27,6 +26,7 @@ import { openBoard } from '../../../lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
+import { runCliInProcess } from './process.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
@@ -134,7 +134,7 @@ function sandbox({ declareFamilies = false } = {}) {
     const result = await runCliInProcess(args, { cwd, env });
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
-  return { dir, env, git, tryGit, run, inProcess, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -240,7 +240,7 @@ function launch(box, cwd, command, args) {
 async function waitFor(predicate, description, timeoutMs = 8_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const value = predicate();
+    const value = await predicate();
     if (value) return value;
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
   }
@@ -402,6 +402,19 @@ export function crossLaneFixture(t) {
       }
     }
   }
+  /** The same identity swap as runAs, answered by the production dispatch in this process [C7]. */
+  async function runAsLocal(identity, cwd, ...args) {
+    const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
+    box.env.CLAUDECODE = '1';
+    box.env.CLAUDE_CODE_SESSION_ID = identity;
+    try { return await box.runLocal(cwd, ...args); }
+    finally {
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete box.env[name];
+        else box.env[name] = value;
+      }
+    }
+  }
   /** Demand real command success before interpreting its versioned result. */
   function json(result) {
     assert.equal(result.code, 0, `${result.out}\n${result.err}`);
@@ -428,5 +441,5 @@ export function crossLaneFixture(t) {
   function binding(root) {
     return JSON.parse(readFileSync(join(resolve(root, box.git(root, 'rev-parse', '--git-dir')), 'pullboard-checkout-session.json'), 'utf8'));
   }
-  return { ...box, session, runAs, json, seat, add, milestone, binding };
+  return { ...box, session, runAs, runAsLocal, json, seat, add, milestone, binding };
 }

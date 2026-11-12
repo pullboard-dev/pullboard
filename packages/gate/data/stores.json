@@ -1,0 +1,1033 @@
+{
+  "foreign": [
+    "package.json",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    ".mcp.json",
+    "tsconfig.json",
+    "jsconfig.json"
+  ],
+  "stores": {
+    ".journal.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/retention.js"
+    },
+    ".lease.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/sync/src/io/git/lock.js"
+    },
+    ".profile.json": {
+      "kind": "json",
+      "owner": "packages/flakes/src/io/native.js"
+    },
+    ".pullboard-runner-source.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/source/scan.js"
+    },
+    "activation.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/main/audit/state.js"
+    },
+    "activation.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "auth.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/deploy/server.mjs"
+    },
+    "baseline.json": {
+      "kind": "json",
+      "owner": "packages/store/src/io/board/hold/ratchet.js"
+    },
+    "blocks.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/items/src/io/blocks.js"
+    },
+    "blueprint-fit-viewed.json": {
+      "kind": "json",
+      "owner": "packages/blueprints/src/io/fit.js"
+    },
+    "blueprint-fit.json": {
+      "kind": "json",
+      "owner": "packages/blueprints/src/io/fit.js"
+    },
+    "board-command-budget-error.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "board-command-budget.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/landing/budget.js"
+    },
+    "board-commands.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/landing/budget.js"
+    },
+    "board-hold-baseline.json": {
+      "kind": "json",
+      "owner": "packages/store/src/io/board/hold/ratchet.js"
+    },
+    "board-holds.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/store/src/io/board/hold/log.js"
+    },
+    "board-links.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/board/links.js"
+    },
+    "board-writes.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/store/src/io/board/hold/log.js"
+    },
+    "board.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/logic/help.js"
+    },
+    "board.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/api/src/io/main.js"
+    },
+    "board.sqlite.presence.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/cli/src/io/disk/use.js"
+    },
+    "board.sqlite.worktrees.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/disk/use.js"
+    },
+    "boards.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
+    },
+    "browser-refusal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/worker/entry.js"
+    },
+    "budgets.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/check/budgets.js"
+    },
+    "cells-backlog.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "cells-edges.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/tier/selection.js"
+    },
+    "cells-test-batches.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cells/placement.js"
+    },
+    "cells.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/cells-submit-checks.js"
+    },
+    "checked.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/badge.js"
+    },
+    "ci-result.json": {
+      "kind": "json",
+      "owner": "packages/github/src/io/flakes.js"
+    },
+    "cla-signatures.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/check/cla.js"
+    },
+    "claim.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/outbox/src/io/relay/worker.js"
+    },
+    "cleanup-state.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/timed.js"
+    },
+    "cleanup-timeout.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/worker/cleanup.js"
+    },
+    "cli-launches.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/static/registry.js"
+    },
+    "code-map.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/commands/map.js"
+    },
+    "compiler.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/parser/worker.js"
+    },
+    "config.json": {
+      "kind": "json",
+      "owner": "packages/sandbox/src/io/verify.js"
+    },
+    "context-ceilings.json": {
+      "kind": "json",
+      "owner": "packages/stats/src/logic/exit/rules/policy.js"
+    },
+    "cost-ledger.json": {
+      "kind": "json",
+      "owner": "packages/stats/src/io/cost/ledger.js"
+    },
+    "coverage.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "current.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/pinned/tool/build.js"
+    },
+    "decisions-seen.json": {
+      "kind": "json",
+      "owner": "packages/state/src/io/implies.js"
+    },
+    "deferred-notices.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/landing/src/io/deferred/notices.js"
+    },
+    "devices.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/store/device.js"
+    },
+    "disk-policy.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/disk/use.js"
+    },
+    "disk-use-cache.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/disk/use.js"
+    },
+    "dispatcher-idle.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/resources/src/io/handoff/worker/cap.js"
+    },
+    "dispatcher.json": {
+      "kind": "json",
+      "owner": "packages/resources/src/io/handoff/worker/cap.js"
+    },
+    "events.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/serve.js"
+    },
+    "exit.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/parser.js"
+    },
+    "export-only.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/logic/export/only.js"
+    },
+    "facts.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/codemap/src/io/main-facts-cache.js"
+    },
+    "failure.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/submit/gate.js"
+    },
+    "files.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/action/memo.js"
+    },
+    "freeze.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/generated/declarations.js"
+    },
+    "gate-receipts.jsonl": {
+      "kind": "jsonl",
+      "owner": "apps/cli/src/io/disk/use.js"
+    },
+    "git-sync-pending.json": {
+      "kind": "json",
+      "owner": "packages/sync/src/io/main.js"
+    },
+    "git-sync.json": {
+      "kind": "json",
+      "owner": "packages/sync/src/io/git/repair.js"
+    },
+    "guard.json": {
+      "kind": "json",
+      "owner": "packages/verify/src/io/review/tier.js"
+    },
+    "hooks.json": {
+      "kind": "json",
+      "owner": "packages/seats/src/io/agent/events.js"
+    },
+    "identity.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/transport.js"
+    },
+    "index.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/action/memo.js"
+    },
+    "item-sessions.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/items/src/io/sessions.js"
+    },
+    "items.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/badge.js"
+    },
+    "keys.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/action/cache.js"
+    },
+    "landing-file-times.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/live/read.js"
+    },
+    "landing-file-times.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/gate/src/io/run-tests.js"
+    },
+    "last-green.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/commits.js"
+    },
+    "last-run.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/worktree/maintenance/diagnostics.js"
+    },
+    "layout.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/layout.js"
+    },
+    "legacy.json": {
+      "kind": "json",
+      "owner": "packages/state/src/io/engine/numbers.js"
+    },
+    "load-bearing.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/logic/load/bearing.js"
+    },
+    "lock.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/link/src/io/relay/machine.js"
+    },
+    "main-red.json": {
+      "kind": "json",
+      "owner": "packages/landing/src/io/main/red.js"
+    },
+    "manifest.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
+    },
+    "missing-paths.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/paths/lint.js"
+    },
+    "model-tiers.json": {
+      "kind": "json",
+      "owner": "packages/config/src/io/main.js"
+    },
+    "models.json": {
+      "kind": "json",
+      "owner": "packages/stats/src/logic/pipeline.js"
+    },
+    "no-runtime-assumptions.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/no-runtime-assumptions.js"
+    },
+    "observation.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/submit/gate.js"
+    },
+    "operation-entries.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/static/operations.js"
+    },
+    "owner.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "owner.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "parse-results.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/codemap/src/io/parsed.js"
+    },
+    "path-map.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/logic/path/map.js"
+    },
+    "pending.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/landing/src/io/automatic/scheduler.js"
+    },
+    "pending.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
+    },
+    "performance.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/check/budgets.js"
+    },
+    "post-land-suite.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/ports/suite.js"
+    },
+    "profile.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "projects.json": {
+      "kind": "json",
+      "owner": "packages/seats/src/io/projects.js"
+    },
+    "publish-pr.json": {
+      "kind": "json",
+      "owner": "packages/github/src/io/pr/publish.js"
+    },
+    "publish.json": {
+      "kind": "json",
+      "owner": "packages/landing/src/io/pause.js"
+    },
+    "pullboard-activity.json": {
+      "kind": "json",
+      "owner": "packages/activity/src/io/inbox.js"
+    },
+    "pullboard-candidate-uses.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/source/cache.js"
+    },
+    "pullboard-checkout-session.json": {
+      "kind": "json",
+      "owner": "packages/items/src/io/sessions.js"
+    },
+    "pullboard-gate-runs.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/gate/src/io/control.js"
+    },
+    "pullboard-item.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/item/folder/identity.js"
+    },
+    "pullboard-parent-session.json": {
+      "kind": "json",
+      "owner": "packages/seats/src/io/agent/session.js"
+    },
+    "pullboard-pruned-refs.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/runners/src/io/source/cache.js"
+    },
+    "pullboard-runner-policy.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/read.js"
+    },
+    "pullboard-source-snapshot.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/source/cache.js"
+    },
+    "pullboard.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/commands/add.js"
+    },
+    "pure-roots.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/static/view.js"
+    },
+    "queue.json": {
+      "kind": "json",
+      "owner": "packages/resources/src/io/handoff/owner.js"
+    },
+    "receipt.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/release/transport.js"
+    },
+    "recording-error.addendum.json": {
+      "kind": "json",
+      "owner": "packages/flakes/src/io/native.js"
+    },
+    "recovery.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/cli/src/io/submit/handoff.js"
+    },
+    "recovery.json": {
+      "kind": "json",
+      "owner": "packages/config/src/io/git/sync.js"
+    },
+    "refusal-trials.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/refusal/trial.js"
+    },
+    "refusal.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/submit/handoff.js"
+    },
+    "refusals.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/refusal/trial.js"
+    },
+    "relay-deleted.json": {
+      "kind": "json",
+      "owner": "packages/config/src/io/settings/inventory.js"
+    },
+    "relay-health.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/api/src/io/main.js"
+    },
+    "relay-outbox.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/outbox/src/io/relay/guard.js"
+    },
+    "relay-outbox.summary.json": {
+      "kind": "json",
+      "owner": "packages/link/src/io/relay/relink.js"
+    },
+    "relay-relink.json": {
+      "kind": "json",
+      "owner": "packages/link/src/io/relay/relink.js"
+    },
+    "relay.json": {
+      "kind": "json",
+      "owner": "packages/store/src/io/home.js"
+    },
+    "release-pending.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/worker/cleanup.js"
+    },
+    "report.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/economics/placement.js"
+    },
+    "request.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/submit/handoff.js"
+    },
+    "resources.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/config/src/io/settings/inventory.js"
+    },
+    "result.json": {
+      "kind": "json",
+      "owner": "packages/verify/src/io/comparison.js"
+    },
+    "resume-doctrine.json": {
+      "kind": "json",
+      "owner": "packages/doctrine/src/io/rulings.js"
+    },
+    "retention-log.jsonl": {
+      "kind": "jsonl",
+      "owner": "apps/cli/src/io/disk/use.js"
+    },
+    "rotation.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/parser/worker.js"
+    },
+    "row.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/pull/scripts.js"
+    },
+    "runner-runtimes.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/runtime.js"
+    },
+    "runners.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/memo.js"
+    },
+    "schedule.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "seals.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/seals.js"
+    },
+    "seat-hour-prices.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/scale.js"
+    },
+    "seat-timing.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/seats/src/io/timing.js"
+    },
+    "seed.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cells-plan-model.js"
+    },
+    "selected-tests.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/run-tests.js"
+    },
+    "settings.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/init.js"
+    },
+    "settled.json": {
+      "kind": "json",
+      "owner": "packages/sandbox/src/io/source/advance/worker.js"
+    },
+    "setup-complete.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/setup.js"
+    },
+    "setup-started.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/setup.js"
+    },
+    "setup-written-files.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/init/finish.js"
+    },
+    "shim-counts.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/lints.js"
+    },
+    "signoffs.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/spec/src/io/signature.js"
+    },
+    "source-cache-pin.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
+    },
+    "source.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/checkouts.js"
+    },
+    "sources.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/uses.js"
+    },
+    "startup.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/transport.js"
+    },
+    "state.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
+    },
+    "stats-history.jsonl": {
+      "kind": "jsonl",
+      "owner": "apps/cli/src/io/commands/stats.js"
+    },
+    "storage-quota.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/quota.js"
+    },
+    "store-homes.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/stores.js"
+    },
+    "stores.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/stores.js"
+    },
+    "submission.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/submit/handoff/worker.js"
+    },
+    "supervisor-rotation.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/parser.js"
+    },
+    "sweep.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/cli/src/io/worktree/maintenance/observation.js"
+    },
+    "sync-spawn-in-leases.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/sync-spawn-in-leases.js"
+    },
+    "table:agent": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/register.js"
+    },
+    "table:board_link_delivery": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/board/inbox.js"
+    },
+    "table:board_meta": {
+      "kind": "table",
+      "owner": "packages/store/src/logic/board/stale/apply.js"
+    },
+    "table:canary_schedule": {
+      "kind": "table",
+      "owner": "packages/link/src/io/relay/canary/health.js"
+    },
+    "table:decision_handoff_v1": {
+      "kind": "table",
+      "owner": "packages/items/src/io/decision.js"
+    },
+    "table:device": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/device.js"
+    },
+    "table:device_session": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/device.js"
+    },
+    "table:enrollment": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/device.js"
+    },
+    "table:event": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/event/log.js"
+    },
+    "table:excluded_inventory": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/excluded.js"
+    },
+    "table:excluded_inventory_wrap": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/excluded.js"
+    },
+    "table:facts": {
+      "kind": "table",
+      "owner": "packages/codemap/src/io/main-facts-cache.js"
+    },
+    "table:file_call": {
+      "kind": "table",
+      "owner": "packages/gate/src/io/test/file/pool.js"
+    },
+    "table:file_holder": {
+      "kind": "table",
+      "owner": "packages/gate/src/io/test/file/pool.js"
+    },
+    "table:file_waiter": {
+      "kind": "table",
+      "owner": "packages/gate/src/io/test/file/pool.js"
+    },
+    "table:fingerprint": {
+      "kind": "table",
+      "owner": "packages/pages/src/io/relay/cache.js"
+    },
+    "table:heartbeat": {
+      "kind": "table",
+      "owner": "packages/store/src/io/presence.js"
+    },
+    "table:hold": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/hold/lane.js"
+    },
+    "table:holder": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:imported_heartbeat": {
+      "kind": "table",
+      "owner": "packages/store/src/io/presence.js"
+    },
+    "table:item": {
+      "kind": "table",
+      "owner": "packages/items/src/io/rehome.js"
+    },
+    "table:job": {
+      "kind": "table",
+      "owner": "packages/jobs/src/io/lease.js"
+    },
+    "table:job_object": {
+      "kind": "table",
+      "owner": "packages/pages/src/io/relay/cache.js"
+    },
+    "table:job_step": {
+      "kind": "table",
+      "owner": "packages/jobs/src/io/store.js"
+    },
+    "table:journal_head": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/journal.js"
+    },
+    "table:journal_meta": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/journal.js"
+    },
+    "table:journal_record": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/journal.js"
+    },
+    "table:journal_registration": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/journal.js"
+    },
+    "table:journal_snapshot": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/journal.js"
+    },
+    "table:journal_upload_status": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/journal.js"
+    },
+    "table:liveness_event": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/liveness.js"
+    },
+    "table:machine_lock": {
+      "kind": "table",
+      "owner": "packages/link/src/io/relay/machine.js"
+    },
+    "table:meta": {
+      "kind": "table",
+      "owner": "packages/pages/src/io/relay/cache.js"
+    },
+    "table:notice": {
+      "kind": "table",
+      "owner": "packages/pages/src/io/relay/cache.js"
+    },
+    "table:object": {
+      "kind": "table",
+      "owner": "packages/pages/src/io/relay/cache.js"
+    },
+    "table:package_seal": {
+      "kind": "table",
+      "owner": "packages/gate/src/io/seals.js"
+    },
+    "table:page_meta": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/page.js"
+    },
+    "table:page_object": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/page.js"
+    },
+    "table:page_pin": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/page.js"
+    },
+    "table:page_upload": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/page.js"
+    },
+    "table:page_upload_object": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/page.js"
+    },
+    "table:person_enrollment": {
+      "kind": "table",
+      "owner": "apps/relay/src/logic/person/enrollment/store.js"
+    },
+    "table:phone_approval": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/device.js"
+    },
+    "table:registry_lock": {
+      "kind": "table",
+      "owner": "packages/seats/src/io/projects.js"
+    },
+    "table:relay_action_grants": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_board_off": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_boards": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_cleanup": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_coordinator_events": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_credentials": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_deleted_credentials": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_health": {
+      "kind": "table",
+      "owner": "packages/link/src/io/relay/canary/health.js"
+    },
+    "table:relay_lease": {
+      "kind": "table",
+      "owner": "packages/sync/src/io/git/lock.js"
+    },
+    "table:relay_passkeys": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_person_authority": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_seats": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:relay_users": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/auth.js"
+    },
+    "table:resource": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:results": {
+      "kind": "table",
+      "owner": "packages/codemap/src/io/parsed.js"
+    },
+    "table:runner_draining": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:runner_gui": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:runner_probe": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/recovery.js"
+    },
+    "table:runner_recovery_event": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/recovery.js"
+    },
+    "table:runner_rotation": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:runner_timing_drain": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:runner_timing_event": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:runner_timing_reserve": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/runner/reserve.js"
+    },
+    "table:runner_transport_error": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/recovery.js"
+    },
+    "table:runner_unavailable": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/recovery.js"
+    },
+    "table:shout": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/shout.js"
+    },
+    "table:sqlite_sequence": {
+      "kind": "table",
+      "owner": "packages/store/src/io/exchange.js"
+    },
+    "table:storage_warning": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/quota.js"
+    },
+    "table:temp": {
+      "kind": "table",
+      "owner": "packages/outbox/src/logic/undo.js"
+    },
+    "table:timing_client_observation": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:verdict": {
+      "kind": "table",
+      "owner": "packages/verify/src/logic/verdict/assurance.js"
+    },
+    "table:waiter": {
+      "kind": "table",
+      "owner": "packages/resources/src/io/main.js"
+    },
+    "table:wrapped_key": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/device.js"
+    },
+    "temporary-edges.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cells/scripts/cache.js"
+    },
+    "test-cells.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/tier/selection.js"
+    },
+    "test-file-pool.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/test/file/pool.js"
+    },
+    "test-fixtures.json": {
+      "kind": "json",
+      "owner": "packages/commits/src/logic/change/row/tier.js"
+    },
+    "test-path-tables.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cells/placement.js"
+    },
+    "test-waits-baseline.json": {
+      "kind": "json",
+      "owner": "packages/commits/src/logic/change/row/tier.js"
+    },
+    "tiers.json": {
+      "kind": "json",
+      "owner": "packages/commits/src/logic/change/row/tier.js"
+    },
+    "timer.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+    },
+    "timer.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+    },
+    "tooling-pin.json": {
+      "kind": "json",
+      "owner": "packages/pin/src/io/tooling.js"
+    },
+    "transition.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/lint/inventory.js"
+    },
+    "vendors.json": {
+      "kind": "json",
+      "owner": "packages/items/src/logic/vendors.js"
+    },
+    "view-bind.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-reuse.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/setup.js"
+    },
+    "view.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/serve.js"
+    },
+    "wake.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "worker-bundle.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/static/registry.js"
+    },
+    "worker-cap.json": {
+      "kind": "json",
+      "owner": "packages/resources/src/io/handoff/worker/cap.js"
+    },
+    "worker-owner.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/transport.js"
+    },
+    "worker.json": {
+      "kind": "json",
+      "owner": "packages/verify/src/io/comparison.js"
+    },
+    "workers-usage.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/scale.js"
+    }
+  },
+  "exceptions": []
+}

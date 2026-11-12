@@ -24,11 +24,11 @@ import { fitDigest } from '../../tests/fixtures/blueprint.js';
 import { batchCode } from '../../tests/fixtures/blueprint.js';
 import { fitBoard } from '../../tests/fixtures/blueprint.js';
 
-test('a second blueprint of the same kind is refused [S1,I1]', () => {
+test('a second blueprint of the same kind is refused [S1,I1]', async () => {
   // A second product blueprint: refused before anything is written, naming both.
   for (const [first, second, kind] of [['web-app', 'ios-app', 'product'], ['serverless', 'data-pipeline', 'architecture']]) {
     const box = emptyRepo();
-    const refused = box.run('init', '--blueprint', first, '--blueprint', second, '--json');
+    const refused = await box.runLocal('init', '--blueprint', first, '--blueprint', second, '--json');
     assert.notEqual(refused.status, 0, refused.stdout);
     const { error } = JSON.parse(refused.stdout);
     assert.equal(error.code, 'BLUEPRINT_KIND_TAKEN');
@@ -48,20 +48,20 @@ test('a second blueprint of the same kind is refused [S1,I1]', () => {
 
   // A board that already has a product blueprint refuses another in a later command, before any
   // write, whichever was added first; the same blueprint again changes nothing and is no clash.
-  const listed = (box) => (JSON.parse(box.run('list', '--all', '--json').stdout).items ?? []).length;
+  const listed = async (box) => (JSON.parse((await box.runLocal('list', '--all', '--json')).stdout).items ?? []).length;
   for (const [first, second] of [['web-app', 'other-product.json'], ['other-product.json', 'web-app']]) {
     const sequential = freshBoard();
     writeFileSync(join(sequential.repo, 'other-product.json'), `${JSON.stringify({ ...PUBLISHED, name: 'other-product', title: 'Other product' })}\n`);
     json(sequential, 'blueprint', 'add', first);
     const spec = readFileSync(join(sequential.repo, 'SPEC.md'), 'utf8');
     assert.ok(spec.includes(`<!-- pullboard-blueprint-kind ${first.replace(/\.json$/u, '')} product -->`), 'the add records its kind beside its rows');
-    const items = listed(sequential);
+    const items = await listed(sequential);
     const later = sequential.run('blueprint', 'add', second, '--json');
     assert.notEqual(later.status, 0, later.stdout);
     assert.equal(JSON.parse(later.stdout).error.code, 'BLUEPRINT_KIND_TAKEN');
     assert.match(JSON.parse(later.stdout).error.message, /(?=.*web-app)(?=.*other-product)/u, 'the refusal names both');
     assert.equal(readFileSync(join(sequential.repo, 'SPEC.md'), 'utf8'), spec, 'a later second product writes no row');
-    assert.equal(listed(sequential), items, 'a later second product files no starter');
+    assert.equal(await listed(sequential), items, 'a later second product files no starter');
     assert.equal(json(sequential, 'blueprint', 'add', first).marked, true, 'the same blueprint again is a no-op');
     assert.equal(readFileSync(join(sequential.repo, 'SPEC.md'), 'utf8'), spec);
     assert.equal(json(sequential, 'blueprint', 'add', 'serverless').blueprint.name, 'serverless', 'an architecture blueprint still joins a product one later');
@@ -74,16 +74,16 @@ test('a second blueprint of the same kind is refused [S1,I1]', () => {
     writeFileSync(path, readFileSync(path, 'utf8').split('\n').filter((line) => !line.startsWith('<!-- pullboard-blueprint-kind ')).join('\n'));
     assert.doesNotMatch(readFileSync(path, 'utf8'), /pullboard-blueprint-kind/u);
   };
-  const refusedBoth = (box, first, second, args) => {
+  const refusedBoth = async (box, first, second, args) => {
     const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-    const items = listed(box);
-    const later = box.run('blueprint', 'add', ...args, '--json');
+    const items = await listed(box);
+    const later = await box.runLocal('blueprint', 'add', ...args, '--json');
     assert.notEqual(later.status, 0, later.stdout);
     const { error } = JSON.parse(later.stdout);
     assert.equal(error.code, 'BLUEPRINT_KIND_TAKEN');
     assert.match(error.message, new RegExp(`^${first} and ${second} `, 'u'), 'the refusal names both');
     assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), spec, 'SPEC.md is unchanged');
-    assert.equal(listed(box), items, 'no starter is filed');
+    assert.equal(await listed(box), items, 'no starter is filed');
     return error;
   };
   const custom = (box, name, kind, where) => {
@@ -97,25 +97,25 @@ test('a second blueprint of the same kind is refused [S1,I1]', () => {
   const away = freshBoard();
   const awayFile = custom(away, 'legacy-product', 'product', away.dir);
   legacyAdd(away, awayFile);
-  const unknown = refusedBoth(away, 'legacy-product', 'web-app', ['web-app']);
+  const unknown = await refusedBoth(away, 'legacy-product', 'web-app', ['web-app']);
   assert.match(unknown.next, /record legacy-product's kind with pullboard blueprint add/u, 'the next step says how to resolve it');
   const beforeRecord = readFileSync(join(away.repo, 'SPEC.md'), 'utf8');
-  const items = listed(away);
+  const items = await listed(away);
   assert.equal(json(away, 'blueprint', 'add', awayFile).marked, true, 'adding its file again adds nothing');
   const recorded = readFileSync(join(away.repo, 'SPEC.md'), 'utf8');
   assert.deepEqual(recorded.split('\n').filter((line) => !beforeRecord.split('\n').includes(line)), ['<!-- pullboard-blueprint-kind legacy-product product -->'], 'it records only the kind');
-  assert.equal(listed(away), items);
-  refusedBoth(away, 'legacy-product', 'web-app', ['web-app']);
+  assert.equal(await listed(away), items);
+  await refusedBoth(away, 'legacy-product', 'web-app', ['web-app']);
   assert.equal(json(away, 'blueprint', 'add', 'serverless').blueprint.name, 'serverless', 'an architecture blueprint joins the recorded product');
   // A custom product whose file is still at the repo root: its kind is read from it.
   const home = freshBoard();
   legacyAdd(home, custom(home, 'legacy-product', 'product', home.repo));
-  assert.match(refusedBoth(home, 'legacy-product', 'web-app', ['web-app']).message, /are both product blueprints/u);
+  assert.match((await refusedBoth(home, 'legacy-product', 'web-app', ['web-app'])).message, /are both product blueprints/u);
   // A custom practice blueprint: once its kind is recorded, a product joins it.
   const practiced = freshBoard();
   const practiceFile = custom(practiced, 'legacy-practice', 'practice', practiced.dir);
   legacyAdd(practiced, practiceFile);
-  refusedBoth(practiced, 'legacy-practice', 'web-app', ['web-app']);
+  await refusedBoth(practiced, 'legacy-practice', 'web-app', ['web-app']);
   json(practiced, 'blueprint', 'add', practiceFile);
   assert.equal(json(practiced, 'blueprint', 'add', 'web-app').blueprint.name, 'web-app', 'a product joins a recorded practice blueprint');
   // A bundled product from an older Pullboard is read from its bundled file; adding it again is a
@@ -123,10 +123,10 @@ test('a second blueprint of the same kind is refused [S1,I1]', () => {
   const bundledLegacy = freshBoard();
   writeFileSync(join(bundledLegacy.repo, 'other-product.json'), `${JSON.stringify({ ...PUBLISHED, name: 'other-product', title: 'Other product' })}\n`);
   legacyAdd(bundledLegacy, 'web-app');
-  refusedBoth(bundledLegacy, 'web-app', 'other-product', ['other-product.json']);
-  const bundledItems = listed(bundledLegacy);
+  await refusedBoth(bundledLegacy, 'web-app', 'other-product', ['other-product.json']);
+  const bundledItems = await listed(bundledLegacy);
   assert.equal(json(bundledLegacy, 'blueprint', 'add', 'web-app').marked, true, 'the same bundled blueprint again adds nothing');
-  assert.equal(listed(bundledLegacy), bundledItems);
+  assert.equal(await listed(bundledLegacy), bundledItems);
 
   const reinit = emptyRepo();
   const once = reinit.run('init', '--blueprint', 'web-app');
@@ -149,7 +149,7 @@ test('a second blueprint of the same kind is refused [S1,I1]', () => {
   assert.deepEqual(JSON.parse(landed.stdout).blueprints.map((entry) => entry.name), names);
 });
 
-test('a saved board adds back as the same rows [S1]', () => {
+test('a saved board adds back as the same rows [S1]', async () => {
   const box = e2e.project();
   const machine = hostname().split('.')[0];
   box.git(box.repo, 'config', 'user.name', 'Dana Whitlock');
@@ -181,9 +181,9 @@ test('a saved board adds back as the same rows [S1]', () => {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: plant private rows');
   const item = fixtureAdd(box.run, box.repo, 'web', 'Private item title zebra', '--specs', 'G1', '--criterion', 'secret criterion walrus');
   assert.equal(item.code, 0, item.err);
-  assert.equal(box.run(box.web, 'shout', 'all', 'private shout narwhal').code, 0);
+  assert.equal((await box.runLocal(box.web, 'shout', 'all', 'private shout narwhal')).code, 0);
 
-  const saved = box.run(box.repo, 'blueprint', 'save', '--json');
+  const saved = await box.runLocal(box.repo, 'blueprint', 'save', '--json');
   assert.equal(saved.code, 0, `${saved.err}\n${saved.out}`);
   assert.deepEqual(JSON.parse(saved.out).left.map((entry) => entry.id).sort(), ['G1', 'G2', 'K15', 'K16', 'K4', 'K5', 'K6', 'K7', 'K8', 'K9'], 'only clean, exactly readable approved rows leave');
   const file = join(box.repo, 'Dana Whitlock board.blueprint.json');
@@ -193,12 +193,12 @@ test('a saved board adds back as the same rows [S1]', () => {
   }
   const blueprint = JSON.parse(text);
   assert.deepEqual([blueprint.name, blueprint.title], ['my-blueprint', 'My blueprint'], 'the project name never goes in; a neutral default does');
-  const named = box.run(box.repo, 'blueprint', 'save', 'named.json', '--name', 'dana-whitlock', '--json');
+  const named = await box.runLocal(box.repo, 'blueprint', 'save', 'named.json', '--name', 'dana-whitlock', '--json');
   assert.equal(JSON.parse(named.out).error?.code, 'PRIVATE_BLUEPRINT', 'a chosen name that names someone is refused');
   assert.deepEqual(Object.keys(blueprint).sort(), ['blueprint', 'gate', 'name', 'questions', 'rules', 'title', 'version'], 'only allow-listed fields are written');
   assert.deepEqual(blueprint.rules.map((rule) => Object.keys(rule).sort()), [['gate', 'key', 'text', 'tier', 'why'], ['gate', 'key', 'text', 'tier', 'why']]);
   assert.deepEqual(blueprint.questions.map((question) => Object.keys(question).sort()), Array(4).fill(['ask', 'choices', 'default', 'key']));
-  assert.equal(box.run(box.repo, 'blueprint', 'save', '--json').code, 1, 'an existing file is never overwritten');
+  assert.equal((await box.runLocal(box.repo, 'blueprint', 'save', '--json')).code, 1, 'an existing file is never overwritten');
 
   const fresh = e2e.project();
   const before = parseSpec(readFileSync(join(fresh.repo, 'SPEC.md'), 'utf8')).rows.map((row) => row.id);
@@ -245,15 +245,15 @@ test('blueprint save reads back a question with three or more choices [S1]', () 
     'each question round-trips to its exact row text');
 });
 
-test('a fit proposal waits for the person and keeps its reason [S1,E3]', () => {
+test('a fit proposal waits for the person and keeps its reason [S1,E3]', async () => {
   const { box, seat, key, starter } = fitBoard();
-  assert.match(box.run('help', 'blueprint').stdout, /^Usage: pullboard blueprint add <name or file>, then a seat runs pullboard blueprint fit .+, then the person runs pullboard spec fit approve <batch>$/mu, 'help blueprint names the fit step');
+  assert.match((await box.runLocal('help', 'blueprint')).stdout, /^Usage: pullboard blueprint add <name or file>, then a seat runs pullboard blueprint fit .+, then the person runs pullboard spec fit approve <batch>$/mu, 'help blueprint names the fit step');
   const W1 = key('W1');
   const W2 = key('W2');
   const W3 = key('W3');
   const Q1 = key('Q1');
   const specBefore = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  const criterionBefore = ok(box.run('show', String(starter('1')), '--json'), 'show').item_criterion;
+  const criterionBefore = ok(await box.runLocal('show', String(starter('1')), '--json'), 'show').item_criterion;
   const adapted = 'Every change ships with a node:test test that fails without it. Why: one runner keeps the gate honest.';
   const proposals = [
     [W1, 'adapt', '--text', adapted, '--reason', 'this repo already tests with node --test'],
@@ -276,21 +276,21 @@ test('a fit proposal waits for the person and keeps its reason [S1,E3]', () => {
 
   // Nothing applies before the person approves: SPEC.md, the row decisions and the starters are as they were.
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specBefore, 'SPEC.md is unchanged');
-  for (const id of [W1, W2, W3, Q1]) assert.equal(ok(box.run('spec', 'show', id, '--json'), 'spec show').row.decision, undefined, `${id} has no decision yet`);
-  const first = ok(box.run('show', String(starter('1')), '--json'), 'show');
+  for (const id of [W1, W2, W3, Q1]) assert.equal(ok(await box.runLocal('spec', 'show', id, '--json'), 'spec show').row.decision, undefined, `${id} has no decision yet`);
+  const first = ok(await box.runLocal('show', String(starter('1')), '--json'), 'show');
   assert.equal(first.item_criterion, criterionBefore, 'the starter keeps its criterion');
-  assert.equal(ok(box.run('show', String(starter('2')), '--json'), 'show').item_status, 'open', 'the dropped starter is still open');
+  assert.equal(ok(await box.runLocal('show', String(starter('2')), '--json'), 'show').item_status, 'open', 'the dropped starter is still open');
 
   // The person sees every proposal together: in pullboard spec, and in the view's state.
-  const listed = box.run('spec');
+  const listed = await box.runLocal('spec');
   assert.equal(listed.status, 0, listed.stdout + listed.stderr);
   assert.match(listed.stdout, /blueprint fit: 6 unverified draft proposals wait for the person; nothing applies until the person approves the batch/u);
   assert.doesNotMatch(listed.stdout, /proposed by/u, 'a recorder is never shown as an authenticated author');
   for (const [target, decision] of proposals) assert.match(listed.stdout, new RegExp(`^  ${target} ${decision} \\(unverified draft, recorded as ${seatId}\\)`, 'mu'), `${target} is listed`);
   assert.match(listed.stdout, new RegExp(`${W3} drop \\(unverified draft, recorded as ${seatId}\\); reason: this repo is a library with no pages; blueprint source: web-app v1 rule W3: Every page works at phone width`, 'u'));
-  assert.equal(ok(box.run('spec', 'fit', '--json'), 'spec fit').proposals.length, 6);
+  assert.equal(ok(await box.runLocal('spec', 'fit', '--json'), 'spec fit').proposals.length, 6);
   const out = join(box.dir, 'export');
-  assert.equal(box.run('view', '--export', out).status, 0);
+  assert.equal((await box.runLocal('view', '--export', out)).status, 0);
   const boards = JSON.parse(readFileSync(join(out, 'api/v1/boards.json'), 'utf8'));
   const state = JSON.parse(readFileSync(join(out, 'api/v1/boards', boards.boards[0].id, 'state.json'), 'utf8')).state;
   assert.ok(Array.isArray(state.fit), 'the view state carries the fit batch');
@@ -302,37 +302,37 @@ test('a fit proposal waits for the person and keeps its reason [S1,E3]', () => {
   assert.deepEqual([w1Fit.decision, w1Fit.text, w1Fit.reason, w1Fit.blueprint, w1Fit.key, w1Fit.source], ['adapt', adapted, 'this repo already tests with node --test', { name: 'web-app', version: 1 }, 'W1', 'Every change ships with a test that fails without it. Why: a test that passes either way proves nothing.'], 'the view state carries each proposal with its text, reason and blueprint source');
 
   // The person edits one proposal and approves the batch.
-  const reread = ok(box.run('spec', 'fit', 'edit', W2, 'drop', '--reason', 'the gate already holds main', '--json'), 'person edit');
+  const reread = ok(await box.runLocal('spec', 'fit', 'edit', W2, 'drop', '--reason', 'the gate already holds main', '--json'), 'person edit');
   assert.equal(reread.proposals.length, 6, 'an edit shows the whole batch again');
-  const done = ok(box.run('spec', 'fit', 'approve', reread.batch, '--json'), 'approve');
+  const done = ok(await box.runLocal('spec', 'fit', 'approve', reread.batch, '--json'), 'approve');
   assert.equal(done.proposals.length, 6);
   assert.ok(done.proposals.every((proposal) => proposal.state === 'approved' && proposal.approvedBy === 'person'));
-  const w1 = ok(box.run('spec', 'show', W1, '--json'), 'spec show').row;
+  const w1 = ok(await box.runLocal('spec', 'show', W1, '--json'), 'spec show').row;
   assert.equal(w1.stage, 'approved, pending apply');
   assert.equal(w1.decision.text, adapted, 'the adaptation is the approved text');
   assert.equal(w1.decision.note, `blueprint fit adapt: this repo already tests with node --test; recorded as ${seatId}, unverified; blueprint source: web-app v1 rule W1: Every change ships with a test that fails without it. Why: a test that passes either way proves nothing.`);
-  const w3 = ok(box.run('spec', 'show', W3, '--json'), 'spec show').row;
+  const w3 = ok(await box.runLocal('spec', 'show', W3, '--json'), 'spec show').row;
   assert.equal(w3.stage, 'declined, pending apply');
   assert.equal(w3.reason, 'this repo is a library with no pages', 'the drop keeps its reason');
   assert.match(w3.decision.note, /blueprint source: web-app v1 rule W3: Every page works at phone width before it ships\./u, 'the drop keeps its blueprint source');
-  assert.match(ok(box.run('spec', 'show', W2, '--json'), 'spec show').row.decision.note, /^blueprint fit drop: the gate already holds main; recorded as person, unverified;/u, "the person's edit is what applies");
-  assert.equal(ok(box.run('spec', 'show', Q1, '--json'), 'spec show').row.decision.text, 'The app is built with: Something else. Choices: Next.js, SvelteKit, Rails, Something else.');
-  const adaptedItem = ok(box.run('show', String(starter('1')), '--json'), 'show');
+  assert.match(ok(await box.runLocal('spec', 'show', W2, '--json'), 'spec show').row.decision.note, /^blueprint fit drop: the gate already holds main; recorded as person, unverified;/u, "the person's edit is what applies");
+  assert.equal(ok(await box.runLocal('spec', 'show', Q1, '--json'), 'spec show').row.decision.text, 'The app is built with: Something else. Choices: Next.js, SvelteKit, Rails, Something else.');
+  const adaptedItem = ok(await box.runLocal('show', String(starter('1')), '--json'), 'show');
   assert.equal(adaptedItem.item_criterion, 'npm test runs node --test with one passing test');
-  const dropped = ok(box.run('show', String(starter('2')), '--json'), 'show');
+  const dropped = ok(await box.runLocal('show', String(starter('2')), '--json'), 'show');
   assert.equal(dropped.item_status, 'withdrawn');
   assert.equal(dropped.item_withdrawn_reason, 'blueprint fit drop: there is no home page to fit to a phone');
-  const thread = box.run('show', String(starter('2')));
+  const thread = await box.runLocal('show', String(starter('2')));
   assert.match(thread.stdout, /blueprint fit drop: there is no home page to fit to a phone; recorded as web-\S+, unverified; blueprint source: web-app v1 starter 2: The home page works at phone width/u, 'the starter drop keeps its reason and source');
 
   // The coordinator applies the decisions to SPEC.md as usual.
-  const applyResult = box.run('spec', 'apply');
+  const applyResult = await box.runLocal('spec', 'apply');
   assert.equal(applyResult.status, 0, applyResult.stdout + applyResult.stderr);
   const applied = parseSpec(readFileSync(join(box.repo, 'SPEC.md'), 'utf8')).rows;
   assert.deepEqual([W1, W3].map((id) => applied.find((row) => row.id === id)).map((row) => [row.status, row.text]), [['approved', adapted], ['wont', `${PUBLISHED.rules[2].text} Why: ${PUBLISHED.rules[2].why}`]]);
 });
 
-test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
+test('an agent cannot approve its own fit proposal [S1,E3,B26]', async () => {
   const { box, worktree, seat, as, key } = fitBoard();
   const W3 = key('W3');
   ok(seat('blueprint', 'fit', 'legacy-web-app.json', W3, 'drop', '--reason', 'no pages here', '--json'), 'propose');
@@ -346,42 +346,42 @@ test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
   assert.equal(refusal(as(null, worktree, 'spec', 'fit', 'approve', 'any-code', '--json'), 'a worktree terminal'), 'B26_PERSON_APPROVAL');
   // Nothing applied, and the proposal still waits for the person.
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specBefore);
-  assert.equal(ok(box.run('spec', 'show', W3, '--json'), 'spec show').row.decision, undefined);
-  const first = ok(box.run('spec', 'fit', '--json'), 'the person reads the batch');
+  assert.equal(ok(await box.runLocal('spec', 'show', W3, '--json'), 'spec show').row.decision, undefined);
+  const first = ok(await box.runLocal('spec', 'fit', '--json'), 'the person reads the batch');
   assert.equal(first.proposals.length, 1);
 
   // Every refusal below leaves the batch, the reading, SPEC.md and the board as they were.
   const file = join(box.repo, '.git', 'pullboard', 'blueprint-fit.json');
   const readingFile = join(box.repo, '.git', 'pullboard', 'blueprint-fit-viewed.json');
-  const refusedWith = (code, batch, label) => {
+  const refusedWith = async (code, batch, label) => {
     const before = [file, readingFile, join(box.repo, 'SPEC.md')].map((path) => readFileSync(path, 'utf8'));
-    const result = box.run('spec', 'fit', 'approve', batch, '--json');
+    const result = await box.runLocal('spec', 'fit', 'approve', batch, '--json');
     assert.equal(refusal(result, label), code, label);
     assert.deepEqual([file, readingFile, join(box.repo, 'SPEC.md')].map((path) => readFileSync(path, 'utf8')), before, `${label}: nothing is persisted`);
-    assert.equal(ok(box.run('spec', 'show', W3, '--json'), 'spec show').row.decision, undefined, `${label}: nothing applied`);
+    assert.equal(ok(await box.runLocal('spec', 'show', W3, '--json'), 'spec show').row.decision, undefined, `${label}: nothing applied`);
     return JSON.parse(result.stdout).error.message;
   };
   // A proposal changed in the file after the person read it is refused by name.
   const stored = JSON.parse(readFileSync(file, 'utf8'));
   stored.proposals.at(-1).reason = 'a different reason slipped in after the reading';
   writeFileSync(file, `${JSON.stringify(stored)}\n`);
-  assert.match(refusedWith('FIT_CHANGED', first.batch, 'approve after an edit'), new RegExp(`^${W3} \\(changed\\) differ from your last reading`, 'u'), 'the refusal names the changed proposal');
+  assert.match(await refusedWith('FIT_CHANGED', first.batch, 'approve after an edit'), new RegExp(`^${W3} \\(changed\\) differ from your last reading`, 'u'), 'the refusal names the changed proposal');
   // A proposal that arrives after the reading is refused too; an agent reading the batch does not count.
-  const second = ok(box.run('spec', 'fit', '--json'), 'the person reads it again');
+  const second = ok(await box.runLocal('spec', 'fit', '--json'), 'the person reads it again');
   assert.equal(second.proposals[0].reason, 'a different reason slipped in after the reading');
   const W4 = key('W4');
   ok(seat('blueprint', 'fit', 'legacy-web-app.json', W4, 'keep', '--json'), 'a later proposal');
   ok(seat('spec', 'fit', '--json'), 'the seat reads the batch');
-  assert.match(refusedWith('FIT_CHANGED', second.batch, 'approve after a new proposal'), new RegExp(`^${W4} \\(new\\) differ from`, 'u'), 'the refusal names only the unread proposal');
+  assert.match(await refusedWith('FIT_CHANGED', second.batch, 'approve after a new proposal'), new RegExp(`^${W4} \\(new\\) differ from`, 'u'), 'the refusal names only the unread proposal');
 
   // The person reads both. A proposal deleted from the file after that reading is refused by name.
-  const third = ok(box.run('spec', 'fit', '--json'), 'the person reads both');
+  const third = ok(await box.runLocal('spec', 'fit', '--json'), 'the person reads both');
   assert.equal(third.proposals.length, 2);
   const read = readFileSync(file, 'utf8');
   const readReading = readFileSync(readingFile, 'utf8');
   const both = JSON.parse(read);
   writeFileSync(file, `${JSON.stringify({ ...both, proposals: both.proposals.filter((proposal) => proposal.target !== W4) })}\n`);
-  assert.match(refusedWith('FIT_CHANGED', third.batch, 'approve after a deletion'), new RegExp(`^${W4} \\(gone\\) differ from`, 'u'), 'the refusal names the deleted proposal');
+  assert.match(await refusedWith('FIT_CHANGED', third.batch, 'approve after a deletion'), new RegExp(`^${W4} \\(gone\\) differ from`, 'u'), 'the refusal names the deleted proposal');
   writeFileSync(file, read);
   // A reading rewritten to match a changed batch is caught: it no longer hashes to the code the person typed.
   const forged = JSON.parse(read);
@@ -392,10 +392,10 @@ test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
   reading.reading.find((entry) => entry.id === target.id).digest = fitDigest(target);
   writeFileSync(readingFile, `${JSON.stringify(reading)}\n`);
   assert.notEqual(batchCode(reading.reading), third.batch, 'the forged reading has another code');
-  assert.match(refusedWith('FIT_READING', third.batch, 'approve after the reading was rewritten'), new RegExp(`^${third.batch} is not the batch code of your last reading`, 'u'));
+  assert.match(await refusedWith('FIT_READING', third.batch, 'approve after the reading was rewritten'), new RegExp(`^${third.batch} is not the batch code of your last reading`, 'u'));
   // The forger's own code fails the same way once the reading is put back, since the batch differs.
   writeFileSync(readingFile, readReading);
-  assert.match(refusedWith('FIT_CHANGED', third.batch, 'approve a forged batch'), new RegExp(`^${W3} \\(changed\\)`, 'u'));
+  assert.match(await refusedWith('FIT_CHANGED', third.batch, 'approve a forged batch'), new RegExp(`^${W3} \\(changed\\)`, 'u'));
 
   // An unread proposal given a read one's id, and placed first, is refused by name: ids are never merged.
   writeFileSync(file, read);
@@ -405,14 +405,14 @@ test('an agent cannot approve its own fit proposal [S1,E3,B26]', () => {
   const unread = withW5.proposals.find((proposal) => proposal.target === W5);
   unread.id = withW5.proposals.find((proposal) => proposal.target === W3).id;
   writeFileSync(file, `${JSON.stringify({ ...withW5, proposals: [unread, ...withW5.proposals.filter((proposal) => proposal !== unread)] })}\n`);
-  assert.match(refusedWith('FIT_FILE', third.batch, 'approve with a shared id'), new RegExp(`^${W5}, ${W3} share a proposal id`, 'u'), 'the refusal names both targets');
-  assert.equal(refusal(box.run('spec', 'fit', '--json'), 'read a batch with a shared id'), 'FIT_FILE');
-  assert.equal(ok(box.run('spec', 'show', W5, '--json'), 'spec show').row.decision, undefined, 'the unread proposal applied nothing');
+  assert.match(await refusedWith('FIT_FILE', third.batch, 'approve with a shared id'), new RegExp(`^${W5}, ${W3} share a proposal id`, 'u'), 'the refusal names both targets');
+  assert.equal(refusal(await box.runLocal('spec', 'fit', '--json'), 'read a batch with a shared id'), 'FIT_FILE');
+  assert.equal(ok(await box.runLocal('spec', 'show', W5, '--json'), 'spec show').row.decision, undefined, 'the unread proposal applied nothing');
 
   // Put back as the person read it, the batch is the person's to approve, with the code they were shown.
   writeFileSync(file, read);
-  assert.equal(refusal(box.run('spec', 'fit', 'approve', '--json'), 'approve with no batch code'), 'USAGE');
-  const approved = ok(box.run('spec', 'fit', 'approve', third.batch, '--json'), 'the person approves');
+  assert.equal(refusal(await box.runLocal('spec', 'fit', 'approve', '--json'), 'approve with no batch code'), 'USAGE');
+  const approved = ok(await box.runLocal('spec', 'fit', 'approve', third.batch, '--json'), 'the person approves');
   assert.deepEqual(approved.decisions.map((record) => [record.id, record.decision]), [[W3, 'decline'], [W4, 'approve']]);
 });
 

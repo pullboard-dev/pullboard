@@ -11,7 +11,7 @@ import { assertPersonUnlinkHistory } from '../../../tests/fixtures/relay/exclusi
 test('plain relay off explains the retained relay copy without printing credentials [H1,H18]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  const localBeforeOff = (await box.cli('export')).document.tables;
+  const localBeforeOff = (await box.cliLocal('export')).document.tables;
   const callsBeforeOff = box.calls.length;
   const result = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
@@ -28,7 +28,7 @@ test('plain relay off explains the retained relay copy without printing credenti
   assert.equal(existsSync(box.linkFile), false, 'plain local off removes the device link');
   assert.equal(existsSync(box.keyFile), false, 'plain local off forgets the device key');
   assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root));
-  assertPersonUnlinkHistory((await box.cli('export')).document.tables, localBeforeOff);
+  assertPersonUnlinkHistory((await box.cliLocal('export')).document.tables, localBeforeOff);
   assert.equal(box.calls.slice(callsBeforeOff).some(call => call.method === 'DELETE'),
   false,
     'plain local off never deletes the remote copy without phone approval');
@@ -38,9 +38,9 @@ test('plain relay off explains the retained relay copy without printing credenti
 test('every real CLI relay request declares its engine including sign-in, reads, writes and unlink [H16,H3]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal((await box.cli('export')).code, 0);
-  assert.equal((await box.cli('add', box.lane, 'Declared-engine fixture move')).code, 0);
-  const off = await box.cli('relay', 'off');
+  assert.equal((await box.cliLocal('export')).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, 'Declared-engine fixture move')).code, 0);
+  const off = await box.cliLocal('relay', 'off');
   assert.equal(off.code, 0);
   assert.match(off.document.notice, /relay copy stays until you approve deleting it on your phone/u);
   assert.ok(box.calls.some(call => call.path.startsWith('/auth/')));

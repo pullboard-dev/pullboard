@@ -48,7 +48,7 @@ const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', '
  */
 export function writesBoard([command, first]) {
   return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
-    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first))
+    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first) && !['board.url', 'board.token'].includes(first))
     || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
 }
 
@@ -204,6 +204,12 @@ async function runMain(argv, streams) {
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
+  }
+  // A seat whose board lives on another host reads it over HTTP and opens no board.sqlite [P7].
+  if (parsed && !parsed.values.help && !parsed.values.version && ['show', 'whoami'].includes(parsed.positionals[0])) {
+    const remote = await import('../remote/board.js');
+    const target = remote.remoteBoard();
+    if (target) return remote.runRemoteRead(io, parsed, target);
   }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');

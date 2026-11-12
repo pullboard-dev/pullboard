@@ -18,18 +18,26 @@ import {
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { apiHttpFixture } from '../../tests/fixtures/api.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { main } from '../../tests/fixtures/native.js';
 
 const STATE_PORTS = new URL('../../src/io/commands/serve.js', import.meta.url).href;
 const BRIEF = 'Files:\n- app/large.js\nChange:\n- Keep it.\nTest:\n- It reads fast.';
 
+/** Run one CLI command in this process in the fixture's private environment and decode its JSON document; a refusal fails the test, as box.cli does [C7]. */
+async function cliLocal(box, ...args) {
+  const result = await runCliInProcess([...args, '--json'], { cwd: box.root, env: box.env });
+  assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+  return JSON.parse(result.stdout);
+}
+
 /** A fixture board with `items` items filed through the CLI and `events` events in all, the rest edits spread over the items. */
-function largeBoard(t, { items = 24, events = 12_000 } = {}) {
+async function largeBoard(t, { items = 24, events = 12_000 } = {}) {
   const box = apiHttpFixture(t);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const ids = [];
   for (let index = 0; index < items; index += 1) {
-    ids.push(box.cli(box.root, 'add', 'app', `Large item ${index + 1}`, '--route', 'strong', '--criterion', `Detail ${index + 1}`, '--brief', BRIEF).item.item_id);
+    ids.push((await cliLocal(box, 'add', 'app', `Large item ${index + 1}`, '--route', 'strong', '--criterion', `Detail ${index + 1}`, '--brief', BRIEF)).item.item_id);
   }
   const db = new DatabaseSync(file);
   try { appendEdits(db, ids, events - db.prepare('SELECT COUNT(*) AS n FROM event').get().n); } finally { db.close(); }
@@ -56,7 +64,7 @@ function plain(entry) {
 }
 
 test('[A2,C7] an incremental board state equals a full rebuild over sampled event sequences', async (t) => {
-  const { box, file, ids } = largeBoard(t);
+  const { box, file, ids } = await largeBoard(t);
   const clock = { at: Date.parse('2026-01-02T00:00:00.000Z') };
   const builds = [];
   const options = { projects: () => [{ root: box.root, name: 'Materializer fixture' }], boardOpeners: apiBoardOpeners, viewPorts: viewApiPorts, now: () => clock.at };
@@ -66,16 +74,16 @@ test('[A2,C7] an incremental board state equals a full rebuild over sampled even
   assert.deepEqual(builds.map((build) => build.full), [true], 'the first build reads every item');
   const steps = [
     () => appendLater(file, ids, 1, 50_000),
-    () => box.cli(box.root, 'shout', 'all', 'Materializer fixture: one shout between reads'),
+    () => cliLocal(box, 'shout', 'all', 'Materializer fixture: one shout between reads'),
     () => fileFixtureItem(box, box.root, { lane: 'app', title: 'Added between reads' }),
-    () => box.cli(box.root, 'edit', String(ids[7]), '--criterion', 'Detail 8, edited between reads'),
-    () => box.cli(box.root, 'fact', String(ids[11]), 'note', 'A fact between reads'),
-    () => box.cli(box.root, 'withdraw', String(ids[3]), 'Withdrawn between reads'),
+    () => cliLocal(box, 'edit', String(ids[7]), '--criterion', 'Detail 8, edited between reads'),
+    () => cliLocal(box, 'fact', String(ids[11]), 'note', 'A fact between reads'),
+    () => cliLocal(box, 'withdraw', String(ids[3]), 'Withdrawn between reads'),
     () => appendLater(file, ids, 40, 60_000),
     () => execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'chore: move the trunk between reads'], { cwd: box.root, env: box.env }),
   ];
   for (const [index, step] of steps.entries()) {
-    step();
+    await step();
     clock.at += 1_000;
     // A move can append a follow-up event of its own (an add's check baseline), so compare builds at one sequence.
     let extended, rebuilt;
@@ -88,8 +96,8 @@ test('[A2,C7] an incremental board state equals a full rebuild over sampled even
   }
 });
 
-test('[A2,C7] a build extends the kept event history with exactly the rows appended since', (t) => {
-  const { box, file, ids } = largeBoard(t, { items: 3, events: 80 });
+test('[A2,C7] a build extends the kept event history with exactly the rows appended since', async (t) => {
+  const { box, file, ids } = await largeBoard(t, { items: 3, events: 80 });
   const clock = { at: Date.parse('2026-01-02T00:00:00.000Z') };
   const snapshots = createStateSnapshots({ projects: () => [{ root: box.root, name: 'Materializer fixture' }], boardOpeners: apiBoardOpeners, viewPorts: viewApiPorts, now: () => clock.at });
   const board = { id: 'materializer-fixture', root: box.root };
@@ -128,7 +136,7 @@ async function materializedApi(t, box, builds, statePorts = STATE_PORTS) {
 }
 
 test('[A2,C7] a read with no write starts no build, and a read after a write returns the write', async (t) => {
-  const { box, file, ids } = largeBoard(t);
+  const { box, file, ids } = await largeBoard(t);
   const builds = [];
   const { api, read } = await materializedApi(t, box, builds);
   const first = await read();
@@ -163,7 +171,8 @@ test('[A2,C7] a read with no write starts no build, and a read after a write ret
 
 test('[A2,C7] an open page hears one change notice per write, and none from its own reads', async (t) => {
   const box = apiHttpFixture(t);
-  const ids = [1, 2].map((index) => box.cli(box.root, 'add', 'app', `Notice item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF).item.item_id);
+  const ids = [];
+  for (const index of [1, 2]) ids.push((await cliLocal(box, 'add', 'app', `Notice item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF)).item.item_id);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const builds = [];
   const { api, read } = await materializedApi(t, box, builds);
