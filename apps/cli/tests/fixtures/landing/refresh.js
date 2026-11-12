@@ -9,7 +9,6 @@ import {
   readFileSync,
   rmSync,
   writeFileSync,
-  writeSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
@@ -18,16 +17,10 @@ import { runFixtureChild } from '../child.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-const Z0 = Date.now();
-/** Temporary phase trace for #6235. */
-function zr(label) { try { writeSync(1, `# zr ${Date.now() - Z0}ms ${label}\n`); } catch { /* trace only */ } }
-
 /** Run the private committed tool, retaining complete child output on refusal. */
 function command(box, cwd, ...args) {
-  const zs = Date.now();
   const result = runFixtureChild(process.execPath, [join(box.repo, 'apps/cli/pullboard.js'), ...args, '--no-next', '--json'],
     { cwd, env: box.env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-  zr(`${args[0]} ${result.status} ${Date.now() - zs}ms`);
   return { status: result.status, text: `${result.stdout}\n${result.stderr}`, stdout: result.stdout };
 }
 
@@ -105,7 +98,7 @@ function project(disableRefresh) {
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
     writeFileSync(file, source.replace(call, '// Mutation control: landing documentation refresh removed.'));
   }
-  zr('setup ready'); commitFixture(box); zr('fixture committed');
+  commitFixture(box);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   return { ...box, armed };
 }
