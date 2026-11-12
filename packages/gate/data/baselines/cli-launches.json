@@ -522,7 +522,7 @@
     "launch": 1
   },
   "apps/cli/journeys/init/offer.test.js": {
-    "launch": 6
+    "launch": 4
   },
   "apps/cli/journeys/init/origin.test.js": {
     "launch": 8

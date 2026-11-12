@@ -158,7 +158,7 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
     mkdirSync(dirname(settings), { recursive: true });
     writeFileSync(settings, `${JSON.stringify({ relay: { offerAtInit: false } })}\n`);
     try {
-      const shown = runFixtureChild(process.execPath, [CLI, 'settings'], { cwd: box.root, env: person, encoding: 'utf8' });
+      const shown = await runCliInProcess(['settings'], { cwd: box.root, env: person });
       assert.match(shown.stdout, /^relay\.offerAtInit: false/mu, 'pullboard settings shows the setting');
       const run = await initInTerminal(t, freshRepository(box, 'setting-off'), person);
       assert.equal(run.code, 0, `init finishes: ${safeTail(run.output, person)}`);
@@ -167,7 +167,7 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
     } finally {
       writeFileSync(settings, '{}\n');
     }
-    const shown = runFixtureChild(process.execPath, [CLI, 'settings'], { cwd: box.root, env: person, encoding: 'utf8' });
+    const shown = await runCliInProcess(['settings'], { cwd: box.root, env: person });
     assert.match(shown.stdout, /^relay\.offerAtInit: true/mu, 'the setting is on unless set to false');
   });
 
