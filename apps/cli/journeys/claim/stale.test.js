@@ -6,7 +6,10 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import {
+  fixtureAdd,
+  joinFixtureSeat,
+} from '../../tests/fixtures/testkit.js';
 
 /** File one item in the web lane and return its id. */
 function file(box, title) {
@@ -20,6 +23,7 @@ function goneFolder(box, id, { commit }) {
   const path = `${box.web}-item-${id}`;
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/item-${id}`, path, 'main');
   if (commit) {
+    assert.equal(joinFixtureSeat(box, path, 'web').code, 0, 'the pre-commit hook needs a joined seat');
     writeFileSync(join(path, 'earlier.txt'), 'ported work\n');
     box.git(path, 'add', 'earlier.txt');
     box.git(path, 'commit', '-q', '-m', 'earlier work');
