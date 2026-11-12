@@ -1,6 +1,6 @@
 /** Stage the shared test registries a landing derives from what the item merge moved, so no lane hand-edits them [C7,V24]. */
 import { git } from '../../../git/index.js';
-import { deriveTestRegistries } from '../../../gate/light.js';
+import { deriveTestRegistries } from '../../../gate/index.js';
 
 /**
  * What the item merge changed in test files: each rename (old path to new) and every path added, copied, modified or renamed to.
