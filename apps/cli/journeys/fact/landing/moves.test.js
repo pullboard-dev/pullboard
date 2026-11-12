@@ -1,90 +1,58 @@
-/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
-/** The trunk finish moves the trunk ref by compare-and-swap whatever the primary checkout holds, and refuses aloud when the ref moved [C7]. */
+/** @pullboard-test-input packages/landing/index.js */
+/** A landing moves the trunk ref by compare-and-swap whatever the primary checkout holds, and refuses aloud when the ref moved [C7,P7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
-import {
-  privateFixtureFiles,
-  runFixtureChild,
-} from '../../../tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 import { moveTrunkRef } from '../../../../../packages/landing/index.js';
+import { runLandingJob } from '../../../../../packages/landing/index.js';
 
-/** The model name every landing fixture seat reports. */
-const FIXTURE_MODEL = 'landing-fixture';
-const e2e = createE2eHelpers();
 const scratch = [];
 after(() => {
-  e2e.cleanup();
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
-});
-const { sandbox, project, commitFile } = e2e;
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
-
-/** Run one real landing pass and return its lines, the error if any, and the item row. */
-function landOnce(box, itemId) {
-  const source = [
-    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/store/index.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../lib/index.js')).href)};`,
-    `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/config/index.js')).href)};`,
-    `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
-    `import { landingPorts } from ${JSON.stringify(new URL('../../../tests/fixtures/landing/ports.js', import.meta.url).href)};`,
-    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../runner/index.js')).href)};`,
-    `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../../../../lib/src/io/landing/candidate.js'))};`,
-    "import { join } from 'node:path';",
-    'const [root, itemId] = process.argv.slice(1);',
-    'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
-    'const lines = [];',
-    'try {',
-    'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
-    'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (caught) { error = { code: caught.code, message: caught.message }; }',
-    'const item = store.getItem(board, Number(itemId));',
-    'console.log(JSON.stringify({ error, lines, item: { status: item.item_status, merged: item.item_merged_commit } }));',
-    '} finally { store.closeBoard(board); }',
-  ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(itemId)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
-  return JSON.parse(run.stdout.trim().split('\n').at(-1));
-}
-
-test('clause 1: a landing moves the trunk ref to the batch tip with an untracked file in the primary checkout, which survives [C7]', () => {
-  const box = landProject({ withWorktree: false });
-  box.env.PULLBOARD_MODEL = FIXTURE_MODEL;
-  const path = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
-  const entry = itemWorktree(box, 1);
-  submitItem(box, entry, 'PASS\n');
-  acceptItem(box, entry);
-  mkdirSync(join(box.repo, 'docs'), { recursive: true });
-  writeFileSync(join(box.repo, 'docs', 'stray-helper.sh'), 'echo stray\n');
-  const result = landOnce(box, entry.item);
-  assert.equal(result.error, null, JSON.stringify(result));
-  assert.ok(result.item.merged, `the item landed: ${JSON.stringify(result.item)}`);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main').trim(), result.item.merged, 'the trunk ref names the landed commit');
-  assert.ok(existsSync(join(box.repo, 'docs', 'stray-helper.sh')), 'the untracked file survives');
-  assert.ok(existsSync(join(box.repo, 'web', 'land-1.test.js')), 'the primary checkout holds the landed tracked file');
-  assert.ok(result.lines.some(line => /refs\/heads\/main moved from [0-9a-f]{40} to [0-9a-f]{40}/u.test(line)), result.lines.join('\n'));
-  assert.ok(!result.lines.some(line => line.includes('fast-forwarded')), 'no line claims a fast-forward');
 });
 
 /** Run git in a directory and return trimmed stdout. */
 function sh(cwd, ...args) {
   return execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' }).trim();
 }
+
+test('clause 1: a land job moves the board host checkout\'s trunk ref to the landed tip with an untracked file there, which survives [C7,P7]', async () => {
+  const dir = privateFixtureFiles('land-host-').root;
+  scratch.push(dir);
+  const host = join(dir, 'host');
+  mkdirSync(host);
+  sh(host, 'init', '-q', '-b', 'main');
+  writeFileSync(join(host, 'README.md'), 'seed\n');
+  sh(host, 'add', 'README.md');
+  sh(host, 'commit', '-q', '-m', 'chore: seed');
+  const base = sh(host, 'rev-parse', 'HEAD');
+  sh(host, 'checkout', '-q', '-b', 'item/1');
+  mkdirSync(join(host, 'web'));
+  writeFileSync(join(host, 'web', 'land-1.test.js'), 'PASS\n');
+  sh(host, 'add', 'web/land-1.test.js');
+  sh(host, 'commit', '-q', '-m', 'feat(web): land one [C7]');
+  const item = sh(host, 'rev-parse', 'HEAD');
+  sh(host, 'checkout', '-q', 'main');
+  mkdirSync(join(host, 'docs'), { recursive: true });
+  writeFileSync(join(host, 'docs', 'stray-helper.sh'), 'echo stray\n');
+  const payload = { remote: host, trunk: 'refs/heads/main', expect: base, checkout: true, items: [{ id: 1, commit: item, ref: 'refs/heads/item/1' }] };
+  const receipt = await runLandingJob(payload, { workdir: join(dir, 'runner'), checks: () => ({ ok: true }) });
+  assert.deepEqual([receipt.outcome, receipt.landed, receipt.base, receipt.moved], ['landed', [1], base, []], JSON.stringify(receipt));
+  assert.equal(sh(host, 'rev-parse', 'main'), receipt.trunk, 'the trunk ref names the landed commit');
+  assert.deepEqual(sh(host, 'rev-list', '--parents', '-n', '1', 'main').split(' ').slice(1), [base, item], 'main moved from its base to one merge of the item, never a fast-forward');
+  assert.ok(existsSync(join(host, 'docs', 'stray-helper.sh')), 'the untracked file survives');
+  assert.ok(existsSync(join(host, 'web', 'land-1.test.js')), 'the primary checkout holds the landed tracked file');
+  assert.equal(sh(host, 'status', '--porcelain', '--untracked-files=no'), '', 'the checkout\'s tracked files match the landed tip');
+});
 
 test('clause 2: a trunk ref that moved before the finish records the batch blocked with LAND_MAIN_MOVED naming both commits and never says fast-forwarded [C7]', async () => {
   const dir = privateFixtureFiles('finish-moved-').root;

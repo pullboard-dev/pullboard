@@ -62,7 +62,7 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
   assert.ok(executable, 'Chrome is required for this real-board regression');
   const box = machine();
   const demo = project(box, 'prior-shout-overlap');
-  box.run(demo.repo, 'shout', 'person', QUESTION, '--decision');
+  await box.inProcess(demo.repo, 'shout', 'person', QUESTION, '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-prior-shout-'));
   let chrome, barrier, captureArmed = false, capture = null, barrierCleanup = null;
@@ -159,7 +159,7 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
   const box = machine();
   const demo = project(box, 'prior-shout-mode-order');
   const answerText = 'Person answer after prior completion';
-  box.run(demo.repo, 'shout', 'person', QUESTION, '--decision');
+  await box.inProcess(demo.repo, 'shout', 'person', QUESTION, '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-prior-shout-mode-'));
   let chrome, barrier, captureArmed = false, capture = null, barrierCleanup = null;
