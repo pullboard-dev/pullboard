@@ -1,7 +1,6 @@
 /** @pullboard-test-input packages/runners/src/io/tooling/committed.js */
 /** A shared controller export is swept when its last run finishes, and at most 8 are kept [E28,C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -14,6 +13,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { committedRunnerController } from '../../../src/io/tooling/committed.js';
 import { pruneSharedExports } from '../../../src/io/tooling/committed.js';
 import { SHARED_KEEP_COUNT } from '../../../src/io/tooling/committed.js';
@@ -67,7 +67,7 @@ test('a shared export another process holds survives this process releasing and 
     const held = committedRunnerController(${JSON.stringify(repo)}, { shared: true });
     process.stdout.write(held.root + '\\n');
     process.stdin.on('data', () => { held.cleanup(); process.exit(0); });`;
-  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { env: { ...process.env, TMPDIR: temp }, stdio: ['pipe', 'pipe', 'inherit'] });
+  const child = startFixtureChild(process.execPath, ['--input-type=module', '-e', source], { env: { ...process.env, TMPDIR: temp }, stdio: ['pipe', 'pipe', 'pipe'] });
   t.after(() => child.kill());
   let printed = '';
   for await (const chunk of child.stdout) { printed += chunk; if (printed.includes('\n')) break; }
