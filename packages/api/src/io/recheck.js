@@ -108,7 +108,7 @@ export function offerMainTests(board, { now = Date.now() } = {}) {
       continue;
     }
     const pinned = atomically(db, () => pinQueuedJob(db, id, commit, { now })
-      && writeStep(db, id, 'offered', { needs: NEEDS, run: ['node', '--input-type=module', '-e', ENTRY, at.command, at.file] }, { now }).written);
+      && writeStep(db, id, 'offered', { priority: 'background', needs: NEEDS, run: ['node', '--input-type=module', '-e', ENTRY, at.command, at.file] }, { now }).written);
     if (pinned) offered.push(id);
   }
   return offered;
