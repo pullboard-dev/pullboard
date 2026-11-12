@@ -49,12 +49,15 @@ const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
 export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   const files = {};
   const pending = [entry];
+  const generated = new Set();
   let bytes = 0;
   while (pending.length) {
     const path = pending.pop();
     if (files[path] !== undefined) continue;
     // A directory a module lists at run time (`new URL('./', import.meta.url)`) has no text to copy; what it holds is copied when imported.
     if (statSync(posix.join(root, path), { throwIfNoEntry: false })?.isDirectory()) continue;
+    // A dot-file at the repo root is generated on the machine that runs it (the runner source manifest) and is read as optional.
+    if (generated.has(path) && !statSync(posix.join(root, path), { throwIfNoEntry: false })) continue;
     let text;
     try { text = readFileSync(posix.join(root, path), 'utf8'); } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
@@ -78,6 +81,7 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
       }
       const target = posix.normalize(posix.join(posix.dirname(path), specifier));
       if (target.startsWith('../')) throw new Refused('RUNNER_SERVICE_IMPORT', `${path} imports ${specifier}, outside the repo`);
+      if (isData && /^\.[^/]+$/u.test(target)) generated.add(target);
       pending.push(target);
     }
   }
