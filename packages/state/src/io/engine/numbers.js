@@ -108,6 +108,10 @@ export function assignEngineNumbers(root) {
   return { files, assigned };
 }
 
+/** Where numbered engine histories are written, and the 0.9.3 folder that is still read when a board has it [C7]. */
+const HISTORY_FOLDER = 'packages/state/data/history';
+const OLD_HISTORY_FOLDER = 'src/move-history';
+
 /** Folders that hold move declarations: the old src/moves shims (gone since the layout freeze) and the moves cell's bodies [C7]. */
 const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/logic/moves', 'packages/moves/src/io/moves']);
 
@@ -117,12 +121,15 @@ const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/logic/moves
  * Each landing writes a new path, never a shared manifest or a previously shipped record.
  */
 function appendRegistryHistory(root, engine, leaves) {
-  const directory = join(root, 'packages/state/data/history');
-  if (!existsSync(join(directory, 'legacy.json'))) return [];
+  const directory = join(root, HISTORY_FOLDER);
+  // A 0.9.3 board keeps its record under src/move-history: it is read there, and every new snapshot is written to the new folder [C7].
+  if (!existsSync(join(directory, 'legacy.json')) && !existsSync(join(root, OLD_HISTORY_FOLDER, 'legacy.json'))) return [];
+  const legacy = existsSync(join(directory, 'legacy.json')) ? directory : join(root, OLD_HISTORY_FOLDER);
+  mkdirSync(directory, { recursive: true });
   const folders = MOVE_FOLDERS.map(folder => join(root, folder)).filter(path => existsSync(path));
   // The root src/ folder is gone since the layout freeze; only the history folder and the move folders must be real [V32].
   if (!folders.length || ![directory, ...folders].every(path => lstatSync(path).isDirectory())
-      || !lstatSync(join(directory, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
+      || !lstatSync(join(legacy, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
   // A packaged body replaces its src/moves shim of the same name, so the record is the same with or without the shims.
   const sources = new Map();
   for (const moves of folders) for (const file of discovered(readdirSync(moves), /\.js$/u, /^[\w-]+\.js$/u, 'move')) {
@@ -132,8 +139,7 @@ function appendRegistryHistory(root, engine, leaves) {
   const declarations = Object.fromEntries([...sources.keys()].sort().map(file => [file, readFileSync(sources.get(file), 'utf8')]));
   const record = { version: 1, engine: engine.number, name: engine.name,
     engines: leaves.filter(leaf => leaf.number !== null).map(({ file, name, number }) => ({ file, name, number })), declarations };
-  const relative = `packages/state/data/history/${engine.number}.json`;
-  mkdirSync(directory, { recursive: true });
+  const relative = `${HISTORY_FOLDER}/${engine.number}.json`;
   writeFileSync(join(root, relative), `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx' });
   return [relative];
 }

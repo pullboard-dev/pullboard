@@ -39,12 +39,12 @@ function scratch() {
   return { box, id };
 }
 
-test('clause 1: every pullboard run appends one trace line with who, where, what, outcome and refusal [C7]', () => {
+test('clause 1: every pullboard run appends one trace line with who, where, what, outcome and refusal [C7]', async () => {
   const { box, id } = scratch();
   const before = existsCount(box.repo);
-  assert.equal(box.run(box.web, 'show', String(id), '--json').code, 0);
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
-  const refused = box.run(box.web, 'claim', '99999');
+  assert.equal((await box.runLocal(box.web, 'show', String(id), '--json')).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
+  const refused = (await box.runLocal(box.web, 'claim', '99999'));
   assert.notEqual(refused.code, 0);
   const lines = traceLines(box.repo).slice(before);
   const mine = lines.filter(line => ['show', 'claim'].includes(line.command));
@@ -83,14 +83,14 @@ test('clause 1: the item id is traced whether it is a positional or the value of
   assert.equal(itemOf(['inbox']), null);
 });
 
-test('clause 2: an unwritable trace folder keeps the command exit code and the append costs under 5 ms [C7]', () => {
+test('clause 2: an unwritable trace folder keeps the command exit code and the append costs under 5 ms [C7]', async () => {
   const { box, id } = scratch();
   // A plain file where the trace folder belongs makes every append fail, as an unwritable folder does.
   const trace = join(box.repo, '.git', 'pullboard', 'trace');
   rmSync(trace, { recursive: true, force: true });
   writeFileSync(trace, 'not a folder');
-  assert.equal(box.run(box.web, 'show', String(id)).code, 0, 'a read keeps its own exit code');
-  assert.notEqual(box.run(box.web, 'claim', '99999').code, 0, 'a refusal keeps its own exit code');
+  assert.equal((await box.runLocal(box.web, 'show', String(id))).code, 0, 'a read keeps its own exit code');
+  assert.notEqual((await box.runLocal(box.web, 'claim', '99999')).code, 0, 'a refusal keeps its own exit code');
   assert.equal(appendTrace({ argv: ['show', '1'], cwd: box.web, startedAt: Date.now(), status: 0 }), null, 'a failed append is swallowed');
   // Measure the append itself, not the command: the best of several runs on a writable folder.
   rmSync(trace, { force: true });

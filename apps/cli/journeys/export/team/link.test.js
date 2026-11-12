@@ -42,7 +42,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   const link = JSON.parse(box.readLink());
   const config = join(box.root, 'pullboard.json');
   assert.equal(JSON.parse(readFileSync(config, 'utf8')).relay?.board, link.board, 'relay on writes the board’s id into pullboard.json');
-  assert.equal((await box.cli('add', box.lane, 'Health endpoint')).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, 'Health endpoint')).code, 0);
 
   // S5: a clone made before pullboard.json named the board links no second board for the repository.
   const early = memberDevice(t, box, 'bob-early');
@@ -64,7 +64,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   assert.equal(kept.document?.error?.code, 'RELAY_JOIN_NOT_EMPTY', `a clone with work of its own is not joined over it: ${JSON.stringify(kept.document?.error ?? null)}`);
   assert.equal(box.auth.linkedBoards().length, 1);
 
-  const members = await box.cli('relay', 'members', 'set', 'bob');
+  const members = await box.cliLocal('relay', 'members', 'set', 'bob');
   assert.equal(members.code, 0, `alice publishes a real signed member list: ${members.stderr}`);
   assert.deepEqual(members.document.members, ['bob']);
 
@@ -75,7 +75,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   stray.sshKey();
   const strayOn = stray.start('relay', 'on', '--url', box.origin);
   assert.equal(await strayOn.said('no member device is online'), true, 'with no member online the new device says so and waits');
-  assert.equal((await box.cli('status')).code, 0, 'alice’s computer comes online');
+  assert.equal((await box.cliLocal('status')).code, 0, 'alice’s computer comes online');
   const refused = await strayOn.closed;
   assert.equal(refused.document?.error?.code, 'RELAY_KEY_VOUCH', `the member device refuses a key no GitHub SSH key vouches for: ${refused.stderr}`);
   assert.equal(existsSync(join(stray.env.PULLBOARD_HOME, 'relay-keys', link.board + '.key')), false, 'the stray device holds no board key');
@@ -86,7 +86,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   box.providerState.sshKeys = { alice: [alicePublic], bob: [fresh.sshKey()] };
   const freshOn = fresh.start('relay', 'on', '--url', box.origin);
   assert.equal(await freshOn.said('no member device is online'), true, 'the new device says no member is online and waits');
-  assert.equal((await box.cli('status')).code, 0, 'alice’s computer comes online and hands the key over');
+  assert.equal((await box.cliLocal('status')).code, 0, 'alice’s computer comes online and hands the key over');
   const joined = await freshOn.closed;
   box.providerState.signer = 'alice';
   assert.equal(joined.code, 0, `relay on in the clone joins the board: ${joined.stderr}; ${JSON.stringify(joined.document?.error ?? null)}`);
@@ -104,7 +104,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   assert.equal(bobJoined.code, 0, `the member registers an ordinary lane seat: ${JSON.stringify(bobJoined.document?.error ?? null)}`);
   const freshAdd = await bobCli('add', box.lane, 'From bob’s new computer');
   assert.equal(freshAdd.code, 0, `the joined clone moves on the team board: ${JSON.stringify(freshAdd.document?.error ?? null)}`);
-  assert.ok((await box.cli('export')).document.tables.item.some((item) => item.item_title === 'From bob’s new computer'), 'one board, one order: alice reads bob’s move');
+  assert.ok((await box.cliLocal('export')).document.tables.item.some((item) => item.item_title === 'From bob’s new computer'), 'one board, one order: alice reads bob’s move');
   assert.equal(withBoard(box.root, board => store.listAgents(board).find(agent => agent.agent_id === 'coordinator').agent_path), coordinatorPath, 'the ordinary member leaves Alice’s coordinator holder unchanged');
 });
 

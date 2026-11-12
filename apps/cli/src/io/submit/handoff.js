@@ -57,6 +57,7 @@ import { submitHandoff } from '../../../../../packages/store/index.js';
 import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
+import { reviewPacketRerun } from '../../../../../packages/verify/index.js';
 import { handoffRecords } from '../../../../../packages/store/index.js';
 import { withBoardRead } from '../context.js';
 import { withBoard } from '../context.js';
@@ -169,11 +170,34 @@ const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
  * with the same tooling trees need one snapshot, and a merge of main that changed only tests or docs must copy nothing [C7].
  */
 function toolingDigest(toolRoot) {
+  // One ls-tree of the top level reads all five ids; a rev-parse per path cost five Git processes (#5900).
+  const listed = tryGit(toolRoot, ['ls-tree', '-z', 'HEAD', '--', ...TOOLING_PATHS]);
+  const found = new Map();
+  if (listed.status === 0) for (const entry of listed.stdout.split('\0')) {
+    const row = /^\d+ \w+ ([^\t]+)\t(.+)$/u.exec(entry);
+    if (row) found.set(row[2], row[1]);
+  }
   const ids = TOOLING_PATHS.map(path => {
-    const id = tryGit(toolRoot, ['rev-parse', `HEAD:${path}`]);
-    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout) ? `${path}=${id.stdout}` : `${path}=absent`;
+    const id = found.get(path);
+    return /^[0-9a-f]{40}$/u.test(id ?? '') ? `${path}=${id}` : `${path}=absent`;
   });
   return createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
+}
+
+/**
+ * The shared tools folder and committed HEAD a git checkout of Pullboard snapshots into, without copying anything; null
+ * when the tool root has no resolvable HEAD and needs a private copy.
+ * Why: a caller that can build the snapshot later (the detached comparison worker) records this and returns at once [C7].
+ *
+ * @param {string} toolRoot
+ * @returns {{ tools: string, commit: string } | null}
+ */
+export function sharedToolsTarget(toolRoot) {
+  // One process answers both; it fails when either does, as the two separate reads each refused (#5900).
+  const read = tryGit(toolRoot, ['rev-parse', 'HEAD', '--show-toplevel']);
+  const [head, top, ...rest] = read.status === 0 ? read.stdout.split('\n') : [];
+  if (read.status !== 0 || rest.length || !/^[0-9a-f]{40}$/u.test(head ?? '') || !top || realpathSync(top) !== realpathSync(toolRoot)) return null;
+  return { tools: join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head };
 }
 
 /**
@@ -190,11 +214,9 @@ function toolingDigest(toolRoot) {
  */
 export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild, advance = advanceIdleToolTree } = {}) {
   copy ??= copyTools;
-  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
-  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  const clean = rebuild !== undefined || head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
-    && realpathSync(top.stdout) === realpathSync(toolRoot);
-  const shared = rebuild?.tools ?? (clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null);
+  const target = rebuild ?? sharedToolsTarget(toolRoot);
+  const clean = target !== null;
+  const shared = target?.tools ?? null;
   if (shared && existsSync(shared)) {
     touchToolTree(shared);
     // The reuse path is the usual one; it sweeps too, so stale snapshots go on the next submit, not only on the next copy.
@@ -208,7 +230,7 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
     return tools;
   }
   // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
-  const commit = rebuild?.commit ?? head.stdout;
+  const commit = target.commit;
   // The move runs before the room check: that check's sweep removes idle snapshots, the very ones worth moving.
   const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
   if (advanced) sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
@@ -559,15 +581,23 @@ function unfinishedSubmitHandoffs(ctx) {
 /**
  * Whether a hand-off finished 'submitted' with no green gate for the item's current submitted head. Why: a submit
  * whose proof was red only in cases that also fail on main is recorded with gateGreen false, so no review packet is
- * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448).
+ * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448). A head with a
+ * stored review packet is reviewable: a gate red only in main's named cases stores one (#3449), and returning such
+ * an item bounced good work on 11 Nov (#5774, #5287).
  *
  * @param {{ state?: string, gateGreen?: boolean, submitted?: string, commit?: string } | null} job
  * @param {{ item_status?: string, item_commit?: string | null } | null} item
+ * @param {boolean} [packet] - whether a review packet is stored for the item's head
  * @returns {boolean}
  */
-export function noVerdictHandoff(job, item) {
-  return job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
+export function noVerdictHandoff(job, item, packet = false) {
+  return !packet && job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
     && typeof item.item_commit === 'string' && item.item_commit === (job.submitted ?? job.commit);
+}
+
+/** Whether the board stores a review packet for the item's submitted head. */
+function storedPacket(ctx, item) {
+  return Boolean(item?.item_commit) && reviewPacketRerun(ctx.info.commonDir, item) !== null;
 }
 
 /**
@@ -579,13 +609,13 @@ export function noVerdictHandoff(job, item) {
  */
 export async function returnNoVerdictHandoffs(ctx) {
   const stranded = withBoardRead(ctx, board => boardHandoffs(board)
-    .filter(({ itemId, job }) => noVerdictHandoff(job, getItem(board, itemId))).map(({ itemId }) => itemId));
+    .filter(({ itemId, job }) => { const item = getItem(board, itemId); return noVerdictHandoff(job, item, storedPacket(ctx, item)); }).map(({ itemId }) => itemId));
   let returned = 0;
   for (const itemId of stranded) {
     try {
       returned += await withBoard(ctx, async board => {
         const job = submitHandoff(board, itemId), item = getItem(board, itemId);
-        if (!noVerdictHandoff(job, item)) return 0;
+        if (!noVerdictHandoff(job, item, storedPacket(ctx, item))) return 0;
         const head = item.item_commit.slice(0, 12);
         const note = `HANDOFF_NO_VERDICT: hand-off ${job.id} ended submitted at ${head} with no green gate, so no review packet exists and every reviewer is refused NO_REVIEW_PACKET; returned to its builder ${item.item_built_by ?? 'unknown'}`;
         await ordered(ctx, board, 'reopen', [itemId, { agentId: 'coordinator', note }]);

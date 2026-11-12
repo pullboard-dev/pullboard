@@ -7,6 +7,7 @@ import {
   addRunner,
   loadMachineSettings,
   removeRunner,
+  setRunnerDrain,
 } from '../../../../../packages/config/index.js';
 import {
   recordRunnerGui,
@@ -14,8 +15,19 @@ import {
 } from '../../../../../packages/resources/index.js';
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
+import { readPulledCapacity } from '../../../../../packages/runners/index.js';
+import { lastRecordedLimit } from './stats/limits.js';
+import { recordLimitChange } from './stats/limits.js';
+import { openBoardReadOnly } from '../../../../../packages/store/index.js';
+import { context } from '../read.js';
+import { withBoard } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { installRunnerService } from '../../../../../packages/runners/index.js';
+import { serviceBoard } from '../../../../../packages/runners/index.js';
+import { boardKey } from '../../../../../packages/config/index.js';
+import { boardKeyFile } from '../../../../../packages/config/index.js';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   computeRunnerSlots,
@@ -45,24 +57,62 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       return { ...row, slots: offered.slots, browser: offered.browser,
         ...(runner.cores !== undefined ? { cores: runner.cores, memoryMB: runner.memoryMB, measuredAt: runner.measuredAt } : {}),
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
-        fixed: runner.fixed === true };
+        fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}) };
     });
     io.result?.({ runners });
     io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
     return 0;
   }
+  if (first === 'status') {
+    // Pulled-job capacity from the board's job table: claimed jobs against each serve's declared jobs setting [#5993].
+    if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner status [--json]');
+    const ctx = context(io);
+    if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
+    const db = openBoardReadOnly(ctx.file);
+    let capacity;
+    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    io.result?.(capacity);
+    io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
+      `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');
+    return 0;
+  }
   if (first === 'serve') {
     // A pull runner: only outbound HTTPS to the board and git fetches from its trunk remote, no ssh in [P7].
-    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once'].includes(key))) {
-      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--once]');
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once', 'jobs'].includes(key))) {
+      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--jobs <n>] [--once]');
     }
+    // A serve started with a different --jobs than the last one recorded on this machine's board is a change to the limits in effect (#6139).
+    const open = work => withBoard(context(io), work);
+    if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs));
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
+  }
+  if (first === 'local') {
+    // The machine's own runner: the board API on loopback and runner serve against it, started by a pull submit [P7].
+    if (second || rest.length || Object.keys(values).some(key => !['json', 'off'].includes(key))) throw new Refused('USAGE', 'pullboard runner local [--off]');
+    return (await import('../runner/local/serve.js')).localRunnerCommand(io, { off: values.off === true });
+  }
+  if (first === 'install-serve') {
+    // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
+    const usage = 'pullboard runner install-serve <ssh-host> --board <board-url> [--key <board-key>] | pullboard runner install-serve <ssh-host> --remove';
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'board', 'key', 'remove'].includes(key))
+      || (values.remove ? values.board !== undefined || values.key !== undefined : typeof values.board !== 'string')) throw new Refused('USAGE', usage);
+    const runner = (loadMachineSettings().runners ?? []).find(entry => entry.host === second);
+    if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${second} is not registered`, 'run pullboard runner add <ssh-host>');
+    // The key: the flag, the URL's own ?k=, the runner environment's variable, or this machine's board key when it serves the board.
+    const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? process.env.PULLBOARD_BOARD_KEY
+      ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
+    const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
+    io.result?.({ service });
+    if (values.remove) { io.say(`removed runner serve from ${runner.host}`); return 0; }
+    io.say(`installed runner serve on ${runner.host} as launchd agent ${service.label}, restarting on exit; log ${service.log}`);
+    if (!service.loaded) io.say(`launchd did not load it now (no login session?); it starts at the next login, or run on the runner: launchctl bootstrap gui/$(id -u) ${service.plist}`);
+    return service.loaded ? 0 : 1;
   }
   if (first === 'remove') {
     if (!second || second.trim() !== second || rest.length || Object.keys(values).some(key => key !== 'json')) {
@@ -71,6 +121,14 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const runner = removeRunner(second);
     io.result?.({ runner });
     io.say(`${runner.draining ? 'draining' : 'removed'} runner ${runner.host}`);
+    return 0;
+  }
+  if (first === 'drain' || first === 'undrain') {
+    if (!second || second.trim() !== second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', `pullboard runner ${first} <ssh-host>`);
+    const runner = setRunnerDrain(second, first === 'drain');
+    io.result?.({ runner, draining: first === 'drain' });
+    io.say(first === 'drain' ? `draining runner ${runner.host}: it takes no new job, its running jobs finish; return it with pullboard runner undrain ${runner.host}`
+      : `runner ${runner.host} is back in rotation`);
     return 0;
   }
   if (first === 'measure') {
@@ -159,7 +217,7 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
 }
 
 /** A pulled land job, run in the runner's own landing checkout under its cache: merge, check, push trunk by compare-and-swap [P7]. */
-async function landJobHandler(claim, { cache, renew }) {
+async function landJobHandler(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
 }

@@ -134,6 +134,7 @@ test('clause 2: the detached recovery check relaunches a dead dispatcher from th
   copyFileSync(fileURLToPath(new URL('../../../../packages/resources/src/io/handoff/worker/detach.js', import.meta.url)), join(box.tools, 'packages/resources/src/io/handoff/worker/detach.js'));
   writeFileSync(join(box.tools, 'apps/lib/src/io/handoff/dispatcher.js'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');\n`);
   await queueJob(box);
+  // Process-level: the dispatcher entry runs --recover as its own process.
   const run = spawnSync(process.execPath, [DISPATCHER, '--recover'], { cwd: box.commonDir, env: process.env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr + run.stdout);
   await waitForCondition(() => existsSync(marker), 'the captured dispatcher was launched');

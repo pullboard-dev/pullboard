@@ -52,7 +52,9 @@ export function sourceGit(root, args, options = {}) {
 }
 
 /** The tooling export manifest a controller runs from; its tree names the scanner rules that made a verdict. */
-const TOOLING_MANIFEST = fileURLToPath(new URL('../../../../../.pullboard-runner-source.json', import.meta.url));
+/** The file name of that manifest; a runtime-written file, never part of the shipped closure. */
+export const TOOLING_MANIFEST_NAME = '.pullboard-runner-source.json';
+const TOOLING_MANIFEST = fileURLToPath(new URL(`../../../../../${TOOLING_MANIFEST_NAME}`, import.meta.url));
 let toolingTree;
 
 /**

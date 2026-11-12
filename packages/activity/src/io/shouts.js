@@ -1,9 +1,29 @@
 /** A seat idling in `next --wait` hears its shouts on every retry, not only when it leaves [B3,N2]. */
 import { getItem } from '../../../store/index.js';
 import { inbox } from '../../../store/index.js';
+import { agentById } from '../../../store/index.js';
+import { reviewHolder } from '../../../store/index.js';
 
 /** A shout that asks the seat to act on a named item: an action word, then the item's #id. */
 const ASK = /\b(?:review|verify|build|take|claim|fix|resubmit|land|work on|act on)\b[^#\n]{0,60}#(\d+)/iu;
+
+/**
+ * Whether this seat can act on an item: it is open in the seat's lane, claimed by the seat, or submitted for review by
+ * someone else (so the seat may reserve it, or already holds the review).
+ * Why: a shout naming any other item (another lane's, someone else's claim, landed work) must not end a seat's wait on
+ * work it cannot do (SM7).
+ *
+ * @param {any} board
+ * @param {string} agentId
+ * @param {any} item
+ * @returns {boolean}
+ */
+function actionableBy(board, agentId, item) {
+  if (item.item_status === 'open') return item.item_lane === agentById(board, agentId)?.agent_lane;
+  if (item.item_status === 'claimed') return item.item_owner === agentId;
+  if (item.item_status === 'submitted') return item.item_owner !== agentId || reviewHolder(board, item) === agentId;
+  return false;
+}
 
 /**
  * Read this seat's unread shouts once, mark them read, and name the item a shout asks it to act on.
@@ -31,8 +51,8 @@ export function takeWaitShouts(ctx, seen, { withBoard, withBoardRead, whoAmI }) 
       if (named === undefined) continue;
       try {
         const asked = getItem(board, Number(named));
-        // A finished item asks nothing: an old backlog shout must not end the wait on landed work.
-        if (!['verified', 'withdrawn'].includes(asked.item_status)) return asked;
+        // Only work this seat can act on ends the wait; a finished item, another lane's or another seat's claim asks nothing.
+        if (actionableBy(board, heard.me, asked)) return asked;
       } catch { /* an unknown id asks nothing */ }
     }
     return null;

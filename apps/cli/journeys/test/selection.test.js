@@ -13,7 +13,7 @@ import {
   accept,
 } from '../../tests/fixtures/test/selection.js';
 
-test('submit and review run only the changed package units and frozen check [C7,CS4,V4]', t => {
+test('clause 1: submit and review run only the changed package units and frozen check [C7,CS4,V4]', t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // Deliberate inherited context must not skip the selected units.
   const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
@@ -44,12 +44,12 @@ test('a journey test the change itself edits runs at submit, not first at landin
   assert.deepEqual(calls(box, 'journey'), ['journey-edited']);
 });
 
-test('a red in a journey test the change edits turns the submit gate red [C7,CS4,V4]', t => {
+test('a red in a journey test the change edits turns the submit gate red [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'gamma', 2);
   const journey = join(entry.root, 'test/journey.test.js');
   writeFileSync(journey, readFileSync(journey, 'utf8').replace('assert.ok(alpha > 0 && beta > 0)', 'assert.ok(alpha < 0, "edited journey is red")'));
   commit(box, entry.root, 'test(web): the journey asserts the wrong sign [G1]');
-  const result = box.run(entry.root, 'submit', String(entry.id), '--no-next', '--json');
+  const result = await box.runLocal(entry.root, 'submit', String(entry.id), '--no-next', '--json');
   assert.notEqual(result.code, 0, 'a red edited journey must not submit green');
   assert.match(result.out + result.err, /journey\.test\.js/u);
   assert.ok(calls(box, 'journey').length >= 1, 'the edited journey ran at submit');

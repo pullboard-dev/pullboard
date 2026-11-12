@@ -7,17 +7,20 @@ import { mkdtempSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { Refused } from '../../../../kernel/index.js';
 import { dropStagingFolder } from '../keyed.js';
 import { placeKeyedFolder } from '../keyed.js';
-import { sweepKeyedFolders } from '../keyed.js';
 import { touchKeyedFolder } from '../keyed.js';
+import { writeKeyedLease } from '../keyed.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
@@ -48,8 +51,66 @@ export function archivedToolingSource(root) {
 
 /** The prefix of every committed controller folder; a shared one adds its 32-hex key. */
 const PREFIX = 'pullboard-committed-runner-';
-/** How long an unused shared controller folder stays before a new export removes it; no gate dispatch lives this long. */
-const SHARED_KEEP_MS = 6 * 3_600_000;
+/** The most shared controller folders left in the temp directory after a sweep, newest kept. */
+export const SHARED_KEEP_COUNT = 8;
+/** Shared folders this process is running from, by path, with their run counts; a sweep never removes one. */
+const inUse = new Map();
+/** The folder beside the shared exports holding one empty lease file per export and process: `<key>.<pid>`. */
+const LEASES = 'pullboard-committed-leases';
+
+/** This process's lease file on a shared folder. */
+function leaseFile(directory, pid = process.pid) {
+  return join(dirname(directory), LEASES, `${basename(directory).slice(PREFIX.length)}.${pid}`);
+}
+
+/**
+ * Whether another live process holds a lease on a shared folder; a dead process's lease is removed on sight.
+ * Why: the folder is shared by every process of this user, and this process's own counts cannot see theirs (#5925).
+ */
+function heldElsewhere(directory) {
+  const folder = join(dirname(directory), LEASES);
+  const key = `${basename(directory).slice(PREFIX.length)}.`;
+  let names = [];
+  try { names = readdirSync(folder); } catch { return false; }
+  for (const name of names) {
+    if (!name.startsWith(key)) continue;
+    const pid = Number(name.slice(key.length));
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue;
+    try { process.kill(pid, 0); return true; } catch (error) {
+      if (error.code === 'EPERM') return true;
+      try { rmSync(join(folder, name), { force: true }); } catch { /* another sweep */ }
+    }
+  }
+  return false;
+}
+
+/** Count one more run on a shared folder; the first also leases it for this process, before any check of it. */
+function acquire(directory) {
+  const count = inUse.get(directory) ?? 0;
+  if (count === 0) {
+    const file = leaseFile(directory);
+    writeKeyedLease(dirname(file), basename(file));
+  }
+  inUse.set(directory, count + 1);
+}
+
+/** Count a run finished without removing the folder; its last run drops this process's lease. Returns runs left. */
+function unlease(directory) {
+  const left = (inUse.get(directory) ?? 1) - 1;
+  if (left > 0) { inUse.set(directory, left); return left; }
+  inUse.delete(directory);
+  rmSync(leaseFile(directory), { force: true });
+  return 0;
+}
+
+/**
+ * Count a run finished; the folder is removed with the last run of every process, so none lingers to churn the file
+ * watcher (11 Nov). Why: the 6 h keep left 127 folders under load, and another process may still run from it (#5925).
+ */
+function release(directory) {
+  if (unlease(directory) > 0 || heldElsewhere(directory)) return;
+  rmSync(directory, { recursive: true, force: true });
+}
 
 /**
  * The shared export of one repository's commit when it is complete and this user's alone, else null. Why the checks: a
@@ -67,10 +128,23 @@ function sharedExport(directory, root, commit, tree) {
   } catch { return null; }
 }
 
-/** Remove shared controller folders unused for SHARED_KEEP_MS, except `keep`. */
-function pruneSharedExports(keep) {
+/** Remove all but the newest SHARED_KEEP_COUNT shared controller folders, never one in use here or elsewhere, or `keep`. */
+export function pruneSharedExports(keep, parent = tmpdir()) {
   const shared = new RegExp(`^${PREFIX}[a-f0-9]{32}$`, 'u');
-  sweepKeyedFolders(tmpdir(), { matches: name => shared.test(name), keep, maxAgeMs: SHARED_KEEP_MS });
+  let names = [];
+  try { names = readdirSync(parent); } catch { return []; }
+  const found = [];
+  for (const name of names) {
+    if (!shared.test(name)) continue;
+    try { found.push({ path: join(parent, name), name, mtime: statSync(join(parent, name)).mtimeMs }); } catch { /* gone */ }
+  }
+  found.sort((x, y) => y.mtime - x.mtime);
+  const removed = [];
+  for (const { path, name } of found.slice(SHARED_KEEP_COUNT)) {
+    if (path === keep || inUse.has(path) || heldElsewhere(path)) continue;
+    try { rmSync(path, { recursive: true, force: true }); removed.push(name); } catch { /* another sweep */ }
+  }
+  return removed;
 }
 
 /**
@@ -90,8 +164,14 @@ export function committedRunnerController(root, { shared = false } = {}) {
     throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
   }
   const target = shared ? join(tmpdir(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
+  // Leased before it is checked, so a process releasing it concurrently sees this one and leaves it.
+  if (target) acquire(target);
   const reused = target && sharedExport(target, root, commit, tree);
-  if (reused) return { root: reused, entry: join(reused, 'apps/runner/src/io/controller.js'), commit, tree, cleanup() {} };
+  const handle = path => { let done = false; return () => { if (!done) { done = true; release(path); } }; };
+  if (reused) {
+    const cleanup = handle(reused);
+    return { root: reused, entry: join(reused, 'apps/runner/src/io/controller.js'), commit, tree, cleanup };
+  }
   const directory = mkdtempSync(join(tmpdir(), PREFIX));
   try {
     // A repository's local attributes and CRLF filters can alter git-archive bytes too. An
@@ -116,15 +196,18 @@ export function committedRunnerController(root, { shared = false } = {}) {
       const placed = sharedExport(target, root, commit, tree);
       if (placed) {
         if (!moved) dropStagingFolder(directory);
+        const cleanup = handle(placed);
         pruneSharedExports(placed);
-        return { root: placed, entry: join(placed, 'apps/runner/src/io/controller.js'), commit, tree, cleanup() {} };
+        return { root: placed, entry: join(placed, 'apps/runner/src/io/controller.js'), commit, tree, cleanup };
       }
       if (moved) throw new Refused('RUNNER_TOOLING_FILES', 'the shared runner tooling export could not be read back; retry from the committed installation');
+      unlease(target);
     }
     return { root: directory, entry: join(directory, 'apps/runner/src/io/controller.js'), commit, tree,
       cleanup() { rmSync(directory, { recursive: true, force: true }); } };
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });
+    if (target && inUse.has(target)) unlease(target);
     throw error;
   }
 }

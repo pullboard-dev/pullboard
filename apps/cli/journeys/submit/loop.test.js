@@ -81,25 +81,25 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare red loop fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = document(fixtureAdd(box.run, box.repo, 'web', 'Bound repeated red submissions', '--specs', 'G1',
+  const added = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Bound repeated red submissions', '--specs', 'G1',
     '--criterion', 'The source is correct when:\n1. the red input fails the test [test]\n2. the corrected input passes the test [test]',
-    '--check', check, '--wait', '--json'));
+    '--check', check, '--wait', '--json')));
   item = added.item.item_id;
   assert.equal(added.item.item_check, check, 'the frozen check executes the red-input test');
-  document(box.run(box.web, 'claim', String(item), '--json'));
-  document(box.run(box.web, 'fact', String(item), 'note', 'clause 1 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the red input', '--json'));
-  document(box.run(box.web, 'fact', String(item), 'note', 'clause 2 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the corrected input', '--json'));
+  document((await box.runLocal(box.web, 'claim', String(item), '--json')));
+  document((await box.runLocal(box.web, 'fact', String(item), 'note', 'clause 1 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the red input', '--json')));
+  document((await box.runLocal(box.web, 'fact', String(item), 'note', 'clause 2 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the corrected input', '--json')));
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'red\n', 'feat(web): retain red source [G1]').status, 0);
   const firstRedHead = box.git(box.web, 'rev-parse', 'HEAD');
-  document(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
+  document((await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json')));
   await waitJob(box, item, 'red', null, { head: firstRedHead, snapshot: 'red' });
   const firstRedJob = state(box, item).job.id;
-  document(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
+  document((await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json')));
   await waitJob(box, item, 'red', firstRedJob, { head: firstRedHead, snapshot: 'red' });
   const secondRedJob = state(box, item).job.id;
 
   box.git(box.web, 'commit', '--allow-empty', '-q', '-m', 'chore: change only the commit message [G1]');
-  const unchanged = box.run(box.web, 'submit', String(item), '--no-next', '--json');
+  const unchanged = (await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json'));
   assert.equal(unchanged.code, 1);
   const unchangedError = JSON.parse(unchanged.out).error;
   assert.equal(unchangedError.code, 'SUBMIT_RED_LOOP');
@@ -111,20 +111,20 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   box.git(box.repo, 'add', 'docs-main-advance.md');
   box.git(box.repo, 'commit', '-q', '-m', 'docs: advance main without changing item code [G1]');
   box.git(box.web, 'merge', '--no-edit', 'main');
-  const merged = box.run(box.web, 'submit', String(item), '--no-next', '--json');
+  const merged = (await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json'));
   assert.equal(merged.code, 1);
   assert.equal(JSON.parse(merged.out).error.code, 'SUBMIT_RED_LOOP', 'a pure main merge is not new item code evidence');
   assert.equal(state(box, item).job.id, secondRedJob, 'the main-only refusal queues no gate');
 
-  document(box.run(box.web, 'fact', String(item), 'note', 'The repeated red test was observed on the unchanged source.', '--json'));
+  document((await box.runLocal(box.web, 'fact', String(item), 'note', 'The repeated red test was observed on the unchanged source.', '--json')));
   const factRedHead = box.git(box.web, 'rev-parse', 'HEAD');
-  document(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
+  document((await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json')));
   await waitJob(box, item, 'red', secondRedJob, { head: factRedHead, snapshot: 'red' });
   const thirdRedJob = state(box, item).job.id;
 
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'green\n', 'fix(web): repair the red source [G1]').status, 0);
   const greenHead = box.git(box.web, 'rev-parse', 'HEAD');
-  document(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
+  document((await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json')));
   await waitJob(box, item, 'green', thirdRedJob, { head: greenHead, snapshot: 'green' });
   assert.equal(state(box, item).item.item_status, 'submitted');
 });
