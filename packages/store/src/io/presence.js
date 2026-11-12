@@ -6,6 +6,8 @@ const memory = new WeakMap();
 const HEARTBEAT_INTERVAL_MS = 60_000;
 export const SEAT_LIVE_WINDOW_MS = 10 * 60_000;
 const PRESENCE_BUSY_TIMEOUT_MS = 250;
+/** After a busy read, how long later reads of that class reuse the cached rows instead of waiting out the timeout again. */
+const PRESENCE_BUSY_BACKOFF_MS = 2_000;
 const LOCAL_TABLE = 'heartbeat';
 const IMPORTED_TABLE = 'imported_heartbeat';
 
@@ -13,7 +15,7 @@ const IMPORTED_TABLE = 'imported_heartbeat';
 function observationMemory(db) {
   let rows = memory.get(db);
   if (!rows) {
-    rows = { local: new Map(), imported: new Map(), warned: new Set() };
+    rows = { local: new Map(), imported: new Map(), warned: new Set(), busyUntil: new Map() };
     memory.set(db, rows);
   }
   return rows;
@@ -85,6 +87,8 @@ function observationRows(board, table, kind) {
   const cached = observationMemory(board.db);
   const file = observationFile(board);
   if (!file) return cached[kind];
+  // Why: one next reads presence per seat; a locked sidecar would otherwise cost the full timeout on each read.
+  if (Date.now() < (cached.busyUntil.get(kind) ?? 0)) return cached[kind];
   if (!existsSync(file)) { cached[kind] = new Map(); return cached[kind]; }
   let db;
   try {
@@ -95,10 +99,12 @@ function observationRows(board, table, kind) {
         .filter(row => validHeartbeatAt(row.at)).map(row => [row.seat, row.at])) : new Map();
     cached[kind] = rows;
     cached.warned.delete(kind);
+    cached.busyUntil.delete(kind);
     return rows;
   } catch (error) {
     const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;
     if (sqliteCode !== 5 && error.code !== 'SQLITE_BUSY') throw error;
+    cached.busyUntil.set(kind, Date.now() + PRESENCE_BUSY_BACKOFF_MS);
     if (!cached.warned.has(kind)) {
       cached.warned.add(kind);
       process.emitWarning(`presence sidecar remained locked after ${PRESENCE_BUSY_TIMEOUT_MS}ms; using last known ${kind} observations without refreshing their timestamps`, { code: 'PRESENCE_BUSY' });
