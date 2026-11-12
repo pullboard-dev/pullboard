@@ -1350,12 +1350,6 @@
     "launch": 2
   },
   "apps/cli/journeys/runner/e2e.test.js": {
-    "launch": 66
-  },
-  "apps/cli/journeys/runner/hosted/claim.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/runner/hosted/submit.test.js": {
     "launch": 7
   },
   "apps/cli/journeys/runner/landing/fault.test.js": {
@@ -1370,29 +1364,20 @@
   "apps/cli/journeys/runner/landing/resume.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/runner/landing/source.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/runner/lost.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/runner/on.test.js": {
-    "launch": 5
+    "launch": 2
   },
   "apps/cli/journeys/runner/overhead.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/runner/policy.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/runner/proof.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/runner/quarantine.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/runner/receipt.test.js": {
-    "launch": 1
+    "launch": 2
   },
   "apps/cli/journeys/runner/recovery.test.js": {
     "launch": 1
@@ -1401,10 +1386,10 @@
     "launch": 1
   },
   "apps/cli/journeys/runner/runners/isolation.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/runner/runners/only/local.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "apps/cli/journeys/runner/settings.test.js": {
     "launch": 1
