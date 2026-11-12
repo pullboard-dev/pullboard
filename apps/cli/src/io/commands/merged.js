@@ -7,7 +7,6 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
 import { smokeCommit } from '../../../../../packages/landing/index.js';
 import { landingPlanCheck } from '../../../../../packages/landing/index.js';
-import { placeUncoveredOnTrunk } from '../../../../../packages/landing/index.js';
 import { refreshEnvironment } from '../../../../../packages/landing/index.js';
 import { startDetachedCheck } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
@@ -158,7 +157,6 @@ export async function run(io, { first, second, values }) {
   /** The hand landing's checks, in today's order; any refusal leaves the landing job without steps. */
   const check = async () => {
     if (!deferred) {
-      placeUncoveredOnTrunk(ctx.info.root, commit, text => io.say(text));
       await landingPlanCheck(ctx.info.root, commit);
       // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
       await smokeCommit(ctx.info.root, commit);
