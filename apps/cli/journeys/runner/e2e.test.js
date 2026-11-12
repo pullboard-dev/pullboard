@@ -122,9 +122,9 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.equal(await addDiagnosedLight(box, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
   const made = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light'));
   const light = made.out.match(/^made (\S+) /)[1];
-  assert.match((await box.runLocal(box.repo, 'run', '--agent', `sh ${agent}`)).err, /MAIN_IS_COORDINATOR/);
-  assert.match((await box.runLocal(light, 'run', '--agent-mid', `sh ${agent}`)).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
-  const ran = (await box.runLocal(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2'));
+  assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
+  assert.match(box.run(light, 'run', '--agent-mid', `sh ${agent}`).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
+  const ran = box.run(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
   assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
@@ -160,12 +160,12 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   await addDiagnosedLight(box, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
   await addDiagnosedLight(box, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
   const webRunner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
-  assert.match((await box.runLocal(webRunner, 'run', '--agent-light', good, '--attempts', '1')).out, /submitted #1/);
+  assert.match(box.run(webRunner, 'run', '--agent-light', good, '--attempts', '1').out, /submitted #1/);
   const commit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', commit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
   const apiRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'mid')).out.match(/^made (\S+) /)[1];
-  const ran = (await box.runLocal(apiRunner, 'run', '--agent-light', weak, '--agent-mid', strong, '--attempts', '2', '--minutes', '2'));
+  const ran = box.run(apiRunner, 'run', '--agent-light', weak, '--agent-mid', strong, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
   assert.match(ran.out, /#2 attempt 1\/2: running the light agent[\s\S]*#2 escalated light -> mid[\s\S]*#2 attempt 1\/2: running the mid agent\n#2 attempt 1: green[\s\S]*submitted #2/);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
@@ -189,7 +189,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
     '--check', 'grep -q upstream api/server.js', '--brief', brief);
   const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
   writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
-  assert.match((await box.runLocal(dependencyRunner, 'run', '--agent-light', upstreamAgent, '--attempts', '1')).out, /submitted #1/);
+  assert.match(box.run(dependencyRunner, 'run', '--agent-light', upstreamAgent, '--attempts', '1').out, /submitted #1/);
   const dependencyCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', dependencyCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.')).out, /verified #1/);
@@ -197,7 +197,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   const dependentBrief = LIGHT_BRIEF.replace('web/page.js', 'api/client.js');
   await addDiagnosedLight(box, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
     '--check', 'test -f api/client.js && grep -q upstream api/server.js', '--brief', dependentBrief);
-  const blocked = (await box.runLocal(localRunner, 'run', '--agent-light', 'true', '--attempts', '1'));
+  const blocked = box.run(localRunner, 'run', '--agent-light', 'true', '--attempts', '1');
   assert.notEqual(blocked.code, 0, blocked.out);
   assert.match(blocked.err, /MERGE_CONFLICT/);
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_status, 'open', 'the automatic claimed-item release remains unchanged');
