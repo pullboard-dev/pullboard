@@ -160,9 +160,9 @@ for (const [name, setup] of [['a link whose first upload is uncertain', uncertai
 test('the public CLI waits out a lost baseline reply and sends the move in relay order [B26,H16]', async t => {
   const box = await uncertainLink(t);
   box.legacySnapshotApi(true);
-  box.loseNextSnapshotReply({ thenStateReads: { status: 503, code: 'RELAY_UNAVAILABLE' } });
-  const recover = setTimeout(() => box.rejectStateReads(null), 1500); // budget: hang ceiling for the outage the uncertain upload waits out.
-  t.after(() => clearTimeout(recover));
+  // The outage ends 1500 ms after the reply is lost, not after the test starts: a slow first in-process start
+  // used to clear it before it began, leaving state reads at 503 for the whole 110 s settle wait.
+  box.loseNextSnapshotReply({ thenStateReads: { status: 503, code: 'RELAY_UNAVAILABLE' }, recoverAfterMs: 1500 });
   const text = 'public CLI move after a lost baseline reply';
   const result = await box.cli('shout', 'all', text);
   assert.equal(result.code, 0, JSON.stringify(result.document));
