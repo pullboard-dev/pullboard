@@ -15,6 +15,7 @@ import { placeLandingHistory } from './history.js';
 import { placeLandingNewFiles } from './history.js';
 import { refreshLandingDocs } from './docs.js';
 import { measureHeldRules } from './doctrine.js';
+import { stageTestRegistries } from './registries.js';
 
 /** Printed instead of a patch when this checkout is not the tree the coordinator named, so the coordinator derives locally. */
 export const DERIVE_UNAVAILABLE = 'LANDING_DERIVE_UNAVAILABLE';
@@ -30,9 +31,10 @@ export const DERIVE_RULES = 'LANDING_DERIVE_RULES=';
  * Derive and stage everything a landing writes after an item merge: engine numbers and their history, the format table, generated docs and rule placement.
  * Why: one function builds the files whether the coordinator or a runner runs it, so the two can never differ.
  * @param {string} root A checkout of the merged tree.
- * @returns {{ engines: { files: string[], assigned: { name: string, number: number }[] }, newFiles: string[] }} What was staged.
+ * @param {{ base?: string }} [options] The commit the merge started from; test moves are read against it (default: the merge's first parent).
+ * @returns {{ engines: { files: string[], assigned: { name: string, number: number }[] }, newFiles: string[], registries: string[] }} What was staged.
  */
-export function stageLandingDerived(root) {
+export function stageLandingDerived(root, { base = 'HEAD^1' } = {}) {
   const engines = assignEngineNumbers(root);
   if (existsSync(join(root, 'packages/state/src/io/formats')) && existsSync(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
@@ -48,13 +50,15 @@ export function stageLandingDerived(root) {
   // Any other new file the plan lacks is placed by rule in this same merge, so main's cells-plan check never goes red (#3443).
   const newFiles = placeLandingNewFiles(root);
   if (newFiles.length) git(root, ['add', '--', ...newFiles]);
-  return { engines, newFiles };
+  // The shared test registries are rebuilt from the tree, so no lane hand-edits them when a test moves [C7,V24].
+  const registries = stageTestRegistries(root, base);
+  return { engines, newFiles, registries };
 }
 
 /** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
 export function amendLandingEngines(root, hooks = []) {
-  const { engines, newFiles } = stageLandingDerived(root);
-  if (engines.files.length || newFiles.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
+  const { engines, newFiles, registries } = stageLandingDerived(root);
+  if (engines.files.length || newFiles.length || registries.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
   return engines;
 }
 

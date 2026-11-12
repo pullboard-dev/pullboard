@@ -162,3 +162,4 @@ export { runnerSource } from './src/logic/runner-source.js';
 export { readStages } from './src/io/stages.js';
 export { retainTestResultCompletion } from './src/io/test/store.js';
 export { runnerPhaseFields } from './src/io/timing.js';
+export { deriveTestRegistries } from './src/io/test/derived.js';
