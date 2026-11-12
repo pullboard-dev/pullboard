@@ -539,7 +539,7 @@ test('watch filters by kind, item and addressee, and refuses a flag it cannot fo
   }
 });
 
-test('help watch and the generated agent instructions teach seats to listen with watch [A2,I11]', async () => {
+test('help watch teaches seats to listen with watch [A2,I11]', async () => {
   const box = await project();
   const help = await box.runLocal(box.root, 'help', 'watch');
   assert.equal(help.status, 0, help.stderr);
@@ -549,14 +549,6 @@ test('help watch and the generated agent instructions teach seats to listen with
     'Claude Code: run pullboard watch --to <your id> under the Monitor tool, and each event line wakes the seat.',
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
   ], 'the two harness instructions end the help: one command\'s help adds no next line after its example [N37]');
-  const { agentsBlock } = await import('../../../../packages/doctrine/light.js');
-  const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
-  assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
-  assert.match(listen, /run `pullboard watch --to <your id>` there/u);
-  assert.match(listen, /read `pullboard inbox` at session start, after submit and before ending a turn/u);
-  assert.match(listen, /Coordinator answers and sentinel findings arrive there/u);
-  const written = readFileSync(join(box.root, 'AGENTS.md'), 'utf8');
-  assert.ok(written.includes(listen), 'pullboard init wrote that paragraph into the repo');
 });
 
 

@@ -11,6 +11,7 @@ import { seatWakeCommand } from '../../../../../packages/seats/index.js';
 import { registerSeatWake } from '../../../../../packages/seats/index.js';
 import {
   COORDINATOR,
+  COORDINATOR_GUIDE_FILE,
 } from '../../../../../packages/config/index.js';
 import {
   isLane,
@@ -92,6 +93,7 @@ export async function run(io, { first, values }) {
     const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
     io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
     io.say(`declared ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the coordinator lane`);
+    io.say(`coordinator: read ${COORDINATOR_GUIDE_FILE} before you route anything`);
     return 0;
   }
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
