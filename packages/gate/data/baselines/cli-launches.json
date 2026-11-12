@@ -339,7 +339,7 @@
     "launch": 1
   },
   "apps/cli/journeys/view/background.test.js": {
-    "launch": 10
+    "launch": 9
   },
   "packages/kernel/tests/logic/seal.test.js": {
     "launch": 1
