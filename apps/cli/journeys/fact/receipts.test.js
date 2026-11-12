@@ -30,6 +30,7 @@ import {
 } from '../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -83,6 +84,7 @@ ${executionServicesSource(module)}
 const config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const result=await runGate(process.cwd(),config,{ executionServices,trustStamp:false,landing:${landing},agent:'coordinator'});
 console.log(JSON.stringify({receiptId:result.receiptId,green:result.isGreen,output:result.output}));`;
+  // Process-level: a generated module reads process.cwd() and the gate's receipt store, so it stays a child process.
   const ran = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: { ...box.env, PULLBOARD_FIXTURE_AUDIT_RED: unparsed ? '2' : red ? '1' : '0' }, encoding: 'utf8',
   });
@@ -143,6 +145,7 @@ try { const run=await runPushReceiptSmoke(process.cwd(),{executionServices,agent
 {checkNeedsBrowser,checkNeedsGui,runProfiledShellAsync,withGateSlot});
 console.log(JSON.stringify({green:run.isGreen,policy:run.policyCommit,output:run.output})); }
 catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=1; }`;
+  // Process-level: a generated module reads process.cwd() and exits nonzero on refusal, so it stays a child process.
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -194,6 +197,7 @@ test('native push adapter checks real ordered receipts and exact open audit repa
   box.git(box.repo, 'commit', '-q', '-m', 'chore: install real native push component fixture');
   const module = new URL('../../tests/fixtures/evidence.js', import.meta.url).href;
   const source = `import {assertNativePushEvidence} from ${JSON.stringify(module)}; await assertNativePushEvidence(process.cwd()); console.log('native push component controls reached');`;
+  // Process-level: a generated module reads process.cwd() and the installed test runner, so it stays a child process.
   const ran = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -201,11 +205,9 @@ test('native push adapter checks real ordered receipts and exact open audit repa
   assert.match(ran.stdout, /native push component controls reached/u);
 });
 
-test('additive native CLI refuses malformed actual pre-push stdin before smoke [C7]', () => {
+test('additive native CLI refuses malformed actual pre-push stdin before smoke [C7]', async () => {
   const box = e2e.project('true', undefined, { withWorktree: false });
-  const ran = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), 'push-receipts', '--json'], {
-    cwd: box.repo, env: box.env, input: 'malformed pre-push record\n', encoding: 'utf8',
-  });
+  const ran = await runCliInProcess(['push-receipts', '--json'], { cwd: box.repo, env: box.env, input: 'malformed pre-push record\n' });
   assert.equal(ran.status, 1, `${ran.stdout}${ran.stderr}`);
   assert.match(`${ran.stdout}${ran.stderr}`, /PUSH_RECEIPT_RANGE/u);
 });
