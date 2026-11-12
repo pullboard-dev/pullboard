@@ -38,6 +38,9 @@
   "apps/cli/journeys/resume/presence.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/shout/layout/status.test.js": {
+    "launch": 12
+  },
   "apps/cli/journeys/resources/main.test.js": {
     "launch": 5
   },
@@ -140,18 +143,6 @@
   "apps/cli/journeys/shout/layout.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/shout/layout/phone.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/shout/layout/status.test.js": {
-    "launch": 12
-  },
-  "apps/cli/journeys/shout/layout/corner.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/shout/layout/targets.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/relay/person/requests.test.js": {
     "launch": 1
   },
@@ -207,34 +198,10 @@
     "launch": 1
   },
   "apps/cli/journeys/bar/session.test.js": {
-    "launch": 3
+    "launch": 2
   },
   "apps/cli/journeys/agents/main.test.js": {
     "launch": 6
-  },
-  "apps/cli/journeys/land/adoption.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/land/deferred.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/land/diagnostics.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/land/hooklock.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/land/push.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/land/replay.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/land/waiverlegacy.test.js": {
-    "launch": 25
-  },
-  "apps/cli/journeys/land/waivers.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "launch": 2
@@ -256,6 +223,9 @@
   },
   "packages/resources/tests/once.test.js": {
     "launch": 1
+  },
+  "apps/lib/tests/runner/once.test.js": {
+    "launch": 2
   },
   "packages/resources/tests/io/handoff/recovery/unresponsive.test.js": {
     "launch": 1
@@ -386,6 +356,9 @@
   "apps/cli/journeys/show/usage/anchor.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/land/deferred.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/resume/presence/heartbeat.test.js": {
     "launch": 6
   },
@@ -418,6 +391,9 @@
   },
   "apps/cli/journeys/verify/landing/reuse.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/shout/layout/corner.test.js": {
+    "launch": 2
   },
   "packages/runners/tests/logic/diagnostics/recovery.test.js": {
     "launch": 1
@@ -458,6 +434,9 @@
   "packages/resources/tests/io/handoff/worker/dispatcher/launcher.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/speed/spawns-client.test.js": {
+    "launch": 3
+  },
   "apps/cli/journeys/shout/item.test.js": {
     "launch": 1
   },
@@ -481,6 +460,9 @@
   },
   "apps/cli/journeys/fact/tests/no.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/speed/spawns.test.js": {
+    "launch": 6
   },
   "apps/cli/journeys/verify/fixes.test.js": {
     "launch": 6
@@ -626,6 +608,9 @@
   "packages/resources/tests/io/main/probe.test.js": {
     "launch": 2
   },
+  "apps/cli/journeys/land/replay.test.js": {
+    "launch": 4
+  },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
     "launch": 1
   },
@@ -655,6 +640,9 @@
   },
   "apps/cli/journeys/gate/workflows.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/add/bar-lint.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/fact/msg.test.js": {
     "launch": 2
@@ -764,6 +752,9 @@
   "apps/cli/journeys/submit/gate/unchecked.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/land/adoption.test.js": {
+    "launch": 2
+  },
   "apps/cli/journeys/submit/placement.test.js": {
     "launch": 1
   },
@@ -796,6 +787,9 @@
   },
   "packages/gate/tests/io/edges/temporary.test.js": {
     "launch": 7
+  },
+  "apps/cli/journeys/shout/layout/targets.test.js": {
+    "launch": 5
   },
   "packages/gate/tests/io/scripts/seals.test.js": {
     "launch": 1
@@ -887,6 +881,9 @@
   "apps/runner/tests/io/chrome/process.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/land/push.test.js": {
+    "launch": 1
+  },
   "packages/gate/tests/stable.test.js": {
     "launch": 2
   },
@@ -917,6 +914,9 @@
   "packages/codemap/tests/logic/layout.test.js": {
     "launch": 2
   },
+  "apps/cli/journeys/speed/spawns-freeze.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/relay/browser.test.js": {
     "launch": 3
   },
@@ -935,11 +935,11 @@
   "apps/cli/journeys/red/main-red.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/red/fifo.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/digest/main.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/land/hooklock.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/inbox/feed.test.js": {
     "launch": 2
@@ -971,6 +971,9 @@
   "packages/sync/tests/io/local.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/shout/layout/phone.test.js": {
+    "launch": 3
+  },
   "apps/cli/journeys/merged/forced.test.js": {
     "launch": 2
   },
@@ -992,6 +995,9 @@
   "apps/cli/journeys/submit/handoff/recovery/silent.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/land/diagnostics.test.js": {
+    "launch": 1
+  },
   "packages/gate/tests/io/journal/preload/refusal.test.js": {
     "launch": 2
   },
@@ -1009,6 +1015,9 @@
   },
   "apps/cli/journeys/land/affected.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/land/waivers.test.js": {
+    "launch": 4
   },
   "packages/landing/tests/hung.test.js": {
     "launch": 1
@@ -1078,6 +1087,9 @@
   },
   "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/land/waiverlegacy.test.js": {
+    "launch": 25
   },
   "apps/cli/journeys/next/runs.test.js": {
     "launch": 1
@@ -1379,6 +1391,9 @@
   "apps/cli/journeys/hold/demo.test.js": {
     "launch": 12
   },
+  "apps/cli/journeys/hold/demo-lanes.test.js": {
+    "launch": 6
+  },
   "apps/cli/journeys/resume/tour-demo.test.js": {
     "launch": 1
   },
@@ -1487,15 +1502,6 @@
   "apps/cli/journeys/relay/sync.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/speed/spawns-client.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/speed/spawns.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/speed/spawns-freeze.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/submit/notes.test.js": {
     "launch": 5
   },
@@ -1590,6 +1596,9 @@
     "launch": 1
   },
   "apps/cli/journeys/spec/redesign.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/red/fifo.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/baseline/delivery.test.js": {

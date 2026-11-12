@@ -98,7 +98,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     return (await import('../runner/local/serve.js')).localRunnerCommand(io, { off: values.off === true });
   }
   if (first === 'install-serve') {
-    // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
+    // Deploy pull mode: runner serve as a launchd service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
     const usage = 'pullboard runner install-serve <ssh-host> --board <board-url> [--key <board-key>] | pullboard runner install-serve <ssh-host> --remove';
     if (!second || rest.length || Object.keys(values).some(key => !['json', 'board', 'key', 'remove'].includes(key))
       || (values.remove ? values.board !== undefined || values.key !== undefined : typeof values.board !== 'string')) throw new Refused('USAGE', usage);
@@ -109,8 +109,19 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
     const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
-    if (values.remove) { io.say(`removed runner serve from ${runner.host}`); return 0; }
+    if (values.remove) {
+      io.say(`removed runner serve from ${runner.host}`);
+      if (service.sudo) io.say(`a LaunchDaemon is still installed; to remove it, on ${runner.host} run: ${service.sudo}`);
+      return 0;
+    }
+    if (service.form === 'daemon') {
+      // A board on the local network: macOS Local Network privacy lets a LaunchDaemon run as the runner user through.
+      io.say(`runner serve on ${runner.host} is a LaunchDaemon ${service.label} run as ${service.user}, since macOS Local Network privacy blocks a LaunchAgent from the board's local network address; log ${service.log}`);
+      if (!service.loaded) io.say(`one step left, as an administrator: on ${runner.host} run: ${service.sudo}`);
+      return service.loaded ? 0 : 1;
+    }
     io.say(`installed runner serve on ${runner.host} as launchd agent ${service.label}, restarting on exit; log ${service.log}`);
+    if (service.sudo) io.say(`an older LaunchDaemon is still installed; on ${runner.host} run: ${service.sudo}`);
     if (!service.loaded) io.say(`launchd did not load it now (no login session?); it starts at the next login, or run on the runner: launchctl bootstrap gui/$(id -u) ${service.plist}`);
     return service.loaded ? 0 : 1;
   }
