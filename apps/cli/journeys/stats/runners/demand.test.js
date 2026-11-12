@@ -1,5 +1,6 @@
 /** pullboard stats runners --demand gives exact proof jobs and slot-minutes per active seat [C7,#6034]. */
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { runnerDemand } from '../../../../../packages/stats/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -12,7 +13,7 @@ function fixture(t) {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const h = Math.floor(Date.now() / HOUR) * HOUR;
-  withFixtureBoard(box.boardFile, board => {
+  withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => {
     board.db.exec('DELETE FROM event');
     seed(board.db, h);
   });
@@ -35,7 +36,7 @@ function seed(db, h) {
 
 test('demand seeded seats and jobs give exact proof jobs, slot-minutes and slots per agent [C7,#6034]', async t => {
   const { box, h } = fixture(t);
-  const result = await box.runLocal(box.web, 'stats', 'runners', '--demand', '--window', '3h', '--json');
+  const result = await box.runLocal(box.repo, 'stats', 'runners', '--demand', '--window', '3h', '--json');
   assert.equal(result.code, 0, result.err);
   const report = JSON.parse(result.out).runnersDemand;
   const hour = at => report.hours.find(row => row.hour === new Date(at).toISOString());
@@ -43,7 +44,7 @@ test('demand seeded seats and jobs give exact proof jobs, slot-minutes and slots
   assert.deepEqual(hour(h - HOUR), { hour: new Date(h - HOUR).toISOString(), activeSeats: 1, proofJobs: 1, slotMinutes: 60, jobsPerSeat: 1, slotMinutesPerSeat: 60, slotsPerAgent: 1 });
   assert.equal(hour(h - 3 * HOUR).slotsPerAgent, null);
   assert.deepEqual(report.overall, { proofJobs: 4, slotMinutes: 150, seatHours: 3, jobsPerSeatHour: 4 / 3, slotMinutesPerSeatHour: 50, slotsPerAgent: 150 / 60 / 3 });
-  const text = await box.runLocal(box.web, 'stats', 'runners', '--demand', '--window', '3h');
+  const text = await box.runLocal(box.repo, 'stats', 'runners', '--demand', '--window', '3h');
   assert.equal(text.code, 0, text.err);
   assert.match(text.out, /0\.83 slots per agent/u);
 });
