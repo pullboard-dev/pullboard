@@ -37,9 +37,9 @@ function onRemoteSeats(body) {
 
 /** Name every process that still holds a file or working directory under the fixture's tree, for the run log. */
 function quiet(dir) {
-  const held = spawnSync('lsof', ['-Fpc', '+D', dir], { encoding: 'utf8' }).stdout.replace(/p(\d+)\nc/gu, '$1 ').trim();
+  const held = spawnSync('lsof', ['-Fpn', '+D', dir], { encoding: 'utf8' }).stdout.split('\n').map(line => line.replace(dir, '~')).join(' ');
   const ps = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' }).stdout.split('\n').filter(line => line.includes(dir)).join('\n');
-  console.log('moves-quiet holders: ' + held + '\nmoves-quiet ps: ' + ps);
+  console.log('moves-quiet self ' + process.pid + ' holders: ' + held + '\nmoves-quiet ps: ' + ps);
 }
 
 /** A served board with a builder and a verifier seat, and a boardless clone on its own machine home set to its URL. */
