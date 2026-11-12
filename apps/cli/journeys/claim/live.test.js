@@ -97,7 +97,7 @@ async function liveBoard(name, { proxied = false } = {}) {
   assert.ok(executable, 'Chrome is required for the live view checks');
   const box = machine();
   const alpha = project(box, name);
-  box.run(alpha.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'renders');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), `pullboard-${name}-chrome-`));
   let chrome, proxy;
@@ -156,7 +156,7 @@ test('the view shows a move as it happens [N26,A2]', { timeout: 120_000 }, async
 
     await watchFor(chrome, '__claimShownAt', 'document.querySelector(\'#chain [data-item="1"] .chip.item-seat.building\')');
     const before = chrome.requests.length;
-    box.run(alpha.web, 'claim', '1');
+    await box.inProcess(alpha.web, 'claim', '1');
     await chrome.waitFor('window.__claimShownAt !== null', 15_000); // budget: hang ceiling for the claim to arrive; the latency is judged below.
     const shownAt = await chrome.stable('window.__claimShownAt');
     const latency = shownAt - await eventAt(view, alpha.repo, 'claim', 1);
@@ -181,7 +181,7 @@ test('the view catches up with a delta after a move [N26,A2]', { timeout: 120_00
   try {
     const held = (await boardOf(view, alpha.repo)).events[0].event_id;
     const mark = chrome.requests.length;
-    box.run(alpha.web, 'claim', '1');
+    await box.inProcess(alpha.web, 'claim', '1');
     await chrome.waitFor('!!document.querySelector(\'#chain [data-item="1"] .chip.item-seat.building\')', 15_000); // budget: hang ceiling for the claim to arrive.
     await liveReady(chrome);
     /** The since cursor of each state read the page made from a request mark on, null for a full read. */
@@ -192,7 +192,7 @@ test('the view catches up with a delta after a move [N26,A2]', { timeout: 120_00
     // The delta's result is the page's next base: the move after it asks from the claim on.
     const claimed = (await boardOf(view, alpha.repo)).events[0].event_id;
     const again = chrome.requests.length;
-    box.run(alpha.repo, 'add', 'web', 'After the delta', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'After the delta', '--specs', 'G1', '--criterion', 'renders');
     await chrome.waitFor('!!document.querySelector(\'#chain [data-item="2"]\')', 15_000); // budget: hang ceiling for the new item to arrive.
     await liveReady(chrome);
     assert.deepEqual(reads(again), [String(claimed)], `the next catch-up asks from the state the delta made: ${JSON.stringify(reads(again))}`);
@@ -211,7 +211,7 @@ test('an idle view makes no requests [N26,A2]', { timeout: 150_000 }, async () =
     assert.deepEqual(sent(chrome, mark), [], 'the page makes no request while the board is unchanged for 30 seconds');
     assert.equal(await chrome.stable("document.querySelector('#live').textContent"), '', 'and it is still live');
     // The quiet was the stream waiting, not a page that stopped: a move after it still arrives.
-    box.run(alpha.repo, 'add', 'web', 'After the quiet', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'After the quiet', '--specs', 'G1', '--criterion', 'renders');
     await chrome.waitFor('!!document.querySelector(\'#chain [data-item="2"]\')', 15_000); // budget: hang ceiling for the new item to arrive.
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
@@ -228,7 +228,7 @@ test('a dropped stream reconnects from its last event [N26,A2]', { timeout: 120_
     proxy.cut();
     await chrome.waitFor('/^(offline|reconnecting)/.test(document.querySelector(\'#live\').textContent)', 15_000); // budget: hang ceiling for the dropped stream to show.
     // A move while the page is cut off is one the reopened stream must bring.
-    box.run(alpha.web, 'claim', '1');
+    await box.inProcess(alpha.web, 'claim', '1');
     proxy.restore();
     await chrome.waitFor('!!document.querySelector(\'#chain [data-item="1"] .chip.item-seat.building\')', 30_000); // budget: hang ceiling for one reconnect after the stream's longest 15000 ms wait.
     await chrome.waitFor('document.querySelector(\'#live\').textContent === \'\'');
@@ -265,7 +265,7 @@ test('an older answer for a board opened again is not drawn over a newer one [N2
   const box = machine();
   const alpha = project(box, 'stale-alpha');
   const beta = project(box, 'stale-beta');
-  box.run(alpha.repo, 'add', 'web', 'Older', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Older', '--specs', 'G1', '--criterion', 'renders');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -288,7 +288,7 @@ test('an older answer for a board opened again is not drawn over a newer one [N2
     while (!page.run('Boolean(globalThis.__olderRead)')) await new Promise((resolve) => setImmediate(resolve));
     await page.run('__olderRead');
     await page.run(`view.root = ${JSON.stringify(beta.repo)}; refresh()`);
-    box.run(alpha.repo, 'add', 'web', 'Newer', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Newer', '--specs', 'G1', '--criterion', 'renders');
     await page.run(`view.root = ${JSON.stringify(alpha.repo)}; refresh()`);
     const titles = () => JSON.parse(page.run('JSON.stringify(data.project.items.map((item) => item.title).sort())'));
     assert.deepEqual(titles(), ['Newer', 'Older'], 'the newer answer shows both items');
@@ -328,13 +328,13 @@ test('a catch-up that cannot read the shown board keeps it shown [N26]', async (
 test('a catch-up whose base the server does not keep loads a fresh snapshot [N26,A2]', async () => {
   const box = machine();
   const alpha = project(box, 'reset-alpha');
-  box.run(alpha.repo, 'add', 'web', 'Before', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Before', '--specs', 'G1', '--criterion', 'renders');
   const view = await startView(box);
   try {
     const page = await openPage(view);
     // Sequence 0 is a base this server never sent, so its answer resets with BASE_NOT_KEPT.
     page.run('[...sentStates.values()].forEach((held) => { held.sequence = 0; })');
-    box.run(alpha.repo, 'add', 'web', 'After', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'After', '--specs', 'G1', '--criterion', 'renders');
     const mark = page.requests.length;
     await page.run(`refresh(new Set([${JSON.stringify(alpha.repo)}]))`);
     const reads = page.requests.slice(mark).map((request) => request.path).filter((path) => /\/state(?:\?|$)/.test(path))
@@ -351,13 +351,13 @@ test('a catch-up whose base the server does not keep loads a fresh snapshot [N26
 async function resetDeltaBase(label, corrupt) {
   const box = machine();
   const alpha = project(box, label);
-  box.run(alpha.repo, 'add', 'web', 'Before reset', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Before reset', '--specs', 'G1', '--criterion', 'renders');
   const view = await startView(box);
   try {
     const page = await openPage(view);
     page.run(corrupt);
     const since = page.run('[...sentStates.values()][0].sequence');
-    box.run(alpha.repo, 'add', 'web', 'After reset', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'After reset', '--specs', 'G1', '--criterion', 'renders');
     const mark = page.requests.length;
     await page.run(`refresh(new Set([${JSON.stringify(alpha.repo)}]))`);
     const reads = page.requests.slice(mark).map((request) => request.path).filter((path) => /\/state(?:\?|$)/.test(path))
@@ -392,7 +392,7 @@ async function groupClaim(t, name, count, mover) {
   const box = machine();
   const repos = [];
   for (let index = 0; index < count; index++) repos.push(project(box, `${name}-${index}`, SPEC, { project: name, name: `${name} ${index}` }));
-  box.run(repos[mover].repo, 'add', 'web', 'Group catch-up', '--specs', 'G1', '--criterion', 'updates');
+  await box.inProcess(repos[mover].repo, 'add', 'web', 'Group catch-up', '--specs', 'G1', '--criterion', 'updates');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), `pullboard-${name}-chrome-`));
   let chrome;
@@ -407,7 +407,7 @@ async function groupClaim(t, name, count, mover) {
     assert.deepEqual(groupStreamReads(chrome).at(-1), ids, 'the group follows every repo it shows on one stream');
     const shown = `data?.group?.repos?.find(repo => repo.root === ${JSON.stringify(repos[mover].repo)})?.board.items.find(item => item.id === 1)?.status`;
     await watchFor(chrome, '__groupClaimAt', `${shown} === 'claimed'`);
-    box.run(repos[mover].web, 'claim', '1');
+    await box.inProcess(repos[mover].web, 'claim', '1');
     assert.equal((await boardOf(view, repos[mover].repo)).items.find((item) => item.id === 1).status, 'claimed', 'the board has the claim');
     await chrome.waitFor('window.__groupClaimAt !== null', 15_000); // budget: hang ceiling for the claim to arrive; the latency is judged below.
     const latency = await chrome.stable('window.__groupClaimAt') - await eventAt(view, repos[mover].repo, 'claim', 1);

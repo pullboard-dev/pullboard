@@ -29,7 +29,6 @@ async function gitSyncOn(ctx, board) {
   return false;
 }
 import { randomUUID } from 'node:crypto';
-import { createHash } from 'node:crypto';
 import * as itemSessions from '../../../../packages/items/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { cdTo } from './context.js';
@@ -47,9 +46,9 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { ensureSpecApprovalCoordinator } from '../../../../packages/spec/index.js';
 import { initialSpecApprovalBaseline } from '../../../../packages/spec/index.js';
 import { refuseClaimProvesNothing } from '../../../../packages/verify/index.js';
+import { refuseClaimMissingPaths } from './item/bar.js';
 import { firstRefusalArgs } from '../../../../packages/items/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
-import { policyAt } from '../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { relayOperation } from '../../../../packages/link/index.js';
 import { relayRecovered } from '../../../../packages/link/index.js';
@@ -58,9 +57,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
-import { contains } from '../../../../packages/git/index.js';
 import { criterionFreezer } from '../../../../packages/moves/index.js';
-import { isDeepStrictEqual } from 'node:util';
 import { sessionRoute } from './route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
@@ -207,58 +204,31 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
 }
 
 /**
- * Decide whether a new claim can refresh policy metadata without changing this item's lane or gate [C7].
+ * Whether a fresh claim drops a legacy pinned policy from this item's frozen bar, re-freezing it bar-only [B4,R2].
  *
- * Unrelated accepted settings can move the policy pin; lane ownership and gate inputs remain the item's bar.
+ * Why: a bar frozen by the previous release pins a whole pullboard.json commit, and every later policy commit made that
+ * pin stale and stranded the item NO_POLICY. Policy is read live per move now, so a fresh claim never compares policies:
+ * it re-freezes the bar alone and the legacy item frees itself. A renewal keeps its bar, so in-flight work is untouched.
  *
- * @param {any} ctx
  * @param {any} board
  * @param {number|string} id
  * @param {string} agentId
- * @returns {Promise<any | null>} changed policy digest witness when a safe refresh is needed
+ * @returns {boolean}
  */
-async function refreshesLanePolicy(ctx, board, id, agentId) {
+function dropsLegacyPolicyPin(board, id, agentId) {
   const item = store.getItem(board, id);
+  if (!item.item_frozen_digest) return false;
   let frozen = null;
-  try { frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null; } catch { return null; }
-  const pinned = frozen?.policy?.commit;
-  if (!item.item_frozen_digest || !/^[0-9a-f]{40,64}$/u.test(pinned ?? '')) return null;
-  let current;
-  let old;
-  try { current = mainPolicy(ctx.info.root); old = policyAt(ctx.info.root, pinned); } catch { return null; }
-  if (current.commit === pinned) return null;
-  if (!contains(ctx.info.root, pinned, current.commit)) throw new Refused('NO_POLICY', 'accepted main no longer contains the frozen policy commit; refresh the item before claiming it');
-  if (item.item_status === 'claimed' && item.item_owner === agentId && store.isHeld(board, item)) return false;
-  const changed = [...new Set([...Object.keys(old.config), ...Object.keys(current.config)])].sort()
-    .flatMap(key => changedPolicyLeaves(old.config[key], current.config[key], key));
-  if (!changed.length) return null;
-  const lanePrefix = `lanes.${item.item_lane}`;
-  const gateKeys = ['verify', 'gate', 'affectedTests', 'staticChecks', 'submitGate', 'submitInvariants', 'landingShards', 'submitDeferAbove', 'check', 'checks'];
-  const affecting = changed.filter(key => key === lanePrefix || key.startsWith(`${lanePrefix}.`)
-    || gateKeys.some(name => key === name || key.startsWith(`${name}.`)));
-  if (affecting.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${affecting.join(', ')}; refresh the item against the changed lane or gate policy`);
-  // A moved criterion keeps its own refusal at submit; a lane refresh must not hide it.
-  try { if (freezer(ctx, { board })(item).digest !== item.item_frozen_digest) return null; } catch { return null; }
-  const digest = config => createHash('sha256').update(JSON.stringify(config, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : value)).digest('hex');
-  return { before: digest(old.config), after: digest(current.config), changed };
+  try { frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null; } catch { return false; }
+  if (!frozen?.policy) return false;
+  return !(item.item_status === 'claimed' && item.item_owner === agentId && store.isHeld(board, item));
 }
 
-/** Return changed policy leaves in stable order without treating object key order as a policy change. */
-function changedPolicyLeaves(before, after, prefix) {
-  if (isDeepStrictEqual(before, after)) return [];
-  if (before && after && typeof before === 'object' && typeof after === 'object' && !Array.isArray(before) && !Array.isArray(after)) {
-    return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
-      .flatMap(key => changedPolicyLeaves(before[key], after[key], `${prefix}.${key}`));
-  }
-  return [prefix];
-}
-
-/** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
+/** Order a claim on every route (claim, next, run) only after a check green on main is not held and the bar's paths exist [V4,C7]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
-  const policyRefreeze = await refreshesLanePolicy(ctx, board, args[0], args[1].agentId);
-  const refreshPolicy = Boolean(policyRefreeze);
+  await refuseClaimMissingPaths(ctx, board, args[0]);
+  const refreshPolicy = dropsLegacyPolicyPin(board, args[0], args[1].agentId);
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   const returnedRework = store.lineSettings(board).reworkSameFamily === true && isReturnedRework(board, args[0]);
   const routingWindows = returnedRework ? currentReworkRoutingPolicy(ctx, board) : null;
@@ -279,9 +249,7 @@ export async function claimOrdered(ctx, board, args) {
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
-    ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: item => ({
-      ...freezer(ctx, { captureVerifyPolicy: true, board })(item), policyRefreeze,
-    }) } : {}),
+    ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);

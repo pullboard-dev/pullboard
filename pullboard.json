@@ -319,6 +319,15 @@
         "apps/cli/journeys/view/startup.test.js",
         "apps/cli/journeys/waits/item.test.js",
         "apps/cli/journeys/withdraw/items.test.js",
+        "apps/cli/journeys/withdraw/items-baseline.test.js",
+        "apps/cli/journeys/withdraw/items-detail.test.js",
+        "apps/cli/journeys/withdraw/items-links.test.js",
+        "apps/cli/journeys/withdraw/items-pipeline-refresh.test.js",
+        "apps/cli/journeys/withdraw/items-pipeline-throttle.test.js",
+        "apps/cli/journeys/withdraw/items-pipeline.test.js",
+        "apps/cli/journeys/withdraw/items-shape.test.js",
+        "apps/cli/journeys/withdraw/items-timeline.test.js",
+        "apps/cli/journeys/withdraw/items-toolbar.test.js",
         "apps/cli/journeys/withdraw/projector.test.js",
         "apps/cli/tests/fixtures/cockpit/",
         "apps/cli/tests/fixtures/cockpit/activity.js",
@@ -384,5 +393,8 @@
     "every": "1h",
     "grace": "1d",
     "exclude": []
+  },
+  "trunk": {
+    "remote": "coreyolson@100.109.124.33:pb-trunk"
   }
 }

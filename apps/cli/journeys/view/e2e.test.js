@@ -232,8 +232,8 @@ test('a person running view with JSON in a terminal keeps the server in that ter
 
 test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(box.repo, 'shout', 'web-1', 'the heading is in G1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  await box.runLocal(box.repo, 'shout', 'web-1', 'the heading is in G1');
   const registry = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8'));
   assert.deepEqual(registry.projects.map((entry) => entry.root), [box.repo]);
   const view = await startView(box, box.repo);
@@ -269,7 +269,7 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(added.status, 200, JSON.stringify(added.document));
     assert.equal(added.document.event.event_kind, 'add');
     assert.equal(added.document.result.item.item_title, 'From the view');
-    assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_title, 'From the view');
+    assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_title, 'From the view');
     const refused = await view.act(box.repo, { verb: 'add', args: { lane: 'web', title: 'Ghost', specs: 'Z9' } });
     assert.equal(refused.status, 409);
     assert.equal(refused.document.error.code, 'UNKNOWN_SPEC');
@@ -277,13 +277,13 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(shouted.status, 200);
     assert.equal(shouted.document.event.event_kind, 'shout');
     assert.equal(shouted.document.event.event_by, 'person');
-    assert.match(box.run(box.web, 'inbox').out, / person -> web: from the person/);
+    assert.match((await box.runLocal(box.web, 'inbox')).out, / person -> web: from the person/);
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
     assert.equal(held.document.event.event_by, 'person');
     assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
-    assert.match(box.run(box.web, 'next', '--take').err, /person holds the web lane: G1 is changing/);
+    assert.match((await box.runLocal(box.web, 'next', '--take')).err, /person holds the web lane: G1 is changing/);
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
@@ -342,10 +342,10 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
 
 test('the view keeps the board layout people know: switcher, tabs, a list and its detail, every verdict and the history [N26, N27]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
-  box.run(box.web, 'claim', '1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
+  await box.runLocal(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
-  box.run(box.web, 'submit', '1');
+  await box.runLocal(box.web, 'submit', '1');
   // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
   // wait for it so the history order below does not depend on whether it lands before or after the reject.
   const comparisonFacts = () => {
@@ -354,7 +354,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   };
   await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
@@ -502,7 +502,7 @@ test("the view's refresh re-renders only what changed [N26,A2]", async () => {
   if (hasBoardModeSync) assert.deepEqual(events.slice(-2), [['sync', 'second'], ['render', 'second']]);
 });
 
-test('doctrine init preserves legacy rules and outside guidance, refreshes labels and refuses empty declines [D1,D2,D3,D4,S8]', () => {
+test('doctrine init preserves legacy rules and outside guidance, refreshes labels and refuses empty declines [D1,D2,D3,D4,S8]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'doctrine');
   mkdirSync(repo);
@@ -513,7 +513,7 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   writeFileSync(join(repo, 'PRACTICE.md'), legacy);
   writeFileSync(join(repo, 'ways.md'), ways);
   writeFileSync(join(repo, 'AGENTS.md'), '# Owner guidance\n\nKeep this prefix.\n');
-  const first = box.run(repo, 'init');
+  const first = await box.runLocal(repo, 'init');
   assert.equal(first.code, 0, first.err);
   assert.equal(readFileSync(join(repo, 'PRACTICE.md'), 'utf8'), legacy);
   assert.equal(readFileSync(join(repo, 'ways.md'), 'utf8'), ways);
@@ -522,7 +522,7 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   assert.match(agents, /PB2 \(repo\) \[fact\] Delete only after team review/);
   assert.match(agents, /PB8 \(repo\) \[wont\] This fixture stores only generated data/);
   assert.doesNotMatch(agents, /PB2 \(standard 1\)/);
-  const shown = box.run(repo, 'spec', '--json');
+  const shown = await box.runLocal(repo, 'spec', '--json');
   assert.equal(shown.code, 0, shown.out);
   const document = JSON.parse(shown.out);
   assert.equal(document.version, 1);
@@ -536,7 +536,7 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   writeFileSync(join(repo, 'AGENTS.md'), agents + '\nKeep this footer.\n');
   const updatedWays = ways.replace('Delete only after team review.', 'Delete only after pair review.');
   writeFileSync(join(repo, 'ways.md'), updatedWays);
-  const refreshed = box.run(repo, 'init', '--verbose');
+  const refreshed = await box.runLocal(repo, 'init', '--verbose');
   assert.equal(refreshed.code, 0, refreshed.err);
   assert.match(refreshed.out, /updated the pullboard section/);
   agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
@@ -544,19 +544,19 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   assert.ok(agents.endsWith('\nKeep this footer.\n'));
   assert.match(agents, /PB2 \(repo\).*Delete only after pair review/);
   assert.equal(agents.split('<!-- pullboard:start -->').length, 2);
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await box.runLocal(repo, 'init')).code, 0);
   assert.equal(readFileSync(join(repo, 'AGENTS.md'), 'utf8'), agents, 'managed guidance refresh is idempotent');
   writeFileSync(join(repo, 'ways.md'), '# Our ways\n\n## Rules\n- PB2 [wont]    \n');
-  const bad = box.run(repo, 'spec', '--json');
+  const bad = await box.runLocal(repo, 'spec', '--json');
   assert.equal(bad.code, 1);
   assert.match(JSON.parse(bad.out).error.message, /declining a standard rule needs a reason in its text/);
   writeFileSync(join(repo, 'ways.md'), '# Our ways\n\n## Rules\n- PB2 [wont] Declined. | reason: outside syntax\n');
-  assert.match(box.run(repo, 'spec', 'check').out, /unknown field/);
+  assert.match((await box.runLocal(repo, 'spec', 'check')).out, /unknown field/);
   writeFileSync(join(repo, 'ways.md'), updatedWays);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: retain local doctrine');
   writeFileSync(join(repo, 'ways.md'), updatedWays.replace('- PB2 [fact] Delete only after pair review.\n', ''));
-  const removed = box.run(repo, 'spec', 'check');
+  const removed = await box.runLocal(repo, 'spec', 'check');
   assert.equal(removed.code, 1);
   assert.match(removed.out, /ways.md: PB2 error:.*ids are permanent/, 'inherited PB2 cannot hide removal of a committed repo override');
 });
