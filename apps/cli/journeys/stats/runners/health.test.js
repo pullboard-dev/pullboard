@@ -75,12 +75,12 @@ test('runners health: seeded jobs give exact run time per runner and kind, and e
   ]);
 });
 
-test('runners health text prints each runner and a plain stats runners explains the flag [C7]', async t => {
+test('runners health text prints each runner and --health with --since explains the flag [C7]', async t => {
   const box = fixture(t);
   const text = await command(box, ['stats', 'runners', '--health', '--window', '2h', '--until', '2026-10-12T12:00:00Z']);
   assert.equal(text.code, 0, text.stderr);
   assert.match(text.stdout, /runner-b: 3 runs, 0 lost leases, 1 retries, 1 re-placed, 2 up spans, down 1500\.0s/u);
-  const plain = await command(box, ['stats', 'runners', '--json']);
+  const plain = await command(box, ['stats', 'runners', '--health', '--since', '1d', '--json']);
   assert.equal(plain.code, 1);
   assert.equal(JSON.parse(plain.stdout).error.code, 'USAGE');
 });
