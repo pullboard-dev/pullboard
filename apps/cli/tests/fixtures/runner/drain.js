@@ -1,5 +1,6 @@
 /** Busy runner removal stops new dispatches while admitted private jobs finish [C7]. */
 import assert from 'node:assert/strict';
+import { fixtureMachineSettings } from '../testkit.js';
 import {
   existsSync,
   mkdirSync,
@@ -105,7 +106,9 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
   writeFileSync(join(repo, 'tracked.txt'), 'private runner drain source\n');
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare runner drain fixture');
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller' }, custom: { preserve: true } }));
+  // The stand-in worker's own machine home pins controller dispatch too [P7].
+  fixtureMachineSettings(remoteMachineHome, { gate: { runnerDispatch: 'controller' } });
+  fixtureMachineSettings(machineHome, { gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller' }, custom: { preserve: true } });
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(directory, 'ssh-requests.jsonl') });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(added.status, 0, added.context);
