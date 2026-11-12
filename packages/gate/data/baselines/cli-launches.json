@@ -507,7 +507,7 @@
     "launch": 3
   },
   "apps/cli/journeys/submit/move.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/trace/why.test.js": {
     "launch": 2
