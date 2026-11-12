@@ -72,32 +72,12 @@ import { landOnTrunk } from './trunk.js';
 import { flakeRatchetBeforeGate } from './trunk.js';
 import { finishTrunk } from './publish.js';
 import { timedPhase } from '../timing.js';
-import { scanRidesRunner } from '../scan.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
   if (config.landing?.parallel === true && inheritedGateSlot({ root, namedFiles: true })) {
     throw new Refused('LAND_PARALLEL_NESTED_GATE', 'parallel landing needs separately admitted gate slots; run pullboard land outside the current gate command');
   }
-}
-
-/**
- * Refuse a merged tree that adds an unplaced bin/ or src/ path before main moves, with the same placement check submit
- * runs; false when it returned the adding items to their builders with the path [C7,#3210]. A repository with no
- * packages/codemap/data/plan/cells.json on base or in the merge has no placement rules to enforce, so the check passes there.
- */
-export async function placedMerge(state, items) {
-  if (scanRidesRunner(state)) return true; // the runner job checks a named batch's placement beside its static checks [C7,#5559]
-  if (!existsSync(join(state.root, 'packages/codemap/data/plan/cells.json')) || !existsSync(join(state.batch.root, 'packages/codemap/data/plan/cells.json'))) return true;
-  const { unplanned, readPlan, addedPlacementProblems } = await import('../../../../codemap/index.js');
-  const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
-  if (!problems.length) return true;
-  const touched = item => new Set(git(state.root, ['diff', '--name-only', '--no-renames', state.batch.base, item.commit]).split('\n'));
-  const owners = items.filter(item => { const files = touched(item); return problems.some(row => files.has(row.path)); });
-  const failures = problems.map(row => ({ file: row.path, name: `CELLS_PLAN_UNPLACED: ${row.message}; place it with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), commit the plan with the source, then submit again` }));
-  for (const item of owners.length ? owners : items) await returnCulprit(state, item, failures, { isolated: true });
-  state.say(`nothing landed: ${problems.map(row => row.message).join('; ')}`);
-  return false;
 }
 
 /** Name this machine on the public board by a digest, never by its host name. */
@@ -494,7 +474,6 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         ? `#${entry.id} waits on overlapping files ${entry.files.join(', ')}; once this batch lands, its reviewer must merge current main and re-accept it without reopening`
         : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
       if (!build.items.length) await save(state, { state: 'blocked' });
-      else if (!await placedMerge(state, build.items)) await save(state, { state: 'blocked', culprits: state.culprits });
       else if (landsOnTrunk(state.config)) await landOnTrunk(state);
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
       else {
