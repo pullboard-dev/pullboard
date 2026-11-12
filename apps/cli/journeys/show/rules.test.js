@@ -153,18 +153,18 @@ test('CLI next and verify reject the original building session through its real 
   const built = join(box.dir, 'original-session-build');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/original-session', built, 'main');
   const original = 'routing-ledger-original-session', other = 'routing-ledger-independent-session';
-  const builder = box.json(box.runAs(original, built, 'join', 'web', '--family', 'codex',
+  const builder = box.json(await box.runAsLocal(original, built, 'join', 'web', '--family', 'codex',
     '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   const id = box.add('web', 'Session independence through the local ledger');
-  box.json(box.runAs(original, built, 'claim', String(id), '--json'));
+  box.json(await box.runAsLocal(original, built, 'claim', String(id), '--json'));
   const commit = helpers.commitFile(box, built, 'web/session.txt', 'built by the original session\n',
     'test(web): build the private session fixture [G1]');
   assert.equal(commit.status, 0, commit.stdout + commit.stderr);
-  box.json(box.runAs(original, built, 'submit', String(id), '--no-next', '--json'));
+  box.json(await box.runAsLocal(original, built, 'submit', String(id), '--no-next', '--json'));
   const review = join(box.dir, 'original-session-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(built, 'rev-parse', 'HEAD'));
   requireSessionIndependence(review);
-  const reviewer = box.json(box.runAs(original, review, 'join', 'web', '--family', 'codex',
+  const reviewer = box.json(await box.runAsLocal(original, review, 'join', 'web', '--family', 'codex',
     '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   assert.notEqual(reviewer, builder, 'the review seat is not the building seat');
   const builtBinding = box.binding(built), reviewBinding = box.binding(review);
@@ -172,7 +172,7 @@ test('CLI next and verify reject the original building session through its real 
   assert.equal(reviewBinding.agent, reviewer);
   assert.match(builtBinding.digest, /^[a-f0-9]{64}$/u);
   assert.equal(reviewBinding.digest, builtBinding.digest, 'both checkouts are bound by the real original CLI session');
-  const agents = box.json(box.runAs(original, review, 'status', '--json')).agents;
+  const agents = box.json(await box.runAsLocal(original, review, 'status', '--json')).agents;
   const buildSeat = agents.find(seat => seat.agent_id === builder), reviewSeat = agents.find(seat => seat.agent_id === reviewer);
   assert.equal(buildSeat.agent_parent_session, parentSessionDigest('routing-builder-parent'));
   assert.equal(reviewSeat.agent_parent_session, parentSessionDigest('routing-review-parent'));
@@ -192,7 +192,7 @@ test('CLI next and verify reject the original building session through its real 
     ['next', '--verify', String(id), '--json'],
     ['verify', String(id), 'accept', '--note', 'The original building session must not decide.', '--no-next', '--json'],
   ]) {
-    const refused = box.runAs(original, review, ...args);
+    const refused = await box.runAsLocal(original, review, ...args);
     assert.notEqual(refused.code, 0, refused.out + refused.err);
     assert.equal(JSON.parse(refused.out).error.code, 'SELF_SESSION_VERIFY');
     assert.deepEqual(box.json((await box.runLocal(review, 'show', String(id), '--json'))), before,
@@ -200,7 +200,7 @@ test('CLI next and verify reject the original building session through its real 
     assert.deepEqual(box.json((await box.runLocal(review, 'log', String(id), '--json'))).events, events,
       'the refused command records no item event');
   }
-  const excluded = box.runAs(original, review, 'next', '--verify', '--json');
+  const excluded = await box.runAsLocal(original, review, 'next', '--verify', '--json');
   assert.equal(excluded.code, 1, excluded.out + excluded.err);
   assert.equal(JSON.parse(excluded.out).error.code, 'NOTHING_FREE',
     'unnamed next excludes the original session item and retains its ordinary empty-queue refusal');
@@ -208,14 +208,14 @@ test('CLI next and verify reject the original building session through its real 
   assert.deepEqual(afterExcluded, before, 'empty-queue refusal preserves the complete item detail');
   assert.equal(afterExcluded.item_review_by, null, 'the original session acquired no review reservation');
   assert.deepEqual(box.json((await box.runLocal(review, 'log', String(id), '--json'))).events, events);
-  box.json(box.runAs(other, review, 'takeover', '--json'));
+  box.json(await box.runAsLocal(other, review, 'takeover', '--json'));
   const independent = box.binding(review);
   assert.equal(independent.agent, reviewer);
   assert.notEqual(independent.digest, builtBinding.digest, 'the positive command runs in a genuine other session');
-  const next = box.json(box.runAs(other, review, 'next', '--verify', String(id), '--json'));
+  const next = box.json(await box.runAsLocal(other, review, 'next', '--verify', String(id), '--json'));
   assert.equal(next.item.item_id, id);
   assert.equal(next.item.item_review_by, reviewer, 'the independent session obtains the actual native reservation');
-  const accepted = box.json(box.runAs(other, review, 'verify', String(id), 'accept',
+  const accepted = box.json(await box.runAsLocal(other, review, 'verify', String(id), 'accept',
     '--note', 'Independent private session checked the actual submitted source.', '--no-next', '--json'));
   assert.equal(accepted.decision, 'ACCEPT');
 });
