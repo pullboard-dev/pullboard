@@ -530,8 +530,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
   };
   // With a runner, a queued submit's source check runs in its one runner analysis job; this machine records the result [C7,#5674].
-  // Dependencies' snapshots and a moved head stay here: the runner holds only the candidate, main and their history.
-  let remoteAuthorization = (remoteMode || pullGate) && submitAuthorizationMode() === 'runner' && !dependencies.length && headCommit(root) === commit;
+  // Dependencies' snapshots, a head moved past the claimed commit and a companion's builder commit travel with the request;
+  // a runner that lacks one of those commits reports the check skipped, and only then does this machine run it [C7,#5761].
+  let remoteAuthorization = (remoteMode || pullGate) && submitAuthorizationMode() === 'runner';
+  /** The frozen bar is sent as its policy commit alone, the one thing the lane check reads of it, so the job request stays small. */
+  const frozenPolicyOnly = () => {
+    try { const commit = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit; return commit ? JSON.stringify({ policy: { commit } }) : held.item_frozen; } catch { return held.item_frozen; }
+  };
+  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly() },
+    dependencies, commit: headCommit(root) });
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
@@ -598,8 +605,6 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     return prepareItemPatchSubmit(root, board, held, commit);
   }));
-  // A companion's composed source carries another lane's patch, so its owner check stays on the builder's own commit here.
-  if (companion && remoteAuthorization) { remoteAuthorization = false; localSubmissionPaths(); }
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
   if (!pending) authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit)));
@@ -624,7 +629,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
   // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes [P7].
-  if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
+  if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
   if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
@@ -648,7 +653,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
       config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, doctrine: runnerDoctrine, collectMachinery: true, ...submitTooling(root, commit),
-      ...(remoteAuthorization ? { authorization: { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } } : {}) }, lease, ctx.submitHandoffOutput),
+      ...(remoteAuthorization ? { authorization: authorizationRequest() } : {}) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
