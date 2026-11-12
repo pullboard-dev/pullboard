@@ -83,7 +83,7 @@ function machine() {
     fixtureAddRoute(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: commandEnv, encoding: 'utf8' });
-    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
+    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
   /** Await the same CLI call in this process, refusing a non-zero status like runWithEnv, without a launch [C7]. */
@@ -92,7 +92,7 @@ function machine() {
     fixtureAddRoute(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = await runCliInProcess(args, { cwd, env: commandEnv });
-    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
+    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
   /** Run the CLI with the machine environment used by later agent commands. */
