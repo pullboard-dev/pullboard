@@ -15,24 +15,24 @@ const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
 /** Run a private real CLI command and keep refusal output available to assertions. */
-function run(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function run(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
   return JSON.parse(result.out);
 }
 
 /** Read one real CLI refusal without turning its nonzero status into a test-helper error. */
-function refused(box, cwd, code, ...args) {
-  const result = box.run(cwd, ...args);
+async function refused(box, cwd, code, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 1, `${args.join(' ')} unexpectedly succeeded: ${result.out}`);
   assert.match(result.err + result.out, new RegExp(code, 'u'));
 }
 
-test('patch attach, list, and remove bind a submitted source and require coordinator authority [V4,H16]', t => {
+test('patch attach, list, and remove bind a submitted source and require coordinator authority [V4,H16]', async t => {
   const box = helpers.project('true');
-  const item = run(box, box.repo, 'add', 'web', 'Patchable submitted work', '--specs', 'G1', '--json').item.item_id;
-  const author = run(box, box.web, 'whoami', '--json').id;
-  run(box, box.web, 'claim', String(item), '--json');
+  const item = (await run(box, box.repo, 'add', 'web', 'Patchable submitted work', '--specs', 'G1', '--json')).item.item_id;
+  const author = (await run(box, box.web, 'whoami', '--json')).id;
+  await run(box, box.web, 'claim', String(item), '--json');
   const source = box.git(box.repo, 'rev-parse', 'HEAD');
   // @pullboard-board-file journey: inspect the durable item changed by real CLI patch commands
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -54,16 +54,16 @@ test('patch attach, list, and remove bind a submitted source and require coordin
   writeFileSync(file, patch);
   const key = 'review-fix';
 
-  refused(box, box.repo, 'ITEM_PATCH_SOURCE', 'patch', 'attach', String(item), file,
+  await refused(box, box.repo, 'ITEM_PATCH_SOURCE', 'patch', 'attach', String(item), file,
     '--key', key, '--author', author, '--source', '0'.repeat(40));
-  refused(box, box.web, 'COORDINATOR_ONLY', 'patch', 'attach', String(item), file,
+  await refused(box, box.web, 'COORDINATOR_ONLY', 'patch', 'attach', String(item), file,
     '--key', key, '--author', author, '--source', source);
   assert.equal(store.itemPatches(board, item).length, 0, 'refusals leave the patch set unchanged');
 
-  const attached = run(box, box.repo, 'patch', 'attach', String(item), file,
+  const attached = await run(box, box.repo, 'patch', 'attach', String(item), file,
     '--key', key, '--author', author, '--source', source, '--json');
   assert.deepEqual(attached, { version: 1, item, key, digest: store.itemPatchDigest(board, item), changed: true });
-  const listed = run(box, box.repo, 'patch', 'list', String(item), '--json');
+  const listed = await run(box, box.repo, 'patch', 'list', String(item), '--json');
   assert.equal(listed.item, item);
   assert.equal(listed.digest, attached.digest);
   assert.equal(listed.patches.length, 1);
@@ -72,16 +72,16 @@ test('patch attach, list, and remove bind a submitted source and require coordin
   assert.equal(listed.patches[0].patch, patch);
   assert.equal(listed.patches[0].author.agentId, author);
 
-  const removed = run(box, box.repo, 'patch', 'remove', String(item), key, '--json');
+  const removed = await run(box, box.repo, 'patch', 'remove', String(item), key, '--json');
   assert.deepEqual(removed, { version: 1, item, key, digest: store.itemPatchDigest(board, item), changed: true });
   assert.notEqual(removed.digest, null, 'removal retains the immutable patch-set history');
-  assert.deepEqual(run(box, box.repo, 'patch', 'list', String(item), '--json'), {
+  assert.deepEqual((await run(box, box.repo, 'patch', 'list', String(item), '--json')), {
     version: 1, item, patches: [], digest: removed.digest,
   });
-  const retry = run(box, box.repo, 'patch', 'attach', String(item), file,
+  const retry = await run(box, box.repo, 'patch', 'attach', String(item), file,
     '--key', key, '--author', author, '--source', source, '--json');
   assert.deepEqual(retry, { version: 1, item, key, digest: removed.digest, changed: false }, 'an exact retry never reactivates a removed key');
-  assert.deepEqual(run(box, box.repo, 'patch', 'list', String(item), '--json'), {
+  assert.deepEqual((await run(box, box.repo, 'patch', 'list', String(item), '--json')), {
     version: 1, item, patches: [], digest: removed.digest,
   });
 });
