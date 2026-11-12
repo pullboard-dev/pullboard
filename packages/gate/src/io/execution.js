@@ -17,6 +17,7 @@ import { gateRunnerAdmission } from '../../../config/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gitChildEnv } from '../../../git/index.js';
 import { invalidateGitFacts } from '../../../git/index.js';
+import { commandFact } from '../../../git/index.js';
 import { keepHeartbeatWhileBlocked } from '../../../resources/index.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
@@ -171,8 +172,11 @@ const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
  * @returns {string | null}
  */
 export function committedTree(root) {
-  if (!isClean(root) || untracked(root).length) return null;
-  return headTree(root);
+  // Read once between invalidations: the run's shell drops the remembered answer after the gate has run (#6153).
+  return commandFact(`committedTree:${root}`, () => {
+    if (!isClean(root) || untracked(root).length) return null;
+    return headTree(root);
+  });
 }
 
 /**
