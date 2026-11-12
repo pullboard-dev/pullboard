@@ -320,6 +320,10 @@
       "kind": "json",
       "owner": "packages/gate/src/io/paths/lint.js"
     },
+    "model-names.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/cost/tab.js"
+    },
     "model-tiers.json": {
       "kind": "json",
       "owner": "packages/config/src/io/main.js"

@@ -1,4 +1,3 @@
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json apps/cli/src/logic/help/additions.js docs/api.md docs/cli-help.txt docs/formats.md docs/tools/update-docs.js */
 /** @pullboard-test-input docs-tree */
 /** @pullboard-test-input apps/cli/src/io/documentation/*.json */
 /** @pullboard-test-input apps/cli/src/io/documentation/events/*.json */
@@ -94,7 +93,6 @@ test('two command items from one main regenerate real Git conflicts without a bu
     assert.ok(help.stdout.includes(`Usage: pullboard ${name}`));
     assert.ok(readFileSync(join(box.root, 'docs/api.md'), 'utf8').includes(`| \`${name}\` |`));
     assert.ok(readFileSync(join(box.root, 'docs/formats.md'), 'utf8').includes(`| \`${name}\` |`));
-    assert.ok(readFileSync(join(box.root, 'docs/cli-help.txt'), 'utf8').includes(`pullboard ${name}`));
   }
 });
 

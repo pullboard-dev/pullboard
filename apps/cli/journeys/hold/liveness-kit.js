@@ -32,6 +32,19 @@ const STEPS = {
     if (claimed.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `claim ran red before the fault: ${claimed.out}${claimed.err}`);
     return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' && item.item_owner !== box.seats.builder.id };
   },
+  async submit(box, id) {
+    box.submit(id); // the submit is the work done: past it the board owns the item, so a dead holder cannot strand it
+    return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' };
+  },
+  async verify(box, id) {
+    box.submit(id);
+    // A second seat, in another family, holds the verify claim: the reviewer's own `next --verify` reserves the submitted item for it.
+    const reviewer = box.seats.outside;
+    const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
+    if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
+    // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
+    return { holder: reviewer, done: item => item.item_status !== 'submitted' || !item.item_review_by };
+  },
 };
 
 /** The step names the kit knows. */
