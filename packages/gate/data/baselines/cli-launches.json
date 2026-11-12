@@ -1155,7 +1155,7 @@
     "launch": 6
   },
   "apps/cli/journeys/inbox/events.test.js": {
-    "launch": 12
+    "launch": 1
   },
   "packages/gate/tests/run-tests-timeout.test.js": {
     "launch": 3
