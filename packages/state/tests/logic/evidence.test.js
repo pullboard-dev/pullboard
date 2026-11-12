@@ -56,6 +56,30 @@ test('clause 1: pullboard check records the ticks only after a green run [C7]', 
   assert.match(source, /run\.isGreen\) await recordCheckTicks/u);
 });
 
+const RUNNER = 'node packages/gate/src/io/run/tests.js';
+const PAIR = { item_id: 9, item_owner: 'core-1', item_criterion: '1. It refuses [test]\n2. It says why [test]',
+  item_check: `${RUNNER} test/a.test.js test/b.test.js` };
+
+test('clause 1: a green run covering every check file ticks the clauses; a run of only some of them ticks nothing [C7]', () => {
+  assert.equal(testRunTickNotes(PAIR, ['test/a.test.js', './test/b.test.js'], 'abc123').length, 2);
+  assert.equal(testRunTickNotes(PAIR, ['test/b.test.js', 'test/a.test.js', 'test/extra.test.js'], 'abc123').length, 2, 'extra green files are fine');
+  assert.deepEqual(testRunTickNotes(PAIR, ['test/a.test.js'], 'abc123'), [], 'half the check proves half the bar');
+  assert.deepEqual(testRunTickNotes({ ...PAIR, item_check: `${RUNNER} test/a.test.js && false` }, ['test/a.test.js'], 'abc123'), [], 'shell syntax needs pullboard check');
+});
+
+test('clause 1: a hand-written note after the green run does not hide it, so submit needs no pullboard check --yes [C7]', () => {
+  const notes = testRunTickNotes(PAIR, ['test/a.test.js', 'test/b.test.js'], 'abc123');
+  const later = ['clause 1 [test]: test/a.test.js refuses on runner', 'clause 2 [test]: same file says why'];
+  assert.equal(clauseInspectionProblem(PAIR, thread([...notes, ...later])), null);
+});
+
+test('clause 1: an unticked test clause on a plain test-file check names pullboard test of the check files as the one step [C7]', () => {
+  const refused = clauseInspectionProblem(PAIR, thread([]));
+  assert.equal(refused.code, 'CLAUSE_UNTICKED');
+  assert.equal(refused.next, 'pullboard test test/a.test.js test/b.test.js, then submit again');
+  assert.doesNotMatch(refused.message, /pullboard check 9/u);
+});
+
 const HEAD = '86ac47390cbf9d2d37ef9e83af946c5767d1f31d';
 const bar = { ...item, item_owner: 'core-2', item_criterion: '1) The heading is present [test]\n2) The count appears [test]' };
 const earlier = thread(testRunTickNotes(bar, [FILE], HEAD));

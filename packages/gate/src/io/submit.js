@@ -78,6 +78,8 @@ import { freeRunnerSlots } from './shards/proof.js';
 import { proveBatches } from './shards/proof.js';
 import { reusedShardFiles } from './shards/proof.js';
 import { shardPassStore } from './shards/proof.js';
+import { plainCheckRun } from './shards/green.js';
+import { reusableGreenRun } from './shards/green.js';
 import { readFileTimes } from './test/value/timing.js';
 import { progressingWait } from './progress.js';
 import { whileGateRuns } from './progress.js';
@@ -192,6 +194,28 @@ function submitTestOutcomes(profiles) {
   return testOutcomeFields([...combined.values()]);
 }
 
+/** The runner tooling sha256 this controller sends, or null when it cannot be read: no reuse without it. */
+function runnerTooling(executionServices) {
+  try { return executionServices?.runners?.trustedTooling?.()?.tooling?.sha256 ?? null; } catch { return null; }
+}
+
+/**
+ * The recorded green run of exactly the check's files at the runner source's tree with this controller's tooling, as a
+ * plan executor, or null so the check runs as before. Only a runner lease with a known source tree qualifies; if the
+ * record is gone by the time the plan runs, the plan runs on the runner [C7].
+ *
+ * @returns {((plan: object) => Promise<object>) | null}
+ */
+function reusableCheckRun(root, check, lease, executionServices) {
+  const plain = plainCheckRun(check);
+  const source = lease?.runner ? lease.source : null;
+  if (!plain || !source?.tree || !source.commit) return null;
+  const wanted = { tree: source.tree, head: source.commit, runner: plain.runner, files: plain.files, tooling: runnerTooling(executionServices) };
+  if (!reusableGreenRun(wanted)) return null;
+  return async plan => reusableGreenRun({ ...wanted, timingRunId: plan.remoteOptions?.metadata?.timingRunId ?? null })
+    ?? plan.gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions);
+}
+
 /**
  * Give a gate lease the submit proof context, signature capture and main pin every phase needs.
  * Why: the main lease and the frozen check's own lease must stamp their runs the same way.
@@ -246,7 +270,7 @@ export function startCriterionRun(root, { check, proofContext, onFailure, trunk,
     lease.proofReceiptIds = [];
     armed = lease;
     stamp();
-    const run = await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true, signal: controller.signal });
+    const run = await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true, signal: controller.signal }, executionServices);
     // A timed-out check is the check's red and is never retried on another runner.
     return { run, lease };
   }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, signal: controller.signal, ...runnerAdmission });
@@ -254,6 +278,20 @@ export function startCriterionRun(root, { check, proofContext, onFailure, trunk,
   promise.catch(() => {});
   return { check, promise, abort: () => controller.abort(new Error('the early criterion run was replaced')),
     bind: plan => { bound = plan; stamp(); } };
+}
+
+/**
+ * Run the frozen item check under `options.gateLease`: a builder's recorded green pullboard test of exactly the check's
+ * files at this tree stands in for the runner trip, and its receipt is recorded as usual; otherwise the check runs [C7].
+ */
+async function runItemCheck(root, check, options, executionServices) {
+  const reused = reusableCheckRun(root, check, options.gateLease, executionServices);
+  return reused ? runProfiledShardsAsync(root, check, options, reused) : runProfiledShellAsync(root, check, options);
+}
+
+/** The machinery note for an item check that took a builder's green run. */
+function reusedCheckNote(lease) {
+  return `item check reused a green pullboard test run at tree ${String(lease?.source?.tree ?? '').slice(0, 12)}; no runner trip`;
 }
 
 /**
@@ -362,7 +400,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         shardSlotOptions(slotOptions, { closed }));
       // A browser proof opens only as many requests as runners have browser slots free, so none waits on its siblings [C7].
       const freeSlots = !lease.runner ? 0 : planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
-      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree });
+      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree,
+        passes: shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([]), { tooling: runnerTooling(executionServices) }) });
     };
     lease.tracker?.mark('runAt');
     // The frozen check runs on its own runner lease beside the proof (#3325); an early start must have the check the plan kept.
@@ -381,12 +420,14 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       if (separate) {
         const done = await separate.promise;
         criterionLease = done.lease;
+        if (done.run.reusedGreen) onMachineryNote(reusedCheckNote(done.lease));
         writeFileSync(checkLog, safeLog(done.run.output), { mode: 0o600 });
         return done.run;
       }
       const run = check
-        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal })
+        ? await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal }, executionServices)
         : { isGreen: true, output: '', seconds: 0 };
+      if (run.reusedGreen) onMachineryNote(reusedCheckNote(criterionLease));
       if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
     };
