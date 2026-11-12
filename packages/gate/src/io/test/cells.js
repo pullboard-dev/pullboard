@@ -25,7 +25,7 @@ import {
   walk,
 } from '../scan.js';
 
-const LISTING = 'packages/gate/data/tests/test-cells.json';
+export const LISTING = 'packages/gate/data/tests/test-cells.json';
 const TEST_DIRECTORY = /^(?:test|packages\/[^/]+\/tests|apps\/[^/]+\/tests)\//u;
 const TEST = { test: file => TEST_DIRECTORY.test(file) && TEST_FILE.test(file) };
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
