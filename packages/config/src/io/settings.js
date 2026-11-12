@@ -473,6 +473,14 @@ export function setRunnerDrain(host, drain) {
   }, { observation: true });
 }
 
+/**
+ * The share of each runner's slots every job class keeps (gate.jobReserve), or null: unset keeps today's claim order,
+ * set makes a claim take the highest class first while each class keeps its reserve [C7].
+ */
+export function jobReserve() {
+  return loadMachineSettings().gate?.jobReserve ?? null;
+}
+
 /** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */
 export function drainedRunnerHosts() {
   return (loadMachineSettings().runners ?? []).filter(runner => runner.drain === true).map(runner => runner.host);
