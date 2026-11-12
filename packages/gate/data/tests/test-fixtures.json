@@ -1972,7 +1972,7 @@
     "hand-policy": 1,
     "repo-read": 2
   },
-  "apps/cli/journeys/verify/landing/drill.test.js": {
+  "apps/cli/tests/fixtures/landing/drill.js": {
     "hand-policy": 1
   },
   "apps/cli/tests/fixtures/landing/refresh.js": {
