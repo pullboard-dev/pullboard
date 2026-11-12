@@ -150,6 +150,8 @@ export function checkedItem(box) {
   const bin = join(box.scratch, 'baseline-bin'), worker = join(box.scratch, 'baseline-worker');
   const home = join(box.scratch, 'baseline-home'), machine = box.env.PULLBOARD_MACHINE_HOME;
   for (const path of [bin, worker, home, join(home, '.pullboard'), machine]) mkdirSync(path, { recursive: true });
+  // The stand-in runner's disk floor would otherwise be the host's real free space against 10 GB (RUNNER_DISK_FULL on a crowded runner).
+  fixtureMachineSettings(join(home, '.pullboard'), { gate: { diskFloorMB: 0 } });
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.scratch, 'baseline-ssh.jsonl'), nodeCommand: process.execPath });
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
