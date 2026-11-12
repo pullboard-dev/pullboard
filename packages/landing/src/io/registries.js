@@ -1,6 +1,5 @@
 /** Stage the shared test registries a landing derives from what the item merge moved, so no lane hand-edits them [C7,V24]. */
 import { git } from '../../../git/index.js';
-import { deriveTestRegistries } from '../../../gate/index.js';
 
 /**
  * What the item merge changed in test files: each rename (old path to new) and every path added, copied, modified or renamed to.
@@ -21,11 +20,13 @@ export function mergeTestChanges(root, base = 'HEAD^1') {
 
 /**
  * Rebuild the test registries in the merged tree and stage the ones that changed.
+ * Why: the gate door is loaded only here, when a landing derives, so the landing's other modules never reach the CLI through it.
  * @param {string} root A checkout of the merged tree.
  * @param {string} [base] The commit the merge started from.
- * @returns {string[]} The staged registry files.
+ * @returns {Promise<string[]>} The staged registry files.
  */
-export function stageTestRegistries(root, base = 'HEAD^1') {
+export async function stageTestRegistries(root, base = 'HEAD^1') {
+  const { deriveTestRegistries } = await import('../../../gate/index.js');
   const registries = deriveTestRegistries(root, mergeTestChanges(root, base));
   if (registries.length) git(root, ['add', '--', ...registries]);
   return registries;

@@ -4,6 +4,7 @@ import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { repointLandingGates } from '../../../spec/index.js';
 import { stageLandingDerived } from './derive.js';
+import { stageTestRegistries } from './registries.js';
 import { stageBadgeDocuments } from './derive.js';
 import { gitStdin } from './derive.js';
 import { measureHeldRules } from './doctrine.js';
@@ -62,7 +63,8 @@ export async function composeLanding(root, { base, plan, config, badges, identit
   }
   // The derived files fold into the last item merge when it is the tip, else they are a commit of their own, as the coordinator did.
   const before = git(root, ['rev-parse', 'HEAD']);
-  const { engines } = stageLandingDerived(root, { base });
+  const { engines } = stageLandingDerived(root);
+  await stageTestRegistries(root, base);
   if (badges.length) stageBadgeDocuments(root, badges);
   if (git(root, ['diff', '--cached', '--name-only']).trim()) {
     if (merges.some(([, merge]) => merge === before)) {

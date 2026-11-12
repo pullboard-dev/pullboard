@@ -7,6 +7,7 @@ import { runStaticChecks } from '../../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { stageLandingDerived } from '../derive.js';
+import { stageTestRegistries } from '../registries.js';
 import { scanRidesRunner } from '../scan.js';
 import { gitStdin } from '../derive.js';
 import { join } from 'node:path';
@@ -32,7 +33,7 @@ export async function deriveOnRunner(state, { runChecks = state.guardServices?.r
   const tree = headTree(root);
   const badges = badgeDocuments(state);
   const practice = /^[\w./-]+$/u.test(state.config.practice ?? '') ? ` --practice ${state.config.practice}` : '';
-  const flags = `${badges.length ? ` --badges ${Buffer.from(JSON.stringify(badges)).toString('base64')}` : ''} --doctrine${practice}`;
+  const flags = `${badges.length ? ` --badges ${Buffer.from(JSON.stringify(badges)).toString('base64')}` : ''} --doctrine${practice} --base ${state.batch.base}`;
   const config = { ...state.config, staticChecks: `node packages/landing/src/io/derive.js --tree ${tree}${flags}` };
   // A runner that cannot run the job (no script in an older base, a lost slot) is no reason to stall: the caller derives here instead.
   const ran = await runChecks(root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }).catch(() => null);
@@ -70,6 +71,7 @@ export async function commitDerived(state, merged, hooks) {
     const written = state.landingPorts?.writeBadges(root, state.landingPorts.badgeCounts(state.board)) ?? [];
     if (written.length) git(root, ['add', '--', ...written]);
     derived = stageLandingDerived(root).engines;
+    await stageTestRegistries(root, state.batch.base);
     state.say('the runner could not derive this batch; engine numbers and docs were built on the coordinator');
   }
   for (const engine of derived.assigned) state.say(`engine ${engine.name}: ${engine.number}`);
