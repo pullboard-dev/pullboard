@@ -75,7 +75,9 @@ export async function warnMainMoved({ root, board, trunk, write, say }, reads) {
       }
       for (const [index, piece] of pieces.entries()) {
         const text = prefix + piece + (pieces.length > 1 ? ` (${index + 1}/${pieces.length})` : '') + next;
-        const exists = board.db.prepare('SELECT 1 FROM shout WHERE shout_to=? AND shout_from=? AND shout_text=?').get(`item:${warning.item}`, 'coordinator', text);
+        // The text carries the trunk sha, which moves on every landing; one head and file is told once (#3094).
+        const told = `${warning.head.slice(0, 12)} conflicts in ${piece}${pieces.length > 1 ? ` (${index + 1}/${pieces.length})` : ''}${next}`;
+        const exists = board.db.prepare('SELECT 1 FROM shout WHERE shout_to=? AND shout_from=? AND instr(shout_text, ?) > 0').get(`item:${warning.item}`, 'coordinator', told);
         if (!exists) await write('shout', [{ from: 'coordinator', to: `item:${warning.item}`, item: warning.item, text, lanes: [] }]);
       }
     }
