@@ -1772,8 +1772,11 @@
   "apps/cli/journeys/test/run/binding.test.js": {
     "launch": 3
   },
+  "apps/cli/journeys/test/run/queued.test.js": {
+    "launch": 6
+  },
   "apps/cli/journeys/test/runners.test.js": {
-    "launch": 2
+    "launch": 4
   },
   "apps/cli/journeys/test/selection/landing.test.js": {
     "launch": 1

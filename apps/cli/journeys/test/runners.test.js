@@ -71,9 +71,9 @@ async function withBusyRunner(action) {
 }
 
 test('runner-only named and affected tests refuse a busy runner without starting idle local capacity [C7]', async () => {
-  await withBusyRunner(async box => {
+  await withBusyRunner(box => {
     for (const args of [['test/ordinary.test.js'], ['--affected']]) {
-      const result = (await box.runLocal(box.repo, 'test', ...args, '--json'));
+      const result = box.run(box.repo, 'test', ...args, '--json');
       assert.notEqual(result.code, 0, result.err);
       const refusal = JSON.parse(result.out).error;
       assert.equal(refusal.code, 'RUNNER_WAIT_DEADLINE', 'the registered runner is busy rather than silently replaced locally');
@@ -85,9 +85,9 @@ test('runner-only named and affected tests refuse a busy runner without starting
 });
 
 test('turning runner-only off retains local execution while the same runner is busy [C7]', async () => {
-  await withBusyRunner(async box => {
+  await withBusyRunner(box => {
     writeFileSync(box.settingsFile, JSON.stringify({ ...box.settings, gate: { ...box.settings.gate, runnersOnly: false } }));
-    const result = (await box.runLocal(box.repo, 'test', 'test/ordinary.test.js', '--json'));
+    const result = box.run(box.repo, 'test', 'test/ordinary.test.js', '--json');
     assert.equal(result.code, 0, result.err);
     assert.equal(JSON.parse(result.out).runner, 'this machine');
     assert.equal(readFileSync(box.marker, 'utf8'), 'named', 'the ordinary test body actually ran');
