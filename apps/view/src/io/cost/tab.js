@@ -2,8 +2,13 @@
 import { costOverviewHtml } from "./overview.js";
 import { bindCostOverview } from "./overview.js";
 
-import { modelPresentation } from "../presentation.js";
-export { modelPresentation } from "../presentation.js";
+import MODEL_TABLES from "../../../data/ceilings/model-names.json" with { type: "json" };
+import { modelPresentation as presentModel } from "../presentation.js";
+
+/** Name one model with the shipped tables; the browser copy is rebuilt around the same data in costTabScript. */
+export function modelPresentation(reported, family = '') {
+  return presentModel(reported, family, MODEL_TABLES);
+}
 
 /** Decode one event detail without letting malformed legacy JSON break the view. */
 function costEventDetail(event) {
@@ -285,7 +290,9 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
 
 /** Embed this module's closure-free Cost functions into the standalone local-view page. */
 export function costTabScript() {
-  const functions = [modelPresentation, costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
+  const tables = `const modelTables = ${JSON.stringify(MODEL_TABLES)};\nconst presentModel = (${presentModel.toString()});\n`
+    + `const modelPresentation = (reported, family = '') => presentModel(reported, family, modelTables);\n`;
+  const functions = [costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
     usageRole, firstSamplePhaseKnown, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml, costOverviewHtml, bindCostOverview];
-  return functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
+  return tables + functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
 }
