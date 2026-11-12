@@ -1,0 +1,27 @@
+{
+  "aliases": { "gpt-6-codex": "codex" },
+  "versionKey": "^(?:claude-)?(opus|sonnet|haiku)-(\\d+)[.-](\\d+)$",
+  "known": {
+    "claude-opus-5-5": ["Opus 5.5", "Anthropic"],
+    "claude-sonnet-5-5": ["Sonnet 5.5", "Anthropic"],
+    "gpt-6.1-sol": ["GPT-6.1 Sol", "OpenAI"],
+    "gpt-6.1-terra": ["GPT-6.1 Terra", "OpenAI"],
+    "gpt-6-luna": ["GPT-6 Luna", "OpenAI"],
+    "codex": ["Codex", "OpenAI"]
+  },
+  "vendors": {
+    "openai": "OpenAI", "gpt": "OpenAI", "codex": "OpenAI",
+    "anthropic": "Anthropic", "claude": "Anthropic",
+    "google": "Google", "gemini": "Google"
+  },
+  "patterns": [
+    { "match": "^claude-([a-z][a-z-]*)-(\\d+)-(\\d+)$", "vendor": "Anthropic", "style": "versioned" },
+    { "match": "^(?:gpt-|o\\d|codex)", "vendor": "OpenAI", "style": "acronym" },
+    { "match": "^gemini", "vendor": "Google", "style": "title" }
+  ],
+  "labels": [
+    { "match": "^gpt[- ]6[.]1[- ]sol$", "label": "GPT-6.1 Sol" },
+    { "match": "^(?:claude[- ]?)?opus[- ]5[.]5$", "label": "Claude Opus 5.5" },
+    { "match": "^codex$", "label": "Codex" }
+  ]
+}
