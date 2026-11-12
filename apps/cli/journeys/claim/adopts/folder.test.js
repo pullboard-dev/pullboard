@@ -6,12 +6,16 @@ import {
 } from 'node:test';
 import {
   existsSync,
+  mkdirSync,
+  readdirSync,
   readFileSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
@@ -110,6 +114,47 @@ test('clause 1: a claim moves a clean idle item folder from a seat that still ha
   assert.equal(binding(box, adopted).agent, second.id);
 });
 
+/**
+ * Run `work` on a PATH that has every tool the box's PATH has except lsof, as a runner without it does.
+ *
+ * @template T
+ * @param {any} box
+ * @param {() => Promise<T>} work
+ * @returns {Promise<T>}
+ */
+async function withoutLsof(box, work) {
+  const [shims, ...rest] = box.env.PATH.split(delimiter);
+  const bin = join(box.dir, 'bin-without-lsof');
+  mkdirSync(bin, { recursive: true });
+  for (const dir of rest) {
+    let names = [];
+    try { names = readdirSync(dir); } catch { continue; }
+    for (const name of names) {
+      if (name === 'lsof' || existsSync(join(bin, name))) continue;
+      try { symlinkSync(join(dir, name), join(bin, name)); } catch { /* a name another directory already supplied */ }
+    }
+  }
+  // The claim runs in this process, so its lsof probe reads this process's PATH as well as the box's.
+  const previous = { box: box.env.PATH, process: process.env.PATH };
+  box.env.PATH = [shims, bin].join(delimiter);
+  process.env.PATH = box.env.PATH;
+  try { return await work(); } finally { box.env.PATH = previous.box; process.env.PATH = previous.process; }
+}
+
+test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', async () => {
+  const { box, id, folder } = await priorFolder();
+  const second = await seat(box, 'web-b', 'session-b');
+  const claimed = await withoutLsof(box, async () => {
+    assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
+    return as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
+  });
+  assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
+  const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
+  assert.ok(adopted && adopted !== folder, claimed.out);
+  assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
+  assert.equal(binding(box, adopted).agent, second.id);
+});
+
 test('clause 2: a dirty folder of a live seat is never touched and the refusal names that seat [B3,C7]', async () => {
   const { box, id, first, folder } = await priorFolder();
   writeFileSync(join(folder, 'scratch.txt'), 'unsaved\n');
@@ -121,7 +166,10 @@ test('clause 2: a dirty folder of a live seat is never touched and the refusal n
   assert.ok(existsSync(join(folder, 'scratch.txt')), 'the dirty folder keeps its file where it was');
 });
 
-test('clause 2: a folder with a process inside it is never touched and the refusal names its seat [B3,C7]', async () => {
+/** Whether this machine can list working directories; a process inside a folder is only seen where it can. */
+const lsofOnPath = process.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof')));
+
+test('clause 2: a folder with a process inside it is never touched and the refusal names its seat [B3,C7]', { skip: !lsofOnPath && 'lsof is not installed here, so a process inside a folder is unknown' }, async () => {
   const { box, id, first, folder } = await priorFolder();
   // Process-level case: a real child process must sit inside the folder; `sleep` is not a CLI or node launch.
   const holder = spawn('/bin/sh', ['-c', 'echo ready; exec sleep 300'], { cwd: folder, stdio: ['ignore', 'pipe', 'ignore'] });
