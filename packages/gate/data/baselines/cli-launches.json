@@ -674,9 +674,6 @@
   "apps/cli/journeys/submit/invariants.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/shout/shouts/scenarios.test.js": {
-    "launch": 15
-  },
   "apps/cli/journeys/plan/write.test.js": {
     "launch": 7
   },
@@ -1519,9 +1516,6 @@
   },
   "apps/lib/tests/rebuild.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/stats/cockpit.test.js": {
-    "launch": 15
   },
   "apps/cli/journeys/stats/cockpit/counts.test.js": {
     "launch": 11
