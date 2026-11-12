@@ -400,7 +400,7 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
-  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx), pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted();
+  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx), pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted(id);
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {

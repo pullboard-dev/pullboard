@@ -12,6 +12,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -129,33 +130,48 @@ async function fetchCommit(store, trunk, commit) {
  * Fetch one commit from the trunk remote into the runner's cache and check it out in a fresh folder. Every commit in
  * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
  * from its checkout's own objects) finds them there.
+ * Why a primary per job: the folder is a linked worktree of a fresh primary checkout whose main branch is the job's
+ * main, borrowing the cache's objects, as an item folder is of the coordinator checkout. A worktree of the bare cache
+ * had no main branch and a primary that is not a work tree, so every pulled proof refused NOT_A_REPO (#5781).
  *
  * @param {string} cache
  * @param {string} trunk
  * @param {string} commit
  * @param {string} name
  * @param {string[]} [also]
- * @returns {Promise<{ ok: true, folder: string } | { ok: false, reason: string }>}
+ * @param {{ main?: string | null }} [options] - main: the commit the primary's main branch names; default none.
+ * @returns {Promise<{ ok: true, folder: string, primary: string } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = []) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null } = {}) {
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
+  if (main !== null && !SHA.test(String(main))) return { ok: false, reason: `the job names no main commit (${main})` };
   const { store, reason } = await objectStore(cache);
   if (!store) return { ok: false, reason };
-  for (const wanted of [commit, ...also.filter(sha => sha !== commit)]) {
+  for (const wanted of new Set([commit, ...also, ...(main ? [main] : [])])) {
     const missing = await fetchCommit(store, trunk, wanted);
     if (missing) return { ok: false, reason: missing };
   }
-  const folder = join(cache, 'work', name);
-  rmSync(folder, { recursive: true, force: true });
-  await git(store, ['worktree', 'prune']);
-  const added = await git(store, ['worktree', 'add', '-q', '--detach', folder, commit]);
-  return added.status === 0 ? { ok: true, folder } : { ok: false, reason: added.stderr };
+  const folder = join(cache, 'work', name), primary = join(cache, 'main', name);
+  await dropCheckout(cache, { folder, primary });
+  mkdirSync(primary, { recursive: true });
+  for (const args of [['init', '-q'], ['symbolic-ref', 'HEAD', 'refs/heads/main'], ['config', 'gc.auto', '0']]) {
+    const step = await git(primary, args);
+    if (step.status !== 0) return { ok: false, reason: step.stderr };
+  }
+  writeFileSync(join(primary, '.git', 'objects', 'info', 'alternates'), `${join(store, 'objects')}\n`);
+  if (main) {
+    const pinned = await git(primary, ['update-ref', 'refs/heads/main', main]);
+    if (pinned.status !== 0) return { ok: false, reason: pinned.stderr };
+  }
+  const added = await git(primary, ['worktree', 'add', '-q', '--detach', folder, commit]);
+  return added.status === 0 ? { ok: true, folder, primary } : { ok: false, reason: added.stderr };
 }
 
-/** Remove a job's checkout from the cache. */
-async function dropCheckout(cache, folder) {
+/** Remove a job's checkout and its primary from the cache; a cache from before primaries also prunes the store's worktrees. */
+async function dropCheckout(cache, { folder, primary }) {
   rmSync(folder, { recursive: true, force: true });
+  if (primary) rmSync(primary, { recursive: true, force: true });
   await git(join(cache, 'git'), ['worktree', 'prune']);
 }
 
@@ -300,12 +316,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
       }
     }
-    const gate = claim.kind === 'gate' && input !== null;
-    const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, also);
+    // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
+    const gate = input !== null;
+    const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, also,
+      { main: claim.base ?? null });
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${checkout.ok ? 'the job names nothing to run' : checkout.reason}`);
-      if (checkout.ok) await dropCheckout(cache, checkout.folder);
+      if (checkout.ok) await dropCheckout(cache, checkout);
       await reliably({ action: 'release', ...held }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
       jobs.push({ job: claim.job, outcome: 'released' });
       if (once) break;
@@ -323,8 +341,16 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         lost = true; running.stop();
       });
     }, renewMs);
-    const result = await running.done.finally(() => clearInterval(renewer));
-    await dropCheckout(cache, checkout.folder);
+    // A stopped runner stops its job and hands it back at once, so the next puller need not wait out the lease.
+    const stopping = () => running.stop();
+    signal?.addEventListener('abort', stopping, { once: true });
+    const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
+    await dropCheckout(cache, checkout);
+    if (signal?.aborted && !lost) {
+      await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      jobs.push({ job: claim.job, outcome: 'released' });
+      break;
+    }
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); jobs.push({ job: claim.job, outcome: 'lost' }); if (once) break; continue; }
     const receipt = gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,

@@ -90,12 +90,18 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
     deadline = Date.parse(until);
     for (const listener of deadlineListeners) listener(deadline);
   };
+  /** The lease's deadline, the board's when its guardian renewed it later than this command saw (#5770). */
+  const leaseUntil = () => {
+    try { const holder = landingLeaseState(board).holder; if (holder?.token === token) return Math.max(deadline, Date.parse(holder.until) || 0); }
+    catch { /* The acknowledged deadline stands. */ }
+    return deadline || Date.now() + LANDING_LEASE_MS;
+  };
   /** Serialize heartbeats and explicit checks, retaining a failure until the command stops. */
   const assertHeld = () => {
     const task = pending.then(async () => {
       if (lost) throw lost;
       try {
-        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }), { until: () => deadline || Date.now() + LANDING_LEASE_MS });
+        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }), { until: leaseUntil });
         if (lost) throw lost;
         const holder = assertLandingLease(board, { token, branch, generation }); // A delayed recovered receipt is not a fresh grant.
         confirmedUntil(holder.until);
@@ -144,6 +150,8 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
     timer.unref();
     watchdog = setInterval(() => {
       if (!lost && Date.now() >= deadline - 1000) {
+        // The guardian renews the heartbeat while this loop is blocked, so the board's own deadline is read before the loss (#5770).
+        try { confirmedUntil(assertLandingLease(board, { token, branch, generation }).until); if (Date.now() < deadline - 1000) return; } catch { /* Lost below. */ }
         lost = new Refused('LAND_LEASE_LOST', 'the landing lease could not renew before its deadline; inspect pullboard resume after its owned worker stops');
         onLost?.(lost);
       }
