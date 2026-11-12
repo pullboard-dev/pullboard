@@ -90,10 +90,10 @@ test('verbose init exposes one confirmation command for its own writes [I1,I2,D1
   assert.equal(box.git('diff', '--cached', '--name-only'), '');
 });
 
-test('an agent that runs init continues setup in the same session [I1,I2]', (t) => {
+test('an agent that runs init continues setup in the same session [I1,I2]', async (t) => {
   const human = project(t);
   for (const marker of AGENT_SHELL_MARKERS) delete human.env[marker];
-  const humanResult = human.run('init');
+  const humanResult = await human.run('init');
   assert.equal(humanResult.status, 0, humanResult.stderr);
   assert.ok(humanResult.stdout.includes('Next: ask your agent to run pullboard resume to finish setup.'));
   assert.doesNotMatch(humanResult.stdout, /run pullboard resume now/u);
@@ -101,14 +101,14 @@ test('an agent that runs init continues setup in the same session [I1,I2]', (t) 
   const agent = project(t);
   for (const marker of AGENT_SHELL_MARKERS) delete agent.env[marker];
   agent.env.CLAUDECODE = '1';
-  const agentResult = agent.run('init');
+  const agentResult = await agent.run('init');
   assert.equal(agentResult.status, 0, agentResult.stderr);
   assert.ok(agentResult.stdout.includes('Next: run pullboard resume to continue setup in this session.'));
   assert.doesNotMatch(agentResult.stdout, /Next: ask your agent/u);
-  const humanDetails = human.run('init', '--verbose');
+  const humanDetails = await human.run('init', '--verbose');
   assert.equal(humanDetails.status, 0, humanDetails.stderr);
   assert.match(humanDetails.stdout, /in Claude Code, start a new session first so it loads the Pullboard skills/u);
-  const agentDetails = agent.run('init', '--verbose');
+  const agentDetails = await agent.run('init', '--verbose');
   assert.equal(agentDetails.status, 0, agentDetails.stderr);
   assert.match(agentDetails.stdout, /new skills load next session, and setup does not need them/u);
 });
@@ -134,17 +134,17 @@ test('init detects language gates and gives an example in the same ecosystem [I1
   const mixed = project(t);
   writeFileSync(join(mixed.root, 'package.json'), JSON.stringify({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }));
   writeFileSync(join(mixed.root, 'go.mod'), 'module example.test/project\n');
-  assert.equal(mixed.run('init').status, 0);
+  assert.equal((await mixed.run('init')).status, 0);
   assert.equal(JSON.parse(readFileSync(join(mixed.root, 'pullboard.json'), 'utf8')).gate, 'go test ./...');
 
   const emptyConfigured = project(t);
   writeFileSync(join(emptyConfigured.root, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
-  assert.equal(emptyConfigured.run('init').status, 0);
+  assert.equal((await emptyConfigured.run('init')).status, 0);
   const configPath = join(emptyConfigured.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.gate = '';
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
-  const rerun = emptyConfigured.run('init', '--verbose');
+  const rerun = await emptyConfigured.run('init', '--verbose');
   assert.equal(rerun.status, 0, rerun.stderr);
   assert.match(rerun.stdout, /no gate yet: record the command that proves the build with pullboard gate set 'npm test'/u);
   assert.doesNotMatch(rerun.stdout, /if this board has no build/u);
