@@ -26,7 +26,7 @@ import { put } from '../../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../../tests/fixtures/submit/gate.js';
 
 /** A failed project command keeps its first diagnostic even when later output is unstructured. */
-test('a red gate on submit shows what the gate said [C7,V10]', (t) => {
+test('a red gate on submit shows what the gate said [C7,V10]', async (t) => {
   for (const stream of ['log', 'error']) {
     let box = privateRepo(t);
     const first = stream === 'log' ? 'G1: merge main to get the missing row' : 'G1 error: commit cites it, but it was never committed to the spec';
@@ -43,10 +43,10 @@ test('a red gate on submit shows what the gate said [C7,V10]', (t) => {
     box = builderRepo(box);
     const added = box.coordinator('add', 'build', 'Show the gate diagnostic');
     assert.equal(added.code, 0, added.err);
-    assert.equal(box.run('claim', '1').code, 0);
+    assert.equal((await box.runLocal('claim', '1')).code, 0);
     put(box.root, 'src/RED', 'red\n');
     commitAll(box, 'feat(core): exercise gate output [G1]');
-    const submitted = box.run('submit', '1', '--json');
+    const submitted = (await box.runLocal('submit', '1', '--json'));
     assert.notEqual(submitted.code, 0);
     const refusal = JSON.parse(submitted.out).error;
     assert.equal(refusal.code, 'GATE_RED');
@@ -57,11 +57,11 @@ test('a red gate on submit shows what the gate said [C7,V10]', (t) => {
     const raw = readFileSync(resolve(box.root, log), 'utf8');
     assert.ok(raw.includes(first));
     assert.ok(raw.includes('detail 79:'), 'the complete gate output remains available in its log');
-    assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed');
+    assert.equal(JSON.parse((await box.runLocal('show', '1', '--json')).out).item_status, 'claimed');
   }
 });
 
-test('an item claimed before the gate existed submits once a gate exists [C7,B26]', (t) => {
+test('an item claimed before the gate existed submits once a gate exists [C7,B26]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: '', shared: ['pullboard.json'] }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
@@ -74,13 +74,13 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
   ].join('\n'));
   box = builderRepo(box);
   assert.equal(box.coordinator('add', 'build', 'Claim before setup', '--specs', 'G1').code, 0);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await box.runLocal('claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): build the claimed item [G1]');
-  const missing = box.run('submit', '1', '--json');
+  const missing = (await box.runLocal('submit', '1', '--json'));
   assert.equal(missing.code, 1, missing.err || missing.out);
   assert.equal(JSON.parse(missing.out).error.code, 'NO_GATE', 'an unconfigured board still refuses');
-  const before = JSON.parse(box.run('show', '1', '--json').out);
+  const before = JSON.parse((await box.runLocal('show', '1', '--json')).out);
   const mainRoot = join(box.dir, 'repo');
   const accepted = JSON.parse(readFileSync(join(mainRoot, 'pullboard.json'), 'utf8'));
   accepted.gate = 'node --test --test-reporter=tap';
@@ -94,17 +94,17 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
   commitAll(box, 'chore: expose an untrusted candidate gate');
   const marker = join(box.dir, 'gate-ran.log');
   box.env.GATE_MARKER = marker;
-  const submitted = box.run('submit', '1', '--json', '--infra', 'the gate was configured after the claim');
+  const submitted = (await box.runLocal('submit', '1', '--json', '--infra', 'the gate was configured after the claim'));
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   const receipt = JSON.parse(submitted.out);
   assert.equal(receipt.gate.green, true);
   assert.equal(receipt.gate.full, true, 'the newly configured gate really runs');
   assert.equal(readFileSync(marker, 'utf8'), 'accepted-main\n', 'only committed accepted-Main policy supplies the missing gate');
-  const after = JSON.parse(box.run('show', '1', '--json').out);
+  const after = JSON.parse((await box.runLocal('show', '1', '--json')).out);
   assert.equal(after.item_frozen_digest, before.item_frozen_digest, 'recovery needs no criterion change or refreeze');
 });
 
-test('submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', (t) => {
+test('submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.ITEM_CHECK_MARKER, \'check\')"';
   const checkMarker = join(box.dir, 'item-check.log');
@@ -127,7 +127,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   box = builderRepo(box);
   const added = box.coordinator('add', 'build', 'Source change', '--check', checkCommand);
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await box.runLocal('claim', '1')).code, 0);
 
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   const commit = commitAll(box, 'feat(core): update selected source [G1]');
@@ -137,7 +137,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   const stamp = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate-green'));
   writeFileSync(stamp, 'forged-stamp-must-not-change\n');
 
-  const submitted = box.run('submit', '1', '--json');
+  const submitted = (await box.runLocal('submit', '1', '--json'));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const receipt = JSON.parse(submitted.out);
   assert.equal(receipt.id, 1);
@@ -155,7 +155,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   assert.equal(readFileSync(stamp, 'utf8'), 'forged-stamp-must-not-change\n', 'subset proof never writes the full-gate stamp');
 
   rmSync(stamp);
-  const explicit = box.run('gate');
+  const explicit = (await box.runLocal('gate'));
   assert.notEqual(explicit.code, 0, 'the explicit configured full gate still sees the unrelated red test');
   assert.match(`${explicit.out}\n${explicit.err}`, /gate red/);
   const remote = join(box.dir, 'remote.git');
