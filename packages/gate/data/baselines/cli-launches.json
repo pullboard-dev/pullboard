@@ -257,7 +257,7 @@
   "packages/gate/tests/slots.test.js": {
     "launch": 3
   },
-    "packages/landing/tests/logic/hold/spec.test.js": {
+  "packages/landing/tests/logic/hold/spec.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/test/timeout.test.js": {
@@ -488,7 +488,7 @@
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 1
   },
-    "apps/cli/journeys/shout/shouts.test.js": {
+  "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
   "apps/runner/tests/recovery/self.test.js": {
@@ -836,7 +836,7 @@
   "apps/cli/journeys/submit/gate/merge-base.test.js": {
     "launch": 1
   },
-    "apps/cli/journeys/shout/journeys.test.js": {
+  "apps/cli/journeys/shout/journeys.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/run/tests/enotempty.test.js": {
@@ -1310,7 +1310,7 @@
   "packages/sync/tests/io/local.test.js": {
     "launch": 1
   },
-    "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
+  "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
@@ -1921,5 +1921,8 @@
   },
   "apps/cli/journeys/relay/sync.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/speed/profile.test.js": {
+    "launch": 6
   }
 }

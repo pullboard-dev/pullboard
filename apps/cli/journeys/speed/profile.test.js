@@ -122,20 +122,20 @@ test('clause 1: one submit on a large board spawns at most 90 git processes, dow
   Object.assign(box.env, recorder.env, { PULLBOARD_RESIDENT: '1' });
   const added = (title) => fileFixtureItem(box, box.repo, { lane: 'web', title, diagnose: false, args: ['--specs', 'G1'] }).item_id;
   const submits = [0, 1, 2].map(run => added(`Speed submit ${run}`));
-  json(box.run(box.web, 'status', '--json'), 'warm status');
-  json(box.run(box.web, 'status', '--json'), 'warm status');
+  json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: this test measures real spawns
+  json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: this test measures real spawns
   const counts = [];
   const shapes = new Map();
   submits.forEach((id, run) => {
     // Each submit starts from main, so no run stacks on the previous run's unverified commit.
     runFixtureGit(['checkout', '-q', '-B', `web/speed-${run}`, 'main'], { cwd: box.web, env: box.env });
-    json(box.run(box.web, 'claim', String(id), '--json'), 'claim');
+    json(box.run(box.web, 'claim', String(id), '--json'), 'claim'); // real process: this test measures real spawns
     mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, 'web', `speed-${run}.js`), `export const speed = ${run};\n`);
     runFixtureGit(['add', '-A'], { cwd: box.web, env: box.env });
     runFixtureGit(['commit', '-q', '-m', `feat(web): speed budget ${run} [G1]`], { cwd: box.web, env: box.env });
     writeFileSync(recorder.spawns, '');
-    const result = box.run(box.web, 'submit', String(id), '--no-next');
+    const result = box.run(box.web, 'submit', String(id), '--no-next'); // real process: this test measures real spawns
     assert.equal(result.code, 0, `submit exited ${result.code}: ${result.err}${result.out}`);
     const gits = readFileSync(recorder.spawns, 'utf8').split('\n').filter(line => / git /u.test(line));
     counts.push(gits.length);
@@ -158,7 +158,7 @@ test('clause 2: the network recorder logs a TCP connect and a name lookup, so it
   const recorder = networkRecorder(box.dir);
   const probe = "import net from 'node:net'; import dns from 'node:dns';"
     + " dns.lookup('localhost', () => {}); net.connect(9, '127.0.0.1').on('error', () => {});";
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', probe],
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', probe], // real process: this test measures real spawns
     { cwd: box.dir, env: { ...box.env, ...recorder.env }, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure ?? result.stderr);
   const log = readFileSync(recorder.log, 'utf8');
@@ -167,7 +167,7 @@ test('clause 2: the network recorder logs a TCP connect and a name lookup, so it
 });
 
 test('clause 3: a stand-in command that takes 300 ms fails, naming the command, its time and the 200 ms budget [C7]', () => {
-  const standIn = () => runFixtureChild(process.execPath, ['-e', 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300)'],
+  const standIn = () => runFixtureChild(process.execPath, ['-e', 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300)'], // real process: this test measures real spawns
     { cwd: import.meta.dirname, encoding: 'utf8' });
   const measured = [measure('stand-in', () => ({ code: standIn().status, out: '', err: '' }))];
   assert.throws(() => assertWithinBudget(measured), /stand-in took (?:[3-9]\d\d|\d{4,}) ms \(median of [^)]*\), over its 200 ms budget/u);
