@@ -167,7 +167,7 @@ test('real paired person adds, answers a person decision, and holds then release
     verb: 'add', args: { lane: box.lane, title },
   });
   assert.equal(added.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, added.result.request.id, 'done');
   let exported = (await box.cliLocal('export')).document;
   const item = exported.tables.item.find(row => row.item_title === title);
@@ -180,7 +180,7 @@ test('real paired person adds, answers a person decision, and holds then release
     verb: 'answer', item: decision, args: { text: 'PERSON_ACTION_ANSWER_FIXTURE' },
   });
   assert.equal(answered.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, answered.result.request.id, 'done');
   exported = (await box.cliLocal('export')).document;
   const answer = exported.tables.event.find(row => row.event_kind === 'answer' && row.event_by === 'person');
@@ -191,7 +191,7 @@ test('real paired person adds, answers a person decision, and holds then release
     verb: 'hold', args: { lane: box.lane, reason: 'PERSON_ACTION_HOLD_FIXTURE' },
   });
   assert.equal(held.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, held.result.request.id, 'done');
   exported = (await box.cliLocal('export')).document;
   assert.deepEqual(exported.tables.hold.map(row => [row.hold_lane, row.hold_by]), [[box.lane, 'person']]);
@@ -200,7 +200,7 @@ test('real paired person adds, answers a person decision, and holds then release
 
   const released = await personAction(chrome, link.board, { verb: 'hold', args: { lane: box.lane, off: true } });
   assert.equal(released.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, released.result.request.id, 'done');
   exported = (await box.cliLocal('export')).document;
   assert.equal(exported.tables.hold.some(row => row.hold_lane === box.lane), false);
@@ -212,7 +212,7 @@ test('real paired person adds, answers a person decision, and holds then release
   const invalid = await personAction(chrome, link.board, {
     verb: 'hold', args: { lane: 'PERSON_ACTION_NO_SUCH_LANE', reason: 'must refuse' },
   });
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, invalid.result.request.id, 'refused');
   const state = await finalState(chrome, link.board);
   const refusal = state.state.personRequests.find(row => row.id === invalid.result.request.id).error;
@@ -221,7 +221,7 @@ test('real paired person adds, answers a person decision, and holds then release
   assert.equal(exported.tables.event.some(row => row.event_kind === 'hold' && JSON.parse(row.event_detail).lane === 'PERSON_ACTION_NO_SUCH_LANE'), false);
   const brief = 'Files:\n- ../foreign.js\nTest:\n- Keep the file in its own lane';
   const foreign = await personAction(chrome, link.board, { verb: 'add', args: { lane: box.lane, title: 'PERSON_ACTION_FOREIGN_BRIEF', brief } });
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const rejected = (await finalState(chrome, link.board)).state.personRequests.find(row => row.id === foreign.result.request.id);
   assert.equal(rejected.status, 'refused');
   assert.equal(rejected.error.code, 'BRIEF_LANE');
@@ -328,7 +328,7 @@ test('local view attribution is person-only and an agent token cannot seal perso
     });
     assert.equal(response.status, 200, 'the relay stores the opaque agent-authenticated envelope');
   }
-  assert.equal((await box.cli('status')).code, 0, 'native replay records both sender refusals');
+  assert.equal((await box.cliLocal('status')).code, 0, 'native replay records both sender refusals');
   const exported = (await box.cliLocal('export')).document;
   const refusals = exported.tables.event.filter(row => row.event_kind === 'relay_refused' && row.event_by === 'person-action-agent');
   assert.deepEqual(refusals.map(row => JSON.parse(row.event_detail).code), ['RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY']);
