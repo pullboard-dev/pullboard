@@ -29,10 +29,11 @@ function landingItems(items) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, config: { trunk?: { remote?: string }, landing?: { trunkRemote?: string } },
- *   mode: string, trunk?: string, check?: string[] | null, needs?: string[], now?: number }} request
+ *   mode: string, trunk?: string, check?: string[] | null, needs?: string[], checkout?: boolean, now?: number }} request - checkout: the
+ *   remote is the board host's own checkout with trunk checked out, so the push updates its work tree too [P7].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, mode, trunk = 'refs/heads/main', check = null, needs = [], now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, mode, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, now = Date.now() }) {
   if (mode !== 'pull') throw new Refused('LANDING_NOT_PULL', 'landing runs as a runner job only when gate.runnerDispatch is pull; today\'s lander lands this board');
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
@@ -44,7 +45,7 @@ export function offerLandingJob(db, { items, expect, config, mode, trunk = 'refs
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed])).digest('hex').slice(0, 16);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}) } });
+    payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(checkout ? { checkout: true } : {}) } });
 }
 
 /**

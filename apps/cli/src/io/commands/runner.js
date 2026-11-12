@@ -69,6 +69,11 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     io.result?.(served);
     return 0;
   }
+  if (first === 'local') {
+    // The machine's own runner: the board API on loopback and runner serve against it, started by a pull submit [P7].
+    if (second || rest.length || Object.keys(values).some(key => !['json', 'off'].includes(key))) throw new Refused('USAGE', 'pullboard runner local [--off]');
+    return (await import('../runner/local/serve.js')).localRunnerCommand(io, { off: values.off === true });
+  }
   if (first === 'install-serve') {
     // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
     const usage = 'pullboard runner install-serve <ssh-host> --board <board-url> [--key <board-key>] | pullboard runner install-serve <ssh-host> --remove';
