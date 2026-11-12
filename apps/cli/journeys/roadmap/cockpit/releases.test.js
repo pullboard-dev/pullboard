@@ -33,23 +33,23 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for roadmap browser checks.');
   const box = machine();
   const alpha = project(box, 'releases');
-  for (const title of ['First page', 'Second page', 'Third page', 'Fourth page', 'Fifth page', 'Dropped idea']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['First page', 'Second page', 'Third page', 'Fourth page', 'Fifth page', 'Dropped idea']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   for (const id of [1, 2, 4]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
-  box.run(alpha.repo, 'withdraw', '6', 'not needed');
+  await box.inProcess(alpha.repo, 'withdraw', '6', 'not needed');
   // In the board's order: two releases shipped (one with a withdrawn item, which does not hold it back), the next one
   // part done, and one queued after it.
-  box.run(alpha.repo, 'milestone', 'add', '0.1', '--note', 'The first page.', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.2', '--note', 'Shipped on Tuesday.\nA second line the shipped row leaves out.', '--reason', 'Arrange fixture release', '--items', '2,6');
-  box.run(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3,4');
-  box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued behind 0.3.', '--reason', 'Arrange fixture release', '--items', '5');
-  box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Work not filed yet.');
-  box.run(alpha.repo, 'milestone', 'move', 'Later', '--before', '0.1');
-  box.run(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
-  box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3', '--as', 'person', '--reason', 'Arrange fixture release'); // a second ship is the person's past the coordinator-actions ratchet
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.1', '--note', 'The first page.', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.2', '--note', 'Shipped on Tuesday.\nA second line the shipped row leaves out.', '--reason', 'Arrange fixture release', '--items', '2,6');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3,4');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued behind 0.3.', '--reason', 'Arrange fixture release', '--items', '5');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Work not filed yet.');
+  await box.inProcess(alpha.repo, 'milestone', 'move', 'Later', '--before', '0.1');
+  await box.inProcess(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
+  await box.inProcess(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3', '--as', 'person', '--reason', 'Arrange fixture release'); // a second ship is the person's past the coordinator-actions ratchet
   const shippedCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const other = project(box, 'other-releases');
-  box.run(other.repo, 'add', 'web', 'Other next page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(other.repo, 'milestone', 'add', '0.3', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(other.repo, 'add', 'web', 'Other next page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(other.repo, 'milestone', 'add', '0.3', '--reason', 'Arrange fixture release', '--items', '1');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-releases-chrome-'));
   let chrome;
@@ -150,7 +150,7 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden");
     await click('#roadmap-list > [data-key="m:0.3"] > .release-header > .milestone-head'); // the shared release header holds the head (0ab202b994)
-    box.run(alpha.web, 'claim', '3');
+    await box.inProcess(alpha.web, 'claim', '3');
     await chrome.waitFor("data.project.items.find((i) => i.id === 3)?.status === 'claimed'", 15_000); // budget: hang ceiling for the native claim to reach the open roadmap; no throughput claim.
     r = await read();
     assert.deepEqual(r.parts.map((part) => [part.key, part.open]), [['m:0.3', false], ['m:0.4', true], ['m:Later', true], ['shipped', true]], 'a redraw keeps each part as it was left');
