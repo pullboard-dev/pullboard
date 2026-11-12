@@ -93,5 +93,5 @@ test('clause 2: a seat holding no claim keeps the blocking --wait inside an agen
   const ran = await seatRun(box, {}, true, 'test', 'test/red.test.js', '--wait', '--json');
   assert.equal(ran.code, 1, `the blocking run exits red: ${ran.out}${ran.err}`);
   assert.doesNotMatch(ran.out, /queued test run/u);
-  assert.equal(JSON.parse(ran.out).runner, HOST, 'the files ran before the command returned');
+  assert.equal(JSON.parse(ran.out).runner, HOST, `the files ran before the command returned: ${ran.out}${ran.err}`);
 });

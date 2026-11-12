@@ -8,13 +8,20 @@ import { apiHttpBox } from '../../fixtures/api.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 
+/** One successful versioned CLI call on the served board's own checkout, run in this process. */
+async function served(box, cwd, ...args) {
+  const ran = await runCliInProcess([...args, '--json'], { cwd, env: box.env });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  return JSON.parse(ran.stdout);
+}
+
 /** A served board, an agent on it, and a boardless clone on its own machine home that points at the board by URL. */
 async function remoteSeat(t) {
   const box = await apiHttpBox(t);
   const linked = join(box.dir, 'agent');
   runFixtureGit(['worktree', 'add', '-q', '--detach', linked], { cwd: box.root, env: box.env, stdio: 'pipe' });
-  const agent = box.cli(linked, 'join', 'app').agent;
-  const item = box.cli(box.root, 'add', 'app', 'Remote readable item', '--specs', 'G1', '--criterion', 'Read it by URL').item.item_id;
+  const agent = (await served(box, linked, 'join', 'app')).agent;
+  const item = (await served(box, box.root, 'add', 'app', 'Remote readable item', '--specs', 'G1', '--criterion', 'Read it by URL')).item.item_id;
   const clone = join(box.dir, 'studio');
   runFixtureGit(['clone', '-q', box.root, clone], { cwd: box.dir, env: box.env, stdio: 'pipe' });
   const machine = join(box.dir, 'studio-home');
