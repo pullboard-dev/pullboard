@@ -1332,7 +1332,7 @@
     "launch": 1
   },
   "packages/gate/tests/io/main/admission.test.js": {
-    "launch": 15
+    "launch": 17
   },
   "packages/store/tests/io/board/write.test.js": {
     "launch": 2
@@ -1867,8 +1867,5 @@
   },
   "apps/cli/journeys/relay/sync.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/submit/foreign-unverified.test.js": {
-    "launch": 9
   }
 }
