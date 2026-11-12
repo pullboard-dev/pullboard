@@ -529,12 +529,12 @@ test('[C7] a fresh seat first inbox on a board of 100k events answers under 300 
   const joined = joinFixtureSeat(box, seat, 'web');
   assert.equal(joined.code, 0, `${joined.err}${joined.out}`);
   // Two untimed commands start and warm the resident process.
-  for (let run = 0; run < 2; run += 1) assert.equal(box.run(seat, 'status', '--json').code, 0);
-  const timed = () => {
+  const timed = (command = 'inbox') => {
     const started = performance.now();
-    const result = box.run(seat, 'inbox', '--json');
+    const result = box.run(seat, command, '--json');
     return { ms: performance.now() - started, result };
   };
+  for (let run = 0; run < 2; run += 1) assert.equal(timed('status').result.code, 0);
   const first = timed();
   assert.equal(first.result.code, 0, first.result.err + first.result.out);
   assert.ok(first.ms < 300, `the first inbox took ${first.ms.toFixed(0)} ms, over its 300 ms budget`);
