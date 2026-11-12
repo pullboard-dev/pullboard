@@ -2,7 +2,9 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/sandbox/index.js */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
@@ -12,6 +14,9 @@ import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
 
 test('a red submit records diagnostics without submitting the item [C7,V4,H16]', async t => {
   const box = flakyProject(t);
+  // The submitting process holds this fixture's gate, so it pins controller dispatch like the cockpit fixture does [P7].
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const id = checkedItem(box);
   const builder = privateBuilder(box);
   const claimed = await builder.call('claim', String(id));
