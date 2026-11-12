@@ -238,8 +238,14 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     })()`);
     await chrome.click("document.querySelector('#replay-play')");
     await chrome.waitFor('snapshotReplay.playing && snapshotReplay.index > 0 && snapshotReplay.index < snapshotReplay.events.length');
-    const beforePause = await evaluate('snapshotReplay.index');
+    // Record the event showing when the press reaches the page: a busy runner can take over a 1× interval between a
+    // separate read and the press, so an index read beforehand races the replay rather than proving pause (#5738).
+    await evaluate(`document.addEventListener('click', (event) => {
+      if (event.target.closest?.('#replay-pause')) window.__replayIndexAtPause = snapshotReplay.index;
+    }, { capture: true })`);
     await chrome.click("document.querySelector('#replay-pause')");
+    const beforePause = await evaluate('window.__replayIndexAtPause');
+    assert.ok(Number.isInteger(beforePause), 'the pause press reached the page');
     await chrome.waitFor('!snapshotReplay.playing');
     const pausedIndex = await evaluate('snapshotReplay.index');
     assert.equal(pausedIndex, beforePause, 'pause keeps the current replay event');
