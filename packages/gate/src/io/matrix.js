@@ -34,7 +34,7 @@ const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
   'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'live-driver': 'driver', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a',
+  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a',
   'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
 });
 
@@ -99,6 +99,8 @@ export const HOPS = Object.freeze([
       : { seen: `pullboard status ${Math.round(extra.statusMs)} ms`, agrees: extra.statusMs < COMMAND_TARGET_MS } },
   { id: 'board-write', stage: 'All', hop: 'board write never queues', harness: 'board-write', fix: '58f204a4af',
     invariant: 'A write in a busy checkout answers, and holds the board lock under 1 s, past a slow same-session command, a long reader, a gate worker and dead holders.' },
+  { id: 'import-undeclared', stage: 'All', hop: 'board restored from an export with an undeclared status', harness: 'import-undeclared',
+    invariant: 'An import whose item row carries an undeclared status is refused UNDECLARED_STATE before anything is inserted.' },
 ]);
 
 /**
