@@ -45,7 +45,7 @@ export function replayClient(root, env, ...args) {
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
       try { return JSON.parse(result.stdout); }
-      catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' tail: ' + String(result.stdout).slice(-400)); }
+      catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' at: ' + String(result.stdout).slice(8650, 8950)); }
     });
 }
 
@@ -79,7 +79,7 @@ export function replayClientWithoutCheckpoint(root, env) {
   return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env }).then((result) => {
     if (result.failure) throw new Error(result.failure);
     try { return JSON.parse(result.stdout); }
-    catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' tail: ' + String(result.stdout).slice(-400)); }
+    catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' at: ' + String(result.stdout).slice(8650, 8950)); }
   });
 }
 
@@ -115,7 +115,7 @@ export function replayResult(root, env, ...args) {
     .then((result) => {
       if (result.error) throw new Error(result.failure);
       try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
-      catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' tail: ' + String(result.stdout).slice(-400)); }
+      catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' at: ' + String(result.stdout).slice(8650, 8950)); }
     });
 }
 /** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */
