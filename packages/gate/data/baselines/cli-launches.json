@@ -408,13 +408,10 @@
     "launch": 1
   },
   "apps/cli/journeys/flakes/history.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/flakes/landing.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "apps/cli/journeys/flakes/main.test.js": {
-    "launch": 46
+    "launch": 3
   },
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
