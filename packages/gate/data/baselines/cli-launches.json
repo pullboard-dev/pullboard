@@ -645,7 +645,7 @@
     "launch": 2
   },
   "apps/cli/journeys/fact/tests/cpu-registration-closure.test.js": {
-    "launch": 3
+    "launch": 2
   },
   "apps/cli/journeys/init/known/main/frozen.test.js": {
     "launch": 3
@@ -669,7 +669,7 @@
     "launch": 3
   },
   "apps/cli/journeys/fact/tests/cpu-unreadable.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/next/help.test.js": {
     "launch": 1
@@ -1633,5 +1633,14 @@
   },
   "apps/cli/journeys/init/refresh.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/fact/tests/cpu-registration-lifecycle.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/fact/tests/cpu-unreadable-hidden.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/fact/tests/cpu-unreadable-subtest.test.js": {
+    "launch": 1
   }
 }
