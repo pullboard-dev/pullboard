@@ -104,27 +104,27 @@ test('a check baseline resolves paths at its selected main and retains the recor
   assert.equal(checkBaseline(box.repo, box.command, { main: box.base }).result, 'green', 'the old source keeps its old path');
 });
 
-test('native check, submit and independent verification execute the old frozen path after a move [C7]', () => {
+test('native check, submit and independent verification execute the old frozen path after a move [C7]', async () => {
   const box = movedFixture();
   const web = join(box.dir, 'path-map-builder');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/path-map-builder');
   /** A successful public command supplies each observed board result. */
-  const json = (cwd, ...args) => {
-    const result = box.run(cwd, ...args, '--json');
+  const json = async (cwd, ...args) => {
+    const result = await box.runLocal(cwd, ...args, '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out);
   };
-  json(web, 'join', 'web');
-  json(box.repo, 'add', 'web', 'Mapped frozen command', '--specs', 'G1', '--criterion', 'the moved command executes', '--brief', 'Files: web/old-check.mjs\nTest: the moved command executes', '--check', box.command);
-  json(web, 'claim', '1');
-  const before = json(web, 'show', '1').item_frozen;
-  assert.equal(json(web, 'check', '1', '--yes').green, true);
+  await json(web, 'join', 'web');
+  await json(box.repo, 'add', 'web', 'Mapped frozen command', '--specs', 'G1', '--criterion', 'the moved command executes', '--brief', 'Files: web/old-check.mjs\nTest: the moved command executes', '--check', box.command);
+  await json(web, 'claim', '1');
+  const before = (await json(web, 'show', '1')).item_frozen;
+  assert.equal((await json(web, 'check', '1', '--yes')).green, true);
   assert.equal(e2e.commitFile(box, web, 'web/item.txt', 'built\n', 'feat(web): build mapped fixture [G1]').status, 0);
-  const submitted = json(web, 'submit', '1');
+  const submitted = await json(web, 'submit', '1');
   box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
-  try { json(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'The original frozen command executes the mapped file.'); }
+  try { await json(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'The original frozen command executes the mapped file.'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
-  assert.equal(json(web, 'show', '1').item_frozen, before);
+  assert.equal((await json(web, 'show', '1')).item_frozen, before);
 });
 
 test('Rigor requires its census provider before starting a proof or acquiring its lease [C7,D1]', async () => {
@@ -168,7 +168,7 @@ test('a named Rigor proof checks the actual old red file and moved green file [C
   assert.match(passed.stdout, /ok 1 - mapped proof/u);
 });
 
-test('why on an old name includes work landed at the new name [C7]', () => {
+test('why on an old name includes work landed at the new name [C7]', async () => {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
@@ -176,35 +176,35 @@ test('why on an old name includes work landed at the new name [C7]', () => {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private history landing');
   /** Run one public board move and retain its real result. */
-  const json = (cwd, ...args) => {
-    const result = box.run(cwd, ...args, '--json');
+  const json = async (cwd, ...args) => {
+    const result = await box.runLocal(cwd, ...args, '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out);
   };
   /** Build, independently check and land an actual fixture item before querying its trailer. */
-  const land = (id, file, content) => {
-    json(box.repo, 'add', 'web', `Path history ${id}`, '--specs', 'G1', '--criterion', 'the named file exists', '--brief', `Files: ${file}\nTest: the named file exists`, '--check', `test -f ${file}`);
+  const land = async (id, file, content) => {
+    await json(box.repo, 'add', 'web', `Path history ${id}`, '--specs', 'G1', '--criterion', 'the named file exists', '--brief', `Files: ${file}\nTest: the named file exists`, '--check', `test -f ${file}`);
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    json(box.web, 'claim', String(id));
+    await json(box.web, 'claim', String(id));
     assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
-    const submitted = json(box.web, 'submit', String(id));
+    const submitted = await json(box.web, 'submit', String(id));
     box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
-    try { json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
+    try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
-    assert.deepEqual(json(box.repo, 'land').landed, [id]);
+    assert.deepEqual((await json(box.repo, 'land')).landed, [id]);
   };
-  land(1, OLD, 'console.log("before-move");\n');
+  await land(1, OLD, 'console.log("before-move");\n');
   mkdirSync(join(box.repo, 'web/cell'), { recursive: true });
   renameSync(join(box.repo, OLD), join(box.repo, NEW));
   writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify({ [OLD]: MID, [MID]: NEW }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: move history into cell');
-  land(2, NEW, 'console.log("after-move");\n');
+  await land(2, NEW, 'console.log("after-move");\n');
   assert.deepEqual(itemsTouching(box.repo, { file: OLD, line: null }), [1, 2]);
   assert.deepEqual(itemsTouching(box.repo, { file: NEW, line: null }), [1, 2]);
 });
 
-test('flake and Rigor read projections join moved names while original SQLite events stay unchanged [C7]', () => {
+test('flake and Rigor read projections join moved names while original SQLite events stay unchanged [C7]', async () => {
   const box = movedFixture();
   /** @pullboard-board-file persistence: the case proves the original SQLite events on disk stay unchanged after a move. */
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -231,7 +231,7 @@ test('flake and Rigor read projections join moved names while original SQLite ev
     const oldReader = join(box.dir, 'old-reader');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReader, box.base);
     assert.deepEqual(nativeFlakeLedger(board, { root: oldReader }), projected, 'an old reader uses the primary branch map');
-    const printed = box.run(oldReader, 'flakes');
+    const printed = await box.runLocal(oldReader, 'flakes');
     assert.equal(printed.code, 0, printed.err);
     for (const id of projected[0].repairs) assert.match(printed.out, new RegExp(`#${id}\\b`, 'u'));
     const history = before.filter(event => event.event_kind === 'flake-observation');
