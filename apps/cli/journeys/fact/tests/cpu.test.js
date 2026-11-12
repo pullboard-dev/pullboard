@@ -37,7 +37,9 @@ async function gate(box) {
 
 test('a declared CPU-load test runs only on a runner when one is registered [C7]', async () => {
   const box = cpuLoadFixture(e2e);
-  const remote = await gate(box);
+  // Process-level case: the first gate on a fresh fixture shell must stay a real process; in-process it leaves the
+  // runner/ssh work unrecorded (requestsMade stays empty) until a child gate's exit ends it. Later gates run in-process.
+  const remote = await box.runGate();
   assert.equal(remote.result.status, 0, remote.result.context);
   assert.equal(box.requestsMade().length, 1, `the declared CPU-load test dispatches to the registered runner even when local-first has a free slot ${remote.log.slice(-1500)}`);
   assert.ok(remote.executor?.liveLease, 'the test body reports an actual private resource holder');
@@ -69,9 +71,7 @@ test('a false CPU-load option and textual examples keep ordinary local-first adm
 
 test('a computed true CPU-load option is not mistaken for a literal false option [C7]', async () => {
   const box = cpuLoadFixture(e2e, { declaration: '{ cpuLoad: false || true }' });
-  // Process-level case: this is the first gate on a fresh fixture shell, and in-process it leaves the runner/ssh work
-  // unrecorded (requestsMade stays empty); only a child gate's exit ends that work, so it stays a real process.
-  const remote = await box.runGate();
+  const remote = await gate(box);
   assert.equal(remote.result.status, 0, remote.result.context);
   assert.equal(box.requestsMade().length, 1);
   assert.equal(remote.executor?.runnerExecution, true);
