@@ -18,6 +18,7 @@ import {
   parseShardHeader,
   shardRows,
 } from '../../src/logic/census.js';
+import { formatTestOutcomes } from '../../../../packages/gate/index.js';
 import { runCensus } from '../../src/io/test/census.js';
 import { planLandingShards } from '../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -59,7 +60,9 @@ test('every planned file gets a row: green, red with its failing cases, hung, no
   assert.deepEqual(red['a.test.js'], { file: 'a.test.js', status: 'green', cases: [], secs: 1.3, sha: 'abc', shard: '1/2', host: 'h' });
   assert.deepEqual([red['b.test.js'].status, red['b.test.js'].cases], ['red', ['bad case']]);
   assert.equal(red['c.test.js'].status, 'hung');
-  assert.equal(red['d.test.js'].status, 'green', 'a file with no failing row in a collecting red shard passed');
+  assert.equal(red['d.test.js'].status, 'no-result', 'a file with no row of its own in a red shard is no-result, never green');
+  const greenShard = Object.fromEntries(shardRows({ ...base, status: 'green' }, 'abc').map(row => [row.file, row.status]));
+  assert.equal(greenShard['d.test.js'], 'green', 'a green shard still vouches for its files');
   const crashed = shardRows({ ...base, output: 'Cannot find module', outcomes: [], status: 'red' }, 'abc');
   assert.ok(crashed.every(row => row.status === 'no-result'), 'a red shard that printed no TAP totals vouches for no file');
   assert.ok(shardRows({ ...base, status: 'infrastructure' }, 'abc').every(row => row.status === 'unrun'));
@@ -80,7 +83,8 @@ function census(box) {
       const label = `${index + 1}/${plan.length}`;
       write(`# landing shard ${label} attempt 1 on fake-host: ${statuses[index] ?? 'green'} in 5 ms\n`);
       const red = shard.files.includes('test/three.test.js');
-      write([
+      const own = shard.files.filter(file => file !== 'test/three.test.js').map(file => ({ file, name: 'passes', passed: true, skipped: false }));
+      write((own.length ? formatTestOutcomes('00000000-0000-4000-8000-000000000000', own) : '') + [
         ...shard.files.map(file => `# landing-file-ms 1250 ${file}`),
         ...(red ? ['not ok 1 - fails here [C7]', '  ---', "  location: '/runner/checkout/test/three.test.js:3:1'", "  failureType: 'testCodeFailure'", '  ...'] : []),
         `# tests ${shard.files.length}`,
@@ -130,4 +134,11 @@ test('a census refuses a dirty checkout and prefixes that match no tracked test 
   await assert.rejects(runCensus(io, ctx, { out: join(box.dir, 'x.jsonl') }, { prefixes: ['nowhere/'], run: dispatcher([]) }), /no tracked test files/u);
   writeFileSync(join(box.repo, 'test/one.test.js'), `${PASSES}// edited\n`);
   await assert.rejects(runCensus(io, ctx, { out: join(box.dir, 'x.jsonl') }, { run: dispatcher([]) }), /uncommitted changes/u);
+});
+
+test('clause 1: a census file is green only from its own pass record; a red shard file with no row of its own is no-result [C7]', () => {
+  const base = { files: ['a.test.js', 'b.test.js'], host: 'h', label: '1/1', output: '# tests 2', times: {} };
+  const outcomes = [{ file: 'a.test.js', name: 'one', passed: true, skipped: false }];
+  const rows = Object.fromEntries(shardRows({ ...base, status: 'red', outcomes }, 'abc').map(row => [row.file, row.status]));
+  assert.deepEqual(rows, { 'a.test.js': 'green', 'b.test.js': 'no-result' });
 });
