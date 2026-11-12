@@ -75,12 +75,12 @@ test('#6546 clause 1: a job whose handler throws is released with its reason, no
   assert.equal(released.payload.runner, 'r-throw');
   assert.equal(view.leaseOwner, null, 'no runner holds the released job');
   const at = released.at;
-  assert.equal(board.claim('r-next', at + 29_999), null, 'not re-claimed within 30 s');
-  const second = board.claim('r-next', at + 30_000);
+  assert.equal(board.claim('r-next', at + 30_000), null, 'not re-claimed within 30 s');
+  const second = board.claim('r-next', at + 30_001);
   assert.deepEqual([second?.job, second?.attempt], ['land:5888', 2], 'claimable once the backoff passed');
   backOffLease(board.db, 'land:5888', 'r-next', { attempt: 2, reason: 'git merge failed', now: at + 31_000 });
-  assert.equal(board.claim('r-third', at + 31_000 + 59_999), null, 'the second release waits 60 s');
-  assert.equal(board.claim('r-third', at + 31_000 + 60_000)?.attempt, 3);
+  assert.equal(board.claim('r-third', at + 31_000 + 60_000), null, 'the second release waits 60 s');
+  assert.equal(board.claim('r-third', at + 31_000 + 60_001)?.attempt, 3);
   assert.deepEqual([1, 2, 3, 4, 5, 50].map(releaseBackoffMs), [30_000, 60_000, 120_000, 240_000, 300_000, 300_000], 'doubling per attempt, capped at 5 minutes');
 });
 

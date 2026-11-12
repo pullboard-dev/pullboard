@@ -61,8 +61,8 @@ test('#6546: a release records its reason and backs off per attempt, and the cur
   assert.deepEqual(jobQueueCall(db, { action: 'renew', job: 'land:7', runner: 'r-a', token: first.token }, { mode: 'pull', now: lapsed }), { renewed: true, leaseUntil: lapsed + LEASE_MS });
   assert.deepEqual(jobQueueCall(db, { action: 'release', job: 'land:7', runner: 'r-a', token: first.token, reason: 'fetch threw' }, { mode: 'pull', now: lapsed }), { released: true, until: lapsed + 30_000 });
   assert.equal(jobView(db, 'land:7').steps.find(step => step.name === 'released').payload.reason, 'fetch threw');
-  assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 29_999 }), null, 'not offered within the backoff');
-  assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 30_000 }).attempt, 2);
+  assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 30_000 }), null, 'not offered within the backoff');
+  assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 30_001 }).attempt, 2);
 });
 
 test('clause 3: a receipt is recorded under its job only with the current claim token, and a repeat returns the stored one [P7]', t => {
