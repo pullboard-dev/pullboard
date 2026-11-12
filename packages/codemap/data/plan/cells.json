@@ -2182,6 +2182,7 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->search",
     "apps/cli->state",
     "apps/lib->apps/runner",
     "apps/lib->transport",
