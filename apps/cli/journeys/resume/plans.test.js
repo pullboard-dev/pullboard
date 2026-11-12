@@ -335,7 +335,7 @@ after(() => {
 });
 
 /** Make a real repo with a coordinator and one joined builder, and return how to run the CLI there with a statement log. */
-async function fixture() {
+function fixture() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-query-plans-')));
   sandboxes.push(dir);
   const log = join(dir, 'statements.log');
@@ -414,7 +414,6 @@ DatabaseSync.prototype.prepare = function (sql, ...rest) {
   /** Run the CLI, or a node script, in a checkout; `record` adds the statement-recording preload. */
   const run = (cwd, args, { record = false, node = false, timing = false } = {}) => {
     const argv = [...(record ? ['--import', pathToFileURL(preload).href] : []), ...(node ? [] : [BIN]), ...args];
-    // Process-level case kept as a process: the query log env must be read by a fresh process.
     const result = runFixtureChild(process.execPath, argv, { cwd, env: { ...env, PULLBOARD_QUERY_LOG: log,
       ...(timing ? { PULLBOARD_GIT_TIMING_LOG: join(dir, 'git-timing.log') } : {}) }, encoding: 'utf8' });
     return { code: result.status, pid: result.pid, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '' };
@@ -465,8 +464,8 @@ function seed(file, { rigor = [] } = {}) {
   db.close();
 }
 
-test('clause 2: coordinator resume never reads the whole event history for rigor [C7,D1,N19]', async () => {
-  const box = (await fixture());
+test('clause 2: coordinator resume never reads the whole event history for rigor [C7,D1,N19]', () => {
+  const box = fixture();
   seed(box.board, { rigor: [
     { kind: 'reject', item: 1, detail: { cause: 'row:G1', commit: 'a'.repeat(40) } },
     { kind: 'reopen', item: 1, detail: { cause: 'row:G1', commit: 'b'.repeat(40) } },
@@ -488,7 +487,7 @@ test('clause 2: coordinator resume never reads the whole event history for rigor
     writeFileSync(box.log, '');
     writeFileSync(join(box.dir, 'git-timing.log'), '');
     const started = performance.now();
-    const result = (await box.runLocal(box.repo, ['resume'], { record: true, timing: true }));
+    const result = box.run(box.repo, ['resume'], { record: true, timing: true });
     const wallMs = performance.now() - started;
     assert.equal(result.code, 0, result.err + result.out);
     const plans = [];
@@ -535,8 +534,8 @@ function scanNames(sql) {
   return names;
 }
 
-test('clause 1: hot board queries never scan events or shouts [C7]', async () => {
-  const box = (await fixture());
+test('clause 1: hot board queries never scan events or shouts [C7]', () => {
+  const box = fixture();
   seed(box.board);
   // The commands run worktree code, which never changes a shared board's schema, so the board gets
   // its indexes the way the trunk's next open gives them.
@@ -551,7 +550,7 @@ test('clause 1: hot board queries never scan events or shouts [C7]', async () =>
   for (const [cwd, args] of commands) {
     writeFileSync(box.log, '');
     const started = performance.now();
-    const result = (await box.runLocal(cwd, args, { record: true }));
+    const result = box.run(cwd, args, { record: true });
     timings.push(`${cwd === box.repo ? 'coordinator' : 'builder'} ${args[0]} ${Math.round(performance.now() - started)} ms`);
     assert.ok(result.code === 0 || result.code === 1, `${args.join(' ')} crashed: ${result.err}`);
     record(statements, box.log, args.join(' '));
@@ -560,7 +559,7 @@ test('clause 1: hot board queries never scan events or shouts [C7]', async () =>
   writeFileSync(box.log, '');
   const view = join(box.dir, 'view-state.mjs');
   writeFileSync(view, `const { projectState } = await import(${JSON.stringify(SERVE)});\nprojectState(process.argv[2]);\n`);
-  const state = (await box.runLocal(box.repo, [view, box.repo], { record: true, node: true }));
+  const state = box.run(box.repo, [view, box.repo], { record: true, node: true });
   assert.equal(state.code, 0, state.err);
   record(statements, box.log, 'view state');
   assert.ok(statements.size > 20, `only ${statements.size} statements were recorded`);
@@ -614,8 +613,8 @@ test('clause 1: hot board queries never scan events or shouts [C7]', async () =>
   }
 });
 
-test('health reads item history by index [C7]', async () => {
-  const box = (await fixture());
+test('health reads item history by index [C7]', () => {
+  const box = fixture();
   seed(box.board);
   const board = openBoard(box.board, { now: () => new Date('2026-10-22T22:30:00.000Z') });
   const rejectAt = '2026-10-22T21:00:00.000Z';
