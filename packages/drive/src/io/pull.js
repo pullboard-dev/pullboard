@@ -330,7 +330,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       continue;
     }
     const started = Date.now();
-    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null });
+    // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
+    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
+      env: { ...process.env, PULLBOARD_TRUNK_REMOTE: answer.trunk } });
     let lost = false;
     // Renew while the job runs. An unreachable board only skips a renewal; a moved lease stops the job.
     const renewer = setInterval(() => {
