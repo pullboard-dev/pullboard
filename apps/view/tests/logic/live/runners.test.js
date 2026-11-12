@@ -87,7 +87,7 @@ test('the fail-closed text blocks still refuse a private name that reaches the r
 
 test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy per runner and no host, address or user name [N26]', () => {
   const raw = sources({ job: { progress: { finished: 1, load: { at: ago(0), average: [6, 5, 4], cpus: 8, freeMB: 4096, memoryMB: 16384 } } } });
-  raw.runners[0].load = { busyPercent: 91.6, freeMB: 1024, memoryMB: 32768, host: 'mac-studio-7.local', user: 'corey', address: '192.168.1.98' };
+  raw.runners[0].load = { busyPercent: 91.6, freeMB: 1024, memoryMB: 32768, host: 'runner-a.example.test', user: 'user', address: '192.0.2.98' };
   const { live } = publicSnapshot({ live: raw });
   assert.deepEqual(live.runners.map(({ runner, busy, cpu, ram }) => ({ runner, busy, cpu, ram })), [
     { runner: 1, busy: true, cpu: 92, ram: 97 },
@@ -96,7 +96,7 @@ test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy pe
     { runner: 4, busy: true, cpu: 75, ram: 75 },
   ], 'a sampled busy percent, else load over cores; RAM is the used share; an unsampled runner reads null');
   const text = JSON.stringify(live);
-  for (const secret of [...SECRETS, 'mini']) assert.equal(text.includes(secret), false, `the runner load leaks ${secret}`);
+  for (const secret of [...SECRETS, 'mini', 'runner-a.example.test', '192.0.2.98']) assert.equal(text.includes(secret), false, `the runner load leaks ${secret}`);
   assert.equal(/freeMB|memoryMB|cpus|average|busyPercent/u.test(text), false, 'only the two percents leave the machine');
   assert.deepEqual(loadPercents({ average: [40], cpus: 8, freeMB: 9, memoryMB: 4 }), { cpu: 100, ram: 0 }, 'percents clamp to 0..100');
   assert.deepEqual(loadPercents(null), { cpu: null, ram: null });
