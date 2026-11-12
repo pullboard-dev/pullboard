@@ -91,20 +91,19 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
 
   const box = machine();
   const alpha = project(box, 'snapshot replay');
-  await box.inProcess(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
+  box.run(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'greeting.html');
   sendBack(box, alpha, 1, 'the first greeting needs a correction');
   build(box, alpha, 1, 'greeting-fix.html');
   // Accept the submitted commit from a throwaway coordinator checkout, then always restore main.
   box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
-  // A spawned accept finishes its landing kick before it exits, so the history compared below is settled.
   try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
   finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
   // Exercise the person's decision button so snapshot mode must hide this real mutation control.
-  await box.inProcess(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
-  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
+  box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
+  box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
   const scriptShout = '<script>window.__snapshotShoutRan = true</script>';
-  await box.inProcess(alpha.repo, 'shout', 'all', scriptShout);
+  box.run(alpha.repo, 'shout', 'all', scriptShout);
 
   // Capture the live API state before export; the exported replay must finish at exactly this state.
   const live = await startView(box);
@@ -125,7 +124,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
   const boardId = exportedBoards.boards[0].id;
   const exportedEvents = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events;
-  const fullBoardLog = JSON.parse(await box.inProcess(alpha.repo, 'log', '--json')).events;
+  const fullBoardLog = JSON.parsebox.run(alpha.repo, 'log', '--json').events;
   assert.deepEqual(fullBoardLog, observationEvents, 'the live and exported projections share the same unchanged native history');
   assert.equal(exportedEvents.length, fullBoardLog.length, 'the snapshot exports every board event');
   assert.deepEqual(exportedEvents.map((event) => event.event_id), fullBoardLog.map((event) => event.event_id),
