@@ -59,12 +59,7 @@ async t => {
 test('clause 1: a candidate that changed the proof runner\'s imports is refused by name, and its proof never runs [P7]', { timeout: 180_000 }, // budget: as above.
 async t => {
   const { box, queue, id } = await parityProject(t);
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
-  assert.equal(claimed.code, 0, claimed.err);
-  const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
-  assert.equal(box.helpers.commitFile(box, folder, 'web/run.js', `import { hostname } from 'node:os';\n${RUN}`, `feat(web): runner reads the host [G1]`).status, 0);
-  const submitted = box.run(folder, 'submit', String(id), '--json');
-  assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
+  submitOne(box, id, { path: 'web/run.js', body: `import { hostname } from 'node:os';\n${RUN}`, subject: 'feat(web): runner reads the host [G1]' });
   const steps = join(box.runnerHome, 'refused-steps.jsonl');
   const served = await serveOnce(box, queue.url, 'r-refuse', { PULLBOARD_FIXTURE_STEPS: steps });
   assert.equal(served.code, 0, served.output);

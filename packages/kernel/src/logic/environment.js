@@ -1,15 +1,14 @@
-/** The environment a runner gives every job's processes: runner-owned values only, never the runner service's own [C7]. */
+/** The environment every runner job's processes get: runner-owned values, never the host's [C7]. */
 import { join } from 'node:path';
 
 /**
  * Construct a minimal environment from runner-owned values, excluding caller credentials and markers.
- * Why: a job inherits nothing of the host's HOME, ~/.pullboard or shared temp folder, on a pushed or a pulled runner alike.
  *
- * @param {{ safePath: string, workerId?: string }} S - PATH for the job and its job id.
+ * @param {{ safePath: string, workerId?: string }} S - Job PATH and id.
  * @param {string} home - The job's own HOME.
  * @param {string} temporary - The job's own temp folder.
- * @param {string} [machineHomePath] - PULLBOARD_MACHINE_HOME, when the runner pins one.
- * @param {string} [nodeOptions] - The runner's own NODE_OPTIONS preload.
+ * @param {string} [machineHomePath] - PULLBOARD_MACHINE_HOME, if pinned.
+ * @param {string} [nodeOptions] - The runner's NODE_OPTIONS preload.
  * @returns {Record<string, string>}
  */
 export function childEnvironment(S, home, temporary, machineHomePath = '', nodeOptions = '') {
