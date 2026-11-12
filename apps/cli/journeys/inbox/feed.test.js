@@ -56,6 +56,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 test('worker inbox handles nineteen aliases and forty thousand shouts within one second per read [B7,C7]', t => {
+  // Process-level: wall-clock budget of a separate fixture process.
   const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../tests/fixtures/worker/scale.js')],
     { encoding: 'utf8', timeout: 15_000 });
   assert.equal(result.status, 0, `bounded history fixture: ${result.error?.message ?? ''}\n${result.stderr}\n${result.stdout}`);
@@ -98,14 +99,14 @@ test('inbox reads leave the writer available and acknowledge only after selectio
   assert.equal(reads, 2);
 });
 
-test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', () => {
+test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', async () => {
   const box = e2e.project('true');
   const boardPath = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(boardPath);
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Submission survives a delivery failure',
     criterion: 'The private file is committed.' });
   store.closeBoard(board);
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const committed = e2e.commitFile(box, box.web, 'web/delivery-failure.txt', 'private proof\n', 'feat(web): delivery failure fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
@@ -113,7 +114,7 @@ test('a recorded submit stays successful when its later activity delivery fails 
   // Corrupt only this private derived read state; the authoritative item and move log remain genuine.
   broken.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('activity:web-1:cursor:', '{');
   store.closeBoard(broken);
-  const submitted = box.run(box.web, 'submit', String(id), '--json');
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   const document = JSON.parse(submitted.out);
   assert.equal(document.id, id);
@@ -366,7 +367,7 @@ test('activity cursors leave events arriving during an observation pending [N26]
     'a corrupt old event cannot block delivery from the canonical message table');
 });
 
-test('inbox delivery uses real Git paths and board-bound cursors without consuming later news [R2,N26,H16]', () => {
+test('inbox delivery uses real Git paths and board-bound cursors without consuming later news [R2,N26,H16]', async () => {
   const box = e2e.project();
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   const rowFile = 'web/feed-rows.md';
@@ -400,7 +401,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   const firstNews = store.shout(board, { from: 'coordinator', to: 'all', text: 'First private release.', lanes, news: true });
   const boardId = store.boardId(board);
   store.closeBoard(board);
-  const one = box.run(box.web, 'inbox', '--json');
+  const one = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(one.code, 0, one.err);
   const feed = JSON.parse(one.out);
   assert.ok(feed.shouts.some(shout => shout.shout_text === 'A governing instruction stays direct.'));
@@ -409,21 +410,21 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   assert.deepEqual(feed.activity.interrupts.find(entry => entry.kind === 'main-moved')?.files, [rowFile],
     'the real CLI compares the exact recorded Git base and tip against the active file plan');
   assert.deepEqual(feed.activity.digests.find(digest => digest.kind === 'news')?.shouts, [firstNews]);
-  const continued = box.run(box.web, 'inbox', '--json');
+  const continued = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(continued.code, 0, continued.err);
   assert.deepEqual(JSON.parse(continued.out).activity.entries, []);
   assert.deepEqual(JSON.parse(continued.out).activity.digests, []);
   const again = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const secondNews = store.shout(again, { from: 'coordinator', to: 'all', text: 'Next private release.', lanes, news: true });
   store.closeBoard(again);
-  const sameSession = box.run(box.web, 'inbox', '--json');
+  const sameSession = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(sameSession.code, 0, sameSession.err);
   assert.deepEqual(JSON.parse(sameSession.out).activity.digests, [], 'later news waits for the next session');
   const delivery = readActivityCursor(box.web, 'web-1', boardId);
   const saved = JSON.parse(readFileSync(delivery.file, 'utf8'));
   // Explicit synthetic local delivery state models a restart; no native board identity is changed.
   writeFileSync(delivery.file, JSON.stringify({ ...saved, session: 'older-private-fixture-session' }));
-  const restarted = box.run(box.web, 'inbox', '--json');
+  const restarted = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(restarted.code, 0, restarted.err);
   assert.deepEqual(JSON.parse(restarted.out).activity.digests.find(digest => digest.kind === 'news')?.shouts, [secondNews]);
   assert.equal(readActivityCursor(box.web, 'web-1', 'different-private-board').after, 0, 'another board cannot borrow a cursor');
@@ -432,7 +433,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   rmSync(delivery.file);
   mkdirSync(delivery.file);
   assert.equal(saveActivityCursor(delivery, 1), false, 'a refused cursor save reports failure without hiding it');
-  const refusedSave = box.run(box.web, 'inbox', '--json');
+  const refusedSave = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(refusedSave.code, 0, refusedSave.err);
   const savedFailure = JSON.parse(refusedSave.out);
   const saveDiagnostic = JSON.stringify({ activityPresent: Boolean(savedFailure.activity), diagnostics: savedFailure.diagnostics });
@@ -490,7 +491,7 @@ test('old ordinary shout replay does not become newly typed news [H16,N26]', (t)
 });
 
 
-test('interrupts arrive at once and the digest arrives as a short summary at a break [R2,N26,H16]', t => {
+test('interrupts arrive at once and the digest arrives as a short summary at a break [R2,N26,H16]', async t => {
   const box = e2e.project('true', e2e.sandbox({ declareFamilies: true }));
   const foreignRoot = join(box.dir, 'interrupt-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', foreignRoot, 'main');
@@ -514,7 +515,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
     review: { commit: rejectedCommit, head: rejectedCommit, trunk: base, paths: ['web/interrupt.txt'] } });
   const active = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private lapsing work',
     criterion: 'The private break file is committed.', brief: 'Files: web/interrupt.txt\nTest: preserve the private fixture\n' });
-  const nativeClaim = box.run(box.web, 'claim', String(active), '--json');
+  const nativeClaim = await box.runLocal(box.web, 'claim', String(active), '--json');
   assert.equal(nativeClaim.code, 0, `${nativeClaim.err}\n${nativeClaim.out}`);
   // Shorten only this real native claim's lease; its actual frozen criterion remains unchanged.
   store.claim(board, active, { agentId: 'web-1', lane: 'web', leaseMs: 4 * 60_000, head: base, freeze });
@@ -528,7 +529,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private digest work' });
   store.appendFact(board, other, { agentId: 'coordinator', kind: 'note', text: 'PRIVATE_RAW_STATUS_MUST_NOT_BE_DIGEST_TEXT' });
   const claimBefore = store.getItem(board, active);
-  const first = box.run(box.web, 'inbox', '--json');
+  const first = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(first.code, 0, first.err);
   const feed = JSON.parse(first.out).activity;
   assert.ok(Array.isArray(feed.interrupts), 'the actual inbox separates actionable interrupts from the digest');
@@ -541,7 +542,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   assert.ok(delivered.length, 'delivery is recorded on the canonical board, not just a checkout cursor');
   assert.ok(delivered.every(event => event.event_by === 'web-1'), 'the recipient owns its delivery receipts');
   assert.deepEqual(store.getItem(board, active), claimBefore, 'delivery grants no claim or lease authority');
-  const again = box.run(box.web, 'inbox', '--json');
+  const again = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(again.code, 0, again.err);
   // #1885: delivered obligations stay pending by id on a repeat read; they are never replayed as text.
   assert.deepEqual(JSON.parse(again.out).activity.interrupts, [], 'a repeat read replays no delivered interrupt');
@@ -550,21 +551,21 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   assert.deepEqual(JSON.parse(again.out).activity.digests, [], 'ordinary checks do not deliver the digest');
   const ids = feed.interrupts.map(entry => entry.id).join(',');
   const beforeForeign = exportBoard(board);
-  const foreign = box.run(foreignRoot, 'inbox', '--acted-on', ids, '--json');
+  const foreign = await box.runLocal(foreignRoot, 'inbox', '--acted-on', ids, '--json');
   assert.equal(JSON.parse(foreign.out).error?.code, 'ACTIVITY_NOT_DELIVERED');
   assert.deepEqual(exportBoard(board), beforeForeign, 'another recipient cannot acknowledge these obligations');
-  const acted = box.run(box.web, 'inbox', '--acted-on', ids, '--json');
+  const acted = await box.runLocal(box.web, 'inbox', '--acted-on', ids, '--json');
   assert.equal(acted.code, 0, acted.err);
   assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
   const actedEvents = store.events(board).filter(event => event.event_kind === 'activity-acted');
   assert.equal(actedEvents.length, 1);
   assert.deepEqual(new Set(JSON.parse(actedEvents[0].event_detail).interrupts), new Set(feed.interrupts.map(entry => entry.id)));
   store.appendFact(board, other, { agentId: 'coordinator', kind: 'note', text: 'SECOND_PRIVATE_RAW_STATUS_BODY' });
-  const beforeBreak = box.run(box.web, 'inbox', '--json');
+  const beforeBreak = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(beforeBreak.code, 0, beforeBreak.err);
   assert.deepEqual(JSON.parse(beforeBreak.out).activity.digests, [], 'new digest activity waits for a natural break');
   assert.equal(e2e.commitFile(box, box.web, 'web/after-break.txt', 'private submit break\n', 'feat(web): submit break [G1]').status, 0);
-  const submitted = box.run(box.web, 'submit', String(active), '--json');
+  const submitted = await box.runLocal(box.web, 'submit', String(active), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   const summary = JSON.parse(submitted.out).activity;
   assert.ok(summary.digests.length, 'the actual successful submit delivers the pending short digest');
@@ -676,6 +677,7 @@ test('pullboard inbox answers in under a second on a 40,000-shout backlog and ma
 function timedInbox(box, board, seat) {
   const expected = store.inbox(board, seat, { markRead: false }).map(shout => shout.shout_id);
   // A first poll of a long backlog prints every shout, so the buffer is sized for the whole answer.
+  // Process-level: the CPU-time hook is injected with --import into a real CLI process.
   const cpuHook = 'data:text/javascript,process.on("exit",()=>{const u=process.cpuUsage();process.stderr.write("CPU_MS="+(u.user+u.system)/1000)})';
   const result = spawnSync(process.execPath, ['--import', cpuHook, join(import.meta.dirname, '../../pullboard.js'), 'inbox', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
@@ -687,7 +689,7 @@ function timedInbox(box, board, seat) {
   return { shoutIds, ms };
 }
 
-test('an inbox check over its budget summarizes the rest and names what it left out [R2,N26,H16]', () => {
+test('an inbox check over its budget summarizes the rest and names what it left out [R2,N26,H16]', async () => {
   const box = e2e.project();
   const configPath = join(box.web, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -699,7 +701,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
     text: `Private budget message ${index}: ${'界'.repeat(350)}`, lanes: ['web', 'api'] });
   const before = exportBoard(board);
   store.closeBoard(board);
-  const result = box.run(box.web, 'inbox', '--json');
+  const result = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(result.code, 0, result.err);
   assert.ok(Buffer.byteLength(result.out, 'utf8') <= 1024,
     'the complete JSON delivery fits the configured conservative UTF-8 byte token budget');
@@ -709,7 +711,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
   assert.equal(delivered.budget.omitted.shout, 12, 'every omitted message is counted once, not again as activity');
   assert.match(delivered.budget.summary, /12 shout/u, 'the summary names the omitted count and kind');
   assert.doesNotMatch(result.out, /Private budget message/u, 'oversized messages are summarized rather than partly leaked');
-  const again = box.run(box.web, 'inbox', '--json');
+  const again = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(again.code, 0, again.err);
   const continued = JSON.parse(again.out);
   assert.equal(continued.shouts.length, 0, 'summarized messages are acknowledged rather than repeated forever');
@@ -721,7 +723,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
   store.closeBoard(unchanged);
 });
 
-test('inbox budgets retain small deliveries and bound text without clipping messages [R2,N26]', () => {
+test('inbox budgets retain small deliveries and bound text without clipping messages [R2,N26]', async () => {
   const box = e2e.project();
   const configPath = join(box.web, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -731,7 +733,7 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.shout(board, { from: 'coordinator', to: 'web-1', text: 'An oversized message: ' + '界'.repeat(350), lanes: ['web'] });
   store.closeBoard(board);
-  const text = box.run(box.web, 'inbox');
+  const text = await box.runLocal(box.web, 'inbox');
   assert.equal(text.code, 0, text.err);
   assert.ok(Buffer.byteLength(text.out) <= 1024);
   assert.match(text.out, /1 shout/u);
@@ -742,18 +744,18 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   const reopened = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.shout(reopened, { from: 'coordinator', to: 'web-1', text: 'Ready.', lanes: ['web'] });
   store.closeBoard(reopened);
-  const small = box.run(box.web, 'inbox', '--json');
+  const small = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(small.code, 0, small.err);
   assert.ok(Buffer.byteLength(small.out) <= 2048);
   assert.equal(JSON.parse(small.out).shouts[0]?.shout_text, 'Ready.');
   config.inbox.tokenBudget = 1;
   writeFileSync(configPath, JSON.stringify(config));
-  const invalid = box.run(box.web, 'inbox', '--json');
+  const invalid = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(invalid.code, 1);
   assert.equal(JSON.parse(invalid.out).error.code, 'BAD_CONFIG');
 });
 
-test('inbox budgets withhold interrupt receipts until the whole interrupt is rendered [R2,N26,H16]', () => {
+test('inbox budgets withhold interrupt receipts until the whole interrupt is rendered [R2,N26,H16]', async () => {
   const box = e2e.project();
   const configPath = join(box.web, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -768,7 +770,7 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   const id = `event:${answer.event_id}`;
   const bodies = exportBoard(board).tables.shout;
   store.closeBoard(board);
-  const small = box.run(box.web, 'inbox', '--json');
+  const small = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(small.code, 0, small.err);
   assert.ok(Buffer.byteLength(small.out) <= 1024);
   const withheld = JSON.parse(small.out);
@@ -781,20 +783,20 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
     .every(event => !JSON.parse(event.event_detail).interrupts.includes(id)), 'a summary is not an interrupt delivery receipt');
   assert.deepEqual(exportBoard(recorded).tables.shout, bodies, 'canonical source bodies stay intact');
   store.closeBoard(recorded);
-  const premature = box.run(box.web, 'inbox', '--acted-on', id, '--json');
+  const premature = await box.runLocal(box.web, 'inbox', '--acted-on', id, '--json');
   assert.equal(JSON.parse(premature.out).error?.code, 'ACTIVITY_NOT_DELIVERED');
   config.inbox.tokenBudget = 8192;
   writeFileSync(configPath, JSON.stringify(config));
-  const enlarged = box.run(box.web, 'inbox', '--json');
+  const enlarged = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(enlarged.code, 0, enlarged.err);
   assert.ok(Buffer.byteLength(enlarged.out) <= 8192);
   assert.deepEqual(JSON.parse(enlarged.out).activity.interrupts.map(interrupt => interrupt.id), [id],
     'a withheld fresh obligation survives both canonical and local cursor advancement');
-  const repeat = box.run(box.web, 'inbox', '--json');
+  const repeat = await box.runLocal(box.web, 'inbox', '--json');
   // #1885: a repeat read names the delivered, unacted obligation by id and never re-lists its text.
   assert.deepEqual(JSON.parse(repeat.out).activity.interrupts, [], 'a delivered interrupt is not replayed');
   assert.deepEqual(JSON.parse(repeat.out).activity.pending, [id], 'delivery still grants no acted-on authority');
-  const acted = box.run(box.web, 'inbox', '--acted-on', id, '--json');
+  const acted = await box.runLocal(box.web, 'inbox', '--acted-on', id, '--json');
   assert.equal(acted.code, 0, acted.err);
   assert.deepEqual(JSON.parse(acted.out).activity.interrupts, []);
   assert.deepEqual(JSON.parse(acted.out).activity.pending, [], 'an acted-on interrupt leaves the pending list');
