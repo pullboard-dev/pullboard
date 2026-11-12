@@ -499,6 +499,10 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
     print: fingerprint(summary), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
 }
 
+/** A cached build with its idle minutes current for the observed time, its summary views derived again only when they changed. */
+const withCurrentIdle = (entry, at) => store.idleEntry(entry, at, state => { const summary = { ...state, items: state.items.map(itemSummary) };
+  return { summary, summaryFields: prepareStateJson(summary), print: fingerprint(summary) }; });
+
 /** Per-read projections, including observation time, are not part of a cached build fingerprint. */
 const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
@@ -981,12 +985,13 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     const before = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
     const cached = stateCache.get(before.cacheId);
     if (before.cacheable && cached?.revision === before.revision && nativeStateClockMatches(cached.clockWindow, observedAt)) {
-      const result = read(cached, true);
+      const live = withCurrentIdle(cached, observedAt);
+      const result = read(live, true);
       const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
       if (after.cacheable && after.revision === before.revision) {
-        cached.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
+        live.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
         stateCache.delete(before.cacheId);
-        stateCache.set(before.cacheId, cached);
+        stateCache.set(before.cacheId, live);
         return result;
       }
     }
@@ -1015,13 +1020,13 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
       statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
-    const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
+    const entry = withCurrentIdle(snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
       inputs: before.inputs,
       itemMeta: built.itemMeta,
       itemMoveCounts: built.itemMoveCounts,
       clockWindow: built.clockWindow,
       comparisonHistory: built.history,
-    });
+    }), observedAt);
     entry.cacheId = before.cacheId;
     const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
     // Missing Git objects can arrive without a board event or trunk move; retry that uncertainty. A build the

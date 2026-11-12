@@ -10,10 +10,7 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
   function consider(at) {
     if (Number.isFinite(at) && at > observedAt && (nextChange === null || at < nextChange)) nextChange = at;
   }
-  for (const item of state.items ?? []) {
-    const lastActivity = Date.parse(item.progress?.lastActivity);
-    if (Number.isFinite(lastActivity)) consider(lastActivity + (Math.floor((observedAt - lastActivity) / 60_000) + 1) * 60_000);
-  }
+  // An item's idle minute is not a window boundary: it moves every second across a board and is patched on read, not rebuilt.
   for (const agent of state.agents ?? []) {
     const at = Date.parse(agent.lastMoveAt);
     // The activity window includes the exact four-hour boundary.
@@ -37,4 +34,35 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
 /** A cached piecewise state remains valid only forward within its measured clock interval. */
 export function nativeStateClockMatches(window, observedAt) {
   return Boolean(window && observedAt >= window.observedAt && (window.nextChange === null || observedAt < window.nextChange));
+}
+
+/**
+ * Re-derive every idle-minute reading in a cached build for the observed time, without rebuilding the board state.
+ * The result stays exact until the earliest next item boundary, so an unchanged minute reuses it as it is.
+ *
+ * @param {object} entry - The cached build: its state, items lookup and previous idle window.
+ * @param {number} observedAt - The observed wall-clock time in milliseconds.
+ * @param {Function} derive - Given the patched state, returns the summary, summaryFields and print the entry carries.
+ * @returns {object} The same entry, or a copy with the patched state and its derived views.
+ */
+export function idleEntry(entry, observedAt, derive) {
+  if (entry.idleNext !== undefined && observedAt >= entry.idleAt && observedAt < entry.idleNext) return entry;
+  let next = Infinity;
+  const idle = progress => {
+    const at = Date.parse(progress?.lastActivity);
+    if (!Number.isFinite(at)) return progress;
+    const minutes = Math.max(0, Math.floor((observedAt - at) / 60_000));
+    next = Math.min(next, at + (minutes + 1) * 60_000);
+    return minutes === progress.idleMinutes ? progress : { ...progress, idleMinutes: minutes };
+  };
+  const items = entry.state.items.map(item => item.progress ? { ...item, progress: idle(item.progress) } : item);
+  const milestones = (entry.state.milestones ?? []).map(milestone => {
+    if (!Array.isArray(milestone.items) || !milestone.progress) return milestone;
+    const ordered = milestone.items.map(row => row.progress ? { ...row, progress: idle(row.progress) } : row);
+    const known = ordered.map(row => row.progress).filter(Boolean);
+    return { ...milestone, items: ordered, progress: { ...milestone.progress, idleMinutes: known.length ? Math.min(...known.map(row => row.idleMinutes)) : null } };
+  });
+  const state = { ...entry.state, items, ...(entry.state.milestones ? { milestones } : {}) };
+  return { ...entry, state, ...derive(state), stateJsonFields: null, compact: undefined, compactFields: undefined,
+    items: new Map(state.items.map(item => [item.id, item])), idleAt: observedAt, idleNext: next };
 }
