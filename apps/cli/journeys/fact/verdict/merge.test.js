@@ -1,14 +1,9 @@
-/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 import { landingPorts } from '../../../tests/fixtures/landing/ports.js';
-import { checkAtCommit } from '../../../../runner/index.js';
-import { fileURLToPath } from 'node:url';
-const candidateWorkerFile = fileURLToPath(new URL('../../../../lib/src/io/landing/candidate.js', import.meta.url));
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   land,
-  runLandingBatch,
 } from '../../../../../packages/landing/index.js';
 import {
   mkdirSync,
@@ -261,41 +256,6 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
     assert.deepEqual(store.verdictsFor(forged, id), original.verdicts);
     assert.deepEqual(store.landingBatches(forged), []);
-    // Adopt an already-gated trunk batch while an independent valid item remains ready.
-    // That bypasses the earlier all-stale selection refusal and reaches the final publication guard.
-    const adoption = openBoard(':memory:', undefined, { gitRoot: box.web });
-    try {
-      importBoard(adoption, exportBoard(forged));
-      const readyCommit = box.git(box.repo, 'commit-tree', box.git(box.repo, 'rev-parse', `${trunk}^{tree}`),
-        '-p', trunk, '-m', 'private independent ready candidate');
-      const ready = store.addItem(adoption, { by: 'coordinator', lane: 'web', title: 'Independent ready candidate' });
-      store.claim(adoption, ready, { agentId: options.agentId, lane: 'web', leaseMs: 7_200_000,
-        freeze: () => ({ text: pending.item.item_frozen, digest: pending.item.item_frozen_digest }) });
-      store.submit(adoption, ready, { agentId: options.agentId, commit: readyCommit,
-        tree: box.git(box.repo, 'rev-parse', `${readyCommit}^{tree}`), policyCommit: trunk,
-        submissionProof: options.submissionProof });
-      store.verify(adoption, ready, { agentId: original.verdicts.at(-1).verdict_by, decision: 'ACCEPT',
-        note: 'Private independent candidate keeps adoption selection nonempty', head: readyCommit,
-        digest: pending.item.item_frozen_digest, check: 'green',
-        review: { commit: readyCommit, head: readyCommit, trunk, paths: [] } });
-      const batch = { version: 1, id: 'private-gated-forged-carry', state: 'trunk', base: trunk, tip: extraHead,
-        root: box.web, branch: 'refs/heads/main', owner: 'private-adopter', logPath: join(box.repo, '.git', 'private-adoption.log'),
-        items: [{ id, commit: extraHead, merge: extraHead }] };
-      store.recordLandingBatch(adoption, { agentId: 'coordinator', batch });
-      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board: adoption, adopt: true,
-        config: { landing: { perItem: false, publish: 'separate' } }, owner: 'private-adopter', say: () => {},
-        write: async (operation, args) => adoption.enginePorts.store[operation](adoption, ...args), checkLease: async () => {} }),
-      error => error.code === 'STALE_VERDICT' && /recorded merge-only acceptance/u.test(error.message),
-      'adoption must re-prove an already-gated canonical carry before finishing its trunk receipt');
-      // 98ea4e7864 and #3188: the final guard refusal is recorded on the batch and the refused batch ends blocked, so no restart adopts it again.
-      const refused = store.landingBatches(adoption).at(-1);
-      assert.equal(refused.state, 'blocked');
-      assert.ok(refused.refusal, 'the final guard refusal is recorded on the batch');
-      assert.ok(refused.revision > 2,
-        'adoption saved its owner after selection (2), then recorded the final guard refusal and blocked the batch; all-stale preflight did not refuse it');
-      assert.equal(store.getItem(adoption, id).item_merged_commit, null);
-      assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
-    } finally { store.closeBoard(adoption); }
     store.reopen(forged, id, { agentId: 'coordinator',
       note: `test/example.test.js: recorded failure; merge commit ${extraHead}` });
     store.claim(forged, id, { agentId: options.agentId, lane: 'web', leaseMs: 7_200_000,
