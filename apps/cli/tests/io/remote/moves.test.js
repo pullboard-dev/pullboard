@@ -1,10 +1,8 @@
-/** @pullboard-test-input apps/cli/pullboard.js */
 /** A seat with board.url set moves a served board through POST /moves and opens no board.sqlite [P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
 import { checkOutSubmitted } from '../../fixtures/api.js';
@@ -12,27 +10,32 @@ import { commitWork } from '../../fixtures/api.js';
 import { FIXTURE_BRIEF } from '../../fixtures/api.js';
 import { FIXTURE_MODEL } from '../../fixtures/testkit.js';
 import { FIXTURE_MODEL_EARLIER } from '../../fixtures/testkit.js';
-import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
+import { runCliInProcess } from '../../fixtures/process.js';
 
-const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
+/** One successful versioned CLI call on the served board's own checkouts, run in this process. */
+async function served(box, cwd, ...args) {
+  const ran = await runCliInProcess([...args, '--json'], { cwd, env: box.env });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  return JSON.parse(ran.stdout);
+}
 
 /** A served board with a builder and a verifier seat, and a boardless clone on its own machine home set to its URL. */
 async function remoteSeats(t) {
   const box = await apiHttpBox(t);
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', FIXTURE_MODEL_EARLIER, '--family', 'claude');
+  const builder = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
+  const verifier = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL_EARLIER, '--family', 'claude');
   const clone = join(box.dir, 'studio');
   runFixtureGit(['clone', '-q', box.root, clone], { cwd: box.dir, env: box.env, stdio: 'pipe' });
   const machine = join(box.dir, 'studio-home');
   mkdirSync(machine);
-  /** Run the real CLI in the clone as one seat without blocking the in-process server. */
-  const run = (seat, ...args) => runFixtureChildAsync(process.execPath, [BIN, ...args],
+  /** Run the real CLI dispatch in the clone as one seat, awaited, so the in-process server keeps answering. */
+  const run = (seat, ...args) => runCliInProcess(args,
     { cwd: clone, env: { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: seat.agent } });
   assert.equal((await run(builder, 'settings', 'board.url', box.origin)).status, 0);
   assert.equal((await run(builder, 'settings', 'board.token', '--', box.key)).status, 0);
   /** File one item on the served board from the board host. */
-  const add = (title) => box.cli(box.root, 'add', 'app', title, '--specs', 'G1', '--criterion', 'Move it by URL', '--brief', FIXTURE_BRIEF).item.item_id;
+  const add = async (title) => (await served(box, box.root, 'add', 'app', title, '--specs', 'G1', '--criterion', 'Move it by URL', '--brief', FIXTURE_BRIEF)).item.item_id;
   /** The served board's summary row for one item. */
   const row = async (id) => (await box.call(`${box.path}/state`)).document.state.items.find((entry) => entry.id === id);
   return { box, builder, verifier, clone, run, add, row };
@@ -50,10 +53,10 @@ async function moved(seats, seat, ...args) {
   return JSON.parse(ran.stdout);
 }
 
-test('next, claim, fact and release from a boardless clone change the served board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and eight CLI children, not a throughput claim.
+test('next, claim, fact and release from a boardless clone change the served board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and eight CLI calls, not a throughput claim.
 async (t) => {
   const seats = await remoteSeats(t);
-  const id = seats.add('Remote movable item');
+  const id = await seats.add('Remote movable item');
   const offered = await moved(seats, seats.builder, 'next');
   assert.equal(offered.item.item_id, id, 'next claimed the open item on the served board');
   assert.equal((await seats.row(id)).status, 'claimed');
@@ -69,10 +72,10 @@ async (t) => {
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 });
 
-test("submit and verify post through /moves and print the served board's result [P7]", { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI children, not a throughput claim.
+test("submit and verify post through /moves and print the served board's result [P7]", { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI calls, not a throughput claim.
 async (t) => {
   const seats = await remoteSeats(t);
-  const id = seats.add('Remote reviewed item');
+  const id = await seats.add('Remote reviewed item');
   await moved(seats, seats.builder, 'claim', String(id));
   commitWork(seats.box, seats.builder, id);
   const submitted = await seats.run(seats.builder, 'submit', String(id));
@@ -97,13 +100,13 @@ function refusalLines(ran) {
   return { code, next };
 }
 
-test('a move the served board refuses prints the same code and next: line as the local command [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and five CLI children, not a throughput claim.
+test('a move the served board refuses prints the same code and next: line as the local command [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and five CLI calls, not a throughput claim.
 async (t) => {
   const seats = await remoteSeats(t);
-  const id = seats.add('Remote refused item');
+  const id = await seats.add('Remote refused item');
   await moved(seats, seats.builder, 'claim', String(id));
   const remote = refusalLines(await seats.run(seats.verifier, 'claim', String(id)));
-  const local = refusalLines(await runFixtureChildAsync(process.execPath, [BIN, 'claim', String(id)], { cwd: seats.verifier.path, env: seats.box.env }));
+  const local = refusalLines(await runCliInProcess(['claim', String(id)], { cwd: seats.verifier.path, env: seats.box.env }));
   assert.deepEqual(remote, local, 'claiming a held item refuses alike by URL and on the board host');
   const json = await seats.run(seats.verifier, 'claim', String(id), '--json');
   assert.equal(json.status, 1);
