@@ -50,7 +50,7 @@ test('legacy machine and board sessions are scrubbed before an agent read or fre
   assert.equal(existsSync(otherLegacyFile), false, 'a retired atomic-write session fragment is deleted too');
   assert.equal(existsSync(machineFragment), false, 'a crashed legacy machine write cannot retain person authority');
   assert.deepEqual(readFileSync(box.keyFile), keyBefore, 'scrubbing person sessions preserves the paired board key');
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.code, 0, 'the board remains readable while foreground reauthentication is required');
   assert.equal(existsSync(linkFragment), false, 'the link lock removes a crashed legacy person-bearing write');
   const scrubbed = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -68,7 +68,7 @@ test('legacy machine and board sessions are scrubbed before an agent read or fre
   delete noToken.token; delete noToken.tokenId;
   writeFileSync(box.linkFile, JSON.stringify(noToken), { mode: 0o600 });
   writeFileSync(legacyFile, JSON.stringify({ v: 1, token: phone.token, id: phone.id, url: box.origin }), { mode: 0o600 });
-  assert.equal((await box.cli('status')).code, 0, 'the session-file-era link migrates without loading its credential');
+  assert.equal((await box.cliLocal('status')).code, 0, 'the session-file-era link migrates without loading its credential');
   assert.equal(existsSync(legacyFile), false);
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).personReauth, true);
   assert.equal((await box.cliLocal('relay', 'on', '--url', box.origin)).code, 0);
