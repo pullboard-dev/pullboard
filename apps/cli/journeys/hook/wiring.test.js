@@ -1,4 +1,5 @@
 /** @pullboard-world-pin: clause 2 reads this repo's own .githooks/pre-commit to prove its static check runs inside the hook process. */
+/** @pullboard-test-loads packages/gate/src/io/changed/scripts/static.js */
 import assert from 'node:assert/strict';
 import {
   existsSync,
