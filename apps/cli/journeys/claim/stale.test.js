@@ -26,7 +26,7 @@ function goneFolder(box, id, { commit }) {
     mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, 'web/earlier.txt'), 'ported work\n');
     box.git(box.web, 'add', 'web/earlier.txt');
-    box.git(box.web, 'commit', '-q', '-m', 'earlier work');
+    box.git(box.web, 'commit', '-q', '-m', 'feat(web): earlier work [G1]');
     box.git(box.web, 'switch', '-q', '-');
     box.git(box.web, 'branch', '-m', `web/early-${id}`, branch);
     box.git(box.repo, 'worktree', 'add', '-q', path, branch);
