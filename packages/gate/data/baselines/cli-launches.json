@@ -201,7 +201,7 @@
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/main.test.js": {
-    "launch": 8
+    "launch": 5
   },
   "apps/cli/journeys/study/metrics.test.js": {
     "launch": 2
@@ -283,9 +283,6 @@
   },
   "packages/codemap/tests/logic/layout.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/relay/person/actions.test.js": {
-    "launch": 7
   },
   "packages/runners/tests/io/source/cache.test.js": {
     "launch": 3
@@ -634,9 +631,6 @@
   },
   "apps/cli/journeys/gate/workflows.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/submit/wait.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/shout/item.test.js": {
     "launch": 1
@@ -1158,7 +1152,7 @@
     "launch": 6
   },
   "apps/cli/journeys/inbox/events.test.js": {
-    "launch": 12
+    "launch": 1
   },
   "packages/gate/tests/run-tests-timeout.test.js": {
     "launch": 3
@@ -1218,7 +1212,7 @@
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
-    "launch": 10
+    "launch": 4
   },
   "packages/link/tests/logic/relay/poll.test.js": {
     "launch": 1
@@ -1415,9 +1409,6 @@
   "apps/cli/journeys/test/warning.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/merged/ratchet.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/lifecycle/merge.test.js": {
     "launch": 1
   },
@@ -1450,9 +1441,6 @@
   },
   "apps/cli/journeys/runner/deadline.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/show/folder.test.js": {
-    "launch": 29
   },
   "apps/cli/journeys/fact/landing/red.test.js": {
     "launch": 1
@@ -1497,7 +1485,7 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/fail.test.js": {
-    "launch": 11
+    "launch": 4
   },
   "apps/cli/journeys/flakes/main.test.js": {
     "launch": 3
@@ -1864,9 +1852,6 @@
   },
   "apps/cli/journeys/relay/local/first/key.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/intake/main.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/submit/handoff/queued.test.js": {
     "launch": 2
