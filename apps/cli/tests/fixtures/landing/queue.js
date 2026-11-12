@@ -528,7 +528,9 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   const wakeFile = join(directory, 'wake.json');
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
+  console.log('# z2 before first land');
   run(box, box.repo, 'land', '--max', '1');
+  console.log('# z2 after first land');
   // The actual first landing must schedule this worker; no second nudge can consume its expected generation.
   await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters');
   const liveOwner = readMainAudit(join(directory, 'owner.json'));
@@ -536,6 +538,7 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const enteredRoot = readFileSync(entered, 'utf8');
   assert.ok(readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
     .some(name => readMainAudit(join(directory, name))?.directory === enteredRoot), 'the held gate belongs to a recorded source job');
+  console.log('# z2 entered');
   writeFileSync(released, 'released');
   const sourceJob = await helpers.waitFor(() => { // Budget: 120s runaway ceiling for an actual detached native gate and closed wake.
     const done = readMainAudit(join(directory, 'settled.json'));
@@ -544,6 +547,7 @@ export async function sourceAdvancePolicyCase(t, helpers) {
       .map(name => readMainAudit(join(directory, name)))
       .find(job => job.item === entries[0].id && job.state === 'advanced' && job.receiptIds?.length);
   }, 'the genuine source-advance gate closes its expected generation', 120_000);
+  console.log('# z2 source job done');
   const finalGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
   run(box, box.repo, 'land', '--max', '1');
   await closePolicySourceWake(box, helpers, finalGeneration);
