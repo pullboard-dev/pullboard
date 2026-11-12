@@ -131,6 +131,9 @@ export async function main(rawArgv, streams) {
   }
 }
 
+// The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify']);
+
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
@@ -205,11 +208,12 @@ async function runMain(argv, streams) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
-  // A seat whose board lives on another host reads it over HTTP and opens no board.sqlite [P7].
-  if (parsed && !parsed.values.help && !parsed.values.version && ['show', 'whoami'].includes(parsed.positionals[0])) {
+  // A seat whose board lives on another host reads and moves it over HTTP and opens no board.sqlite [P7].
+  if (parsed && !parsed.values.help && !parsed.values.version && REMOTE_COMMANDS.has(parsed.positionals[0])) {
     const remote = await import('../remote/board.js');
     const target = remote.remoteBoard();
-    if (target) return remote.runRemoteRead(io, parsed, target);
+    if (target && ['show', 'whoami'].includes(parsed.positionals[0])) return remote.runRemoteRead(io, parsed, target);
+    if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
