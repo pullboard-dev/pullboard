@@ -46,8 +46,8 @@ function setup(wholeCoverage = false) {
   for (const path of [bin,worker,home,join(home,'.pullboard'),machine]) mkdirSync(path,{recursive:true});
   installSshStandIn({bin,worker,home,machineHome:join(home,'.pullboard'),requests:join(box.dir,'baseline-ssh.jsonl'),nodeCommand:process.execPath});
   box.env.PATH=`${bin}:${box.env.PATH}`;
-  fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{browserFreeChecks:true,timingRunner:false},
-    runners:[{host:HOST,slots:1,browser:1,node:process.execPath,root:join(home,'.pullboard-runner')}]});
+  fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{runnerDispatch:'controller',browserFreeChecks:true,timingRunner:false},
+    runners:[{host:HOST,slots:2,browser:2,node:process.execPath,root:join(home,'.pullboard-runner')}]});
   succeeds(act(box,'private-author-a',box.repo,'join','coordinator','--model','Private author'));
   mkdirSync(join(box.repo,'test'));
   writeFileSync(join(box.repo,'test/witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
@@ -76,7 +76,7 @@ function add(box,author,person = false) {
   const result=succeeds(run('add','web','Ready output','--criterion','web/ready.txt exists','--specs','G1','--route','mid','--check',check,'--wait',
     '--brief',`Files: web/ready.txt${box.wholeEvidence ? ', test/witness.test.mjs' : ''}\nTest: named witness asserts the output exists\nNamed test: named witness\nMeasurements: no quantitative bounds\nReviewer edges: absent output and restart`,'--json'));
   const item=JSON.parse(result.out).item;
-  assert.equal(item.item_check_baseline.result,'red');
+  assert.equal(item.item_check_baseline.result,'red',JSON.stringify(item.item_check_baseline).slice(0,1500));
   assert.ok(item.item_check_baseline.testEvidence.failed.some(name=>name.includes('named witness')));
   return item.item_id;
 }
