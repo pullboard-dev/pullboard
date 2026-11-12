@@ -7,6 +7,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import cp from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import {
   after,
   test,
@@ -29,6 +31,9 @@ test('claim reads trunk config and worktree list once [C7]', { timeout: 60_000 }
   const real = box.env.PATH.split(':').map(dir => join(dir, 'git')).find(path => { try { return readFileSync(path).length > 0 && path !== join(bin, 'git'); } catch { return false; } });
   writeFileSync(join(bin, 'git'), `#!/bin/sh\necho "$*" >> "${log}"\nexec "${real}" "$@"\n`);
   chmodSync(join(bin, 'git'), 0o755);
+  const stacks = []; const orig = cp.spawnSync;
+  cp.spawnSync = function (c, a, ...r) { if (Array.isArray(a) && a.includes('worktree') && a.includes('list')) stacks.push(new Error().stack.split('\n').slice(2, 8).map(x => x.replace(/.*item-6167\//u, '')).join(' < ')); return orig.call(this, c, a, ...r); };
+  syncBuiltinESMExports();
   const claim = await runCliInProcess(['claim', String(id)], { cwd: box.web, env: { ...box.env, PATH: `${bin}:${box.env.PATH}` } });
   assert.equal(claim.code, 0, claim.err);
   const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean);
@@ -36,5 +41,5 @@ test('claim reads trunk config and worktree list once [C7]', { timeout: 60_000 }
   const trees = calls.filter(call => /\bworktree list\b/u.test(call));
   assert.ok(trunk.length >= 1, `the shim saw no trunk read in ${calls.length} git calls`);
   assert.ok(trunk.length <= 1, `claim read pullboard.trunk ${trunk.length} times:\n${trunk.join('\n')}`);
-  assert.ok(trees.length <= 1, `claim ran worktree list ${trees.length} times:\n${trees.join('\n')}`);
+  assert.ok(trees.length <= 1, `claim ran worktree list ${trees.length} times:\n${stacks.join('\n')}`);
 });
