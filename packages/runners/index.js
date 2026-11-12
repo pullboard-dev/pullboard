@@ -35,6 +35,7 @@ export { PULL_MODES } from './src/io/pull/serve.js';
 export { packText, commitWork, runItems } from "./src/io/run.js";
 /** Private runner checkout reuse behind the runner cell's front door [C7,P3]. */
 export { hostedItemFolderPath, hostedFolderScript, runOnRunnerShell, createHostedItemFolder, runInHostedItemFolder, returnHostedBranch, pushHostedItemBranch } from './src/io/worktree.js';
+export { cachedTrunkPack, servedTrunkPack } from './src/io/worktree.js';
 export { borrowWarmCheckout, snapshotWarmCheckout, recycleWarmCheckout, discardWarmCheckout } from './src/io/checkouts.js';
 export { captureSubmitTooling, prepareSubmitToolingRetry, retrySubmitTooling } from './src/io/retry.js';
 export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupProcessText } from './src/logic/diagnostics.js';

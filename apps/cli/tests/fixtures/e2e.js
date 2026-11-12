@@ -31,6 +31,8 @@ import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
+import { fixtureMachineSettings } from './testkit.js';
+import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
@@ -101,6 +103,9 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
+  // Journeys here hold their gate in the submitting process, so they pin controller dispatch and the default may move to pull [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
@@ -354,7 +359,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.check = { install, timeout };
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  fixtureProjectPolicy(box.repo, { config });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
