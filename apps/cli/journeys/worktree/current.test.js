@@ -33,7 +33,7 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 
-// Process-level by nature, so every box.run below stays a real process (10 launches, no in-process form exists):
+// Process-level by nature, so every box.run below stays a real process (9 launches, no in-process form exists):
 // each one starts a copied CLI entry (or its pre-commit hook launcher) to prove that entry's own start-up,
 // stale-worktree handover and PULLBOARD_OWN_CLI behaviour, which runCliInProcess and box.runLocal skip by calling main() directly.
 const SOURCE = resolve(import.meta.dirname, '../../../..');
