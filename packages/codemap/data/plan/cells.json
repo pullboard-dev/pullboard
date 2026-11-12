@@ -2243,6 +2243,7 @@
     "apps/cli->apps/lib/src",
     "landing->resources",
     "landing->runners",
+    "landing->sandbox",
     "link->store",
     "merge->git",
     "outbox->store",
