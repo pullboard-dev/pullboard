@@ -441,7 +441,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       if (req.method === 'PUT' && snapshot) {
         const id = identity(snapshot[1]);
         sender(await authorizedRequest(req, id, true), 'snapshot');
-        const body = await readApiBody(req, { maxBytes: SNAPSHOT_BODY });
+        const body = await readApiBody(req, { maxBytes: SNAPSHOT_BODY, uploadRefusal: true });
         const bytes = sealed(body);
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
         const who = await authorizedRequest(req, id, true);
