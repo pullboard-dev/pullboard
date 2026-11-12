@@ -29,10 +29,15 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { commandDocs } from '../../../src/io/docs.js';
 import { readTestOutcomes } from '../../../../../packages/gate/index.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
+import { runResident } from '../../../src/io/resident/client.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { withFixtureBoard } from '../../fixtures/testkit.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
@@ -368,4 +373,42 @@ test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   assert.notEqual(absent.status, 0, `${absent.stdout}${absent.stderr}`);
   assert.match(absent.stderr, /NO_TESTS_MATCHED/u, `${absent.stdout}${absent.stderr}`);
   assert.equal(readFileSync(box.marker, 'utf8'), 'x', 'a discarded filter must not run the tracked case again');
+});
+
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
+
+/** A board with one queued test run whose detached worker is a stand-in that never starts. */
+function queuedRunBoard() {
+  const box = e2e.project(undefined, undefined, { withWorktree: false });
+  const commonDir = join(box.repo, '.git');
+  const run = withFixtureBoard(join(commonDir, 'pullboard', 'board.sqlite'), board => queueTestRun({ info: { commonDir, root: box.repo } },
+    work => work(board), { agent: 'seat', files: ['test/a.test.js'] }, { launch: () => ({ unref() {} }) }));
+  return { box, run, commonDir };
+}
+
+test('clause 1: test --status prints the run state without spawning the resident board [C7,#5888]', async () => {
+  const { box, run, commonDir } = queuedRunBoard();
+  const env = { ...box.env, PULLBOARD_RESIDENT: '1' };
+  const quiet = { write() { return true; }, isTTY: false };
+  const started = [];
+  const start = place => started.push(place);
+  assert.equal(await runResident(['test', '--status', run.id], { cwd: box.repo, env, stdout: quiet, stderr: quiet, start }), null);
+  assert.deepEqual(started, [], 'test --status with no resident process reads in-process and starts none');
+  assert.equal(await runResident(['show', '1'], { cwd: box.repo, env, stdout: quiet, stderr: quiet, start }), null);
+  assert.equal(started.length, 1, 'control: another resident command with no process does start one');
+  box.env.PULLBOARD_RESIDENT = '1';
+  const status = box.run(box.repo, 'test', '--status', run.id);
+  assert.equal(status.code, 0, `${status.out}${status.err}`);
+  assert.match(status.out, new RegExp(`test run ${run.id} queued: test/a\\.test\\.js`, 'u'));
+  const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => name.startsWith('resident-'));
+  assert.deepEqual(residents, [], 'no resident board process recorded itself');
+});
+
+test('clause 2: test --status of an unknown run id still refuses with a next step [C7,#5888]', () => {
+  const { box } = queuedRunBoard();
+  const refused = box.run(box.repo, 'test', '--status', '00000000-0000-4000-8000-000000000000');
+  assert.equal(refused.code, 1, `${refused.out}${refused.err}`);
+  assert.match(refused.err, /\[NO_TEST_RUN\]/u);
+  assert.match(refused.err, /^next: /mu);
 });
