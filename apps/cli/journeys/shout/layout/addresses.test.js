@@ -51,6 +51,9 @@ test('clause 2: every tab, filter and search has its own address, and back, forw
     await chrome.send('Input.insertText', { text: 'second' });
     await settled(chrome, "location.search.includes('q=second')");
     places[places.length - 1] = await exact();
+    // Leaving the field puts the results away, as a person's next press does.
+    await press(chrome, "document.querySelector('#crumb-page')");
+    await settled(chrome, "document.querySelector('#find-results').hidden");
     assert.deepEqual([places.at(-1).address, places.at(-1).words, places.at(-1).state], ['/items/2?q=second', 'second', 'all']);
     // Spec's row filter.
     await step("document.querySelector('[data-tab=\"spec\"]')", "location.pathname === '/spec'");
