@@ -930,10 +930,7 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
-    "launch": 27
-  },
-  "apps/cli/journeys/resume/e2e.test.js": {
-    "launch": 26
+    "launch": 2
   },
   "apps/cli/journeys/resume/flow.test.js": {
     "launch": 35
