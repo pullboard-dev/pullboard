@@ -8,9 +8,9 @@ import { test } from 'node:test';
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { closeBoard } from '../../../lib/index.js';
-import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { submitOne } from '../../tests/fixtures/pull.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { openKitBoard } from '../../tests/fixtures/testkit.js';
@@ -65,8 +65,8 @@ async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.sandbox();
-  // Process-level: the tour builds its own throwaway repo, homes and seats in child processes.
-  const shown = await runFixtureChildAsync(process.execPath, [helpers.BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir } });
-  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
-  assert.match(shown.stdout, /submitted #1 at [0-9a-f]{12}/u);
+  // The tour makes its own throwaway homes, so the box's controller pin never reaches it: it gates on the pull default.
+  const shown = await runCliInProcess(['tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir } });
+  assert.equal(shown.code, 0, `${shown.out}${shown.err}`);
+  assert.match(shown.out, /submitted #1 at [0-9a-f]{12}/u);
 });
