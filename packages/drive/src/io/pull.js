@@ -38,6 +38,9 @@ import { pruneStaleSlots } from './prune.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
+// Budget: a renewal that could not reach the board tries again every 3 s until the 2-minute lease has really ended, not at the next 30 s tick.
+const RENEW_RETRY_MS = 3_000;
+const LEASE_MS = 120_000;
 // Budget: the first retry after a failed board call waits 1 s, doubling to at most a minute between tries.
 const BACKOFF = { firstMs: 1_000, maxMs: 60_000 };
 // Budget: an idle runner asks for work every 2 s, one small POST to the board.
@@ -542,7 +545,7 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {(line: string) => void} [options.say]
  * @param {string} [options.unreachableHint] - Logged once a streak of network failures reaches HINT_AFTER: the likely
  *   cause on this host and its fix, so an installed service never retries silently.
- * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
+ * @param {{ renewMs?: number, renewRetryMs?: number, leaseMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
  * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean>, env: Record<string, string> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job. Its cache is the
@@ -557,7 +560,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
-  const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
+  const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
   // Each job's test run takes only its share of the cores, so the serve's jobs together never oversubscribe the runner (#5919).
   const workers = jobWorkers(slots, cores);
@@ -630,17 +633,24 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
-    let lost = false, onLost = () => {};
-    const renewer = setInterval(() => {
+    let lost = false, onLost = () => {}, renewedAt = Date.now(), timer = null, ended = false;
+    const lose = () => { lost = true; onLost(); };
+    // A renewal the board never answered, or answered with its own restart trouble, retries every few seconds until the lease has ended.
+    const renewOnce = () => {
+      if (ended || lost) return;
       queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
-        if (renewed.renewed === false) { lost = true; onLost(); }
+        if (renewed.renewed === false) { lose(); return; }
+        renewedAt = Date.now(); timer = setTimeout(renewOnce, renewMs);
       }, error => {
-        if (error instanceof BoardUnreachable) { say(`renewal skipped: ${error.message}`); return; }
-        lost = true; onLost();
+        if (error instanceof Refused && error.code === 'JOB_LEASE_MOVED') { lose(); return; }
+        if (Date.now() - renewedAt >= leaseMs) { say(`renewal failed past the lease: ${error.message}`); lose(); return; }
+        say(`renewal skipped: ${error.message}`); timer = setTimeout(renewOnce, renewRetryMs);
       });
-    }, renewMs);
+    };
+    timer = setTimeout(renewOnce, renewMs);
+    const renewer = { stop: () => { ended = true; clearTimeout(timer); } };
     try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }); }
-    finally { clearInterval(renewer); }
+    finally { renewer.stop(); }
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost) => {
