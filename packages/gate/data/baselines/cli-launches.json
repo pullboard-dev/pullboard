@@ -642,7 +642,7 @@
     "launch": 47
   },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/ledger/history.test.js": {
     "launch": 3
