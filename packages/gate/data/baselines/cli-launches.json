@@ -21,7 +21,7 @@
     "launch": 3
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 16
+    "launch": 2
   },
   "apps/cli/journeys/baseline/delivery.test.js": {
     "launch": 1
@@ -39,7 +39,7 @@
     "launch": 2
   },
   "apps/cli/journeys/check-baseline/hold.test.js": {
-    "launch": 16
+    "launch": 1
   },
   "apps/cli/journeys/check-baseline/main.test.js": {
     "launch": 8
@@ -400,9 +400,6 @@
   },
   "apps/cli/journeys/handoff/verdict.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/health/blocks.test.js": {
-    "launch": 15
   },
   "apps/cli/journeys/health/main.test.js": {
     "launch": 1
@@ -933,7 +930,7 @@
     "launch": 4
   },
   "apps/cli/journeys/resources/main.test.js": {
-    "launch": 15
+    "launch": 5
   },
   "apps/cli/journeys/resume/board.test.js": {
     "launch": 1
