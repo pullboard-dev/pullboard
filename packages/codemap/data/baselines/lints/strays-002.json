@@ -178,7 +178,6 @@
     "apps/cli/tests/fixtures/http/stream.js": 1,
     "apps/cli/tests/fixtures/intake.js": 1,
     "apps/cli/tests/fixtures/key.js": 1,
-    "apps/cli/tests/fixtures/land/batch.js": 1,
     "apps/cli/tests/fixtures/land/board.js": 1,
     "apps/cli/tests/fixtures/land/deferred.js": 1,
     "apps/cli/tests/fixtures/land/doctrine.js": 1,
