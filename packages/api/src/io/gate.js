@@ -12,6 +12,7 @@ import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
+import { livePersonWaivers } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
@@ -313,6 +314,33 @@ function caseLines(compared) {
 }
 
 /**
+ * Pair every failing case of a red gate receipt with the person's live waiver covering it, or null. Only a red made
+ * wholly of named test cases can be waived: a job error, infrastructure, a refusal, a phase with no case account, or
+ * one case no live waiver covers voids it, so a waiver never hides another red. The item's own check (the criterion
+ * phase) stays mandatory, as on the controller's submit gate [B3,R3,#655].
+ *
+ * @param {any} board
+ * @param {Record<string, any>} receipt
+ * @returns {{ phase: string, file: string, name: string, waiver: { id: string, kind: string, test: string, until: string, reason: string } }[] | null}
+ */
+function waivedCases(board, receipt) {
+  const gate = receipt?.gate ?? {};
+  if (gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.proofPlan) return null;
+  const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
+  if (!red.length || red.some(phase => ['criterion', 'check'].includes(phase.role) || !Array.isArray(phase.failures) || !phase.failures.length
+    || phase.failures.some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
+  const live = livePersonWaivers(board.db, board.clock.now().getTime());
+  const cases = red.flatMap(phase => phase.failures.map(({ file, name }) => ({ phase: String(phase.role), file, name,
+    waiver: live.findLast(waiver => store.landingWaiverCovers(waiver, { file, name })) ?? null })));
+  return cases.every(row => row.waiver) ? cases : null;
+}
+
+/** One line per waived case: the person's waiver, its reason and its expiry, as the controller's submit names them [B3]. */
+function waiverLines(cases) {
+  return cases.map(({ phase, file, name, waiver }) => `waived: ${phase} ${name} (${file}) by person waiver ${waiver.id} for ${waiver.kind} ${waiver.test}: ${waiver.reason}; expires ${waiver.until}`);
+}
+
+/**
  * Apply one newly recorded gate-job receipt to its item. The receipt counts only while it is for the item's current
  * candidate: the newest gate job offered for the item, its source, still claimed by the seat that submitted it at the
  * same frozen bar. Anything else is stale: the receipt stays recorded on the job and the item is left as it is.
@@ -356,13 +384,15 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     }
   }
   const green = receipt?.status === 0 && receipt?.gate?.green === true;
-  const compared = green ? null : compareGateWithMain(board, receipt, main, compareWithMain);
+  // A red only in tests the person waived is submitted waived, not green, and never compared with main [#655].
+  const waived = green ? null : waivedCases(board, receipt);
+  const compared = green || waived ? null : compareGateWithMain(board, receipt, main, compareWithMain);
   const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true);
   const recorded = compared ? { cases: compared.cases } : {};
   let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
     ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : failingParts(receipt);
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
-  if (green || mainOnly) {
+  if (green || mainOnly || waived) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
@@ -370,9 +400,10 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
       store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green,
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
-        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}` } });
+        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : ''}` } });
+      if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
-      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : waived ? 'waived, not green,' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
       return { applied: true, outcome: 'review', ...recorded };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -380,7 +411,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       parts = [`submit ${error.code}: ${error.message}`];
     }
   }
-  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${green || mainOnly ? 'passed but not submitted' : 'red'} at ${candidate.slice(0, 12)}; failing parts:\n${parts.join('\n')}` });
+  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${green || mainOnly || waived ? 'passed but not submitted' : 'red'} at ${candidate.slice(0, 12)}; failing parts:\n${parts.join('\n')}` });
   // The shout only wakes the builder; the fact above is the record, so a refused shout leaves the red recorded.
   try {
     store.shout(board, { from: 'coordinator', to: submit.agentId, lanes: [], item: id,
@@ -536,6 +567,11 @@ export function applyLandingReceipt(board, { job, receipt }) {
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   if (receipt?.outcome === 'red') recordRedLanding(board, job, named, receipt);
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
+  const waivers = new Map((offered.payload?.waivers ?? []).map(waiver => [waiver.id, waiver]));
+  const waived = (Array.isArray(receipt.waived) ? receipt.waived : []).map(row => {
+    const waiver = waivers.get(row?.waiver);
+    return `waived: ${row?.name} (${row?.file}) by person waiver ${row?.waiver}${waiver ? ` for ${waiver.kind} ${waiver.test}: ${waiver.reason}; expires ${waiver.until}` : ''}`;
+  });
   const merged = [];
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
@@ -543,6 +579,8 @@ export function applyLandingReceipt(board, { job, receipt }) {
     if (item?.item_status !== 'verified' || item.item_merged_commit) continue;
     store.merged(board, id, { agentId: 'coordinator', commit: receipt.trunk, note: `landed by runner job ${job}` });
     merged.push(id);
+    // A landing proof red only in waived tests is recorded on each item it landed, as the controller's waived landing gate was [#655].
+    if (waived.length) store.appendFact(board, id, { agentId: 'coordinator', kind: 'measurement', text: `Land job ${job} landing gate waived, not green, at ${receipt.trunk.slice(0, 12)}:\n${waived.join('\n')}`.slice(0, 2000) });
   }
   return { applied: merged.length > 0, outcome: 'landed', merged };
 }

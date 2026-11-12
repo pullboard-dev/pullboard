@@ -95,8 +95,8 @@ export function commandCheck(argv) {
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean }} payload - checkout:
- *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean, waivers?: object[] }} payload - checkout:
+ *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7]; waivers: the person's live waivers the proof may honour [#655].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed',
@@ -106,7 +106,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
   const { remote, trunk, expect, items } = payload;
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
   const check = checks ?? (payload.check ? commandCheck(payload.check)
-    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof, { env }) : () => ({ ok: true, detail: null }));
+    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] }) : () => ({ ok: true, detail: null }));
   const root = landingCheckout(workdir);
   const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
@@ -138,6 +138,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     admitTrunk(root, { trunk, base });
     const result = await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
+    // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].
+    if (result?.ok && result.waived?.length) receipt.waived = result.waived;
     if (!result?.ok) return done('red', { detail: result?.detail ?? 'the landing check failed' });
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
