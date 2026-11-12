@@ -111,9 +111,23 @@ export async function nextHere(io, values) {
   }
   finally {
     progress.stop(); await monitor?.close();
+    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
+ * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
+ *
+ * @param {any} io
+ * @param {{phase: string, ms: number}[]} phases Slowest first.
+ */
+function sayNextProfile(io, phases) {
+  const write = text => (io.stderr?.write ? io.stderr.write(text + '\n') : io.err?.(text));
+  for (const row of phases) write(`next profile: ${row.phase} ${Math.round(row.ms)} ms`);
+  write(`next profile: total ${Math.round(phases.reduce((sum, row) => sum + row.ms, 0))} ms; slowest three: ${phases.slice(0, 3).map(row => row.phase).join(', ')}`);
 }
 
 /**

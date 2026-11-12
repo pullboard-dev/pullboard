@@ -160,6 +160,10 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   let started = now(), lastIdleNotice = -Infinity;
   let phase = 'startup', item = null, phaseStarted = started, timer = null, warned = false, retries = 0;
   const repeated = new Map();
+  // Profile: every millisecond since started belongs to exactly one named span, so the spans add up to the wall time [N2].
+  const spans = []; let cursor = started, label = 'startup';
+  /** Close the span that has been running since the last cut. */
+  function cut(next) { const at = now(); spans.push({ phase: label, ms: at - cursor }); cursor = at; label = next; }
   /** Keep progress off JSON stdout and retain the actual known item, not an invented candidate. */
   function line() {
     const text = `next phase ${phase}; item ${item === null ? 'not yet selected' : '#' + item}; ${Math.round(now() - phaseStarted)} ms`;
@@ -172,7 +176,7 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   /** Name the next real phase and its item before entering potentially slow work. */
   function enter(name, id = null) {
     check();
-    stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
+    cut(name); stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
     if (monitor) monitor.enter(phase, item);
     else { timer = setTimeout(warn, phaseMs); timer.unref?.(); }
   }
@@ -186,7 +190,7 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   async function run(name, id, work) {
     enter(name, id);
     try { const value = await work(); check(); return value; }
-    finally { stop(); }
+    finally { stop(); cut('between phases'); }
   }
   /** Retry transient peer races finitely; an unchanged refusal cannot create a microtask/SQLite spin. */
   async function retry(found, { until = null, rest = 2_000 } = {}) {
@@ -223,5 +227,12 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
     try { return await work(); }
     finally { started = now(); phaseStarted = started; retries = 0; repeated.clear(); }
   }
-  return { enter, run, retry, idle, stop };
+  /** Phase milliseconds so far, repeated phases summed, slowest first; the last span is closed at this call. */
+  function profile() {
+    cut(label);
+    const total = new Map();
+    for (const span of spans) total.set(span.phase, (total.get(span.phase) ?? 0) + span.ms);
+    return [...total].map(([name, ms]) => ({ phase: name, ms })).sort((a, b) => b.ms - a.ms);
+  }
+  return { enter, run, retry, idle, stop, profile };
 }
