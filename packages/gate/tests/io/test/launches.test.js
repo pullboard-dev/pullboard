@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { cliLaunchSites } from '../../../src/io/test/launches.js';
 import { cliLaunchReport } from '../../../src/io/test/launches.js';
 import { cliLaunchGrowth } from '../../../src/io/test/launches.js';
+import { cliLaunchSplit } from '../../../src/io/test/launches.js';
 import { cliLaunchCounts } from '../../../src/io/test/launches.js';
 import { tightenCliLaunchBaseline } from '../../../src/io/test/launches.js';
 
@@ -73,4 +74,10 @@ test('clause 1: the updater only lowers ceilings and refuses growth without writ
 test('clause 1: the repository has no new CLI launches in its journeys [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL('../../../data/baselines/cli-launches.json', import.meta.url), 'utf8'));
   assert.deepEqual(cliLaunchGrowth(cliLaunchReport(ROOT), baseline), []);
+});
+
+test('clause 1: the report gives each file a pullboard CLI count and an other-child count, with both totals [C7,#5946]', () => {
+  const sites = cliLaunchSites("box.run(a);\nspawnSync(process.execPath, ['--test', 'x.test.js']);\nexecFileSync('node', ['-e', 'x']);\nspawnSync(process.execPath, [BIN, 'show']);", PATH);
+  assert.deepEqual(cliLaunchSplit(sites), { files: { [PATH]: { cli: 2, other: 2 } }, totals: { cli: 2, other: 2 } });
+  assert.deepEqual(cliLaunchCounts(sites), { [PATH]: { launch: 4 } }, 'the ceilings still count both');
 });

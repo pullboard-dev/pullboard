@@ -36,6 +36,7 @@ export { companionPlan, applyCompanionRequest } from './src/io/companion.js';
 export { dispatchWork } from './src/io/eligibility.js';
 export { heldClaim } from './src/io/claim.js';
 export { allItemsNeedingRescope, ineligibleReleaseIds, itemsNeedingRescope, nextWithReleaseCooldown, recentlyReleased, RESCOPE_REASONS } from './src/io/cooldown.js';
+export { jsonChunks, writeJsonChunks } from './src/io/chunks.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/io/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/io/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline } from './src/io/baseline/check.js';
