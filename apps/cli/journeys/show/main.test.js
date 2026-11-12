@@ -50,7 +50,7 @@ function proofDocument(result) {
   return JSON.parse(result.out);
 }
 
-test('the board stamps every proof receipt and show prints the chain [C7,H16]', (t) => {
+test('the board stamps every proof receipt and show prints the chain [C7,H16]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const command = `env -u NODE_TEST_CONTEXT ${JSON.stringify(process.execPath)} --test --test-reporter=tap web/proof.test.js`;
@@ -63,19 +63,19 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   box.git(box.web, 'merge', '--ff-only', 'main');
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
-  const builder = proofDocument(box.run(box.web, 'whoami', '--json')).id;
+  const builder = proofDocument((await box.runLocal(box.web, 'whoami', '--json'))).id;
   const builderParent = 'b'.repeat(64);
   store.register(board, { lane: 'web', path: box.web, parentDigest: builderParent, sessionDigest: builderParent });
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A stamped proof',
     criterion: 'The page is ready.', specIds: ['G1'], check: command });
-  proofDocument(box.run(box.web, 'claim', String(id), '--json'));
-  proofDocument(box.run(box.web, 'check', String(id), '--yes', '--json'));
-  const checked = proofDocument(box.run(box.repo, 'show', String(id), '--json'));
+  proofDocument((await box.runLocal(box.web, 'claim', String(id), '--json')));
+  proofDocument((await box.runLocal(box.web, 'check', String(id), '--yes', '--json')));
+  const checked = proofDocument((await box.runLocal(box.repo, 'show', String(id), '--json')));
   assert.ok(Array.isArray(checked.proofReceipts), 'show exposes the board-stamped receipt chain after a real check');
   assert.ok(checked.proofReceipts.some(receipt => receipt.kind === 'check'), 'the check is recorded without agent text');
   const committed = helpers.commitFile(box, box.web, 'web/ready.txt', 'ready\n', 'feat(web): finish the fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  proofDocument(box.run(box.web, 'submit', String(id), '--json'));
+  proofDocument((await box.runLocal(box.web, 'submit', String(id), '--json')));
   // A changed check input requires a fresh verdict receipt instead of reusing the submit receipt.
   appendFileSync(join(box.repo, 'web/proof.test.js'), '// changed on main before review\n');
   box.git(box.repo, 'add', 'web/proof.test.js');
@@ -86,9 +86,9 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   const reviewer = proofDocument(joinFixtureSeat(box, review, 'web')).agent;
   const reviewerParent = 'c'.repeat(64);
   store.register(board, { lane: 'web', path: review, parentDigest: reviewerParent, sessionDigest: reviewerParent });
-  proofDocument(box.run(review, 'next', '--verify', String(id), '--json'));
-  proofDocument(box.run(review, 'verify', String(id), 'accept', '--json'));
-  const shown = proofDocument(box.run(box.repo, 'show', String(id), '--json'));
+  proofDocument((await box.runLocal(review, 'next', '--verify', String(id), '--json')));
+  proofDocument((await box.runLocal(review, 'verify', String(id), 'accept', '--json')));
+  const shown = proofDocument((await box.runLocal(box.repo, 'show', String(id), '--json')));
   assert.deepEqual(new Set(shown.proofReceipts.map(receipt => receipt.kind)), new Set(['check', 'submit', 'verdict']));
   for (const receipt of shown.proofReceipts) {
     assert.match(receipt.id, /^[a-f0-9-]{36}$/u);
@@ -109,21 +109,21 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   assert.throws(() => store.recordProofRun(board, { agentId: builder, itemId: id,
     receiptId: '00000000-0000-4000-8000-000000000000', receipt: shown.proofReceipts[0] }),
   error => error.code === 'PROOF_RUN_UNBOUND', 'an agent cannot submit its own provenance fields');
-  const plain = box.run(box.repo, 'show', String(id));
+  const plain = (await box.runLocal(box.repo, 'show', String(id)));
   assert.equal(plain.code, 0, plain.err);
   for (const receipt of shown.proofReceipts) assert.ok(plain.out.includes(receipt.id), 'plain show cites receipt ids');
   const before = board.db.prepare('SELECT count(*) AS n FROM shout').get().n;
   const longText = Array(67).fill('proof').join(' ');
   assert.equal(longText.length, 401, 'the readable message crosses the exact length boundary');
-  const long = box.run(box.web, 'shout', 'coordinator', longText, '--kind', 'question', '--json');
+  const long = (await box.runLocal(box.web, 'shout', 'coordinator', longText, '--kind', 'question', '--json'));
   assert.equal(long.code, 1, long.out);
   const refusal = JSON.parse(long.out).error;
   assert.equal(refusal.code, 'SHOUT_TOO_LONG');
   assert.match(`${refusal.message} ${refusal.next}`, /receipt|pullboard show/u);
   assert.equal(board.db.prepare('SELECT count(*) AS n FROM shout').get().n, before);
-  const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--kind', 'question', '--json');
+  const unspaced = (await box.runLocal(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--kind', 'question', '--json'));
   assert.equal(JSON.parse(unspaced.out).error.code, 'SHOUT_SPACES', 'the accepted readability rule remains enforced');
-  proofDocument(box.run(box.web, 'shout', 'all', longText.slice(0, 400), '--json'));
+  proofDocument((await box.runLocal(box.web, 'shout', 'all', longText.slice(0, 400), '--json')));
 });
 
 /** A family emoji: five code points, eight UTF-16 units, one character to a reader. */
@@ -153,7 +153,7 @@ const BREAKS = {
   PS: String.fromCharCode(0x2029),
 };
 
-test('show prints the latest verdict in full and earlier ones as one line; --history and --json print every note [N30]', () => {
+test('show prints the latest verdict in full and earlier ones as one line; --history and --json print every note [N30]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-show-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');

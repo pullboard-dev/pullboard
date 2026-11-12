@@ -113,7 +113,7 @@ test("init's spec has its sections and no rows, and the README's example fits un
 });
 
 test("the coordinator's resume names its next step from the spec and the board, stage by stage [N32, I9]", async () => {
-  const next = (box, cwd) => /^next: (.*)$/m.exec(box.run(cwd, 'resume', '--diagnostics').out)?.[1] ?? '';
+  const next = async (box, cwd) => /^next: (.*)$/m.exec((await box.runLocal(cwd, 'resume', '--diagnostics')).out)?.[1] ?? '';
   const fresh = sandbox();
   const repo = join(fresh.dir, 'fresh');
   mkdirSync(repo);
@@ -126,7 +126,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   assert.equal(joined.code, 0, joined.out);
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
-  assert.equal(next(fresh, repo), firstSetup.command);
+  assert.equal((await next(fresh, repo)), firstSetup.command);
   assert.equal(fixtureAdd(fresh.run, repo, 'coordinator', 'Tidy the readme').code, 0);
   assert.equal(fresh.run(repo, 'claim', '1').code, 0);
   assert.equal(JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup.step, 2, 'a working board with an item and no spec rows treats the spec as optional (#866)');
@@ -137,29 +137,29 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const freshView = await startView(fresh, repo);
   await freshView.stop();
-  assert.match(next(fresh, repo), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
+  assert.match((await next(fresh, repo)), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
 
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await startView(box, box.repo);
   await view.stop();
-  const firstItem = JSON.parse(box.run(box.repo, 'resume', '--diagnostics', '--json').out).setup;
+  const firstItem = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).out).setup;
   assert.equal(firstItem?.step, 4, 'setup asks for the first small piece before planning the remaining rows');
-  assert.equal(next(box, box.repo), firstItem.command);
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match(next(box, box.repo), /^start a builder for each lane with open items \(web\): pullboard worktree <lane>/);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await next(box, box.repo)), firstItem.command);
+  (await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1'));
+  assert.match((await next(box, box.repo)), /^start a builder for each lane with open items \(web\): pullboard worktree <lane>/);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(commitFile(box, box.web, 'web/index.html', '<h1>hi</h1>', 'feat(web): page [G1]').status, 0);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
-  assert.match(next(box, box.repo), /^pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review/);
+  assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
+  assert.match((await next(box, box.repo)), /^pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review/);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
-  assert.equal(box.run(box.repo, 'verify', '1', 'accept', '--note', 'the page renders hi', '--as', 'coordinator').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'verify', '1', 'accept', '--note', 'the page renders hi', '--as', 'coordinator')).code, 0);
   box.git(box.repo, 'switch', '-q', 'main');
-  assert.match(next(box, box.repo), new RegExp(`^merge #1: git merge --no-edit ${commit.slice(0, 12)}, run the gate, then pullboard merged 1 <merge commit>`));
+  assert.match((await next(box, box.repo)), new RegExp(`^merge #1: git merge --no-edit ${commit.slice(0, 12)}, run the gate, then pullboard merged 1 <merge commit>`));
   box.git(box.repo, 'merge', '-q', '--no-edit', commit);
-  assert.equal(box.run(box.repo, 'merged', '1', box.git(box.repo, 'rev-parse', 'HEAD')).code, 0);
-  assert.match(next(box, box.repo), /^plan the approved rows no item cites \(G2\)/);
+  assert.equal((await box.runLocal(box.repo, 'merged', '1', box.git(box.repo, 'rev-parse', 'HEAD'))).code, 0);
+  assert.match((await next(box, box.repo)), /^plan the approved rows no item cites \(G2\)/);
 });
 
 test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', async () => {

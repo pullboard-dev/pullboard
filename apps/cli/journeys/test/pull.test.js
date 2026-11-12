@@ -111,7 +111,7 @@ test('clause 3: an uncommitted change is refused with the words the runner path 
 async t => {
   const { box, queue } = await testProject(t);
   writeFileSync(join(box.web, 'web/pass.test.js'), `${PASS}// an uncommitted edit\n`);
-  const refused = box.run(box.web, 'test', '--wait', 'web/pass.test.js');
+  const refused = await box.runLocal(box.web, 'test', '--wait', 'web/pass.test.js');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err, /TEST_UNCOMMITTED/u);
   assert.match(refused.err, /pullboard test: uncommitted changes in web\/pass\.test\.js; the runner tests the committed source at [0-9a-f]{10}, so these edits are not under test; commit them and run again/u);

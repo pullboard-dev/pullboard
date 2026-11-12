@@ -122,6 +122,7 @@ function git(args, options = {}) {
  */
 function runCheck(name, { cwd = ROOT, root } = {}) {
   const started = performance.now();
+  // Process-level by design: the check script runs as a doctrine row runs it, and its wall time is asserted.
   const result = spawnSync(process.execPath, [join(ROOT, 'packages/gate/src/io', CHECK_PATHS[name]), ...(root ? [root] : [])], { cwd, encoding: 'utf8' });
   const ms = performance.now() - started;
   return { status: result.status, lines: result.stdout.split('\n').filter(Boolean), stderr: result.stderr, ms };
@@ -187,10 +188,10 @@ function conflictHistory({ automatic = true } = {}) {
   } finally { store.closeBoard(board); }
 }
 
-test('rigor reports a file that keeps causing merge conflicts [D1,C7]', () => {
+test('rigor reports a file that keeps causing merge conflicts [D1,C7]', async () => {
   const box = conflictHistory();
   const before = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  const run = box.run(box.repo, 'rigor', '--json');
+  const run = await box.runLocal(box.repo, 'rigor', '--json');
   assert.equal(run.code, 0, run.out + run.err);
   const report = JSON.parse(run.out);
   assert.ok(Array.isArray(report.hotFiles), 'rigor exposes its per-file conflict history');
@@ -202,11 +203,11 @@ test('rigor reports a file that keeps causing merge conflicts [D1,C7]', () => {
 });
 
 
-test('a hot file becomes a draft split proposal [D1,C7]', () => {
+test('a hot file becomes a draft split proposal [D1,C7]', async () => {
   const box = conflictHistory();
   const original = loadDoctrine(box.repo).repo.rows;
   const beforeSpec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  const run = box.run(box.repo, 'rigor', '--draft-splits', '--json');
+  const run = await box.runLocal(box.repo, 'rigor', '--draft-splits', '--json');
   assert.equal(run.code, 0, run.out + run.err);
   const report = JSON.parse(run.out);
   assert.equal(report.splitDrafts.length, 1);
@@ -222,11 +223,11 @@ test('a hot file becomes a draft split proposal [D1,C7]', () => {
   assert.deepEqual(doctrine.repo.rows.filter(row => row.id !== draft.row.id), original, 'existing judgments remain unchanged');
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), beforeSpec);
   const written = readFileSync(doctrine.repo.file, 'utf8');
-  const again = box.run(box.repo, 'rigor', '--draft-splits', '--json');
+  const again = await box.runLocal(box.repo, 'rigor', '--draft-splits', '--json');
   assert.equal(again.code, 0, again.out + again.err);
   assert.deepEqual(JSON.parse(again.out).splitDrafts, [], 'restarts do not duplicate pending advice');
   assert.equal(readFileSync(doctrine.repo.file, 'utf8'), written);
-  const lane = box.run(box.web, 'rigor', '--draft-splits', '--json');
+  const lane = await box.runLocal(box.web, 'rigor', '--draft-splits', '--json');
   assert.equal(lane.code, 1, lane.out + lane.err);
   assert.match(lane.out + lane.err, /COORDINATOR_ONLY/u);
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -374,7 +375,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     const root = fixture('names');
     const named = [
       "import { test } from 'node:test';",
-      "test('a name with an id [G1.2]', async (t) => {",
+      "test('a name with an id [C7]', async (t) => {",
       "  await t.test('a subtest nests under its parent', () => {});",
       "  const fixture = \"test('a fixture test written out', () => {});\";",
       '});',
@@ -480,7 +481,7 @@ test('a legacy split draft resumes after its row is reserved [D1,H16]', async ()
     assert.equal(row.gate, 'review');
     assert.equal(store.rowDrafts(board).length, 1);
     assert.deepEqual(await draftConflictSplits(ctx, report, dependencies), []);
-    const declined = box.run(box.repo, 'spec', 'decline', 'doctrine:' + row.id, '--reason', 'choose another split');
+    const declined = await box.runLocal(box.repo, 'spec', 'decline', 'doctrine:' + row.id, '--reason', 'choose another split');
     assert.equal(declined.code, 0, declined.out + declined.err);
     writeFileSync(loadDoctrine(box.repo).repo.file, before);
     await assert.rejects(draftConflictSplits(ctx, report, dependencies), error => error.code === 'STALE_ROW_DECISION', 'an interrupted retry never recreates a row with a person decision');

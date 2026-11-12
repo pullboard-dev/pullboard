@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -10,6 +11,7 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { apiHttpBox } from '../../tests/fixtures/api.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { configFromSource } from '../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
@@ -120,4 +122,97 @@ async (t) => {
   const view = jobView(db, 'gate:missing');
   assert.equal(view.steps.some(step => step.name === 'receipt'), false);
   assert.equal(view.leaseOwner, null, 'the job is open for the next runner');
+});
+
+test('#5805 clause 3: one runner serve claims two offered jobs within a second and runs them at once, each in its own checkout [P7]', { timeout: 90_000 }, // budget: as clause 1.
+async (t) => {
+  const { commit, db, board, cache } = await pullBoard(t);
+  // Each job holds its slot for 1.5 s and names its own checkout, so overlap and separate folders both show in the receipts.
+  const slow = [process.execPath, '-e', "console.log('folder ' + process.cwd()); setTimeout(() => console.log('slow done'), 1500);"];
+  offerJob(db, { id: 'gate:slot-a', kind: 'gate', needs: [], candidate: commit, run: slow });
+  offerJob(db, { id: 'gate:slot-b', kind: 'gate', needs: [], candidate: commit, run: slow });
+  const claimed = [], stop = new AbortController();
+  let posted = 0;
+  const fetchImpl = async (url, init) => {
+    const response = await fetch(url, init);
+    const answer = await response.clone().json();
+    if (answer.claim) claimed.push({ job: answer.claim.job, at: Date.now() });
+    return response;
+  };
+  const served = await serveRunner({ board, runner: 'r-slots', capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, timing: { idleMs: 10 },
+    say: line => { if (line.startsWith('posted ') && ++posted === 2) stop.abort(); } });
+  assert.equal(served.slots, 2);
+  assert.deepEqual(claimed.map(row => row.job).sort(), ['gate:slot-a', 'gate:slot-b'], 'one serve claimed both jobs');
+  assert.ok(Math.abs(claimed[1].at - claimed[0].at) < 1000, `both claims landed within a second (${claimed[1].at - claimed[0].at} ms)`);
+  assert.deepEqual(served.jobs.map(job => [job.job, job.outcome, job.receipt.status]).sort(), [['gate:slot-a', 'posted', 0], ['gate:slot-b', 'posted', 0]]);
+  const folders = served.jobs.map(job => /folder (\S+)/u.exec(job.receipt.tail)[1]);
+  assert.notEqual(folders[0], folders[1], 'each concurrent job ran in its own checkout');
+  assert.ok(served.jobs.every(job => /slow done/u.test(job.receipt.tail)), 'both ran to the end, the second claimed while the first held its slot');
+  const fetched = execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/pullboard/fetched/'], { cwd: join(cache, 'git'), encoding: 'utf8' }).trim();
+  assert.equal(fetched, `refs/pullboard/fetched/${commit}`, 'the fetched commit keeps a ref, so the next fetch negotiates from it instead of taking all of trunk');
+});
+
+test('#5805 clauses 1 and 2: a pulled job\'s detached child carries PULLBOARD_RUNNER_JOB and is gone before the job\'s receipt posts [P7]', { timeout: 90_000 }, // budget: as clause 1.
+async (t) => {
+  const { box, commit, db, board, cache } = await pullBoard(t);
+  const seen = join(box.dir, 'child.json');
+  // The job starts a child in its own session, as a test's pullboard view does, writes what the child sees, and exits.
+  const child = `require('node:fs').writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ pid: process.pid, job: process.env.PULLBOARD_RUNNER_JOB ?? null })); setInterval(() => {}, 1000);`;
+  const job = `const { spawn } = require('node:child_process'); const fs = require('node:fs');
+spawn(process.execPath, ['-e', ${JSON.stringify(child)}], { detached: true, stdio: 'ignore' }).unref();
+const wait = () => fs.existsSync(${JSON.stringify(seen)}) ? console.log('child started') : setTimeout(wait, 20); wait();`;
+  offerJob(db, { id: 'gate:leftover', kind: 'gate', needs: [], candidate: commit, run: [process.execPath, '-e', job] });
+  const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  let atReceipt = null;
+  const fetchImpl = async (url, init) => {
+    if (JSON.parse(init.body).action === 'receipt') { const { pid } = JSON.parse(readFileSync(seen, 'utf8')); atReceipt = alive(pid); }
+    return fetch(url, init);
+  };
+  t.after(() => { try { process.kill(JSON.parse(readFileSync(seen, 'utf8')).pid, 'SIGKILL'); } catch { /* already gone */ } });
+  const served = await serveRunner({ board, runner: 'r-reap', capabilities: [], cache, once: true, fetchImpl, timing: { idleMs: 10 } });
+  assert.deepEqual(served.jobs.map(row => [row.job, row.outcome, row.receipt.status]), [['gate:leftover', 'posted', 0]]);
+  assert.match(served.jobs[0].receipt.tail, /child started/u);
+  assert.equal(JSON.parse(readFileSync(seen, 'utf8')).job, 'gate:leftover', 'clause 2: the job\'s child carries PULLBOARD_RUNNER_JOB');
+  assert.equal(atReceipt, false, 'clause 1: the detached child had ended when the receipt posted');
+});
+
+test('#5721 clause 1: runner serve --once against a board URL claims exactly one job, posts its receipt and exits 0, and exits 0 with nothing claimed on an empty queue [P7]', { timeout: 90_000 }, // budget: as clause 1.
+async (t) => {
+  const { box, commit, db, board, cache } = await pullBoard(t);
+  const serve = runner => runCliInProcess(['runner', 'serve', board, '--once', '--as', runner, '--directory', cache, '--json'], { cwd: box.dir, env: box.env });
+  const empty = await serve('r-empty');
+  assert.equal(empty.status, 0, `${empty.stderr}\n${empty.stdout}`);
+  assert.deepEqual(JSON.parse(empty.stdout).jobs, [], 'an empty queue: nothing claimed, and the serve ends instead of idling');
+  offerJob(db, { id: 'gate:once-a', kind: 'gate', needs: [], candidate: commit, run: [process.execPath, 'check.js'] });
+  offerJob(db, { id: 'gate:once-b', kind: 'gate', needs: [], candidate: commit, run: [process.execPath, 'check.js'] });
+  const one = await serve('r-once');
+  assert.equal(one.status, 0, `${one.stderr}\n${one.stdout}`);
+  const { jobs } = JSON.parse(one.stdout);
+  assert.deepEqual(jobs.map(job => [job.outcome, job.receipt.status]), [['posted', 0]], 'exactly one job claimed and posted');
+  const views = ['gate:once-a', 'gate:once-b'].map(id => jobView(db, id));
+  assert.deepEqual(views.map(view => view.step === 'done').sort(), [false, true], 'one job is done and the other is still offered');
+  const open = views.find(view => view.step !== 'done');
+  assert.equal(open.leaseOwner, null, 'the second job is left for the next runner, unclaimed');
+});
+
+test('#5721 clause 2: a runner with an empty cache completes the same job with the same receipt as a warm runner [P7]', { timeout: 90_000 }, // budget: as clause 1, with two fetches.
+async (t) => {
+  const { box, commit, db, board } = await pullBoard(t);
+  const warm = join(box.dir, 'warm-cache'), cold = join(box.dir, 'cold-cache');
+  const job = id => offerJob(db, { id, kind: 'gate', needs: [], candidate: commit, run: [process.execPath, 'check.js'] });
+  // The warm runner first fetches and runs one job, so its second run reuses its cache; the cold one starts from nothing.
+  job('gate:prime');
+  await serveRunner({ board, runner: 'r-warm', capabilities: [], cache: warm, once: true });
+  job('gate:warm');
+  const hot = await serveRunner({ board, runner: 'r-warm', capabilities: [], cache: warm, once: true });
+  job('gate:cold');
+  assert.equal(existsSync(cold), false, 'the cold runner has no cache at all');
+  const fresh = await serveRunner({ board, runner: 'r-cold', capabilities: [], cache: cold, once: true });
+  const same = receipt => ({ status: receipt.status, signal: receipt.signal, commit: receipt.commit, run: receipt.run,
+    outputSha256: receipt.outputSha256, outputBytes: receipt.outputBytes, tail: receipt.tail });
+  assert.deepEqual([hot.jobs[0].outcome, fresh.jobs[0].outcome], ['posted', 'posted']);
+  assert.deepEqual(same(fresh.jobs[0].receipt), same(hot.jobs[0].receipt), 'the cold runner posts the same receipt, only slower');
+  assert.equal(fresh.jobs[0].receipt.commit, commit);
+  const posted = id => jobView(db, id).steps.find(step => step.name === 'receipt').payload.receipt;
+  assert.deepEqual(same(posted('gate:cold')), same(posted('gate:warm')), 'the board records the same receipt for both');
 });

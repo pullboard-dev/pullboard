@@ -7,10 +7,10 @@ import { findChromeExecutable } from '../../../../tests/fixtures/relay/browser.j
 import {
   assertFirstPaint,
   cpuStandIn,
-  openOnPhone,
   paintWithinBudget,
   thirtyThousandBoard,
 } from '../../../../tests/fixtures/relay/sealed-client.js';
+import { openOnPhone } from '../../../../tests/fixtures/relay/sealed/phone.js';
 
 test("the phone's first-paint budget is judged by the page, not by a loaded test runner [H5]", {
   skip: !findChromeExecutable() && 'Chrome is not installed',

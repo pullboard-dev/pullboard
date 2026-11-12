@@ -52,6 +52,7 @@ export {
   pullPilot,
   pullGateFor,
   jobQueueMode,
+  localRunnerEnabled,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
@@ -105,6 +106,9 @@ export {
   SETTING_DESCRIPTIONS,
   CLI_SETTABLE,
   describeSetting,
+  settingDescriptions,
+  compatibilityToggleProblems,
+  INVENTORY_FILE,
 } from './src/io/settings/descriptions.js';
 export {
   knownConfigKeys,
@@ -141,3 +145,4 @@ export {
 
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
+export { boardRemote, setBoardRemote } from './src/io/settings.js';

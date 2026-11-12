@@ -47,6 +47,7 @@ Set up
   pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
   pullboard runner install-serve <ssh-host> --board <board-url> [--key <key>] | --remove
                                         run runner serve on that runner as a login service that restarts on exit
+  pullboard runner local [--off]        this machine's own runner on loopback; a pull submit starts it, --off stops it
   pullboard view [--project] [--port N] [--no-open]  every project on this machine in your browser; default http://127.0.0.1:4890
   pullboard view --lan                  a private link for a phone on the local IPv4 network
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port
@@ -412,6 +413,9 @@ Additional commands
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
+  pullboard stats runners [--window <duration>] [--until <ISO time>]  runner slot wait (queued to running) p50/p90/max and queue depth per job kind and hour
+  pullboard stats runners --health [--window <duration>] [--until <ISO time>]  run time per job kind per runner (p50/p90) and runner up spans, lost leases, retries and re-placed jobs
+  pullboard stats runners --lag [--window <duration>] [--until <ISO time>]  main check lag: time from each main commit landing to its first full-suite result, and to its first red (--main-lag is the same)
   pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
   pullboard trace <agent|item> [--since 2h] [--json]  an agent's or an item's timeline from the command trace and the board's events
 

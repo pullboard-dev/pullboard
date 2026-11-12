@@ -9,6 +9,8 @@ import {
 import { COORDINATOR } from "../../../../config/index.js";
 import { holdItem } from "../board/hold/item.js";
 import { Refused } from "../../../../kernel/index.js";
+import { PROVES_NOTHING_HOLD_REASON } from "../../../../verify/index.js";
+import { checkAcceptance } from "../../../../verify/index.js";
 
 import { coordinatorCheck } from "../../../../verify/light.js";
 export { coordinatorCheck } from "../../../../verify/light.js";
@@ -48,12 +50,12 @@ export function normalizeCheckBaseline(agentId, command, baseline, { authorized 
 }
 
 /** The hold reason an item gets when its first baseline shows its check already passes on main (#5709). */
-export const PROVES_NOTHING_HOLD_REASON = 'check passes on main; edit the bar';
+export { PROVES_NOTHING_HOLD_REASON };
 
 /**
  * Record a captured result only for the still-current authorized background request [V2,H16]. With holdProvesNothing
  * (main's checks.provesNothing is "hold"), a green result also holds an open or claimed item, so next never offers a
- * bar that cannot fail (#5709); the flag rides in the move's own arguments, so a replay holds exactly when it did.
+ * bar that cannot fail (#5709), unless the person already accepted that exact check; the flag rides in the move's own arguments, so a replay holds exactly when it did.
  */
 export function completeCheckBaseline(board, id, { agentId, expected, baseline, holdProvesNothing = false }) {
   return atomic(board, () => {
@@ -68,7 +70,8 @@ export function completeCheckBaseline(board, id, { agentId, expected, baseline, 
     const recorded = { ...result, request: expected.request };
     saveCheckBaseline(board, id, recorded);
     logEvent(board, agentId, 'check-baseline', id, { checkBaseline: recorded });
-    if (holdProvesNothing === true && recorded.result === 'green' && ['open', 'claimed'].includes(item.item_status) && !item.item_hold_reason) {
+    if (holdProvesNothing === true && recorded.result === 'green' && ['open', 'claimed'].includes(item.item_status) && !item.item_hold_reason
+      && !checkAcceptance(board, item)) { // the person accepted this exact check while its baseline was pending
       holdItem(board, id, { agentId: COORDINATOR, reason: PROVES_NOTHING_HOLD_REASON });
     }
     return true;

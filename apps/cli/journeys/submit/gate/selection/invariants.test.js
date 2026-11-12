@@ -15,15 +15,17 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { coordinatorLocal } from '../local.js';
+import { runLocal } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../../tests/fixtures/submit/gate.js';
 import { seedGraph } from '../../../../tests/fixtures/submit/gate.js';
 
-test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) => {
+test("a landing-gated submit runs the project's invariant tests [V4,C7]", async (t) => {
   /** Prepare accepted policy, then claim in a real separate builder checkout. */
-  function project(invariants, failing = false) {
+  async function project(invariants, failing = false) {
     let box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test',
       submitGate: 'landing', shared: ['pullboard.json'], ...(invariants === undefined ? {} : { submitInvariants: invariants }) }));
@@ -42,8 +44,8 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
     put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
     commitAll(box);
     box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
-    assert.equal(box.coordinator('add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"').code, 0);
-    assert.equal(box.run('claim', '1').code, 0);
+    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"')).code, 0);
+    assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     return { box, marker };
   }
   /** A global edit exercises the uncertain-selector path without running a full suite. */
@@ -58,16 +60,16 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
     assert.equal(existsSync(stamp), false);
   }
 
-  const empty = project();
+  const empty = await project();
   change(empty.box);
-  const unchanged = empty.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const unchanged = await runLocal(empty.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.equal(unchanged.code, 0, unchanged.err);
   assert.equal(existsSync(empty.marker), false, 'the empty default adds no tests');
   unstamped(empty.box);
 
-  const mandatory = project(['test/invariant.test.js']);
+  const mandatory = await project(['test/invariant.test.js']);
   change(mandatory.box);
-  const guarded = mandatory.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const guarded = await runLocal(mandatory.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.equal(guarded.code, 0, guarded.err);
   const guardedReceipt = JSON.parse(guarded.out);
   assert.equal(guardedReceipt.gate.full, true, 'the selector still reports an uncertain full fallback');
@@ -77,15 +79,15 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
   assert.match(guardedReceipt.gate.report, /submit invariants: test\/invariant\.test\.js; full suite deferred/u);
   unstamped(mandatory.box);
 
-  const red = project(['test/invariant.test.js'], true);
+  const red = await project(['test/invariant.test.js'], true);
   change(red.box);
-  const refused = red.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const refused = await runLocal(red.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.notEqual(refused.code, 0, 'a failing configured invariant must refuse the submit');
   assert.match(refused.err + refused.out, /GATE_RED/u);
   assert.ok(existsSync(red.marker), 'the listed invariant actually ran');
   unstamped(red.box);
 
-  const trusted = project([], true);
+  const trusted = await project([], true);
   const acceptedRoot = join(trusted.box.dir, 'repo');
   const policy = JSON.parse(readFileSync(join(acceptedRoot, 'pullboard.json'), 'utf8'));
   policy.submitInvariants = ['test/invariant.test.js'];
@@ -97,24 +99,24 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
   candidate.submitInvariants = ['test/c.test.js'];
   put(trusted.box.root, 'pullboard.json', JSON.stringify(candidate));
   change(trusted.box);
-  const ignored = trusted.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const ignored = await runLocal(trusted.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.notEqual(ignored.code, 0, 'accepted main policy overrides both the claim-time list and candidate edit');
   assert.match(ignored.err + ignored.out, /GATE_RED/u);
   assert.ok(existsSync(trusted.marker), 'the accepted-main invariant still ran');
   assert.doesNotMatch(ignored.err + ignored.out, /unrelated test must stay deferred/u);
   unstamped(trusted.box);
 
-  const missing = project(['test/invariant.test.js']);
+  const missing = await project(['test/invariant.test.js']);
   rmSync(join(missing.box.root, 'test/invariant.test.js'));
   change(missing.box);
-  const absent = missing.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const absent = await runLocal(missing.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.notEqual(absent.code, 0, 'deleting a mandatory file cannot make the guard disappear');
   assert.match(absent.err + absent.out, /submitInvariants file test\/invariant\.test\.js is missing or unreadable/u);
   unstamped(missing.box);
 
-  const named = project(['test/invariant.test.js', 'test/invariant.test.js']);
+  const named = await project(['test/invariant.test.js', 'test/invariant.test.js']);
   change(named.box, false);
-  const selected = named.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const selected = await runLocal(named.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.equal(selected.code, 0, selected.err);
   const receipt = JSON.parse(selected.out);
   assert.equal(receipt.gate.full, false);

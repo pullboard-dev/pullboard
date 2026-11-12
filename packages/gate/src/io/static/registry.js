@@ -14,6 +14,9 @@ import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { testWaitReport } from '../test/waits.js';
+import { cliLaunchReport } from '../test/launches.js';
+import { cliLaunchGrowth } from '../test/launches.js';
+import { operationEntryProblems } from './operations.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
 import { relayBoundaryProblems } from '../relay.js';
@@ -30,12 +33,17 @@ import {
 } from '../paths/lint.js';
 import { STATIC_CHECKS } from '../../../index.js';
 import { cliReachRows } from '../../../index.js';
+import { keylessRows } from '../../../index.js';
 import { repoPath } from '../../../../kernel/light.js';
 import { blobOid } from './cache.js';
 import { fileCache } from './cache.js';
 import { toolingKey } from './cache.js';
 import { cellRows } from './cache.js';
 import { cellScopedKey } from './cache.js';
+
+/** What a check reads, so a change to none of those paths keeps main's answer [5814]: JavaScript sources, and test files among them. */
+const SOURCE = path => /\.[cm]?js$/u.test(path);
+const TEST = path => SOURCE(path) && (path.split('/').slice(0, -1).some(part => part === 'tests' || part === 'test') || /[-_.]test\.[cm]?js$/u.test(path));
 
 /** The context a check gets when called on its own: caches that live and die inside the call. */
 const MEMORY = Object.freeze({ cache: (name, version) => fileCache({ name, version, tooling: '', home: null }) });
@@ -116,15 +124,19 @@ function workerBundleRows(root) {
  * `STATIC_CHECKS` this is the only place a static class is named (#3233).
  */
 export const STATIC_TREE_CHECKS = Object.freeze([
-  { name: 'test-waits', run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
+  { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/cli-launches.json'), 'utf8')))
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
+  { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
   // Test sources are scanned one file at a time, so each file's sites are kept by blob [5567].
-  { name: 'test-fixtures', run: (root, sources, context = MEMORY) => {
+  { name: 'test-fixtures', reads: TEST, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('test-fixtures', 1);
     return fixtureProblems(root, join(root, 'packages/gate/data/tests/test-fixtures.json'), { sitesOf: (path, text) => cache.get(path, blobOid(text), () => fixtureSites(text, path)) })
       .map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
-  { name: 'relay-boundary', run: (root, sources, context = MEMORY) => {
+  { name: 'relay-boundary', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const relay = readdirSync(join(root, 'apps/relay/src/io/deploy'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
       .map(entry => ({ file: `apps/relay/src/io/deploy/${entry.name}`, source: readFileSync(repoPath(root, `apps/relay/src/io/deploy/${entry.name}`), 'utf8') }));
     // The check judges each file alone, so its rows are kept by blob [5567].
@@ -133,60 +145,66 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   } },
   // Package modules that newly reach the CLI front door; codemap's cell-lints ratchet sits below gate and cannot run this (#3808).
   // Cell-scoped: the answer reads the CLI's import closure on this tree and on main, so it is kept under the CLI cell's key plus main's commit [5567].
-  { name: 'cli-reach', run: (root, sources, context = MEMORY) => {
+  { name: 'cli-reach', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const main = mainCommit(root);
     if (!main) return [];
     const scope = cellScopedKey(treeSources(root, sources), ['apps/cli'], { edgeCache: edgeCacheOf(context) });
     return context.cache('cli-reach', 1).get('cli-reach', `${scope}:${main}`, () => cliReachRows(root));
   } },
+  // Modules a test closure reaches whose imports the graph newly cannot read; both graphs are kept per commit (#5840).
+  { name: 'keyless', reads: SOURCE, run: root => keylessRows(root) },
   // Edges are read per file by blob; the ceilings and the plan are read fresh each run [5567].
-  { name: 'cells-edges', run: (root, sources, context = MEMORY) => {
+  { name: 'cells-edges', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('file-edges', 1), text = new Map(treeSources(root, sources).map(row => [row.file, row.source]));
     return cellsEdgeProblems(root, {
       read: file => text.get(file) ?? readFileSync(join(root, file), 'utf8'),
       edgesOf: (file, source) => cache.get(file, blobOid(source), () => fileEdges(file, source)),
     }).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
-  { name: 'test-cells', run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'test-cells', reads: SOURCE, run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Repository paths in code that do not exist; the per-file count may only fall (#5302).
-  { name: 'missing-paths', run: (root, sources, context = MEMORY) => cachedMissingPaths(root, context) },
-  { name: 'import-style', run: (root, sources, context = MEMORY) => importStyleRows(sources, context.cache('import-style', 1)).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
+  { name: 'missing-paths', reads: SOURCE, run: (root, sources, context = MEMORY) => cachedMissingPaths(root, context) },
+  // File-local: given the changed paths, only their sources are read.
+  { name: 'import-style', reads: SOURCE, run: (root, sources, context = MEMORY) => importStyleRows(context.changed ? sources.filter(row => context.changed.includes(row.file)) : sources, context.cache('import-style', 1)).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // Cell-partitioned: a cell's rows are kept under that cell's blobs plus the cells it imports [5567].
-  { name: 'engine-folder', run: (root, sources, context = MEMORY) => cellRows({ sources: treeSources(root, sources), edgeCache: edgeCacheOf(context), cache: context.cache('engine-folder', 1), compute: engineFolderViolations })
+  { name: 'engine-folder', reads: SOURCE, run: (root, sources, context = MEMORY) => cellRows({ sources: treeSources(root, sources), edgeCache: edgeCacheOf(context), cache: context.cache('engine-folder', 1), compute: engineFolderViolations })
     .sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line).map(row => `${row.file}:${row.line}: ${row.text}`) },
-  { name: 'board-write-io', run: (root, sources, context = MEMORY) => cellRows({ sources: treeSources(root, sources), edgeCache: edgeCacheOf(context), cache: context.cache('board-write-io', 1), compute: reach => boardWriteIoProblems(reach) })
+  { name: 'board-write-io', reads: SOURCE, run: (root, sources, context = MEMORY) => cellRows({ sources: treeSources(root, sources), edgeCache: edgeCacheOf(context), cache: context.cache('board-write-io', 1), compute: reach => boardWriteIoProblems(reach) })
     .map(row => `${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`) },
-  { name: 'worker-bundle', run: (root, sources, context = MEMORY) => {
+  { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });
     return context.cache('worker-bundle', 1).get('worker-bundle', scope, () => workerBundleRows(root));
   } },
-  { name: 'prose-commands', run: root => {
+  { name: 'prose-commands', reads: path => path.startsWith('apps/cli/'), run: root => {
     const { declared, actual } = proseCommandSets(root);
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];
     const line = readFileSync(join(root, 'apps/cli/src/logic/help.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
     return [`apps/cli/src/logic/help.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
   } },
-  { name: 'wall-clock-budgets', run: root => {
+  { name: 'wall-clock-budgets', reads: TEST, run: root => {
     const clock = spawnSync(process.execPath, ['packages/gate/tests/fixtures/budgets.js'], { cwd: root, encoding: 'utf8' });
     return clock.status === 0 ? [] : [`${clock.stdout}${clock.stderr}`.trim() || 'packages/gate/tests/fixtures/budgets.js failed'];
   } },
-  { name: 'doctrine', run: root => doctrineReport(root, loadConfig(root)).filter(row => !row.holds)
+  // Given the changed paths, only the rules they touch run.
+  { name: 'doctrine', reads: () => true, run: (root, sources, context = MEMORY) => doctrineReport(root, loadConfig(root), { changed: context.changed ?? null }).filter(row => !row.holds)
     .map(row => `doctrine ${row.id}: ${row.state}\n${row.problems.join('\n')}`) },
 ]);
 
 /**
- * Run every whole-tree class on a checkout and collect every failure, in registry order.
+ * Run every whole-tree class on a checkout and collect every failure, in registry order. Given the paths a change touched
+ * against a green main, a class that reads none of them is not run, and the file-local ones read only those paths [5814].
  *
  * @param {string} root - Checkout root.
+ * @param {{changed?: string[] | null}} [scope] - The changed paths, when no whole-repo input changed; null runs every class whole.
  * @returns {string[]} One message per failure; empty when the tree is clean.
  */
-export function runStaticTreeRegistry(root) {
+export function runStaticTreeRegistry(root, { changed = null } = {}) {
   const sources = styleSources(root);
   const tooling = toolingKey(sources);
   const caches = [];
-  const context = { cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
-  const rows = STATIC_TREE_CHECKS.flatMap(check => check.run(root, sources, context));
+  const context = { changed, cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
+  const rows = STATIC_TREE_CHECKS.filter(check => !changed || changed.some(path => check.reads(path))).flatMap(check => check.run(root, sources, context));
   for (const made of caches) made.save();
   return rows;
 }

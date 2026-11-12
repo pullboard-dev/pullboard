@@ -24,10 +24,10 @@ async t => {
     [['submit', 'criterion', id, commit, seat, 'r-proof', 0], ['submit', 'proof', id, commit, seat, 'r-proof', 0]], JSON.stringify(receipts));
   assert.ok(receipts.every(row => row.frozenDigest === getItem(board, id).item_frozen_digest && row.environment?.node === process.versions.node));
 
-  const shown = box.run(box.web, 'show', String(id), '--json');
+  const shown = await box.runLocal(box.web, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err);
   assert.deepEqual(JSON.parse(shown.out).proofReceipts.map(row => row.id), receipts.map(row => row.id), 'show --json carries them');
-  const text = box.run(box.web, 'show', String(id));
+  const text = await box.runLocal(box.web, 'show', String(id));
   for (const row of receipts) assert.match(text.out, new RegExp(`receipt ${row.id}: submit, item #${id}`, 'u'), 'show lists each receipt');
   assert.match(text.out, /runner r-proof; seat /u);
 });

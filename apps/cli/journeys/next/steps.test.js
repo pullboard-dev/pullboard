@@ -63,15 +63,15 @@ test('person routing preserves reasons, quoted text and canonical refusal receip
   assert.deepEqual(recordedRefusal(error), before);
 });
 
-test('real seat refusals and approved-row hooks send person requests to the coordinator [B26]', () => {
+test('real seat refusals and approved-row hooks send person requests to the coordinator [B26]', async () => {
   const box = e2e.project();
-  const json = box.run(box.web, 'spec', 'answer', 'G1', 'yes', '--json');
+  const json = (await box.runLocal(box.web, 'spec', 'answer', 'G1', 'yes', '--json'));
   assert.equal(json.code, 1, json.err);
   const error = JSON.parse(json.out).error;
   assert.equal(error.code, 'B26_PERSON_APPROVAL', 'routing never grants the seat person authority');
   assert.match(error.next, /pullboard shout coordinator.*--decision/u);
   assert.doesNotMatch(error.next, /ask the person/iu);
-  const text = box.run(box.web, 'spec', 'answer', 'G1', 'yes');
+  const text = (await box.runLocal(box.web, 'spec', 'answer', 'G1', 'yes'));
   assert.equal(text.code, 1);
   assert.match(text.err, /next: ask the coordinator to bring it to the person/u);
   const spec = readFileSync(join(box.web, 'SPEC.md'), 'utf8').replace('The page renders.', 'A different promise.');

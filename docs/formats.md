@@ -383,6 +383,16 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout` | `shout_evidence_commit` | `TEXT` | `nullable` |
 | `shout` | `shout_request` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
 | `shout` | `shout_request_outcome` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
+| `test_result` | `test_result_id` | `INTEGER` | `PRIMARY KEY` |
+| `test_result` | `test_result_file` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_input_key` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_command` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_context` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_status` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_receipt` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_origin` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_commit` | `TEXT` | `nullable` |
+| `test_result` | `test_result_at` | `INTEGER` | `NOT NULL` |
 | `verdict` | `verdict_id` | `INTEGER` | `PRIMARY KEY` |
 | `verdict` | `item_id` | `INTEGER` | `NOT NULL`; `REFERENCES item(item_id)` |
 | `verdict` | `verdict_by` | `TEXT` | `NOT NULL` |
@@ -416,6 +426,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
 | `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
+| `test_result_key` | `test_result` | `test_result_input_key`, `test_result_command`, `test_result_context` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
 
