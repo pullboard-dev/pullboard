@@ -1,6 +1,5 @@
 /** A land job's proof reads only the board ledger: an unrelated main move reruns nothing, a moved import reruns its test [P7]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -13,6 +12,7 @@ import { git } from '../../../../../packages/git/index.js';
 import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { phaseLedger } from '../../../../../packages/gate/index.js';
+import { planTestActions } from '../../../../../packages/gate/index.js';
 import { takeLandingJob } from '../../../../../packages/landing/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -22,8 +22,7 @@ import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 const AS = ['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', '-c', 'core.hooksPath=/dev/null'];
 const GATE = pathToFileURL(fileURLToPath(new URL('../../../../../packages/gate/index.js', import.meta.url))).href;
 // The fixture's runner: plan with the ledger hits run-tests reads, then run only the misses, as the project runner does.
-const RUNNER = `import { spawnSync } from 'node:child_process';
-import { planTestActions } from ${JSON.stringify(GATE)};
+const RUNNER = `import { planTestActions } from ${JSON.stringify(GATE)};
 const files = process.argv.slice(2);
 const plan = await planTestActions(process.cwd(), files, { fullSuite: false, landing: true, listFiles: () => files });
 if (!plan.done) process.exitCode = spawnSync(process.execPath, ['--test', ...plan.args], { stdio: 'inherit' }).status ?? 1;
@@ -51,14 +50,14 @@ function project(t) {
 }
 
 /** The item's gate run at its own commit, recorded as the board's ledger rows, as a posted gate receipt writes them. */
-function proveItem(board, box, commit) {
+async function proveItem(board, box, commit) {
   git(box.dev, ['checkout', '-q', '--detach', commit]);
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !INHERITED.test(name))), PULLBOARD_TEST_REUSE: 'record',
     PULLBOARD_TEST_RESULT_STORE: join(box.root, 'gate-store') };
-  const ran = spawnSync(process.execPath, ['bin/proof.mjs', './test/a.test.js', './test/b.test.js'], { cwd: box.dev, env, encoding: 'utf8' });
-  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
-  const ledger = phaseLedger(ran.stdout, { status: 0 });
-  assert.equal(ledger?.files.length, 2, `the gate run printed keyed frames: ${ran.stdout.slice(0, 2000)}`);
+  const files = ['./test/a.test.js', './test/b.test.js'], written = [];
+  await planTestActions(box.dev, files, { fullSuite: false, listFiles: () => files, env, write: text => written.push(text) });
+  const ledger = phaseLedger(written.join(''), { status: 0 });
+  assert.equal(ledger?.files.length, 2, `the gate run printed keyed frames: ${written.join('').slice(0, 2000)}`);
   const rows = ledger.files.map(([file, inputKey, context, status]) => ({ file, inputKey, command: 'proof', context: ledger.contexts[context], status }));
   assert.equal(recordTestResults(board.db, { receipt: `gate:${commit.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit, rows }), 2);
 }
@@ -80,7 +79,7 @@ test('clause 1: a one-item landing after an unrelated main move runs 0 files and
   box.put('src/a.js', 'export const a = 1; // item 1\n');
   const item = box.commit('feat(core): item 1 [P7]');
   git(box.dev, ['push', '-q', 'origin', `${item}:refs/heads/item/1`]);
-  proveItem(board, box, item);
+  await proveItem(board, box, item);
   // Main moves on a file no test reaches.
   git(box.dev, ['checkout', '-q', '--detach', box.seed]);
   box.put('docs/notes.md', 'unrelated\n');
@@ -98,7 +97,7 @@ test('clause 1: a test whose import closure main changed misses the ledger and r
   box.put('src/a.js', 'export const a = 1; // item 2\n');
   const item = box.commit('feat(core): item 2 [P7]');
   git(box.dev, ['push', '-q', 'origin', `${item}:refs/heads/item/2`]);
-  proveItem(board, box, item);
+  await proveItem(board, box, item);
   // Main moves src/b.js, which test/b.test.js imports: its old proof must not carry.
   git(box.dev, ['checkout', '-q', '--detach', box.seed]);
   box.put('src/b.js', 'export const b = 2; // main moved\n');
