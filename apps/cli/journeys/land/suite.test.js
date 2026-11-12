@@ -35,7 +35,7 @@ function harness(t) {
   const added = [];
   const said = [];
   const open = [];
-  const state = { board: {}, config: { lanes: { core: { owns: ['test/', 'src/'] }, coordinator: { owns: ['docs/'] } }, affectedTests: 'node packages/gate/src/io/run/tests.js' },
+  const state = { board: {}, config: { lanes: { core: { owns: ['test/', 'src/', 'apps/cli/journeys/'] }, coordinator: { owns: ['docs/'] } }, affectedTests: 'node apps/cli/src/io/run/tests.js' },
     write: async (operation, [item]) => { assert.equal(operation, 'addItem'); added.push(item); const id = 900 + added.length;
       open.push({ item_id: id, item_status: 'open', item_title: item.title, item_criterion: item.criterion, item_brief: item.brief, item_check: item.check, item_lane: item.lane }); return id; },
     say: text => said.push(text), batch: null };
@@ -54,11 +54,11 @@ test('a batch that breaks an unaffected test files exactly one Main red naming t
   const result = await box.land('b2', [11, 12], [{ file: 'apps/cli/journeys/health/main.test.js', name: 'footer renders' }]);
   assert.equal(box.added.length, 1);
   const [item] = box.added;
-  assert.match(item.title, /health\.test\.js/u);
+  assert.match(item.title, /health\/main\.test\.js/u);
   assert.match(item.criterion, /b2/u);
   assert.match(item.criterion, /#11, #12/u);
   assert.match(item.criterion, /footer renders/u);
-  assert.match(item.check, /health\.test\.js/u);
+  assert.match(item.check, /health\/main\.test\.js/u);
   assert.equal(item.lane, 'core');
   assert.equal(result.filed.length, 1);
 });
@@ -122,10 +122,10 @@ test('it is off unless the machine setting turns it on [C7,H16]', async t => {
 /** Seed a verified item and a real local-trunk batch, then finish it through the production landing step. */
 test('a real landed batch files a newly red case and a green batch files nothing [C7,H16]', async t => {
   const helpers = createE2eHelpers();
-  const box = helpers.project('node packages/gate/src/io/run/tests.js', undefined, { withWorktree: false });
+  const box = helpers.project('node apps/cli/src/io/run/tests.js', undefined, { withWorktree: false });
   t.after(() => helpers.cleanup());
   delete box.env.NODE_TEST_CONTEXT;
-  copyCommittedPackageFiles(box, import.meta.dirname + '/..');
+  copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../..'));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/train.test.js'),
     "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('unaffected landing test [C7]', () => assert.equal(1, 1));\n");
@@ -167,7 +167,7 @@ test('a real landed batch files a newly red case and a green batch files nothing
       const batch = store.recordLandingBatch(board, { agentId: 'coordinator', batch: { version: 1, id: batchId, state: 'trunk',
         base, tip, root: candidate, branch: 'refs/heads/main', owner: randomUUID(),
         logPath: join(box.dir, `post-land-${number}.log`), items: [{ id, commit: tip, merge: tip }] } });
-      const state = { root: box.repo, board, config: { affectedTests: 'node packages/gate/src/io/run/tests.js',
+      const state = { root: box.repo, board, config: { affectedTests: 'node apps/cli/src/io/run/tests.js',
         lanes: { web: { owns: ['web/'], specs: ['G1'] }, coordinator: { owns: ['docs/'], specs: [] } }, landing: { perItem: false, manualOverride: true, requireReceipts: false } },
       batch, say: text => said.push(text), checkLease: async () => {},
       write: async (operation, parameters) => {

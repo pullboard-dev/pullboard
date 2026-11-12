@@ -18,6 +18,8 @@
 .roadmap-status .item-stage { flex-direction: row-reverse; align-items: center; gap: var(--space-3); }
 .roadmap-status .stage-line { flex-wrap: nowrap; flex-direction: row-reverse; }
 .roadmap-status .stage-detail { max-width: 230px; font-size: var(--text-xs); }
+/* On a phone the stage cell may not take the title's width: it stops at 9rem and its detail gives way, as .row .item-stage does at 10rem. */
+@media (width < 700px) { .roadmap-status { min-width: 0; max-width: 9rem; } .roadmap-status .item-stage, .roadmap-status .stage-line, .roadmap-status .stage-detail { min-width: 0; } }
 .row .item-stage { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; }
 .pipeline-copy, .dash-item-copy { display: grid; gap: var(--space-0); min-width: 0; }
 .pipeline-copy .item-stage { margin-top: var(--space-1); }

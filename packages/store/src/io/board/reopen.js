@@ -24,6 +24,7 @@ import { Refused } from "../../../../kernel/index.js";
 import { listAgents } from "./query.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { CONFLICT_ENGINE } from "../../../../state/light.js";
+import { SUBMITTED_CONFLICT_ENGINE } from "../../../../state/index.js";
 import { causeProblem } from "../../logic/board/rigor.js";
 import { conflictDetail } from "../../../../merge/index.js";
 import { conflictProblem } from "../../../../merge/index.js";
@@ -33,6 +34,7 @@ import { landingBatches } from "../../../../git/index.js";
 import { moveItem } from "../board.js";
 import { postRigorNotices } from "../board.js";
 import { persistShout } from "./shout.js";
+import { endReviewLease } from "./review/lease.js";
 
 /** Return a submission for correction, or a verified item after a recorded red landing, without
  * rewriting its prior verdict [V2,V6]. The prior commit remains the builder's rework base.
@@ -99,7 +101,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
           return null;
         },
         trunkConflicts: null,
-        conflictAccepted: (found) => (forMerge ? conflictProblem(board, found, conflict, (accept) => { supersedes = accept; }, CONFLICT_ENGINE) : null),
+        conflictAccepted: (found) => (forMerge ? conflictProblem(board, found, conflict, (accept) => { supersedes = accept; }, CONFLICT_ENGINE, ENGINE_VERSION, SUBMITTED_CONFLICT_ENGINE) : null),
       },
       set: (found) => {
         submittedCommit = found.item_commit;
@@ -113,6 +115,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
         };
       },
     });
+    endReviewLease(board, id);
     const returnedAt = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
     const reservation = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const returned = forWithdrawal ? { supersedes, withdrawnVerdict } : forMerge ? { supersedes, ...conflictDetail(conflict), ...(computedConflict !== undefined ? { computedConflict } : {}) } : supersedes ? { supersedes, landingFailure } : {};

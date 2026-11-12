@@ -187,7 +187,7 @@ export function handoffRefusedResult(error) {
  */
 export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait, agentId }) {
   ctx.submissionResult = {};
-  const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
+  const { lockWaits } = await submitUntilSettled((attempt, avoided, inPlace) => { ctx.lockRetry = inPlace; return submit(ctx, request.item, request.infra); }, { say: line => process.stderr.write(line + '\n'), waitInventory,
     // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
     onInfrastructure: async rerun => {
       const now = Date.now();
@@ -390,8 +390,10 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
   process.once('SIGTERM', terminate('SIGTERM'));
   process.once('SIGINT', terminate('SIGINT'));
   // The dispatcher that started this driver holds its stdin; when the dispatcher exits the pipe ends and the driver
-  // stops as on SIGTERM, so no worker outlives its dispatcher and the sweep requeues the gate (#3899).
-  onDispatcherLifelineEnd(terminate('the end of its dispatcher lifeline'));
+  // stops as on SIGTERM, so no worker outlives its dispatcher and the sweep requeues the gate (#3899). A dispatcher that
+  // hands the machine over says so on the pipe first, and this driver then finishes its gate on its own (DJ16).
+  onDispatcherLifelineEnd(terminate('the end of its dispatcher lifeline'), { onRelease: () => process.stderr.write(
+    `gate driver ${process.pid}: its dispatcher handed the machine over; it finishes job ${request.job} on its own\n`) });
   let stalled = false;
   let queuedAt = NaN;
   try {

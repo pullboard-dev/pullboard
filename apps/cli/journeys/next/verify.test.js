@@ -28,6 +28,7 @@ import {
 } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { requireSessionIndependence } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const HOUR = 3_600_000;
@@ -110,7 +111,20 @@ test('[C7,P4] next --verify with nothing submitted yet says the builder is still
   assert.equal(store.getItem(box.board, id).item_review_by, box.reviewerId, 'a submitted item is reserved as before');
 });
 
-test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
+test('next --verify with nothing free suggests a command next accepts [C7]', async (t) => {
+  const box = await project(t);
+  const idle = await run(box, box.reviewer, ['next', '--verify']);
+  assert.equal(idle.code, 1);
+  const said = idle.stdout + idle.stderr;
+  assert.match(said, /NOTHING_FREE/u);
+  const suggested = said.match(/To keep looking: pullboard (next[^\n]*)/u);
+  assert.ok(suggested, `the refusal names a command: ${said}`);
+  assert.doesNotMatch(suggested[1], /--take/u, 'the suggestion never mixes --take with --verify');
+  const again = await run(box, box.reviewer, suggested[1].trim().split(/\s+/u));
+  assert.doesNotMatch(again.stdout + again.stderr, /USAGE/u, 'next accepts the command it suggested');
+});
+
+test('a lone newcomer starts a reviewer with one command [V1,B26]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const machine = helpers.sandbox();
@@ -126,16 +140,16 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const model = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  const initialized = box.run(box.repo, 'init', '--verbose');
+  const initialized = (await box.runLocal(box.repo, 'init', '--verbose'));
   if (model !== undefined) box.env.PULLBOARD_MODEL = model;
   assert.equal(initialized.code, 0, initialized.err);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Ready for review', '--specs', 'G1',
-    '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Ready for review', '--specs', 'G1',
+    '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready'));
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   const committed = helpers.commitFile(box, box.web, 'web/ready', 'ready\n', 'feat(web): readiness marker [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /different agent session/iu);
   const startup = submitted.out.split('\n').find(line => line.includes('git worktree add --detach'));
@@ -143,11 +157,11 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(startup, /&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
   assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
     'init explains the same reviewer path once');
-  const mainRefusal = JSON.parse(box.run(box.repo, 'next', '--verify', '1', '--json').out).error;
+  const mainRefusal = JSON.parse((await box.runLocal(box.repo, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(mainRefusal.code, 'MAIN_IS_COORDINATOR');
   assert.match(mainRefusal.next, /different agent session/iu);
   assert.match(mainRefusal.next, /git worktree add --detach.*&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
-  const self = JSON.parse(box.run(box.web, 'next', '--verify', '1', '--json').out).error;
+  const self = JSON.parse((await box.runLocal(box.web, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
   assert.match(startup, /--family "<vendor family>"/u);
   const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
@@ -177,6 +191,7 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   store.claim(box.board, id, { agentId: second, lane: 'web', leaseMs: HOUR,
     freeze: () => ({ text: 'fixture criterion', digest: createHash('sha256').update('fixture criterion').digest('hex') }) });
   submitFixture(box.board, id, { agentId: second, commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });
+  requireSessionIndependence(box.reviewer);
   const sibling = await run(box, box.reviewer, ['next', '--verify']);
   assert.equal(sibling.code, 1, sibling.stdout + sibling.stderr);
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'a sibling never reserves its parent’s submission');
@@ -197,6 +212,7 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   /** Count real write-capable native connections, while leaving every production guard active. */
   const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
     writers++;
+    // @pullboard-board-file journey: a spy counts the writers the real command opens on the board file.
     return native.openBoard(...args);
   } });
   /** Poll through the actual native CLI, with its normal reader and reservation authority. */
@@ -227,6 +243,7 @@ test('clause 1: two idle next --verify polls with nothing to review open zero bo
   /** Count write-capable native connections while every production guard stays active. */
   const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
     writers++;
+    // @pullboard-board-file journey: a spy counts the writers the real command opens on the board file.
     return native.openBoard(...args);
   } });
   /** Poll through the actual native CLI. */

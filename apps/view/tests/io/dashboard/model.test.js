@@ -62,3 +62,24 @@ test('Dashboard uses summary leases, history and queue input without I/O [N26]',
     heldLane.project.holds.push({ hold_lane: 'web' });
     assert.deepEqual(dashboardModel(heldLane.project, heldLane.events, { now: afterRelease.now }).next, [], 'a lane hold removes its open items from ready work');
 });
+
+
+test('Dashboard counts matching merged records regardless of status [N26]', () => {
+  const input = dashboardData();
+  const commit = 'a'.repeat(40);
+  const events = [...input.events];
+  const add = (id, value) => events.push({ event_id: events.length + 1, event_kind: 'merged', item_id: id,
+    event_by: 'coordinator', event_at: new Date(input.now - 1000).toISOString(), event_detail: JSON.stringify(value) });
+  input.project.items.find(item => item.id === 3).status = 'withdrawn'; // no merge record or event
+  input.project.items.find(item => item.id === 4).status = 'withdrawn';
+  input.project.items.find(item => item.id === 5).status = 'claimed';
+  input.project.dashboardLanded.push({ id: 4, commit }, { id: 5, commit }, { id: 6, commit });
+  add(4, { commit }); add(4, { commit }); add(5, { commit });
+  add(6, { commit: 'b'.repeat(40) });
+  add(1, { commit }); // event alone cannot establish a landing
+  input.project.sequence = events.length;
+  const model = dashboardModel(input.project, events, { now: input.now });
+  assert.deepEqual(model.landed.map(entry => entry.item.id).sort(), [2, 4, 5]);
+  assert.equal(model.totals.recent, 3);
+  assert.equal(model.bins.reduce((sum, bin) => sum + bin.count, 0), 3);
+});

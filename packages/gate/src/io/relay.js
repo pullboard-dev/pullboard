@@ -8,7 +8,9 @@ const NON_RELAY = new Map([
   ['apps/view/src/io/page/connect.js', ["fetch(base + '/local/protocol'", 'fetch(path, { method: body']],
   ['apps/view/src/logic/cockpit/live.js', ['fetch(path, {']],
   // The CLA check calls the GitHub API from CI; it sat in bin/, outside this check, until the layout freeze [V32].
-  ['packages/gate/src/io/check/cla.js', ['fetch(`${url}', 'fetch(`${api}/pulls/', 'fetch(`${pr.api}/statuses/']],
+  // A pull runner calls its own board's job queue API; it is the runner side of that API, not a relay request [P7].
+  ['packages/drive/src/io/pull.js', ['fetchImpl = fetch']],
+  ['packages/gate/src/io/check/cla.js', ['send = fetch']],
 ]);
 const ADAPTERS = new Set([
   'packages/person/src/io/adapter.js',

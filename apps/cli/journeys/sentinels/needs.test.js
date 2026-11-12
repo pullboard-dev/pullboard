@@ -3,7 +3,6 @@
 /** @pullboard-test-gui */
 /** Cockpit needs checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import {
   mkdtempSync,
   readFileSync,
@@ -15,7 +14,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  BIN,
   SPEC,
   machine,
   project,
@@ -39,11 +37,11 @@ import {
   serveFolder,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
   approvalAgentApi,
   approvalReadGate,
 } from '../../tests/fixtures/cockpit/approval.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
 
 /** Read the actual shared-panel summaries and controls, without translating them to legacy markup. */
@@ -75,8 +73,8 @@ async function confirmBaseline(view, repo) {
 test('every Needs-you surface follows the shared builder [N26,A9]', async () => {
   const box = machine();
   const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`);
-  box.run(alpha.repo, 'shout', 'person', 'Raw board decision?', '--decision');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Raw board hold');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Raw board decision?', '--decision');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Raw board hold');
   const view = await startView(box);
   try {
     await confirmBaseline(view, alpha.repo);
@@ -135,6 +133,7 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project && document.querySelector('#needs')");
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     // Inject the declared shared-builder output, independent of which API release supplies that field.
     const call = { kind: 'relay-health', id: 'relay-canary', ref: 'relay', text, what: nextStep,
       at: new Date().toISOString(), target: 'relay:relay-canary' };
@@ -182,9 +181,9 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
 test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
   const box = machine();
   const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`);
-  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
-  box.run(alpha.web, 'shout', 'coordinator', 'An agent-only question?', '--decision', '--kind', 'question');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Wait for the greeting decision');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
+  await box.inProcess(alpha.web, 'shout', 'coordinator', 'An agent-only question?', '--decision', '--kind', 'question');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Wait for the greeting decision');
   const view = await startView(box);
   let snapshotHost, relayServer, chrome;
   const profiles = [];
@@ -212,7 +211,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
     assert.ok(needEntries(page.show('needs')).some(row => row[3] === 'lane held by coordinator'), 'the hold retains its human-readable attribution');
 
     const output = join(box.dir, 'needs-export');
-    box.run(alpha.repo, 'view', '--export', output);
+    await box.inProcess(alpha.repo, 'view', '--export', output);
     const listing = JSON.parse(readFileSync(join(output, 'api/v1/boards.json'), 'utf8'));
     const exported = JSON.parse(readFileSync(join(output, 'api/v1/boards', listing.boards[0].id, 'state.json'), 'utf8')).state;
     assert.deepEqual(exported.needs, expected, 'the real export carries the same calls');
@@ -268,9 +267,7 @@ test('a person-only block shows in Needs you with its one step [N26]', async () 
   const box = machine();
   const alpha = project(box, 'person block');
   box.env.CLAUDECODE = '1';
-  const refused = spawnSync(process.execPath, [BIN, 'answer', '1', 'yes', '--as', 'person'], {
-    cwd: alpha.repo, env: box.env, encoding: 'utf8',
-  });
+  const refused = await runCliInProcess(['answer', '1', 'yes', '--as', 'person'], { cwd: alpha.repo, env: box.env });
   delete box.env.CLAUDECODE;
   assert.equal(refused.status, 1, refused.stderr);
   assert.match(refused.stderr, /only the person can clear this/u);
@@ -313,12 +310,12 @@ globalThis.fetch = async function controlledStateFetch(path, init) {
 test('a decision waits in needs-you until the view answers it [B21, B26, N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision', '--kind', 'question');
+  await box.inProcess(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision', '--kind', 'question');
   // Forty shouts after it: the ask is older than every shout the feed loads, and still waits.
-  for (let n = 0; n < 40; n += 1) box.run(alpha.web, 'shout', 'all', `note ${n}`);
+  for (let n = 0; n < 40; n += 1) await box.inProcess(alpha.web, 'shout', 'all', `note ${n}`);
   // Another project's board numbers its shouts from 1 too.
   const beta = project(box, 'beta');
-  box.run(beta.web, 'shout', 'coordinator', 'Beta asks too?', '--decision', '--kind', 'question');
+  await box.inProcess(beta.web, 'shout', 'coordinator', 'Beta asks too?', '--decision', '--kind', 'question');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -344,7 +341,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
 
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
-    box.run(alpha.repo, 'pass', '1', 'over to you');
+    await box.inProcess(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
     const passedAt = page.run('Date.parse(data.project.decisions.find(shout => shout.shout_id === 42).shout_at)');
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
@@ -384,7 +381,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.fire('shout-form', 'submit');
     assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'the view answers as the person');
     assert.equal(page.element('console').className, 'console ok');
-    const replies = JSON.parse(box.run(alpha.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
+    const replies = JSON.parse(await box.inProcess(alpha.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
     assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
       [['person', 'web-1', 1, 'Person answered #42: French, then English']], 'the answer reaches the agent that asked');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
@@ -394,8 +391,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'and the banner');
 
-    box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision', '--kind', 'question');
-    box.run(alpha.repo, 'pass', '45', 'yours');
+    await box.inProcess(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision', '--kind', 'question');
+    await box.inProcess(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     page.run("openTab('shouts'); view.shoutThread = 'none'; render();");
     const feed = shoutNameText(page.show('feed'));
@@ -405,7 +402,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
-    box.run(beta.repo, 'pass', '1', 'yours too');
+    await box.inProcess(beta.repo, 'pass', '1', 'yours too');
     const plain = { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' };
     await page.click({ go: 'decide:46' });
     // The new project's board is held back, so this is the form the moment the switch is made.
@@ -426,10 +423,12 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.deepEqual(form(), plain, 'an answer is never sent to another project');
     assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'nothing ran');
     /** Read the still-open decision by stable identity, independently of display-name formatting. */
-    const waiting = (repo, id) => JSON.parse(box.run(repo, 'decisions', '--as', 'person', '--json')).decisions
+    const decisionsOf = async (repo, id) => JSON.parse(await box.inProcess(repo, 'decisions', '--as', 'person', '--json')).decisions
       .filter((shout) => shout.shout_id === id).map((shout) => [shout.shout_from, shout.shout_to, shout.shout_text]);
-    assert.deepEqual(waiting(beta.repo, 2), [['coordinator', 'person', 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too']], "beta's ask still waits");
-    assert.deepEqual(waiting(alpha.repo, 46), [['coordinator', 'person', 'Passed up from web-1: Ship today?\nCoordinator note: yours']], "and so does alpha's");
+    const betaDecisions = await decisionsOf(beta.repo, 2);
+    assert.deepEqual(betaDecisions, [['coordinator', 'person', 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too']], "beta's ask still waits");
+    const alphaDecisions = await decisionsOf(alpha.repo, 46);
+    assert.deepEqual(alphaDecisions, [['coordinator', 'person', 'Passed up from web-1: Ship today?\nCoordinator note: yours']], "and so does alpha's");
   } finally {
     await view.stop();
   }
@@ -437,14 +436,14 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
 test("needs-you holds only the person's calls; the rest show on the board with who holds them [B26, N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', `${SPEC}- G3 [pending] Greet in French? | gate: review\n- G4 [draft, aim] A footer on every page. | gate: review\n`);
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   build(box, alpha, 1, 'greeting.html');
   build(box, alpha, 2, 'farewell.html');
   sendBack(box, alpha, 2, 'no farewell yet');
-  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
-  box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'G3 is open');
+  await box.inProcess(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'G3 is open');
   const view = await startView(box);
   try {
     await confirmBaseline(view, alpha.repo);
@@ -468,7 +467,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">In review<\/b>/, 'work waiting for a verdict keeps its approved stage');
     assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail" title="awaiting a verdict">awaiting a verdict<\/small>/, 'unassigned submitted work retains its truthful detail below the stage');
-    assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no farewell yet'), 'and work sent back, with why');
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">no farewell yet'), 'and work sent back, with why');
     page.run("openTab('shouts'); view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: Gated · Lane held · Sent back', '#1 Greeting: In review'], 'the agent retains both built items, with the shared stages and every applicable mark');
     page.run('view.agent = null; render();');
@@ -505,18 +504,18 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
   const box = machine();
   const spec = `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n- G5 [draft, aim] The header stays put. | gate: web test\n`;
   const alpha = project(box, 'asks', spec);
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.web, 'claim', '1');
   const second = join(box.dir, 'asks-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/asks2');
-  box.run(second, 'join', 'web');
+  await box.inProcess(second, 'join', 'web');
   // The person's calls: a decision passed up to them, the spec's open question, a held lane and two draft rows. And an
   // agent's ask that waits on its coordinator, not on the person.
-  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
-  box.run(alpha.repo, 'pass', '1', 'over to you');
-  box.run(second, 'shout', 'coordinator', 'Ship the footer first?', '--decision', '--kind', 'question');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Freeze for the demo');
+  await box.inProcess(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
+  await box.inProcess(alpha.repo, 'pass', '1', 'over to you');
+  await box.inProcess(second, 'shout', 'coordinator', 'Ship the footer first?', '--decision', '--kind', 'question');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Freeze for the demo');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-asks-chrome-'));
   let chrome;
@@ -613,7 +612,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     r = await read();
     assert.equal(r.okNote, false, 'a sent shout is its card, with no note beside the composer');
     // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
-    for (const n of [1, 2, 3, 4, 5, 6]) box.run(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
+    for (const n of [1, 2, 3, 4, 5, 6]) await box.inProcess(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
     await click('[data-tab=items]');
     await chrome.waitFor("document.querySelectorAll('#needs .needs-call').length >= 10", 15_000); // budget: hang ceiling for ten native decision rows to appear; no throughput claim.
     r = await read();
@@ -621,7 +620,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
       `ten calls, ten rows, each with its kind in the warning colour: ${JSON.stringify(r.needs)}`);
     assert.equal(await chrome.stable("document.querySelector('#needs').textContent.includes('more need you')"), false, 'no call is folded into a count');
     // Narrowed to the unread shouts from the status bar, the feed carries its bar with show all; show all clears it.
-    box.run(alpha.web, 'shout', 'all', 'Greeting is half done.');
+    await box.inProcess(alpha.web, 'shout', 'all', 'Greeting is half done.');
     await chrome.waitFor("!document.querySelector('#status-unread')?.hidden", 15_000); // budget: hang ceiling for the unread badge after a new shout; no throughput claim.
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && !!document.querySelector('#feed .feed-bar')");
@@ -677,7 +676,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     }
     assert.ok((await boardOf(view, alpha.repo)).needs.some(row => row.kind === 'agent-approved' && row.id === 'G1'), 'refused agent writes leave the call unchanged');
     const output = join(box.dir, 'agent-read-only');
-    box.run(alpha.repo, 'view', '--export', output);
+    await box.inProcess(alpha.repo, 'view', '--export', output);
     snapshotHost = await serveFolder(output, '/agent/');
     chrome = await openSnapshotChrome(executable, snapshotHost.base + '/agent/', join(box.dir, 'agent-approval-readonly-chrome'));
     await chrome.waitFor('data?.project');
@@ -689,9 +688,9 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     const copyButtons = await chrome.stable(`Array.from(document.querySelectorAll('#needs button'), button => ({ type: button.type, className: button.className, title: button.title, copy: button.dataset.copy, text: button.textContent }))`);
     assert.deepEqual(copyButtons, flagged.map(row => ({ type: 'button', className: 'hash-copy', title: row.commit, copy: row.commit, text: row.commit.slice(0, 12) })), 'the only read-only buttons copy the full attributed hashes and display twelve characters');
     await closeSnapshotChrome(chrome); chrome = null;
-    const refused = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../pullboard.js'), 'spec', 'approve', 'G1', '--json'], {
-      cwd: alpha.web, env: { ...box.env, CLAUDECODE: '1' }, encoding: 'utf8',
-    });
+    box.env.CLAUDECODE = '1';
+    const refused = await runCliInProcess(['spec', 'approve', 'G1', '--json'], { cwd: alpha.web, env: box.env });
+    delete box.env.CLAUDECODE;
     assert.equal(refused.status, 1);
     assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL');
     chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'agent-approval-person-chrome'));
@@ -766,7 +765,7 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
   const command = 'node packages/gate/src/io/file/size.js';
   const directory = 'checks';
   for (const name of ['approve-watch', 'decline-watch']) {
-    box.run(alpha.repo, 'sentinel', 'propose', name, '--check', command, '--directory', directory, '--every', 'hourly', '--owner', 'coordinator');
+    await box.inProcess(alpha.repo, 'sentinel', 'propose', name, '--check', command, '--directory', directory, '--every', 'hourly', '--owner', 'coordinator');
   }
   const view = await startView(box);
   let chrome, agentApi;
@@ -796,7 +795,7 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
     })))`));
     for (const row of rows) {
       assert.deepEqual(row.actions, [['approve', 'Approve'], ['decline', 'Decline']], 'each pending proposal has explicit person controls');
-      assert.match(row.text, /node bin\/checks\/file-size\.js/u, 'the person sees the proposed command');
+      assert.ok(row.text.includes(command), 'the person sees the exact proposed command');
       assert.equal(row.directory, 'checks', 'the person sees the working folder');
       assert.match(row.text, /hourly/u, 'the person sees the schedule');
       assert.match(row.text, /coordinator/u, 'the person sees the owner');
@@ -807,7 +806,7 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
     }
     await chrome.click(`document.querySelector('#needs [data-sentinel-draft="approve-watch"] [data-sentinel-decision="approve"]')`);
     await chrome.waitFor('document.querySelector(\'#needs [data-sentinel-draft="approve-watch"]\') === null');
-    let recorded = JSON.parse(box.run(alpha.repo, 'sentinels', '--json')).sentinels;
+    let recorded = JSON.parse(await box.inProcess(alpha.repo, 'sentinels', '--json')).sentinels;
     assert.equal(recorded.find((row) => row.name === 'approve-watch').status, 'approved', 'the view approval is recorded on the board');
 
     if (!await chrome.stable(`document.querySelector('#needs [data-sentinel-draft="decline-watch"] details').open`)) {
@@ -836,12 +835,12 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
         })`));
       } catch (diagnosticError) { diagnostic.uiError = String(diagnosticError.message || diagnosticError); }
       try {
-        diagnostic.backend = JSON.parse(box.run(alpha.repo, 'sentinels', '--json')).sentinels.find((row) => row.name === 'decline-watch');
+        diagnostic.backend = JSON.parse(await box.inProcess(alpha.repo, 'sentinels', '--json')).sentinels.find((row) => row.name === 'decline-watch');
       } catch (diagnosticError) { diagnostic.backendError = String(diagnosticError.message || diagnosticError); }
       error.message += '; decline diagnostic ' + JSON.stringify(diagnostic);
       throw error;
     }
-    recorded = JSON.parse(box.run(alpha.repo, 'sentinels', '--json')).sentinels;
+    recorded = JSON.parse(await box.inProcess(alpha.repo, 'sentinels', '--json')).sentinels;
     const declined = recorded.find((row) => row.name === 'decline-watch');
     assert.equal(declined.status, 'declined', 'the view decline is recorded on the board');
     assert.equal(declined.reason, 'This watch should not run.');

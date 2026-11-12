@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .github/workflows/cla.yml .github/workflows/gate.yml .github/workflows/release.yml packages/gate/src/io/check/cla.js */
 /** @pullboard-test-input .github/workflows/gate.yml .github/workflows/cla.yml .github/workflows/stale.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
@@ -52,7 +52,7 @@ function checkRunner(name, system, shardList, total) {
   assert.ok(text.includes(`\n        shards: [${total}]\n`), `${name} declares the shard count`);
   assert.ok(text.includes(`\n    name: ${name} (\${{ matrix.node }}) \${{ matrix.shard }}/\${{ matrix.shards }}\n`),
     `${name} job names show OS, Node and shard`);
-  const specChecks = [...text.matchAll(/\n {6}- run: node bin\/pullboard\.js spec check(?=\n)/gu)];
+  const specChecks = [...text.matchAll(/\n {6}- run: node apps\/cli\/pullboard\.js spec check(?=\n)/gu)];
   assert.equal(specChecks.length, 1, `${name} runs spec check exactly once in every matrix job`);
   assert.ok(text.includes('npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}'),
     `${name} passes the native shard to the test runner`);
@@ -98,6 +98,7 @@ function extract(t, script, changelog, tag = 'v1.2.3') {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'CHANGELOG.md'), changelog);
   const notes = join(root, 'release-notes.md');
+  // process-level: a workflow script run as its own node program.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
     cwd: root, encoding: 'utf8',
     env: { ...process.env, GITHUB_REF_NAME: tag, RUNNER_TEMP: root },
@@ -141,6 +142,7 @@ function runCla(t, pr, signatures) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   fixture.write('pr.json', JSON.stringify(pr));
   fixture.write('signatures.json', JSON.stringify(signatures));
+  // process-level: the CLA check is its own node entry.
   return runFixtureChild(process.execPath, [resolve(ROOT, 'packages/gate/src/io/check/cla.js')], {
     encoding: 'utf8',
     env: { ...process.env, CLA_PR_FILE: join(dir, 'pr.json'), CLA_SIGNATURES_FILE: join(dir, 'signatures.json') },
@@ -157,7 +159,7 @@ test('clause 1: the CLA workflow runs on pull requests and PR comments with only
   assert.match(CLA_WORKFLOW, /github\.event\.issue\.pull_request/u, 'comments on plain issues are skipped');
   const used = [...CLA_WORKFLOW.matchAll(/^\s*-\s+uses: ([^\s]+)/gmu)].map((m) => m[1].split('@')[0]);
   assert.deepEqual([...new Set(used)].sort(), ['actions/checkout', 'actions/setup-node']);
-  assert.match(CLA_WORKFLOW, /node bin\/check-cla\.js/u);
+  assert.match(CLA_WORKFLOW, /node packages\/gate\/src\/io\/check\/cla\.js/u);
   assert.doesNotMatch(CLA_WORKFLOW, /pull_request_target/u);
   assert.deepEqual([...CLA_WORKFLOW.matchAll(/^ {2}([\w-]+): write$/gmu)].map((m) => m[1]), ['statuses'],
     'statuses is the only write permission');

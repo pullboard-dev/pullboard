@@ -6,6 +6,7 @@ import { git } from '../../../git/index.js';
 import { isClean } from '../../../git/index.js';
 import { untracked } from '../../../git/index.js';
 import { committedItemAuthors } from '../io/review/independence.js';
+import { earlierHolderProblem } from '../io/review/independence.js';
 import { effectiveItemHead } from './advance.js';
 import { itemReviewPolicy } from '../io/review/independence.js';
 import { twoTierReviews } from '../io/review/independence.js';
@@ -94,9 +95,10 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, 
  * @param {{listItems: Function}} services
  * @returns {number[]}
  */
-export function ownSessionReviews(info, board, digest, { listItems }) {
+export function ownSessionReviews(info, board, digest, { listItems, reviewer }) {
   return listItems(board).filter((item) => item.item_status === 'submitted').flatMap((item) => {
-    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) }); return []; }
+    if (reviewer && earlierHolderProblem(board, item, reviewer)) return [item.item_id];
+    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence }); return []; }
     catch (error) { if (error instanceof Refused && error.code === 'SELF_SESSION_VERIFY') return [item.item_id]; throw error; }
   });
 }
@@ -131,18 +133,22 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     const line = `returned #${id} to its builder unreviewed: it no longer merges onto the trunk (${files.map(shownPath).join(', ')})`;
     if (ctx.io.stderr) ctx.io.stderr.write(line + '\n'); else ctx.io.err?.(line);
   }
-  const reservation = { agentId: me.id, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
+  // A review that plain next reserved on its own lapses in 5 minutes unless the seat starts it, so one idle builder never locks out the real reviewer.
+  const leaseMs = values.unstartedReviewLapse ? Math.min(ctx.config.reviewLeaseMs, 5 * 60_000) : ctx.config.reviewLeaseMs;
+  const reservation = { agentId: me.id, leaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
-    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
+    const earlier = earlierHolderProblem(board, item, me.id);
+    if (earlier) throw earlier;
+    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
     ctx.io.nextPhase?.('review reservation', id);
     return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }
-  const selection = { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
+  const selection = { agentId: me.id, lane: me.lane, leaseMs, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
     omitIds: values.omitIds,
-    observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems }),
+    observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems, reviewer: me.id }),
     priority: mainRedReviewItems(ctx.info.root, board) };
   // An empty read has no move to authorize. The write authority repeats selection atomically
   // when a candidate exists, so a stale read can never reserve another reviewer's work.

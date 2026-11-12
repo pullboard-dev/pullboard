@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/gate/drive.js apps/lib/src/io/handoff/dispatcher.js packages/resources/src/io/handoff/worker/detach.js */
 /** @pullboard-world-pin copies the shipped detach entry point into the captured tooling the recovery check relaunches from. */
 /** No board command runs dispatcher recovery inline; a background job owns it and still relaunches a dead dispatcher [C7]. */
 import assert from 'node:assert/strict';
@@ -38,6 +38,9 @@ function fixture(t) {
   writeFileSync(join(commonDir, 'pullboard', 'board.sqlite'), '');
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
+  mkdirSync(join(tools, 'apps/lib/src/io/handoff'), { recursive: true });
+  mkdirSync(join(tools, 'packages/resources/src/io/handoff/worker'), { recursive: true });
   const directory = join(dir, 'jobs', 'job1');
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'request.json'), JSON.stringify({ job: 'job1' }) + '\n');
@@ -131,6 +134,7 @@ test('clause 2: the detached recovery check relaunches a dead dispatcher from th
   copyFileSync(fileURLToPath(new URL('../../../../packages/resources/src/io/handoff/worker/detach.js', import.meta.url)), join(box.tools, 'packages/resources/src/io/handoff/worker/detach.js'));
   writeFileSync(join(box.tools, 'apps/lib/src/io/handoff/dispatcher.js'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');\n`);
   await queueJob(box);
+  // Process-level: the dispatcher entry runs --recover as its own process.
   const run = spawnSync(process.execPath, [DISPATCHER, '--recover'], { cwd: box.commonDir, env: process.env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr + run.stdout);
   await waitForCondition(() => existsSync(marker), 'the captured dispatcher was launched');

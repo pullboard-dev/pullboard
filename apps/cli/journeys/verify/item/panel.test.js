@@ -54,10 +54,12 @@ function seedPanelItems(box, demo) {
 test('the item panel presents native verdicts, checks, files and newest-first history at desktop and phone widths [N26,B23]', { timeout: 300_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'The frozen item-panel journey requires real Chrome.');
-  const box = machine(), demo = project(box, 'item-panel');
+  // The seeded check names two files outside web/, so the lane owns them for claim to accept the bar [C7].
+  const owned = ['web/', 'packages/gate/src/io/run/tests.js', 'apps/cli/journeys/verify/item/panel.test.js'];
+  const box = machine(), demo = project(box, 'item-panel', undefined, { lanes: { web: { owns: owned, specs: ['G'] } } });
   // The seeded check is also executed by the native submission, so its fixture needs a real runner and test.
-  mkdirSync(join(demo.repo, 'bin'), { recursive: true });
-  mkdirSync(join(demo.repo, 'test', 'cockpit'), { recursive: true });
+  mkdirSync(join(demo.repo, 'packages', 'gate', 'src', 'io', 'run'), { recursive: true });
+  mkdirSync(join(demo.repo, 'apps', 'cli', 'journeys', 'verify', 'item'), { recursive: true });
   writeFileSync(join(demo.repo, 'packages', 'gate', 'src', 'io', 'run', 'tests.js'), "const { spawnSync } = require('node:child_process'); const result = spawnSync(process.execPath, ['--test', ...process.argv.slice(2)], { stdio: 'inherit' }); process.exit(result.status ?? 1);\n");
   writeFileSync(join(demo.repo, 'apps', 'cli', 'journeys', 'verify', 'item', 'panel.test.js'), "const { test } = require('node:test'); test('fixture check', () => {});\n");
   box.git(demo.repo, 'add', 'packages/gate/src/io/run/tests.js', 'apps/cli/journeys/verify/item/panel.test.js');
@@ -65,24 +67,24 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
   box.git(demo.web, 'merge', '--ff-only', 'main');
   const id = seedPanelItems(box, demo);
   assert.equal(id, 1, 'the private native fixture creates its identified primary item');
-  box.run(demo.repo, 'milestone', 'add', 'Panel release', '--reason', 'Arrange fixture release', '--items', String(id));
+  await box.inProcess(demo.repo, 'milestone', 'add', 'Panel release', '--reason', 'Arrange fixture release', '--items', String(id));
   build(box, demo, id, 'item-panel.js');
-  const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'Item panel reviewer fixture', '--json'));
+  const reviewer = JSON.parse(await box.inProcess(demo.repo, 'worktree', 'web', '--model', 'Item panel reviewer fixture', '--json'));
   let head = box.git(demo.web, 'rev-parse', 'HEAD');
   box.git(reviewer.path, 'switch', '--detach', head);
-  box.run(reviewer.path, 'next', '--verify', String(id));
-  const frozen = JSON.parse(box.run(reviewer.path, 'show', String(id), '--json'));
-  box.run(reviewer.path, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', JSON.parse(frozen.item_frozen).criterion,
+  await box.inProcess(reviewer.path, 'next', '--verify', String(id));
+  const frozen = JSON.parse(await box.inProcess(reviewer.path, 'show', String(id), '--json'));
+  await box.inProcess(reviewer.path, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', JSON.parse(frozen.item_frozen).criterion,
     '--note', Array.from({ length: 8 }, (_, index) => `The sent-back note retains its actual native detail on line ${index + 1}.`).join('\n'), '--no-next');
-  box.run(demo.web, 'claim', String(id));
+  await box.inProcess(demo.web, 'claim', String(id));
   appendFileSync(join(demo.web, 'web', 'item-panel.js'), 'export const panelRepair = true;\n');
   box.git(demo.web, 'add', 'web/item-panel.js');
   box.git(demo.web, 'commit', '-q', '-m', 'test(web): update native panel fixture [G1]');
-  box.run(demo.web, 'submit', String(id), '--no-next');
+  await box.inProcess(demo.web, 'submit', String(id), '--no-next');
   head = box.git(demo.web, 'rev-parse', 'HEAD');
   box.git(reviewer.path, 'switch', '--detach', head);
-  box.run(reviewer.path, 'next', '--verify', String(id));
-  box.run(reviewer.path, 'verify', String(id), 'accept', '--note', Array.from({ length: 8 }, (_, index) => `The accepted fixture note keeps the complete review on line ${index + 1}.`).join('\n'), '--no-next');
+  await box.inProcess(reviewer.path, 'next', '--verify', String(id));
+  await box.inProcess(reviewer.path, 'verify', String(id), 'accept', '--note', Array.from({ length: 8 }, (_, index) => `The accepted fixture note keeps the complete review on line ${index + 1}.`).join('\n'), '--no-next');
 
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-item-panel-chrome-'));
   let chrome;
@@ -142,7 +144,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
         && title === fullCommit && label === `Copy full hash ${fullCommit}`), 'the short SHA retains its full hover and copy value');
       assert.match(shown.counts, /Passed 1 time · sent back 1/u);
       assert.match(shown.baseline, /Red on main[\s\S]*as it should be: the check fails before the change/u);
-      assert.match(shown.sentence, /Passes when test\/cockpit\/item-panel\.test\.js runs with no failures/u);
+      assert.match(shown.sentence, /Passes when apps\/cli\/journeys\/verify\/item\/panel\.test\.js runs with no failures/u);
       assert.match(shown.sentence, /its case "the item panel presents native verdicts, checks, files and newest-first history at desktop and phone widths \[N26,B23\]" passes/u,
         'the single recorded baseline case is named exactly as recorded');
       assert.equal(shown.brief.includes('Files:'), false, 'the paths are shown once as chips');
@@ -174,8 +176,10 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
       await press(chrome, "document.querySelector('#detail [data-item-panel-tab=history]')");
       const eventIds = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#detail .item-panel-history-list .tl > li')].map(row => Number(row.dataset.eventId)))"));
       assert.ok(eventIds[0] > eventIds.at(-1), 'history reads newest first while retaining native event ids');
-      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').textContent"), /^Show all \d+$/u);
-      await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+      // An expanded history is remembered across renders [B23], so the phone pass finds the desktop pass's expansion still open.
+      const remembered = width !== 1440;
+      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').textContent"), remembered ? /^Show less$/u : /^Show all \d+$/u);
+      if (!remembered) await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')"), true);
       assert.equal(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').getAttribute('aria-expanded')"), 'true');
     }

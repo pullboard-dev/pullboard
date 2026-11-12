@@ -1,5 +1,6 @@
 /** Busy runner removal stops new dispatches while admitted private jobs finish [C7]. */
 import assert from 'node:assert/strict';
+import { fixtureMachineSettings } from '../testkit.js';
 import {
   existsSync,
   mkdirSync,
@@ -30,7 +31,7 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const removed = { host: 'runner-one.example.invalid', slots: 2, browser: 1, node: 'node', root: '/srv/runner-one' };
   const remaining = { host: 'runner-two.example.invalid', slots: 1, browser: 0 };
-  const original = { gateSlots: 3, browserSlots: 2, gate: { shortSlots: 1, queue: { reviewsFirst: true } },
+  const original = { gateSlots: 3, browserSlots: 2, gate: { shortSlots: 1, runnerDispatch: 'controller', queue: { reviewsFirst: true } },
     relay: { offerAtInit: true }, custom: { keep: 'unchanged' } };
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(settingsFile, JSON.stringify(original, null, 2));
@@ -105,7 +106,9 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
   writeFileSync(join(repo, 'tracked.txt'), 'private runner drain source\n');
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare runner drain fixture');
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, custom: { preserve: true } }));
+  // The stand-in worker's own machine home pins controller dispatch too [P7].
+  fixtureMachineSettings(remoteMachineHome, { gate: { runnerDispatch: 'controller' } });
+  fixtureMachineSettings(machineHome, { gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller' }, custom: { preserve: true } });
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(directory, 'ssh-requests.jsonl') });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(added.status, 0, added.context);
@@ -176,4 +179,34 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
     if (previousMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/** `runner drain` rests a registered runner, `runner list` shows it draining, and `runner undrain` returns it to rotation [C7]. */
+export function runnerDrainRotation(t, e2e) {
+  const box = e2e.project();
+  const probeBin = join(box.dir, 'registration-bin');
+  mkdirSync(probeBin);
+  installRegistrationProbeStandIn({ bin: probeBin });
+  box.env.PATH = `${probeBin}:${box.env.PATH}`;
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  writeFileSync(settingsFile, JSON.stringify({ gateSlots: 2, browserSlots: 1 }, null, 2));
+  const host = 'runner-rest.example.invalid';
+  assert.equal(box.run(box.repo, 'runner', 'add', host, '--slots', '2', '--browser', '1', '--json').code, 0);
+  const listed = () => JSON.parse(box.run(box.repo, 'runner', 'list', '--json').out).runners.find(row => row.host === host);
+  const stored = () => JSON.parse(readFileSync(settingsFile, 'utf8')).runners.find(row => row.host === host);
+  assert.equal(listed().draining, undefined, 'a fresh runner is in rotation');
+  const drained = box.run(box.repo, 'runner', 'drain', host);
+  assert.equal(drained.code, 0, drained.err);
+  assert.ok(drained.out.includes(`draining runner ${host}`) && drained.out.includes(`pullboard runner undrain ${host}`), drained.out);
+  assert.equal(stored().drain, true, 'the drain persists in the machine settings');
+  assert.equal(listed().draining, true, 'runner list shows it draining');
+  assert.ok(box.run(box.repo, 'runner', 'list').out.includes(`${host}: 2 slots, 1 browser (draining)`));
+  const undrained = box.run(box.repo, 'runner', 'undrain', host);
+  assert.equal(undrained.code, 0, undrained.err);
+  assert.equal(stored().drain, undefined, 'undrain clears the mark');
+  assert.equal(listed().draining, undefined, 'runner list shows it back in rotation');
+  const missing = box.run(box.repo, 'runner', 'drain', 'nobody.example.invalid', '--json');
+  assert.equal(missing.code, 1, missing.err);
+  assert.equal(JSON.parse(missing.out).error.code, 'RUNNER_NOT_REGISTERED');
 }

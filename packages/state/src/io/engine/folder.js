@@ -95,9 +95,13 @@ export function engineFolderViolations(sources) {
       const end = list.index + list[0].length;
       const from = /^\s*from\b\s*/u.exec(code.slice(end));
       const target = from ? literals.get(end + from[0].length) : null;
-      if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
-        && HOME.test(posix.normalize(posix.join(posix.dirname(file), target)))) continue;
-      for (const entry of list[1].split(',')) {
+      const entries = list[1].split(',');
+      const targetFile = target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
+        ? posix.normalize(posix.join(posix.dirname(file), target)) : null;
+      if (targetFile && HOME.test(targetFile)
+        && !entries.some(entry => /(?:^|\bas\s+)EXIT_RULES_ENGINE\s*$/u.test(entry.trim())
+          && !stateExitRuleExport(sources, targetFile))) continue;
+      for (const entry of entries) {
         const exported = /(?:^|\bas\s+)([A-Z][A-Z0-9_]*_ENGINE)\s*$/u.exec(entry.trim());
         if (!exported || declared.has(exported[1])) continue;
         if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')

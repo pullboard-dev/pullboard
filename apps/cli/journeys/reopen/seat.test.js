@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A reopen first-refusal hold waits only for a builder whose seat can still come back [B4,B5,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

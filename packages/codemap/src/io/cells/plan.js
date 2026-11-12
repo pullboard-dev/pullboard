@@ -91,7 +91,7 @@ export function inPlanScope(file) {
 export const MOVE_HISTORY_REASON = 'canonical engine identity retained in src during package moves';
 
 /**
- * The reason a path is placed by rule, or null: any packages/state/data/history/<digits>.json is a stay with the stay rows' reason.
+ * The reason a path is placed by rule, or null: any packages/state/data/history/<digits>.json (or src/move-history/<digits>.json on a 0.9.3 board) is a stay with the stay rows' reason.
  * Each landing that adds an engine writes the next snapshot, so waiting for a plan row would jam that landing (#3225).
  * Every check that reports unplaced paths asks this one function, whether or not the plan lists the file.
  *
@@ -99,7 +99,7 @@ export const MOVE_HISTORY_REASON = 'canonical engine identity retained in src du
  * @returns {string|null} The placement reason, or null when the path is not an engine history snapshot.
  */
 export function moveHistoryPlacement(file) {
-  return /^packages\/state\/data\/history\/\d+\.json$/u.test(file) ? MOVE_HISTORY_REASON : null;
+  return /^(?:packages\/state\/data\/history|src\/move-history)\/\d+\.json$/u.test(file) ? MOVE_HISTORY_REASON : null;
 }
 
 /** Translate a dry-run cell to its one-word plan name, so seeds and rules agree on one vocabulary. */
@@ -235,7 +235,7 @@ function anatomy(placed, edges, sources) {
 function targetPath(file, cell, shell) {
   const root = cellRoot(cell);
   if (testFile(file)) return `${root}/tests/${posix.basename(file)}`;
-  return `${root}/src/${shell.has(file) ? 'shell' : 'core'}/${innerPath(file)}`;
+  return `${root}/src/${shell.has(file) ? 'io' : 'logic'}/${innerPath(file)}`;
 }
 
 /**

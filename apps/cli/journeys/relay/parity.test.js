@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/src/logic/browser/pages.js packages/pages/src/logic/relay/presentation.js */
 import { browserModules } from '../../../relay/index.js';
 import { presentationShout } from '../../../../packages/pages/light.js';
 import { presentationShout as nodePresentationShout } from '../../../../packages/pages/index.js';
@@ -48,7 +48,7 @@ test('relay pages and presentation browser entries reach no Node built-ins [C7,H
     '/relay/pages.js': 'apps/relay/src/logic/browser/pages.js',
     '/relay/presentation.js': 'packages/pages/src/logic/relay/presentation.js',
   } });
-  assert.ok(modules.has('/relay/m/packages/pages/core.js'));
+  assert.ok(modules.has('/relay/m/packages/pages/light.js'));
   assert.ok(![...modules.keys()].some(path => path.includes('/shell/')));
   const imports = importsIn([...modules.values()]);
   assert.equal(imports.flat().filter(name => name.startsWith('node:')).length, 0);

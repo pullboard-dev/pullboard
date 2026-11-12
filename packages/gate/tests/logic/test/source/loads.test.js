@@ -28,7 +28,7 @@ function graph(t) {
   git('init','-q','-b','main');
   put('package.json','{"type":"module"}\n');
   put('src/api.js','export const version = 1;\n');
-  put('apps/cli/journeys/milestone/api.test.js',"import '../src/api.js';\n");
+  put('apps/cli/journeys/milestone/api.test.js',"import '../../../../src/api.js';\n");
   put('src/labels.js',"import {readFileSync} from 'node:fs'; export const types=['feat','fix','docs','test']; export const config=()=>readFileSync('config.json'); export const isDoc=path=>path.startsWith('docs/');\n");
   put('test/unrelated.test.js',"import '../src/labels.js'; import assert from 'node:assert/strict'; assert.ok(true);\n");
   put('docs/api.md','# API\n');
@@ -62,10 +62,10 @@ test('source loader declarations resolve committed targets and reject unknown bo
       assert.equal(selection.full, true, header);
       assert.match(selection.reason, /non-literal dynamic import in reached file src\/loader\.js/u);
     }
-    box.put('packages/gate/src/io/run/tests.js', 'export const runner = true;\n');
+    box.put('apps/cli/src/io/run/tests.js', 'export const runner = true;\n');
     const runnerChange = box.commit();
     const global = selectAffectedTests(box.root, { base: commit, commit: runnerChange });
     assert.equal(global.full, true);
-    assert.match(global.reason, /bin\/run-tests\.js controls the gate or dependency selection/u);
+    assert.match(global.reason, /apps\/cli\/src\/io\/run\/tests\.js controls the gate or dependency selection/u);
   }
 });

@@ -51,6 +51,7 @@ function fixture(t, { conflict = false } = {}) {
     heads.push(commit(`feat(web): add ${name} [G1]`));
   }
   runFixtureGit(['switch', '-q', 'main'], { cwd: root, stdio: 'pipe' });
+  // @pullboard-board-file journey: the shadow batch runs against the board file in the git folder
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: root });
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });

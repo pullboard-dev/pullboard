@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/git/src/io/launch/baseline.json */
 /** Shared real/in-memory Git contracts and the staged source-launch ratchet [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -336,7 +336,7 @@ test('the Git launch scan counts package launchers at their true path and fails 
   mkdirSync(cell, { recursive: true });
   mkdirSync(join(root, 'packages/widget/tests'));
   writeFileSync(join(root, 'src/legacy.js'), "spawnSync('git', ['status']);\n");
-  writeFileSync(join(moved, 'git-adapter.js'), "spawn('git', []);\n");
+  writeFileSync(join(moved, 'adapter.js'), "spawn('git', []);\n");
   writeFileSync(join(root, 'packages/widget/tests/fixture.js'), "spawnSync('git', ['init']);\n");
   const allowed = { 'src/legacy.js': 1 };
   const report = gitLaunchReport(root);

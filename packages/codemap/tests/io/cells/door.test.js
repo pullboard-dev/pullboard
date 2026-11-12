@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/cells.json packages/codemap/src/io/cells/scripts/plan.js packages/kernel/browser.js packages/kernel/index.js packages/kernel/src/logic/refused.js */
 /** A cell may declare a browser-safe pure door, pure.js, beside its index.js: src/core files only, no node: built-in, no shell [C7,D3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -28,13 +28,13 @@ function declare(root, cell, key, value) {
 }
 
 /** Move the fixture's kernel behind index.js and a declared pure.js; an outside shim reaches it through the pure door. */
-function movedWithPureDoor(t, { body = 'export class Refused extends Error {}\n', door = "export { Refused } from './src/core/refused.js';\n", key = PURE } = {}) {
+function movedWithPureDoor(t, { body = 'export class Refused extends Error {}\n', door = "export { Refused } from './src/logic/refused.js';\n", key = PURE } = {}) {
   const project = fixture(t), { root, put } = project;
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   put(BODY, body);
   put(PURE, door);
-  put('packages/kernel/index.js', "export * from './src/core/refused.js';\n");
-  put('src/refused.js', "export { Refused } from '../packages/kernel/pure.js';\n");
+  put('packages/kernel/index.js', "export * from './src/logic/refused.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/browser.js';\n");
   put('bin/tool.js', "import '../packages/kernel/index.js';\nimport '../src/cli.js';\n");
   assert.equal(plan(root, '--write').status, 0);
   declare(root, 'kernel', 'pureDoor', key);
@@ -58,10 +58,10 @@ test('a pure.js whose closure imports a node: built-in is refused with its reaso
 });
 
 test('a pure.js that re-exports a shell file is refused with its reason [C7,D3]', t => {
-  const { moved } = movedWithPureDoor(t, { door: "export { Refused } from './src/core/refused.js';\nexport { run } from './src/shell/process.js';\n" });
+  const { moved } = movedWithPureDoor(t, { door: "export { Refused } from './src/logic/refused.js';\nexport { run } from './src/io/process.js';\n" });
   const run = moved();
   assert.equal(run.status, 1);
-  assert.ok(run.problems.some(text => text.includes('non-core file') && text.includes('src/shell/process.js')), run.problems.join('\n'));
+  assert.ok(run.problems.some(text => text.includes('non-core file') && text.includes('src/io/process.js')), run.problems.join('\n'));
 });
 
 test('a pureDoor that is not <cell>/pure.js is refused [C7,D3]', t => {

@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -18,9 +19,11 @@ import { BROWSER_SLOT_HELD_ENV } from '../../../../../packages/resources/index.j
 import { GATE_SLOT_HELD_ENV } from '../../../../../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../../packages/resources/index.js';
+import { TEST_FILE_POOL_ENV } from '../../../../../packages/gate/index.js';
 import { executionServicesSource } from './execution.js';
+import { fixtureProjectPolicy } from '../testkit.js';
 
-export const RUNNER = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
+export const RUNNER = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 export const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
 export const RESOURCE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/resources/index.js')).href;
 export const PROBE_NAME = 'machine gate slot runner probe [Q4]';
@@ -76,7 +79,18 @@ export function fixture() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   delete env[GATE_SLOT_HELD_ENV];
+  // The runner this file runs on holds a token of its own run's file pool; whole-suite fixture runs need a pool of their own.
+  delete env[TEST_FILE_POOL_ENV];
+  for (const key of [GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV, 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_SELECTION', 'PULLBOARD_TEST_BROWSER_BY_LAUNCH', 'NODE_OPTIONS']) delete env[key];
   return { dir, events, env };
+}
+
+/** Commit a probe project's policy on main, so the runner's gate admission finds a trunk (NO_POLICY otherwise). */
+function commitProbePolicy(box, root) {
+  fixtureProjectPolicy(root);
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture']]) {
+    assert.equal(runFixtureChild('git', args, { cwd: root, env: box.env, encoding: 'utf8' }).status, 0);
+  }
 }
 
 /** Create a tiny test-project with one discoverable probe instead of recursively loading this repository's suite. */
@@ -85,12 +99,15 @@ export function probeSuite(box, name) {
   const tests = join(root, 'test');
   mkdirSync(tests, { recursive: true });
   writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
+  commitProbePolicy(box, root);
   return root;
 }
 
 /** Launch a run-tests invocation with its own process group and captured output. */
 export function launchTestRunner(box, root, args, marker, release, extraEnv = {}) {
-  const env = { ...box.env, [PROBE_PATH_ENV]: marker, ...(release ? { [PROBE_RELEASE_ENV]: release } : {}), ...extraEnv };
+  // Bare probes represent whole-suite gate runs, not seat tests that reserve a gate slot for item checks.
+  const env = { ...box.env, ...(args.length === 0 ? { PULLBOARD_LANDING_RUN: '1' } : {}),
+    [PROBE_PATH_ENV]: marker, ...(release ? { [PROBE_RELEASE_ENV]: release } : {}), ...extraEnv };
   delete env[GATE_SLOT_HELD_ENV];
   const child = spawn(process.execPath, [RUNNER, ...args], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdoutText = '';
@@ -123,6 +140,7 @@ test(${JSON.stringify(PROBE_NAME)}, async () => {
   while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));
 });
 `);
+  commitProbePolicy(box, root);
   return root;
 }
 
@@ -166,13 +184,15 @@ await withGateSlot(process.cwd(), async () => {
 }
 
 /** Fill both gate slots with real whole-suite runs and wait until each one's probe is running. */
-export async function wholeSuiteHolders(box, names) {
+export async function wholeSuiteHolders(box, names, add = child => child) {
   const runs = names.map(name => {
     const marker = join(box.dir, `${name}.started`);
     const release = join(box.dir, `${name}.release`);
-    return { marker, release, child: launchTestRunner(box, probeSuite(box, name), [], marker, release) };
+    return { marker, release, child: add(launchTestRunner(box, probeSuite(box, name), [], marker, release)) };
   });
-  await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run');
+  try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
+    throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
+  }
   return runs;
 }
 

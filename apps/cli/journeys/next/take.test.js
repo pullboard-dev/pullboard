@@ -156,26 +156,26 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
   });
 }
 
-test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {
+test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('own-web', 'web', box.session);
   const foreign = box.add('api', 'Earlier foreign work');
   const own = box.add('web', 'Ready own-lane work');
   box.milestone('earlier', foreign); box.milestone('later', own);
-  const first = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
+  const first = box.json((await box.runAsLocal(box.session, web.root, 'next', '--build', '--json')));
   assert.equal(first.item.item_id, own);
   assert.equal(first.item.item_owner, web.agent);
-  box.json(box.runAs(box.session, web.root, 'release', String(own), '--reason', 'BLOCKED', '--no-next', '--json'));
-  box.json(box.run(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json'));
+  box.json((await box.runAsLocal(box.session, web.root, 'release', String(own), '--reason', 'BLOCKED', '--no-next', '--json')));
+  box.json((await box.runLocal(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json')));
   const worktrees = box.git(box.repo, 'worktree', 'list', '--porcelain');
-  const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
+  const next = (await box.runAsLocal(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(next.code, 1, next.out);
   assert.match(JSON.parse(next.out).error.message, new RegExp(`#${foreign}\\b.*api lane`, 'u'));
-  assert.equal(box.json(box.run(box.repo, 'show', String(foreign), '--json')).item_status, 'open');
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(foreign), '--json'))).item_status, 'open');
   assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), worktrees, 'next opens no seat or worktree');
 });
 
-test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', t => {
+test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('idle-web', 'web', box.session);
   const dirty = box.seat('dirty-api', 'api', box.session);
@@ -183,15 +183,15 @@ test('ordinary next never claims for a dirty, occupied or peer target-lane seat 
   const peer = box.seat('peer-api', 'api', 'separate-peer-session');
   writeFileSync(join(dirty.root, 'uncommitted.txt'), 'retain these private fixture bytes\n');
   const occupied = box.add('api', 'An existing claim');
-  box.json(box.runAs(box.session, busy.root, 'claim', String(occupied), '--json'));
+  box.json((await box.runAsLocal(box.session, busy.root, 'claim', String(occupied), '--json')));
   const free = box.add('api', 'Ready unowned work');
   const bindings = [dirty, busy, peer].map(seat => box.binding(seat.root));
-  const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
+  const next = (await box.runAsLocal(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(next.code, 1, next.out);
-  assert.equal(box.json(box.run(box.repo, 'show', String(free), '--json')).item_status, 'open', 'the foreign item is named, not claimed');
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(free), '--json'))).item_status, 'open', 'the foreign item is named, not claimed');
   assert.deepEqual([dirty, busy, peer].map(seat => box.binding(seat.root)), bindings);
   assert.equal(box.git(dirty.root, 'status', '--porcelain'), '?? uncommitted.txt');
-  assert.equal(box.json(box.run(box.repo, 'show', String(occupied), '--json')).item_owner, busy.agent);
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(occupied), '--json'))).item_owner, busy.agent);
 });
 
 test('a review goes only to an independent seat [V1,B3]', async t => {
@@ -266,7 +266,7 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   assert.equal(taken.code, 0, taken.out + taken.err);
   const held = store.getItem(box.board, id);
   const changed = await cli(box, box.root, ['edit', String(id), '--criterion', 'The corrected held criterion',
-    '--check', 'true && true', '--reason', 'Correct the held fixture bar', '--wait']);
+    '--check', 'true && true', '--reason', 'Correct the held fixture bar']);
   assert.equal(changed.code, 0, changed.out + changed.err);
   const current = store.getItem(box.board, id);
   assert.equal(current.item_owner, held.item_owner);

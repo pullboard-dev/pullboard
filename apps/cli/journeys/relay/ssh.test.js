@@ -19,7 +19,7 @@ test('SSH relay off then on confirms replacement and retains the old-board off r
   const box = await relayClientFixture(t);
   await box.link();
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
-  assert.equal((await box.cli('relay', 'off')).code, 0, 'ordinary local off finishes first');
+  assert.equal((await box.cliLocal('relay', 'off')).code, 0, 'ordinary local off finishes first');
   const running = box.startCli(['relay', 'on', '--url', box.origin], { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22' });
   try {
     const output = await running.waitForOutput(PROMPT);

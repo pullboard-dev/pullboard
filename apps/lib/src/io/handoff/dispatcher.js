@@ -28,11 +28,11 @@ import {
   staleDispatcherTools as runnersStaleDispatcherTools,
 } from '../../../../../packages/runners/index.js';
 import { appendFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { join } from 'node:path';
+import { gitSpawnSync } from '../../../../../packages/git/light.js';
+import { trunkRef } from '../../../../../packages/git/light.js';
 
 /** How long one repository's sweep may run before the dispatcher moves on. */
 const SWEEP_TIMEOUT_MS = 60_000;
@@ -43,7 +43,7 @@ const SWEEP_TIMEOUT_MS = 60_000;
  * @param {string} commonDir - The repository's Git common directory.
  */
 export async function sweepRepositoryInChild(commonDir) {
-  const entry = join(fileURLToPath(new URL('..', import.meta.url)), 'apps/cli/src/io/submit/handoff/sweep.js');
+  const entry = fileURLToPath(new URL('../../../../cli/src/io/submit/handoff/sweep.js', import.meta.url));
   const child = spawn(process.execPath, [entry, commonDir], { stdio: ['ignore', 'ignore', 'inherit'], timeout: SWEEP_TIMEOUT_MS, killSignal: 'SIGKILL' });
   const [code] = await once(child, 'close');
   if (code !== 0) throw new Error(`sweep exited ${code}`);
@@ -99,9 +99,16 @@ export function lateTicketRetaken(drained, row) {
   catch { return false; /* an unreadable queue or board is left to the next submit's launch */ }
 }
 
-/** The commit a tool root's HEAD names, or null when it has none; runs git here, in the bin, never in a cell the leases reach. */
-function toolRootHead(root) {
-  const run = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+/**
+ * The commit a tool root's trunk branch names (its HEAD only when no trunk is recorded), or null when it has none; runs
+ * git here, in the bin, never in a cell the leases reach. Why the trunk: seats submit from their own worktrees, each
+ * at its item's HEAD, so on 11 Nov every seat's launch looked current and dispatchers handed over to each other every
+ * few seconds, cutting each gate's lifeline 2-4 times before any test ran; only main's tip is current tooling (DJ16).
+ */
+export function toolRootHead(root) {
+  let trunk = null;
+  try { trunk = trunkRef(root); } catch { return null; }
+  const run = gitSpawnSync(['-C', root, 'rev-parse', '--verify', '--quiet', trunk ? `refs/heads/${trunk}^{commit}` : 'HEAD'], { encoding: 'utf8' });
   return run.status === 0 && /^[0-9a-f]{40}$/u.test(run.stdout.trim()) ? run.stdout.trim() : null;
 }
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js apps/cli/light.js packages/codemap/data/plan/cells.json packages/codemap/data/plan/path-map/cli.json packages/codemap/src/io/cells/scripts/plan.js */
 /** An app cell may declare a light front door, apps/<name>/core.js, the way a package does; a pure front door stays a package's [C7,D3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -31,13 +31,13 @@ function declare(root, cell, key, value) {
 }
 
 /** Move the fixture's app:cli behind index.js and a declared light core.js that re-exports its body. */
-function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { run } from './src/core/cli.js';\n", key = 'lightFrontDoor', value = DOOR } = {}) {
+function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { run } from './src/logic/cli.js';\n", key = 'lightFrontDoor', value = DOOR } = {}) {
   const project = fixture(t), { root, put } = project;
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   put(BODY, body);
   put(DOOR, door);
-  put('apps/cli/index.js', "export * from './core.js';\n");
-  put('src/cli.js', "export { run } from '../apps/cli/core.js';\n");
+  put('apps/cli/index.js', "export * from './light.js';\n");
+  put('src/cli.js', "export { run } from '../apps/cli/light.js';\n");
   put('bin/tool.js', "import '../apps/cli/index.js';\n");
   assert.equal(plan(root, '--write').status, 0);
   declare(root, 'app:cli', key, value);

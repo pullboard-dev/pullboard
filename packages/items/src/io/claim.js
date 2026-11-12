@@ -11,8 +11,11 @@ import { sameCommonDir } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 
-/** The registered seat row alone; the model label is not needed to judge a folder. */
-function agentRow(board, id) { return board.db.prepare('SELECT agent_id, agent_lane, agent_path FROM agent WHERE agent_id = ?').get(id); }
+/** The registered seat identity and routing attributes used by an item folder. */
+function agentRow(board, id) {
+  return board.db.prepare(`SELECT agent.agent_id, agent.agent_lane, agent.agent_path, agent.agent_route, model.meta_value AS agent_model
+    FROM agent LEFT JOIN board_meta model ON model.meta_key='agent_model:' || agent.agent_id WHERE agent.agent_id = ?`).get(id);
+}
 
 /** A seat's item folders are siblings of its checkout, never inside its working tree. */
 export function itemFolderPath(root, id) { return join(dirname(root), `${basename(root)}-item-${id}`); }
@@ -43,8 +46,10 @@ export function itemFolderIdentity(board, root) {
     }
     if (marker.version !== 1 || typeof marker.seat !== 'string' || !Number.isSafeInteger(marker.item)) return null;
     const agent = agentRow(board, marker.seat);
-    const item = board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(marker.item);
-    if (!agent || item?.item_status !== 'claimed' || item.item_owner !== marker.seat
+    const item = board.db.prepare('SELECT item_status, item_owner, item_built_by FROM item WHERE item_id=?').get(marker.item);
+    // A submitted item's folder still belongs to the seat that built it, so the work a submit does after the handoff resolves the same seat.
+    const ownFolder = item?.item_status === 'claimed' && item.item_owner === marker.seat || item?.item_status === 'submitted' && item.item_built_by === marker.seat;
+    if (!agent || !ownFolder
       || root !== itemFolderPath(agent.agent_path, marker.item)
       || !sameCommonDir(repoInfo(root).commonDir, repoInfo(agent.agent_path).commonDir)
       || tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout !== `${agent.agent_lane}/item-${marker.item}`) return null;

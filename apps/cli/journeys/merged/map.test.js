@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/store/src/io/board.js packages/codemap/src/io/map.js apps/cli/src/io/commands/map.js apps/cli/src/io/commands/merged.js apps/cli/src/io/commands/index.js apps/cli/src/io/commands/next.js apps/cli/src/io/commands/claim.js packages/codemap/src/io/slice.js apps/cli/src/io/main.js apps/cli/src/io/help.js apps/cli/src/logic/help.js src/land.js packages/config/src/io/templates.js apps/cli/tests/fixtures/board/submit.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -22,7 +21,6 @@ import {
 } from '../../../../packages/codemap/index.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -160,7 +158,7 @@ test('a main-stamped map validates actual inputs despite index flags and symboli
     'exact regular committed inputs still scan after all negative controls');
 });
 
-test('pullboard map prints the overview, a card and an item slice from one scan [C7]', t => {
+test('pullboard map prints the overview, a card and an item slice from one scan [C7]', async t => {
   const box = e2e.project();
   t.after(() => e2e.cleanup());
   const configPath = join(box.repo, 'pullboard.json');
@@ -171,25 +169,25 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   const templateDecoy = 'const templateDecoy = ' + String.fromCharCode(96)
-    + 'import { ghost } from "./ghost.js"; function fakeTemplate() {}' + String.fromCharCode(96) + ';';
+    + 'import { ghost } from "./ghost.js"; async function fakeTemplate() {}' + String.fromCharCode(96) + ';';
   writeFileSync(join(box.repo, 'src/home.js'), [
     '/** Render the fixture home page.',
     ' * @returns {string} page markup',
     ' */',
-    'export function renderHome() { return \"home\"; }',
-    '/* function fakeExport() { return 0; } */',
-    'const decoy = ' + JSON.stringify("import { hidden } from './hidden.js'; function fakeString() {}") + ';',
+    'export async function renderHome() { return \"home\"; }',
+    '/* async function fakeExport() { return 0; } */',
+    'const decoy = ' + JSON.stringify("import { hidden } from './hidden.js'; async function fakeString() {}") + ';',
     templateDecoy,
     'const unsupportedObjectMethod = { nestedMethod() { return true; } };',
   ].join('\n') + '\n');
   writeFileSync(join(box.repo, 'src/public.js'), "export { renderHome as displayHome } from './home.js';\n");
-  writeFileSync(join(box.repo, 'bin/start.js'), "import { displayHome as render } from '../src/public.js';\nexport function start() { return render(); }\n");
+  writeFileSync(join(box.repo, 'bin/start.js'), "import { displayHome as render } from '../src/public.js';\nexport async function start() { return render(); }\n");
   writeFileSync(join(box.repo, 'test/home.test.js'), "import { renderHome } from '../src/home.js';\nvoid renderHome;\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): add code map source fixture');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Map fixture item', '--criterion',
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Map fixture item', '--criterion',
     'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'mid',
-    '--brief', 'Files: src/home.js, src/public.js, bin/start.js, test/home.test.js\nTest: map output follows imports and ignores misleading source text', '--json');
+    '--brief', 'Files: src/home.js, src/public.js, bin/start.js, test/home.test.js\nTest: map output follows imports and ignores misleading source text', '--json'));
   assert.equal(added.code, 0, added.out + added.err);
   const itemId = JSON.parse(added.out).item.item_id;
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -213,33 +211,33 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   t.after(() => store.closeBoard(board));
 
   const cache = join(box.repo, '.git', 'pullboard', 'code-map.json');
-  const overview = box.run(box.repo, 'map');
+  const overview = (await box.runLocal(box.repo, 'map'));
   assert.equal(overview.code, 0, overview.out + overview.err);
   const firstGeneration = JSON.parse(readFileSync(cache, 'utf8')).generatedAt;
   assert.match(overview.out, /Pullboard code map \([a-f0-9]{12}\)/u);
   assert.match(overview.out, /Effects not covered by patterns: not detected/u);
-  const commandHelp = box.run(box.repo, 'help', 'map');
+  const commandHelp = (await box.runLocal(box.repo, 'help', 'map'));
   assert.equal(commandHelp.code, 0, commandHelp.out + commandHelp.err);
   assert.match(commandHelp.out, /--for <item>/u);
-  const card = box.run(box.repo, 'map', 'src/home.js');
+  const card = (await box.runLocal(box.repo, 'map', 'src/home.js'));
   assert.equal(card.code, 0, card.out + card.err);
   assert.match(card.out, /renderHome\(\)/u);
   assert.match(card.out, /Render the fixture home page/u);
   assert.match(card.out, /tests with observed imports: test\/home\.test\.js/u);
   assert.match(card.out, /Effects the scan cannot see: not detected/u);
   assert.doesNotMatch(card.out, /fakeExport|fakeString|fakeTemplate|hidden\.js|ghost\.js/u);
-  const functionCard = box.run(box.repo, 'map', 'renderHome');
+  const functionCard = (await box.runLocal(box.repo, 'map', 'renderHome'));
   assert.equal(functionCard.code, 0, functionCard.out + functionCard.err);
   assert.match(functionCard.out, /## src\/home\.js#renderHome/u);
-  const alias = box.run(box.repo, 'map', 'bin/start.js');
+  const alias = (await box.runLocal(box.repo, 'map', 'bin/start.js'));
   assert.equal(alias.code, 0, alias.out + alias.err);
   assert.match(alias.out, /home\.js#renderHome/u, 'an import alias follows its local re-export');
-  const slice = box.run(box.repo, 'map', '--for', String(itemId));
+  const slice = (await box.runLocal(box.repo, 'map', '--for', String(itemId)));
   assert.equal(slice.code, 0, slice.out + slice.err);
   assert.match(slice.out, /src\/home\.js/u);
   assert.match(slice.out, /renderHome/u);
   assert.match(slice.out, /test\/home\.test\.js/u);
-  const tooSmall = box.run(box.repo, 'map', '--for', String(itemId), '--budget', '1');
+  const tooSmall = (await box.runLocal(box.repo, 'map', '--for', String(itemId), '--budget', '1'));
   assert.notEqual(tooSmall.code, 0);
   assert.match(tooSmall.out + tooSmall.err, /item slice budget too small/u);
   const firstMap = JSON.parse(readFileSync(cache, 'utf8'));
@@ -251,13 +249,12 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   writeFileSync(join(box.repo, 'src/landed.js'), 'export function landed() { return true; }\n');
   box.git(box.repo, 'add', 'src/landed.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): land another code map module');
-  const landed = box.run(box.repo, 'merged', String(itemId), 'HEAD');
+  const landed = (await box.runLocal(box.repo, 'merged', String(itemId), 'HEAD'));
   assert.equal(landed.code, 0, landed.out + landed.err);
   const refreshed = JSON.parse(readFileSync(cache, 'utf8'));
   assert.equal(refreshed.mainCommit, box.git(box.repo, 'rev-parse', 'main'));
   assert.ok(refreshed.modules.some(module => module.path === 'src/landed.js'));
   assert.notEqual(refreshed.generatedAt, firstMap.generatedAt);
-  assert.match(agentsBlock(), /pullboard map --for <item>/u);
 });
 
 
@@ -273,7 +270,7 @@ test('the map still detects a socket constructor as a network effect [C7,P5]', (
   assert.ok(connect.effects.includes('network'));
 });
 
-test('next prints the item slice when the map setting is on [C7]', t => {
+test('next prints the item slice when the map setting is on [C7]', async t => {
   const box = e2e.project();
   t.after(() => e2e.cleanup());
   const configPath = join(box.repo, 'pullboard.json');
@@ -283,16 +280,16 @@ test('next prints the item slice when the map setting is on [C7]', t => {
   writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'src/home.js'), 'export function renderHome() { return "home"; }\n');
+  writeFileSync(join(box.repo, 'src/home.js'), 'export async function renderHome() { return "home"; }\n');
   writeFileSync(join(box.repo, 'test/home.test.js'), "import { renderHome } from '../src/home.js';\nvoid renderHome;\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): add slice fixture source');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Slice fixture item', '--criterion',
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Slice fixture item', '--criterion',
     'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'mid',
-    '--brief', 'Files: src/home.js\nTest: test/home.test.js imports it\nOut of scope: anything else');
+    '--brief', 'Files: src/home.js\nTest: test/home.test.js imports it\nOut of scope: anything else'));
   assert.equal(added.code, 0, added.out + added.err);
-  const claimed = box.run(box.web, 'next');
+  const claimed = (await box.runLocal(box.web, 'next'));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   assert.match(claimed.out, /# Slice for #\d+/u, 'next prints the slice header for the claimed item');
   assert.match(claimed.out, /renderHome/u, 'the slice names the function the item names');

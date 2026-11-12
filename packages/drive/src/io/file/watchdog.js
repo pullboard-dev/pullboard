@@ -1,4 +1,8 @@
-/** Install whole-file supervision without depending on a responsive test event loop [C7,V10]. */
+/** @pullboard-module-loads packages/drive/src/io/file/watchdog/worker.js */
+/**
+ * Install whole-file supervision without depending on a responsive test event loop [C7,V10]. Why the header: the
+ * worker starts from a URL, not an import, so package and fixture copies follow the declared load instead.
+ */
 import { Worker } from 'node:worker_threads';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -26,7 +30,7 @@ export function installFileWatchdog(file) {
     const write = stream.write;
     /** Preserve stream backpressure, encoding and callback semantics while recording output. */
     stream.write = function (...args) {
-      if (args[0]?.length > 0) worker.postMessage({ type: 'output' });
+      if (args[0]?.length > 0) worker.postMessage({ type: 'output', text: typeof args[0] === 'string' ? args[0].slice(-2000) : Buffer.from(args[0]).subarray(-2000).toString() });
       return Reflect.apply(write, this, args);
     };
   }

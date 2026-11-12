@@ -34,7 +34,7 @@ function fixture(t, historicalSeats = false) {
   git('commit', '-q', '-m', 'fixture: establish board policy');
   let at = Date.parse('2026-10-24T00:00:00Z');
   const clock = { now: () => new Date(at) };
-  const board = openBoard(join(root, 'board.sqlite'), clock, { gitRoot: root });
+  const board = openBoard(':memory:', clock, { gitRoot: root });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   /** Keep current fixtures current; only the legacy-claim case receives actual pre-feature joins. */
   const register = who => historicalSeats
@@ -115,7 +115,7 @@ test('old recorded claims ignore new capacity while new claims retain the featur
   assert.throws(() => applyEngineMove(f.board, { ...move, engine: LINE_CAPACITY_ENGINE - 1 }, { sequence, at: f.board.clock.now().toISOString() }), { code: 'RELAY_MOVE' }, 'the true marker cannot be forged onto an older engine');
   const old = applyEngineMove(f.board, { ...legacy, engine: LINE_CAPACITY_ENGINE - 1 }, { sequence, at: f.board.clock.now().toISOString() });
   assert.equal(old.error, undefined, JSON.stringify(old.error));
-  const replica = openBoard(join(f.root, 'replica.sqlite'), f.board.clock);
+  const replica = openBoard(':memory:', f.board.clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, snapshot);
   const current = applyEngineMove(replica, move, { sequence, at: f.board.clock.now().toISOString() });
@@ -142,7 +142,7 @@ test('legacy submissions without recorded submit history still consume native WI
   const legacy = exportBoard(f.board);
   // Model a legacy imported snapshot, preserving the original private board and all its receipts.
   legacy.tables.event = legacy.tables.event.filter(row => !(row.item_id === waiting && row.event_kind === 'submit'));
-  const replica = openBoard(join(f.root, 'legacy.sqlite'), f.board.clock);
+  const replica = openBoard(':memory:', f.board.clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, legacy);
   const snapshot = lineCapacitySnapshot(replica);

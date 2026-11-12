@@ -340,8 +340,8 @@ function render() {
     /** Turn the check into the approved sentence without inventing an unnamed case. */
     const checkSentence = (() => {
       const command = String(item.check || '');
-      const testPath = /(?:^|\\s)(test\\/[\\w./-]+\\.test\\.[cm]?js)\\b/u.exec(command)?.[1];
-      if (testPath && /(?:^|\\s)bin\\/run-tests\\.js(?:\\s|$)/u.test(command)) {
+      const testPath = /(?:^|\\s)((?:[\\w.-]+\\/)*[\\w.-]+\\.test\\.[cm]?js)\\b/u.exec(command)?.[1];
+      if (testPath && /(?:^|\\s)(?:bin\\/run-tests\\.js|packages\\/gate\\/src\\/io\\/run\\/tests\\.js)(?:\\s|$)/u.test(command)) {
         return 'Passes when <span class="file"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4"/></svg>' + esc(testPath) + '</span> runs with no failures' + (namedCase ? ' and its case <i>"' + esc(namedCase) + '"</i> passes' : '') + '.';
       }
       return command ? 'Runs: <code>' + esc(command) + '</code>' : 'No check is recorded.';
@@ -679,11 +679,14 @@ function render() {
     if (kind === 'spec' && row) {
       const change = !snapshot && (!readOnly || requests) ? '<button class="decline-row" type="button" data-row-change="' + esc(row.id) + '" title="Request a change through Shouts">Change</button>' : '';
       const actions = rowDecisionActions ? pendingQuestion ? rowDecisionActions + change : rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
+      const draft = view.specDraft;
       $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
         + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
         + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
         + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
+      const restored = draft && document.getElementById(draft.id);
+      if (restored && draft.value && !restored.value) { restored.value = draft.value; if (draft.focus) restored.focus(); }
       continue;
     }
     if (kind === 'doctrine' && row) {

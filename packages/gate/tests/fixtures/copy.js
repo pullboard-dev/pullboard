@@ -33,7 +33,7 @@ export function copyFixtureRunner(source, destination) {
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['apps/cli/src/io/command-docs', 'apps/cli/src/io/documentation', 'apps/cli/src/io/documentation/events'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.json')).map(file => `${folder}/${file}`))]);
-  let pending = ['packages/gate/src/io/run/tests.js',
+  let pending = ['apps/cli/src/io/run/tests.js',
     ...['src/moves', 'packages/moves/src/logic/moves', 'packages/moves/src/io/moves'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['packages/state/src/logic/engines'].filter(folder => existsSync(join(source, folder)))
@@ -53,6 +53,8 @@ export function copyFixtureRunner(source, destination) {
           if (isBuiltin(specifier) || specifier === '(computed)') continue;
           if (!specifier.startsWith('.')) throw new Error(`fixture runner cannot resolve ${file}: ${specifier}`);
           const target = posix.normalize(posix.join(posix.dirname(file), specifier));
+          // The export manifest exists only in a built tooling export; the scanner reads it as optional, so a source checkout lacks it.
+          if (target === '.pullboard-runner-source.json' && !existsSync(join(source, target))) continue;
           if (target.startsWith('../') || !existsSync(join(source, target))) throw new Error(`fixture runtime path is unavailable: ${target}`);
           if (statSync(join(source, target)).isDirectory()) continue;
           if (/\.[cm]?js$/u.test(target)) pending.push(target);

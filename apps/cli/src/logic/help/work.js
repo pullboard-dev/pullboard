@@ -12,14 +12,14 @@ export const workHelp = `Work
                                         --review-family: require that declared family; case-insensitive, never guessed from model
                                         --brief: what a cold agent needs; --route light: any model can build it
                                         --private: keep this item in your device-local board for this repo
+                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
+                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard move <handle#id|owner/handle#id|~handle#id|id> --to <handle|owner/handle|~handle> [--private]
                                         --private makes a bare item ID refer to this repo's device-local board
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
-                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
-                                        with --criterion and a brief, --check is needed below strong
-                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
-  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+  pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
@@ -104,11 +104,13 @@ export const workHelp = `Work
   pullboard test <files>                run named test files on the runner pool with the per-file timeout, uncommitted
                                         changes included; a red file is compared with main and named known or new
                                         one file skips the main comparison; --compare-main runs it
+                                        --diagnose prioritizes one file and prints full failure output
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
                                         in an agent seat it queues on the board and returns at once with a run id;
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
+  pullboard test --cancel <run id>      stop your queued or running test run and free its slot
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill

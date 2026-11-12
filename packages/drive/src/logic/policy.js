@@ -1,6 +1,8 @@
 /** Whole-file limits bound active work separately from post-test cleanup [C7,V10]. */
 export const DEFAULT_FILE_WALL_MS = 300_000;
 export const DEFAULT_FILE_IDLE_MS = 90_000;
+/** The policy's per-file budget (2-3 minutes): a file past it is killed whatever its load factor or case budgets. */
+export const DEFAULT_FILE_BUDGET_MS = 180_000;
 
 /** Reject malformed limits before executing a file rather than silently disabling supervision. */
 function limit(value, fallback, name) {
@@ -34,7 +36,10 @@ export function fileWatchdogLimits(file, env = process.env, system = { load: 0, 
   const explicit = files[file] ?? env.PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS;
   const loadFactor = explicit === undefined ? wallLoadFactor(system.load, system.cores) : 1;
   const baseWallMs = limit(explicit, DEFAULT_FILE_WALL_MS, 'PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS');
-  return { wallMs: Math.round(baseWallMs * loadFactor), baseWallMs, loadFactor,
+  // An exact per-file limit above the default is that file's declared opt-out; the budget never cuts it short.
+  const budgetMs = Math.max(limit(env.PULLBOARD_TEST_FILE_BUDGET_MS, DEFAULT_FILE_BUDGET_MS, 'PULLBOARD_TEST_FILE_BUDGET_MS'),
+    files[file] !== undefined && env.PULLBOARD_TEST_FILE_BUDGET_MS === undefined ? Number(files[file]) : 0);
+  return { wallMs: Math.round(baseWallMs * loadFactor), baseWallMs, loadFactor, budgetMs,
     idleMs: limit(env.PULLBOARD_TEST_IDLE_TIMEOUT_MS, DEFAULT_FILE_IDLE_MS, 'PULLBOARD_TEST_IDLE_TIMEOUT_MS') };
 }
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/runner/src/io/private/check/worker.js packages/gate/src/io/budgets.js packages/gate/src/io/run/tests.js packages/gate/tests/fixtures/budgets.js packages/git/index.js */
 import { flakeQuarantines as nativeFlakeQuarantines } from '../../../../packages/flakes/index.js';
 import { gateRuns as nativeGateRuns } from '../../../../packages/flakes/index.js';
 import { recordGateRun as nativeRecordGateRun } from '../../../../packages/flakes/index.js';
@@ -11,6 +11,7 @@ import { recordGateRun as nativeRecordGateRun } from '../../../../packages/flake
 import { landingPorts } from '../../tests/fixtures/landing/ports.js';
 import { executionServices } from '../../tests/fixtures/gate/execution.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
+import { repoPath } from '../../../../packages/kernel/light.js';
 import assert from 'node:assert/strict';
 import {
   runFixtureExecFile as execFileSync,
@@ -21,7 +22,6 @@ import {
 } from '../../tests/fixtures/child.js';
 import {
   copyFileSync,
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -31,7 +31,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { renameSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   dirname,
@@ -58,10 +57,10 @@ import { applyEngineMove } from '../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../packages/state/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import {
   createE2eHelpers,
-  FIXTURE_MODEL,
 } from '../../tests/fixtures/e2e.js';
 import {
   BROWSER_SLOT_HELD_ENV,
@@ -69,8 +68,6 @@ import {
   GATE_SLOT_POOL_ENV,
   GATE_SLOT_TOKEN_ENV,
 } from '../../../../packages/resources/index.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -118,7 +115,8 @@ test('the landing gate bounds its own concurrency [C7]', () => {
     mkdirSync(folder, { recursive: true });
     const file = join(folder, `overlap-${id}.test.js`);
     selected.push(file);
-    writeFileSync(file, `import {appendFileSync} from 'node:fs';
+    // A file takes a browser lease only by declaring it on its first line, not by its folder.
+    writeFileSync(file, `${browser ? '// pullboard: browser\n' : ''}import {appendFileSync} from 'node:fs';
 import {test} from 'node:test';
 /** Keep controlled work alive briefly so concurrent file bodies leave overlapping records. */
 test('record real file ${id} [C7]', async () => {
@@ -142,7 +140,8 @@ test('record real file ${id} [C7]', async () => {
       const env = { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
         PULLBOARD_MACHINE_HOME: join(root, `machine-${setting.files}-${caseIndex}`) };
       env.PULLBOARD_LANDING_RUN = example.landing ? '1' : '0';
-      const result = runFixtureChild(process.execPath, [join(root, 'packages/gate/src/io/run/tests.js'), ...example.args, ...selected], {
+      // process-level: the test runner is its own node entry and reads its own argv and env.
+      const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...example.args, ...selected], {
         cwd: root, env, encoding: 'utf8',
       });
       assert.equal(result.status, 0, `${example.name}: ${result.stdout}${result.stderr}`);
@@ -159,7 +158,8 @@ test('record real file ${id} [C7]', async () => {
   writeFileSync(config, JSON.stringify({ testConcurrency: { files: 3, browser: 2 } }));
   for (const value of ['4294967296', '9'.repeat(400)]) {
     const capture = join(root, `invalid-concurrency-${value.length}.jsonl`);
-    const result = runFixtureChild(process.execPath, [join(root, 'packages/gate/src/io/run/tests.js'),
+    // process-level: the test runner is its own node entry and reads its own argv and env.
+    const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'),
       `--test-concurrency=${value}`, ...selected], {
       cwd: root, env: { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_CAP_CAPTURE: capture,
         PULLBOARD_MACHINE_HOME: join(root, `machine-invalid-${value.length}`) }, encoding: 'utf8',
@@ -173,7 +173,8 @@ test('record real file ${id} [C7]', async () => {
     '--experimental_test_isolation', '--experimental_test-isolation', '--experimental-test_isolation']) {
     for (const args of [[`${flag}=none`], [flag, 'none']]) {
       const capture = join(root, `isolation-${isolationCase++}.jsonl`);
-      const result = runFixtureChild(process.execPath, [join(root, 'packages/gate/src/io/run/tests.js'), ...args, selected.at(-1)], {
+      // process-level: the test runner is its own node entry and reads its own argv and env.
+      const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...args, selected.at(-1)], {
         cwd: root, env: { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
           PULLBOARD_MACHINE_HOME: join(root, 'machine-isolation') }, encoding: 'utf8',
       });
@@ -197,6 +198,7 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   const fixturePackage = { ...actualPackage, scripts: { ...actualPackage.scripts, test: 'node test/suite-sentinel.js' } };
   assert.equal(fixturePackage.scripts.gate, gateScript, 'the real package gate command is preserved verbatim');
   writeFileSync(join(root, 'package.json'), JSON.stringify(fixturePackage, null, 2) + '\n');
+  mkdirSync(join(root, 'packages/gate/tests/fixtures'), { recursive: true });
   copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(root, 'packages/gate/tests/fixtures/budgets.js'));
   // The shipped scanner entry delegates to the gate package after the cells move.
   const scanner = join(root, 'packages/gate/src/shell');
@@ -206,6 +208,7 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   // The scanner lists tracked files through the git package; the fixture supplies a plain git launcher for it.
   mkdirSync(join(root, 'packages/git'), { recursive: true });
   writeFileSync(join(root, 'packages/git/index.js'), "import { execFileSync } from 'node:child_process';\nexport const gitExecFileSync = (args, options) => execFileSync('git', args, options);\n");
+  mkdirSync(join(root, 'apps/cli'), { recursive: true });
   writeFileSync(join(root, 'apps/cli/pullboard.js'), `if (process.argv.slice(2).join(' ') !== 'spec check') process.exit(2);
 process.stdout.write('fixture spec check reached\\n');
 `);
@@ -250,7 +253,7 @@ const FIXTURE_AGENT = 'Test Agent';
  * @param {string} gate
  * @param {string} [check]
  */
-function repoWithGate(gate, check = '') {
+async function repoWithGate(gate, check = '') {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gate-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -269,13 +272,13 @@ function repoWithGate(gate, check = '') {
   // The fixture's checks and gates are their own test runs, not children of this one.
   delete env.NODE_TEST_CONTEXT;
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: repo, env });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `echo run >> ../runs.log; ${gate}`, lanes: { build: { owns: ['WORK', 'RED', 'fixtures/'] } } }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  const added = run('add', 'build', 'Work', '--route', 'mid', '--brief', 'Files:\n- fixtures/WORK\n\nTest:\nthe fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
+  const added = await run('add', 'build', 'Work', '--route', 'mid', '--brief', 'Files:\n- fixtures/WORK\n\nTest:\nthe fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   // Submissions need their own committed delta; main itself is not an item change. Accepted main is the primary
   // checkout's HEAD, so the item work lives in a linked worktree and the primary checkout stays on main.
@@ -292,18 +295,18 @@ function repoWithGate(gate, check = '') {
       return 0;
     }
   };
-  const runAt = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: work, env, encoding: 'utf8' });
-  const joined = runAt('join', 'build', '--model', FIXTURE_AGENT);
+  const runAt = (...args) => runCliInProcess(args, { cwd: work, env });
+  const joined = await runAt('join', 'build', '--model', FIXTURE_AGENT);
   assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
-  const claimed = runAt('claim', '1');
+  const claimed = await runAt('claim', '1');
   assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
-  return { dir, repo: work, primary: repo, env, git: workGit, primaryGit: git, run: runAt, runs };
+  return { dir, repo: work, primary: repo, env, git: workGit, primaryGit: git, runLocal: runAt, runs };
 }
 
 test('pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
-  const box = repoWithGate('echo run >> ../runs.log');
+  const box = await repoWithGate('echo run >> ../runs.log');
   for (const name of [BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV]) delete box.env[name];
-  assert.equal(box.run('settings', 'gateSlots', '1').status, 0, 'the fixture uses the holder pool\'s single gate slot');
+  assert.equal((await box.runLocal('settings', 'gateSlots', '1')).status, 0, 'the fixture uses the holder pool\'s single gate slot');
   const resourceModule = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/resources/index.js')).href;
   const holderSource = `import { takeResource } from ${JSON.stringify(resourceModule)};
 const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: process.cwd(), agent: 'gate-argument-holder' });
@@ -319,6 +322,7 @@ try {
   let commandClosed;
   let holderResult;
   try {
+    // process-level: a held gate slot is process lifetime.
     holderRun = spawn(process.execPath, ['--input-type=module', '-e', holderSource], {
       cwd: box.repo, env: box.env, stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -337,6 +341,7 @@ try {
     assert.equal(ready.ready, true, `the private gate holder did not start: ${JSON.stringify(ready.result ?? holderOutput)}`);
 
     for (const words of [['status'], ['run'], ['unexpected', 'word']]) {
+      // process-level: the command must queue behind a held slot and be killed.
       commandRun = spawn(process.execPath, [BIN, 'gate', ...words], {
         cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -367,18 +372,18 @@ try {
       assert.match(outcome.result.stderr, /pullboard resources for status/u);
       assert.match(outcome.result.stderr, /pullboard gate with no extra words to run the gate/u);
       assert.equal(box.runs(), 0, 'a refused extra word never starts the configured gate');
-      const gate = JSON.parse(box.run('resources', '--json').stdout).resources.find(({ name }) => name === 'gate');
+      const gate = JSON.parse((await box.runLocal('resources', '--json')).stdout).resources.find(({ name }) => name === 'gate');
       assert.deepEqual(gate?.holders.map(({ agent }) => agent) ?? [], ['gate-argument-holder']);
       assert.equal(gate?.line.length ?? 0, 0, 'the refused command never becomes a gate waiter');
     }
     for (const words of [['status'], ['run'], ['unexpected', 'word']]) {
-      const result = box.run('gate', ...words, '--json');
+      const result = await box.runLocal('gate', ...words, '--json');
       assert.equal(result.status, 1, `${result.stderr}\n${result.stdout}`);
       const { error } = JSON.parse(result.stdout);
       assert.equal(error.code, 'GATE_ARGUMENT');
       assert.equal(error.next, 'use pullboard resources for status, or pullboard gate with no extra words to run the gate');
       assert.equal(box.runs(), 0, 'JSON refusal never starts the configured gate');
-      const gate = JSON.parse(box.run('resources', '--json').stdout).resources.find(({ name }) => name === 'gate');
+      const gate = JSON.parse((await box.runLocal('resources', '--json')).stdout).resources.find(({ name }) => name === 'gate');
       assert.deepEqual(gate?.holders.map(({ agent }) => agent) ?? [], ['gate-argument-holder']);
       assert.equal(gate?.line.length ?? 0, 0, 'the refused JSON command never becomes a gate waiter');
     }
@@ -395,7 +400,7 @@ try {
   assert.equal(holderResult?.status, 0, JSON.stringify(holderResult));
 });
 
-test('gate before the first commit names the uncommitted config [I1,C7]', () => {
+test('gate before the first commit names the uncommitted config [I1,C7]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-first-commit-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -412,22 +417,22 @@ test('gate before the first commit names the uncommitted config [I1,C7]', () => 
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: repo, env });
   git('init', '-q', '-b', 'main');
-  const initialized = run('init', '--model', 'Test Coordinator');
+  const initialized = await run('init', '--model', 'Test Coordinator');
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   assert.equal(existsSync(join(repo, 'pullboard.json')), true, 'init wrote the coordinator config');
 
-  const firstGate = run('gate', '--json');
+  const firstGate = await run('gate', '--json');
   assert.equal(firstGate.status, 1, 'the gate cannot read a policy before the initial commit');
   const firstRefusal = JSON.parse(firstGate.stdout).error;
   assert.equal(firstRefusal.code, 'NO_POLICY');
   assert.match(firstRefusal.message, /pullboard\.json is not committed/u);
   assert.match(firstRefusal.message, /git add pullboard\.json/u, 'the refusal gives the concrete staging command');
 
-  const committed = repoWithGate('true');
+  const committed = await repoWithGate('true');
   committed.primaryGit('switch', '--detach', 'HEAD');
-  const missingCoordinator = committed.run('gate', '--json');
+  const missingCoordinator = await committed.runLocal('gate', '--json');
   assert.equal(missingCoordinator.status, 1);
   const missingRefusal = JSON.parse(missingCoordinator.stdout).error;
   assert.equal(missingRefusal.code, 'NO_POLICY');
@@ -435,7 +440,7 @@ test('gate before the first commit names the uncommitted config [I1,C7]', () => 
     'other genuine NO_POLICY failures keep their specific message');
 });
 
-test('gate after init in an existing repo says to commit the init files [I1,C7]', () => {
+test('gate after init in an existing repo says to commit the init files [I1,C7]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-init-history-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -452,14 +457,14 @@ test('gate after init in an existing repo says to commit the init files [I1,C7]'
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: repo, env });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'README.md'), '# Existing repository\n');
   git('add', 'README.md');
   git('commit', '-q', '-m', 'chore: create existing repository');
-  assert.equal(run('init', '--model', 'Test Coordinator').status, 0);
+  assert.equal((await run('init', '--model', 'Test Coordinator')).status, 0);
 
-  const refused = run('gate', '--json');
+  const refused = await run('gate', '--json');
   assert.equal(refused.status, 1, 'the gate cannot read the policy until init files are committed');
   const refusal = JSON.parse(refused.stdout).error;
   assert.equal(refusal.code, 'NO_POLICY');
@@ -476,14 +481,15 @@ test('gate after init in an existing repo says to commit the init files [I1,C7]'
   const shims = join(dir, 'bin');
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} "$@"\n`, { mode: 0o755 });
+  // process-level: git runs the installed hooks, which call the CLI.
   const applied = runFixtureChild('/bin/sh', ['-c', fix], { cwd: repo, env: { ...env, PATH: `${shims}:${env.PATH ?? ''}` }, encoding: 'utf8' });
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
-  const afterFix = run('gate', '--json');
+  const afterFix = await run('gate', '--json');
   assert.notEqual(afterFix.stdout ? JSON.parse(afterFix.stdout).error?.code : undefined, 'NO_POLICY', 'the printed commit lets the gate read its policy');
 
   // A policy missing for any other reason keeps its own refusal.
   git('switch', '-q', '--detach', 'HEAD');
-  const detached = run('gate', '--json');
+  const detached = await run('gate', '--json');
   assert.equal(detached.status, 1);
   const otherMissing = JSON.parse(detached.stdout).error;
   assert.equal(otherMissing.code, 'NO_POLICY');
@@ -493,13 +499,13 @@ test('gate after init in an existing repo says to commit the init files [I1,C7]'
   const separate = join(dir, 'separate');
   mkdirSync(separate);
   const separateGit = (...args) => runFixtureGit(args, { cwd: separate, env });
-  const separateRun = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: separate, env, encoding: 'utf8' });
+  const separateRun = (...args) => runCliInProcess(args, { cwd: separate, env });
   separateGit('init', '-q', '-b', 'main', '--separate-git-dir', join(dir, 'separate-metadata'));
   writeFileSync(join(separate, 'README.md'), '# Existing repository\n');
   separateGit('add', 'README.md');
   separateGit('commit', '-q', '-m', 'chore: create existing repository');
-  assert.equal(separateRun('init', '--model', 'Test Coordinator').status, 0);
-  const separateRefused = separateRun('gate', '--json');
+  assert.equal((await separateRun('init', '--model', 'Test Coordinator')).status, 0);
+  const separateRefused = await separateRun('gate', '--json');
   assert.equal(separateRefused.status, 1);
   const separateRefusal = JSON.parse(separateRefused.stdout).error;
   assert.equal(separateRefusal.code, 'NO_POLICY');
@@ -508,14 +514,14 @@ test('gate after init in an existing repo says to commit the init files [I1,C7]'
   assert.ok(separateRefusal.message.includes('SPEC.md') && !separateRefusal.message.includes('README.md'), separateRefusal.message);
 });
 
-test('a digest keeps the failures and the end within its cap, however long one line is [V10]', () => {
+test('a digest keeps the failures and the end within its cap, however long one line is [V10]', async () => {
   const digest = digestOf(`not ok 1 - ${'x'.repeat(3500)}\n${'ok\n'.repeat(50)}# fail 1\nsummary: 1 failed`);
   assert.ok(digest.length <= 3000, `${digest.length} characters`);
   assert.match(digest, /^not ok 1 - x+…\n/);
   assert.match(digest, /# fail 1\nsummary: 1 failed$/);
 });
 
-test('a digest of many failures stays within its cap and still ends with the summary [V10]', () => {
+test('a digest of many failures stays within its cap and still ends with the summary [V10]', async () => {
   const failures = Array.from({ length: 200 }, (_, n) => `not ok ${n} - ${'y'.repeat(250)}`).join('\n');
   const digest = digestOf(`${failures}\n# tests 200\n# fail 200`);
   assert.ok(digest.length <= 3000, `${digest.length} characters`);
@@ -523,7 +529,7 @@ test('a digest of many failures stays within its cap and still ends with the sum
   assert.match(digest, /# tests 200\n# fail 200$/);
 });
 
-test('a digest keeps the lines that say why a test failed, and skips passing tests however named [V10]', () => {
+test('a digest keeps the lines that say why a test failed, and skips passing tests however named [V10]', async () => {
   const tap = [
     '# Subtest: a lane cannot commit outside its folders',
     'ok 1 - a lane cannot commit outside its folders',
@@ -553,38 +559,38 @@ test('a digest keeps the lines that say why a test failed, and skips passing tes
   assert.match(digest, /# fail 1$/);
 });
 
-test('submit runs the gate itself: a stamp written by hand never stands in for a red gate [V16]', () => {
-  const box = repoWithGate('test ! -f RED');
+test('submit runs the gate itself: a stamp written by hand never stands in for a red gate [V16]', async () => {
+  const box = await repoWithGate('test ! -f RED');
   writeFileSync(join(box.repo, 'RED'), 'red\n');
   box.git('add', 'RED');
   box.git('commit', '-q', '-m', 'chore: turn the gate red');
   writeFileSync(resolve(box.repo, box.git('rev-parse', '--git-path', 'pullboard-gate-green')), `${box.git('rev-parse', 'HEAD^{tree}')}\n`);
-  const refused = box.run('submit', '1');
+  const refused = await box.runLocal('submit', '1');
   assert.equal(refused.status, 1, refused.stdout);
   assert.match(refused.stderr, /GATE_RED/);
   assert.equal(box.runs(), 1, 'submit ran the gate instead of trusting the stamp');
 });
 
-test('submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip [V16, C3]', () => {
-  const box = repoWithGate('true');
-  assert.equal(box.run('gate').status, 0);
+test('submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip [V16, C3]', async () => {
+  const box = await repoWithGate('true');
+  assert.equal((await box.runLocal('gate')).status, 0);
   assert.equal(box.runs(), 1);
-  assert.match(box.run('gate').stdout, /this tree already passed/);
+  assert.match((await box.runLocal('gate')).stdout, /this tree already passed/);
   assert.equal(box.runs(), 1, 'outside submit, the stamp still saves a run');
-  const submitted = box.run('submit', '1');
+  const submitted = await box.runLocal('submit', '1');
   assert.equal(submitted.status, 0, submitted.stderr);
   assert.match(submitted.stdout, /^submitted #1 at [0-9a-f]{12}; item check green; full gate: /mu);
   assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
 });
 
-test('submit refuses a tree its gate left changed: a new commit, or an edited tracked file [V16]', () => {
+test('submit refuses a tree its gate left changed: a new commit, or an edited tracked file [V16]', async () => {
   for (const [moves, gate] of [
     ['a commit made during the gate', 'git commit -q --allow-empty -m "chore: moved under the gate"'],
     ['a tracked file edited during the gate', 'echo more >> SPEC.md'],
   ]) {
-    const box = repoWithGate(gate);
+    const box = await repoWithGate(gate);
     const head = box.git('rev-parse', 'HEAD');
-    const refused = box.run('submit', '1');
+    const refused = await box.runLocal('submit', '1');
     assert.equal(refused.status, 1, `${moves}: ${refused.stdout}`);
     assert.match(refused.stderr, /MOVED_DURING_GATE/, moves);
     assert.ok(refused.stderr.includes(head.slice(0, 12)), `${moves}: the refusal names the commit the gate was meant to check`);
@@ -602,6 +608,7 @@ function shellWord(value) {
 function privateCheck(box, command) {
   const logPath = join(box.dir, 'private-command.log');
   const pidFile = logPath + '.pid';
+  // process-level: the production private-check worker.
   const run = runFixtureChild(process.execPath, [PRIVATE_WORKER], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
     input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }),
@@ -611,10 +618,10 @@ function privateCheck(box, command) {
   return JSON.parse(run.stdout);
 }
 
-test('a piped gate fails on any red stage without changing its existing shell [V16,C7]', () => {
+test('a piped gate fails on any red stage without changing its existing shell [V16,C7]', async () => {
   const supported = runFixtureChild('set -o pipefail', { shell: true }).status === 0;
-  const failing = repoWithGate('sh -c "exit 7" | tail -1');
-  const red = failing.run('gate', '--json');
+  const failing = await repoWithGate('sh -c "exit 7" | tail -1');
+  const red = await failing.runLocal('gate', '--json');
   assert.equal(red.status, 1, 'a failing producer cannot leave the gate green');
   if (supported) assert.equal(JSON.parse(red.stdout).green, false);
   else {
@@ -623,29 +630,28 @@ test('a piped gate fails on any red stage without changing its existing shell [V
     assert.match(error.message, /rewrite the gate without a pipe/u);
     assert.equal(failing.runs(), 0, 'an unsupported gate never starts');
   }
-  const plain = repoWithGate('sh -c "exit 7"');
-  assert.equal(plain.run('gate').status, 1, 'plain failure remains red');
-  const passing = repoWithGate("printf 'pipeline-ok\\n' | grep -q pipeline-ok");
-  const green = passing.run('gate', '--json');
+  const plain = await repoWithGate('sh -c "exit 7"');
+  assert.equal((await plain.runLocal('gate')).status, 1, 'plain failure remains red');
+  const passing = await repoWithGate("printf 'pipeline-ok\\n' | grep -q pipeline-ok");
+  const green = await passing.runLocal('gate', '--json');
   if (supported) assert.equal(green.status, 0, `${green.stdout}${green.stderr}`);
   else assert.equal(JSON.parse(green.stdout).error.code, 'PIPEFAIL_UNAVAILABLE');
-  const ordinary = repoWithGate('true');
-  assert.equal(ordinary.run('gate').status, 0, 'a plain passing gate needs no pipefail capability');
+  const ordinary = await repoWithGate('true');
+  assert.equal((await ordinary.runLocal('gate')).status, 0, 'a plain passing gate needs no pipefail capability');
 });
 
-test('a piped gate fails safely while named-test item checks keep last-stage semantics [V16,C7]', () => {
-  const box = repoWithGate('true');
+test('a piped gate fails safely while named-test item checks keep last-stage semantics [V16,C7]', async () => {
+  const box = await repoWithGate('true');
   const fixture = join(box.dir, 'named-output.test.js');
   writeFileSync(fixture, `import {test} from 'node:test';
 import {setTimeout} from 'node:timers/promises';
-import { repoPath } from '../../../../packages/kernel/light.js';
-test('passing named item check', () => {});
+test('passing named item check', async () => {});
 test('output after the match', async () => {
   await setTimeout(25);
   process.stdout.write('x'.repeat(1024 * 1024));
 });
 `);
-  const runner = resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js');
+  const runner = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
   const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1`;
   const captured = (probe, assertion = `printf '%s\\n' "$out"`) => `out=$(${probe}) && ${assertion}`;
   const commands = [
@@ -656,12 +662,13 @@ test('output after the match', async () => {
     captured('sh -c "exit 7" | tail -1'),
   ];
   for (const command of commands) {
-    const item = repoWithGate('true', command);
-    const baseline = JSON.parse(item.run('show', '1', '--json').stdout).item_check_baseline;
-    assert.equal(baseline.result, 'green', `background baselines preserve last-stage semantics: ${JSON.stringify({ command, reason: baseline.reason })}`);
-    const checked = item.run('check', '1', '--yes');
+    const item = await repoWithGate('true', command);
+    const baseline = JSON.parse((await item.runLocal('show', '1', '--json')).stdout).item_check_baseline;
+    // The fixture board registers no runner, and a baseline never runs on this machine (#2520): it waits as pending.
+    assert.equal(baseline.result, 'pending', `a baseline with no runner waits: ${JSON.stringify({ command, reason: baseline.reason })}`);
+    const checked = await item.runLocal('check', '1', '--yes');
     assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
-    const submitted = item.run('submit', '1', '--json');
+    const submitted = await item.runLocal('submit', '1', '--json');
     assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
     assert.equal(JSON.parse(submitted.stdout).gate.check.green, true, 'submission uses the same check semantics');
     const verified = privateCheck(item, command);
@@ -850,182 +857,4 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
   }
   assert.equal(store.listItems(reopened, { all: true }).length, 0, 'one real red and no green proves nothing');
   assert.equal(waivedFailures(reopened, [FLAKY], landingPorts), null, 'no landing block is removed');
-});
-
-/** A web project whose one source file is imported by thirty test files, each recording its own run. */
-function largeSelectionProject(deferAbove, { inline = false } = {}) {
-  const box = e2e.project('true');
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
-    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
-  if (inline) {
-    // An inline landing pushes its gated tip, so it needs a remote; its gate only checks for a red marker file.
-    box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));
-    box.git(box.repo, 'remote', 'add', 'origin', join(box.dir, 'origin.git'));
-  }
-  writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
-  mkdirSync(join(box.repo, 'web'), { recursive: true });
-  writeFileSync(join(box.repo, 'web/core.js'), 'export const value = 1;\n');
-  writeFileSync(join(box.repo, 'web/fix.js'), 'export const fixed = false;\n');
-  const record = () => `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\nimport assert from 'node:assert/strict';\n`;
-  writeFileSync(join(box.repo, 'web/gate-check.test.js'), `${record()}import { existsSync } from 'node:fs';\n`
-    + `test('no red marker [G1]', () => assert.equal(existsSync(new URL('./RED', import.meta.url)), false));\n`);
-  writeFileSync(join(box.repo, 'web/guard.test.js'), `${record()}test('guard [G1]', () => { appendFileSync(process.env.DEFER_MARKER, 'guard\\n'); });\n`);
-  for (let index = 0; index < 30; index += 1) {
-    writeFileSync(join(box.repo, `web/selected-${String(index).padStart(2, '0')}.test.js`), `${record()}import { value } from './core.js';\nimport { fixed } from './fix.js';\n`
-      + `test('selected ${index} [G1]', () => { appendFileSync(process.env.DEFER_MARKER, '${index}\\n'); assert.notEqual(value, 'red'); assert.ok(value !== 'needs-fix' || fixed); });\n`);
-  }
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: thirty tests import one source');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  box.env.DEFER_MARKER = join(box.dir, 'ran.log');
-  delete box.env.NODE_TEST_CONTEXT;
-  const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
-  /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
-  const submitChange = (value, { cwd = box.web, files = [] } = {}) => {
-    const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
-    assert.equal(added.code, 0, added.err);
-    const id = JSON.parse(added.out).item.item_id;
-    const claimed = box.run(cwd, 'claim', String(id));
-    assert.equal(claimed.code, 0, `claim: ${claimed.err}${claimed.out}`);
-    for (const [path, text] of files) writeFileSync(join(cwd, path), text);
-    assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0, 'the item change commits');
-    rmSync(box.env.DEFER_MARKER, { force: true });
-    const submitted = box.run(cwd, 'submit', String(id), '--json');
-    assert.equal(submitted.code, 0, submitted.err + submitted.out);
-    const receipt = JSON.parse(submitted.out);
-    const proof = onLocalBoard(box, board => JSON.parse(store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit').event_detail));
-    return { id, receipt, proof, ran: ran() };
-  };
-  /** Accept one submitted item as the coordinator, at its exact commit. */
-  const accept = (id, commit) => {
-    box.git(box.repo, 'switch', '-q', '--detach', commit);
-    try {
-      const verified = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.');
-      assert.equal(verified.code, 0, `verify: ${verified.err}${verified.out}`);
-    }
-    finally { box.git(box.repo, 'switch', '-q', 'main'); }
-  };
-  return { box, ran, submitChange, accept };
-}
-
-/** Read a fixture's real board through its public interface. */
-function onLocalBoard(box, action) {
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
-  try { return action(board); } finally { store.closeBoard(board); }
-}
-
-test('a large affected selection is deferred to landing at submit [C7]', () => {
-  const selected = Array.from({ length: 30 }, (_, index) => `web/selected-${String(index).padStart(2, '0')}.test.js`);
-  const all = [...Array.from({ length: 30 }, (_, index) => String(index)), 'guard'].sort();
-  const on = largeSelectionProject(20);
-  const green = on.submitChange(2);
-  assert.equal(green.receipt.gate.full, false);
-  assert.equal(green.receipt.gate.deferred, true);
-  assert.deepEqual(green.ran, ['guard'], 'submit ran the frozen check, static checks and the invariant file only');
-  assert.deepEqual(green.proof.submissionProof.files, ['web/guard.test.js'], 'the receipt names what actually ran');
-  assert.deepEqual(green.proof.submissionProof.deferredFiles, selected, 'the submission records the thirty deferred files');
-  assert.match(green.proof.note, /30 affected test files deferred to the landing gate/u, 'reviewers see the deferral');
-  assert.match(green.receipt.gate.report, /30 affected test files deferred to the landing gate/u);
-  on.accept(green.id, green.receipt.commit);
-  rmSync(on.box.env.DEFER_MARKER, { force: true });
-  const landed = on.box.run(on.box.repo, 'land', '--json');
-  assert.equal(landed.code, 0, landed.err + landed.out);
-  assert.deepEqual(JSON.parse(landed.out).landed, [green.id]);
-  assert.deepEqual(on.ran().sort(), all, 'landing ran every deferred file before the item landed');
-
-  const red = on.submitChange('red');
-  assert.deepEqual(red.ran, ['guard'], 'a red deferred file is not run at submit');
-  on.accept(red.id, red.receipt.commit);
-  const blocked = on.box.run(on.box.repo, 'land', '--json');
-  assert.equal(blocked.code, 0, blocked.err + blocked.out);
-  assert.deepEqual(JSON.parse(blocked.out).landed, [], 'a red deferred selection lands nothing');
-  const reopened = JSON.parse(on.box.run(on.box.repo, 'show', String(red.id), '--json').out);
-  assert.notEqual(reopened.item_status, 'verified', 'the red item is sent back like a red submit');
-  assert.equal(reopened.item_merged_commit, null);
-  assert.ok(reopened.thread.some(entry => entry.kind === 'reopen' && /web\/selected-00\.test\.js/u.test(entry.detail.note)), 'the reopen names the failing deferred file');
-
-  const inline = largeSelectionProject(20, { inline: true });
-  const inlineRed = inline.submitChange('red');
-  assert.deepEqual(inlineRed.ran, ['guard']);
-  inline.accept(inlineRed.id, inlineRed.receipt.commit);
-  const inlineLanding = inline.box.run(inline.box.repo, 'land', '--json');
-  assert.equal(inlineLanding.code, 0, inlineLanding.err + inlineLanding.out);
-  assert.deepEqual(JSON.parse(inlineLanding.out).landed, [], 'an inline landing whose gate passes anything still runs the deferred files and lands nothing on red');
-  const inlineItem = JSON.parse(inline.box.run(inline.box.repo, 'show', String(inlineRed.id), '--json').out);
-  assert.notEqual(inlineItem.item_status, 'verified', 'the inline red item is sent back');
-  assert.equal(inlineItem.item_merged_commit, null);
-  assert.ok(inline.ran().length > 1, 'the inline landing ran the deferred files');
-
-  // Item A carries the fix B's deferred files need, and also turns the gate red; bisect removes A and rebuilds B alone.
-  const split = largeSelectionProject(20, { inline: true });
-  const second = join(split.box.dir, 'web-2');
-  split.box.git(split.box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  // The second seat joins on the strong route like web-1, so it may claim the strong-routed items both build.
-  const secondJoin = joinFixtureSeat(split.box, second, 'web', { model: FIXTURE_MODEL });
-  assert.equal(secondJoin.code, 0, `join: ${secondJoin.err}${secondJoin.out}`);
-  const itemA = split.submitChange('a', { files: [['web/fix.js', 'export const fixed = true;\n'], ['web/RED', 'red\n']] });
-  const itemB = split.submitChange('needs-fix', { cwd: second });
-  split.accept(itemA.id, itemA.receipt.commit);
-  split.accept(itemB.id, itemB.receipt.commit);
-  const splitLanding = split.box.run(split.box.repo, 'land', '--json');
-  assert.equal(splitLanding.code, 0, splitLanding.err + splitLanding.out);
-  assert.deepEqual(JSON.parse(splitLanding.out).landed, [], 'B does not land on a rebuilt tree that lost A\'s fix');
-  for (const id of [itemA.id, itemB.id]) {
-    const shown = JSON.parse(split.box.run(split.box.repo, 'show', String(id), '--json').out);
-    assert.notEqual(shown.item_status, 'verified', `#${id} is sent back`);
-    assert.equal(shown.item_merged_commit, null);
-  }
-  const reopenedB = JSON.parse(split.box.run(split.box.repo, 'show', String(itemB.id), '--json').out);
-  assert.ok(reopenedB.thread.some(entry => entry.kind === 'reopen' && /web\/selected-\d\d\.test\.js/u.test(entry.detail.note)), 'B is sent back for its own deferred files');
-
-  const off = largeSelectionProject(null).submitChange(2);
-  assert.equal(off.proof.submissionProof.deferredFiles, undefined);
-  assert.deepEqual(off.ran.sort(), all, 'with the setting off, submit runs all thirty as today');
-});
-
-/** Locate only durable logs belonging to this private fixture's actual native landing batches. */
-function deferredLandingLogs(box) {
-  const directory = join(box.repo, '.git', 'pullboard', 'landings');
-  if (!existsSync(directory)) return [];
-  return readdirSync(directory, { recursive: true }).filter(path => path.endsWith('.log'))
-    .map(path => ({ path: join(directory, path), text: readFileSync(join(directory, path), 'utf8') }));
-}
-
-test('a red deferred landing keeps its real failing file and durable log [C7]', () => {
-  const project = largeSelectionProject(20, { inline: true });
-  const red = project.submitChange('red');
-  project.accept(red.id, red.receipt.commit);
-  const result = project.box.run(project.box.repo, 'land', '--json');
-  assert.equal(result.code, 0, result.err + result.out);
-  const shown = JSON.parse(project.box.run(project.box.repo, 'show', String(red.id), '--json').out);
-  assert.ok(shown.thread.some(entry => entry.kind === 'reopen' && /web\/selected-00\.test\.js/u.test(entry.detail.note)), 'the refusal retains the actual failing file');
-  const logs = deferredLandingLogs(project.box);
-  assert.ok(logs.some(log => /selected 0 \[G1\]/u.test(log.text) && /not ok/u.test(log.text)), 'a durable native landing log retains the actual failing test output');
-});
-
-test('a pre-test native policy refusal is not reported as deferred files red [C7]', () => {
-  const project = largeSelectionProject(20, { inline: true });
-  const missing = join(project.box.dir, 'uncommitted-policy');
-  mkdirSync(missing);
-  project.box.git(missing, 'init', '-q', '-b', 'main');
-  const source = new URL('../../../../packages/sandbox/src/io/trusted/policy.js', import.meta.url).href;
-  const launcher = `import { mainPolicy } from ${JSON.stringify(source)};\nimport { spawnSync } from 'node:child_process';\nconst files=process.argv.slice(2);\nif (!files.some(file=>file.includes('selected-'))) { const child=spawnSync(process.execPath,['--test','--test-reporter=tap',...files],{stdio:'inherit'}); process.exitCode=child.status??1; } else { try { mainPolicy(${JSON.stringify(missing)}); throw new Error('missing policy unexpectedly accepted'); } catch (error) { if (!error.code) throw error; console.log(JSON.stringify({version:1,error:{code:error.code,message:error.message,next:'restore the committed coordinator policy'}},null,2)); process.exitCode=1; } }\n`;
-  writeFileSync(join(project.box.repo, 'web/policy-launcher.mjs'), launcher);
-  const policy = join(project.box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(policy, 'utf8'));
-  writeFileSync(policy, JSON.stringify({ ...config, affectedTests: 'node web/policy-launcher.mjs' }, null, 2));
-  project.box.git(project.box.repo, 'add', '-A');
-  project.box.git(project.box.repo, 'commit', '-q', '-m', 'chore: exercise a native policy refusal before tests');
-  project.box.git(project.box.web, 'merge', '-q', '--ff-only', 'main');
-  const ready = project.submitChange(2);
-  project.accept(ready.id, ready.receipt.commit);
-  rmSync(project.box.env.DEFER_MARKER, { force: true });
-  const result = project.box.run(project.box.repo, 'land', '--json');
-  assert.equal(result.code, 1, result.err + result.out);
-  assert.equal(JSON.parse(result.out).error.code, 'NO_POLICY', 'the exact native refusal survives without a test-red wrapper');
-  assert.doesNotMatch(result.out + result.err, /\d+ file\(s\) red|the deferred affected tests are red/u);
-  assert.deepEqual(project.ran(), [], 'no selected test or invariant executes after the pre-test policy refusal');
-  assert.ok(deferredLandingLogs(project.box).some(log => /NO_POLICY/u.test(log.text)), 'the refusal output is retained for diagnosis');
 });

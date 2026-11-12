@@ -67,29 +67,29 @@ function countingVerdictReads(board) {
   return { board: { ...board, db }, counted };
 }
 
-test('the item projector matches the full projection [A2,N26]', () => {
+test('the item projector matches the full projection [A2,N26]', async () => {
   const box = machine();
   const p = project(box, 'projector-items');
-  const add = (...args) => Number(/#(\d+)/.exec(box.run(p.repo, 'add', 'web', ...args))[1]);
+  const add = async (...args) => Number(/#(\d+)/.exec(await box.inProcess(p.repo, 'add', 'web', ...args))[1]);
   // Every state, with waits, verdicts and history: verified twice over, sent back, under review, claimed, open,
   // waiting, and withdrawn.
-  const verified = add('Verified after a send-back', '--criterion', 'the page renders', '--specs', 'G1');
+  const verified = await add('Verified after a send-back', '--criterion', 'the page renders', '--specs', 'G1');
   build(box, p, verified, 'one.txt');
   sendBack(box, p, verified, 'the heading is missing');
   build(box, p, verified, 'two.txt');
   accept(box, p, verified);
-  const reviewed = add('Under review', '--criterion', 'the page says goodbye', '--specs', 'G2');
+  const reviewed = await add('Under review', '--criterion', 'the page says goodbye', '--specs', 'G2');
   build(box, p, reviewed, 'three.txt');
-  box.run(p.repo, 'next', '--verify', String(reviewed), '--as', 'coordinator');
-  const sentBack = add('Sent back', '--criterion', 'a third page');
+  await box.inProcess(p.repo, 'next', '--verify', String(reviewed), '--as', 'coordinator');
+  const sentBack = await add('Sent back', '--criterion', 'a third page');
   build(box, p, sentBack, 'four.txt');
   sendBack(box, p, sentBack, 'it shows the wrong page');
-  const claimed = add('Claimed', '--criterion', 'a fourth page');
-  box.run(p.web, 'claim', String(claimed));
-  const open = add('Open', '--criterion', 'a fifth page');
-  const waiting = add('Waits on open and verified work', '--criterion', 'after the others', '--after', `${open},${verified},${claimed}`);
-  const withdrawn = add('Withdrawn', '--criterion', 'nobody builds it');
-  box.run(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
+  const claimed = await add('Claimed', '--criterion', 'a fourth page');
+  await box.inProcess(p.web, 'claim', String(claimed));
+  const open = await add('Open', '--criterion', 'a fifth page');
+  const waiting = await add('Waits on open and verified work', '--criterion', 'after the others', '--after', `${open},${verified},${claimed}`);
+  const withdrawn = await add('Withdrawn', '--criterion', 'nobody builds it');
+  await box.inProcess(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
 
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(file);
@@ -141,11 +141,13 @@ test('the item projector matches the full projection [A2,N26]', () => {
   }
 });
 
-test('project state carries the focused release as name and item ids, and null without focus [B26,C7]', () => {
+test('project state carries the focused release as name and item ids, and null without focus [B26,C7]', async () => {
   const box = machine();
   const p = project(box, 'projector-focus');
-  const add = (title) => Number(/#(\d+)/.exec(box.run(p.repo, 'add', 'web', title, '--criterion', 'a page renders'))[1]);
-  const first = add('First'), second = add('Second');
+  const add = async (title) => Number(/#(\d+)/.exec(await box.inProcess(p.repo, 'add', 'web', title, '--criterion', 'a page renders'))[1]);
+  const first = await add('First');
+  const second = await add('Second');
+  // @pullboard-board-file journey: serves project state from the board the CLI children wrote
   const board = openBoard(join(p.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(serve.projectState(p.repo, { board }).focusMilestone, null);

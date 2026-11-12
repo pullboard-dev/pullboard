@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/generated/docs.js apps/cli/tests/fixtures/move/registry/baseline.json docs/api.md docs/lifecycle.md docs/tools/update-docs.js */
 /** Real Git conflict inspection and landing share conservative mechanical resolutions [B3,R3,C7]. */
 import { execPath as nodeExecutable } from 'node:process';
 import assert from 'node:assert/strict';
@@ -180,6 +180,8 @@ function boardFixture() {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('docs/', 'test/');
+  // The board's model table determines fixture seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
@@ -267,24 +269,28 @@ test('version-one conflict replay keeps its original Git meaning while fresh mec
   assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).at(-1).event_detail).computedConflict, historical);
 });
 
-test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', () => {
+test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', async () => {
   const box = boardFixture();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('bin/');
+  config.lanes.web.owns.push('apps/');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
-  mkdirSync(join(box.repo, 'bin'));
-  writeFileSync(join(box.repo, 'apps/cli/pullboard.js'), 'process.exit(7);\n');
+  // Landing runs docs/tools/update-docs.js only where the generated-docs boundary exists.
+  mkdirSync(join(box.repo, 'apps/cli/src/io/generated'), { recursive: true });
+  mkdirSync(join(box.repo, 'docs/tools'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/generated/docs.js'), '// generated-docs boundary\n');
+  writeFileSync(join(box.repo, 'docs/tools/update-docs.js'), 'process.exit(7);\n');
   writeFileSync(join(box.repo, 'docs/lifecycle.md'), 'base\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure failing private generator');
   const left = accepted(box, 1, { 'docs/lifecycle.md': 'left\n' });
   const right = accepted(box, 2, { 'docs/lifecycle.md': 'right\n' });
   const before = box.git(box.repo, 'rev-parse', 'main');
-  const result = box.run(box.repo, 'land', '--max', '2', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--max', '2', '--json');
   assert.equal(result.code, 1, `${result.out}\n${result.err}`);
   const error = JSON.parse(result.out).error;
   assert.equal(error.code, 'LAND_MERGE');
-  assert.match(error.message, new RegExp(`#${right}.*bin/pullboard\\.js.*docs/lifecycle\\.md|bin/pullboard\\.js.*docs/lifecycle\\.md.*#${right}`, 'u'));
+  // The generator refusal names the generator command; it is the one landing step that runs it (packages/landing/src/io/docs.js).
+  assert.match(error.message, /node docs\/tools\/update-docs\.js failed in the merged tree/u);
   for (const id of [left, right]) assert.equal(json(box, box.repo, 'show', String(id)).item_status, 'verified');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'generator failure publishes nothing');
 });

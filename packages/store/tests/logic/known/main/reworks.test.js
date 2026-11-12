@@ -8,7 +8,7 @@ const failure = { file: 'test/example.test.js', name: 'other case [C7]', signatu
 /** Build a synthetic repair row; this fixture asserts ownership rules, not an executed gate. */
 function repair(id, pattern = '', criterion = '') {
   return { item_id: id, item_status: 'open', item_title: 'Main red: fixture',
-    item_frozen: JSON.stringify({ check: `node packages/gate/src/io/run/tests.js ${pattern} test/example.test.js`, criterion }) };
+    item_frozen: JSON.stringify({ check: `node apps/cli/src/io/run/tests.js ${pattern} test/example.test.js`, criterion }) };
 }
 
 test('case-named repair wins over a whole-file fallback [V4,B3,H16]', () => {

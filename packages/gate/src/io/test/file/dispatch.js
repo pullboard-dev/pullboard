@@ -2,7 +2,7 @@ import { trailer } from '../outcomes.js';
 import { notify } from '../outcomes.js';
 /** Parent-controlled file admission and one structured result stream [C7]. */
 /** @pullboard-module-loads ** */
-// Native test files are caller-selected, just as in packages/gate/src/io/run/tests.js.
+// Native test files are caller-selected, just as in apps/cli/src/io/run/tests.js.
 import { spawnSync } from 'node:child_process';
 import { devNull } from 'node:os';
 import { fileURLToPath } from 'node:url';

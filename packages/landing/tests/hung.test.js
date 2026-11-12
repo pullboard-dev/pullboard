@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** One hung test file never stops a landing gate: it is red on its own, and every other file still runs [C7,#3167]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -37,7 +37,7 @@ function project(t, shards) {
   // Busy enough never to look idle, and never done, in file setup where no case runs: an active case keeps its own
   // per-test budget past the wall (250bc82d2c, #2827), so only the whole-file wall can stop a file stuck outside a case.
   writeFileSync(join(repo, 'test/c.test.js'), "setInterval(() => { for (let i = 0; i < 1e6; i += 1); }, 5);\nawait new Promise(() => {});\n");
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node packages/gate/src/io/run/tests.js', landingShards: shards }));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: shards }));
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',
     GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1', PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'test/c.test.js': 2000 }), PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1000' };
@@ -48,7 +48,7 @@ function project(t, shards) {
 
 /** Run the landing gate over all five files. */
 function gate(box) {
-  return runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', ...FILES], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 240_000 });
+  return runFixtureChild(process.execPath, ['apps/cli/src/io/run/tests.js', ...FILES], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 240_000 });
 }
 
 for (const shards of [1, 5]) {

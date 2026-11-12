@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Runner admission sends each job to the runner with the most live headroom and queues when all are overloaded [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -47,6 +46,16 @@ test('a job goes to the idle runner, never the one at 10x its cores [C7]', async
     assert.equal(lease.runner.host, 'idle-host');
     assert.equal(lease.runner.dispatch.reason, 'most headroom by runner-reported 1-minute load');
     assert.deepEqual(lease.runner.dispatch.skipped, ['overloaded-host']);
+  } finally { lease.release(); }
+});
+
+test('with two runners free, the lower load per core wins even with less headroom in cores [C7,#5578]', async t => {
+  const project = box(t);
+  const small = { ...runner('four-core', 1), cores: 4 };
+  const big = runner('ten-core', 4);
+  const lease = await acquire(project, [small, big]);
+  try {
+    assert.equal(lease.runner.host, 'four-core', '1 of 4 cores is 0.25 per core, below 4 of 10 at 0.4, though 10 cores leave more headroom');
   } finally { lease.release(); }
 });
 
@@ -132,7 +141,8 @@ test('a busy runner records its live load reading instead of being refused as bu
 test('a measured fleet with default settings dispatches by live load, measured before admission; only an explicit off disables it [C7]', async t => {
   const project = box(t);
   const measured = { host: 'unread-host', slots: 9, browser: 6, cores: 10, memoryMB: 16384 };
-  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, runners: [measured] }));
+  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { timingRunner: false }, runners: [measured] }));
+  // Two runners: timingRunner 'auto' would keep the idle one for timed checks (#2512) and hide the load-aware pick under test.
   const settings = loadMachineSettings();
   assert.equal(settings.gate?.loadAwareDispatch, undefined, 'nothing is configured');
   assert.equal(gateRunnerLoadPolicy(settings).enabled, true, 'a measured fleet balances by load by default');

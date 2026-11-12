@@ -19,14 +19,19 @@ import { packageFiles } from '../../../../packages/runners/index.js';
 import { sourceDirectories } from '../../../../packages/gate/tests/fixtures/functions.js';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
+const MOVED = 'packages/merge/src/io/trunk/conflict.js';
 // The reopen move reads the conflict predicate through the merge core door, which re-exports this body.
-const REOPEN = 'packages/moves/src/core/moves/reopen.js';
-const CARRIAGE = 'packages/merge/src/core/conflict-carriage.js';
+const REOPEN = 'packages/moves/src/logic/moves/reopen.js';
+const CARRIAGE = 'packages/merge/src/logic/carriage.js';
+/** JSON data the move closure imports, each named with its owner's reason; the walk parses them as data, never as code. */
+const DATA_INPUTS = new Map([
+  // #5605 [P5]: vendor spellings live in data so the core names no vendor; family comparison in moves reads them.
+  ['packages/items/src/logic/vendors.json', 'items: vendor spellings kept in data, not code'],
+]);
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
 function closure(read, identities) {
-  const pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(ROOT, folder)).filter(file => file.endsWith('.js'))
+  const pending = ['packages/moves/src/logic/moves', 'packages/moves/src/io/moves'].flatMap(folder => readdirSync(join(ROOT, folder)).filter(file => file.endsWith('.js'))
     .map(file => `${folder}/${file}`));
   const seen = new Set(), native = new Set();
   while (pending.length) {
@@ -54,9 +59,10 @@ test('the conflict predicate stays on the light core door in the accepted main m
   const sources = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT)))
     .map(({ file, body }) => [file, body.toString('utf8')]));
   const manifest = readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8');
-  /** Read only exact finite inventory bytes, with the one explicit JSON data input retained. */
+  /** Read only exact finite inventory bytes, with the explicitly named JSON data inputs retained. */
   const read = file => {
     if (file === 'package.json') return manifest;
+    if (DATA_INPUTS.has(file)) return readFileSync(join(ROOT, file), 'utf8');
     assert.ok(sources.has(file), `closure source belongs to the bounded inventory: ${file}`);
     return sources.get(file);
   };
@@ -65,10 +71,10 @@ test('the conflict predicate stays on the light core door in the accepted main m
   assert.ok(!importsIn([read(MOVED)])[0].some(specifier => /(?:^|\/)state\//u.test(specifier)), 'the moved conflict body imports nothing from the state cell');
   const before = closure(read, identities);
   assert.ok(!importsIn([read(MOVED)])[0].includes('node:child_process'), 'the moved conflict body itself imports no process launcher');
-  assert.ok(before.files.includes(CARRIAGE), 'the move closure reaches the exact conflict predicate through the core door');
+  assert.ok(before.files.includes(identities.get(CARRIAGE) ?? CARRIAGE), 'the move closure reaches the exact conflict predicate through the core door');
   assert.deepEqual(importsIn([read(CARRIAGE)])[0], [], 'the conflict predicate imports nothing, so it adds no process launcher to the move closure');
   // Other moves already reach the merge index, so a broad-index control can no longer differ; the reopen move's own merge import is pinned instead.
-  assert.deepEqual(importsIn([read(REOPEN)])[0].filter(specifier => /(?:^|\/)merge\//u.test(specifier)), ['../../../../merge/core.js'],
+  assert.deepEqual(importsIn([read(REOPEN)])[0].filter(specifier => /(?:^|\/)merge\//u.test(specifier)), ['../../../../merge/light.js'],
     'the reopen move reads the merge cell only through its light core door');
 });
 

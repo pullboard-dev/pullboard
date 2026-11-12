@@ -80,7 +80,8 @@ export function judgeMainOwnedReds({ base, command, reds, receipts }) {
  * @returns {object[]}
  */
 export function returnedMainReceipts(jobs, db, kind) {
-  return jobs.jobsOf(db, { kind }).flatMap(job => job.steps.filter(step => step.name === MAIN_TEST_RECEIPT_STEP).map(step => step.payload));
+  // A pulled job's runner posts its own receipt under the same step name; only the keyed receipt names a tree (#6063).
+  return jobs.jobsOf(db, { kind }).flatMap(job => job.steps.filter(step => step.name === MAIN_TEST_RECEIPT_STEP && typeof step.payload?.tree === 'string').map(step => step.payload));
 }
 
 /**

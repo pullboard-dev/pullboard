@@ -1,7 +1,8 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/kernel/src/logic/seal.js */
 /** Outside-source intake/guards use real Git/SQLite and declared transport stand-ins [V1,V2,V3,B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   readFileSync,
   writeFileSync,
@@ -20,7 +21,7 @@ function refusal(result, expected) {
   assert.equal(JSON.parse(result.out || result.err).error.code, expected, result.out + result.err);
 }
 
-test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', t => {
+test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url,
     '--criterion', 'The contributed behavior works.', '--check', 'node --test test/contribution.test.js');
@@ -37,8 +38,8 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', t
   assert.equal(item.outside.maintainerReplied, true);
   assert.equal(item.outside.sensitive, true, 'relay code requires owner approval');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), box.base, 'intake never checks out or executes the PR');
-  refusal(box.run(box.web, 'verify', id, 'accept', '--note', 'unsafe host path', '--json'), 'OUTSIDE_SANDBOX_REQUIRED');
-  refusal(box.run(box.web, 'verify', id, 'accept', '--sandbox', '--note', 'missing provider', '--json'), 'SANDBOX_PROVIDER_REQUIRED');
+  refusal(await runCliInProcess(['verify', id, 'accept', '--note', 'unsafe host path', '--json'], { cwd: box.web, env: box.env }), 'OUTSIDE_SANDBOX_REQUIRED');
+  refusal(await runCliInProcess(['verify', id, 'accept', '--sandbox', '--note', 'missing provider', '--json'], { cwd: box.web, env: box.env }), 'SANDBOX_PROVIDER_REQUIRED');
 
   // These simulated image versions/TAP rows prove adapter/receipt protocol only, never real containment.
   const provider = configureFixtureSandbox(box);
@@ -50,7 +51,7 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', t
   assert.equal(item.outside.sandbox.tree, box.tree);
   assert.deepEqual(item.outside.sandbox.runs.map(run => run.environment.node), ['22.13.1', '24.21.0']);
   assert.equal(item.outside.ownerApproval, null);
-  refusal(box.run(box.repo, 'land', '--json'), 'OUTSIDE_OWNER_APPROVAL');
+  refusal(await runCliInProcess(['land', '--json'], { cwd: box.repo, env: box.env }), 'OUTSIDE_OWNER_APPROVAL');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD') === box.commit, false, 'sensitive PR never reaches the local trunk without its owner');
   fixtureJSON(box, box.repo, 'intake', 'approve', id);
   item = fixtureJSON(box, box.repo, 'show', id);
@@ -110,32 +111,33 @@ test('the lower sealing definition still requires outside owner approval [B26,V3
 test('outside sealing and command-bearing changes require owner approval [B26,V3]', t => {
   const box = intakeFixture(t);
   // Remove the original relay path so it cannot conceal an omitted sealing classification.
-  advanceOutsideFixture(box, 'src/seal.js', 'export const sealFixture = true;\n', ['apps/relay/src/io/deploy/outside.js']);
+  advanceOutsideFixture(box, 'packages/kernel/src/logic/seal.js', 'export const sealFixture = true;\n', ['apps/relay/src/io/deploy/outside.js']);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
   const source = fixtureJSON(box, box.repo, 'show', id).outside;
   assert.equal(source.sensitive, true, 'the existing sealing boundary needs owner approval even without a relay change');
-  assert.ok(source.sensitivity.some(reason => reason.path === 'src/seal.js' && reason.rule === 'declared-sensitive-path'));
+  assert.ok(source.sensitivity.some(reason => reason.path === 'packages/kernel/src/logic/seal.js' && reason.rule === 'declared-sensitive-path'));
 });
 
-test('a returned outside pull request cannot be claimed as native build work [V1,V3]', t => {
-  const box = intakeFixture(t);
+test('a returned outside pull request cannot be claimed as native build work [V1,V3]', async t => {
+  // The bar's test path must exist on trusted main, or the claim refuses BAR_PATH_MISSING first.
+  const box = intakeFixture(t, { baseFiles: { 'test/contribution.test.js': "import { test } from 'node:test';\ntest('trusted placeholder', () => {});\n" } });
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
   fixtureJSON(box, box.repo, 'reopen', id, '--note', 'outside author must revise its pull request');
-  refusal(box.run(box.web, 'claim', id, '--json'), 'OUTSIDE_NATIVE_BUILD');
+  refusal(await runCliInProcess(['claim', id, '--json'], { cwd: box.web, env: box.env }), 'OUTSIDE_NATIVE_BUILD');
   const item = fixtureJSON(box, box.repo, 'show', id);
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_built_by, 'outside:github:outside-contributor');
 });
 
-test('an outside author revision is re-intaken only after normal return and clears exact-commit approval [V1,V3,B26]', t => {
+test('an outside author revision is re-intaken only after normal return and clears exact-commit approval [V1,V3,B26]', async t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
   fixtureJSON(box, box.repo, 'intake', 'approve', id);
   const next = advanceOutsideFixture(box, 'apps/relay/src/io/deploy/outside.js', 'export const outside = "revised owned fixture";\n');
-  refusal(box.run(box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js', '--json'), 'OUTSIDE_HEAD_CHANGED');
+  refusal(await runCliInProcess(['intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js', '--json'], { cwd: box.repo, env: box.env }), 'OUTSIDE_HEAD_CHANGED');
   assert.equal(fixtureJSON(box, box.repo, 'show', id).item_commit, box.commit, 'source refresh cannot replace an active submission');
   fixtureJSON(box, box.repo, 'reopen', id, '--note', 'outside author supplied a new exact head');
   const refreshed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
@@ -176,14 +178,14 @@ test('only trusted main can extend outside sensitive paths and ordinary source s
 
 test('renaming an existing sealing boundary cannot hide its touched old path [B26,V3]', t => {
   const content = 'export const sealFixture = value => value;\n';
-  const box = intakeFixture(t, { baseFiles: { 'src/seal.js': content } });
-  advanceOutsideFixture(box, 'lib/moved-boundary.js', content, ['src/seal.js', 'apps/relay/src/io/deploy/outside.js']);
+  const box = intakeFixture(t, { baseFiles: { 'packages/kernel/src/logic/seal.js': content } });
+  advanceOutsideFixture(box, 'lib/moved-boundary.js', content, ['packages/kernel/src/logic/seal.js', 'apps/relay/src/io/deploy/outside.js']);
   const facts = JSON.parse(readFileSync(box.facts, 'utf8'));
   facts.files = facts.files.filter(file => file.filename !== 'lib/moved-boundary.js');
-  facts.files.push({ filename: 'lib/moved-boundary.js', previous_filename: 'src/seal.js', status: 'renamed' });
+  facts.files.push({ filename: 'lib/moved-boundary.js', previous_filename: 'packages/kernel/src/logic/seal.js', status: 'renamed' });
   writeFileSync(box.facts, JSON.stringify(facts));
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
-  assert.ok(filed.item.outside.sensitivity.some(reason => reason.path === 'src/seal.js' && reason.rule === 'declared-sensitive-path'), 'the exact old trust-boundary path remains part of the owner decision after a GitHub rename');
+  assert.ok(filed.item.outside.sensitivity.some(reason => reason.path === 'packages/kernel/src/logic/seal.js' && reason.rule === 'declared-sensitive-path'), 'the exact old trust-boundary path remains part of the owner decision after a GitHub rename');
 });
 
 

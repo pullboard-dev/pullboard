@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/gate/drive.js apps/lib/src/io/handoff/dispatcher.js packages/resources/index.js */
 /** The gate dispatcher never exits on a kill it may not send (EPERM) or that meets a replaced process (ESRCH) [C7,#3727]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

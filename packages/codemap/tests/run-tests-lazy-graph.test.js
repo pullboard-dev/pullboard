@@ -26,16 +26,19 @@ test('clause 1: the moved src/run.js implementation and test-run have no static 
   for (const file of ENTRIES) {
     const source = readFileSync(new URL('../../../' + file, import.meta.url), 'utf8');
     assert.deepEqual(staticEdges(file, source).filter(edge => HEAVY.has(edge)), [], file);
-    assert.ok(scanSource(file, source).imports.some(edge => edge.dynamic && edge.from.endsWith('/gate.js')
-      || edge.dynamic && edge.from === '../../../gate/index.js'), `${file} retains its real gate dependency on demand`);
+    const deferred = scanSource(file, source).imports.filter(edge => edge.dynamic).map(edge => edge.from);
+    const retainsGate = file === 'packages/gate/src/io/test/run.js'
+      ? ['../main.js', '../execution.js'].every(edge => deferred.includes(edge))
+      : deferred.some(edge => edge.endsWith('/gate.js') || edge === '../../../gate/index.js');
+    assert.ok(retainsGate, `${file} retains its real gate dependency on demand`);
   }
 });
 
 test('the static graph guard detects named and side-effect gate imports while distinguishing deferred imports [C7,#3054]', () => {
   const file = 'packages/gate/src/io/test/run.js';
-  const source = `import {runGate} from './gate.js';
-import './gate-execution.js';
-async function policy() { return import('../core/gate-policy-load.js'); }
+  const source = `import {runGate} from '../main.js';
+import '../execution.js';
+async function policy() { return import('../../logic/policy.js'); }
 `;
   assert.deepEqual(staticEdges(file, source).filter(edge => HEAVY.has(edge)),
     ['packages/gate/src/io/main.js', 'packages/gate/src/io/execution.js']);
@@ -86,7 +89,7 @@ test('clause 2: the runner reads the worker process identity from the drive ligh
   const root = fileURLToPath(new URL('../../..', import.meta.url));
   const door = new Set([...staticGraph('../../drive/light.js')].map(file => relative(root, file).split(sep).join('/')));
   assert.ok(door.has('packages/drive/src/logic/identity.js'), 'the drive light door carries the identity helpers');
-  assert.match(readFileSync(new URL('../../gate/src/io/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/\.\.\/\.\.\/drive\/core\.js'/u);
+  assert.match(readFileSync(new URL('../../gate/src/io/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/\.\.\/\.\.\/drive\/light\.js'/u);
 });
 
 const RUNNER_TARGETS = ['packages/store/index.js', 'packages/store/src/io/board.js', 'packages/state/src/io/machine.js', 'packages/gate/src/io/check/baseline/worker.js'];
@@ -110,9 +113,9 @@ function importParents(entry) {
   return parent;
 }
 
-test('clause 1: packages/gate/src/io/run/tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+test('clause 1: apps/cli/src/io/run/tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
   const runner = importParents('packages/gate/src/io/run-tests.js');
-  for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `packages/gate/src/io/run/tests.js statically imports ${barrel}`);
+  for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `apps/cli/src/io/run/tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {
     const graph = importParents(barrel);
     for (const target of RUNNER_TARGETS) assert.ok(!graph.has(target) || !runner.has(barrel), `${barrel} reaches ${target}`);

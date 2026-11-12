@@ -62,7 +62,7 @@ jobs:
           for i in $(seq 1 "$RUNS"); do
             if [ -n "$PATTERN" ]; then set -- --test-name-pattern "$PATTERN" "$FILE"; else set -- "$FILE"; fi
             start=$(date +%s)
-            out=$(node packages/gate/src/io/run/tests.js "$@" 2>&1) && rc=0 || rc=$?
+            out=$(node apps/cli/src/io/run/tests.js "$@" 2>&1) && rc=0 || rc=$?
             printf '%s\n' "$out" > "repeat-runs/run-$i.tap"
             if [ "$rc" -eq 0 ] && ! printf '%s\n' "$out" | grep -q '^not ok'; then
               pass=$((pass + 1)); echo "run $i: ok in $(( $(date +%s) - start ))s"

@@ -1,7 +1,8 @@
-/** A new numbered move-history file is staged, then placed as an engine stay, never into the state cell [C7,D3,H16]. */
+/** A new numbered engine history file is data: landing never places it through the cells plan [C7,D3,H16]. */
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   writeFileSync,
@@ -13,7 +14,7 @@ import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { placeLandingHistory } from '../../index.js';
 
-test('a new packages/state/data/history file is placed as a stay [C7,D3]', () => {
+test('a new packages/state/data/history file is skipped, not placed [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));
   for (const folder of ['packages/codemap/data/plan', 'packages/codemap/src/io/cells/scripts']) mkdirSync(join(root, folder), { recursive: true });
   writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
@@ -22,11 +23,11 @@ test('a new packages/state/data/history file is placed as a stay [C7,D3]', () =>
     assert.equal(spawnSync('git', args, { cwd: root }).status, 0, args.join(' '));
   }
   placeLandingHistory(root, ['packages/state/data/history/187.json', 'src/other.js']);
-  const calls = readFileSync(join(root, 'placed.log'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.deepEqual(calls, [['--place', 'packages/state/data/history/187.json', '--stay']]);
+  const calls = existsSync(join(root, 'placed.log')) ? readFileSync(join(root, 'placed.log'), 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
+  assert.deepEqual(calls, [], 'history is data, so the plan placer is never asked to place it');
 });
 
-test('a generated history is staged before placement, so the placer sees a tracked file [C7,D3]', () => {
+test('a generated history is not handed to the placer, so no refusal can fail the landing [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));
   mkdirSync(join(root, 'packages/codemap/data/plan'), { recursive: true });
   mkdirSync(join(root, 'packages/state/data/history'), { recursive: true });
@@ -34,18 +35,9 @@ test('a generated history is staged before placement, so the placer sees a track
   for (const args of [['init', '-q'], ['add', '.'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base']]) {
     assert.equal(spawnSync('git', args, { cwd: root }).status, 0, args.join(' '));
   }
-  // The history appears after the base commit, as a merge's regenerated file does: untracked until the lander adds it.
   writeFileSync(join(root, 'packages/state/data/history/233.json'), '{}\n');
   const seen = [];
-  const place = (cwd, file) => {
-    const tracked = spawnSync('git', ['ls-files', '--error-unmatch', '--', file], { cwd });
-    seen.push({ file, tracked: tracked.status === 0 });
-    return tracked.status === 0 ? { status: 0 } : { status: 1, stderr: `[CELLS_UNPLACED] stage a regular source file before placing it: ${file}\n` };
-  };
-  placeLandingHistory(root, ['packages/state/data/history/233.json'], { place });
-  assert.deepEqual(seen, [{ file: 'packages/state/data/history/233.json', tracked: true }]);
-  // A placer refusal still surfaces as LAND_MERGE, now carrying the placer's own refusal line.
-  const failing = () => ({ status: 1, stderr: 'noise\n[CELLS_UNPLACED] stage a regular source file before placing it: packages/state/data/history/233.json\n' });
-  assert.throws(() => placeLandingHistory(root, ['packages/state/data/history/233.json'], { place: failing }), error =>
-    error instanceof Refused && error.code === 'LAND_MERGE' && error.message.includes('[CELLS_UNPLACED]') && error.message.includes('retry landing'));
+  const failing = (cwd, file) => { seen.push(file); return { status: 1, stderr: `[CELLS_UNPLACED] use --place <in-scope path>: ${file}\n` }; };
+  assert.deepEqual(placeLandingHistory(root, ['packages/state/data/history/233.json'], { place: failing }), []);
+  assert.deepEqual(seen, [], 'the placer that would have refused was never called');
 });

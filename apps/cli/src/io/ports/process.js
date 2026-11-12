@@ -4,21 +4,26 @@
  * process run commands with the same capabilities, so both compose them here [C7].
  */
 
-/** Load the native board only when a command asks for it. */
+/** Load the native board only when a command asks for it; the CLI process opens boards and reads ports, so it skips the library barrel's workers (gate, landing) [C7]. */
 export function loadNativeBoard() {
-  return import('../../../../lib/index.js');
+  return import('../../../../lib/light.js').then(light => light.nativeBoard);
 }
 
 /** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */
 export function gateWaitReporter(io) {
   let report;
-  const ready = import('../../../../../packages/gate/index.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
-  return (wait) => { if (report) report(wait); else ready.then(() => report(wait)); };
+  let ready;
+  return (wait) => {
+    if (report) return report(wait);
+    // Lines queue on one shared load, so they print in the order they arrived.
+    ready ??= import('../../../../../packages/gate/index.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
+    return ready.then(() => report(wait));
+  };
 }
 
 /** Compose process-only capabilities after a command actually requests them. */
 export function loadProcessPorts() {
-  return Promise.all([import('node:url'), import('../../../../../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
+  return Promise.all([import('node:url'), import('../../../../../packages/outbox/light.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,
     /** Load the canonical guard only when a linked operation actually needs it. */
     withOutboxGuard: (...args) => import('../../../../../packages/outbox/index.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),

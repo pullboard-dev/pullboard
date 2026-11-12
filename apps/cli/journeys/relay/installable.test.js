@@ -11,6 +11,7 @@ import {
   relayWorkBudgetMs,
   startChrome,
 } from '../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 test('a paired phone page is installable and asks to keep its storage [H5,H15,C7]', async t => {
   const box = await relayClientFixture(t);
@@ -72,11 +73,11 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
     skip: !findChromeExecutable() && 'Chrome is not installed',
   }, async () => {
     const title = 'INSTALLABLE_PAIRED_BOARD';
-    assert.equal((await box.cli('add', box.lane, title)).code, 0);
+    assert.equal((await box.cliLocal('add', box.lane, title)).code, 0);
     await box.link();
     const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
     const encoded = readFileSync(box.keyFile, 'utf8').trim();
-    const chrome = await startChrome();
+    const chrome = await stableChrome(await startChrome());
     try {
       await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
         // A fresh page opens on the Dashboard, and the item list is drawn only on the Items tab, so ask for that tab as the phone tests do.
@@ -94,29 +95,29 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
       assert.equal(cookie.success, true, 'the private browser has a real person session');
       await chrome.navigate(box.origin + '/');
       await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')");
-      assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 0, 'an unpaired visit does not ask to retain pairing');
+      assert.equal(await chrome.stable('window.pairingPersistenceCalls'), 0, 'an unpaired visit does not ask to retain pairing');
       await chrome.waitFor('navigator.serviceWorker.controller !== null', undefined, 'the served worker controls the hosted page');
-      assert.equal(await chrome.evaluate('navigator.serviceWorker.controller.scriptURL'), box.origin + '/service-worker.js');
+      assert.equal(await chrome.stable('navigator.serviceWorker.controller.scriptURL'), box.origin + '/service-worker.js');
       await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
       await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
-      assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 1,
+      assert.equal(await chrome.stable('window.pairingPersistenceCalls'), 1,
         'successful pairing asks the browser to retain its storage');
-      const warning = await chrome.evaluate("document.querySelector('#pairing-storage-notice')?.textContent");
+      const warning = await chrome.stable("document.querySelector('#pairing-storage-notice')?.textContent");
       assert.equal(typeof warning, 'string', 'a refused persistence request is visible after pairing');
       assert.match(warning, /Home Screen/u);
       assert.doesNotMatch(warning, /\n/u, 'a refused storage request is explained in one line');
-      await chrome.evaluate("import('/relay/client.js').then(async module => { const transport = await module.createTransport(); await transport.request('/api/v1/boards'); })");
-      assert.equal(await chrome.evaluate("document.querySelectorAll('#pairing-storage-notice').length"), 1,
+      await chrome.stable("import('/relay/client.js').then(async module => { const transport = await module.createTransport(); await transport.request('/api/v1/boards'); })");
+      assert.equal(await chrome.stable("document.querySelectorAll('#pairing-storage-notice').length"), 1,
         'later board refreshes keep one warning');
-      assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 2,
+      assert.equal(await chrome.stable('window.pairingPersistenceCalls'), 2,
         'a second transport asks once for its retained pairing, not once per refresh');
       await chrome.navigate(box.origin + '/?granted');
       await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
-      assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 1,
+      assert.equal(await chrome.stable('window.pairingPersistenceCalls'), 1,
         'reopening a retained pairing requests persistence once');
-      assert.equal(await chrome.evaluate("document.querySelector('#pairing-storage-notice') === null"), true,
+      assert.equal(await chrome.stable("document.querySelector('#pairing-storage-notice') === null"), true,
         'granted persistence needs no refusal message');
-      assert.deepEqual(await chrome.evaluate('caches.keys()'), [], 'the minimal worker stores no board pages or API responses');
+      assert.deepEqual(await chrome.stable('caches.keys()'), [], 'the minimal worker stores no board pages or API responses');
     } finally { await chrome.close(); }
   });
 });

@@ -45,6 +45,14 @@ if (process.argv.length === 3 && process.argv[2] === '--version') {
   process.exit(0);
 }
 
+// A commit hook runs as a child of the shim, which times it from process start and stops it after 120 s (#5719).
+if (process.argv[2] === 'hook') {
+  const shim = await import('./src/io/hook/shim.js');
+  if (shim.wantsHookShim(process.argv.slice(2), process.env)) {
+    process.exit(await shim.runHookShim(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env, stderr: process.stderr }));
+  }
+}
+
 // A self-hosted pre-commit runs from the staged index with the item's companions applied, never the working tree (#2593).
 if (process.argv[2] === 'hook') {
   const composed = await (await import('./src/io/hook/composed.js')).runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });
@@ -80,7 +88,13 @@ if (handed !== null) process.exit(handed);
 
 // A warm resident board process runs the command when one serves this checkout; otherwise it runs here.
 const resident = await (await import('./src/io/resident/client.js')).runResident(process.argv.slice(2));
+// A commit hook runs hookCommand alone: no dispatcher, and in an agent session only the checkout lease bind [H24].
+// A seat the thin entry cannot name returns null and takes the full path below (#5719).
+const thin = resident === null && process.argv[2] === 'hook' && (await import('./src/io/hook/thin-door.js')).isThinHook(process.argv.slice(2), process.env)
+  ? await (await import('./src/io/hook/thin.js')).runThinHook(process.argv.slice(2), { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin, env: process.env })
+  : null;
 if (resident !== null) process.exitCode = resident;
+else if (thin !== null) process.exitCode = thin;
 else {
   // Mark this command as the outermost live pullboard for every child it starts, unless a live outer one already
   // did: a pullboard test under a gate, check or landing then blocks and returns its real exit code [C7].
@@ -90,7 +104,7 @@ else {
     try { process.kill(outer, 0); outerAlive = true; } catch (error) { outerAlive = error?.code === 'EPERM'; }
   }
   if (!outerAlive) process.env.PULLBOARD_CLI_PID = String(process.pid);
-  const { cliMain$main: main } = await import('./index.js');
+  const { main } = await import('./src/io/main.js');
   const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./src/io/ports/process.js');
   process.exitCode = await main(process.argv.slice(2), {
     cwd: process.cwd(),

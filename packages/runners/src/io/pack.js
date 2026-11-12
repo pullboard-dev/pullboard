@@ -8,12 +8,19 @@ import { MAX_BLOB_BYTES } from './source/scan.js';
 import { objectRecord } from './source/scan.js';
 import { cachedScan } from './source/scan.js';
 import { protectedHistoryPath } from './source/scan.js';
+import { scannerTree } from './source/scan.js';
 import { sourceGit } from './source/scan.js';
 import { spawnSync } from 'node:child_process';
 import { closeSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const MAX_HISTORY_TAGS = 1_024;
@@ -118,36 +125,83 @@ function streamedSourceGit(root, args, directory, name, input) {
   try { return readFileSync(file, 'utf8'); } finally { rmSync(file, { force: true }); }
 }
 
+/** How many fully scanned commits the pack verdict cache keeps per scanner and policy set. */
+const CLEAN_PACK_KEEP = 16;
+
+/**
+ * The file of commits whose whole object history passed this exact scanner and protection policy, or null when no verdict
+ * may be kept: a run outside a tooling export names no scanner rules, and a shallow or grafted clone's history is cut short.
+ * Why: a runner with a cold cache reports no tips, so every pulled job rescanned all history (3 GB) in a serve-need process
+ * that lived for minutes; a commit id names its whole history, so the verdict holds in every clone that has the commit (#5544).
+ */
+function cleanPackFile(root, protect) {
+  const tree = scannerTree();
+  if (!tree) return null;
+  const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
+  if (existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'))) return null;
+  const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
+  return join(home, 'pack-scan', `${createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)}.json`);
+}
+
+/** The saved clean commits, newest first; a missing or unreadable file is empty. */
+function cleanPackCommits(file) {
+  if (!file) return [];
+  try {
+    const value = JSON.parse(readFileSync(file, 'utf8'));
+    return Array.isArray(value) ? value.filter(commit => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) : [];
+  } catch { return []; }
+}
+
+/** Save the clean commits whole or not at all; an unwritable cache only costs the next scan its shortcut. */
+function saveCleanPackCommits(file, commits) {
+  const temporary = `${file}.${process.pid}.partial`;
+  try {
+    mkdirSync(join(file, '..'), { recursive: true, mode: 0o700 });
+    writeFileSync(temporary, JSON.stringify(commits), { mode: 0o600 });
+    renameSync(temporary, file);
+  } catch { /* Nothing to keep. */ } finally { rmSync(temporary, { force: true }); }
+}
+
 /** Scan and pack exactly the candidate objects absent from the locked remote cache inventory. */
 export function historyPack(root, source, tips, directory, tags = [], knownTagObjects = []) {
   const knownTags = new Set(knownTagObjects);
   const known = sourceGit(root, ['cat-file', '--batch-check'], { input: tips.map(tip => `${tip}\n`).join('') })
     .split('\n').map(line => /^([a-f0-9]{40,64}) commit \d+$/u.exec(line)?.[1]).filter(Boolean);
-  const records = streamedSourceGit(root, ['rev-list', '--objects', source.commit, ...(source.extraCommits ?? []), '--not', ...known], directory, 'history.objects')
+  const roots = [source.commit, ...(source.extraCommits ?? [])];
+  const listed = (excluded, name) => streamedSourceGit(root, ['rev-list', '--objects', ...roots, '--not', ...excluded], directory, name)
     .split('\n').filter(Boolean).map(line => {
       const match = /^([a-f0-9]{40,64})(?: (.*))?$/u.exec(line);
       if (!match) throw new Refused('RUNNER_SOURCE', 'unsupported history path; keep this run local');
       return { object: match[1], path: match[2] ?? '' };
     });
-  const objects = [...new Set([...records.map(record => record.object), ...tags.flatMap(tag => tag.chain).filter(object => !knownTags.has(object))])];
-  const names = new Map(records.map(record => [record.object, record.path]));
-  for (const tag of tags) for (const object of tag.chain) names.set(object, tag.name);
-  const historicalTrees = new Set();
   const config = source.protect ? { protect: source.protect } : sourceGit(root, ['ls-tree', '--name-only', source.commit, '--', 'pullboard.json']).trim()
     ? configFromSource(sourceGit(root, ['show', `${source.commit}:pullboard.json`])) : defaults();
-  const metadata = streamedSourceGit(root, ['cat-file', '--batch-check'], directory, 'history.metadata', objects.map(object => `${object}\n`).join(''));
+  const cleanFile = cleanPackFile(root, config.protect);
+  const saved = cleanPackCommits(cleanFile);
+  // A saved commit counts only while this clone still has it.
+  const clean = saved.length ? sourceGit(root, ['cat-file', '--batch-check'], { input: saved.map(commit => `${commit}\n`).join('') })
+    .split('\n').map(line => /^([a-f0-9]{40,64}) commit \d+$/u.exec(line)?.[1]).filter(Boolean) : [];
+  // Everything the runner lacks is packed; only what no earlier clean scan covered is read again.
+  const records = listed(known, 'history.objects');
+  const scanRecords = clean.length ? listed([...known, ...clean], 'history.scan-objects') : records;
+  const objects = [...new Set([...records.map(record => record.object), ...tags.flatMap(tag => tag.chain).filter(object => !knownTags.has(object))])];
+  const scanned = [...new Set([...scanRecords.map(record => record.object), ...tags.flatMap(tag => tag.chain).filter(object => !knownTags.has(object))])];
+  const names = new Map(scanRecords.map(record => [record.object, record.path]));
+  for (const tag of tags) for (const object of tag.chain) names.set(object, tag.name);
+  const historicalTrees = new Set();
+  const metadata = streamedSourceGit(root, ['cat-file', '--batch-check'], directory, 'history.metadata', scanned.map(object => `${object}\n`).join(''));
   for (const line of metadata.split('\n').filter(Boolean)) {
     const match = /^[a-f0-9]{40,64} (blob|tree|commit|tag) (\d+)$/u.exec(line);
     if (!match || Number(match[2]) > MAX_BLOB_BYTES) throw new Refused('RUNNER_SCAN_LIMIT', 'a historical object exceeds the safe runner scan limit; keep this run local');
   }
-  if (objects.length) {
+  if (scanned.length) {
     const scanFile = join(directory, 'history.scan');
     const output = openSync(scanFile, 'wx', 0o600);
-    try { sourceGit(root, ['cat-file', '--batch'], { input: `${objects.join('\n')}\n`, stdio: ['pipe', output, 'pipe'] }); }
+    try { sourceGit(root, ['cat-file', '--batch'], { input: `${scanned.join('\n')}\n`, stdio: ['pipe', output, 'pipe'] }); }
     finally { closeSync(output); }
     const input = openSync(scanFile, 'r');
     try {
-      for (let index = 0; index < objects.length; index++) {
+      for (let index = 0; index < scanned.length; index++) {
         const { object, type, data } = objectRecord(input);
         const path = names.get(object) || `history/${object}`;
         if (type === 'commit') {
@@ -188,6 +242,10 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
   const output = openSync(pack, 'wx', 0o600);
   try { sourceGit(root, ['pack-objects', '--stdout'], { input: objects.map(object => `${object}\n`).join(''), stdio: ['pipe', output, 'pipe'] }); }
   finally { closeSync(output); }
+  // Every object the runner lacked was read now or by a clean scan; the verdict is kept only when no runner-claimed tip hid history from it.
+  if (cleanFile && (!known.length || !sourceGit(root, ['rev-list', '--max-count=1', ...known, '--not', ...clean]).trim())) {
+    saveCleanPackCommits(cleanFile, [...new Set([...roots, ...saved])].slice(0, CLEAN_PACK_KEEP));
+  }
   return pack;
 }
 
