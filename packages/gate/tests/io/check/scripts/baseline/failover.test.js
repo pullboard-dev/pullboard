@@ -220,7 +220,7 @@ test('a remote proof refusal preserves the completed frozen-check output [C7,V4]
   // The frozen check ran once on its own lease; only the proof asks the other runner again.
   const proofs = result.calls.filter(call => call.command !== 'fixture-check');
   assert.equal(result.calls.filter(call => call.command === 'fixture-check').length, 1);
-  assert.equal(proofs.length, 2);
+  assert.equal(proofs.length, 2, JSON.stringify(result.calls));
   assert.equal(new Set(proofs.map(call => call.host)).size, 2, 'the bounded retry uses the other registered runner');
   assert.equal(result.output, result.expected, 'the red check remains inspectable after the proof refuses');
   assert.equal(result.holders.length, 0, 'the failed proof leaves no private lease behind');
