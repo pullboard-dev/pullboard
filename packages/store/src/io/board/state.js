@@ -224,9 +224,9 @@ function claimHealthWithoutClock(health) {
   return kept;
 }
 
-/** A milestone whose entries and own progress carry the latest activity, never the minutes since it. */
+/** A milestone as a build holds it: its own progress names the latest activity, and its entries carry no per-item progress, which each item already holds, so a delta resends a milestone at a fraction of its size. */
 function milestoneWithoutClock(milestone) {
-  const items = milestone.items.map(entry => entry.progress ? { ...entry, progress: withoutClockReading(entry.progress) } : entry);
+  const items = milestone.items.map(({ progress: _held, ...entry }) => entry);
   const { idleMinutes: _minutes, ...progress } = milestone.progress;
   const latest = milestone.items.map(entry => entry.progress?.lastActivity).filter(Boolean).sort().at(-1) ?? null;
   return { ...milestone, items, progress: { ...progress, idleSince: latest } };
