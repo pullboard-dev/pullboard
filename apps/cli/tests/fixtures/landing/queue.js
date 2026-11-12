@@ -109,16 +109,20 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
   const entries = [1, 2].map(number => {
     const root = join(box.dir, `queue-build-${number}`);
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/queue-${number}`, root, 'main');
+    zt(`pair ${number} worktree`);
     run(box, root, 'join', 'web');
+    zt(`pair ${number} join`);
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(withBaselineRunner(box, () => run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
       '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
       `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json')));
     const id = added.item.item_id;
+    zt(`pair ${number} added`);
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
     run(box, root, 'fact', String(id), 'diagnosis', `Files: ${file} Change: build the queued landing fixture file Test case: a suspended landing owner is fenced before the queued adopter runs`);
     run(box, root, 'claim', String(id));
+    zt(`pair ${number} claimed`);
     if (number === 2 && staleAfterFirst) {
       // The first-to-land item changes the lower id's checked path on an independent branch.
       mkdirSync(join(root, 'web'), { recursive: true });
@@ -131,14 +135,18 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     }
     const commit = helpers.commitFile(box, root, file, 'works\n', 'feat(web): build queue fixture [G1]');
     assert.equal(commit.status, 0, commit.stderr);
+    zt(`pair ${number} committed`);
     run(box, root, 'submit', String(id));
+    zt(`pair ${number} submitted`);
     return { id, head: box.git(root, 'rev-parse', 'HEAD') };
   });
   for (const entry of [...entries].reverse()) {
     const review = join(box.dir, `queue-review-${entry.id}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, entry.head);
     run(box, review, 'join', 'api');
+    zt(`review ${entry.id} joined`);
     run(box, review, 'next', '--verify', String(entry.id));
+    zt(`review ${entry.id} next`);
     run(box, review, 'verify', String(entry.id), 'accept', '--note', 'The exact item check passes in this independent private fixture seat.');
   }
   return entries;
