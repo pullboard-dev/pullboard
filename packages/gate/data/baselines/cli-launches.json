@@ -437,8 +437,11 @@
   "apps/cli/journeys/shout/item.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/sealed/recovery.test.js": {
+  "apps/cli/journeys/relay/sealed/recovery-skip.test.js": {
     "launch": 4
+  },
+  "apps/cli/journeys/relay/sealed/recovery-collision.test.js": {
+    "launch": 2
   },
   "packages/gate/tests/io/test/cleanup/background.test.js": {
     "launch": 1
@@ -1635,9 +1638,6 @@
     "launch": 1
   },
   "apps/cli/journeys/init/refresh.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/relay/sealed/recovery-collision.test.js": {
     "launch": 2
   }
 }

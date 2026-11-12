@@ -301,3 +301,16 @@ export function cpuStandIn(t) {
   return { stop, count: busy.length, load };
 }
 
+/** Cell doors the split sealed recovery journeys read through this fixture, so the journeys carry no cell imports [H16]. */
+export { exportBoard } from '../../../../../packages/store/index.js';
+export { semanticBoardDigest } from '../../../../../packages/store/index.js';
+export { appliedSequence } from '../../../../../packages/state/index.js';
+export { checkpointSequence } from '../../../../../packages/state/index.js';
+export { requireSupportedEngine } from '../../../../../packages/state/index.js';
+export { seal as sealMove } from '../../../../../packages/kernel/index.js';
+export { store, openBoard, ENGINE_VERSION };
+
+/** relayRecover through a runtime door, so the journeys import no link cell [H16]. */
+export async function relayRecover(...args) { return (await import(pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/link/index.js')).href)).relayRecover(...args); }
+/** syncRelay through a runtime door, so the journeys import no link cell [H16]. */
+export async function syncRelay(...args) { return (await import(pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/link/index.js')).href)).syncRelay(...args); }

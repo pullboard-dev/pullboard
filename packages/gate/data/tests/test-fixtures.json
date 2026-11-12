@@ -2896,8 +2896,16 @@
     "raw-board": 12
   },
   "apps/cli/journeys/relay/sealed/recovery.test.js": {
-    "tempdir": 2,
-    "raw-board": 19
+    "raw-board": 1,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/relay/sealed/recovery-skip.test.js": {
+    "raw-board": 18,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/relay/sealed/recovery-collision.test.js": {
+    "tempdir": 1,
+    "raw-board": 3
   },
   "apps/cli/journeys/relay/sealed/checkpoint.test.js": {
     "raw-board": 11
@@ -4158,9 +4166,5 @@
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
     "hand-policy": 3
-  },
-  "apps/cli/journeys/relay/sealed/recovery-collision.test.js": {
-    "tempdir": 1,
-    "raw-board": 3
   }
 }
