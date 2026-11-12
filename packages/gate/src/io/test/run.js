@@ -46,6 +46,7 @@ import { timingSource } from '../run/timing.js';
 import { whileSeatAlive } from '../keepalive.js';
 import { announceTestRun } from '../../logic/test/progress.js';
 import { trackedDefaultTestFiles } from './selection.js';
+import { recordGreenRun } from '../shards/green.js';
 import {
   preQueueReuse,
   reuseReceipt,
@@ -263,6 +264,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
       try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
     },
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full && !diagnose, agent, item, itemCheck: Boolean(item) && !diagnose, diagnostic: diagnose, kind: 'test', onWait });
+    // A green runner run of named files is the gate's proof of them at this tree: the submit's item check takes it [C7].
+    if (!full && !diagnose && ran?.isGreen) recordGreenRun(ran, { runner: config.affectedTests, files: paths, timingRunId: ran.id ?? null });
     return reusedText && typeof ran?.output === 'string' ? { ...ran, output: reusedText + ran.output } : ran;
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
