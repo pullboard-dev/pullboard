@@ -97,12 +97,15 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   return { ...box, helpers, ids, boardFile, runnerHome };
 }
 
-/** Claim, commit and submit one item from its own folder; the submit must return green at once. */
-export function submitOne(box, id) {
+/**
+ * Claim, commit and submit one item from its own folder; the submit must return green at once.
+ * `change` names the one file the item commits; by default a fresh web/<id>.txt.
+ */
+export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }) {
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
-  assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): pulled gate ${id} [G1]`).status, 0);
+  assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
   const submitted = box.run(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };

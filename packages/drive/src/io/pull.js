@@ -15,7 +15,10 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
+import { delimiter } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { childEnvironment } from '../../../kernel/light.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -33,7 +36,7 @@ export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 // Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
 const RECEIPT_LINE_BYTES = 60 * 1024;
 
-/** A refusal by code, as the CLI reports it: what failed and what to do next. Kept local so this runner-side file stays free of other cells. */
+/** A refusal by code, as the CLI reports it: what failed and what to do next. Kept local so this runner-side file stays light. */
 class Refused extends Error {
   constructor(code, message) { super(message); this.name = 'Refused'; this.code = code; }
 }
@@ -161,8 +164,11 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   }
   writeFileSync(join(primary, '.git', 'objects', 'info', 'alternates'), `${join(store, 'objects')}\n`);
   if (main) {
-    const pinned = await git(primary, ['update-ref', 'refs/heads/main', main]);
-    if (pinned.status !== 0) return { ok: false, reason: pinned.stderr };
+    // The trunk the job's proof reads, as a pushed runner's checkout names it (apps/runner/src/io/worker/checkout.js) [P7].
+    for (const args of [['update-ref', 'refs/heads/main', main], ['config', '--local', '--replace-all', 'pullboard.trunk', 'refs/heads/main']]) {
+      const pinned = await git(primary, args);
+      if (pinned.status !== 0) return { ok: false, reason: pinned.stderr };
+    }
   }
   const added = await git(primary, ['worktree', 'add', '-q', '--detach', folder, commit]);
   return added.status === 0 ? { ok: true, folder, primary } : { ok: false, reason: added.stderr };
@@ -173,6 +179,29 @@ async function dropCheckout(cache, { folder, primary }) {
   rmSync(folder, { recursive: true, force: true });
   if (primary) rmSync(primary, { recursive: true, force: true });
   await git(join(cache, 'git'), ['worktree', 'prune']);
+}
+
+/** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
+const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
+
+/**
+ * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and
+ * PULLBOARD_RUNNER_JOB, as a pushed runner builds it. Why: a job that inherited the runner service's environment ran
+ * with the host's real HOME, ~/.pullboard and shared temp folder, and its proof failed where the controller's passed.
+ *
+ * @param {string} cache
+ * @param {string} name - The job's checkout name.
+ * @param {string} job - The job id, carried as PULLBOARD_RUNNER_JOB.
+ * @param {NodeJS.ProcessEnv} [host] - The runner service's environment, read for PATH and the passed names only.
+ * @returns {{ env: Record<string, string>, folder: string }}
+ */
+export function jobEnvironment(cache, name, job, host = process.env) {
+  const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
+  rmSync(folder, { recursive: true, force: true });
+  for (const path of [home, temporary]) mkdirSync(path, { recursive: true, mode: 0o700 });
+  const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
+  const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
+  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary) }, folder };
 }
 
 /**
@@ -330,7 +359,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       continue;
     }
     const started = Date.now();
-    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null });
+    const job = jobEnvironment(cache, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, claim.job);
+    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null, env: job.env });
     let lost = false;
     // Renew while the job runs. An unreachable board only skips a renewal; a moved lease stops the job.
     const renewer = setInterval(() => {
@@ -346,6 +376,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     signal?.addEventListener('abort', stopping, { once: true });
     const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
     await dropCheckout(cache, checkout);
+    rmSync(job.folder, { recursive: true, force: true });
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
       jobs.push({ job: claim.job, outcome: 'released' });
