@@ -5,6 +5,7 @@
  * the machine; the repo stays behind to look around in.
  */
 import { spawnSync } from 'node:child_process';
+import { Readable } from 'node:stream';
 import {
   chmodSync,
   mkdirSync,
@@ -144,18 +145,13 @@ export async function tour(io) {
   const seatSession = (who) => ({ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: `${basename(dir)}-${who}` });
   const timings = [];
 
+  /** The environment one scripted seat runs with. */
+  const seatEnv = (who, nested) => ({ ...env, ...seatSession(who), ...(nested ? { PULLBOARD_TEXT_NEXT: '0' } : {}), GIT_AUTHOR_NAME: who, GIT_AUTHOR_EMAIL: `${who}@tour.invalid`, GIT_COMMITTER_NAME: who, GIT_COMMITTER_EMAIL: `${who}@tour.invalid` });
+
   /**
-   * Run one command as an agent, show it and the lines of its output worth reading.
+   * Show one finished command and the lines of its output worth reading; stop the tour when it did not do what the script expects.
    */
-  const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false, tone, nested = false } = {}) => {
-    pause(400 * pace);
-    if (label) io.say(`   ${paint(displayAgentName({ agent_id: who, agent_model: who === 'coordinator' ? null : 'Scripted' }), PROMPT_COLOR[who], color)} $ ${label}`);
-    const started = performance.now();
-    const result = spawnSync(file, args, {
-      cwd: where[who],
-      encoding: 'utf8',
-      env: { ...env, ...seatSession(who), ...(nested ? { PULLBOARD_TEXT_NEXT: '0' } : {}), GIT_AUTHOR_NAME: who, GIT_AUTHOR_EMAIL: `${who}@tour.invalid`, GIT_COMMITTER_NAME: who, GIT_COMMITTER_EMAIL: `${who}@tour.invalid` },
-    });
+  const report = (label, file, args, result, started, { show, fails, tone }) => {
     timings.push({ label: label || `${file} ${typed(args)}`, ms: performance.now() - started });
     if ((result.status === 0) === fails) {
       const said = `${result.stdout ?? ''}${result.stderr ?? ''}${result.error?.message ?? ''}`;
@@ -167,17 +163,58 @@ export async function tour(io) {
     }
     return result.stdout.trim();
   };
-  const pb = (who, args, options) => run(who, process.execPath, [BIN, ...args], { label: `pullboard ${typed(args)}`, ...options, nested: true });
+
+  /**
+   * Run one command as an agent, show it and the lines of its output worth reading.
+   * A real process, for git and node: the hooks and the test runner are what the tour shows running.
+   */
+  const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false, tone } = {}) => {
+    pause(400 * pace);
+    if (label) io.say(`   ${paint(displayAgentName({ agent_id: who, agent_model: who === 'coordinator' ? null : 'Scripted' }), PROMPT_COLOR[who], color)} $ ${label}`);
+    const started = performance.now();
+    const result = spawnSync(file, args, { cwd: where[who], encoding: 'utf8', env: seatEnv(who, false) });
+    return report(label, file, args, result, started, { show, fails, tone });
+  };
+  /**
+   * Run one pullboard command as an agent, in this process: the same dispatch a typed command takes, without a
+   * node start for each of the dozen steps (N10). The seat's environment replaces this process's for the one call,
+   * and the steps run one after another, so nothing else reads it meanwhile.
+   */
+  const pb = async (who, args, { label = `pullboard ${typed(args)}`, show = /./, fails = false, tone } = {}) => {
+    pause(400 * pace);
+    if (label) io.say(`   ${paint(displayAgentName({ agent_id: who, agent_model: who === 'coordinator' ? null : 'Scripted' }), PROMPT_COLOR[who], color)} $ ${label}`);
+    const started = performance.now();
+    const saved = { ...process.env };
+    const exitCode = process.exitCode;
+    for (const name of Object.keys(process.env)) delete process.env[name];
+    Object.assign(process.env, seatEnv(who, true));
+    let stdout = '';
+    let stderr = '';
+    let status;
+    try {
+      status = await io.runCommand(args, {
+        cwd: where[who],
+        stdin: Readable.from(['']),
+        stdout: { isTTY: false, write(text) { stdout += String(text); return true; } },
+        stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
+      });
+    } finally {
+      for (const name of Object.keys(process.env)) delete process.env[name];
+      Object.assign(process.env, saved);
+      process.exitCode = exitCode;
+    }
+    return report(label, process.execPath, [BIN, ...args], { status, stdout, stderr }, started, { show, fails, tone });
+  };
   /**
    * Submit and return the short sha its green gate ran at: printed at once by a gate run here, or read from the item
    * once this machine's runner settles a pulled gate, the default (#6265).
    */
-  const gated = (who, args) => {
-    const now = /^submitted .* at ([0-9a-f]{12})/mu.exec(pb(who, args, { show: /^submitted/ }));
+  const gated = async (who, args) => {
+    const now = /^submitted .* at ([0-9a-f]{12})/mu.exec(await pb(who, args, { show: /^submitted/ }));
     if (now) return now[1];
     const head = run(who, 'git', ['rev-parse', 'HEAD'], { label: '', show: null }).slice(0, 12);
-    for (const until = Date.now() + 120_000; Date.now() < until; pause(250)) {
-      const shown = pb(who, ['show', args[1]], { label: '', show: null });
+    for (const until = Date.now() + 120_000; Date.now() < until; await new Promise((done) => setTimeout(done, 250))) {
+      const shown = await pb(who, ['show', args[1]], { label: '', show: null });
       if (new RegExp(`Gate job \\S+ (?:green|red only on main's own cases) at ${head}`, 'u').test(shown)) { io.say(`       submitted #${args[1]} at ${head}; its gate ran on this machine's runner`); return head; }
       if (new RegExp(`Gate job \\S+ (?:red|passed but not submitted) at ${head}`, 'u').test(shown)) throw new TourStopped(`the gate of #${args[1]} went red\n${shown}`);
     }
@@ -198,58 +235,58 @@ export async function tour(io) {
   try {
     mkdirSync(repo);
     run('coordinator', 'git', ['init', '-q', '-b', 'main'], { label: '' });
-    pb('coordinator', ['init'], { label: '', show: null });
+    await pb('coordinator', ['init'], { label: '', show: null });
     write('coordinator', { 'pullboard.json': `${JSON.stringify(CONFIG, null, 2)}\n`, 'SPEC.md': SPEC });
     run('coordinator', 'git', ['add', '-A'], { label: '' });
     run('coordinator', 'git', ['commit', '-q', '-m', 'chore: the greeter, on pullboard'], { label: '' });
 
     step(1, 'The person approved one spec row. The coordinator files it as work.');
     io.say('   G1: greet(name) returns "Hello, <name>!"; a blank name greets the world: "Hello, world!"');
-    pb('coordinator', ['add', 'app', 'Greeting', '--specs', 'G1', '--criterion', 'greet() meets G1']);
+    await pb('coordinator', ['add', 'app', 'Greeting', '--specs', 'G1', '--criterion', 'greet() meets G1']);
 
     step(2, 'A builder agent gets its own worktree in the app lane and claims the next item. Its criterion freezes.');
-    pb('coordinator', ['worktree', 'app', '--model', 'Scripted'], { show: /^made /, label: 'pullboard worktree app --model Scripted' });
-    pb('app-1', ['next'], { show: /^claimed|^criterion/ });
+    await pb('coordinator', ['worktree', 'app', '--model', 'Scripted'], { show: /^made /, label: 'pullboard worktree app --model Scripted' });
+    await pb('app-1', ['next'], { show: /^claimed|^criterion/ });
 
     step(3, 'It writes greet(), tests the happy path and submits. Its own gate is green.');
     write('app-1', { 'src/greet.mjs': FIRST, 'src/greet.test.mjs': TEST });
     run('app-1', 'git', ['add', '-A'], { label: '' });
     run('app-1', 'git', ['commit', '-q', '-m', 'feat(app): greet by name [G1]']);
-    const first = gated('app-1', ['submit', '1']);
+    const first = await gated('app-1', ['submit', '1']);
 
     step(4, 'A second agent checks out exactly that commit and tries the edge the builder skipped.');
-    pb('coordinator', ['worktree', 'review', '--model', 'Scripted'], { show: /^made /, label: 'pullboard worktree review --model Scripted' });
+    await pb('coordinator', ['worktree', 'review', '--model', 'Scripted'], { show: /^made /, label: 'pullboard worktree review --model Scripted' });
     run('review-1', 'git', ['switch', '-q', '--detach', first]);
-    pb('review-1', ['next', '--verify', '1'], { show: /^next to verify/ });
+    await pb('review-1', ['next', '--verify', '1'], { show: /^next to verify/ });
     const edge = run('review-1', process.execPath, TRY_EDGE, { label: "node -e \"greet('')\"" });
-    pb('review-1', ['verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'a blank name greets the world', '--note', `greet('') returns "${edge}"; G1 says a blank name greets the world`], { tone: 'red' });
+    await pb('review-1', ['verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'a blank name greets the world', '--note', `greet('') returns "${edge}"; G1 says a blank name greets the world`], { tone: 'red' });
 
     step(5, "The builder's next session starts from the board, not from memory.");
-    pb('app-1', ['resume'], { show: /^sent back|^next/ });
+    await pb('app-1', ['resume'], { show: /^sent back|^next/ });
 
     step(6, 'It fixes the edge, adds a test that pins it, and submits a new commit.');
-    pb('app-1', ['claim', '1'], { show: /^claimed/ });
+    await pb('app-1', ['claim', '1'], { show: /^claimed/ });
     write('app-1', { 'src/greet.mjs': FIXED, 'src/greet.test.mjs': EDGE_TEST });
     run('app-1', 'git', ['commit', '-q', '-am', 'fix(app): a blank name greets the world [G1]']);
     // The fix edits a test that existed at the claim, so the submit says why (#814).
-    const second = gated('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found']);
+    const second = await gated('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found']);
 
     step(7, 'The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.');
     run('review-1', 'git', ['switch', '-q', '--detach', second]);
-    pb('review-1', ['next', '--verify', '1'], { show: /^next to verify/ });
+    await pb('review-1', ['next', '--verify', '1'], { show: /^next to verify/ });
     write('review-1', { 'src/greet.mjs': FIRST });
     // Pin the summary we display: Node 24 defaults to the spec reporter even through a pipe.
     run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true, tone: 'red' });
     run('review-1', 'git', ['checkout', '--', 'src/greet.mjs']);
     if (color) run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # after restoring the fix', show: /^# (pass|fail)/, tone: 'green' });
-    pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/, tone: 'green' });
+    await pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/, tone: 'green' });
 
     step(8, 'The coordinator merges it. The ledger is the receipt.');
     run('coordinator', 'git', ['merge', '-q', '--ff-only', 'app/1']);
-    pb('coordinator', ['merged', '1', second]);
-    pb('coordinator', ['ledger'], { show: /^\| (#|1 )|verified by a second agent/ });
+    await pb('coordinator', ['merged', '1', second]);
+    await pb('coordinator', ['ledger'], { show: /^\| (#|1 )|verified by a second agent/ });
     // A pulled gate started this machine's local runner for the demo; it stops with the tour.
-    pb('coordinator', ['runner', 'local', '--off'], { label: '', show: null });
+    await pb('coordinator', ['runner', 'local', '--off'], { label: '', show: null });
   } catch (error) {
     if (!(error instanceof TourStopped)) throw error;
     io.say(`\nThe tour stopped: ${error.message.trimEnd()}`);

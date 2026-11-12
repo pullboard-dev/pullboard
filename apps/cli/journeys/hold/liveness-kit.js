@@ -32,6 +32,10 @@ const STEPS = {
     if (claimed.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `claim ran red before the fault: ${claimed.out}${claimed.err}`);
     return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' && item.item_owner !== box.seats.builder.id };
   },
+  async submit(box, id) {
+    box.submit(id); // the submit is the work done: past it the board owns the item, so a dead holder cannot strand it
+    return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' };
+  },
 };
 
 /** The step names the kit knows. */
