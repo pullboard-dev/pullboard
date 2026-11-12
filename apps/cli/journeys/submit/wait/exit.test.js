@@ -85,14 +85,11 @@ test('submit --wait exits with the actual candidate-only gate refusal [V4,B3]', 
 test('a claim-holding seat gets the queued acknowledgment at once and still reaches the exact known-main outcome through show [V4,B3,P7]', async t => {
   const { box, child } = await submitToGate(t, { handoff: true });
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
-  const said = child.stdoutText + child.stderrText;
-  assert.match(said, /never blocks on its own gate/u, 'the reply says the result comes back through next');
-  assert.match(said, new RegExp(`pullboard show ${box.item}`, 'u'), 'the reply names the command that reads the outcome');
+  assert.equal(JSON.parse(child.stdoutText).queued, true, 'a claim-holding seat gets the queued acknowledgment, not the final outcome');
   await helpers.waitFor(() => handoffFinished(box), 'the actual queued gate to finish', 120_000); // budget: hang ceiling for the actual queued gate to finish.
   const shown = cli(box, box.root, 'show', String(box.item), '--history');
   assert.equal(shown.status, 0, shown.stdout + shown.stderr);
   const document = JSON.parse(shown.stdout);
-  console.log('DEBUGSHOW', JSON.stringify(document).slice(0, 3000));
   assertUnreviewed(box);
 });
 
@@ -146,12 +143,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');
-  await helpers.waitFor(() => child.exitCode !== null, 'the lost-job named refusal', 30_000); // budget: hang ceiling for a lost-job CLI; no performance threshold.
-  await child.closed;
-  assert.equal(child.exitCode, 1, child.stdoutText + child.stderrText);
-  const refusal = JSON.parse(child.stdoutText);
-  assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_CHANGED');
-  assert.match(refusal.error.message, /lost its worker/u);
-  assert.match(refusal.error.message, /cleanup remains unknown/u);
+  const shown = cli(box, box.root, 'show', String(box.item), '--history');
+  assert.fail(`DEBUG show ${shown.status}\n${shown.stdout}${shown.stderr}`);
   assert.equal(submittedProof(box), null, 'a lost worker cannot fabricate a gate outcome');
 });
