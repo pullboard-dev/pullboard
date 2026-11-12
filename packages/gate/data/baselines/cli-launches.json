@@ -603,7 +603,7 @@
     "launch": 8
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
-    "launch": 12
+    "launch": 9
   },
   "apps/lib/tests/durable/daemons.test.js": {
     "launch": 2
