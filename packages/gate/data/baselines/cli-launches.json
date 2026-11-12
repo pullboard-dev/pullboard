@@ -38,9 +38,6 @@
   "apps/cli/journeys/resume/presence.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/shout/words.test.js": {
-    "launch": 13
-  },
   "apps/cli/journeys/resources/main.test.js": {
     "launch": 5
   },
@@ -61,9 +58,6 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/roadmap/cockpit/releases.test.js": {
-    "launch": 13
   },
   "packages/landing/tests/io/shards/filter.test.js": {
     "launch": 1
