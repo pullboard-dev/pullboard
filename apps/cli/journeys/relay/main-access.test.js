@@ -145,7 +145,7 @@ test('relay off forgets expired and remotely deleted boards while preserving loc
       'relay off never deletes the relay copy without its separate phone approval');
     const count = box.calls.length;
     assert.equal((await box.cliLocal('relay', 'off')).code, 0);
-    assert.equal((await box.cli('status')).code, 0);
+    assert.equal((await box.cliLocal('status')).code, 0);
     assert.equal(box.calls.length, count, 'repeated off and local commands make no relay connection');
   });
 });
