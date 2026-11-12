@@ -9,6 +9,8 @@
  */
 import { join } from 'node:path';
 import { tryGit } from '../../../../git/index.js';
+import { logEvent } from '../../../../store/index.js';
+import { proofReceipts } from '../../../../store/index.js';
 import { machineHome } from '../../../../resources/index.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { smokeCommit } from '../smoke.js';
@@ -34,6 +36,25 @@ export function placeUncoveredOnTrunk(root, commit, say) {
   const made = added.status === 0 ? tryGit(root, ['commit', '-q', '-m', 'chore(cells): place new files in the plan [C7]']) : added;
   if (made.status === 0) say(`placed new files in the cells plan: ${tryGit(root, ['rev-parse', '--short=12', 'HEAD']).stdout.trim()}`);
   else tryGit(root, ['reset', '-q', '--hard', commit]);
+}
+
+/**
+ * The post-landing audit as a board job: after a landing is recorded it writes one proof-run of kind audit naming the
+ * item and the landed commit (and the item's tip), unasked, so the audit no longer lives in a census script's free text [#4743].
+ * It is idempotent: the receipt id is fixed by item and landed commit, so a replayed landing records it once.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {string} commit The landed commit.
+ * @param {string} agentId The seat that recorded the landing.
+ * @returns {string | null} The audit receipt id, or null when one already exists.
+ */
+export function recordLandingAudit(board, id, commit, agentId) {
+  const receiptId = `audit:${id}:${commit.slice(0, 12)}`;
+  if (proofReceipts(board, id).some(run => run.id === receiptId)) return null;
+  const item = board.db.prepare('SELECT item_commit FROM item WHERE item_id = ?').get(id);
+  logEvent(board, agentId, 'proof-run', id, { receipt: { id: receiptId, kind: 'audit', item: id, commit, itemTip: item?.item_commit ?? null, exitCode: 0 } });
+  return receiptId;
 }
 
 /**
