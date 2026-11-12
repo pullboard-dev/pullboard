@@ -17,7 +17,7 @@ test('clause 1: refreshLandedCodeMap returns while the refresh is still running 
   const result = await refreshLandedCodeMap({
     root: '/nonexistent', board: {}, batch: { tip: 'a'.repeat(40) },
     write: async () => {}, say: line => said.push(line),
-    startCodeMapRefresh: () => running,
+    startCodeMapRefresh: () => ({ pid: 1 }),
   });
   assert.equal(finished, false, 'the landing worker did not wait for the refresh');
   assert.ok(said.includes('code map refresh started in the background'));
