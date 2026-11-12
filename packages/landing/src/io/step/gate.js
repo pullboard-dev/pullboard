@@ -12,7 +12,6 @@ import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
 import { landingReceiptReuse } from '../reuse.js';
-import { landingSpan } from '../../../../resources/index.js';
 import { reusableSubmitFiles } from '../reuse.js';
 import { gateVerdictOf } from '../main/red/receipt.js';
 import { toolingFor } from '../../../../pin/index.js';
@@ -24,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -39,6 +39,7 @@ import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
 import { selectAffectedTests } from '../../../../gate/index.js';
 import { testClosures } from '../../../../gate/index.js';
+import { ledgerFromOutput } from '../../../../gate/index.js';
 import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { literalShellWords } from '../../../../kernel/index.js';
 import { mappedCheck } from '../../../../codemap/index.js';
@@ -309,7 +310,7 @@ async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
   // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
-  await landingSpan('smoke', () => smokeCandidate(state.batch.root, { record: true }));
+  await timedPhase(state.say, 'cli smoke', () => smokeCandidate(state.batch.root, { record: true }));
   state.smoked.add(tree);
 }
 
@@ -424,6 +425,7 @@ async function runGateGroup(state, label, options) {
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
+  state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
@@ -474,7 +476,7 @@ async function runGateGroup(state, label, options) {
  * Why: the trunk's static checks waited 80 to 230 s on a runner after a green candidate gate on 9 Nov [C7].
  */
 function earlyStaticChecks(state) {
-  return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+  return timedPhase(state.say, 'static checks', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
     agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
     .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
 }
@@ -598,4 +600,14 @@ export function deferredSelections(state, readEvents = id => store.events(state.
     const files = detail?.commit === entry.commit ? detail.submissionProof?.deferredFiles ?? [] : [];
     return files.length ? [{ entry, files }] : [];
   });
+}
+
+/**
+ * The reuse ledger line of a finished gate's log, or a line saying the log holds none. Why: reuse fails open, and a
+ * landing that reused nothing looked only slow until this line named its keyless files and why (#5839).
+ */
+function runLedger(log) {
+  let output = '';
+  try { output = readFileSync(log, 'utf8'); } catch { /* An unreadable log reports no account below. */ }
+  return ledgerFromOutput(output) ?? 'ledger: the run log holds no per-file reuse account';
 }

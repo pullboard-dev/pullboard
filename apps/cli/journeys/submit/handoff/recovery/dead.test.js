@@ -36,6 +36,7 @@ for (const mode of ['relaunch', 'missing']) test(`a dead queued handoff is ${mod
     const fs = await import('node:fs');
     if (process.argv[1]?.endsWith('apps/cli/src/io/gate/drive.js') && (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)}))) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
   }\n` + body.join('\n'));
+  // Process-level: submit from a copied builder tool tree, the installation under test.
   const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' }));
   assert.equal(queued.queued, true);
@@ -51,7 +52,7 @@ for (const mode of ['relaunch', 'missing']) test(`a dead queued handoff is ${mod
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
   if (missing) rmSync(request.tools, { recursive: true, force: true });
   else writeFileSync(box.release, 'release\n');
-  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  document(await box.runLocal(box.web, 'claim', String(box.second), '--json'));
   const contenders = [0, 1].map(() => box.helpers.launch(box, box.web, process.execPath, [box.helpers.BIN, 'next', '--json']));
   for (const contender of contenders) { const exit = await contender.closed; assert.equal(exit.code, 0, contender.stderrText); }
   if (mode === 'silent') {
@@ -62,7 +63,7 @@ for (const mode of ['relaunch', 'missing']) test(`a dead queued handoff is ${mod
       try { process.kill(relaunched.pid, 0); return false; }
       catch (error) { return error.code === 'ESRCH'; }
     }, 'actual recovery worker exit', 120000);
-    document(box.run(box.web, 'next', '--json'));
+    document(await box.runLocal(box.web, 'next', '--json'));
   }
   await waitJob(box, mode === 'relaunch' ? 'green' : 'infrastructure');
   const ended = state(box, box.id);
@@ -74,8 +75,8 @@ for (const mode of ['relaunch', 'missing']) test(`a dead queued handoff is ${mod
     assert.equal(existsSync(box.started), false, 'failure recovery invents no gate or proof');
     const other = join(box.dir, 'other-web');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-    document(fixtureJoin(box.run, other, 'web', '--route', 'strong', '--json'));
-    const foreign = box.run(other, 'claim', String(box.id), '--json');
+    document(await fixtureJoin(box.runLocal, other, 'web', '--route', 'strong', '--json'));
+    const foreign = await box.runLocal(other, 'claim', String(box.id), '--json');
     assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
     if (mode === 'silent') rmSync(request.tools, { recursive: true, force: true });
   } else {

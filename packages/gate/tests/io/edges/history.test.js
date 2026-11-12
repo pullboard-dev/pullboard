@@ -34,6 +34,7 @@ test('clause 1: a new packages/state/data/history/999.json is placed by rule and
   assert.match(moveHistoryPlacement('packages/state/data/history/999.json'), /canonical engine identity retained in src/u);
   assert.equal(moveHistoryPlacement('packages/state/data/history/legacy.json'), null, 'only digit names take the rule');
   assert.equal(moveHistoryPlacement('packages/state/data/history/999.json.bak'), null);
+  assert.match(moveHistoryPlacement('src/move-history/152.json'), /canonical engine identity retained in src/u, 'a 0.9.3 board keeps its old folder');
 });
 
 test('clause 2: the merged-tree placement check accepts a new move-history file and still refuses other sources [C7]', t => {

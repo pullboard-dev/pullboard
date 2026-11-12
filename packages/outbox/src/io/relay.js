@@ -335,12 +335,7 @@ async function finishEntry(link, outbox, where, key) {
   saveOutboxSummary(link, outbox);
 }
 
-/** The queued moves and replay refusals pullboard status shows, when there are any. */
-export function outboxFields(state) {
-  return { ...(state?.outbox?.moves?.length ? { outbox: structuredClone(state.outbox.moves) } : {}),
-    ...(state?.outboxRefusals?.length ? { outboxRefusals: structuredClone(state.outboxRefusals) } : {}),
-    ...(state?.outboxRenumbered?.length ? { outboxRenumbered: structuredClone(state.outboxRenumbered) } : {}) };
-}
+export { outboxFields } from '../../light.js';
 
 /** Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21). */
 function outboxEnabled(io) {

@@ -9,14 +9,14 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
-test('clause 1: after a claim, the item folder branch contains main\'s tip and keeps the item\'s own commits [C7]', t => {
+test('clause 1: after a claim, the item folder branch contains main\'s tip and keeps the item\'s own commits [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'claim starts at main tip fixture', '--criterion', 'The folder starts at main', '--specs', 'G1', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'claim starts at main tip fixture', '--criterion', 'The folder starts at main', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const first = box.run(box.web, 'claim', String(id), '--json');
+  const first = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(first.code, 0, first.err || first.out);
   const path = JSON.parse(first.out).itemFolder;
   assert.ok(path && existsSync(path), 'claim prints a real folder');
@@ -29,7 +29,7 @@ test('clause 1: after a claim, the item folder branch contains main\'s tip and k
   box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main after the item commit');
   const main = box.git(box.repo, 'rev-parse', 'main');
 
-  const renewed = box.run(box.web, 'claim', String(id), '--json');
+  const renewed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(renewed.code, 0, renewed.err || renewed.out);
   assert.doesNotThrow(() => box.git(path, 'merge-base', '--is-ancestor', main, 'HEAD'), 'main\'s tip is in the folder branch');
   assert.doesNotThrow(() => box.git(path, 'merge-base', '--is-ancestor', own, 'HEAD'), 'the item\'s own commit is kept');

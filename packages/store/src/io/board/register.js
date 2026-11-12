@@ -18,6 +18,14 @@ import { newSeatId } from "../../../../seats/index.js";
 import { saveAgentModel } from "../../../../seats/index.js";
 import { seatLineage } from "../../../../seats/index.js";
 
+/** The agent_path prefix of a seat joined over the API from another machine: it has no path on the board host [P7]. */
+export const REMOTE_AGENT_PATH = 'remote:';
+
+/** Whether an agent row's path is a remote marker rather than a worktree on the board host [P7]. */
+export function isRemoteAgentPath(path) {
+  return typeof path === 'string' && path.startsWith(REMOTE_AGENT_PATH);
+}
+
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
  * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model

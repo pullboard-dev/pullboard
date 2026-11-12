@@ -97,7 +97,7 @@ function fixture(t, { agentRoute } = {}) {
     assert.equal(receipt.error, undefined, JSON.stringify(receipt)); return receipt.result;
   };
   /** Run the actual CLI against this real board; view means the explicit test person adapter. */
-  const cli = async (args, personChannel, cwd = root) => {
+  const inProcess = async (args, personChannel, cwd = root) => {
     let output = ''; let error = '';
     const code = await main([...args, '--json'], { cwd, clock, personChannel,
       stdout: { isTTY: false, write: text => { output += text; } }, stderr: { write: text => { error += text; } } });
@@ -107,8 +107,8 @@ function fixture(t, { agentRoute } = {}) {
     store.closeBoard(board); rmSync(directory, { recursive: true, force: true });
     for (const [key, value] of Object.entries(original)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   });
-  return { root, directory, board, agent, clock, ordered, cli, env,
-    run: () => runDueSentinels({ root, board, agentId: 'coordinator', ordered, parseProcessCensus }) };
+  return { root, directory, board, agent, clock, ordered, inProcess, env,
+    sweep: () => runDueSentinels({ root, board, agentId: 'coordinator', ordered, parseProcessCensus }) };
 }
 
 /** Quote only a controlled fixture path as a shell word. */
@@ -173,13 +173,13 @@ console.log('explicit trunk receipt: '+value);
   runFixtureGit(['commit', '-q', '-m', 'test: committed sentinel input [N26,A6]'], { cwd: box.root, env: box.env });
   const agentRoot = join(box.directory, 'agent');
   runFixtureGit(['worktree', 'add', '--quiet', '--detach', agentRoot, 'main'], { cwd: box.root, env: box.env });
-  const joined = await box.cli(['join', 'core', '--model', FIXTURE_MODEL, '--route', 'mid'], undefined, agentRoot);
+  const joined = await box.inProcess(['join', 'core', '--model', FIXTURE_MODEL, '--route', 'mid'], undefined, agentRoot);
   assert.equal(joined.code, 0, joined.error || JSON.stringify(joined.document));
   writeFileSync(join(agentRoot, 'value.txt'), 'uncommitted agent input');
   const command = `${quote(process.execPath)} trunk-check.mjs`;
-  const proposed = await box.cli(['sentinel', 'propose', 'trunk-check', '--check', command, '--every', 'hourly', '--owner', box.agent, '--timeout', '35000']);
+  const proposed = await box.inProcess(['sentinel', 'propose', 'trunk-check', '--check', command, '--every', 'hourly', '--owner', box.agent, '--timeout', '35000']);
   assert.equal(proposed.code, 0, proposed.error || JSON.stringify(proposed.document));
-  const approved = await box.cli(['sentinel', 'approve', 'trunk-check'], 'view');
+  const approved = await box.inProcess(['sentinel', 'approve', 'trunk-check'], 'view');
   assert.equal(approved.code, 0, approved.error || JSON.stringify(approved.document));
 
   assert.deepEqual(dueSentinels(box.board).map(row => row.name), ['trunk-check']);
@@ -195,7 +195,7 @@ console.log('explicit trunk receipt: '+value);
     return result;
   });
   let resumed;
-  try { resumed = await box.cli(['resume'], undefined, agentRoot); }
+  try { resumed = await box.inProcess(['resume'], undefined, agentRoot); }
   finally { observedSpawn.mock.restore(); }
   assert.equal(resumed.code, 0, resumed.error || JSON.stringify(resumed.document));
   const checkerChildren = resumeChildren.filter(row => row.detached
@@ -206,7 +206,7 @@ console.log('explicit trunk receipt: '+value);
   assert.deepEqual(store.events(box.board).filter(row => ['sentinel-start', 'sentinel-run'].includes(row.event_kind)), []);
   assert.deepEqual(dueSentinels(box.board).map(row => row.name), ['trunk-check'], 'resume leaves the approved watch due');
 
-  const run = await box.cli(['sentinel', 'run'], undefined, agentRoot);
+  const run = await box.inProcess(['sentinel', 'run'], undefined, agentRoot);
   assert.equal(run.code, 0, run.error || JSON.stringify(run.document));
   const executions = readFileSync(marker, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(executions.length, 1, 'only the explicit run executes the checker');
@@ -223,7 +223,7 @@ console.log('explicit trunk receipt: '+value);
     .map(row => [row.event_kind, JSON.parse(row.event_detail).name]), [['sentinel-start', 'trunk-check'], ['sentinel-run', 'trunk-check']]);
   assert.deepEqual(dueSentinels(box.board), [], 'the explicit run consumes the due watch');
   assert.equal(readFileSync(join(agentRoot, 'value.txt'), 'utf8'), 'uncommitted agent input');
-  const help = await box.cli(['sentinel', 'run', '--help']);
+  const help = await box.inProcess(['sentinel', 'run', '--help']);
   assert.equal(help.code, 0, help.error);
   assert.match(JSON.stringify(help.document), /cron|scheduled CI/iu);
 });
@@ -232,7 +232,7 @@ test('a repeated cause can be drafted as a sentinel [A6,D1,D3]', async t => {
   const box = fixture(t);
   const cause = repeatedCause(box);
   const spec = readFileSync(join(box.root, 'SPEC.md'), 'utf8');
-  const drafted = await box.cli(['rigor', 'draft', 'row:A6', '--sentinel', '--check', cause.check, '--red', cause.red, '--green', cause.green,
+  const drafted = await box.inProcess(['rigor', 'draft', 'row:A6', '--sentinel', '--check', cause.check, '--red', cause.red, '--green', cause.green,
     '--every', 'daily', '--owner', 'core']);
   assert.equal(drafted.code, 0, drafted.error);
   const sentinel = drafted.document.sentinel;
@@ -244,19 +244,19 @@ test('a repeated cause can be drafted as a sentinel [A6,D1,D3]', async t => {
   assert.deepEqual([sentinel.evidence.proof.red.commit, sentinel.evidence.proof.green.commit], [cause.red, cause.green], 'and the commits that prove its check');
   assert.deepEqual(drafted.document.drafts, [], 'a sentinel draft writes no spec or doctrine row');
   assert.equal(readFileSync(join(box.root, 'SPEC.md'), 'utf8'), spec);
-  const listed = await box.cli(['sentinels']);
+  const listed = await box.inProcess(['sentinels']);
   assert.equal(listed.document.sentinels[0].status, 'pending');
   assert.equal(listed.document.sentinels[0].evidence.key, 'row:A6');
-  await box.run(); assert.equal(sentinels(box.board)[0].lastRun, null, 'a drafted watch never runs before the person approves it');
+  await box.sweep(); assert.equal(sentinels(box.board)[0].lastRun, null, 'a drafted watch never runs before the person approves it');
 });
 
 test('a sentinel draft waits in Needs-you with its evidence [A6,D1,D3]', async t => {
   const box = fixture(t);
   const cause = repeatedCause(box);
-  assert.equal((await box.cli(['rigor', 'draft', 'row:A6', '--sentinel', '--check', cause.check, '--red', cause.red, '--green', cause.green])).code, 0);
+  assert.equal((await box.inProcess(['rigor', 'draft', 'row:A6', '--sentinel', '--check', cause.check, '--red', cause.red, '--green', cause.green])).code, 0);
   // Asking an agent to watch something drafts the same kind of row, with no repeat to cite.
-  assert.equal((await box.cli(['sentinel', 'propose', 'staging-site', '--check', 'true', '--every', 'hourly', '--owner', 'core'])).code, 0);
-  const pending = (await box.cli(['resume'])).document.needsYou.filter(entry => entry.kind === 'sentinel-draft');
+  assert.equal((await box.inProcess(['sentinel', 'propose', 'staging-site', '--check', 'true', '--every', 'hourly', '--owner', 'core'])).code, 0);
+  const pending = (await box.inProcess(['resume'])).document.needsYou.filter(entry => entry.kind === 'sentinel-draft');
   assert.deepEqual(pending.map(entry => entry.ref).sort(), ['rigor-row-a6', 'staging-site'], 'each pending watch is one Needs-you call');
   const drafted = pending.find(entry => entry.ref === 'rigor-row-a6');
   assert.equal(drafted.cause, 'row:A6');
@@ -264,14 +264,14 @@ test('a sentinel draft waits in Needs-you with its evidence [A6,D1,D3]', async t
   assert.equal(drafted.evidence.proof.green.commit, cause.green);
   assert.match(drafted.text, /^Sentinel draft: rigor-row-a6 runs test -f up\.txt hourly, reporting to coordinator$/u);
   assert.match(drafted.what, /pullboard sentinel approve rigor-row-a6/u);
-  const approved = await box.cli(['sentinel', 'approve', 'rigor-row-a6'], 'view');
+  const approved = await box.inProcess(['sentinel', 'approve', 'rigor-row-a6'], 'view');
   assert.equal(approved.code, 0, approved.error);
-  const after = (await box.cli(['resume'])).document.needsYou.filter(entry => entry.kind === 'sentinel-draft').map(entry => entry.ref);
+  const after = (await box.inProcess(['resume'])).document.needsYou.filter(entry => entry.kind === 'sentinel-draft').map(entry => entry.ref);
   assert.deepEqual(after, ['staging-site'], 'the person’s approval closes the call');
   const watched = sentinels(box.board).find(row => row.name === 'rigor-row-a6');
   assert.equal(watched.status, 'approved');
   assert.equal(watched.lastRun, null, 'approval and resume leave execution to the scheduled command');
-  const explicit = await box.cli(['sentinel', 'run']);
+  const explicit = await box.inProcess(['sentinel', 'run']);
   assert.equal(explicit.code, 0, explicit.error || JSON.stringify(explicit.document));
   assert.equal(sentinels(box.board).find(row => row.name === 'rigor-row-a6').lastRun?.green, true);
 });
@@ -280,33 +280,33 @@ test('an approved sentinel execution reports to its owner once [A6,D1,D3]', asyn
   const box = fixture(t);
   mkdirSync(join(box.root, 'watch'));
   const check = checker(box, "import {existsSync,appendFileSync} from 'node:fs'; appendFileSync('runs','run\\n'); console.log('check receipt'); process.exit(existsSync('green')?0:1);");
-  const proposal = await box.cli(['sentinel', 'propose', 'staging', '--check', check, '--every', '10m', '--owner', box.agent,
+  const proposal = await box.inProcess(['sentinel', 'propose', 'staging', '--check', check, '--every', '10m', '--owner', box.agent,
     '--directory', 'watch', '--next', 'repair the staging check']);
   assert.equal(proposal.code, 0, proposal.error);
   assert.equal(proposal.document.sentinel.status, 'pending');
-  await box.run(); assert.equal(existsSync(join(box.root, 'watch/runs')), false, 'unapproved commands never execute');
-  const approved = await box.cli(['sentinel', 'approve', 'staging'], 'view');
+  await box.sweep(); assert.equal(existsSync(join(box.root, 'watch/runs')), false, 'unapproved commands never execute');
+  const approved = await box.inProcess(['sentinel', 'approve', 'staging'], 'view');
   assert.equal(approved.code, 0, approved.error);
   assert.equal(approved.document.sentinel.status, 'approved');
-  await box.run();
+  await box.sweep();
   let notices = store.allShouts(box.board).filter(row => row.shout_from === 'sentinel');
   assert.equal(notices.length, 1); assert.equal(notices[0].shout_to, box.agent);
   assert.match(notices[0].shout_text, /staging[\s\S]*check receipt[\s\S]*Next: repair the staging check/u);
   assert.equal(readFileSync(join(box.root, 'watch/runs'), 'utf8'), 'run\n', 'execution uses the approved per-watch directory');
-  await box.run(); assert.equal(readFileSync(join(box.root, 'watch/runs'), 'utf8'), 'run\n', 'not due means no child');
+  await box.sweep(); assert.equal(readFileSync(join(box.root, 'watch/runs'), 'utf8'), 'run\n', 'not due means no child');
   box.clock.time += 600_001;
-  await box.run();
+  await box.sweep();
   assert.equal(store.allShouts(box.board).filter(row => row.shout_from === 'sentinel').length, 1, 'a second red run sends no duplicate notice');
   assert.equal(store.events(box.board).filter(row => row.event_kind === 'sentinel-failure').length, 2, 'every actual red run retains its own cause receipt');
   const report = rigorReport(store.events(box.board), { person: store.PERSON });
   assert.equal(report.causes.find(row => row.key === 'sentinel:staging')?.occurrences, 2);
   writeFileSync(join(box.root, 'watch/green'), 'yes'); box.clock.time += 600_001;
-  await box.run();
+  await box.sweep();
   notices = store.allShouts(box.board).filter(row => row.shout_from === 'sentinel');
   assert.equal(notices.length, 2); assert.match(notices[1].shout_text, /^Cleared: staging/u);
-  box.clock.time += 600_001; await box.run();
+  box.clock.time += 600_001; await box.sweep();
   assert.equal(store.allShouts(box.board).filter(row => row.shout_from === 'sentinel').length, 2, 'staying green sends no duplicate cleared notice');
-  const listed = await box.cli(['sentinels']);
+  const listed = await box.inProcess(['sentinels']);
   assert.equal(listed.code, 0, listed.error);
   assert.equal(listed.document.sentinels[0].lastRun.green, true);
   assert.equal(listed.document.sentinels[0].owner, box.agent);
@@ -328,7 +328,7 @@ test('an agent cannot approve a sentinel [A6,D3,H16]', async t => {
   }
   const key = 'CODEX_THREAD_ID'; const previous = process.env[key]; process.env[key] = 'fixture-agent';
   try {
-    const attempt = await box.cli(['sentinel', 'approve', row.name]);
+    const attempt = await box.inProcess(['sentinel', 'approve', row.name]);
     assert.equal(attempt.code, 1); assert.equal(attempt.document.error.code, 'B26_PERSON_CHANNEL');
   } finally { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; }
 });
@@ -348,7 +348,7 @@ test('a changed command, directory or schedule loses approval and stale receipts
   }
   const current = sentinels(box.board)[0];
   nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: current.name, digest: current.digest, decision: 'decline', reason: 'Not this check' });
-  assert.equal((await box.run()).length, 0);
+  assert.equal((await box.sweep()).length, 0);
   assert.equal(sentinels(box.board)[0].status, 'declined');
 });
 
@@ -357,7 +357,7 @@ test('simultaneous observers run one child and an identical approval cannot stea
   const check = checker(box, "import {appendFileSync} from 'node:fs'; appendFileSync('count','run\\n');");
   const row = nativeProposeSentinel(box.board, { agentId: box.agent, row: { name: 'one-child', check, every: '10m', owner: 'core' } });
   nativeDecideSentinel(box.board, { agentId: store.PERSON, channel: 'view', name: row.name, digest: row.digest, decision: 'approve' });
-  await Promise.all([box.run(), box.run()]);
+  await Promise.all([box.sweep(), box.sweep()]);
   assert.equal(readFileSync(join(box.root, 'count'), 'utf8'), 'run\n');
   box.clock.time += 600_001;
   const started = nativeBeginSentinelRun(box.board, { agentId: box.agent, name: row.name, digest: row.digest, run: 'claimed-run' });
