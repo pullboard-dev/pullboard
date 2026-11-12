@@ -70,7 +70,7 @@ export { heldChip, heldNote } from "./src/io/held.js";
 export { historyLoadingScript, historyNote } from "./src/io/history.js";
 export { HOSTED_RELEASE, hostedReleaseDistance, hostedReleaseInfo, hostedReleaseNote, releaseVersionsThrough, shippedReleaseVersions } from "./src/io/release.js";
 export { viewLanAddress } from "./src/io/address.js";
-export { modelPresentation } from "./src/io/presentation.js";
+export { modelPresentation } from "./src/io/cost/tab.js";
 export { pageRenderScript } from "./src/io/page/render.js";
 export { pageScriptPart2 } from "./src/io/page/connect.js";
 export { pageScriptPart3 } from "./src/io/page/boards.js";
