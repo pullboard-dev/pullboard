@@ -136,13 +136,13 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
     catch { /* A worker still running past the ceiling is removed with its fixture below. */ }
     await Promise.all(helpers.sandboxes.map(dir => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })));
   });
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const source = JSON.parse(claimed.out).itemFolder ?? box.web;
   const committed = helpers.commitFile(box, source, 'web/snapshot.txt', 'candidate\n', 'feat(web): captured policy fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   writeFileSync(armed, 'armed');
-  const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
+  const submitted = (await box.runLocal(source, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   assert.equal(JSON.parse(submitted.out).queued, true);
   try { await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); } // budget: owned worker readiness hang ceiling
