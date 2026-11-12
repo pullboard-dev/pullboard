@@ -44,9 +44,15 @@ export function replayClient(root, env, ...args) {
   return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: root, env })
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
-      try { return JSON.parse(result.stdout); }
-      catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' at: ' + String(result.stdout).slice(8650, 8950)); }
+      try { return JSON.parse(withoutDiagnostics(result.stdout)); }
+      catch { throw new Error(result.failure ?? result.context); }
     });
+}
+
+/** Drop the trailing diagnostics envelope a --json command prints after its own document when the engine warned (a future-engine blocker). */
+function withoutDiagnostics(stdout) {
+  const at = stdout.lastIndexOf('\n{\n  "version": 1,\n  "messages"');
+  return at === -1 ? stdout : stdout.slice(0, at);
 }
 
 /** Initialize an import recipient without declaring a second coordinator; later commands retain their model. */
@@ -79,7 +85,7 @@ export function replayClientWithoutCheckpoint(root, env) {
   return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env }).then((result) => {
     if (result.failure) throw new Error(result.failure);
     try { return JSON.parse(result.stdout); }
-    catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' at: ' + String(result.stdout).slice(8650, 8950)); }
+    catch { throw new Error(result.failure ?? result.context); }
   });
 }
 
@@ -115,7 +121,7 @@ export function replayResult(root, env, ...args) {
     .then((result) => {
       if (result.error) throw new Error(result.failure);
       try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
-      catch (error) { throw new Error((result.failure ?? result.context) + '\n' + error.message + '\nstdout length ' + String(result.stdout).length + ' at: ' + String(result.stdout).slice(8650, 8950)); }
+      catch { throw new Error(result.failure ?? result.context); }
     });
 }
 /** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */
