@@ -77,9 +77,9 @@ test('a unique repair owner appears at the top of submit text and in test JSON [
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
   const lines = submitted.stdout.split('\n');
   const explanation = lines.findIndex(line => line.startsWith('also fails on main at '));
-  assert.ok(explanation >= 0);
+  assert.ok(explanation >= 0, submitted.stdout.slice(0,1500));
   assert.ok(explanation < lines.findIndex(line => line.startsWith('submitted #')), 'case explanation precedes submission summary');
-  assert.ok(lines[explanation].includes(`(not yours; owner #${owner}) [main receipt `));
+  assert.ok(lines[explanation].includes(`(not yours; owner #${owner}) [main receipt `), lines[explanation]+" OWNER "+owner);
 });
 
 test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', async t => {
