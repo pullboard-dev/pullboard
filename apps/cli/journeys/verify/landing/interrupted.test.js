@@ -87,20 +87,6 @@ function batchById(box, id) {
   return onBoard(box, board => store.landingBatches(board).find(batch => batch.id === id));
 }
 
-test('the next accept resumes a merging batch whose landing process died and lands the waiting item [B35,B3,R3]', async t => {
-  const { box, reviewer, first, trunk } = await waitingItem(t);
-  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
-  const second = await acceptItem(box, reviewer, 'second.txt', 'Second result');
-  assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
-  const resumed = batchById(box, stuck.id);
-  assert.equal(resumed.state, 'landed', 'the interrupted batch itself resumes');
-  assert.notEqual(resumed.owner, 'crashed-landing-session');
-  assert.notEqual(resumed.pid, stuck.pid, 'the adopting process records itself');
-  const landed = (await json(box, box.repo, 'show', String(first.id)));
-  assert.ok(landed.item_merged_commit, 'the waiting item lands without a person');
-  assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
-});
-
 test('an adopted dead worker batch persists the dead pid and the gap on the batch [C7,#2912]', async t => {
   const { box, reviewer, first, trunk } = await waitingItem(t);
   const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
@@ -170,12 +156,15 @@ test('liveness reads the recorded pid or a legacy pid owner, only on its own mac
   assert.notEqual(landingHost('fixture-host'), 'fixture-host', 'the public board never sees the host name');
 });
 
-test('clause 1: an interrupted batch is adopted on main and both its waiting item and the new accept land [B35,B3,R3]', async t => {
+test('clause 1: the next accept adopts a merging batch whose process died, and both its waiting item and the new accept land [B35,B3,R3]', async t => {
   const { box, reviewer, first, trunk } = await waitingItem(t);
   const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
   const second = await acceptItem(box, reviewer, 'second.txt', 'Second result');
   assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
-  assert.equal(batchById(box, stuck.id).state, 'landed', 'the interrupted batch itself lands');
+  const resumed = batchById(box, stuck.id);
+  assert.equal(resumed.state, 'landed', 'the interrupted batch itself resumes and lands');
+  assert.notEqual(resumed.owner, 'crashed-landing-session');
+  assert.notEqual(resumed.pid, stuck.pid, 'the adopting process records itself');
   for (const id of [first.id, second.id]) assert.ok((await json(box, box.repo, 'show', String(id))).item_merged_commit, `#${id} lands`);
   assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
   assert.equal(box.git(box.repo, 'show', 'main:web/second.txt'), 'Second result');
