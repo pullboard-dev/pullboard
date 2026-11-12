@@ -941,9 +941,6 @@
   "apps/cli/journeys/resume/presence.test.js": {
     "launch": 17
   },
-  "apps/cli/journeys/shout/people.test.js": {
-    "launch": 10
-  },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
   },
