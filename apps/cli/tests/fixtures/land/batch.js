@@ -13,6 +13,8 @@ import {
   mergeSubjects,
 } from './board.js';
 import { PHASE_LINE } from '../../../../../packages/landing/index.js';
+import { setPhase } from './probe.js';
+import { report } from './probe.js';
 
 /** The waiting queue a batch must take whole; the criterion asks for at least sixteen seen. */
 export const WAITING = 16;
@@ -25,6 +27,7 @@ export const PHASE_BUDGET_MS = 240_000;
  * Why: one 300 s hang ceiling hid which phase (seeding, merge and gate, publication) ate the time.
  */
 async function timed(phases, name, work) {
+  setPhase(name);
   const start = Date.now();
   const value = await work();
   const elapsed = Date.now() - start;
@@ -102,7 +105,11 @@ export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, co
   const allBefore = allRuns(box).length;
   const callsBefore = calls(box).length;
 
+  box.env.GIT_TRACE2_EVENT = join(box.dir, 'trace2.jsonl');
   const landed = await timed(phases, 'land', () => box.run(box.repo, 'land', '--json'));
+  delete box.env.GIT_TRACE2_EVENT;
+  report(join(box.dir, 'trace2.jsonl'));
+  console.log(landed.err.split('\n').filter(l => /phase|ms|took/.test(l)).slice(0, 40).map(l => '# land-err ' + l).join('\n'));
   assert.equal(landed.code, 0, `${landed.err}\n${landed.out}`);
   const result = JSON.parse(landed.out);
   landingPhases(phases, `${landed.err}\n${(result.diagnostics ?? []).join('\n')}`);
