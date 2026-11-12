@@ -6,7 +6,6 @@ import { writeFileSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { addItem } from '../../../../../store/index.js';
 import { claim } from '../../../../../store/index.js';
 import { logEvent } from '../../../../../store/index.js';
@@ -118,7 +117,9 @@ test('clause 1: a test run queued from an item folder records that item on its j
   assert.equal(item, quiet.id);
   assert.equal(testRunItem({ named: second, folder: quiet.id, claims }), second, '--item wins');
   assert.equal(testRunItem({ folder: 999, claims: [quiet.id] }), quiet.id, 'a folder the seat does not hold is ignored');
-  const ctx = { info: { root: join(tmpdir(), 'pullboard-capture-inflight-never-run') } };
+  const scratch = privateFixtureFiles('pullboard-capture-queue-').root;
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const ctx = { info: { root: scratch, commonDir: scratch } };
   const queued = queueTestRun(ctx, work => work(f.board), { agent: quiet.holder, item, items: claims, files: ['a.test.js'], head: null, now: f.now() - 5 * MINUTE },
     { launch: () => ({ unref() {} }), now: f.now() - 5 * MINUTE });
   assert.equal(f.board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(queued.id).job_item, quiet.id, 'the job row carries the item');
