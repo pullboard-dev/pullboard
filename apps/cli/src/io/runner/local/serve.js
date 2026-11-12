@@ -4,10 +4,14 @@
  * and receipt calls as a remote runner's [P7]. One runs per machine; `--off` stops it cleanly.
  */
 import { randomBytes } from 'node:crypto';
+import { availableParallelism } from 'node:os';
+import { loadavg } from 'node:os';
 import { basename } from 'node:path';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { hostCapabilities } from '../../../../../../packages/drive/index.js';
+import { localLoadAdmits } from '../../../../../../packages/drive/index.js';
+import { localLoadShare } from '../../../../../../packages/config/index.js';
 import { localBoards } from '../../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../../packages/drive/index.js';
 import { processAlive } from '../../../../../../packages/drive/index.js';
@@ -40,7 +44,8 @@ async function serveLocal(io) {
   try {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
-      capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, signal: stop.signal, say });
+      capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, signal: stop.signal, say,
+      admit: () => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare() }) });
     if (!served.served) say(`a local runner already runs on this machine (pid ${served.pid})`);
     return 0;
   } finally {
