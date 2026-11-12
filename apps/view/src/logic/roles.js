@@ -161,8 +161,8 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "reason": "dashboard-model.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },
   "apps/view/tests/logic/render/dashboard.test.js": {
-    "kind": "logic",
-    "reason": "dashboard-render.test.js: seeded data invokes actual pure render/model exports without native fixtures"
+    "kind": "adapter",
+    "reason": "dashboard-render.test.js: seeded data renders Dashboard HTML, but the model it builds from reaches node:fs, crypto and process, so it is not a pure root"
   },
   "apps/cli/journeys/milestone/dashboard/visibility.test.js": {
     "kind": "journey",

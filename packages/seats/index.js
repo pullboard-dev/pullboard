@@ -81,6 +81,8 @@ export {
   lineCapacitySnapshot,
   lineCapacityProblem,
   takeoverReady,
+  seatSessionGone,
+  SEAT_SESSION_STALE_MS,
 } from './src/logic/line/capacity.js';
 export {
   lineOrderEnabled,
