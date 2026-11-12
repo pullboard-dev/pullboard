@@ -15,6 +15,7 @@ import {
 import { pathToFileURL } from 'node:url';
 import {
   after,
+  describe,
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -72,6 +73,8 @@ async function inChild(box, body) {
 /** Count real job dispatches the ssh stand-in started. */
 function jobs(starts) { return existsSync(starts) ? readFileSync(starts, 'utf8').split('\n').filter(Boolean).length : 0; }
 
+// The cases each own a box and a runner stand-in, so they run side by side inside the file budget.
+describe('runner-only landing checks [C7,#3011]', { concurrency: true }, () => {
 test('with gate.runnersOnly on, a main comparison and the CLI smoke each run on a runner [C7,#3011]', { timeout: 240_000 }, async () => {
   const { box, marker, remoteHome, starts, main } = runnerProject();
   const module = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/landing/src/io/main/red.js')).href;
@@ -140,4 +143,5 @@ test('clause 1: on a runners-only coordinator a sharded landing gate runs on a r
   assert.equal(out.code, undefined, out.message);
   assert.ok(out.output.includes(`gate-ran-at:${remoteHome}`), `the landing gate did not run on the runner: ${out.output}`);
   assert.equal(existsSync(marker), false, 'the landing gate ran as a local process on the coordinator');
+});
 });
