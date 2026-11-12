@@ -1,22 +1,19 @@
 /** Lander v2 L1: judge each red file of a composition, so a red never holds the trunk [C7,#5862]. */
 import * as store from '../../../../store/index.js';
-import { completeGate } from '../completion.js';
 import { judgeReds } from '../../logic/judge.js';
 import { openQuarantines } from '../../logic/judge.js';
 import { quarantineRecords } from '../../logic/judge.js';
-import { testHash } from './selection.js';
-import { save } from './merge.js';
 
 /**
  * Judge a complete red gate: cases base main fails the same way are charged to main (the #5838 split), the rest rerun
  * once, and a file green the second time is quarantined with a repair item. Returns `{ gate, red }`: `gate` is a
  * known-main proof when nothing is left red, else null, and `red` the cases that failed twice, which their item carries
  * back. Null when the gate cannot be judged (green, incomplete, or a failure without a file).
- * The caller passes `split`, `rerun` and `repair` (diagnose.js's splitBaseRed, diagnose and fileRepairItems), so this
- * file never reaches the CLI through diagnose.js.
+ * The caller passes every landing step it uses (parallel.js's JUDGE_PORTS: splitBaseRed, diagnose, fileRepairItems,
+ * save, testHash and completeGate), so this file reaches no CLI code through the landing steps.
  * Why: LAND_TEST_DEFECT and LAND_FLAKE held the whole trunk for reds no item caused (11 Nov 8:19 pm CT batch) [C7,#5862].
  */
-export async function judgeRed(state, gate, { split, rerun, repair, batches = () => store.landingBatches(state.board) } = {}) {
+export async function judgeRed(state, gate, { split, rerun, repair, save, testHash, completeGate, batches = () => store.landingBatches(state.board) }) {
   if (gate.isGreen || gate.requiresGreen || gate.knownMainProof || !gate.failures?.length) return null;
   if (gate.failures.some(failure => !failure.file) || !completeGate(gate, { allowCancelled: true })) return null;
   const account = await split(state, gate.failures);

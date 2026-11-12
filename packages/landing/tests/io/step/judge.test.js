@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { judgeRed } from '../../../src/io/step/judge.js';
 import { provenThrough } from '../../../src/io/step/parallel.js';
+import { JUDGE_PORTS } from '../../../src/io/step/parallel.js';
 import { QUARANTINE_MS } from '../../../src/logic/judge.js';
 
 // The 11 Nov 8:19 pm CT batch (#5815 + #5763): its combined run failed these 8 files and filed #5830-#5837 as trunk holds.
@@ -29,7 +30,7 @@ function redGate(files, tree = 't-both') {
 /** Judge ports for the replay: main fails the MAIN_RED files, the FLAKY files pass their rerun, repair items #5830 on. */
 function replayPorts({ greenOnRerun = FLAKY, open = [] } = {}) {
   const reruns = [];
-  return { reruns, ports: {
+  return { reruns, ports: { ...JUDGE_PORTS,
     split: async (_state, failures) => ({ known: failures.filter(f => MAIN_RED.includes(f.file)), own: failures.filter(f => !MAIN_RED.includes(f.file)) }),
     rerun: async (_state, failures) => { reruns.push(...failures.map(f => f.file)); return failures.map(f => f.file).filter(file => greenOnRerun.includes(file)); },
     repair: async (_state, failures) => [...new Set(failures.map(f => f.file))].map((test, index) => ({ test, item: 5830 + index })),

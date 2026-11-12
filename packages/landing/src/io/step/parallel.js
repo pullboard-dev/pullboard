@@ -24,6 +24,7 @@ import { bisect } from './diagnose.js';
 import { returnCulprits } from './diagnose.js';
 import { returnCulprit } from './diagnose.js';
 import { judgeRed } from './judge.js';
+import { testHash } from './selection.js';
 import { splitBaseRed } from './diagnose.js';
 import { diagnose } from './diagnose.js';
 import { fileRepairItems } from './diagnose.js';
@@ -204,9 +205,12 @@ function parallelGreenBase(state, gate) {
     && observation.classification === 'possible-regression' && observation.mainReceipt?.green === true));
 }
 
-/** Judge a red gate with the live diagnose.js ports. */
+/** The landing steps judge.js uses, passed in so it reaches no CLI code itself [C7,#5862]. */
+export const JUDGE_PORTS = Object.freeze({ split: splitBaseRed, rerun: diagnose, repair: fileRepairItems, save, testHash, completeGate });
+
+/** Judge a red gate with the live landing steps. */
 function judgeLive(state, gate) {
-  return judgeRed(state, gate, { split: splitBaseRed, rerun: diagnose, repair: fileRepairItems });
+  return judgeRed(state, gate, JUDGE_PORTS);
 }
 
 /**
