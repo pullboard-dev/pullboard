@@ -71,15 +71,24 @@ export function heartbeatSeat(board, id) {
     if (!observationIsFresh(rows.get(key), Date.parse(at))) rows.set(key, at);
     return true;
   }
-  if (observationIsFresh(persistedObservation(file, key), Date.parse(at))) return true;
-  const db = new DatabaseSync(file);
+  // Why: a locked sidecar would otherwise cost the full busy timeout on every heartbeat of one command.
+  const memory = observationMemory(board.db);
+  if (Date.now() < (memory.busyUntil.get('write') ?? 0)) return true;
   try {
-    db.exec('PRAGMA busy_timeout=250; CREATE TABLE IF NOT EXISTS heartbeat(seat TEXT PRIMARY KEY, at TEXT NOT NULL)');
-    // A peer may have refreshed after the read: recheck under this write transaction.
-    db.prepare('INSERT INTO heartbeat(seat,at) VALUES (?,?) ON CONFLICT(seat) DO UPDATE SET at=excluded.at WHERE heartbeat.at<=? OR heartbeat.at>?')
-      .run(key, at, new Date(Date.parse(at) - HEARTBEAT_INTERVAL_MS).toISOString(), at);
+    if (observationIsFresh(persistedObservation(file, key), Date.parse(at))) return true;
+    const db = new DatabaseSync(file);
+    try {
+      db.exec('PRAGMA busy_timeout=250; CREATE TABLE IF NOT EXISTS heartbeat(seat TEXT PRIMARY KEY, at TEXT NOT NULL)');
+      // A peer may have refreshed after the read: recheck under this write transaction.
+      db.prepare('INSERT INTO heartbeat(seat,at) VALUES (?,?) ON CONFLICT(seat) DO UPDATE SET at=excluded.at WHERE heartbeat.at<=? OR heartbeat.at>?')
+        .run(key, at, new Date(Date.parse(at) - HEARTBEAT_INTERVAL_MS).toISOString(), at);
+      return true;
+    } finally { db.close(); }
+  } catch (error) {
+    if ((Number.isInteger(error?.errcode) ? error.errcode & 0xff : null) !== 5 && error?.code !== 'SQLITE_BUSY') throw error;
+    memory.busyUntil.set('write', Date.now() + PRESENCE_BUSY_BACKOFF_MS);
     return true;
-  } finally { db.close(); }
+  }
 }
 
 /** Read one private observation class, retaining its last successful snapshot during bounded contention. */
