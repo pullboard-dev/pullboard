@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rmSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -15,6 +16,7 @@ import { fileRuntimeCapFailure } from '../../src/logic/cap.js';
 import { fileRuntimeCapOutput } from '../../src/logic/cap.js';
 import { fileRuntimeCapReport } from '../../src/logic/cap.js';
 import { splitSeam } from '../../src/logic/cap.js';
+import { MAX_LOAD_SCALE } from '../../src/logic/test/budget/file.js';
 
 const tests = [{ name: 'a', durationMs: 50_000 }, { name: 'b', durationMs: 60_000 }, { name: 'c', durationMs: 70_000 }];
 
@@ -69,6 +71,7 @@ test('clause 1: real file dispatch reads each file\'s last runtime from the rece
   const env = Object.assign({}, process.env);
   env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
   env.PULLBOARD_FILE_RUNTIME_CAP_MS = '1000';
+  env.PULLBOARD_TEST_LOAD = '0'; // an idle runner, so the cap is judged on wall time whatever the runner's real load
   const run = (...named) => runFixtureChild(process.execPath, [runner, ...named], { cwd: directory, encoding: 'utf8', detached: true, env });
   const refused = run('grew.test.js');
   assert.notEqual(refused.status, 0, 'a file that grew from 100 ms past the cap fails the run');
@@ -76,4 +79,7 @@ test('clause 1: real file dispatch reads each file\'s last runtime from the rece
   const listed = run('steady.test.js');
   assert.equal(listed.status, 0, listed.stderr + listed.stdout);
   assert.doesNotMatch(listed.stderr + listed.stdout, /file cap/u, 'a file already over the cap that does not grow is only listed, not refused');
+  env.PULLBOARD_TEST_LOAD = String(availableParallelism() * MAX_LOAD_SCALE);
+  const loaded = run('grew.test.js');
+  assert.equal(loaded.status, 0, `under four runnable jobs per core the same growth is charged under the cap (#4944): ${loaded.stderr}${loaded.stdout}`);
 });
