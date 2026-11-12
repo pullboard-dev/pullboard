@@ -19,6 +19,7 @@ export const MOVES = [
       { code: 'CLAUSE_EVIDENCE_REQUIRED', rule: 'each frozen clause declares its evidence kind', next: 'ask the coordinator to declare the missing clause evidence kind' },
       { code: 'CLAUSE_REASONING_ONLY', rule: 'observable outcomes require observable evidence', next: 'declare test, command, screenshot or measurement evidence' },
       { code: 'SUBMIT_RED_LOOP', rule: 'two red test gates that still match the item code stop another unchanged submit', next: 'change the failing code before another submit' },
+      { code: 'BAR_PATH_MISSING', rule: 'every path the frozen bar names exists on main', next: 'name the paths where they live on main now (pullboard edit <id> --criterion/--check/--brief), or withdraw the item' },
       { code: 'EMPTY_SUBMIT', rule: 'the submitted source changes accepted main', next: 'commit the item work in its native item folder, then submit' },
       { code: 'KERNEL_EXPORT_APPROVAL', rule: 'the person approved the exact Kernel front-door change', next: 'ask the coordinator to bring the exact export decision to the person' },
       { code: 'KERNEL_EXPORT_SOURCE', rule: 'Kernel interface inspection reads regular committed files', next: 'restore regular committed Kernel source files' },
