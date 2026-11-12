@@ -380,10 +380,11 @@ export function configProblems(config) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
   if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
-    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
+  if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
   if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
     || config.claim.reopenFirstRefusalMinutes > Math.floor(8_640_000_000_000_000 / 60_000)) {
