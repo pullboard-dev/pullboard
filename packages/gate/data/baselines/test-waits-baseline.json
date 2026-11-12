@@ -182,7 +182,7 @@
   "apps/cli/journeys/init/known/main/output.test.js": {
     "poll": 1
   },
-  "apps/cli/journeys/land/main.test.js": {
+  "apps/cli/journeys/land/hooklock.test.js": {
     "sleep": 3
   },
   "apps/cli/journeys/gate/landing/stop.test.js": {
