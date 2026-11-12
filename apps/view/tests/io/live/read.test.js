@@ -2,14 +2,13 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellSandbox } from '../../../../../packages/store/tests/fixtures/cell.js';
 import * as store from '../../../../../packages/store/index.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
@@ -28,7 +27,7 @@ const FILES = ['apps/a.test.js', 'apps/b.test.js', 'apps/c.test.js'];
 /** A real repository and board with a gating landing, a pulled test job and two runner leases on a private machine home. */
 function liveFixture(t) {
   const saved = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME };
-  const homes = privateFixtureFiles('pullboard-live-runners-').root;
+  const homes = cellSandbox(t).dir;
   process.env.PULLBOARD_HOME = join(homes, 'home');
   process.env.PULLBOARD_MACHINE_HOME = join(homes, 'machine');
   mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
@@ -37,7 +36,6 @@ function liveFixture(t) {
     for (const [name, value] of [['PULLBOARD_HOME', saved.home], ['PULLBOARD_MACHINE_HOME', saved.machine]]) {
       if (value === undefined) delete process.env[name]; else process.env[name] = value;
     }
-    rmSync(homes, { recursive: true, force: true });
   });
   const repo = cellRepo(t);
   const gatingAt = Date.now() - 20 * MINUTE;
