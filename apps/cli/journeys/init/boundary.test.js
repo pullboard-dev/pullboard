@@ -171,6 +171,7 @@ assert.deepEqual(globalThis.__localFetchRequests, [
   assert.match(viewSession, /redirect: 'manual'/, 'the local reuse probe cannot follow a remote redirect');
   const api = readFileSync(join(ROOT, "packages/api/src/io/main.js"), 'utf8');
   assert.match(api, /const ADDRESS = '127\.0\.0\.1';/);
-  assert.match(api, /server\.listen\(port, ADDRESS, /);
+  assert.match(api, /export function serveApi\(\{ port = 0, address = ADDRESS,/u, 'the API binds loopback unless serve.address names another address');
+  assert.match(api, /server\.listen\(port, address, /u, 'the listener uses only the selected address');
   assert.match(serve, /connect-src 'self'/, "the page may call nothing but its own server");
 });
