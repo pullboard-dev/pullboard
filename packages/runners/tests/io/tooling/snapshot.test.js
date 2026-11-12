@@ -79,7 +79,7 @@ test('a directory URL in the controller closure is skipped, not refused as RUNNE
 test('capture succeeds on the real tree [C7,V32]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const loaded = captureRunnerTooling(root);
-  assert.ok(loaded.controller.length > 0 && loaded.runtime.files);
+  assert.ok(loaded.controller.length > 0 && loaded.files);
 });
 
 test('dynamic-base URLs, computed requires and runtime-only files are skipped, literal ones kept [C7,V32]', t => {
@@ -88,5 +88,5 @@ test('dynamic-base URLs, computed requires and runtime-only files are skipped, l
     'packages/runners/index.js': "import { createRequire } from 'node:module';\nimport { pathToFileURL } from 'node:url';\nconst r = createRequire(import.meta.url);\nr('../leaf/src/value.js');\nexport const a = new URL('x.js', pathToFileURL('/tmp/'));\nexport const m = new URL('../../.pullboard-runner-source.json', import.meta.url);\nexport const c = (n) => r(n);\n",
   });
   const loaded = captureRunnerTooling(f.root);
-  assert.ok(loaded.runtime.files['packages/leaf/src/value.js']);
+  assert.ok(loaded.files['packages/leaf/src/value.js']);
 });
