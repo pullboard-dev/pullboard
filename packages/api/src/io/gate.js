@@ -83,7 +83,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   return ids;
 }
 
-/** One line per part that failed: analysis refusals, red phases with their output's tail, or the job's own error. */
+/** One line per part that failed: analysis refusals, each failing case of a red phase (its output's tail when it names none), or the job's own error. */
 export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
   const clip = text => String(text ?? '').replace(/\s+/gu, ' ').trim().slice(-PART_TEXT);
@@ -91,7 +91,13 @@ export function failingParts(receipt) {
   if (gate.error) parts.push(`gate: ${clip(gate.error)}`);
   if (gate.analysis?.infra) parts.push(`infrastructure: ${clip(typeof gate.analysis.infra === 'string' ? gate.analysis.infra : JSON.stringify(gate.analysis.infra))}`);
   for (const refusal of gate.analysis?.refusals ?? []) parts.push(`${refusal.part} ${refusal.code ?? 'REFUSED'}: ${clip(refusal.message)}`);
-  for (const phase of gate.phases ?? []) if (phase.status !== 0) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.tail)}`);
+  for (const phase of gate.phases ?? []) {
+    if (phase.status === 0) continue;
+    // A phase whose receipt names its cases lists them as the controller gate does, file :: case name.
+    const cases = Array.isArray(phase.failures) ? phase.failures.filter(row => typeof row?.file === 'string' && row.file && typeof row.name === 'string' && row.name) : [];
+    if (cases.length) parts.push(...cases.map(row => `${phase.role} failed: ${row.file} :: ${clip(row.name)}`));
+    else parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.tail)}`);
+  }
   if (!parts.length && receipt?.status !== 0) parts.push(`the gate job exited ${receipt?.status ?? receipt?.signal}`);
   return parts;
 }
