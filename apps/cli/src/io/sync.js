@@ -23,7 +23,7 @@ import {
   relayLinkFile,
 } from '../../../../packages/store/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
-import { takeConflictNotices } from '../../../../packages/outbox/index.js';
+import { takeConflictNotices } from '../../../../packages/outbox/light.js';
 import {
   localFirstBoard,
   nudgeRelaySender,

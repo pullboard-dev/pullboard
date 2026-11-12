@@ -311,6 +311,9 @@
   "apps/cli/journeys/relay/setup.test.js": {
     "launch": 4
   },
+  "apps/cli/journeys/submit/gate/receipt.test.js": {
+    "launch": 4
+  },
   "apps/cli/journeys/sync/git/repair.test.js": {
     "launch": 10
   },
@@ -609,7 +612,7 @@
     "launch": 4
   },
   "apps/cli/journeys/test/placement.test.js": {
-    "launch": 6
+    "launch": 2
   },
   "packages/codemap/tests/io/cells/scripts/plan.test.js": {
     "launch": 2
@@ -784,6 +787,9 @@
   },
   "apps/cli/tests/io/resident/board/orphans.test.js": {
     "launch": 5
+  },
+  "apps/cli/journeys/handoff/main.test.js": {
+    "launch": 13
   },
   "apps/cli/journeys/intake/drill.test.js": {
     "launch": 1
@@ -1016,11 +1022,11 @@
   "apps/cli/journeys/hook/slot.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/fact/plan/cells.test.js": {
-    "launch": 5
-  },
   "packages/gate/tests/io/changed/scripts/static.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/fact/plan/cells.test.js": {
+    "launch": 5
   },
   "packages/gate/tests/io/run/tests/enotempty.test.js": {
     "launch": 1
@@ -1063,6 +1069,9 @@
   },
   "packages/gate/tests/io/main/admission.test.js": {
     "launch": 15
+  },
+  "apps/cli/journeys/submit/gate/selection.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/shout/toggle.test.js": {
     "launch": 2
@@ -1351,6 +1360,9 @@
   },
   "apps/cli/journeys/relay/person/recovery.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/queue/review-queue.test.js": {
+    "launch": 21
   },
   "packages/runners/tests/runner-controller.test.js": {
     "launch": 3
