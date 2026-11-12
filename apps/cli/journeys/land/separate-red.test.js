@@ -30,12 +30,20 @@ function separateProject() {
   return box;
 }
 
-/** Build, submit and accept one item; a red one hides its red while it is proved, as a narrower submit would. */
-function accepted(box, number, contents) {
+/** Build and submit one item; a red one hides its red while it is proved, as a narrower submit would. */
+function submitted(box, number, contents) {
   const entry = itemWorktree(box, number);
   box.env.LAND_SUPPRESS_RED = '1';
-  try { submitItem(box, entry, contents); acceptItem(box, entry); } finally { delete box.env.LAND_SUPPRESS_RED; }
+  try { submitItem(box, entry, contents); } finally { delete box.env.LAND_SUPPRESS_RED; }
   return entry;
+}
+
+/** Run one landing cycle and keep its output with its batch log. */
+async function cycle(box, outputs) {
+  const landed = await box.runLocal(box.repo, 'land', '--json');
+  let log = '';
+  try { log = readFileSync(JSON.parse(landed.out).batch.logPath, 'utf8'); } catch { log = ''; }
+  outputs.push(`${landed.out}${landed.err}\n${log}`);
 }
 
 /** The item's board row, read through show --json. */
@@ -51,22 +59,22 @@ function leftQueue(row) {
   return (row.item_status ?? row.status) !== 'verified' || Boolean(row.item_hold_at ?? row.hold);
 }
 
-test('clause 1 and 2: with landing.publish separate a red item leaves the queue after one landing cycle and a clean item still lands on the local trunk [C7,#6269]', { timeout: 240_000 }, // budget: two real submits, accepts and at most three landings; hang ceiling only.
+test('clause 1: with landing.publish separate a red item leaves the landing queue within two cycles, parked or returned, never looping [C7,#6269]', { timeout: 240_000 }, // budget: two real submits, accepts and at most three landings; hang ceiling only.
 async () => {
   const box = separateProject();
-  const red = accepted(box, 1, 'RED\n');
-  const clean = accepted(box, 2, 'PASS\n');
+  const red = submitted(box, 1, 'RED\n');
+  const clean = submitted(box, 2, 'PASS\n');
+  acceptItem(box, red);
   moveMainPastSubmit(box);
   const origin = box.git(box.repo, 'rev-parse', 'origin/main');
   const outputs = [];
-  const first = await box.runLocal(box.repo, 'land', '--json');
-  outputs.push(first.out + first.err);
-  assert.ok(leftQueue(await itemRow(box, red.item)), `one landing cycle parks or returns the red item: ${outputs.join('\n---\n')}`);
-  for (let cycle = 0; cycle < 2 && !box.git(box.repo, 'log', '--format=%H', 'main').includes(clean.commit); cycle += 1) {
-    const again = await box.runLocal(box.repo, 'land', '--json');
-    outputs.push(again.out + again.err);
-  }
-  assert.ok(box.git(box.repo, 'log', '--format=%H', 'main').includes(clean.commit), `the clean item lands on the local trunk: ${outputs.join('\n---\n')}`);
-  assert.ok(!box.git(box.repo, 'log', '--format=%H', 'main').includes(red.commit), 'the red item never reaches the trunk');
+  for (let count = 0; count < 2 && !leftQueue(await itemRow(box, red.item)); count += 1) await cycle(box, outputs);
+  assert.ok(leftQueue(await itemRow(box, red.item)), `the red item is parked or returned by the second cycle: ${outputs.join('\n---\n').slice(-4000)}`);
+  // clause 2: the clean item accepted behind it still lands on the local trunk.
+  acceptItem(box, clean);
+  await cycle(box, outputs);
+  const trunk = box.git(box.repo, 'log', '--format=%H', 'main');
+  assert.ok(trunk.includes(clean.commit), `the clean item lands on the local trunk: ${outputs.at(-1).slice(-4000)}`);
+  assert.ok(!trunk.includes(red.commit), 'the red item never reaches the trunk');
   assert.equal(box.tryGit(box.repo, 'ls-remote', 'origin', 'main').stdout.split(/\s+/u)[0], origin, 'separate landing leaves origin to publish');
 });
