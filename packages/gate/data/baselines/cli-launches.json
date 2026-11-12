@@ -801,7 +801,7 @@
     "launch": 1
   },
   "apps/cli/journeys/verify/check.test.js": {
-    "launch": 9
+    "launch": 5
   },
   "apps/cli/journeys/runner/overhead.test.js": {
     "launch": 1
