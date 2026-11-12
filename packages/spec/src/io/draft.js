@@ -54,6 +54,8 @@ export function draftRow(root, config, { target, text, gate, tier = 'must', sect
   if (!write) return { id, file: name, line, row: { id, status: 'draft', tier, text, gate, section: section.name, prefix: section.prefix } };
   const source = readFileSync(parsed.file, 'utf8');
   const after = insertSectionRows(source, parsed, section, [line]);
-  writeRowApply(root, { records: [], files: [{ file: name, before: source, after }], signoffs: { before: null, receipts: [] } });
+  // A write that fails must refuse before any id is printed, so a printed id always names a row that is on disk.
+  try { writeRowApply(root, { records: [], files: [{ file: name, before: source, after }], signoffs: { before: null, receipts: [] } }); }
+  catch (error) { throw new Refused('SPEC_NOT_WRITABLE', `could not write the draft row to ${name} (${error.code ?? error.message})`, `make ${name} writable in the main checkout, then run the draft again`); }
   return { id, file: name, line, row: { id, status: 'draft', tier, text, gate, section: section.name } };
 }

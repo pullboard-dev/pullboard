@@ -79,7 +79,7 @@ import { proveBatches } from './shards/proof.js';
 import { reusedShardFiles } from './shards/proof.js';
 import { shardPassStore } from './shards/proof.js';
 import { plainCheckRun } from './shards/green.js';
-import { reusableGreenRun } from './shards/green.js';
+import { reusableProof } from './shards/green.js';
 import { readFileTimes } from './test/value/timing.js';
 import { progressingWait } from './progress.js';
 import { whileGateRuns } from './progress.js';
@@ -114,7 +114,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
-  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests });
+  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly });
   const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
@@ -211,8 +211,8 @@ function reusableCheckRun(root, check, lease, executionServices) {
   const source = lease?.runner ? lease.source : null;
   if (!plain || !source?.tree || !source.commit) return null;
   const wanted = { tree: source.tree, head: source.commit, runner: plain.runner, files: plain.files, tooling: runnerTooling(executionServices) };
-  if (!reusableGreenRun(wanted)) return null;
-  return async plan => reusableGreenRun({ ...wanted, timingRunId: plan.remoteOptions?.metadata?.timingRunId ?? null })
+  if (!reusableProof(root, wanted)) return null;
+  return async plan => reusableProof(root, { ...wanted, timingRunId: plan.remoteOptions?.metadata?.timingRunId ?? null })
     ?? plan.gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions);
 }
 

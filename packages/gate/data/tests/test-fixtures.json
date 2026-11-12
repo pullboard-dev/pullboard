@@ -200,7 +200,7 @@
     "tempdir": 2,
     "env-spread": 1
   },
-  "apps/cli/journeys/red/main-red.test.js": {
+  "apps/cli/tests/fixtures/red/main-red.js": {
     "tempdir": 2,
     "env-spread": 1,
     "model": 2
@@ -972,6 +972,10 @@
     "raw-cli": 5,
     "tempdir": 10
   },
+  "apps/cli/journeys/hold/demo-lanes.test.js": {
+    "raw-cli": 2,
+    "tempdir": 3
+  },
   "apps/cli/journeys/view/detail.test.js": {
     "raw-cli": 4
   },
@@ -1053,9 +1057,24 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/layout.test.js": {
-    "raw-cli": 9,
-    "tempdir": 6,
+    "raw-cli": 2,
     "repo-read": 7
+  },
+  "apps/cli/journeys/shout/layout/phone.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/shout/layout/status.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/shout/layout/corner.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/shout/layout/targets.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/lifecycle/chart.test.js": {
     "model": 1,
@@ -1998,7 +2017,7 @@
   "packages/landing/tests/logic/land/why.test.js": {
     "raw-board": 4
   },
-  "apps/cli/journeys/land/main.test.js": {
+  "apps/cli/journeys/land/replay.test.js": {
     "hand-policy": 1
   },
   "packages/landing/tests/logic/batch/history.test.js": {
@@ -2102,9 +2121,6 @@
   },
   "packages/landing/tests/io/main/red/refresh/detached.test.js": {
     "tempdir": 2
-  },
-  "apps/cli/journeys/land/unplaced.test.js": {
-    "raw-board": 2
   },
   "packages/landing/tests/io/docs.test.js": {
     "tempdir": 2
@@ -2314,7 +2330,7 @@
     "raw-board": 1
   },
   "packages/landing/tests/io/plan/check/merged.test.js": {
-    "tempdir": 6
+    "tempdir": 2
   },
   "apps/cli/tests/fixtures/drill.js": {
     "model": 1
@@ -3745,7 +3761,13 @@
     "raw-board": 2
   },
   "apps/cli/journeys/submit/wait.test.js": {
-    "raw-board": 4
+    "raw-board": 1
+  },
+  "apps/cli/journeys/submit/wait/reject.test.js": {
+    "raw-board": 2
+  },
+  "apps/cli/tests/fixtures/submit/wait.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/submit/branch.test.js": {
     "tempdir": 2
@@ -4070,10 +4092,6 @@
   },
   "packages/api/tests/claim.test.js": {
     "raw-board": 5
-  },
-  "packages/landing/tests/io/history.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2
   },
   "packages/store/tests/io/board/light.test.js": {
     "raw-board": 2

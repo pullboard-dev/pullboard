@@ -13,13 +13,14 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
-import { formatJson } from '../../../codemap/index.js';
+import { formatJson } from '../../../codemap/light.js';
 
 export { formatJson };
 
 /** Version four adds plan-shard rows and config defaults; older receipts replay with the older policy [H16]. */
 export const MECHANICAL_VERSION = 4;
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/[a-z0-9-]+\.json$/u;
+const PLAN_READS = /^packages\/codemap\/data\/plan\/data-reads\/[a-z0-9:-]+\.json$/u;
 
 /**
  * The defaults object's top-level settings, each with the comment lines above it and the lines nested under it.
@@ -137,7 +138,6 @@ export function mergeMechanicalSources(path, ancestor, ours, theirs, version = M
 
 const MISSING = Symbol('missing');
 const CONFLICT = Symbol('conflict');
-const GENERATED = new Map([['docs/lifecycle.md', ['apps/cli/pullboard.js', 'lifecycle']]]);
 
 /** Refuse numeric data JavaScript cannot faithfully round-trip instead of silently changing an untouched value. */
 function snapshot(source) {
@@ -159,6 +159,8 @@ function identity(value) {
 
 /** A plan row is named by its path (array rows), its first value (object rows) or itself (text rows). */
 function rowName(row) {
+  // A data-read row is one read: its file, line and expression together, since a file carries many reads.
+  if (row !== null && typeof row === 'object' && !Array.isArray(row) && 'file' in row && 'line' in row && 'expression' in row) return identity([row.file, row.line, row.expression]);
   if (Array.isArray(row)) return identity(row[0]);
   if (row !== null && typeof row === 'object') return identity(Object.values(row)[0]);
   return identity(row);
@@ -243,7 +245,6 @@ function additiveSource(base, ours, theirs) {
 
 /** Resolve only declared generated output, structural JSON or genuine additions; never execute candidate code. */
 function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION) {
-  if (GENERATED.has(path)) return { kind: 'generated', keys: [] };
   if (version >= 3) {
     const generated = generatedDocResolution(path, base, ours, theirs);
     if (generated) return generated;
@@ -251,7 +252,7 @@ function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION
   if (path.endsWith('.json')) {
     try {
       const plan = version >= 4 && PLAN_SHARD.test(path);
-      const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs), plan);
+      const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs), plan || (version >= 4 && PLAN_READS.test(path)));
       if (merged === CONFLICT) return null;
       if (plan) return { kind: 'json', keys: Object.keys(merged ?? {}), source: formatJson(merged) + '\n' };
       const indent = /\n([ \t]+)\S/u.exec(ours)?.[1];
@@ -274,6 +275,12 @@ function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION
 function gitData(root, args, gitDirectory) {
   return spawnSync('git', ['--no-replace-objects', ...(gitDirectory ? [`--git-dir=${gitDirectory}`] : []), '-c', 'core.quotepath=false', ...args],
     { cwd: root, env: cleanGitEnvironment(), maxBuffer: 32 * 1024 * 1024 });
+}
+
+/** The merged text of one plan data file, or the path when both sides changed the same entry; the landing's own decision [C7,D3]. */
+export function mergePlanData(path, ancestor, ours, theirs) {
+  const resolution = sourceResolution(path, ancestor, ours, theirs);
+  return resolution?.source === undefined ? { conflicts: [path] } : { source: resolution.source };
 }
 
 /** Read exactly three regular-file stages with identical modes and valid UTF-8, refusing deletes and symlinks. */
@@ -336,7 +343,7 @@ export function resolveMechanicalIndex(root, files, { orderedData = false } = {}
   if (remaining.length) return { files: remaining, entries: [], ...(rowConflicts.length ? { rowConflicts } : {}) };
   for (const entry of resolutions.filter(entry => entry.source !== undefined)) writeFileSync(join(root, entry.path), entry.source);
   for (const entry of resolutions.filter(entry => entry.kind === 'generated')) {
-    const command = GENERATED.get(entry.path) ?? generatedDocCommand(entry.path);
+    const command = generatedDocCommand(entry.path);
     const generated = spawnSync(process.execPath, command,
       { cwd: root, env: cleanGitEnvironment(), timeout: 30_000, maxBuffer: 32 * 1024 * 1024 });
     if (generated.status !== 0) return { files: [], entries: [], failed: {

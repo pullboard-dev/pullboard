@@ -126,7 +126,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match((await box.runLocal(light, 'run', '--agent-mid', `sh ${agent}`)).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
   const ran = await box.runLocal(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
+  // A fresh seat's first delivery starts at the board head (#6152), so the lane's earlier moves are no news to it.
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\nno new shouts or activity\nsubmitted #1 at [0-9a-f]{12};/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);

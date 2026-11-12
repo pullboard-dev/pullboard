@@ -8,7 +8,7 @@ const REGIONS = {
 };
 
 /** The fixed output allowlist is shared by landing and its data-only conflict policy. */
-export const GENERATED_DOC_PATHS = ['docs/formats.md', 'docs/api.md', 'docs/lifecycle.md', 'apps/cli/src/logic/help/additions.js', 'docs/cli-help.txt'];
+export const GENERATED_DOC_PATHS = ['docs/formats.md', 'docs/api.md', 'apps/cli/src/logic/help/additions.js'];
 
 /** Normalize only the table in each unique region, retaining every authored surrounding byte. */
 function prose(path, source) {
@@ -27,7 +27,7 @@ function prose(path, source) {
 
 /** A whole generated leaf or unchanged prose permits regeneration; edited narrative remains a real conflict. */
 export function generatedDocResolution(path, base, ours, theirs) {
-  if (['docs/cli-help.txt', 'apps/cli/src/logic/help/additions.js'].includes(path)) return { kind: 'generated', keys: [], source: ours };
+  if (path === 'apps/cli/src/logic/help/additions.js') return { kind: 'generated', keys: [], source: ours };
   if (!Object.hasOwn(REGIONS, path)) return null;
   const original = prose(path, base);
   return original !== null && prose(path, ours) === original && prose(path, theirs) === original
@@ -36,6 +36,6 @@ export function generatedDocResolution(path, base, ours, theirs) {
 
 /** Name only source-owned outputs; arbitrary documentation is never run as a generator. */
 export function generatedDocCommand(path) {
-  return Object.hasOwn(REGIONS, path) || ['docs/cli-help.txt', 'apps/cli/src/logic/help/additions.js'].includes(path)
+  return Object.hasOwn(REGIONS, path) || path === 'apps/cli/src/logic/help/additions.js'
     ? ['docs/tools/update-docs.js', '--print', path] : null;
 }

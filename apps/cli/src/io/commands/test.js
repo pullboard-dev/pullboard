@@ -33,6 +33,7 @@ async function seatClaims(ctx, agent) {
  * at once with its run id; `pullboard next` hands the result back. A seat holding a claim always queues, even with
  * `--wait`. For a person or a script with no claim, `--wait` runs it here and blocks: 0 when every named file passes.
  * `--status <id>` prints one run's state once; `--cancel <id>` stops the seat's own queued or running run.
+ * `--census [--out <jsonl>]` runs every tracked test file as a few shards per runner and writes a row per file.
  *
  * Why queue for seats: seats sat 16-54 min in sleep-and-pgrep loops on runner-queued runs; waiting is an error [C7].
  */
@@ -40,7 +41,11 @@ export async function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   if (values.status !== undefined) return sayTestRunStatus(io, ctx, values.status);
   if (values.cancel !== undefined) return cancelRun(io, ctx, values.cancel);
-  const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
+  if (values.census === true) {
+    return (await import('../test/census.js')).runCensus(io, ctx, values, { prefixes: [first, second, ...rest].filter(prefix => prefix !== undefined && prefix !== '') });
+  }
+  const { expandTestFolders } = await import('../../../../../packages/runners/index.js');
+  const files = expandTestFolders(ctx.info.root, [first, second, ...rest].filter((file) => file !== undefined && file !== ''));
   if (values.diagnose === true && (files.length !== 1 || values.affected === true)) throw new Refused('USAGE', '--diagnose requires exactly one named test file');
   const seat = (await import('../board/access.js')).resourceAgent(ctx);
   const agent = seat ?? `pid-${process.pid}`;

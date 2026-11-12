@@ -8,6 +8,8 @@ import { commandOutput } from '../../../../../packages/config/browser.js';
 import { loadConfig } from '../../../../../packages/config/light.js';
 import { loadDoctrine } from '../../../../../packages/doctrine/light.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
+import { withGitCommandMemo } from '../../../../../packages/git/light.js';
+import { withGitFacts } from '../../../../../packages/git/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { agentSessionDigest } from '../../../../../packages/stats/light.js';
 import { sessionBound } from '../../../../../packages/seats/light.js';
@@ -56,7 +58,13 @@ async function bindHookSession(ctx, hook, env) {
  * @param {{ cwd: string, stdout: any, stderr: any, stdin: any, env?: NodeJS.ProcessEnv }} streams
  * @returns {Promise<number | null>}
  */
-export async function runThinHook(args, streams) {
+export function runThinHook(args, streams) {
+  // One facts scope per hook run: checkout, config and trunk reads ask Git once, however many checks repeat them [C7].
+  return withGitFacts(() => runThinHookOnce(args, streams));
+}
+
+/** The body of runThinHook, run inside its Git facts scope. */
+async function runThinHookOnce(args, streams) {
   const io = commandOutput(args, streams, { nextActions: false,
     loadRefusal: async () => (await import('../../logic/step/words.js')).refusalDocument });
   io.hookContext = lightContext;
@@ -68,7 +76,7 @@ export async function runThinHook(args, streams) {
     // A repo without pullboard.json binds nothing: hookCommand passes it.
     session = ctx ? await bindHookSession(ctx, args[1], streams.env ?? process.env) : { release() {} };
     if (!session) return null;
-    const code = await hookCommand(io, { first: args[1], second: args[2] });
+    const code = await withGitCommandMemo(() => hookCommand(io, { first: args[1], second: args[2] }));
     io.flush(io.exitCode(code));
     return io.exitCode(code);
   } catch (error) {

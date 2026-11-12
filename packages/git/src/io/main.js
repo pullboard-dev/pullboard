@@ -673,25 +673,38 @@ let commandMemo = null;
  */
 export function withGitCommandMemo(work) {
   const outer = commandMemo;
+  // A nested scope shares the outer memory, so a whole hook run and its checks ask Git each question once [C7].
+  if (outer !== null) return work();
   commandMemo = new Map();
-  try { return work(); } finally { commandMemo = outer; }
+  let result;
+  try { result = work(); } catch (error) { commandMemo = outer; throw error; }
+  if (typeof result?.then !== 'function') { commandMemo = outer; return result; }
+  return result.finally(() => { commandMemo = outer; });
 }
 
 /** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
 function memoKey(kind, cwd, args, maxBuffer, env) {
-  if (commandMemo === null || env !== process.env) return null;
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
-  const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
-    || (command === 'diff' && args.includes('--cached'))
+  // The worktree list is asked from many modules and environments; one answer serves all of them [C7].
+  const listing = command === 'worktree' && words[1] === 'list';
+  if (commandMemo === null || (env !== process.env && !listing)) return null;
+  const reads = listing || ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
+    || (command === 'diff' && !args.includes('--output'))
+    || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
-  return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
+  return reads ? JSON.stringify(listing ? ['wt-raw', cwd, args] : [kind, cwd, args, maxBuffer ?? null]) : null;
 }
 
 /** Forget every remembered answer when a call that is not a known read is about to run. */
-function noteMemoCall(key) {
-  if (key === null) commandMemo?.clear();
+function noteMemoCall(key, args = []) {
+  if (key !== null || commandMemo === null) return;
+  // A worktree list survives unrelated calls and is forgotten by any call that can change what it shows [C7].
+  const [command, sub] = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
+  const moves = (command === 'worktree' && sub !== 'list')
+    || ['checkout', 'switch', 'reset', 'merge', 'rebase', 'commit', 'cherry-pick', 'update-ref', 'branch', 'clone', 'init', 'symbolic-ref'].includes(command);
+  for (const known of [...commandMemo.keys()]) if (moves || !known.startsWith('["wt-')) commandMemo.delete(known);
 }
 
 
@@ -762,9 +775,14 @@ function rememberObjectRead(key, value, size) {
  * @returns {string}
  */
 export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
+  // A worktree list is one memoized answer for every caller, trimmed here as this function does [C7].
+  if (commandMemo !== null && memoKey('git', cwd, args, maxBuffer, env)?.startsWith('["wt-')) {
+    const listed = rawGit(cwd, args, env);
+    if (listed.status === 0) return listed.stdout.trim();
+  }
   const key = memoKey('git', cwd, args, maxBuffer, env);
   if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
-  noteMemoCall(key);
+  noteMemoCall(key, args);
   const objectKey = objectReadKey('git', cwd, args, env);
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   try {
@@ -800,7 +818,13 @@ function rawGit(cwd, args, env) {
   const key = memoKey('raw', cwd, args, undefined, env);
   const memoized = key === null ? undefined : commandMemo.get(key);
   if (memoized) return memoized;
-  noteMemoCall(key);
+  noteMemoCall(key, args);
+  const shown = key !== null && args.length === 2 && args[0] === 'show' ? prefetchedShow(cwd, args[1]) : undefined;
+  if (shown !== undefined) {
+    const outcome = shown === null ? { status: 128, stdout: '', stderr: `fatal: path ${args[1]} is not in the revision` } : { status: 0, stdout: shown, stderr: '' };
+    commandMemo.set(key, outcome);
+    return outcome;
+  }
   const objectKey = objectReadKey('raw', cwd, args, env);
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
@@ -846,6 +870,48 @@ export function gitShowText(cwd, revision, file) {
   if (same !== null) return same;
   const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
   return raw.status === 0 ? raw.stdout : null;
+}
+
+/** The files a commit hook reads at HEAD and in the index, fetched together with the first one asked for. */
+const HOOK_SHOWN_FILES = ['SPEC.md', 'DOCTRINE.md', 'PRACTICE.md'];
+
+/**
+ * One `git cat-file --batch` answer for the hook's usual `HEAD:` and index file reads, kept in the hook's memory.
+ * Why: eight `git show` children for four files cost more than the checks that read them [C7].
+ *
+ * @param {string} cwd
+ * @param {string} spec the `revision:file` the caller asked for
+ * @returns {string | null | undefined} undefined when the batch cannot answer; null when the file is absent.
+ */
+function prefetchedShow(cwd, spec) {
+  if (!/^(?:HEAD)?:[^:\0\n]+$/u.test(spec)) return undefined;
+  const file = spec.slice(spec.indexOf(':') + 1);
+  const files = HOOK_SHOWN_FILES.includes(file) ? HOOK_SHOWN_FILES : [file];
+  // Kept in the command memory itself, so any write that clears the memory also drops these answers.
+  const key = JSON.stringify(['prefetched-shows', cwd, files]);
+  if (!commandMemo.has(key)) {
+    const wanted = [];
+    for (const revision of ['HEAD', '']) for (const name of files) wanted.push(`${revision}:${name}`);
+    const result = gitSpawnSync([...GIT_FLAGS, 'cat-file', '--batch'], { cwd, input: `${wanted.join('\n')}\n`, maxBuffer: 64 * 1024 * 1024 });
+    let answers = null;
+    if (result.status === 0 && Buffer.isBuffer(result.stdout)) {
+      answers = new Map();
+      const out = result.stdout;
+      let at = 0;
+      for (const name of wanted) {
+        const end = out.indexOf(0x0a, at);
+        if (end < 0) { answers = null; break; }
+        const size = /^[0-9a-f]{40,64} blob (\d+)$/u.exec(out.toString('utf8', at, end));
+        if (!size) { answers.set(name, null); at = end + 1; continue; }
+        const length = Number(size[1]);
+        answers.set(name, out.toString('utf8', end + 1, end + 1 + length));
+        at = end + 1 + length + 1;
+      }
+    }
+    commandMemo.set(key, answers);
+  }
+  const answers = commandMemo.get(key);
+  return answers?.has(spec) ? answers.get(spec) : undefined;
 }
 
 /**
@@ -1262,8 +1328,9 @@ export function contains(root, ancestor, descendant) {
 export function gitPath(root, name) {
   return fact(`gitPath:${JSON.stringify([resolve(root), name])}`, () => {
     // Pullboard's own per-worktree files are names Git does not share, which Git places in the worktree's Git dir.
-    const location = /^pullboard-[\w.-]+$/u.test(name) ? fileLocation(root) : undefined;
-    return location ? join(location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
+    // Git's own rule places MERGE_HEAD in the worktree's dir and info/grafts in the shared one: no process to ask.
+    const location = /^(?:pullboard-[\w.-]+|MERGE_HEAD|info\/grafts)$/u.test(name) ? fileLocation(root) : undefined;
+    return location ? join(name === 'info/grafts' ? location.commonDir : location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
   });
 }
 

@@ -177,8 +177,12 @@ function ownUnit(row, snapshot, unsealed) {
   return Boolean(owner) && owner !== '.' && unsealed.has(owner) && row.reasons.every(reason => reason.startsWith('cross-package:'));
 }
 
-/** Select only units belonging to changed packages and defer every current journey to the batch. */
-export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test' } = {}) {
+/**
+ * Select only units belonging to changed packages and defer every current journey to the batch.
+ * `auditOnly` is landing.auditOnly: a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
+ * so a repo-wide inventory test never turns one item's gate red [C7].
+ */
+export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test', auditOnly = [] } = {}) {
   commit = commitAt(root, commit);
   if (trunk) {
     const mergeBase = sourceGit(root, ['merge-base', trunk, commit]).trim();
@@ -246,7 +250,12 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const readers = confined?.listings.length ? listingReaders(root, base, commit, confined.listings) : null;
   const journeys = confined ? after.manifest.files.filter(row => readers?.has(row.file) && !units.includes(row.file)).map(row => row.file)
     : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+  const audit = new Set((Array.isArray(auditOnly) ? auditOnly : []).filter(file => typeof file === 'string'));
+  const touched = new Set(actual ?? []);
+  const left = [...new Set([...units, ...journeys])].filter(file => audit.has(file) && !touched.has(file)).sort();
+  const kept = file => !left.includes(file);
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: units.filter(kept), journeys: journeys.filter(kept), skipped,
+    ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
 /**
@@ -482,7 +491,8 @@ export function testTierReport(plan, { names = true } = {}) {
   const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
     .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
   const sealed = plan.sealedCells?.length ? `\nCells sealed by conforming tests (${plan.sealedCells.length}): ${plan.sealedCells.join(', ')}` : '';
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}`;
+  const audit = plan.auditLeft?.length ? `\nLeft to the main audit (landing.auditOnly) (${plan.auditLeft.length}): ${plan.auditLeft.join(', ')}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}${audit}`;
 }
 
 /** A green exit with no observed test account cannot prove a selected unit or journey. */
