@@ -27,9 +27,11 @@ import { disableFixtureBackgroundView } from './view.js';
 import {
   fixtureAddRoute,
   fixtureJoinRoute,
+  fixtureMachineSettings,
   joinFixtureSeat,
 } from '../testkit.js';
 import { withoutPullboardEnv } from '../e2e.js';
+import { runCliInProcess } from '../process.js';
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 const scratch = [];
@@ -37,7 +39,7 @@ const scratch = [];
 const MACHINE_MODEL = 'Test Model';
 
 after(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const SPEC = `# Demo spec
@@ -70,6 +72,9 @@ function machine() {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   disableFixtureBackgroundView(env, dir);
+  // Cockpit journeys hold their gate in the submitting process, so they pin controller dispatch like e2e.js does [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const invocations = [];
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
@@ -81,8 +86,19 @@ function machine() {
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
     return result.stdout;
   };
+  /** Await the same CLI call in this process, refusing a non-zero status like runWithEnv, without a launch [C7]. */
+  const inProcessWithEnv = async (cwd, commandEnv, ...args) => {
+    fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
+    fixtureAddRoute(args);
+    invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
+    const result = await runCliInProcess(args, { cwd, env: commandEnv });
+    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
+    return result.stdout;
+  };
   /** Run the CLI with the machine environment used by later agent commands. */
   const run = (cwd, ...args) => runWithEnv(cwd, { ...env, PULLBOARD_MODEL: MACHINE_MODEL }, ...args);
+  /** The in-process twin of run: await it. */
+  const inProcess = (cwd, ...args) => inProcessWithEnv(cwd, { ...env, PULLBOARD_MODEL: MACHINE_MODEL }, ...args);
   /** Produce a fresh private snapshot through the actual CLI; no existing or caller-supplied root is adopted. */
   function exportSnapshot(cwd, leaf) {
     assert.match(leaf, /^[A-Za-z0-9][A-Za-z0-9_-]*$/u, 'snapshot output has one private leaf');
@@ -119,7 +135,7 @@ function machine() {
     }
     return Object.freeze({ root, readFile, files });
   }
-  return { dir, env, git, run, runWithEnv, invocations, exportSnapshot };
+  return { dir, env, git, run, inProcess, runWithEnv, invocations, exportSnapshot };
 }
 
 /**
@@ -151,4 +167,4 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
-export { BIN, scratch, SPEC, machine, project };
+export { BIN, scratch, SPEC, MACHINE_MODEL, machine, project };

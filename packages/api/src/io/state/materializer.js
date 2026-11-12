@@ -3,8 +3,8 @@
  * from the board's new events, while the request thread serves the latest materialized text [A2,C7]. Why a
  * thread: a build on a large board takes seconds, and on the request thread every read behind it waited. Each
  * record carries the board's cheap state revision from before its build. A read whose board still has that revision
- * joins the materialized JSON around its own unread count and starts nothing; a read after a change waits for the
- * build that extends the last one with it, so a read never serves state from before a write it follows [A2,C7].
+ * joins the materialized JSON around its own unread count and starts nothing, with the clock readings restamped from the held text; a read after a change waits for the build that
+ * extends the last one with it, so a read never serves state from before a write it follows [A2,C7].
  */
 import { Worker } from 'node:worker_threads';
 
@@ -32,6 +32,51 @@ function shoutsAfter(ids, seen) {
 /** Join one materialized text around a read's unread count. */
 function joined(parts, unseen) {
   return parts[0] + JSON.stringify(unseen) + parts[1];
+}
+
+/** The clock readings a build stamps in its texts: the flow's asOf, the state's observedAt and the comparison window's until, which ends at that read. */
+const CLOCK_KEYS = ['"asOf":"', '"observedAt":"', '"until":"'];
+/** Where the build's clock readings sit in each text part already searched, so a later read finds them without a scan. */
+const clockPlaces = new WeakMap();
+
+/** The byte offsets of every clock reading of `stamp` in one materialized text part. */
+function placesIn(part, stamp) {
+  const found = [];
+  for (const key of CLOCK_KEYS) {
+    const needle = key + stamp + '"';
+    for (let at = part.indexOf(needle); at !== -1; at = part.indexOf(needle, at + needle.length)) found.push(at + key.length);
+  }
+  return found.sort((left, right) => left - right);
+}
+
+/** One text part with its clock readings (all `stamp.length` long) replaced by `iso`, rejoined from slices of the original. */
+function restampedPart(part, places, iso) {
+  let out = '';
+  let from = 0;
+  for (const at of places) { out += part.slice(from, at) + iso; from = at + iso.length; }
+  return out + part.slice(from);
+}
+
+/** Materialized text parts (two strings around the unread count) with the build's clock readings replaced by `iso`. */
+function restampedParts(parts, stamp, iso) {
+  let places = clockPlaces.get(parts);
+  if (!places) clockPlaces.set(parts, places = parts.map((part) => placesIn(part, stamp)));
+  return parts.map((part, index) => (places[index].length ? restampedPart(part, places[index], iso) : part));
+}
+
+/**
+ * A held record with the clock readings of a read at `now`: a shallow copy whose texts carry the new flow asOf and
+ * observedAt, cut from the held ones at remembered offsets. Why: a read of an unchanged board is a new observation
+ * of it, and waiting on a build for that would slow every refresh [N26].
+ */
+function restamped(record, now) {
+  const stamp = new Date(record.observedAt).toISOString();
+  const iso = new Date(now).toISOString();
+  if (iso === stamp) return record;
+  const variant = (value) => value && { json: restampedParts(value.json, stamp, iso), validator: restampedParts(value.validator, stamp, iso) };
+  const deltas = {};
+  for (const [since, parts] of Object.entries(record.deltas)) deltas[since] = restampedParts(parts, stamp, iso);
+  return { ...record, observedAt: now, summary: variant(record.summary), compact: variant(record.compact), full: variant(record.full), deltas };
 }
 
 /**
@@ -125,14 +170,14 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));
 
   /**
-   * A board's record as of this read: the one held while the board's revision is unchanged, with no build started;
-   * otherwise the next build, which extends the last one with the change.
+   * A board's record as of this read: the held one while the board's revision is unchanged, its clock readings restamped to
+   * this read with no build started; otherwise the next build, which extends the last one with the change.
    */
   function latest(board, { full = false } = {}) {
     const entry = boardEntry(board);
     if (full) entry.full = true;
     const revision = revisionOf(entry);
-    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision) return entry.record;
+    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision) return restamped(entry.record, Date.now());
     const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, revision, after: nextId }));
     entry.wanted = revision;
     request(entry);

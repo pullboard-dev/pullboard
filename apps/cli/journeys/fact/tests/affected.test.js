@@ -106,7 +106,7 @@ test('an unread doc adds no tests and doc readers come from Git objects [V4,C7]'
   box.put('docs/unread.md','# No readers\n');
   const commit = box.commit();
   box.put('test/unrelated.test.js',"import {readFileSync} from 'node:fs'; readFileSync('docs/unread.md');\n");
-  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[]});
+  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[],reasons:{}});
   assert.deepEqual(selectAffectedTests(box.root,{base,commit,changed:['src/api.js','docs/unread.md']}).files,['test/api.test.js']);
 });
 
@@ -156,6 +156,7 @@ test('a docs path built inline still selects its reader [V4,C7]', (t) => {
   const base = box.commit();
   box.put('docs/api.md','# Updated API\n');
   const commit = box.commit();
+  // Process-level: runs the committed reader test as its own node process to prove it passes as written.
   const reader = runFixtureChild(process.execPath, [join(box.root,'test/array-reader.test.js')], { cwd:box.root, encoding:'utf8' });
   assert.equal(reader.status,0,reader.failure ?? reader.stderr?.toString('utf8') ?? 'the committed array reader did not run');
   assert.deepEqual(selectAffectedTests(box.root,{base,commit}).files,
@@ -404,11 +405,12 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const box = graph(t);
   const sourceRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   // Real source modules declare committed data inputs too; copy their complete tracked source/input tree.
-  const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
+  // The runner reader imports the app launcher, which hands the gate engine its loaders, so the copy carries the launcher too.
+  const sourceInputs = packageFiles(sourceRoot).filter(path => path === 'apps/cli/src/io/run/tests.js' || (/^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path)));
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   box.put('apps/cli/journeys/spec/person.test.js', "import '../../../../src/config.js';\n");
-  box.put('test/runner-reader.test.js', "import '../packages/gate/src/io/run/tests.js';\n");
+  box.put('test/runner-reader.test.js', "import '../apps/cli/src/io/run/tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
   const mapped = mappedWorkingSource(sourceRoot, 'src/config.js');
@@ -495,6 +497,9 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/sandbox/tests/privacy/guard.test.js',
     'packages/gate/tests/logic/wait.test.js',
     'packages/gate/tests/io/test/waits.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
+    'packages/gate/tests/io/test/launches.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
@@ -513,8 +518,11 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/gate/tests/io/test/waits.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
+    'packages/gate/tests/io/test/launches.test.js',
   ];
-  assert.equal(guards.length, 8, 'all selected guards are scanned');
+  assert.equal(guards.length, 11, 'all selected guards are scanned');
   for (const guardScanFile of scanFiles) {
     assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
     const source = readFileSync(join(root, guardScanFile), 'utf8');

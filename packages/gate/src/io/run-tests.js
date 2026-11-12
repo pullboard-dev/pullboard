@@ -218,7 +218,9 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   env.PULLBOARD_MODEL = 'Test Model'; env.PULLBOARD_OWN_CLI = '1'; // #2458: tests run the candidate's own CLI.
   env.PULLBOARD_MACHINE_HOME = join(sandbox, 'machine');
   // A test finds its runner by this pid, never by parsing ps text; a nested runner sets its own (#1073).
-  env.PULLBOARD_TEST_RUNNER_PID = String(process.pid);
+  // Behind the shim at packages/gate/src/io/run/tests.js the shim is the runner a SIGKILL can reach, so it is the one named.
+  env.PULLBOARD_TEST_RUNNER_PID = String(Number(process.env.PULLBOARD_RUN_SHIM_PID) || process.pid);
+  delete env.PULLBOARD_RUN_SHIM_PID;
   // #1046: every file of every run takes a token from one machine pool; a nested run keeps its parent's loan.
   env[TEST_FILE_POOL_ENV] = testFilePoolValue(process.env);
   isolateTestMachine(env, sandbox); // #1068: no settings, resources, runners or host markers of the real machine.
@@ -249,7 +251,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   // The outer gate decides whether this invocation is fail-fast. Its test workers and
   // any nested runner commands always retain ordinary runner semantics.
   env[LANDING_RUN_ENV] = '0';
-  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS']) delete env[name];
+  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS', 'PULLBOARD_TEST_PROGRESS']) delete env[name];
   Object.assign(env, gateMarkers);
   env[LANDING_RUN_ENV] = '0';
   return env;
@@ -274,7 +276,7 @@ async function runTests(args, env, concurrency) {
   const normalized = nativeFileArguments(args, concurrency, knownNodeOption, optionTakesValue);
   const { options } = await landingTestOptions(normalized.args, env, normalized.concurrency);
   if (env.PULLBOARD_TEST_ACTIONS) options.reporters.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
-  if (env.PULLBOARD_TEST_SELECTION) options.reporters.push({ reporter: fileURLToPath(new URL('./test/selection.js', import.meta.url)), destination: devNull });
+  options.reporters.push(...(await import('./test/progress.js')).sideReporters(env)); // selection count and per-file progress (#5823)
   return reportDispatchedTests(options, env, loadCustomReporter);
 }
 
@@ -421,6 +423,12 @@ function landingWorkerCommandMatchesFile(processInfo, file) {
   return false;
 }
 
+/** The spellings `ps` may print for an argument: raw, octal-escaped (macOS), or '?' per control character (Linux). */
+function psSpellings(argument) {
+  const control = /[\u0000-\u001f\u007f]/gu;
+  return [argument, argument.replace(control, c => `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`), argument.replace(control, '?')];
+}
+
 /** Match an announced ChildProcess spawn to the fresh command line without trusting its PID alone. */
 function landingChildCommandMatchesSpawn(processInfo, receipt) {
   const command = processInfo.command.trimEnd();
@@ -431,13 +439,15 @@ function landingChildCommandMatchesSpawn(processInfo, receipt) {
   if (!exactExecutable && (!executable || basename(executable[1] ?? executable[2] ?? executable[3]) !== basename(spawnFile ?? ''))) return false;
   return receipt.spawnArgs.slice(1).every(argument => {
     if (typeof argument !== 'string' || !argument) return false;
-    let offset = command.indexOf(argument);
-    while (offset !== -1) {
-      const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
-      const afterIndex = offset + argument.length;
-      const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
-      if (before && after) return true;
-      offset = command.indexOf(argument, offset + 1);
+    for (const spelling of psSpellings(argument)) {
+      let offset = command.indexOf(spelling);
+      while (offset !== -1) {
+        const before = offset === 0 || /[\s"']/u.test(command[offset - 1]);
+        const afterIndex = offset + spelling.length;
+        const after = afterIndex === command.length || /[\s"']/u.test(command[afterIndex]);
+        if (before && after) return true;
+        offset = command.indexOf(spelling, offset + 1);
+      }
     }
     return false;
   });
@@ -725,7 +735,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   }
   const reporterEntries = options.reporters;
   if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
-  if (testEnv.PULLBOARD_TEST_SELECTION) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/selection.js', import.meta.url)), destination: devNull });
+  reporterEntries.push(...(await import('./test/progress.js')).sideReporters(testEnv)); // selection count and per-file progress (#5823)
   delete options.reporters;
   const loadedReporters = [];
   for (const entry of reporterEntries) {
@@ -1168,9 +1178,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   if (fullSuite) {
     let files;
     try {
-      files = isGitWorkTree(process.cwd(), env)
-        ? trackedDefaultTestFiles(process.cwd(), env)
-        : null;
+      files = trackedDefaultTestFiles(process.cwd(), env);
     }
     catch (error) {
       process.stderr.write(`run-tests: could not list tracked test files: ${error.message}\n`);
@@ -1481,7 +1489,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
   if (!landingWorker) cleanupWatchdog = installTestWatchdog();
-  if (process.env.NODE_TEST_CONTEXT === 'child-v8') installTestChildDrain({
+  if (process.env.NODE_TEST_CONTEXT === 'child-v8' && !landingWorker) installTestChildDrain({ // the landing parent owns and signals the leftovers; waiting here holds the run
     sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
     onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
   });

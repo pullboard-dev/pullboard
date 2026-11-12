@@ -30,6 +30,7 @@ import {
   runFixtureGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
@@ -171,6 +172,9 @@ function fixture(t, count, slots = 2) {
   ].join('\n') + '\n');
   box.main = commit(box, root);
   assert.equal(cli(box, root, 'settings', 'gateSlots', String(slots)).status, 0);
+  // These submits hold their gate and its main comparisons in the submitting process, so the fixture pins controller dispatch [P7].
+  const machine = JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { ...machine, gate: { ...machine.gate, runnerDispatch: 'controller' } });
   const added = cli(box, root, 'add', 'core', 'Retain the native red verdict', '--specs', 'G1', '--route', 'mid',
     '--criterion', 'A red test is refused', '--check', 'true', '--brief', 'Files: test/\nTest: native comparison');
   assert.equal(added.status, 0, added.stderr);
@@ -271,4 +275,27 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   await assertRed(box, launch(box, 'submit', String(box.item)));
   assert.equal(events(box).length, before, 'the identical red resubmit does not rerun the completed main comparisons');
   assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
+});
+
+test('with gate.mainComparison off a red submit stays red and runs no main comparison [V4,C7,#5565]', async t => {
+  const box = fixture(t, 1);
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...saved, gate: { ...saved.gate, mainComparison: 'off' } }));
+  const submission = launch(box, 'submit', String(box.item));
+  const result = await submission.closed;
+  assert.equal(result.code, 1, result.out + result.err);
+  assert.equal(JSON.parse(result.out).error.code, 'GATE_RED');
+  assert.equal(events(box).length, 0, 'no main comparison ran');
+  assert.equal(existsSync(join(box.root, '.git', 'pullboard', 'gate-receipts')) ? mainReceipts(box).length : 0, 0, 'no main-red receipt was recorded');
+});
+
+test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', async t => {
+  const box = fixture(t, 1);
+  const saved = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  assert.equal(saved.gate?.mainComparison, undefined, 'the fixture leaves the setting at its on-red default');
+  const submission = launch(box, 'submit', String(box.item));
+  await comparisonStarted(box, submission, 'the default still starts the main comparison');
+  writeFileSync(join(box.control, 'a.release'), 'release');
+  await assertRed(box, submission);
 });

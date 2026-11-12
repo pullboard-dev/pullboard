@@ -1,8 +1,9 @@
 {
-  "whoami": 1726,
-  "show 1": 1654,
-  "list": 1726,
+  "whoami": 1580,
+  "runner-home whoami": 1580,
+  "show 1": 1156,
+  "list": 1310,
   "next": 1658,
-  "test --status x": 1704,
-  "hook commit-msg": 1653
+  "test --status x": 1190,
+  "hook commit-msg": 1535
 }

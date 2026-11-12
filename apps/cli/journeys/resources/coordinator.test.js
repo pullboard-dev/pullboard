@@ -73,7 +73,7 @@ test('clause 2: run-tests and a bare node --test refuse on the coordinator witho
   const files = privateFixtureFiles('pullboard-coordinator-tests-');
   const env = coordinatorEnv(files);
   files.write('probe.test.js', `import ${JSON.stringify(join(REPO, 'apps/cli/tests/fixtures/child.js'))};\nimport { test } from 'node:test';\ntest('probe [C7]', () => {});\n`);
-  const runTests = spawnSync(process.execPath, [join(REPO, 'packages/gate/src/io/run/tests.js'), join(files.root, 'probe.test.js')], { cwd: files.root, env, encoding: 'utf8' });
+  const runTests = spawnSync(process.execPath, [join(REPO, 'apps/cli/src/io/run/tests.js'), join(files.root, 'probe.test.js')], { cwd: files.root, env, encoding: 'utf8' });
   assert.equal(runTests.status, 2, runTests.stderr);
   assert.match(runTests.stderr, /\[TESTS_ON_COORDINATOR\].*pullboard test/u, 'run-tests names pullboard test as the way');
   const bare = spawnSync(process.execPath, ['--test', join(files.root, 'probe.test.js')], { cwd: files.root, env, encoding: 'utf8' });
@@ -99,7 +99,7 @@ test('clause 3: pullboard resources reports a test process running on the coordi
   const local = spawn(process.execPath, ['-e', "require('node:net').createServer().listen(0)", '--', '--test'], { stdio: 'ignore' });
   t.after(() => { try { local.kill('SIGKILL'); } catch { /* already gone */ } });
   assert.deepEqual(testProcesses(`${local.pid} ${process.execPath} -e x -- --test\n 12 /usr/bin/ssh runner\n`).map(row => row.pid), [local.pid], 'a node --test process is a test process; others are not');
-  const resources = box.run(box.repo, 'resources', '--json');
+  const resources = (await box.runLocal(box.repo, 'resources', '--json'));
   assert.equal(resources.code, 0, `${resources.err}\n${resources.out}`);
   const faults = JSON.parse(resources.out).faults ?? [];
   assert.ok(faults.some(fault => fault.kind === 'test-on-coordinator' && fault.pid === local.pid), `the local test process is a fault: ${resources.out.slice(0, 400)}`);

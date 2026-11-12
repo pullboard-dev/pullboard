@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/show.js */
 /** @pullboard-world-pin reads the shipped show command source to prove it prints the retained assertion lines. */
 /** A red gate keeps its full log until its item lands or is withdrawn, and show prints the failing assertion from it [C7,#3381]. */
 import assert from 'node:assert/strict';

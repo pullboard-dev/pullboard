@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Runner admission sends each job to the runner with the most live headroom and queues when all are overloaded [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -47,6 +46,16 @@ test('a job goes to the idle runner, never the one at 10x its cores [C7]', async
     assert.equal(lease.runner.host, 'idle-host');
     assert.equal(lease.runner.dispatch.reason, 'most headroom by runner-reported 1-minute load');
     assert.deepEqual(lease.runner.dispatch.skipped, ['overloaded-host']);
+  } finally { lease.release(); }
+});
+
+test('with two runners free, the lower load per core wins even with less headroom in cores [C7,#5578]', async t => {
+  const project = box(t);
+  const small = { ...runner('four-core', 1), cores: 4 };
+  const big = runner('ten-core', 4);
+  const lease = await acquire(project, [small, big]);
+  try {
+    assert.equal(lease.runner.host, 'four-core', '1 of 4 cores is 0.25 per core, below 4 of 10 at 0.4, though 10 cores leave more headroom');
   } finally { lease.release(); }
 });
 

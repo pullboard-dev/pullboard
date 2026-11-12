@@ -44,7 +44,7 @@ test('setting off retains foreground submit until the real gate finishes [V4]', 
 
 test('a handoff result cannot invent a green submission or complete another sender job [V4,E18]', async t => {
   const box = fixture(t);
-  document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')));
   // @pullboard-board-file journey: observe the separate native worker's actual persisted queue and proof identity.
   const board = openBoard(box.boardFile);
   try {
@@ -88,11 +88,11 @@ function checkoutBarrier(box) {
 test('removing the builder checkout during private source preparation cannot move or strand the queued gate [V4,H16,E18]', async t => {
   const box = fixture(t);
   const barrier = checkoutBarrier(box);
-  document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')));
   await box.helpers.waitFor(() => existsSync(barrier.ready), 'actual private checkout hook', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   box.git(box.web, 'checkout', '-q', '--detach', 'main');
   assert.equal(helpersCommit(box, 'web/another-build.txt', 'independent\n').status, 0);
-  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  document((await box.runLocal(box.web, 'claim', String(box.second), '--json')));
   box.git(box.repo, 'worktree', 'remove', box.web);
   assert.equal(existsSync(box.web), false);
   writeFileSync(barrier.release, 'release\n');
@@ -107,7 +107,7 @@ test('removing the builder checkout during private source preparation cannot mov
 });
 
 /** Build a bounded real test selection, so an unrelated accepted-main move may use the ordinary merge path. */
-function mainAdvanceFixture(t) {
+async function mainAdvanceFixture(t) {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -119,8 +119,8 @@ function mainAdvanceFixture(t) {
   writeFileSync(join(box.repo, 'web/feature.js'), "export const feature = 'base';\n");
   writeFileSync(join(box.repo, 'web/other.js'), "export const other = 'independent';\n");
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('independent feature [G1]',()=>assert.equal(other,'independent'));\n");
-  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
-  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), [
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), [
     "import {spawnSync} from 'node:child_process';",
     "const env={...process.env};delete env.NODE_TEST_CONTEXT;",
     "const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});",
@@ -136,17 +136,17 @@ function mainAdvanceFixture(t) {
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   // The web lane owns the runner and the test, so claiming the item is not a cross-ownership refusal [C7,#2650].
-  const lanes = { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'packages/gate/src/io/run/', 'test/'] } };
-  writeFileSync(configFile, JSON.stringify({ ...config, lanes, gate: 'node packages/gate/src/io/run/tests.js test/feature.test.js',
-    affectedTests: 'node packages/gate/src/io/run/tests.js', submit: { handoff: true } }) + '\n');
+  const lanes = { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'apps/cli/src/io/run/', 'test/'] } };
+  writeFileSync(configFile, JSON.stringify({ ...config, lanes, gate: 'node apps/cli/src/io/run/tests.js test/feature.test.js',
+    affectedTests: 'node apps/cli/src/io/run/tests.js', submit: { handoff: true } }) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Queued proof across accepted main', '--specs', 'G1',
-    '--criterion', 'The captured feature is item.', '--check', 'node packages/gate/src/io/run/tests.js test/feature.test.js', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Queued proof across accepted main', '--specs', 'G1',
+    '--criterion', 'The captured feature is item.', '--check', 'node apps/cli/src/io/run/tests.js test/feature.test.js', '--wait', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', "export const feature = 'item';\n", 'feat(web): captured implementation [G1]').status, 0);
-  document(box.run(box.repo, 'bar', 'ready', 'on', '--json'));
+  document((await box.runLocal(box.repo, 'bar', 'ready', 'on', '--json')));
   writeFileSync(armed, 'armed\n');
   t.after(async () => {
     writeFileSync(release, 'release\n');
@@ -162,8 +162,8 @@ function mainAdvanceFixture(t) {
 }
 
 test('clause 1: queued submit keeps the ordinary hook-checked unrelated-main merge after captured proof [V4,H16,C7]', async t => {
-  const box = mainAdvanceFixture(t);
-  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  const box = (await mainAdvanceFixture(t));
+  const queued = document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')));
   try { await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000); } // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, box.id)}`, { cause: error }); }
   mkdirSync(join(box.repo, 'docs'), { recursive: true });

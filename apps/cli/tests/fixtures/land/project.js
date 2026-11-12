@@ -1,10 +1,12 @@
 /** Shared real Git landing setup for independently scheduled suites [B3,R3]. */
 import assert from 'node:assert/strict';
 import {
+  mkdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { runFixtureChildAsync } from '../child.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
@@ -72,6 +74,18 @@ function itemWorktree(box, number, file = FILES[number - 1], afterIds = [], chec
   return { path, item, file };
 }
 
+/** itemWorktree answered in this process: the same worktree, seat, item and claim without a node start-up per step [B3]. */
+async function itemWorktreeLocal(box, number, file = FILES[number - 1]) {
+  const path = join(box.dir, `land-${number}`);
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
+  assert.equal((await joinFixtureSeat(box, path, 'web', { run: box.runLocal })).code, 0);
+  const item = (await fileFixtureItem(box, box.repo, { lane: 'web', title: `Land fixture ${number}`,
+    criterion: `land fixture ${number} remains valid`, check: `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`,
+    args: ['--specs', 'G1'], run: box.runLocal })).item_id;
+  assert.equal((await box.runLocal(path, 'claim', String(item))).code, 0);
+  return { path, item, file };
+}
+
 /** Build and submit a private fixture through its real hooks and item check. */
 function submitItem(box, entry, contents = 'PASS\n') {
   const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
@@ -92,6 +106,36 @@ function acceptItem(box, entry) {
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 /**
+ * Commit an item's change through its real hooks without blocking the other items' commits.
+ * Why: each commit starts the hook CLI twice; sixteen in a row cost more than the file's whole budget [B3].
+ */
+async function commitItemLocal(box, entry, contents = 'PASS\n') {
+  mkdirSync(join(entry.path, entry.file, '..'), { recursive: true });
+  writeFileSync(join(entry.path, entry.file), contents);
+  box.git(entry.path, 'add', '-A');
+  const committed = await runFixtureChildAsync('git', ['commit', '-q', '-m', `feat(web): build land fixture ${entry.item} [G1]`], { cwd: entry.path, env: box.env, encoding: 'utf8' });
+  assert.equal(committed.status, 0, committed.stderr);
+  entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
+  return entry;
+}
+
+/** Submit an already committed item in this process, skipping the node start-up [B3]. */
+async function submitItemLocal(box, entry) {
+  const submitted = await box.runLocal(entry.path, 'submit', String(entry.item), '--no-next');
+  assert.equal(submitted.code, 0, submitted.err);
+  return entry;
+}
+
+/** acceptItem answered in this process [B3]. */
+async function acceptItemLocal(box, entry) {
+  entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
+  box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
+  try {
+    const verdict = await box.runLocal(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    assert.equal(verdict.code, 0, verdict.err);
+  } finally { box.git(box.repo, 'switch', '-q', 'main'); }
+}
+/**
  * Advance main by one unrelated commit after an item's submit. Why: these fixtures submit with their red suppressed, so a
  * landing on the submit's own main would reuse that green receipt (#3685) and never run the landing gate under test.
  */
@@ -103,5 +147,15 @@ function moveMainPastSubmit(box, number = 0) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit };
+/** Prepare four independent submitted items and accept them in a caller-selected verdict order. */
+function verifiedFour(box, { red, flaky, order = [0, 1, 2, 3] } = {}) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
+  for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : (Array.isArray(flaky) ? flaky.includes(index) : index === flaky) ? 'FLAKE\n' : 'PASS\n');
+  for (const index of order) acceptItem(box, entries[index]);
+  delete box.env.LAND_SUPPRESS_RED;
+  return entries;
+}
+
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit, verifiedFour };
 }

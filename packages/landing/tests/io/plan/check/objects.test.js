@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** The landing plan check reads the plan and paths from Git objects and adds no worktree [C7]. */
 import assert from 'node:assert/strict';

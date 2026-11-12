@@ -1,6 +1,7 @@
 import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../state/light.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../state/light.js";
+import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../state/index.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../state/light.js";
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
@@ -418,11 +419,17 @@ export function moveMilestone(board, name, { agentId, before }, ports) {
   });
 }
 
+/** Whether a new limit lets a milestone hold more than its current one; turning a limit off counts, setting the first one does not. */
+function raisesLimit(current, next) {
+  if (current == null) return false;
+  return next === null || next > current;
+}
+
 /**
  * Rename a milestone, update its note, or set its target without touching its items. A target is
  * an engine-45 meaning, so an older engine's edit replays exactly as it did.
  */
-export function editMilestone(board, name, { agentId, newName, note, target, limit }, ports) {
+export function editMilestone(board, name, { agentId, newName, note, target, limit, asPerson = false }, ports) {
   const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   const engine = engineOf(board);
@@ -444,6 +451,9 @@ export function editMilestone(board, name, { agentId, newName, note, target, lim
     entries[index] = { ...entries[index], name: renamed, ...(note === undefined ? {} : { note: normalizeMilestoneText(renamed, note).note }) };
     if (targetValue !== undefined) entries[index].target = targetValue;
     if (limitValue !== undefined) {
+      if (engine >= MILESTONE_PERSON_LIMIT_ENGINE && raisesLimit(entries[index].limit, limitValue) && !asPerson) {
+        throw new Refused('MILESTONE_LIMIT_PERSON', `only the person raises a milestone limit (${name} is at ${entries[index].limit}); ask the person, who runs pullboard milestone edit ${JSON.stringify(name)} --limit <n>|none --as person in the main checkout`);
+      }
       enforceMilestoneLimit(board, { ...entries[index], limit: limitValue }, entries[index].items, itemById);
       entries[index].limit = limitValue;
     }

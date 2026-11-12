@@ -23,25 +23,26 @@ function document(result) {
 }
 
 /** A refusal leaves the submitted item and event stream untouched. */
-function refused(box, board, cwd, args, expected) {
+async function refused(box, board, cwd, args, expected) {
   const before = store.events(board);
-  const result = box.run(cwd, ...args, '--json');
+  const result = await box.runIn(cwd, ...args, '--json');
   assert.equal(result.code, 1, result.err || result.out);
   assert.equal(JSON.parse(result.out).error.code, expected, result.out);
   assert.deepEqual(store.events(board), before);
   assert.equal(store.getItem(board, 1).item_review_by, null);
 }
 
-test('clause 1, clause 2: a reviewer is refused for any item its session ever built [V1,B3,C7]', (t) => {
+test('clause 1, clause 2: a reviewer is refused for any item its session ever built [V1,B3,C7]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // @pullboard-board-file journey: share the board file the real verify command reads
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
-  const first = document(box.run(box.web, 'whoami', '--json')).id;
+  const first = document(await box.runIn(box.web, 'whoami', '--json')).id;
   // Bind an original seat without writing a claim digest. Native/legacy moves still name their agent in events.
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
-  document(box.run(box.web, 'shout', 'all', 'the original author is here', '--json'));
+  document(await box.runIn(box.web, 'shout', 'all', 'the original author is here', '--json'));
   delete box.env.CODEX_THREAD_ID;
   const secondPath = join(box.dir, 'second-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', secondPath, 'main');
@@ -72,14 +73,14 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
   document(joinFixtureSeat(box, review, 'web'));
   requireSessionIndependence(review);
-  refused(box, board, review, ['next','--verify',String(id)], 'SELF_SESSION_VERIFY');
+  await refused(box, board, review, ['next','--verify',String(id)], 'SELF_SESSION_VERIFY');
   // A next --verify with nothing free records its idle cause once, then dedupes the same cause: record it here so the refusal below leaves the stream untouched.
-  assert.equal(JSON.parse(box.run(review, 'next', '--verify', '--json').out).error.code, 'NOTHING_FREE');
-  refused(box, board, review, ['next','--verify'], 'NOTHING_FREE');
-  refused(box, board, review, ['verify',String(id),'reject','--reason','TEST_FAILURE','--note','synthetic review attempt'], 'SELF_SESSION_VERIFY');
+  assert.equal(JSON.parse((await box.runIn(review, 'next', '--verify', '--json')).out).error.code, 'NOTHING_FREE');
+  await refused(box, board, review, ['next','--verify'], 'NOTHING_FREE');
+  await refused(box, board, review, ['verify',String(id),'reject','--reason','TEST_FAILURE','--note','synthetic review attempt'], 'SELF_SESSION_VERIFY');
   box.env.CODEX_THREAD_ID = 'unrelated-reviewer-session-1085';
-  document(box.run(review, 'takeover', '--json'));
-  const offered = document(box.run(review, 'next', '--verify', String(id), '--json'));
+  document(await box.runIn(review, 'takeover', '--json'));
+  const offered = document(await box.runIn(review, 'next', '--verify', String(id), '--json'));
   assert.equal(offered.item.item_id, id, 'an unrelated session is offered the submitted work');
   assert.notEqual(store.getItem(board, id).item_review_by, first);
 });
@@ -88,10 +89,11 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
  * Record the builder's submit as a board move with no sealed gate proof. verify then has no submit proof to reuse and runs
  * the armed frozen check itself; the cases below observe that run [C7,V4].
  */
-function submitUnsealed(box) {
+async function submitUnsealed(box) {
+  // @pullboard-board-file journey: share the board file the real verify command reads
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
-    submitFixture(board, 1, { agentId: document(box.run(box.web, 'whoami', '--json')).id,
+    submitFixture(board, 1, { agentId: document(await box.runIn(box.web, 'whoami', '--json')).id,
       commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
       policyCommit: box.git(box.repo, 'rev-parse', 'main') });
   } finally {
@@ -105,7 +107,7 @@ function submitUnsealed(box) {
  * green move keeps the verdict. So the retry modes also run web/known.test.js, red identically on main and owned by an
  * open Main red repair, which makes the retry path the one these cases observe [V4,V8].
  */
-function movingReview(t, mode) {
+async function movingReview(t, mode) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -152,26 +154,26 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   }
 }
 `);
-  document(fixtureAdd(box.run, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
-  if (knownRed) document(fixtureAdd(box.run, box.repo, 'web', 'Main red: web/known.test.js', '--criterion', 'known main red [G1] passes on main', '--specs', 'G1', '--check', 'node --test web/known.test.js', '--json'));
-  document(box.run(box.web, 'claim', '1', '--json'));
+  document(await fixtureAdd(box.runIn, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  if (knownRed) document(await fixtureAdd(box.runIn, box.repo, 'web', 'Main red: web/known.test.js', '--criterion', 'known main red [G1] passes on main', '--specs', 'G1', '--check', 'node --test web/known.test.js', '--json'));
+  document(await box.runIn(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
-  submitUnsealed(box);
-  const before = document(box.run(box.repo, 'show', '1', '--json'));
+  await submitUnsealed(box);
+  const before = document(await box.runIn(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, before.item_commit);
   document(joinFixtureSeat(box, reviewer, 'api'));
   writeFileSync(armed, 'armed');
-  const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at each exact private source.', '--json');
-  const after = document(box.run(box.repo, 'show', '1', '--json'));
+  const result = await box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at each exact private source.', '--json');
+  const after = document(await box.runIn(box.repo, 'show', '1', '--json'));
   assert.equal(after.item_commit, before.item_commit, 'retry preserves the submitted head');
   assert.equal(after.item_frozen_digest, before.item_frozen_digest, 'retry preserves the frozen bar');
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), before.item_commit, 'retry never changes the live reviewer checkout');
   return { box, result, after, before, runs: JSON.parse(readFileSync(runs, 'utf8')) };
 }
 
-test('verify retries once at the clean new-main composition and binds its real source [V4,V8]', t => {
-  const { box, result, after, before, runs } = movingReview(t, 'once');
+test('verify retries once at the clean new-main composition and binds its real source [V4,V8]', async t => {
+  const { box, result, after, before, runs } = await movingReview(t, 'once');
   document(result);
   assert.equal(runs.length, 2);
   assert.equal(runs[0].head, before.item_commit);
@@ -184,16 +186,16 @@ test('verify retries once at the clean new-main composition and binds its real s
   assert.equal(after.item_status, 'verified');
 });
 
-test('verify preserves a real main merge conflict without a retry or verdict [V4,V8]', t => {
-  const { result, after, runs } = movingReview(t, 'conflict');
+test('verify preserves a real main merge conflict without a retry or verdict [V4,V8]', async t => {
+  const { result, after, runs } = await movingReview(t, 'conflict');
   assert.equal(JSON.parse(result.out).error.code, 'MERGE_CONFLICT');
   assert.equal(runs.length, 1);
   assert.equal(after.item_status, 'submitted');
   assert.deepEqual(after.verdicts, []);
 });
 
-test('verify refuses a second main move after its one retry [V4,V8]', t => {
-  const { result, after, runs } = movingReview(t, 'twice');
+test('verify refuses a second main move after its one retry [V4,V8]', async t => {
+  const { result, after, runs } = await movingReview(t, 'twice');
   assert.equal(JSON.parse(result.out).error.code, 'VERDICT_TRUNK_MOVED');
   assert.equal(runs.length, 2, 'there is no third frozen check');
   assert.equal(after.item_status, 'submitted');
@@ -204,7 +206,7 @@ test('verify refuses a second main move after its one retry [V4,V8]', t => {
  * Submit and verify one frozen check whose duration the test sets. The check passes instantly during submit (unarmed),
  * then sleeps delayMs when verify runs it (armed); delayMs of -1 hangs until its ceiling stops it.
  */
-function frozenCheckCeiling(t, { checkTimeout, landingTimeout, delayMs }) {
+async function frozenCheckCeiling(t, { checkTimeout, landingTimeout, delayMs }) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -227,28 +229,28 @@ console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pa
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure frozen check ceiling');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  document(fixtureAdd(box.run, box.repo, 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
-  document(box.run(box.web, 'claim', '1', '--json'));
+  document(await fixtureAdd(box.runIn, box.repo, 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  document(await box.runIn(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
-  submitUnsealed(box);
-  const submitted = document(box.run(box.repo, 'show', '1', '--json'));
+  await submitUnsealed(box);
+  const submitted = document(await box.runIn(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
   document(joinFixtureSeat(box, reviewer, 'api'));
   writeFileSync(armed, 'armed');
-  const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
+  const result = await box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
   return { box, result };
 }
 
-test('verify runs a frozen check past the check timeout up to the configured landing.timeout [C7,V18]', t => {
+test('verify runs a frozen check past the check timeout up to the configured landing.timeout [C7,V18]', async t => {
   // A 300ms check.timeout stands in for the default 5m; the 1s check runs past it and inside landing.timeout.
-  const { box, result } = frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '20s', delayMs: 1000 });
+  const { box, result } = await frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '20s', delayMs: 1000 });
   assert.equal(result.code, 0, result.err || result.out);
-  assert.equal(document(box.run(box.repo, 'show', '1', '--json')).item_status, 'verified');
+  assert.equal(document(await box.runIn(box.repo, 'show', '1', '--json')).item_status, 'verified');
 });
 
-test('a frozen check that hangs stops at the configured ceiling and names the check and elapsed time [C7,V18]', t => {
-  const { result } = frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '1s', delayMs: -1 });
+test('a frozen check that hangs stops at the configured ceiling and names the check and elapsed time [C7,V18]', async t => {
+  const { result } = await frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '1s', delayMs: -1 });
   assert.equal(result.code, 1, result.out);
   const error = JSON.parse(result.out).error;
   assert.equal(error.code, 'CHECK_UNVERIFIED');

@@ -48,7 +48,7 @@ const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', '
  */
 export function writesBoard([command, first]) {
   return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
-    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first))
+    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first) && !['board.url', 'board.token'].includes(first))
     || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
 }
 
@@ -77,7 +77,7 @@ async function bindCheckoutSession(io, positionals, values) {
   if (command === 'answer' && values.as === 'person') return;
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
-  return (await import('../entry.js')).bindWriteSession(io, positionals, values);
+  return (await import('../join.js')).bindWriteSession(io, positionals, values);
 }
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
@@ -116,6 +116,7 @@ export async function main(rawArgv, streams) {
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
   const binding = timingSeat(cwd);
   const finish = beginSeatTiming(cwd, 'command', argv[0] ?? 'help', item, binding);
+  const stopBeat = (await import('../beater/command.js')).keepCommandAlive(cwd);
   const lockPort = Symbol.for('pullboard.seat-timing.lock');
   const previous = globalThis[lockPort];
   globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);
@@ -125,11 +126,14 @@ export async function main(rawArgv, streams) {
   try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
-    finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
+    stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
   }
 }
+
+// The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify', 'test']);
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
@@ -143,6 +147,8 @@ async function runMain(argv, streams) {
     io.refusal = (error, ...rest) => { streams.traceRecord.refusal = error; return report.call(io, error, ...rest); };
   }
   io.loadNativeBoard = streams.loadNativeBoard;
+  // Only the served API sets this, for a seat joined over it from another machine [P7].
+  io.remoteAgent = streams.remoteAgent;
   io.withOutboxGuard = streams.withOutboxGuard;
   io.replayConflictRecord = streams.replayConflictRecord;
   io.remoteBoardMissing = streams.remoteBoardMissing;
@@ -205,6 +211,17 @@ async function runMain(argv, streams) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
+  // A seat whose board lives on another host joins, reads and moves it over HTTP and opens no board.sqlite [P7].
+  // A command the board host runs for a channel (api, view, mcp) is already on the board, so it never posts back to itself.
+  const remoteJoin = parsed?.positionals[0] === 'join' && parsed.positionals[1] !== 'coordinator';
+  if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && (remoteJoin || REMOTE_COMMANDS.has(parsed.positionals[0]))) {
+    const remote = await import('../remote/board.js');
+    const target = remote.remoteBoard();
+    if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
+    // A seat's test runs here and posts only its receipt, so the board host never runs a test on its request path.
+    if (target && parsed.positionals[0] === 'test') return (await import('../test/remote.js')).runRemoteTest(io, parsed.positionals.slice(1), parsed.values, target);
+    if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
+  }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
@@ -247,7 +264,7 @@ async function runMain(argv, streams) {
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => {
-      if (!sync || !(await import('../../../../../packages/store/index.js')).syncMayAct(io.cwd)) return null;
+      if (!sync || !(await import('../../../../../packages/store/light.js')).syncMayAct(io.cwd)) return null;
       await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
       return import('../sync.js');
@@ -290,6 +307,9 @@ async function runMain(argv, streams) {
       const { info } = automaticLandingAfterCommand;
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
       try {
+        // Nothing loads for the wake unless a pending record exists or a verified item waits to land [C7].
+        if (!(existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))
+          || (await import('../../../../../packages/store/light.js')).landingMayWait(join(info.commonDir, 'pullboard', 'board.sqlite')))) throw LANDING_IDLE;
         const worker = await import('../../../../../packages/landing/index.js');
         // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
         const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
@@ -303,9 +323,10 @@ async function runMain(argv, streams) {
         const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../landing/automatic.js', import.meta.url), { woken });
         if (!recovered) await (await import('../landing/automatic.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
       }
-      catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
+      catch (error) { if (error !== LANDING_IDLE) io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
-    if (maintenanceAfterCommand) {
+    // A runner job's processes die with the job, so no timer is scheduled and the scheduler is never loaded [C7].
+    if (maintenanceAfterCommand && !process.env.PULLBOARD_RUNNER_JOB) {
       try { await (await import('../worktree/maintenance/scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err((await import('../worktree/maintenance/diagnostics.js')).maintenanceTimerWarning(error)); }
     }
@@ -340,6 +361,9 @@ if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
 }
+
+/** Thrown inside the landing wake when nothing could be waiting to land, so the wake loads nothing. */
+const LANDING_IDLE = new Error('landing idle');
 
 /** The trunk checkout the pending landing record names, or null when there is no readable record. */
 function landingJobRoot(commonDir) {

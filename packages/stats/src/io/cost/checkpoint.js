@@ -7,6 +7,20 @@ import { usageCheckpoint } from './ledger.js';
 import { sharedSessionTotals } from './shared.js';
 import { storedSeatUsage } from '../cost.js';
 
+/** Moves that end an item's usage: a merge or a withdrawal closes the claim of every seat that held it. */
+const CLOSING_MOVES = new Set(['merged', 'withdraw']);
+
+/**
+ * The seats whose usage a closing move owes: the current owner and the seat of the last claim.
+ * Why: a forced merge or a withdrawal is made by the coordinator, so the builder's own checkpoint never fires.
+ */
+function closingSeats(board, item) {
+  let owner = null;
+  try { owner = board.nativePorts.getItem(board, item)?.item_owner ?? null; } catch { /* an unknown item has no holder */ }
+  const last = board.db.prepare("SELECT event_by FROM event WHERE item_id=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(item);
+  return [...new Set([owner, last?.event_by].filter((seat) => typeof seat === 'string' && seat))];
+}
+
 /** Recover missed local checkpoints as unknown usage bounded by actual ordered claim/end times, as of one board event. */
 function lifecycleIntervals(board, agent, now, lastEventId) {
   const events = board.db.prepare("SELECT event_id,event_at,event_kind,item_id,event_detail FROM event WHERE event_by=? AND event_kind IN ('claim','renew','submit','release') AND event_id<=? ORDER BY event_id").all(agent, lastEventId);
@@ -33,7 +47,9 @@ function lifecycleIntervals(board, agent, now, lastEventId) {
  */
 export async function publishUsage(ctx, board, { agent, item, operation }, { ordered, now = ctx.clock.now().getTime(), lastEventId = Number.MAX_SAFE_INTEGER, environment = process.env } = {}) {
   const history = lifecycleIntervals(board, agent, now, lastEventId);
-  const changes = usageCheckpoint(ctx.info, { agent, item, operation, model: board.nativePorts.agentModel(board, agent), now, environment,
+  // A closing move runs in the coordinator's shell, so it never lends that shell's session to the seat it closes.
+  const closing = CLOSING_MOVES.has(operation);
+  const changes = usageCheckpoint(ctx.info, { agent, item, operation, model: board.nativePorts.agentModel(board, agent), now, environment: closing ? {} : environment,
     existing: storedSeatUsage(board, agent), existingShared: sharedSessionTotals(board), intervals: history.intervals,
     newClaim: operation === 'claim' && history.latest?.event_kind === 'claim' && history.latest.item_id === item });
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.
@@ -61,11 +77,16 @@ function checkpointStage(error) {
  * A secondary usage failure must never report a successfully ordered claim/submit/release as failed.
  */
 export async function checkpointAfterMove(ctx, board, request, services) {
-  try {
-    if (services.worker && !usageCheckpointInline()) queueUsageCheckpoint(ctx.info, board, request, { worker: services.worker, now: ctx.clock.now().getTime() });
-    else await publishUsage(ctx, board, request, services);
-  }
-  catch (error) {
-    ctx.io.err(`pullboard: USAGE_PENDING: [stage=${checkpointStage(error)}] the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.`);
+  // A merge or withdrawal closes usage for each seat that held the item, not for the coordinator that made the move.
+  const requests = CLOSING_MOVES.has(request.operation)
+    ? closingSeats(board, Number(request.item)).map((agent) => ({ ...request, agent, item: Number(request.item) })) : [request];
+  for (const one of requests) {
+    try {
+      if (services.worker && !usageCheckpointInline()) queueUsageCheckpoint(ctx.info, board, one, { worker: services.worker, now: ctx.clock.now().getTime() });
+      else await publishUsage(ctx, board, one, services);
+    }
+    catch (error) {
+      ctx.io.err(`pullboard: USAGE_PENDING: [stage=${checkpointStage(error)}] the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.`);
+    }
   }
 }

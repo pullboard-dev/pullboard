@@ -40,9 +40,9 @@ test('read-only Needs-you preserves each entry as text while its transport stays
 
   const box = machine();
   const app = project(box, 'read only transport', `${SPEC}- G3 [pending, must] Confirm the read-only question. | gate: review\n- G4 [draft, must] Confirm the draft row. | gate: review\n`);
-  box.run(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
-  box.run(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
-  box.run(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
+  await box.inProcess(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
+  await box.inProcess(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
+  await box.inProcess(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
   const live = await startView(box);
   const pageKey = 'page-relay-secret';
   const headerKey = 'header-relay-secret';
@@ -162,7 +162,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.ok(forwarded.every((method) => method === 'GET'), 'read-only action attempts send no write through the transport');
 
     await chrome.stable(`window.__samePage = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })`);
-    box.run(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
+    await box.inProcess(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
     await chrome.stable('window.__transportUpdate()');
     const refreshed = JSON.parse(await chrome.stable("JSON.stringify({ samePage: window.__samePage === true, titles: (data?.project?.items || []).map((item) => item.title), live: document.querySelector('#live').textContent, calls: window.__transportCalls.slice(-4) })"));
     assert.equal(refreshed.samePage, true, 'onUpdate refreshes in the same page');

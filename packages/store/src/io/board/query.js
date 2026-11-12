@@ -8,7 +8,7 @@ import { projectReviewFamily } from "../../../../verify/index.js";
 import { withSeatPresence } from "../presence.js";
 import { projectItemDecisions } from "../../../../items/index.js";
 import { itemById } from "../../logic/board/item/lookup.js";
-import { submitGateInFlight } from "../../logic/red/return.js";
+import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
 import { handoffRecord } from "../submit/handoff/records.js";
 import {
@@ -59,7 +59,7 @@ const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
  * @returns {boolean}
  */
 export function isHeld(board, item) {
-  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || submitGateInFlight(board, item));
+  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || itemWorkInFlight(board, item));
 }
 
 /**
@@ -305,9 +305,9 @@ export function agentById(board, id) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(id));
 }
 
-/** Whether a seat was created with --lock-lane: `next` never moves it to another lane (GH #27). */
+/** Whether a seat joined with --lock-lane, recorded on its join event: `next` never moves it to another lane (GH #27). */
 export function agentLaneLocked(board, id) {
-  return board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get(`agent_lane_lock:${id}`) !== undefined;
+  return board.db.prepare("SELECT 1 FROM event WHERE event_by = ? AND event_kind = 'join' AND event_detail LIKE '%\"lockLane\":true%' LIMIT 1").get(id) !== undefined;
 }
 
 /** Read the model label kept beside other board metadata, avoiding any board-schema migration. */
@@ -486,7 +486,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false, fromHead = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -496,6 +496,8 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const { cursor, shoutCursor } = board.db.prepare(`SELECT
     (SELECT COALESCE(MAX(event_id),0) FROM event) AS cursor,
     (SELECT COALESCE(MAX(shout_id),0) FROM shout) AS shoutCursor`).get();
+  // A first read starts at the head: nothing before it is owed, and reading it all is the cost (#6152).
+  if (fromHead) { after = cursor; newsAfter = cursor; }
   const items = listItems(board, { all: true });
   const builds = items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId);
   const observed = typeof workingFiles === 'function' ? workingFiles(builds) : workingFiles;

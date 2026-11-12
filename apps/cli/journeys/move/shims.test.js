@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/path-map/kernel.json packages/kernel/index.js packages/kernel/src/logic/refused.js */
 /** Actual Git moves, committed counts and native SQLite health prove temporary shim debt [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

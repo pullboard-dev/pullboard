@@ -12,7 +12,6 @@ import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
 import { landingReceiptReuse } from '../reuse.js';
-import { landingSpan } from '../../../../resources/index.js';
 import { reusableSubmitFiles } from '../reuse.js';
 import { gateVerdictOf } from '../main/red/receipt.js';
 import { toolingFor } from '../../../../pin/index.js';
@@ -24,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -33,11 +33,13 @@ import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
 import { runGate } from '../../../../gate/index.js';
+import { stampGreen } from '../../../../gate/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
 import { selectAffectedTests } from '../../../../gate/index.js';
 import { testClosures } from '../../../../gate/index.js';
+import { ledgerFromOutput } from '../../../../gate/index.js';
 import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { literalShellWords } from '../../../../kernel/index.js';
 import { mappedCheck } from '../../../../codemap/index.js';
@@ -101,7 +103,8 @@ function batchAffectedTests(state, readEvents, readItem) {
     const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
     const deferred = submitted === null ? deferredSelections(state, readEvents).flatMap(row => row.files).filter(file => named.has(file)) : [];
     const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
-    return { full: false, mandatory, testTiers, files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
+    return { full: false, mandatory, testTiers, journeys: testTiers.journeys.filter(file => named.has(file)), proved: submitted ?? [],
+      files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
   }
   // The submit's files are a floor: a later accepted-trunk importer of a file the merged batch changed is found only
   // on the merged tree, so its selection is added to the submitted union [C7,V4].
@@ -154,8 +157,20 @@ function planKey(state, focus) {
   catch { return null; }
 }
 
+/**
+ * Whether the landing pushes the remote main itself: the default shape, every project without landing.publish
+ * "separate" (landsOnTrunk in publish.js, which imports this file). Why: 0.9.3's promise is that the remote main only
+ * gets a tree that passed the whole suite, so this shape lands only on whole-suite proof [C7,#6271].
+ */
+function pushesOnLanding(config) {
+  return config?.landing?.publish !== 'separate';
+}
+
 /** The plan batchGatePlan keeps: the selected plan, or the full gate for a per-item landing with no narrower plan. */
 function choosePlan(state, options) {
+  // The default shape pushes what it lands, so a landing that cannot reuse a whole-suite receipt runs the whole
+  // configured gate on the merged tree; a bisection round keeps its focus, its final tree still runs this plan [C7,#6271].
+  if (pushesOnLanding(state.config) && !options.focus?.length) return fullGatePlan(state);
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
@@ -192,6 +207,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
     if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
     const command = testTierCommand(selection.testTiers, files) || 'true';
     return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, testTiers: true,
+      journeys: (selection.journeys ?? []).filter(file => files.includes(file)), proved: selection.proved ?? [],
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
@@ -272,7 +288,7 @@ function criterionTestFiles(root, entry, item, runner, detail) {
   const prefix = literalShellWords(runner);
   const ownRunner = prefix?.length && prefix.every((word, index) => words[index] === word) ? prefix.length : 0;
   const node = /(?:^|\/)node(?:\.exe)?$/u.test(words[0]);
-  const length = ownRunner || (node && (words[1] === '--test' || /(?:^|\/)(?:bin\/run-tests|packages\/gate\/src\/io\/run\/tests)\.js$/u.test(words[1] ?? '')) ? 2 : 0);
+  const length = ownRunner || (node && (words[1] === '--test' || /(?:^|\/)(?:bin\/run-tests|(?:packages\/gate|apps\/cli)\/src\/io\/run\/tests)\.js$/u.test(words[1] ?? '')) ? 2 : 0);
   if (!length || words.length <= length) return null;
   const files = [];
   for (const raw of words.slice(length)) {
@@ -306,7 +322,7 @@ async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
   // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
-  await landingSpan('smoke', () => smokeCandidate(state.batch.root, { record: true }));
+  await timedPhase(state.say, 'cli smoke', () => smokeCandidate(state.batch.root, { record: true }));
   state.smoked.add(tree);
 }
 
@@ -360,7 +376,7 @@ async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   await smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
-  let { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
+  let { config, affectedGate, files, subset, testTiers, journeys, proved: proof } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
   if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
   let cached = recorded?.affectedGate === affectedGate ? recorded : null;
@@ -373,8 +389,16 @@ async function runGateGroup(state, label, options) {
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
-  const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
+  let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, wholeSuite: pushesOnLanding(state.config), files, treeOf,
     generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
+  // T3 journeys are deferred to the landing batch by design: no submit ran them, so no submit receipt answers for the ones it did not run.
+  // Why: a one-item bisect half reused its submit receipt, ran no journey and passed the item that broke it [C7,CS4,V4].
+  if (reuse.reuse && journeys?.length) {
+    // Read the proof the reuse code reads: the submit's recorded files plus the files its frozen check ran [C7,#3685].
+    const proved = new Set(proof);
+    const unproved = journeys.filter(file => !proved.has(file));
+    if (unproved.length) reuse = { ...reuse, rerun: [...new Set([...(reuse.rerun ?? []), ...unproved])].sort() };
+  }
   const receipts = reuse.items?.length > 1 ? `#${reuse.items.join(', #')}'s submit receipts` : `#${reuse.item}'s submit receipt`;
   if (reuse.reuse && reuse.rerun?.length) {
     // The proof answers for the rest of the plan; only the files main's commits reach since the submit run again [C7].
@@ -386,6 +410,8 @@ async function runGateGroup(state, label, options) {
     // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
     if (reuse.mainOwned) state.say(`gate ${label}: #${reuse.item}'s submit verdict is green with main-owned case(s): ${reuse.mainOwned.map(row => `${row.file} :: ${row.name}`).join('; ')}`);
     const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit, ...(reuse.items?.length > 1 ? { items: reuse.items } : {}), ...(reuse.mainOwned ? { mainOwned: reuse.mainOwned } : {}) } };
+    // The reused receipt covered the full configured gate, so the tree is stamped green as a gate run would, and pre-push accepts it.
+    if (config[VALUE_GATE] !== true) stampGreen(state.batch.root, tree);
     state.gates.set(tree, reused);
     return reused;
   }
@@ -411,6 +437,7 @@ async function runGateGroup(state, label, options) {
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
+  state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
@@ -461,7 +488,7 @@ async function runGateGroup(state, label, options) {
  * Why: the trunk's static checks waited 80 to 230 s on a runner after a green candidate gate on 9 Nov [C7].
  */
 function earlyStaticChecks(state) {
-  return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+  return timedPhase(state.say, 'static checks', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
     agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
     .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
 }
@@ -585,4 +612,14 @@ export function deferredSelections(state, readEvents = id => store.events(state.
     const files = detail?.commit === entry.commit ? detail.submissionProof?.deferredFiles ?? [] : [];
     return files.length ? [{ entry, files }] : [];
   });
+}
+
+/**
+ * The reuse ledger line of a finished gate's log, or a line saying the log holds none. Why: reuse fails open, and a
+ * landing that reused nothing looked only slow until this line named its keyless files and why (#5839).
+ */
+function runLedger(log) {
+  let output = '';
+  try { output = readFileSync(log, 'utf8'); } catch { /* An unreadable log reports no account below. */ }
+  return ledgerFromOutput(output) ?? 'ledger: the run log holds no per-file reuse account';
 }

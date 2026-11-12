@@ -17,11 +17,11 @@ function storePath(root) {
 
 /** Run the project's full suite on the runners at the landed tree; null failures means a red the signatures cannot account for. */
 async function runSuite(root) {
-  const run = await runFullSuite(root, join(root, 'packages/gate/src/io/run/tests.js'),
+  const run = await runFullSuite(root, join(root, 'apps/cli/src/io/run/tests.js'),
     { runners: runnerExecutionServices(), landing: landingExecutionServices() });
   if (!run) return { unavailable: 'this project has no full-suite runner the post-land run can use' };
   if (run.isGreen) return { green: true, failures: [] };
-  const failures = failureSignatures(run, run.executionRoot ?? root, { raw: true });
+  const failures = failureSignatures(run, run.executionRoot ?? root, { raw: true, evidence: true });
   return failures ? { green: false, failures } : { green: false, failures: null };
 }
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/verify/machine.test.js packages/landing/src/io/step/batch.js packages/landing/src/io/step/trunk.js */
 /** Only an item's own red reopens it: batch-wide, foreign-file and infrastructure landing failures reopen nothing [C7,#2967]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -43,6 +43,7 @@ function landing() {
   assert.equal(e2e.commitFile(box, box.web, OWN, 'own\n', 'test(web): own red fixture [G1]').status, 0);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'own-red-reviewer'), family: 'Fixture Own Red Reviewer Vendor' });

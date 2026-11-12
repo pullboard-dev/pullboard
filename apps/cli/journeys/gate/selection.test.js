@@ -108,7 +108,7 @@ test('clause 2: a record-only run consults no green, so a census sample still ru
 test('clause 2: a record-only command asks for its own greens back and sends none out [C7]', async () => {
   const scratch = scratchEnv();
   try {
-    const command = `${RECORD_ONLY_PREFIX} node packages/gate/src/io/run/tests.js './${FILE}'`;
+    const command = `${RECORD_ONLY_PREFIX} node apps/cli/src/io/run/tests.js './${FILE}'`;
     const previous = process.env.PULLBOARD_TEST_RESULT_STORE;
     process.env.PULLBOARD_TEST_RESULT_STORE = scratch.store;
     try {
@@ -120,4 +120,22 @@ test('clause 2: a record-only command asks for its own greens back and sends non
       if (previous === undefined) delete process.env.PULLBOARD_TEST_RESULT_STORE; else process.env.PULLBOARD_TEST_RESULT_STORE = previous;
     }
   } finally { scratch.done(); }
+});
+
+test('#5778 clause 1: a green proven on one runner travels to another for the same tree and tooling when the command is node packages/gate/src/io/run/tests.js [C7]', async () => {
+  const scratch = scratchEnv();
+  const previous = process.env.PULLBOARD_TEST_RESULT_STORE;
+  process.env.PULLBOARD_TEST_RESULT_STORE = scratch.store;
+  try {
+    recordGreen(scratch.store, FILE, await inputKeyOf(scratch.env, FILE));
+    const gate = await prepareTestResultExchange(ROOT, `node packages/gate/src/io/run/tests.js './${FILE}'`, HEAD);
+    const app = await prepareTestResultExchange(ROOT, `node apps/cli/src/io/run/tests.js './${FILE}'`, HEAD);
+    assert.ok(gate, 'the gate launcher\'s command opens a result exchange');
+    assert.equal(gate.inputKeys.length, 1, 'the file\'s input key is named');
+    assert.notEqual(gate.packet, null, 'the stored runner green is sent to the runner that will run the file');
+    assert.deepEqual([gate.inputKeys, gate.packet], [app.inputKeys, app.packet], 'the same green goes out as for the app launcher');
+  } finally {
+    if (previous === undefined) delete process.env.PULLBOARD_TEST_RESULT_STORE; else process.env.PULLBOARD_TEST_RESULT_STORE = previous;
+    scratch.done();
+  }
 });

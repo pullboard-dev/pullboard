@@ -45,7 +45,7 @@ test('clause 1: the split seam falls back to a generic cut without per-test time
   assert.throws(() => fileRuntimeCapFailure('f', 1, 0, [], 0), /positive finite/);
 });
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('clause 1: real file dispatch reads each file\'s last runtime from the receipt history and refuses a candidate that grows past the cap, naming the file and its split seam [C7]', t => {
   const files = privateFixtureFiles('pullboard-runtime-cap-');

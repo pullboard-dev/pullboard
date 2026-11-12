@@ -24,7 +24,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
   },
-  "apps/view/tests/logic/summary/state/codegen.test.js": {
+  "apps/view/tests/cockpit/state-reader-codegen.test.js": {
     "kind": "adapter",
     "reason": "Generated local state-reader source is executed with explicit transport replies in a VM; this is a reader adapter contract, not a pure-render witness."
   },

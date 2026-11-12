@@ -47,17 +47,17 @@ test('inspection policy is a board setting that defaults on and validates boolea
   assert.throws(() => configFromSource('{"verify":{"inspectClauses":"on"}}'), /verify\.inspectClauses/u);
 });
 
-test('a three-clause criterion refuses submit with one unticked and names it, then accepts when all carry evidence [V4,B3]', t => {
+test('a three-clause criterion refuses submit with one unticked and names it, then accepts when all carry evidence [V4,B3]', async t => {
   const f = fixture(t, THREE);
   assert.equal(criterionClauses(THREE).length, 3);
   assert.match(problem(f).message, /clause 1 .*no evidence.*clause 2 .*no evidence.*clause 3 .*no evidence/u);
-  tick(f, 'clause 1 [test]: test/list.test.js "clause 1: renders" passes');
-  tick(f, 'clause 3 [screenshot]: shots/375.png shows no overflow');
+  await tick(f, 'clause 1 [test]: test/list.test.js "clause 1: renders" passes');
+  await tick(f, 'clause 3 [screenshot]: shots/375.png shows no overflow');
   const refusal = problem(f);
   assert.equal(refusal.code, 'CLAUSE_UNTICKED');
   assert.match(refusal.message, /clause 2 \(the count shows 3/u);
   assert.doesNotMatch(refusal.message, /clause 1|clause 3/u, 'only the unticked clause is named');
-  tick(f, 'clause 2 [command]: node bin/x.js count prints 3');
+  await tick(f, 'clause 2 [command]: node bin/x.js count prints 3');
   assert.equal(problem(f), null);
   const summary = clauseInspectionSummary(store.getItem(f.board, f.id), store.itemThread(f.board, f.id));
   assert.match(summary, /1\. the list renders.*test: test\/list\.test\.js/u);
@@ -74,27 +74,27 @@ test('single and inline numbered clauses retain their shared checklist numbers [
   ]);
 });
 
-test('test evidence must name the clause its case covers [V4,B3]', t => {
+test('test evidence must name the clause its case covers [V4,B3]', async t => {
   const f = fixture(t, '1. The outcome is verified [test]');
-  tick(f, 'clause 1 [test]: test/page.test.js the page renders');
+  await tick(f, 'clause 1 [test]: test/page.test.js the page renders');
   assert.match(problem(f).message, /needs a named test case citing clause 1/u);
-  tick(f, 'clause 1 [test]: test/page.test.js "clause 1: page renders" passes');
+  await tick(f, 'clause 1 [test]: test/page.test.js "clause 1: page renders" passes');
   assert.equal(problem(f), null);
 });
 
-test('reasoning is flagged weakest and cannot stand in for a declared test or command [V4,B3]', t => {
+test('reasoning is flagged weakest and cannot stand in for a declared test or command [V4,B3]', async t => {
   const f = fixture(t, THREE);
-  tick(f, 'clause 1 [reasoning]: it obviously renders');
-  tick(f, 'clause 2 [command]: prints 3');
-  tick(f, 'clause 3 [reasoning]: looks fine');
+  await tick(f, 'clause 1 [reasoning]: it obviously renders');
+  await tick(f, 'clause 2 [command]: prints 3');
+  await tick(f, 'clause 3 [reasoning]: looks fine');
   assert.match(problem(f).message, /clause 1 .*needs test evidence.*weakest/u);
-  tick(f, 'clause 1 [test]: case named clause 1 passes');
+  await tick(f, 'clause 1 [test]: case named clause 1 passes');
   assert.match(problem(f).message, /clause 3 .*needs screenshot evidence/u);
-  tick(f, 'clause 3 [screenshot]: shots/375.png');
+  await tick(f, 'clause 3 [screenshot]: shots/375.png');
   assert.equal(problem(f), null, 'the latest matching tick for each clause stands');
   const loose = fixture(t, '1. Explain design [reasoning]\n2. Explain result [reasoning]');
-  tick(loose, 'clause 1 [reasoning]: source argument');
-  tick(loose, 'clause 2 [reasoning]: observed outcome');
+  await tick(loose, 'clause 1 [reasoning]: source argument');
+  await tick(loose, 'clause 2 [reasoning]: observed outcome');
   assert.match(clauseInspectionSummary(store.getItem(loose.board, loose.id), store.itemThread(loose.board, loose.id)), /2\. .*reasoning \(weakest evidence\)/u);
 });
 
@@ -114,82 +114,82 @@ test('a free-text criterion is unaffected [V4,B3]', t => {
   }
 });
 
-test('a real CLI submit refuses an unticked clause and accepts once every clause is ticked [V4,B3]', () => {
+test('a real CLI submit refuses an unticked clause and accepts once every clause is ticked [V4,B3]', async () => {
   const box = e2e.project();
   const criterion = 'the page is right when:\n1. the heading renders [test]\n2. the footer shows the count [command]\n3. the page is clear at 375px [screenshot]';
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Page</h1>\n', 'feat(web): add page [G1]').status, 0);
-  const tick = (n, kind, evidence) => box.run(box.web, 'fact', '1', 'note', `clause ${n} [${kind}]: ${evidence}`);
+  const tick = async (n, kind, evidence) => await box.runLocal(box.web, 'fact', '1', 'note', `clause ${n} [${kind}]: ${evidence}`);
 
-  const none = box.run(box.web, 'submit', '1');
+  const none = await box.runLocal(box.web, 'submit', '1');
   assert.notEqual(none.code, 0, 'no clause is ticked');
   assert.match(none.err, /CLAUSE_UNTICKED/u);
   assert.match(none.err, /clause 1 \(the heading renders/u);
-  assert.equal(tick(1, 'test', 'test/page.test.js "clause 1: heading renders" passes').code, 0);
-  assert.equal(tick(3, 'screenshot', 'shots/375.png').code, 0);
-  const partial = box.run(box.web, 'submit', '1');
+  assert.equal((await tick(1, 'test', 'test/page.test.js "clause 1: heading renders" passes')).code, 0);
+  assert.equal((await tick(3, 'screenshot', 'shots/375.png')).code, 0);
+  const partial = await box.runLocal(box.web, 'submit', '1');
   assert.notEqual(partial.code, 0, 'one clause is still unticked');
   assert.match(partial.err, /CLAUSE_UNTICKED/u);
   assert.match(partial.err, /clause 2 \(the footer shows the count/u, 'the unticked clause is named');
   assert.doesNotMatch(partial.err, /clause 1 \(|clause 3 \(/u, 'ticked clauses are not named');
-  assert.equal(tick(2, 'screenshot', 'wrong kind despite being ticked').code, 0);
-  const mismatch = box.run(box.web, 'submit', '1');
+  assert.equal((await tick(2, 'screenshot', 'wrong kind despite being ticked')).code, 0);
+  const mismatch = await box.runLocal(box.web, 'submit', '1');
   assert.notEqual(mismatch.code, 0);
   assert.match(mismatch.err, /clause 2 .*needs command evidence/u);
-  assert.equal(tick(2, 'command', 'node bin/count.js prints 3').code, 0);
-  const submitted = box.run(box.web, 'submit', '1');
+  assert.equal((await tick(2, 'command', 'node bin/count.js prints 3')).code, 0);
+  const submitted = await box.runLocal(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /submitted #1/u);
-  const shown = box.run(box.web, 'show', '1', '--detail');
+  const shown = await box.runLocal(box.web, 'show', '1', '--detail');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /inspection, clause by clause:/u, 'submit records the clause-by-clause evidence for the reviewer');
   assert.match(shown.out, /2\. the footer shows the count.*command: node bin\/count\.js prints 3/u);
 });
 
-test('settings prints inspection.clauses only with --detail or once it is on, so the default listing does not grow [V4,B3]', () => {
+test('settings prints inspection.clauses only with --detail or once it is on, so the default listing does not grow [V4,B3]', async () => {
   const box = e2e.project();
   const line = /^inspection\.clauses: /mu;
-  const plain = box.run(box.repo, 'settings');
+  const plain = await box.runLocal(box.repo, 'settings');
   assert.equal(plain.code, 0, plain.err);
   assert.doesNotMatch(plain.out, line, 'off by default and not printed');
-  const detail = box.run(box.repo, 'settings', '--detail');
+  const detail = await box.runLocal(box.repo, 'settings', '--detail');
   assert.equal(detail.code, 0, detail.err);
   assert.match(detail.out, /^inspection\.clauses: false .*legacy machine value; submit uses verify\.inspectClauses from accepted main/mu);
-  assert.equal(box.run(box.repo, 'settings', 'inspection.clauses', 'on').code, 0);
-  assert.match(box.run(box.repo, 'settings').out, /^inspection\.clauses: true .*legacy machine value; submit uses verify\.inspectClauses from accepted main/mu);
+  assert.equal((await box.runLocal(box.repo, 'settings', 'inspection.clauses', 'on')).code, 0);
+  assert.match((await box.runLocal(box.repo, 'settings')).out, /^inspection\.clauses: true .*legacy machine value; submit uses verify\.inspectClauses from accepted main/mu);
 });
 
 
-test('each declared evidence kind rejects every other kind and accepts a corrected tick [V4,B3]', t => {
+test('each declared evidence kind rejects every other kind and accepts a corrected tick [V4,B3]', async t => {
   const kinds = ['test', 'command', 'screenshot', 'measurement', 'reasoning'];
   for (const declared of kinds) for (const supplied of kinds) {
     const f = fixture(t, `1. Observe result [${declared}]\n2. Confirm control [test]`);
-    tick(f, `clause 1 [${supplied}]: ${supplied === 'test' ? 'case named clause 1 passes' : 'observed evidence'}`);
-    tick(f, 'clause 2 [test]: case named clause 2 passes');
+    await tick(f, `clause 1 [${supplied}]: ${supplied === 'test' ? 'case named clause 1 passes' : 'observed evidence'}`);
+    await tick(f, 'clause 2 [test]: case named clause 2 passes');
     if (declared === supplied) assert.equal(problem(f), null);
     else {
       assert.equal(problem(f).code, 'CLAUSE_UNTICKED', `${declared} cannot use ${supplied}`);
       assert.match(problem(f).message, new RegExp(`clause 1 .*needs ${declared} evidence`));
-      tick(f, `clause 1 [${declared}]: ${declared === 'test' ? 'case named clause 1 passes' : 'corrected evidence'}`);
+      await tick(f, `clause 1 [${declared}]: ${declared === 'test' ? 'case named clause 1 passes' : 'corrected evidence'}`);
       assert.equal(problem(f), null);
     }
   }
 });
 
 
-test('versioned native submit enforces declared kinds while older engines retain uninspected semantics [V4,H16]', t => {
+test('versioned native submit enforces declared kinds while older engines retain uninspected semantics [V4,H16]', async t => {
   const submission = { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40), inspectClauses: true,
     submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private inspection transition fixture' } };
   const current = fixture(t, THREE);
   assert.throws(() => store.submit(current.board, current.id, submission), { code: 'CLAUSE_UNTICKED' });
-  tick(current, 'clause 1 [screenshot]: not a test');
-  tick(current, 'clause 2 [command]: prints 3');
-  tick(current, 'clause 3 [screenshot]: shots/375.png');
+  await tick(current, 'clause 1 [screenshot]: not a test');
+  await tick(current, 'clause 2 [command]: prints 3');
+  await tick(current, 'clause 3 [screenshot]: shots/375.png');
   assert.throws(() => store.submit(current.board, current.id, submission), /needs test evidence/u);
-  tick(current, 'clause 1 [test]: case named clause 1 passes');
+  await tick(current, 'clause 1 [test]: case named clause 1 passes');
   store.submit(current.board, current.id, submission);
   assert.equal(store.getItem(current.board, current.id).item_status, 'submitted');
   const older = fixture(t, THREE);
@@ -225,21 +225,21 @@ test('accepted board policy overrides a false caller flag at the store and move 
   assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
 });
 
-test('a test tick naming a file the commit\'s green proof ran is proven without the clause number in the case name [C7]', t => {
+test('a test tick naming a file the commit\'s green proof ran is proven without the clause number in the case name [C7]', async t => {
   const f = fixture(t, '1. The outcome is verified [test]');
-  tick(f, 'clause 1 [test]: test/page.test.js the page renders');
+  await tick(f, 'clause 1 [test]: test/page.test.js the page renders');
   assert.match(problem(f).message, /needs a named test case citing clause 1/u, 'no proof yet');
   assert.equal(problem(f, { greenFiles: new Set(['test/page.test.js']) }), null, 'the green proof of this commit ran that file');
   assert.match(problem(f, { greenFiles: new Set(['test/other.test.js']) }).message, /citing clause 1/u, 'another file proves nothing for it');
 });
 
-test('clause 1: an unticked [test] clause on an item with a frozen check is refused with pullboard check <id> as the step and the next line [C7]', t => {
+test('clause 1: an unticked [test] clause on an item with a frozen check is refused with pullboard check <id> as the step and the next line [C7]', async t => {
   const f = fixture(t, 'the bar is met when:\n1. the list renders [test]\n2. the count shows 3 [command]');
   const refused = problem(f);
   assert.equal(refused.code, 'CLAUSE_UNTICKED');
   assert.match(refused.message, new RegExp(`run pullboard check ${f.id}, which runs the frozen check and ticks every test clause`, 'u'));
   assert.equal(refused.next, `pullboard check ${f.id}, then submit again`);
-  tick(f, 'clause 1 [test]: green pullboard check run of true at abc');
+  await tick(f, 'clause 1 [test]: green pullboard check run of true at abc');
   assert.equal(problem(f).next, undefined, 'a command clause alone keeps the plain tick step');
 });
 

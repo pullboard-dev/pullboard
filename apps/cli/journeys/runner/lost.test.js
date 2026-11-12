@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { runnerLossHealth } from '../../src/logic/runner/loss.js';
@@ -42,13 +41,14 @@ function fixture(t, { dropFirst = true } = {}) {
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, runners: [runner],
     // Live-load ranking probes each runner over SSH before admission, which the holding stand-ins below would stall past the deadline.
-    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: 'controller' },
+    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller' },
   }));
   return { ...box, requests, starts, runner };
 }
 
 /** Execute the current implementation inside the fixture's own environment and retain an actionable assertion. */
 function child(box, source) {
+  // Process-level: a fresh node process proves the module graph loads without the CLI seam.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
   });
@@ -119,7 +119,7 @@ test('a worker missing READY yields to a free runner in the next admission cycle
   const dispatch = "if (hold === 'dispatch') await holdHere();";
   assert.ok(before.includes(dispatch));
   writeFileSync(ssh, before.replace(dispatch,
-    `if (host === ${JSON.stringify(box.runner.host)} && remoteCommand.startsWith(configuredNode)) await holdHere();`));
+    `if (host === ${JSON.stringify(box.runner.host)} && launchesWorker) await holdWorker();`));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   const second = { ...box.runner, host: HOST + '-setup' };
@@ -158,7 +158,7 @@ test('an SSH-healthy host whose worker misses READY once stays in service and it
   // The actual configured Node probe still answers; only the first framed worker dispatch never reaches READY.
   const missed = join(box.dir, 'missed-ready');
   writeFileSync(ssh, before.replace(dispatch,
-    `if (remoteCommand.startsWith(configuredNode) && !existsSync(${JSON.stringify(missed)})) { appendFileSync(${JSON.stringify(missed)}, 'x'); await holdHere(); }`));
+    `if (launchesWorker && !existsSync(${JSON.stringify(missed)})) { appendFileSync(${JSON.stringify(missed)}, 'x'); await holdWorker(); }`));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
@@ -344,7 +344,7 @@ test('health counts distinct retained transport refusals by runner and classific
   assert.deepEqual(runnerLossLines(runnerLossHealth([], now)), [], 'no observed losses does not invent a healthy-host row');
 });
 
-test('actual health JSON and text expose private retained transport counts without probing a machine host [C7,C6]', t => {
+test('actual health JSON and text expose private retained transport counts without probing a machine host [C7,C6]', async t => {
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
   const box = e2e.project('true');
   const at = new Date().toISOString();
@@ -352,11 +352,11 @@ test('actual health JSON and text expose private retained transport counts witho
     { code: 'TRANSPORT_LOST', runner: 'private-health-fixture', at, diagnostic: { request: 'private-observation', reason: 'receipt-count' } },
   ] };
   writeFileSync(join(box.repo, '.git', 'pullboard', 'gate-receipts.jsonl'), JSON.stringify(record) + '\n');
-  const result = box.run(box.repo, 'health', '--json');
+  const result = await box.runLocal(box.repo, 'health', '--json');
   assert.equal(result.code, 0, result.err + result.out);
   const report = JSON.parse(result.out).runnerTransportLosses;
   assert.deepEqual(report.runners.map(row => [row.runner, row.count]), [['private-health-fixture', 1]]);
-  const text = box.run(box.repo, 'health');
+  const text = await box.runLocal(box.repo, 'health');
   assert.match(text.out, /private-health-fixture: 1; receipt-count 1/u);
   assert.match(text.out, /retained native attempts/u);
 });

@@ -1,44 +1,41 @@
 /** Build the runner-owned child environment and bind the trusted resource API and its pools [C7]. */
+import { childEnvironment } from '../../../../../packages/kernel/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import * as resourceApi from '../../../../../packages/resources/light.js';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Construct a minimal environment from runner-owned values, excluding caller credentials and markers. */
-function childEnvironment(S, home, temporary, machineHomePath = '', nodeOptions = '') {
-  return {
-    PATH: S.safePath,
-    HOME: home,
-    TMPDIR: temporary,
-    TMP: temporary,
-    TEMP: temporary,
-    LANG: process.env.LANG || 'C.UTF-8',
-    TZ: process.env.TZ || 'UTC',
-    CI: '1',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_NO_REPLACE_OBJECTS: '1',
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_OPTIONAL_LOCKS: '0',
-    NPM_CONFIG_USERCONFIG: join(home, 'npm-userconfig'),
-    NPM_CONFIG_GLOBALCONFIG: join(home, 'npm-globalconfig'),
-    // The spawn-journal preload is declared so a test's NODE_OPTIONS classifier knows it is the runner's own.
-    ...(nodeOptions ? { NODE_OPTIONS: nodeOptions, PULLBOARD_RUNNER_PRELOAD: nodeOptions } : {}),
-    ...(machineHomePath ? { PULLBOARD_MACHINE_HOME: machineHomePath } : {}),
-    // Marks every process of this job, so the CLI never starts a detached watcher that outlives it (#2513).
-    PULLBOARD_RUNNER_JOB: String(S.workerId || 'job'),
-  };
+const CLI_NAME = 'pullboard';
+
+/**
+ * Put the job checkout's own CLI first on PATH as `pullboard`, so a fixture hook or script that finds the command by
+ * name never runs an older global install in the runner's nvm bin (11 Nov: vanilla's 0.9.2 failed every fixture commit).
+ * The job's directory holds `checkout` and `tmp` side by side; the link points into the checkout and resolves once
+ * the history is received. Any other temporary folder (not a job's) leaves PATH alone.
+ */
+function withCheckoutCli(env, temporary) {
+  const jobDirectory = dirname(temporary);
+  const checkout = join(jobDirectory, 'checkout');
+  if (!existsSync(checkout)) return env;
+  const bin = join(jobDirectory, 'cli-bin');
+  mkdirSync(bin, { recursive: true, mode: 0o700 });
+  symlinkSync(join(checkout, 'apps/cli/pullboard.js'), join(bin, CLI_NAME));
+  return { ...env, PATH: [bin, env.PATH].filter(Boolean).join(delimiter) };
 }
 
 /** Add this worker's remote gate lease so nested test runners reuse the remote slot instead of deadlocking. */
 export function scopedEnvironment(S, home, temporary, machineHomePath, gateLease, resourcesApi, nodeOptions = '') {
-  return {
+  return withCheckoutCli({
     ...childEnvironment(S, home, temporary, machineHomePath, nodeOptions),
     ...resourcesApi.gateSlotEnvironment(gateLease),
-  };
+  }, temporary);
 }
 
 /** Check that this already installed capsule matches the controller before using its static API. */

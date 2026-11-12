@@ -6,6 +6,7 @@ const OPTIONS = {
   claims: { type: 'boolean' },
   files: { type: 'string' },
   'force-size': { type: 'string' },
+  'accept-green': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
   'expected-minutes': { type: 'string' },
   sensitive: { type: 'boolean' },
@@ -22,9 +23,12 @@ const OPTIONS = {
   reason: { type: 'string' },
   revises: { type: 'string' },
   status: { type: 'string' },
+  cancel: { type: 'string' },
   off: { type: 'boolean' },
   stale: { type: 'boolean' },
   port: { type: 'string' },
+  address: { type: 'string' },
+  board: { type: 'string' },
   slots: { type: 'string' },
   browser: { type: 'string' },
   'new-browser': { type: 'boolean' },
@@ -50,6 +54,7 @@ const OPTIONS = {
   out: { type: 'string' },
   watch: { type: 'boolean' },
   'runner-only': { type: 'boolean' },
+  withdraw: { type: 'string' },
   after: { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },
@@ -77,9 +82,14 @@ const OPTIONS = {
   cycles: { type: 'string' },
   owner: { type: 'string' },
   directory: { type: 'string' },
+  once: { type: 'boolean' },
+  jobs: { type: 'string' },
   timeout: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },
+  health: { type: 'boolean' },
+  lag: { type: 'boolean' },
+  'main-lag': { type: 'boolean' },
   digest: { type: 'string' },
   // The rigor quality draft's options.
   base: { type: 'string' },
@@ -111,6 +121,7 @@ const OPTIONS = {
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
   prune: { type: 'boolean' },
+  utilization: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
   update: { type: 'boolean' },
@@ -122,6 +133,7 @@ const OPTIONS = {
   remove: { type: 'string' },
   swap: { type: 'string' },
   limit: { type: 'string' },
+  demand: { type: 'boolean' },
   transcripts: { type: 'string' },
   checkpoint: { type: 'string' },
   name: { type: 'string' },
@@ -178,10 +190,11 @@ const OPTIONS = {
 /** Resolve command-specific switches before parsing their ambiguous global string forms. */
 export function parseCommandArgs(argv) {
   let command;
+  // Runner's --remove is a switch where other commands give it a value, so the command is found under either form.
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
-    for (const take of [{ type: 'boolean' }, OPTIONS.take]) {
+    for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
@@ -194,8 +207,8 @@ export function parseCommandArgs(argv) {
     ...(['add', 'edit', 'submit', 'done', 'test'].includes(command) ? { wait: { type: 'boolean' } } : {}),
     ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
   };
-  // Flow consumes a history file; show retains its existing boolean --history switch.
-  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : options;
+  // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
+  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
   if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
   return parsed;

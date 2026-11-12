@@ -71,6 +71,7 @@ function runnerProject({ healthDown = false } = {}) {
 
 /** Run one script against the landing package in a child under the box's machine settings and return its JSON line. */
 async function inChild(box, body) {
+  // Process-level: the landing gate runs under the box's machine settings in its own node process (it may exit the process).
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
     const landing = await import(${JSON.stringify(landing)});
     const settle = async run => { try { return { value: await run() }; } catch (error) { return { code: error.code, message: error.message }; } };
@@ -134,7 +135,7 @@ test('clause 1: the landing guards smoke a tree its submit gate proved through t
 
 test('clause 1: on a runners-only coordinator a sharded landing gate runs on a runner, never as a local test process [C7,#3899]', { timeout: 240_000 }, async () => {
   const { box, marker, remoteHome } = runnerProject();
-  // A sharded project once kept the gate's controller here, where the coordinator guard refuses packages/gate/src/io/run/tests.js at once.
+  // A sharded project once kept the gate's controller here, where the coordinator guard refuses apps/cli/src/io/run/tests.js at once.
   const configFile = join(box.repo, 'pullboard.json');
   const config = existsSync(configFile) ? JSON.parse(readFileSync(configFile, 'utf8')) : {};
   writeFileSync(configFile, JSON.stringify({ ...config, landingShards: 2 }, null, 2) + '\n');

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/data/tests/tiers.json packages/gate/src/io/test/scripts/tiers.js */
 /** Test-tier generation inspects real repository source without executing candidate tests [C7,CS4,CD44,CD47]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

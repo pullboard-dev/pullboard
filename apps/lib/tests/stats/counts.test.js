@@ -116,7 +116,9 @@ function importedBoard(t, document) {
 function concurrentCounterRead(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-stats-snapshot-'));
   const path = join(directory, 'board.sqlite');
+  // @pullboard-board-file locking: a reader and a writer connection share one file to observe a snapshot
   const reader = openBoard(path);
+  // @pullboard-board-file locking: a reader and a writer connection share one file to observe a snapshot
   const writer = openBoard(path);
   t.after(() => { closeBoard(writer); closeBoard(reader); rmSync(directory, { recursive: true }); });
   register(writer, { lane: 'coordinator', path: '/fixture/concurrent-coordinator' });

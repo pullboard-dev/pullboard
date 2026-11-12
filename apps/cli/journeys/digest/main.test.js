@@ -28,8 +28,8 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../../../../packages/kernel/index.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
-  runFixtureChild,
   runFixtureGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
@@ -71,9 +71,9 @@ function add(board, title, extra = {}) {
   return store.addItem(board, { by: 'coordinator', lane: 'web', title, criterion: `Done means ${title} works`, specIds: ['G1'], ...extra });
 }
 
-/** Run the real CLI in the fixture repo and return its stdout. */
-function cli(box, ...args) {
-  const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+/** Run the production CLI dispatch in-process in the fixture repo and return its stdout. */
+async function cli(box, ...args) {
+  const result = await runCliInProcess(args, { cwd: box.repo, env: box.env });
   assert.equal(result.status, 0, result.failure || result.stderr);
   return result.stdout;
 }
@@ -99,7 +99,7 @@ function sectionOf(markdown, title) {
   return markdown.slice(start, end < 0 ? undefined : end);
 }
 
-test('the digest is a readable briefing of one board [A2,N26]', (t) => {
+test('the digest is a readable briefing of one board [A2,N26]', async (t) => {
   // A zero stuck threshold makes pullboard health's findings appear on a board made seconds ago.
   const box = fixture(t, 'Briefing project', { health: { stuck: '0m', holds: '0m', release: '1d' } });
   const other = fixture(t, 'Other private project');
@@ -135,7 +135,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
 
   const before = snapshot(box);
-  const markdown = cli(box, 'digest');
+  const markdown = await cli(box, 'digest');
   assert.deepEqual(snapshot(box), before, 'the digest changes no row and records no event');
 
   assert.match(markdown, /^# Board briefing: Briefing project\n/u);
@@ -173,7 +173,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   assert.match(sectionOf(markdown, 'Left out of this briefing'), /this briefing covers this board only/u);
   assert.ok(Buffer.byteLength(markdown) < DIGEST_MAX_BYTES);
 
-  const json = JSON.parse(cli(box, 'digest', '--json'));
+  const json = JSON.parse(await cli(box, 'digest', '--json'));
   /** The briefing from its first section on; the header carries the time it was read. */
   const body = (text) => text.slice(text.indexOf('## At a glance')).trimEnd();
   assert.match(markdown, /\nnext: pullboard next\s*$/u, 'the CLI provides its next step');
@@ -183,11 +183,11 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
 
   const out = join(box.dir, 'briefing.md');
   writeFileSync(out, 'an older briefing');
-  assert.match(cli(box, 'digest', '--out', out), /wrote the briefing to .*briefing\.md/u);
+  assert.match(await cli(box, 'digest', '--out', out), /wrote the briefing to .*briefing\.md/u);
   assert.match(readFileSync(out, 'utf8'), /^# Board briefing: Briefing project\n/u);
   assert.equal(statSync(out).mode & 0o777, 0o600);
   assert.deepEqual(readdirSync(box.dir).filter((name) => name.startsWith('.pullboard-digest-')), [], 'the replacement leaves no temporary file');
-  const intoBoard = runFixtureChild(process.execPath, [BIN, 'digest', '--out', box.file], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const intoBoard = await runCliInProcess(['digest', '--out', box.file], { cwd: box.repo, env: box.env });
   assert.equal(intoBoard.status, 1);
   assert.match(intoBoard.stderr, /DIGEST_WRITE/u);
   assert.deepEqual(snapshot(box), before, 'writing the file changes nothing on the board');
@@ -195,7 +195,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   for (let index = 0; index < 240; index += 1) add(box.board, `Large item ${index}`, { criterion: 'A long bar with wide text 世界. '.repeat(200) });
   const largeBefore = snapshot(box);
   // The human CLI truncates long output; JSON carries the complete briefing to inspect its own limit.
-  const large = JSON.parse(cli(box, 'digest', '--json')).markdown;
+  const large = JSON.parse(await cli(box, 'digest', '--json')).markdown;
   assert.deepEqual(snapshot(box), largeBefore);
   assert.ok(Buffer.byteLength(large) < DIGEST_MAX_BYTES, `UTF-8 bytes stay under 50 KB (${Buffer.byteLength(large)})`);
   assert.match(sectionOf(large, 'Open work'), /\n\d+ more left out to keep this briefing short\.\n/u);
@@ -221,6 +221,7 @@ async function waitForFile(path, predicate) {
 test('digest --watch rewrites the file after every board move and stops cleanly [A2,N26]', { timeout: 30_000 }, async (t) => {
   const box = fixture(t, 'Watched project');
   const out = join(box.dir, 'watch.md');
+  // Process-level: a long-lived --watch child that must stop cleanly on SIGINT.
   const child = startFixtureChild(process.execPath, [BIN, 'digest', '--watch', '--out', out], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const closed = once(child, 'close');
   let stderr = '';

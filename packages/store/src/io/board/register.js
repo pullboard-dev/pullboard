@@ -18,6 +18,14 @@ import { newSeatId } from "../../../../seats/index.js";
 import { saveAgentModel } from "../../../../seats/index.js";
 import { seatLineage } from "../../../../seats/index.js";
 
+/** The agent_path prefix of a seat joined over the API from another machine: it has no path on the board host [P7]. */
+export const REMOTE_AGENT_PATH = 'remote:';
+
+/** Whether an agent row's path is a remote marker rather than a worktree on the board host [P7]. */
+export function isRemoteAgentPath(path) {
+  return typeof path === 'string' && path.startsWith(REMOTE_AGENT_PATH);
+}
+
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
  * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model
@@ -62,7 +70,7 @@ export function register(board, who) {
       }
       // Read before saveJoinedSession records this join's declaration, which would make the comparison below always equal.
       const priorFamily = seatFamily(board, existing.agent_id);
-      if (who.lockLane) board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_lane_lock:${existing.agent_id}`, '1');
+      if (who.lockLane) logEvent(board, existing.agent_id, 'join', null, { lane, lockLane: true });
       const locked = saveJoinedSession(board, existing.agent_id, who);
       const stored = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(existing.agent_id)?.family;
       const storedBlank = typeof stored !== 'string' || stored.trim() === '';
@@ -100,7 +108,6 @@ export function register(board, who) {
       .run(id, lane, path, route, family ?? null, now(board));
     const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
-    if (who.lockLane) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_lane_lock:${id}`, '1');
     if (createdBy !== undefined) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_creator:${id}`, createdBy);
     // Only a relay replica replaying a receipt-bound registration marks the seat enrolled.
     if (board.relayEnrollment === id && createdBy !== undefined && createdBy !== 'machine') {
@@ -110,7 +117,8 @@ export function register(board, who) {
       if (lineage) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_lineage:${id}`, lineage);
     }
     logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
-      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}) });
+      ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}),
+      ...(who.lockLane ? { lockLane: true } : {}) });
     fresh = true;
     return id;
   });

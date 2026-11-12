@@ -47,13 +47,13 @@ test('an engine-8 NOT_VERIFIED merge refusal replays unchanged [V1,H3,H16]', asy
   const legacyExchange = await import(pathToFileURL(join(client, 'src/exchange.js')).href);
   const legacyMachine = await import(pathToFileURL(join(client, 'src/machine.js')).href);
   assert.equal(legacyMachine.ENGINE_VERSION, 8);
-  source = legacyStore.openBoard(join(directory, 'source.sqlite'));
+  source = legacyStore.openBoard(':memory:');
   legacyStore.register(source, { lane: 'coordinator', path: '/fixture/coordinator' });
   const item = legacyStore.addItem(source, {
     by: 'coordinator', lane: 'web', title: 'Open replay fixture', criterion: 'the page renders',
   });
   assert.equal(legacyStore.getItem(source, item).item_status, 'open');
-  replica = openBoard(join(directory, 'replica.sqlite'));
+  replica = openBoard(':memory:');
   importBoard(replica, legacyExchange.exportBoard(source));
   const before = exportBoard(replica);
   const move = legacyEngine.prepareEngineMove(source, 'merged', [item, {
