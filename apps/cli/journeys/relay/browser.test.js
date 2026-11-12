@@ -31,6 +31,7 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { relaySnapshot } from '../../../../packages/pages/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
+import { MACHINE } from '../../../../packages/state/index.js';
 import { openPagedSnapshot } from '../../../../packages/pages/index.js';
 import {
   addItem,
@@ -270,7 +271,10 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   assert.ok(browserApiCalls.length > 0, 'the browser made authenticated relay API requests');
   assert.ok(browserApiCalls.every(call => call.engine === String(ENGINE_VERSION)), 'every browser API request, including catch-up and the live stream, declares the current engine');
   const browserEngine = await fetch(box.origin + '/relay/engine.js');
-  assert.equal(await browserEngine.text(), 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\n', 'the served browser engine matches the current relay engine');
+  // Since #2029 (withdrawnFrom, N26) the browser model derives an item's prior stage from the machine, so the engine file carries it.
+  const servedMachine = JSON.stringify({ initial: MACHINE.initial, moves: MACHINE.moves.map(({ verb, from, to, by }) => ({ verb, from, to, by })) });
+  assert.equal(await browserEngine.text(), 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\nexport const MACHINE = ' + servedMachine + ';\n',
+    'the served browser engine matches the current relay engine and machine');
   await chrome.navigate(box.origin + '/#board=' + second.id + '&key=' + second.encoded);
   await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 2");
   assert.equal(await chrome.evaluate("Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))).length === 2"), true,
@@ -788,8 +792,9 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal(status.code, 0);
   assert.equal((status.document.diagnostics ?? []).some(line => line.includes('[RELAY_UNAVAILABLE]')), true,
     'a refused snapshot keeps the final projection pending for retry');
-  assert.equal(box.calls.filter(call => call.method === 'POST' && /\/moves$/.test(call.path)).length, 2, 'both queued moves reached the real stand-in route');
-  assert.equal(box.moveAcks.length, 2, 'both encrypted move acknowledgements were captured before snapshot compaction');
+  // Since #2235 (B35) each add also records milestone_placed, so two adds queue four moves.
+  assert.equal(box.calls.filter(call => call.method === 'POST' && /\/moves$/.test(call.path)).length, 4, 'both adds and their milestone placements reached the real stand-in route');
+  assert.equal(box.moveAcks.length, 4, 'all four encrypted move acknowledgements were captured before snapshot compaction');
   const pendingLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(pendingLink.needsPresentation, true);
   assert.equal(Boolean(pendingLink.snapshot), true);
@@ -800,19 +805,19 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   const retried = await box.cli('status');
   assert.equal(retried.code, 0);
   assert.equal(retried.document.diagnostics?.length ?? 0, 0, 'the saved checkpoint retries without re-sending acknowledged moves');
-  assert.equal(box.moveAcks.length, 2);
+  assert.equal(box.moveAcks.length, 4);
   const completedLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(completedLink.needsPresentation, false, 'only a matching snapshot acknowledgement clears the pending presentation');
   assert.equal(Boolean(completedLink.snapshot), false);
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const moves = await Promise.all(box.moveAcks.map(async row => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: row.kind, sequence: row.event_id })))));
   assert.equal(moves[0].presentation, undefined, 'the earlier record cannot attest the already-advanced whole board');
-  assert.equal(moves[1].presentation.state.events[0].event_id, moves[1].event.event_id);
-  assert.equal(moves[1].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
+  assert.equal(moves[3].presentation.state.events[0].event_id, moves[3].event.event_id);
+  assert.equal(moves[3].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
   const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal(response.status, 200);
   const checkpoint = (await response.json()).state;
-  assert.equal(checkpoint.sequence, box.moveAcks[1].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
+  assert.equal(checkpoint.sequence, box.moveAcks[3].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
   const document = snapshotDocument(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence }));
   assert.equal(document.presentation.state.items.some(item => item.title === 'FIRST_QUEUED_108'), true);
   assert.equal(document.presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
