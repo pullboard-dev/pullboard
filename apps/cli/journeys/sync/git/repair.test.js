@@ -51,18 +51,18 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   runFixtureGit(['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   runFixtureGit(['commit', '-q', '-m', 'test: prepare linked submission [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   await box.link();
-  success(await box.cli('shout', 'all', 'establish relay history for sync self-repair'), 'record linked relay history');
+  success(await box.cliLocal('shout', 'all', 'establish relay history for sync self-repair'), 'record linked relay history');
   const metadata = commonPullboard(box);
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'relay history is not Git-sync opt-in');
 
-  const added = success(await box.cli('add', buildLane, 'linked submit fixture', '--specs', 'G1',
+  const added = success(await box.cliLocal('add', buildLane, 'linked submit fixture', '--specs', 'G1',
     '--criterion', 'The committed fixture source is present.', '--check', 'test -f source/repair-fixture.txt'), 'add the linked submit fixture item');
   const worker = join(dirname(box.root), 'submit-worker');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'web/git-sync-repair', worker], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
-  success(await box.cliAt(worker, 'join', buildLane, '--model', 'fixture-model', '--route', 'strong'), 'join a private builder');
-  success(await box.cliAt(worker, 'claim', String(added.item.item_id)), 'claim the linked item');
+  success(await box.cliAtLocal(worker, 'join', buildLane, '--model', 'fixture-model', '--route', 'strong'), 'join a private builder');
+  success(await box.cliAtLocal(worker, 'claim', String(added.item.item_id)), 'claim the linked item');
   mkdirSync(join(worker, 'source'), { recursive: true });
   writeFileSync(join(worker, 'source', 'repair-fixture.txt'), 'source for the linked submit\n');
   runFixtureGit(['add', '-A'], { cwd: worker, env: box.env, encoding: 'utf8' });
@@ -70,9 +70,9 @@ test('submit on a relay-linked board never creates Git sync state and later writ
     cwd: worker, env: box.env, encoding: 'utf8',
   });
 
-  success(await box.cliAt(worker, 'submit', String(added.item.item_id)), 'submit on relay-linked history');
+  success(await box.cliAtLocal(worker, 'submit', String(added.item.item_id)), 'submit on relay-linked history');
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'submit must not create the Git-sync marker');
-  success(await box.cli('add', buildLane, 'write after linked submit', '--specs', 'G1',
+  success(await box.cliLocal('add', buildLane, 'write after linked submit', '--specs', 'G1',
     '--criterion', 'Another ordinary board write remains available after submission.'), 'write after the linked submit');
   assert.equal(existsSync(join(metadata, 'git-sync.json')), false, 'later relay writes do not create the marker');
 });
@@ -80,7 +80,7 @@ test('submit on a relay-linked board never creates Git sync state and later writ
 test('a foreign marker and dead legacy lock are quarantined on the next write and appear in health [H11,C7]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  success(await box.cli('shout', 'all', 'establish relay history before planting stale sync state'), 'record linked relay history');
+  success(await box.cliLocal('shout', 'all', 'establish relay history before planting stale sync state'), 'record linked relay history');
   const metadata = commonPullboard(box);
   mkdirSync(metadata, { recursive: true });
   const marker = join(metadata, 'git-sync.json');
@@ -94,7 +94,7 @@ test('a foreign marker and dead legacy lock are quarantined on the next write an
   writeFileSync(join(lock, 'pid'), String(pid));
   const originalMarker = readFileSync(marker), originalPid = readFileSync(join(lock, 'pid'));
 
-  success(await box.cli('add', box.lane, 'write after stale sync state'), 'repair before the next board write');
+  success(await box.cliLocal('add', box.lane, 'write after stale sync state'), 'repair before the next board write');
   assert.equal(existsSync(marker), false, 'the foreign marker leaves its active location');
   assert.equal(existsSync(lock), false, 'the dead-PID legacy lock leaves its active location');
   const repairs = readGitSyncRepairs(box.root);
@@ -108,11 +108,12 @@ test('a foreign marker and dead legacy lock are quarantined on the next write an
   assert.deepEqual(readFileSync(artifacts.find(artifact => artifact.name === 'git-sync.json').path), originalMarker);
   assert.deepEqual(readFileSync(join(artifacts.find(artifact => artifact.name === 'git-sync.json.lock').path, 'pid')), originalPid);
 
-  const healthResult = await box.cli('health');
+  const healthResult = await box.cliLocal('health');
   const health = healthResult.document;
   assert.ok(Array.isArray(health.stuck), 'health returns its normal report, not an operation refusal');
   assert.equal(healthResult.code, health.stuck.length ? 1 : 0, 'health preserves its existing stuck-work exit status');
   assert.deepEqual(health.gitSyncRepairs, repairs, 'health reports the same durable repair summary');
+  // Process-level: text-mode health is read from a real child's streamed stdout.
   const text = box.startCli(['health'], {}, { json: false });
   const textResult = await text.closed;
   assert.equal(textResult.code, healthResult.code, 'text health preserves the structured report exit status');
@@ -126,7 +127,7 @@ test('a foreign marker and dead legacy lock are quarantined on the next write an
 test('an internal retry refuses relay history before creating a marker or starting Git transport [H11,C7]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  success(await box.cli('shout', 'all', 'establish relay history before internal retry'), 'record relay history');
+  success(await box.cliLocal('shout', 'all', 'establish relay history before internal retry'), 'record relay history');
   // Removing only the private fixture remote makes any accidental transport attempt fail locally.
   runFixtureGit(['remote', 'remove', 'origin'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const metadata = commonPullboard(box);
