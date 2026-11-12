@@ -109,3 +109,17 @@ test('publicLiveRunners numbers the machine runners and carries counts and estim
   const text = JSON.stringify(live);
   for (const secret of ['mini-', 'aux-9', 'core-7', 'coordinator', '/seat', BATCH, 'test:5774', common]) assert.equal(text.includes(secret), false, `leaks ${secret}`);
 });
+
+test('pull-dispatch leases on the board number one runner once per runner, shards and main tests included [N26]', t => {
+  const { repo, common, resources } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const at = Date.now() - 2 * MINUTE;
+  for (const [id, kind, runner] of [['gate:7:aa:s1', 'gate-shard', 'auxiliary-51-mill-2cbb55'], ['gate:7:aa:s2', 'gate-shard', 'auxiliary-51-mill-2d74dc'], ['main:1', 'main-test', 'auxiliary-52-lathe-045338']]) {
+    offerJob(board.db, { id, kind, needs: ['node22'], item: kind === 'gate-shard' ? 7 : null, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+    claimJob(board.db, { runner, capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  }
+  const live = publicLiveRunners(common, { resources, configured: [], openBoardReadOnly: store.openBoardReadOnly });
+  const pulled = live.runners.filter(runner => runner.jobs.some(job => ['gate', 'test run'].includes(job.kind) && job.item !== 5774));
+  assert.deepEqual(pulled.map(runner => runner.jobs.map(job => job.kind)), [['gate', 'gate'], ['test run']], 'the two shards of one restarted runner sit on one numbered entry');
+  assert.equal(JSON.stringify(live).includes('mill'), false, 'no runner name leaves the machine');
+});
