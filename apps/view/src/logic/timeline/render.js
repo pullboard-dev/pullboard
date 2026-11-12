@@ -16,7 +16,7 @@ export function timelineHtml({ entries, steps, flow, open = [], newestFirst = fa
   const rows = [];
   const verbs = { add: 'added this work', claim: 'claimed it', reserve: 'started reviewing', 'proof-run': 'ran the proof',
     submit: 'submitted it for review', accept: 'passed it', reject: 'sent it back', reopen: 'sent it back',
-    merged: 'landed it', withdraw: 'withdrew it', renew: 'continued building', release: 'let go of it',
+    merged: 'landed it', withdraw: 'withdrew it', milestone_placed: 'placed it in a milestone', renew: 'continued building', release: 'let go of it',
     lapse: 'released an expired lease', refreeze: 'refreshed the frozen bar', edit: 'updated this work',
     'health-resolved': 'found this item passing again', 'health-failure': 'found this item failing' };
   /** Retain real model metadata only on hover; a seat's address remains the visible identity. */
