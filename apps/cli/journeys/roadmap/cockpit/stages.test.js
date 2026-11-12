@@ -159,7 +159,8 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
     await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries') && !!document.querySelector('#detail .item-panel-status .item-stage')`);
     const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .item-panel-status .item-stage'); return {
       id: document.querySelector('#detail h2 span').innerText, label: chip.querySelector('.stage-word').innerText, chip: getComputedStyle(chip.querySelector('.stage-word')).color + ' on ' + getComputedStyle(chip.querySelector('.stage-word')).backgroundColor,
-      dot: getComputedStyle(document.querySelector('#chain [data-item="1"] .dot')).backgroundColor }; })())`));
+      dot: getComputedStyle(document.querySelector('#chain [data-item="1"] .dot')).backgroundColor, dotHtml: document.querySelector('#chain [data-item="1"]').outerHTML.slice(0, 500) }; })())`));
+    t.diagnostic('items row ' + there.dotHtml); delete there.dotHtml;
     const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
     assert.deepEqual(there, { id: '#1', label: crossed.label, chip: crossed.chip, dot: crossed.dot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
     await travel(chrome, -1);
