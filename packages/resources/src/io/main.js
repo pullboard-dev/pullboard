@@ -636,7 +636,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     for (const runner of runners) {
       if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !runnerCompatible(db, runner, waiter, unavailable)) continue;
       const used = usage.get(runner.host);
-      if (used.timing || drain?.host === runner.host || reserved === runner.host) continue;
+      if (runner.drain === true || used.timing || drain?.host === runner.host || reserved === runner.host) continue;
       free += Math.max(0, waiter.browser === 1 ? Math.min(runner.slots - used.slots, runner.browser - used.browsers) : runner.slots - used.slots);
     }
     return free - competing >= headroom;
@@ -656,6 +656,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
         if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (runner.drain === true) return false; // `pullboard runner drain`: no new job while it finishes the running ones
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);

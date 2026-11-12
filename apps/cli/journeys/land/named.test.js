@@ -85,12 +85,12 @@ test('land --items bisects a static red out of the batch and lands the good item
   assert.ok(!box.git(box.repo, 'ls-tree', '-r', '--name-only', 'main').split('\n').includes(bad.file), 'the bad item left nothing on main');
 });
 
-test('land --items refuses a non-coordinator, a missing id and a commit count that does not match [C7,#5559]', () => {
+test('land --items refuses a non-coordinator, a missing id and a commit count that does not match [C7,#5559]', async () => {
   const box = staticProject();
   const entry = provenItem(box, 1, 'PASS\n');
-  assert.notEqual(box.run(entry.path, 'land', '--items', String(entry.item), '--commit', entry.commit).code, 0, 'a worker seat cannot land');
-  const mismatch = box.run(box.repo, 'land', '--items', `${entry.item},9999`, '--commit', entry.commit);
+  assert.notEqual((await box.runLocal(entry.path, 'land', '--items', String(entry.item), '--commit', entry.commit)).code, 0, 'a worker seat cannot land');
+  const mismatch = await box.runLocal(box.repo, 'land', '--items', `${entry.item},9999`, '--commit', entry.commit);
   assert.match(mismatch.err, /USAGE/u);
-  const missing = box.run(box.repo, 'land', '--items', '9999', '--commit', entry.commit);
+  const missing = await box.runLocal(box.repo, 'land', '--items', '9999', '--commit', entry.commit);
   assert.match(missing.err, /NO_ITEM/u);
 });

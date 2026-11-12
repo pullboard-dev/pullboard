@@ -12,6 +12,7 @@ import {
   serveApi,
 } from '../../../../../packages/api/index.js';
 import { apiBoards } from '../../../../../packages/api/index.js';
+import { servedTrunkPack } from '../../../../../packages/runners/index.js';
 import { performanceCores } from '../../../../../packages/gate/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
 import {
@@ -21,6 +22,8 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
+import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import {
@@ -62,8 +65,10 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideMainTestRecorder(recordMainTestReceipt);
   traceServeStartup('serve-listen-start');
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
   traceServeStartup('serve-listen-ready');
@@ -93,8 +98,9 @@ export async function serveHere(io, values) {
  * @param {{ projects: () => Array<{ root: string, name: string, project: string, added: string }>, secret: string }} options
  */
 export async function loopbackBoardApi(io, { projects, secret }) {
-  const ctx = context(io), openers = nativeBoardOpeners(io), ids = new Map();
+  const ctx = context(io), openers = { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideMainTestRecorder(recordMainTestReceipt);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
   const boards = () => {

@@ -46,10 +46,13 @@ export function itemFolderSeat(cwd) {
 /** The seat acting from a checkout: the seat registered there, or the seat whose item folder it is. */
 export function runSeat(cwd) { return timingSeat(cwd) ?? itemFolderSeat(cwd); }
 
+/** The board file beside a seat binding's file: every seat file lives in the board's own folder. */
+function seatBoard(binding) { return join(dirname(binding.file), 'board.sqlite'); }
+
 /** Beat once for the seat acting from `cwd`, its checkout or item folder; a directory with no seat beats nothing. */
 export async function beatSeat(cwd, { seatOf = runSeat, beat = defaultBeat } = {}) {
   const binding = seatOf(cwd);
-  if (binding?.seat && binding.file) await beat(join(dirname(binding.file), 'board.sqlite'), binding.seat);
+  if (binding?.seat && binding.file) await beat(seatBoard(binding), binding.seat);
 }
 
 /**
@@ -70,7 +73,7 @@ export async function whileSeatAlive(cwd, work, options = {}) {
 export function keepSeatAlive(cwd, { everyMs = 60_000, seatOf = timingSeat, beat = defaultBeat, every = setInterval, cancel = clearInterval } = {}) {
   const binding = seatOf(cwd);
   if (!binding?.seat || !binding.file) return () => {};
-  const file = join(dirname(binding.file), 'board.sqlite');
+  const file = seatBoard(binding);
   const timer = every(() => beat(file, binding.seat), everyMs);
   timer?.unref?.();
   return () => cancel(timer);
@@ -109,7 +112,7 @@ function pause(ms) { return new Promise(done => setTimeout(done, ms)); }
 export async function keepClaimsAlive(cwd, { everyMs = 30_000, seatOf = runSeat, held = defaultHeld, beat = defaultBeat, wait = pause, alive = () => true } = {}) {
   const binding = seatOf(cwd);
   if (!binding?.seat || !binding.file) return { seat: null, beats: 0 };
-  const file = join(dirname(binding.file), 'board.sqlite');
+  const file = seatBoard(binding);
   let beats = 0;
   while (alive() && await held(file, binding.seat)) {
     await beat(file, binding.seat);

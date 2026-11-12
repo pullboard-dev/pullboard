@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { kernelGateChange } from '../../../../packages/verify/index.js';
 import { kernelApprovalText } from '../../../../packages/verify/index.js';
 import { requireKernelApproval } from '../../../../packages/verify/index.js';
@@ -56,30 +57,30 @@ function refused(box, commit, names) {
   });
 }
 
-test('submit refuses a changed Kernel door and names exports before any test gate [C7]', t => {
+test('submit refuses a changed Kernel door and names exports before any test gate [C7]', async t => {
   const box = fixture(t);
   put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose two [G1]');
   const change = kernelGateChange(box.root, box.base, commit);
   assert.deepEqual(change.changes, [{ file: 'packages/kernel/index.js', names: ['two'] }]);
-  const result = box.run('submit', '1', '--no-next', '--json');
+  const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'KERNEL_EXPORT_APPROVAL');
   assert.match(result.out, /two/u);
   boardFor(box, board => assert.equal(store.getItem(board, 1).item_status, 'claimed'));
 });
 
-test('an internal Kernel behavior change reaches normal submit without person consent [C7]', t => {
+test('an internal Kernel behavior change reaches normal submit without person consent [C7]', async t => {
   const box = fixture(t);
   put(box.root, 'packages/kernel/src/logic/value.js', 'export const one = 3;\nexport const two = 2;\n');
   const commit = commitAll(box, 'fix(kernel): adjust private behavior [G1]');
   assert.equal(kernelGateChange(box.root, box.base, commit), null);
-  const result = box.run('submit', '1', '--no-next', '--json');
+  const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
   assert.equal(result.code, 0, result.out + result.err);
   boardFor(box, board => assert.equal(store.getItem(board, 1).item_status, 'submitted'));
 });
 
-test('only the person can approve the exact item and Kernel interface for submit [C7]', t => {
+test('only the person can approve the exact item and Kernel interface for submit [C7]', async t => {
   const box = fixture(t);
   put(box.root, 'packages/kernel/light.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose pure two [G1]');
@@ -91,12 +92,12 @@ test('only the person can approve the exact item and Kernel interface for submit
   refused(box, commit, ['two']);
   answer(box, token);
   boardFor(box, board => requireKernelApproval(board, { root: box.root, base: box.base, commit, item: 1 }));
-  const result = box.run('submit', '1', '--no-next', '--json');
+  const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
   assert.equal(result.code, 0, result.out + result.err);
   boardFor(box, board => assert.equal(store.getItem(board, 1).item_status, 'submitted'));
 });
 
-test('person consent cannot carry to another export contract and a later decline revokes it [C7]', t => {
+test('person consent cannot carry to another export contract and a later decline revokes it [C7]', async t => {
   const box = fixture(t);
   put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/logic/value.js';\n");
   const commit = commitAll(box, 'feat(kernel): expose two [G1]');
@@ -110,7 +111,7 @@ test('person consent cannot carry to another export contract and a later decline
   refused(box, changed, ['one', 'renamed']);
 });
 
-test('star-forwarded public names are checked while private body changes preserve approval scope [C7]', t => {
+test('star-forwarded public names are checked while private body changes preserve approval scope [C7]', async t => {
   const box = fixture(t);
   put(box.root, 'packages/kernel/index.js', "export * from './src/logic/value.js';\n");
   const before = commitAll(box, 'feat(kernel): forward the public module [G1]');
@@ -124,7 +125,7 @@ test('star-forwarded public names are checked while private body changes preserv
 });
 
 
-test('submit rechecks a person decline recorded while the real gate runs [C7]', t => {
+test('submit rechecks a person decline recorded while the real gate runs [C7]', async t => {
   const source = [
     `import { openBoard } from ${JSON.stringify(new URL('../../../lib/src/logic/native.js', import.meta.url).href)};`,
     `import * as store from ${JSON.stringify(new URL('../../../../packages/store/index.js', import.meta.url).href)};`,
@@ -142,7 +143,7 @@ test('submit rechecks a person decline recorded while the real gate runs [C7]', 
   answer(box, kernelApprovalText(1, change.digest));
   box.env.KERNEL_BOARD = join(box.mainRoot, '.git/pullboard/board.sqlite');
   box.env.KERNEL_DECLINE = kernelApprovalText(1, change.digest, false);
-  const result = box.run('submit', '1', '--no-next', '--json');
+  const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'KERNEL_EXPORT_APPROVAL');
   boardFor(box, board => {

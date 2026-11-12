@@ -132,7 +132,8 @@ export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATE
   try {
     const { keepClaimsAlive } = await import('../../../../packages/gate/index.js');
     return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent),
-      seatOf: () => ({ seat, file: join(dirname(board), 'seat-timing.jsonl') }), ...options });
+      // Any file in the board's folder names the board, so the binding names the board itself.
+      seatOf: () => ({ seat, file: board }), ...options });
   } finally {
     if (readLock(lock)?.pid === pid) rmSync(lock, { force: true });
   }

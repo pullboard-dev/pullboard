@@ -44,10 +44,10 @@ function onBoard(box, action, clock) {
 /** Submit through the public CLI, then independently record a real verdict for queue-return tests. */
 async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/wait.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
-    '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+    '--criterion', 'The fixture check passes.', '--check', 'true')).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/wait.txt', 'submitted work\n', 'feat(web): await verdict [G1]').status, 0);
   const child = helpers.launch(box, box.web, process.execPath, [helpers.BIN, command, '1', '--wait', ...(json ? ['--json'] : [])]);
   t.after(async () => {
@@ -102,8 +102,8 @@ test('submit --wait ends at its gate, and a later unclaimed reject returns with 
   const config = loadConfig(box.repo);
   // The window waits only for a builder who can come back; a gone seat's window ends at once (18a0128eb0, #3447).
   onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by), clock);
-  assert.throws(() => onBoard(box, board => store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 }), clock),
-    error => error.code === 'REOPEN_HELD_FOR_BUILDER', 'another builder cannot steal the original first refusal early');
+  // A rejection reserves nothing since #4950: no builder window is sealed, so any seat could claim it at once.
+  assert.equal(onBoard(box, board => firstRefusal(board, 1), clock), null, 'a rejection seals no builder window');
   const before = onBoard(box, board => healthReport({ dispatchHealth, db: board.db, root: box.repo, config, now }), clock);
   assert.ok(!before.stuck.some(finding => finding.item === 1 && finding.cause === 'REWORK_UNCLAIMED'),
     'the ten-minute boundary is not rounded down');
@@ -148,20 +148,20 @@ test('clause 1: a withdrawn verdict does not finish a submission wait successful
 /** Refreezing permits the same SHA again; an older wait must not inherit the newer attempt's verdict. */
 test('clause 1: a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
   const box = helpers.project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/retry.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
-    '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+    '--criterion', 'The fixture check passes.', '--check', 'true')).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/retry.txt', 'same source\n', 'feat(web): pin the attempt [G1]').status, 0);
-  const sent = box.run(box.web, 'submit', '1', '--json');
+  const sent = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(sent.code, 0, sent.out + sent.err);
   const submission = JSON.parse(sent.out);
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', note: 'Refreeze the review bar before reviewing this source.' }));
-  const refrozen = box.run(box.repo, 'refreeze', '1');
+  const refrozen = await box.runLocal(box.repo, 'refreeze', '1');
   assert.equal(refrozen.code, 0, refrozen.out + refrozen.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
-  const resent = box.run(box.web, 'submit', '1', '--json');
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
+  const resent = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(resent.code, 0, resent.out + resent.err);
   assert.equal(JSON.parse(resent.out).commit, submission.commit, 'the regression really resubmits the same SHA');
   /** End the later attempt through its real verifier, including cleanup if the old wait stalls. */
@@ -280,8 +280,8 @@ test('a reclaimed reject refuses both stale and retargeted health observations [
 /** The existing public coordinator scan, rather than a direct test-only move, performs the handback. */
 test('clause 1: the public coordinator health scan returns an inactive reject to the queue [B13,A6]', async t => {
   const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
-  assert.ok(onBoard(box, board => firstRefusal(board, 1)), 'the original reservation is still live');
-  const ran = box.run(box.repo, 'sentinel', 'run', '--health-only', '--json');
+  assert.equal(onBoard(box, board => firstRefusal(board, 1)), null, 'a rejection reserves nothing for the inactive builder');
+  const ran = await box.runLocal(box.repo, 'sentinel', 'run', '--health-only', '--json');
   assert.equal(ran.code, 0, ran.out + ran.err);
   assert.ok(JSON.parse(ran.out).health.findings.some(finding => finding.cause === 'REWORK_UNCLAIMED' && finding.item === 1));
   onBoard(box, board => {

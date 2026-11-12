@@ -383,6 +383,16 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout` | `shout_evidence_commit` | `TEXT` | `nullable` |
 | `shout` | `shout_request` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
 | `shout` | `shout_request_outcome` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
+| `test_result` | `test_result_id` | `INTEGER` | `PRIMARY KEY` |
+| `test_result` | `test_result_file` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_input_key` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_command` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_context` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_status` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_receipt` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_origin` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_commit` | `TEXT` | `nullable` |
+| `test_result` | `test_result_at` | `INTEGER` | `NOT NULL` |
 | `verdict` | `verdict_id` | `INTEGER` | `PRIMARY KEY` |
 | `verdict` | `item_id` | `INTEGER` | `NOT NULL`; `REFERENCES item(item_id)` |
 | `verdict` | `verdict_by` | `TEXT` | `NOT NULL` |
@@ -416,6 +426,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
 | `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
+| `test_result_key` | `test_result` | `test_result_input_key`, `test_result_command`, `test_result_context` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
 
@@ -477,7 +488,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `title` and `previousTitle` (the new title and the one it replaced), optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
 | `escalate` | builder, or coordinator | `from`, `to`, `note`, `attempt`, `rejections` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |

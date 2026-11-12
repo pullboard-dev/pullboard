@@ -251,7 +251,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   // The outer gate decides whether this invocation is fail-fast. Its test workers and
   // any nested runner commands always retain ordinary runner semantics.
   env[LANDING_RUN_ENV] = '0';
-  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS']) delete env[name];
+  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS', 'PULLBOARD_TEST_PROGRESS']) delete env[name];
   Object.assign(env, gateMarkers);
   env[LANDING_RUN_ENV] = '0';
   return env;
@@ -276,7 +276,7 @@ async function runTests(args, env, concurrency) {
   const normalized = nativeFileArguments(args, concurrency, knownNodeOption, optionTakesValue);
   const { options } = await landingTestOptions(normalized.args, env, normalized.concurrency);
   if (env.PULLBOARD_TEST_ACTIONS) options.reporters.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
-  if (env.PULLBOARD_TEST_SELECTION) options.reporters.push({ reporter: fileURLToPath(new URL('./test/selection.js', import.meta.url)), destination: devNull });
+  options.reporters.push(...(await import('./test/progress.js')).sideReporters(env)); // selection count and per-file progress (#5823)
   return reportDispatchedTests(options, env, loadCustomReporter);
 }
 
@@ -735,7 +735,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   }
   const reporterEntries = options.reporters;
   if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
-  if (testEnv.PULLBOARD_TEST_SELECTION) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/selection.js', import.meta.url)), destination: devNull });
+  reporterEntries.push(...(await import('./test/progress.js')).sideReporters(testEnv)); // selection count and per-file progress (#5823)
   delete options.reporters;
   const loadedReporters = [];
   for (const entry of reporterEntries) {

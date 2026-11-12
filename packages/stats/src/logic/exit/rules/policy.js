@@ -1,4 +1,4 @@
-import ceilings from '../../../../data/context-ceilings.json' with { type: 'json' };
+import ceilings from '../../../../data/ceilings/context-ceilings.json' with { type: 'json' };
 
 /** Pure exit decisions use known claim counters and exact consecutive receipt failures [B3,C7,N2]. */
 /** An unavailable or malformed count is unknown, never a reason to stop a session. */
@@ -28,7 +28,7 @@ export function exitRulesDecision(policy, usage, receipts = []) {
   return failure ? { code: 'EXIT_REPEAT_FAILURE', failure } : null;
 }
 
-/** The prompt size at which a session ends: exitRules.contextCeiling, else the per-family ceiling from packages/stats/data/context-ceilings.json [P5]. */
+/** The prompt size at which a session ends: exitRules.contextCeiling, else the per-family ceiling from packages/stats/data/ceilings/context-ceilings.json [P5]. */
 export function contextCeiling(policy, model) {
   if (Number.isSafeInteger(policy?.contextCeiling) && policy.contextCeiling > 0) return policy.contextCeiling;
   const name = String(model ?? '').toLowerCase();
