@@ -108,7 +108,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
     "if(process.argv.includes('sentinel')&&process.argv.includes('run')&&existsSync(hold)){record({kind:'held-sentinel'});await new Promise(done=>setTimeout(done,60000));}", // budget: a test-only hold before CLI execution, terminated by the observer's owned shutdown.
   ].join('\n'));
   box.env.NODE_OPTIONS = `${box.env.NODE_OPTIONS ?? ''} --import=${probe}`.trim();
-  const init = box.run(repo, 'init');
+  const init = await box.runLocal(repo, 'init');
   assert.equal(init.code, 0, init.err || init.out);
   const worker = sessionRecord(box, port);
   t.after(() => stopView(worker.pid));

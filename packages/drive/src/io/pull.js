@@ -17,6 +17,10 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { appendFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { createWriteStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { availableParallelism } from 'node:os';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
@@ -138,10 +142,13 @@ async function objectStore(cache) {
  *
  * @returns {Promise<string | null>} null once the commit is present, else why it is not.
  */
-async function fetchCommit(store, trunk, commit) {
+async function fetchCommit(store, trunk, commit, pack = null) {
   if (!SHA.test(String(commit ?? ''))) return `the job names no commit (${commit})`;
   if ((await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) return null;
   if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
+  // A cold store takes the trunk's shared cached pack first, so N runners on one commit cost one pack-objects (#5932);
+  // the fetch below then has the commit as a have and only adds release tags.
+  if (pack && (await git(store, ['for-each-ref', '--count=1', 'refs/pullboard/fetched/', 'refs/remotes/trunk/'])).stdout === '') await fromPack(store, commit, pack);
   // The fetched commit keeps a ref, so the next fetch offers it as a have and takes only new objects. A store with no
   // refs offered none, and every job pulled trunk's whole history, 200k objects and 4-5 minutes per claim (#5805).
   // Release tags ride the same fetch, so a store refresh costs no extra round trip: proofs that unpack an old release
@@ -153,6 +160,52 @@ async function fetchCommit(store, trunk, commit) {
   }
   await pruneFetched(store);
   return (await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0 ? null : `trunk remote has no commit ${commit}`;
+}
+
+/**
+ * Index the cached trunk pack for one commit into the store and keep a ref to it. Any failure leaves the store as it
+ * was, and the caller's git fetch takes the commit instead.
+ * @param {string} store The runner's bare object cache.
+ * @param {string} commit The trunk commit.
+ * @param {(commit: string) => Promise<{ file: string } | null>} pack Where the pack comes from.
+ * @returns {Promise<boolean>} Whether the commit came from the pack.
+ */
+async function fromPack(store, commit, pack) {
+  try {
+    const got = await pack(commit);
+    if (!got?.file) return false;
+    const status = await new Promise(resolve => {
+      const child = spawn('git', ['-C', store, 'index-pack', '--stdin', '-q'], { stdio: ['pipe', 'ignore', 'ignore'] });
+      child.once('error', () => resolve(1));
+      child.once('close', resolve);
+      createReadStream(got.file).once('error', () => child.stdin.destroy()).pipe(child.stdin).once('error', () => {});
+    });
+    if (status !== 0) return false;
+    return (await git(store, ['update-ref', `refs/pullboard/fetched/${commit}`, commit])).status === 0;
+  } catch { return false; }
+}
+
+/**
+ * The board's cached trunk pack for one commit, downloaded into dir; null when the board serves none.
+ * Why the board: one cached pack per trunk commit is built once on the coordinator and served to every runner, where
+ * a git fetch each ran its own pack-objects, 24 at once, load 190 (#5932).
+ * @param {{ jobs: string, key: string | null }} endpoint The board's jobs endpoint.
+ * @param {typeof fetch} fetchImpl
+ * @param {string} dir Where downloaded packs are kept.
+ * @returns {(commit: string) => Promise<{ file: string } | null>}
+ */
+export function boardTrunkPack(endpoint, fetchImpl, dir) {
+  return async commit => {
+    const url = `${endpoint.jobs.replace(/\/jobs$/u, '')}/trunk/${commit}.pack`;
+    const response = await fetchImpl(url, { headers: endpoint.key ? { 'x-pullboard-key': endpoint.key } : {} });
+    if (response?.status !== 200 || !response.body) return null;
+    // Only the newest download stays: the store keeps its objects once indexed.
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `trunk-${commit}.pack`);
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(file));
+    return { file };
+  };
 }
 
 /**
@@ -190,17 +243,18 @@ async function pruneFetched(store, keep = FETCHED_REFS) {
  * @param {string} commit
  * @param {string} name
  * @param {string[]} [also]
- * @param {{ main?: string | null }} [options] - main: the commit the primary's main branch names; default none.
+ * @param {{ main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null }} [options] - main: the
+ *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null } = {}) {
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
   if (main !== null && !SHA.test(String(main))) return { ok: false, reason: `the job names no main commit (${main})` };
   const { store, reason } = await objectStore(cache);
   if (!store) return { ok: false, reason };
   for (const wanted of new Set([commit, ...also, ...(main ? [main] : [])])) {
-    const missing = await fetchCommit(store, trunk, wanted);
+    const missing = await fetchCommit(store, trunk, wanted, pack);
     if (missing) return { ok: false, reason: missing };
   }
   const folder = join(cache, 'work', name), primary = join(cache, 'main', name);
@@ -364,6 +418,22 @@ export function serveSlots(setting, cores = availableParallelism()) {
   return slots;
 }
 
+/** How many test workers a pulled job may use: its share of the runner's cores, set by the serve that runs it [P7,#5919]. */
+export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';
+
+/**
+ * How many test workers each job of a serve may use: an even share of the runner's cores, at least one.
+ * Why: since #5790 a pulled job spreads over every core, so 3 jobs on a 10-core runner ran about 30 workers at once
+ * and every job slowed (#5919).
+ *
+ * @param {number} slots - How many jobs the serve runs at once.
+ * @param {number} [cores]
+ * @returns {number}
+ */
+export function jobWorkers(slots, cores = availableParallelism()) {
+  return Math.max(1, Math.floor(cores / Math.max(1, slots)));
+}
+
 /** The variable naming one claim of a job, beside PULLBOARD_RUNNER_JOB, so a sweep spares a same-named job of another serve. */
 export const RUNNER_CLAIM_ENV = 'PULLBOARD_RUNNER_CLAIM';
 
@@ -436,6 +506,7 @@ function gateReceipt(result, commit, durationMs) {
 
 /**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
+ * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
  *
  * @param {object} options
  * @param {string} options.board - The board's API URL.
@@ -443,8 +514,9 @@ function gateReceipt(result, commit, durationMs) {
  * @param {string} [options.runner] - This runner's id; default the host name plus a random suffix.
  * @param {string[]} [options.capabilities] - What this runner can run; default hostCapabilities().
  * @param {string} [options.cache] - Where fetched history and checkouts live; default ~/.pullboard-runner/pull.
- * @param {boolean} [options.once] - Return after one job (posted or released).
+ * @param {boolean} [options.once] - Return after one job (posted or released), or at once when the queue is empty.
  * @param {number | string} [options.jobs] - How many jobs run at once; default PULLBOARD_RUNNER_JOBS, else serveSlots().
+ * @param {number} [options.cores] - This runner's cores, shared out between its jobs; default availableParallelism().
  * @param {AbortSignal} [options.signal]
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
@@ -454,14 +526,19 @@ function gateReceipt(result, commit, durationMs) {
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job. Its cache is the
  *   slot's own folder, the serve's cache for slot 0.
+ * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
+ *   trunk pack; default the board's, boardTrunkPack.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {} }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack }) {
   const endpoint = boardEndpoint(board, key);
+  const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
-  const slots = once ? 1 : serveSlots(jobsSetting);
+  const slots = once ? 1 : serveSlots(jobsSetting, cores);
+  // Each job's test run takes only its share of the cores, so the serve's jobs together never oversubscribe the runner (#5919).
+  const workers = jobWorkers(slots, cores);
   // One checkout folder per slot, reset for each job it runs, since a fresh one cost 14 s per job (#5812) [P7].
   const jobs = [], waits = [], folders = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
   let delay = firstMs;
@@ -543,7 +620,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const gate = input !== null;
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
     // Each slot reuses its own folder: concurrent jobs never share one, and the shared object store fetches one at a time.
-    const checkout = await serially(() => checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null }));
+    const checkout = await serially(() => checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack }));
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${checkout.ok ? 'the job names nothing to run' : checkout.reason}`);
@@ -561,7 +638,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
       post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
-    const env = { ...job.env, [RUNNER_CLAIM_ENV]: tag, PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const env = { ...job.env, [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(workers), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
@@ -609,7 +686,11 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
-    if (!answer.claim) { await Promise.race([sleep(idleMs), ...active]); continue; }
+    if (!answer.claim) {
+      // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
+      if (once) { say('nothing to claim: the queue is empty'); break; }
+      await Promise.race([sleep(idleMs), ...active]); continue;
+    }
     const task = start(answer.claim, answer.trunk);
     if (once) { await task; break; }
   }

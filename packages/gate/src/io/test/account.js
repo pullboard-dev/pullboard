@@ -234,3 +234,34 @@ export function cacheProfile(output) {
   const read = readCacheRows(output);
   return read ? { testCache: { summary: read.summary, ledger: ledgerLine(read.rows), files: read.rows } } : {};
 }
+
+/**
+ * One run phase's proof-ledger rows from its own per-file frames: each file that ran under a key, its inputKey,
+ * context class and pass or fail. A green phase passes every file; a red one fails the files its failing cases name and
+ * passes the rest, since a red job still proves its green files (313 of 386 wasted reruns had a green in a red job,
+ * 11 Nov). A red phase with no case account, or no keyed frame, gives null: no row is ever guessed [P7,CD2].
+ * The rows fit `budget` bytes so the receipt stays under the queue's cap; `omitted` counts the rest, never hidden.
+ *
+ * @param {string} output the phase's full output
+ * @param {{ status: number | null, failures?: Array<{ file: string }> | null, root?: string, budget?: number }} phase
+ * @returns {{ contexts: string[], files: Array<[string, string, number, 'pass' | 'fail']>, omitted: number } | null}
+ */
+export function phaseLedger(output, { status, failures = null, root = '', budget = 40_000 }) {
+  if (typeof output !== 'string' || status !== 0 && !(Array.isArray(failures) && failures.length)) return null;
+  const strip = file => root && String(file).startsWith(`${root}/`) ? String(file).slice(root.length + 1) : String(file);
+  const failed = new Set((status === 0 ? [] : failures).map(row => strip(row?.file)));
+  const contexts = [], files = [];
+  let bytes = 0, omitted = 0;
+  for (const line of output.split('\n')) {
+    if (!line.startsWith(FRAME)) continue;
+    let row;
+    try { row = JSON.parse(line.slice(FRAME.length)); } catch { continue; }
+    if (row?.outcome !== 'ran' || !/^[0-9a-f]{64}$/u.test(row.inputKey ?? '') || !/^[0-9a-f]{64}$/u.test(row.context ?? '')) continue;
+    const entry = [row.file, row.inputKey, contexts.includes(row.context) ? contexts.indexOf(row.context) : contexts.push(row.context) - 1,
+      failed.has(row.file) ? 'fail' : 'pass'];
+    bytes += JSON.stringify(entry).length + 1;
+    if (bytes > budget) { omitted++; continue; }
+    files.push(entry);
+  }
+  return files.length ? { contexts, files, omitted } : null;
+}

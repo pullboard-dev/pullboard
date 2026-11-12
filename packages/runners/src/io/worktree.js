@@ -216,3 +216,37 @@ export function cachedTrunkPack(repo, commit, { dir }) {
   FLIGHTS.set(key, flight);
   return flight.then(() => ({ file, built: true }));
 }
+
+/**
+ * The board's answer to GET <board>/trunk/<commit>.pack: the cached trunk pack, or null when the trunk lacks the commit.
+ * Why the existence check: pack-objects on an unknown commit fails, and a runner should read that as 404 and fetch.
+ * @param {string} repo The trunk repository (the coordinator's).
+ * @param {string} commit The full commit id a runner asked for.
+ * @param {{ dir?: string }} [options] Where packs are cached; default the repository's own git folder.
+ * @returns {Promise<{ file: string, built: boolean } | null>}
+ */
+export async function servedTrunkPack(repo, commit, { dir } = {}) {
+  if (!COMMIT.test(commit ?? '')) throw new Error('trunk pack needs a full commit id');
+  const known = await gitStatus(repo, ['cat-file', '-e', `${commit}^{commit}`]);
+  if (known.status !== 0) return null;
+  const packs = dir ?? join(await gitCommonDir(repo), 'pullboard-trunk-packs');
+  return cachedTrunkPack(repo, commit, { dir: packs });
+}
+
+/** Run one short git command in a repository without blocking the board's event loop. */
+function gitStatus(repo, args) {
+  return new Promise(resolve => {
+    const child = spawn('git', ['-C', repo, ...args], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let stdout = '';
+    child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
+    child.once('error', () => resolve({ status: 1, stdout: '' }));
+    child.once('close', status => resolve({ status, stdout: stdout.trim() }));
+  });
+}
+
+/** The repository's absolute common git folder, shared by all its worktrees. */
+async function gitCommonDir(repo) {
+  const found = await gitStatus(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (found.status !== 0 || !found.stdout) throw new Error(`trunk pack cannot find the git folder of ${repo}`);
+  return found.stdout;
+}

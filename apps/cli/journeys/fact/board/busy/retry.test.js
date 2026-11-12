@@ -73,6 +73,7 @@ async function proveRetry(t, directory, kind) {
     if (!busy) throw new Error('the fixture did not encounter a real locked database');
     process.disconnect();
   `;
+  // Process-level: a separate node process contends for the real SQLite lock over IPC.
   const child = startFixtureChild(process.execPath, ['--input-type=module', '-e', source, file, kind,
     new URL('../../../../../../packages/store/index.js', import.meta.url).href,
     new URL('../../../../../../packages/resources/index.js', import.meta.url).href,
