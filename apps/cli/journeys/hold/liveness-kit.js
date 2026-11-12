@@ -43,8 +43,8 @@ const STEPS = {
     const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
     if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
     // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
-    // A live reviewer in the other family asks for the review each tick: once the dead holder's reservation counts for nothing, it takes it over.
-    const taker = box.seats.sibling;
+    // A live reviewer under another parent session asks for the review each tick: once the dead holder's reservation counts for nothing, it takes it over.
+    const taker = box.seats.sameFamily;
     return { holder: reviewer, done: item => item.item_status !== 'submitted' || (Boolean(item.item_review_by) && item.item_review_by !== reviewer.id),
       recover: () => cli(box, taker.path, ['next', '--verify', String(id)]) };
   },
