@@ -31,21 +31,21 @@ test('hiding a real broken package from the supplied selection fails the run [C7
   error => error.code === 'TEST_SELECTION_INCOMPLETE' && error.message.includes('packages/beta/index.js'));
 });
 
-test('an edited tier manifest cannot hide a real failing unit [C7,CS4,V4]', t => {
+test('an edited tier manifest cannot hide a real failing unit [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'beta', 'broken');
   const path = join(entry.root, 'packages/gate/data/tests/tiers.json');
   const hidden = JSON.parse(readFileSync(path, 'utf8'));
   hidden.files = hidden.files.filter(row => row.file !== 'test/beta.test.js');
   writeFileSync(path, JSON.stringify(hidden));
   commit(box, entry.root, 'test: hide the broken unit from declared tiers [G1]');
-  const result = box.run(entry.root, 'submit', String(entry.id), '--no-next', '--json');
+  const result = await box.runLocal(entry.root, 'submit', String(entry.id), '--no-next', '--json');
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'GATE_RED');
   assert.deepEqual(calls(box, 'beta'), ['beta:"broken"', 'beta:1'], 'the omitted candidate unit fails and its exact main comparison passes');
   assert.equal(json(box, box.repo, 'show', String(entry.id)).item_status, 'claimed');
 });
 
-test('a real T3 batch failure bisects to its item while package units stay out of batch gates [C7,CS4,V4]', t => {
+test('clause 1: a real T3 batch failure bisects to its item while package units stay out of batch gates [C7,CS4,V4]', async t => {
   const box = fixture(t), good = build(box, 'alpha', 2);
   json(box, good.root, 'submit', String(good.id), '--no-next');
   accept(box, good);
@@ -54,7 +54,7 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   accept(box, bad);
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
-  const landing = box.run(box.repo, 'land', '--max', '2', '--json');
+  const landing = await box.runLocal(box.repo, 'land', '--max', '2', '--json');
   assert.equal(landing.code, 0, landing.out + landing.err);
   const landed = JSON.parse(landing.out);
   const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
@@ -69,7 +69,7 @@ test('a real T3 batch failure bisects to its item while package units stay out o
 });
 
 
-test('control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', t => {
+test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js'], 'the submit proof predates the contract');
@@ -83,7 +83,7 @@ test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stri
 `);
   writeTestTiers(box.repo);
   commit(box, box.repo, 'test: alpha front door keeps its value [G1]');
-  const blocked = box.run(box.repo, 'land', '--max', '1', '--json');
+  const blocked = await box.runLocal(box.repo, 'land', '--max', '1', '--json');
   assert.equal(blocked.code, 1, 'a batch that a culprit blocks exits non-zero: ' + blocked.out + blocked.err);
   const landed = JSON.parse(blocked.out);
   assert.deepEqual(landed.landed, [], JSON.stringify(landed));
@@ -91,7 +91,7 @@ test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stri
   assert.ok(!json(box, box.repo, 'show', String(entry.id)).item_merged_commit, 'the change that breaks the contract never lands');
 });
 
-test('a runner that ignores selected units cannot report a false green [C7,V4]', t => {
+test('a runner that ignores selected units cannot report a false green [C7,V4]', async t => {
   const box = fixture(t);
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -100,7 +100,7 @@ test('a runner that ignores selected units cannot report a false green [C7,V4]',
   commit(box, box.repo, 'test: configure a no-op focused runner [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const entry = build(box, 'beta', 'broken');
-  const result = box.run(entry.root, 'submit', String(entry.id), '--no-next', '--json');
+  const result = await box.runLocal(entry.root, 'submit', String(entry.id), '--no-next', '--json');
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'TEST_SELECTION_UNVERIFIED');
   assert.deepEqual(calls(box, 'beta'), []);

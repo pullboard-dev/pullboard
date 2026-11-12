@@ -673,8 +673,13 @@ let commandMemo = null;
  */
 export function withGitCommandMemo(work) {
   const outer = commandMemo;
+  // A nested scope shares the outer memory, so a whole hook run and its checks ask Git each question once [C7].
+  if (outer !== null) return work();
   commandMemo = new Map();
-  try { return work(); } finally { commandMemo = outer; }
+  let result;
+  try { result = work(); } catch (error) { commandMemo = outer; throw error; }
+  if (typeof result?.then !== 'function') { commandMemo = outer; return result; }
+  return result.finally(() => { commandMemo = outer; });
 }
 
 /** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
@@ -683,7 +688,8 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
   const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
-    || (command === 'diff' && args.includes('--cached'))
+    || (command === 'diff' && !args.includes('--output'))
+    || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
   return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
@@ -692,6 +698,65 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
 /** Forget every remembered answer when a call that is not a known read is about to run. */
 function noteMemoCall(key) {
   if (key === null) commandMemo?.clear();
+}
+
+
+/** Answers to Git reads that only name objects by id, which never change, kept for the life of the process (#6153). */
+const objectReads = new Map();
+const OBJECT_READ_LIMIT = 4000;
+const OBJECT_READ_BYTES = 262144;
+const OBJECT_READS = {
+  'rev-parse': /^-{1,2}(?:verify|quiet|q)$/u,
+  'cat-file': /^-[etps]$/u,
+  'merge-base': /^--(?:all|is-ancestor)$/u,
+  show: /^(?:--no-ext-diff|--no-textconv|--no-renames|--format=.*|--name-only|--name-status|-s|-z)$/u,
+  'ls-tree': /^(?:-r|-z|--name-only|--full-tree)$/u,
+  diff: /^(?:--no-ext-diff|--no-textconv|--no-renames|--numstat|--name-only|--name-status|-z|--quiet|--diff-filter=[A-Z]+|-M|--stat)$/u,
+  'rev-list': /^(?:--count|--first-parent|--no-merges)$/u,
+  log: /^(?:--no-merges|--first-parent|--no-renames|--format=.*|--name-only|-z)$/u,
+};
+const OBJECT_REVISION = /^(?:[a-f0-9]{40}|[a-f0-9]{64})(?:\^\{(?:commit|tree)\}|\^|~\d+)?(?:\.{2,3}(?:[a-f0-9]{40}|[a-f0-9]{64}))?(?::[^\0]*)?$/u;
+
+/**
+ * The key for a Git read whose answer is fixed by the object ids it names, or null for any other call. HEAD stands for
+ * the commit the checkout's files say it holds. Only plain reads of full object ids qualify: anything naming a branch, a
+ * glob, the index or the working tree can change under a running command and is always asked of Git.
+ */
+function objectReadKey(kind, cwd, args, env) {
+  if (commandMemo !== null || currentGitAdapter() !== realGitAdapter) return null;
+  const rest = [];
+  let directory = cwd;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--no-replace-objects' || arg === '--no-optional-locks') continue;
+    if (arg === '-c') { index += 1; continue; }
+    if (arg === '-C') { directory = resolve(directory, args[index + 1] ?? ''); index += 1; continue; }
+    rest.push(arg);
+  }
+  const [command, ...tokens] = rest;
+  const flags = OBJECT_READS[command];
+  if (!flags) return null;
+  const end = tokens.indexOf('--');
+  const named = end < 0 ? tokens : tokens.slice(0, end);
+  let head;
+  const revisions = [];
+  for (const token of named) {
+    if (token.startsWith('-')) { if (!flags.test(token)) return null; continue; }
+    const bare = token.replace(/^HEAD(?=$|\^|~|:)/u, () => (head ??= checkoutHead(directory) ?? ''));
+    if (!OBJECT_REVISION.test(bare)) return null;
+    revisions.push(bare);
+  }
+  if (!revisions.length || (command === 'diff' && revisions.length < 2 && !revisions[0].includes('..'))) return null;
+  if (command === 'rev-parse' && named.some(token => !token.startsWith('-') && !/^(?:[a-f0-9]{40,64}|HEAD)(?:\^\{(?:commit|tree)\})?$/u.test(token))) return null;
+  const selectors = Object.entries(env ?? {}).filter(([name]) => name.startsWith('GIT_') && name !== 'GIT_NO_REPLACE_OBJECTS').sort();
+  return JSON.stringify([kind, directory, command, revisions, named.filter(token => token.startsWith('-')), end < 0 ? [] : tokens.slice(end), selectors]);
+}
+
+/** Remember a successful object read, keeping the memory bounded. */
+function rememberObjectRead(key, value, size) {
+  if (key === null || size > OBJECT_READ_BYTES) return;
+  if (objectReads.size >= OBJECT_READ_LIMIT) objectReads.clear();
+  objectReads.set(key, value);
 }
 
 /**
@@ -706,6 +771,8 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
   const key = memoKey('git', cwd, args, maxBuffer, env);
   if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
   noteMemoCall(key);
+  const objectKey = objectReadKey('git', cwd, args, env);
+  if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   try {
     const output = gitExecFileSync([...GIT_FLAGS, ...args], {
       cwd,
@@ -715,6 +782,7 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
       ...(maxBuffer === undefined ? {} : { maxBuffer }),
     }).trim();
     if (key !== null) commandMemo?.set(key, output);
+    rememberObjectRead(objectKey, output, output.length);
     return output;
   } finally {
     if (changesGitFacts(args)) forgetAfterWrite();
@@ -739,11 +807,41 @@ function rawGit(cwd, args, env) {
   const memoized = key === null ? undefined : commandMemo.get(key);
   if (memoized) return memoized;
   noteMemoCall(key);
+  const shown = key !== null && args.length === 2 && args[0] === 'show' ? prefetchedShow(cwd, args[1]) : undefined;
+  if (shown !== undefined) {
+    const outcome = shown === null ? { status: 128, stdout: '', stderr: `fatal: path ${args[1]} is not in the revision` } : { status: 0, stdout: shown, stderr: '' };
+    commandMemo.set(key, outcome);
+    return outcome;
+  }
+  const objectKey = objectReadKey('raw', cwd, args, env);
+  if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
   if (changesGitFacts(args)) forgetAfterWrite();
   const outcome = { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
   if (key !== null) commandMemo.set(key, outcome);
+  if (outcome.status === 0) rememberObjectRead(objectKey, outcome, outcome.stdout.length + outcome.stderr.length);
   return outcome;
+}
+
+/**
+ * The working copy of a file whose Git blob identity this command already learned, when its bytes hash to that identity;
+ * null when nothing was pinned or the copy differs. Why: identical bytes are the committed text, and a Git child costs more [C7].
+ */
+export function pinnedWorkingText(cwd, revision, file) {
+  const blobs = mainSourceBlobs(cwd);
+  const oid = blobs && blobs.commit === revision ? (file.endsWith('.json') ? blobs.config : file === 'DOCTRINE.md' ? blobs.doctrine : null) : null;
+  if (!oid) return null;
+  try {
+    const bytes = readFileSync(join(cwd, file));
+    const hash = createHash(oid.length === 64 ? 'sha256' : 'sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    return hash === oid ? bytes.toString('utf8') : null;
+  } catch { return null; }
+}
+
+/** The pinned working copy of a `revision:file` spec, like `git show`'s argument, or null (see pinnedWorkingText) [C7]. */
+export function pinnedSpecText(cwd, spec) {
+  const cut = spec.indexOf(':');
+  return cut < 0 ? null : pinnedWorkingText(cwd, spec.slice(0, cut), spec.slice(cut + 1));
 }
 
 /**
@@ -756,8 +854,52 @@ function rawGit(cwd, args, env) {
  * @returns {string | null}
  */
 export function gitShowText(cwd, revision, file) {
+  const same = pinnedWorkingText(cwd, revision, file);
+  if (same !== null) return same;
   const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
   return raw.status === 0 ? raw.stdout : null;
+}
+
+/** The files a commit hook reads at HEAD and in the index, fetched together with the first one asked for. */
+const HOOK_SHOWN_FILES = ['SPEC.md', 'DOCTRINE.md', 'PRACTICE.md'];
+
+/**
+ * One `git cat-file --batch` answer for the hook's usual `HEAD:` and index file reads, kept in the hook's memory.
+ * Why: eight `git show` children for four files cost more than the checks that read them [C7].
+ *
+ * @param {string} cwd
+ * @param {string} spec the `revision:file` the caller asked for
+ * @returns {string | null | undefined} undefined when the batch cannot answer; null when the file is absent.
+ */
+function prefetchedShow(cwd, spec) {
+  if (!/^(?:HEAD)?:[^:\0\n]+$/u.test(spec)) return undefined;
+  const file = spec.slice(spec.indexOf(':') + 1);
+  const files = HOOK_SHOWN_FILES.includes(file) ? HOOK_SHOWN_FILES : [file];
+  // Kept in the command memory itself, so any write that clears the memory also drops these answers.
+  const key = JSON.stringify(['prefetched-shows', cwd, files]);
+  if (!commandMemo.has(key)) {
+    const wanted = [];
+    for (const revision of ['HEAD', '']) for (const name of files) wanted.push(`${revision}:${name}`);
+    const result = gitSpawnSync([...GIT_FLAGS, 'cat-file', '--batch'], { cwd, input: `${wanted.join('\n')}\n`, maxBuffer: 64 * 1024 * 1024 });
+    let answers = null;
+    if (result.status === 0 && Buffer.isBuffer(result.stdout)) {
+      answers = new Map();
+      const out = result.stdout;
+      let at = 0;
+      for (const name of wanted) {
+        const end = out.indexOf(0x0a, at);
+        if (end < 0) { answers = null; break; }
+        const size = /^[0-9a-f]{40,64} blob (\d+)$/u.exec(out.toString('utf8', at, end));
+        if (!size) { answers.set(name, null); at = end + 1; continue; }
+        const length = Number(size[1]);
+        answers.set(name, out.toString('utf8', end + 1, end + 1 + length));
+        at = end + 1 + length + 1;
+      }
+    }
+    commandMemo.set(key, answers);
+  }
+  const answers = commandMemo.get(key);
+  return answers?.has(spec) ? answers.get(spec) : undefined;
 }
 
 /**
@@ -1101,6 +1243,17 @@ export function headTree(root) {
  */
 export function isClean(root) {
   return git(root, ['status', '--porcelain', '--untracked-files=no']) === '';
+}
+
+/**
+ * True when nothing differs from HEAD, staged, unstaged or untracked: what isClean and an empty untracked list say together,
+ * from one Git process, remembered until this command next writes or drops its facts (#6153).
+ *
+ * @param {string} root
+ * @returns {boolean}
+ */
+export function treeUntouched(root) {
+  return fact(`treeUntouched:${resolve(root)}`, () => git(root, ['status', '--porcelain', '--untracked-files=all']) === '');
 }
 
 /**

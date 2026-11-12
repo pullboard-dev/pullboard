@@ -3,19 +3,19 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import {
   after,
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { onBoard } from '../../../tests/fixtures/land/board.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { captureCommandInProcess } from '../../../tests/fixtures/process.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
@@ -23,6 +23,11 @@ import {
   scheduleAutomaticLanding,
   automaticLandingDirectory,
 } from '../../../../../packages/landing/index.js';
+import { context } from '../../../index.js';
+import { landAfterAcceptance } from '../../../index.js';
+import { runLandingWake } from '../../../src/io/landing/automatic.js';
+import { wakeIo } from '../../../src/io/landing/automatic.js';
+import { resumeAutomaticLanding } from '../../../../../packages/landing/index.js';
 import { bootstrapLandingWake } from '../../../src/io/landing/automatic.js';
 import { retryableLandingBatch } from '../../../../../packages/landing/src/logic/retry.js';
 import { runFixtureGit } from '../../../tests/fixtures/child.js';
@@ -31,6 +36,14 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+
+/** Run one function in this process as the production wake would, in the box's repo and environment; a thrown error fails the test. */
+async function inProcessResult(box, work) {
+  let result;
+  const done = await captureCommandInProcess(async () => { result = await work(box.repo); return 0; }, [], { cwd: box.repo, env: { ...box.env } });
+  assert.equal(done.status, 0, `${done.stderr}\n${done.stdout}`);
+  return result;
+}
 
 /** Make one fixture commit through ordinary hooks and return its full hash. */
 function commit(box, root, message) {
@@ -61,27 +74,22 @@ test('a diagnostic block is superseded after main moves and lands without anothe
     owner: 'crashed-fixture-session', host: landingHost(), logPath: join(directory, 'batch.log'), revision: 0,
   } }));
   const job = bootstrapLandingWake(box.repo, { schedule: async (root, at, url, options) => scheduleAutomaticLanding(root, at, url, { ...options, schedule: async () => {} }) });
-  const source = [
-    `import { resumeAutomaticLanding, scheduleAutomaticLanding } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
-    `import { runLandingWake, wakeIo } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/io/landing/automatic.js')).href)};`,
-    `import { context, landAfterAcceptance } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../index.js')).href)};`,
-    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/store/index.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../lib/index.js')).href)};`,
-    `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../tests/fixtures/child.js')).href)};`,
-    `import { join } from 'node:path'; import { readFileSync, existsSync } from 'node:fs';`,
-    'const [root, token, dueAt, mode, itemId, blockedId] = process.argv.slice(1);',
-    'const pendingFile = join(root, ".git/pullboard/automatic-landing/pending.json"); let waits=0, lands=0;',
-    'const schedule = async (actualRoot, at, url, opts={}) => scheduleAutomaticLanding(actualRoot, at, url, { ...opts, schedule: async () => { const p=JSON.parse(readFileSync(pendingFile,"utf8")); if (p.running !== undefined) throw Error("running custody not released before replacement timer"); } });',
-    'const run = mode === "first" ? (actualRoot => runLandingWake(actualRoot,{ land: async () => { lands++; throw Object.assign(Error("diagnostic"),{code:"LAND_DIAGNOSTIC"}); }, wait: async () => { waits++; if (waits === 2) runFixtureGit(["commit","--allow-empty","-q","-m","chore: correct main after diagnostic"],{cwd:root}); }, pollMs:1 })) : (async actualRoot => { lands++; await landAfterAcceptance(context(wakeIo(actualRoot))); });',
-    'const ok = await resumeAutomaticLanding(root,token,dueAt,run,{wait:async()=>true,schedule});',
-    'const pending=existsSync(pendingFile)?JSON.parse(readFileSync(pendingFile,"utf8")):null; const board=openBoard(join(root,".git/pullboard/board.sqlite")); try { console.log("RESULT "+JSON.stringify({ok,waits,lands,pending,blocked:store.landingBatches(board).find(b=>b.id===blockedId),batches:store.landingBatches(board),item:store.getItem(board,Number(itemId))})); } finally { store.closeBoard(board); }',
-  ].join('\n');
+  /** One wake worker pass, answered in this process under the fixture's own cwd and environment (custody lives on disk, not in the process). */
+  const wake = (token, dueAt, mode, itemId) => inProcessResult(box, async root => {
+    const pendingFile = join(root, '.git/pullboard/automatic-landing/pending.json');
+    let waits = 0, lands = 0;
+    const schedule = async (actualRoot, at, url, opts = {}) => scheduleAutomaticLanding(actualRoot, at, url, { ...opts, schedule: async () => { const p = JSON.parse(readFileSync(pendingFile, 'utf8')); if (p.running !== undefined) throw Error('running custody not released before replacement timer'); } });
+    const run = mode === 'first'
+      ? (actualRoot => runLandingWake(actualRoot, { land: async () => { lands++; throw Object.assign(Error('diagnostic'), { code: 'LAND_DIAGNOSTIC' }); }, wait: async () => { waits++; if (waits === 2) runFixtureGit(['commit', '--allow-empty', '-q', '-m', 'chore: correct main after diagnostic'], { cwd: root }); }, pollMs: 1 }))
+      : (async actualRoot => { lands++; await landAfterAcceptance(context(wakeIo(actualRoot))); });
+    const ok = await resumeAutomaticLanding(root, token, dueAt, run, { wait: async () => true, schedule });
+    const pending = existsSync(pendingFile) ? JSON.parse(readFileSync(pendingFile, 'utf8')) : null;
+    return onBoard(box, board => ({ ok, waits, lands, pending, blocked: store.landingBatches(board).find(b => b.id === blockedId), batches: store.landingBatches(board), item: store.getItem(board, Number(itemId)) }));
+  });
   return job.then(async bootstrapped => {
     assert.equal(bootstrapped, true, 'bootstrap creates a wake for verified work without a new accept');
     const queued = JSON.parse(readFileSync(join(automaticLandingDirectory(box.repo), 'pending.json'), 'utf8'));
-    const first = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, 'fixture-token', queued.dueAt, 'first', String(entry.item), blockedId], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-    assert.equal(first.status, 0, `${first.failure ?? first.stderr}\n${first.stdout}`);
-    const observed = JSON.parse(first.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice(7));
+    const observed = await wake('fixture-token', queued.dueAt, 'first', entry.item);
     assert.ok(observed.ok);
     assert.equal(observed.lands, 1, 'unchanged-main wait does not retry the refusal');
     assert.equal(observed.waits, 2, 'the injected correction follows one same-main observation');
@@ -89,9 +97,7 @@ test('a diagnostic block is superseded after main moves and lands without anothe
     const pending = JSON.parse(readFileSync(join(automaticLandingDirectory(box.repo), 'pending.json'), 'utf8'));
     assert.equal(pending.running, undefined, 'freshly scheduled worker can acquire custody');
     const correctedMain = box.git(box.repo, 'rev-parse', 'main');
-    const second = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, 'fixture-token', pending.dueAt, 'second', String(entry.item), blockedId], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-    assert.equal(second.status, 0, `${second.failure ?? second.stderr}\n${second.stdout}`);
-    const landed = JSON.parse(second.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice(7));
+    const landed = await wake('fixture-token', pending.dueAt, 'second', entry.item);
     assert.equal(landed.blocked.supersededByMain, correctedMain);
     assert.ok(landed.item.item_merged_commit, 'the accepted item lands without another accept');
     assert.ok(landed.batches.some(batch => batch.id !== blockedId && batch.state === 'landed'));
@@ -142,14 +148,7 @@ test('a moved main does not restart a batch with an attributed culprit [B35,C7]'
   await scheduleAutomaticLanding(box.repo, new Date(Date.now() + 60_000).toISOString(),
     new URL('../../../src/io/landing/automatic.js', import.meta.url), { schedule: async () => {} });
   box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: advance main beyond culprit batch');
-  const source = [
-    `import { wakeIo } from ${JSON.stringify(new URL('../../../src/io/landing/automatic.js', import.meta.url).href)};`,
-    `import { context, landAfterAcceptance } from ${JSON.stringify(new URL('../../../index.js', import.meta.url).href)};`,
-    'await landAfterAcceptance(context(wakeIo(process.argv[1])));',
-  ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo],
-    { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
+  await inProcessResult(box, async root => { await landAfterAcceptance(context(wakeIo(root))); });
   onBoard(box, board => {
     const batches = store.landingBatches(board);
     assert.equal(batches.length, 1, 'no replacement batch starts for the culprit');

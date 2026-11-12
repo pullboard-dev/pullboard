@@ -33,24 +33,24 @@ function protectedBoard() {
   return { box, a, b, folder, root };
 }
 
-test('clause 2: next names ITEM_FOLDER_PROTECTED for the locked item, claims the next one and leaves the folder locked [B3,C7]', () => {
+test('clause 2: next names ITEM_FOLDER_PROTECTED for the locked item, claims the next one and leaves the folder locked [B3,C7]', async () => {
   const { box, a, b, folder, root } = protectedBoard();
-  const next = box.run(root, 'next');
+  const next = (await box.runLocal(root, 'next'));
   const all = `${next.out}\n${next.err}`;
   assert.equal(next.code, 0, all);
   assert.match(next.out, new RegExp(`skipped #${a}: \\[ITEM_FOLDER_PROTECTED\\] item branch web/item-${a} remains in protected folder`, 'u'), all);
   assert.match(next.out, new RegExp(`claimed #${b}:`, 'u'), all);
-  assert.match(box.run(box.repo, 'show', a).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'A stays open');
+  assert.match((await box.runLocal(box.repo, 'show', a)).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'A stays open');
   assert.ok(existsSync(join(folder, '.git')), 'the folder stays');
   assert.match(box.git(box.repo, 'worktree', 'list', '--porcelain'), new RegExp(`worktree ${folder.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n[^]*?locked Preserve item ${a} candidate`, 'u'), 'the folder stays locked');
 });
 
-test('pullboard claim of the locked item refuses ITEM_FOLDER_PROTECTED before the move, so A is never claimed (#5766) [B3,C7]', () => {
+test('pullboard claim of the locked item refuses ITEM_FOLDER_PROTECTED before the move, so A is never claimed (#5766) [B3,C7]', async () => {
   const { box, a, folder, root } = protectedBoard();
-  const claimed = box.run(root, 'claim', a);
+  const claimed = (await box.runLocal(root, 'claim', a));
   const all = `${claimed.out}\n${claimed.err}`;
   assert.notEqual(claimed.code, 0, all);
   assert.match(all, /ITEM_FOLDER_PROTECTED/u);
-  assert.match(box.run(box.repo, 'show', a).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'A stays open');
+  assert.match((await box.runLocal(box.repo, 'show', a)).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'A stays open');
   assert.ok(existsSync(join(folder, '.git')), 'the folder stays');
 });

@@ -187,9 +187,9 @@ window.fetch = async (input, options) => {
     ['remote', 'add', 'origin', 'git@github.com:fixture/phone-first-link.git']]) {
     runFixtureGit(args, { cwd: target, env: box.env, encoding: 'utf8' });
   }
-  assert.equal((await box.cliAt(target, 'init')).code, 0, 'the actual new-project init publishes its sealed approval');
+  assert.equal((await box.cliAtLocal(target, 'init')).code, 0, 'the actual new-project init publishes its sealed approval');
   const marker = 'FIRST_READABLE_BOARD_AFTER_ONE_PHONE_TAP_901';
-  assert.equal((await box.cliAt(target, 'add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliAtLocal(target, 'add', box.lane, marker)).code, 0);
   const proposal = JSON.parse(readFileSync(machineFile, 'utf8')).approvals.find(entry => entry.root === target);
   assert.equal(proposal?.published, true, 'the actual native proposal is waiting for this enrolled browser');
   const selector = '#phone-approve-' + proposal.context.id;
@@ -234,7 +234,7 @@ window.fetch = async (input, options) => {
 test('a phone draws its saved board while the approvals read never answers [N26,H5,H17] [clause 1]', chromeOptions, async t => {
   const box = await relayClientFixture(t);
   const marker = 'READABLE_BOARD_WITH_PENDING_REQUESTS_899';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   await box.link();
   const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -382,7 +382,7 @@ window.fetch = (input, options) => String(input).startsWith('http://127.0.0.1:48
 test("the relay page opens without a session and may call only the local view's default port [N26,H5,A2]", async t => {
   const box = await relayClientFixture(t);
   const privateTitle = 'PRIVATE_RELAY_BOARD_533';
-  assert.equal((await box.cli('add', box.lane, privateTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, privateTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const privateKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -410,7 +410,7 @@ test('a signed-out relay page keeps sign-in visible without starting relay reads
 }, async t => {
   const box = await relayClientFixture(t);
   const privateTitle = 'PRIVATE_RELAY_BOARD_533_ANONYMOUS';
-  assert.equal((await box.cli('add', box.lane, privateTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, privateTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const privateKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -449,7 +449,7 @@ test('a revoked relay session settles on sign-in without a reload loop [N26,H5,A
 }, async t => {
   const box = await relayClientFixture(t);
   const privateTitle = 'PRIVATE_RELAY_BOARD_533_REVOKED';
-  assert.equal((await box.cli('add', box.lane, privateTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, privateTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const privateKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -491,7 +491,7 @@ test('a revoked relay session settles on sign-in without a reload loop [N26,H5,A
 
 test('relay data still needs a session [N26,H5,A2]', async t => {
   const box = await relayClientFixture(t);
-  const before = (await box.cli('export')).document.tables;
+  const before = (await box.cliLocal('export')).document.tables;
   const board = 'a'.repeat(32);
   const device = 'device-' + 'b'.repeat(32);
   const locator = 'c'.repeat(22);
@@ -533,7 +533,7 @@ test('relay data still needs a session [N26,H5,A2]', async t => {
       assert.equal(Object.hasOwn(document, field), false, 'an anonymous refusal carries no relay data');
     }
   }
-  const after = (await box.cli('export')).document.tables;
+  const after = (await box.cliLocal('export')).document.tables;
   for (const table of ['item', 'event', 'shout', 'verdict']) {
     assert.deepEqual(after[table], before[table], 'anonymous relay calls do not change local board ' + table);
   }
@@ -551,7 +551,7 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   await chrome.waitFor('typeof data !== "undefined" && !!data?.project && !!transport');
   const capability = await chrome.stable('({readOnly,requests,snapshot})');
   assert.deepEqual(capability, { readOnly: true, requests: true, snapshot: false });
-  const before = (await box.cli('export')).document;
+  const before = (await box.cliLocal('export')).document;
   const callsBefore = box.calls.length;
   const direct = await chrome.stable(`api(boardPath(view.root) + '/moves', {verb:'claim',item:1}).then(() => 'allowed', error => error.message)`);
   assert.match(direct, /read-only view/);
@@ -582,14 +582,14 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   // The browser queued intent; only the next native command may author the shout.
   assert.equal(before.tables.shout.some(row => row.shout_text === 'RELAY_PAGE_SEALED_SHOUT'), false);
   assert.equal((await box.cli('status')).code, 0);
-  const after = (await box.cli('export')).document;
+  const after = (await box.cliLocal('export')).document;
   assert.equal(after.tables.shout.filter(row => row.shout_from === 'person' && row.shout_text === 'RELAY_PAGE_SEALED_SHOUT').length, 1);
 });
 
 test('an actual exported snapshot and local read-only page refuse all seven person actions [H12,H5]', chromeOptions, async t => {
   const box = await relayClientFixture(t);
   const directory = join(box.root, 'readonly-export');
-  assert.equal((await box.cli('view', '--export', directory)).code, 0);
+  assert.equal((await box.cliLocal('view', '--export', directory)).code, 0);
   const readonly = cockpitPage('', { readOnly: true });
   const server = createServer((req, res) => {
     const path = new URL(req.url, 'http://localhost').pathname;
@@ -618,5 +618,5 @@ test('an actual exported snapshot and local read-only page refuse all seven pers
     assert.deepEqual(refusals, Array(7).fill(false), 'all seven handlers refuse without the requests capability');
     assert.match(await chrome.stable(`api(boardPath(view.root)+'/moves',{verb:'shout',args:{to:'coordinator',text:'refused'}}).then(()=>'allowed',error=>error.message)`), /read-only/);
   }
-  assert.equal((await box.cli('export')).document.tables.shout.some(row => row.shout_text === 'refused'), false);
+  assert.equal((await box.cliLocal('export')).document.tables.shout.some(row => row.shout_text === 'refused'), false);
 });

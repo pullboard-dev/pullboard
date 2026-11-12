@@ -50,10 +50,10 @@ const TREE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
  *
  * @param {string|null|undefined} tree - The candidate tree the shards run.
  * @param {string} command - The test command the shard files are appended to.
- * @param {{ folder?: string, now?: () => number }} [options]
- * @returns {{ tree: string, file: string, read: () => object[], record: (pass: object) => void } | null}
+ * @param {{ folder?: string, now?: () => number, tooling?: string|null }} [options] - `tooling`: the runner tooling sha256 a reused pass must carry.
+ * @returns {{ tree: string, file: string, tooling: string|null, read: () => object[], record: (pass: object) => void } | null}
  */
-export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now } = {}) {
+export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now, tooling = null } = {}) {
   if (typeof tree !== 'string' || !TREE.test(tree) || typeof command !== 'string') return null;
   const file = join(folder, `${createHash('sha256').update(JSON.stringify([tree, command])).digest('hex')}.json`);
   /** The passes on disk for exactly this tree and command; anything unreadable or foreign reads as none. */
@@ -76,7 +76,12 @@ export function shardPassStore(tree, command, { folder = join(machineHome(), 'sh
       }
     } catch { /* A pass that cannot be recorded is only run again. */ }
   };
-  return { tree, file, read, record };
+  return { tree, file, tooling, read, record };
+}
+
+/** The files of `files` that recorded green shards already cover on this store's tree. */
+export function reusedShardFiles(passes, files) {
+  return reusablePasses(passes, files, null).flatMap(shard => shard.files);
 }
 
 /**
@@ -98,7 +103,7 @@ function reusablePasses(passes, files, timingRunId) {
     const shardFiles = Array.isArray(pass?.files) ? pass.files : [];
     const run = pass?.run;
     if (!shardFiles.length || run?.isGreen !== true || shardFiles.some(file => !wanted.has(file) || taken.has(file))) continue;
-    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree) continue;
+    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree || passes.tooling && run.executionSource?.tooling?.sha256 && run.executionSource.tooling.sha256 !== passes.tooling) continue;
     for (const file of shardFiles) taken.add(file);
     const rebind = typeof pass.timingRunId === 'string' && pass.timingRunId && timingRunId && pass.timingRunId !== timingRunId;
     reused.push({ files: [...shardFiles], run: rebind ? { ...run, output: String(run.output ?? '').replaceAll(pass.timingRunId, timingRunId) } : run });
@@ -476,6 +481,26 @@ export function failingShardFiles(shards) {
 }
 
 /**
+ * The shards' test-child rows as one list with each PID once: a PID two shards both report is dropped from every
+ * shard, and no row left reads as unknown (null). Why: shards run on different runners (or one runner after its PIDs
+ * wrap), so a PID names a child only within its own shard; the receipt keys rows by PID, and one collision made it
+ * refuse the whole native receipt, so the gate refused PROOF_RUN_UNAVAILABLE for a check that ran [P7,#5763].
+ * @param {object[]} runs
+ * @returns {object[] | null | undefined}
+ */
+function shardTestRuntimes(runs) {
+  if (!runs.some(run => Array.isArray(run.testRuntimes))) return runs[0]?.testRuntimes;
+  const shardsByPid = new Map();
+  runs.forEach((run, index) => {
+    for (const row of Array.isArray(run.testRuntimes) ? run.testRuntimes : []) {
+      shardsByPid.set(row?.pid, (shardsByPid.get(row?.pid) ?? new Set()).add(index));
+    }
+  });
+  const rows = runs.flatMap(run => Array.isArray(run.testRuntimes) ? run.testRuntimes : []).filter(row => shardsByPid.get(row?.pid).size === 1);
+  return rows.length ? rows : null;
+}
+
+/**
  * Merge shard runs into the one run the proof receipt records: one output, green only when every shard is, the first
  * red exit, the first shard's stage accounting (the others' are already profiled in their own slots), and each shard's files, exit, runner and duration kept in `shards`. Execution facts come from the first
  * shard; any shard whose source differs marks the whole run's source as changed, so the receipt is never clean on it.
@@ -491,9 +516,8 @@ export function mergeShardRuns(shards) {
   const red = runs.find(run => run.exitCode !== 0 && run.exitCode !== undefined);
   const source = run => run.executionSource && `${run.executionSource.commit}:${run.executionSource.tree}`;
   const sameSource = runs.every(run => source(run) === source(base));
-  const joined = key => runs.some(run => Array.isArray(run[key])) ? runs.flatMap(run => Array.isArray(run[key]) ? run[key] : []) : base[key];
   const merged = { ...base, isGreen: green, rawIsGreen: rawGreen, exitCode: green ? base.exitCode : red?.exitCode ?? 1,
-    output: runs.map(run => String(run.output ?? '')).join('\n'), testRuntimes: joined('testRuntimes'),
+    output: runs.map(run => String(run.output ?? '')).join('\n'), testRuntimes: shardTestRuntimes(runs),
     executionSourceUnchanged: sameSource && runs.every(run => run.executionSourceUnchanged !== false),
     ...(runs.some(run => run.timedOut) ? { timedOut: true } : {}),
     failingFiles: failingShardFiles(shards),

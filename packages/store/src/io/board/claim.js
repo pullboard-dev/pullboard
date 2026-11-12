@@ -15,7 +15,8 @@ import { awaitingGateOrReview } from "../submit/handoff/records.js";
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */
 import {
   boardWriteSnapshot,
-  requireBoardWriteSnapshot,
+  boardWriteSnapshotChanged,
+  staleBoardRefusal,
 } from "./write/preparation.js";
 import { checkedSubmitOutcome } from "../submit/outcome.js";
 import { submitAdmission as checkedSubmitAdmission } from "../../../../state/light.js";
@@ -217,6 +218,43 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
 
 const PREPARED_CLAIMS = new WeakMap();
 
+/** Preparations of one claim before a board whose claim rows keep changing is reported BOARD_BUSY. */
+const CLAIM_PREPARE_ATTEMPTS = 5;
+
+/**
+ * The rows a prepared claim depends on: the item (its holder, lease, bar and after-links), the state of each
+ * dependency, its own events and item-keyed metadata (check baseline, bar revision and sign-off, machine
+ * verification), its pending re-freeze, and the spec decisions and bar setting the freeze reads. Every guard runs
+ * again under the writer lock, so only these rows can make a prepared plan (its frozen bar above all) stale; a write
+ * anywhere else on the board cannot (#6016).
+ * @param {any} board
+ * @param {number} id
+ * @returns {string}
+ */
+function claimRows(board, id) {
+  const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id) ?? null;
+  const dependencies = item ? itemDependencies.localDependencyIds(item).map(dependency =>
+    board.db.prepare('SELECT item_id,item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency) ?? null) : [];
+  const lastEvent = board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(id)?.id ?? null;
+  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN ('row_decisions','bar_ready_setting')
+    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id));
+  return JSON.stringify({ item, dependencies, lastEvent, meta, refreeze: pendingRefreeze(board, id) });
+}
+
+/**
+ * Whether a prepared claim still holds: nothing wrote, or nothing it depends on changed. A typed submit admission or
+ * outcome reads beyond those rows, so it keeps the whole-board check.
+ */
+function claimStillPrepared(board, id, { snapshot, rows, strict }) {
+  if (!boardWriteSnapshotChanged(board, snapshot)) return true;
+  return !strict && claimRows(board, id) === rows;
+}
+
+/** Wait a few random milliseconds outside any transaction, so contending preparations stop colliding in step. */
+function jitter(attempt) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.floor(Math.random() * 20 * (attempt + 1)));
+}
+
 /**
  * Prepare a native claim before any enclosing writer takes its lock. The private binding never
  * travels over the wire; replicas still execute their existing sealed, constant criterion callback.
@@ -231,18 +269,21 @@ export function prepareClaim(board, id, options, ports) {
   if (known?.board === board && known.id === id) return options;
   // A baseline worker can publish while freeze reads source. Rebuild the entire plan from the
   // new board, outside BEGIN, rather than certifying the old plan against a newer snapshot.
-  // Bound preparation so a continuously changing board still reports its contention.
+  // Only the claim's own rows count: unrelated writes at fleet rate no longer refuse it (#6016).
+  // Bound preparation so a claim whose own rows keep changing still reports its contention.
+  const strict = options.submitAdmission != null || options.submitOutcome != null;
   for (let attempt = 0; ; attempt++) {
     const snapshot = boardWriteSnapshot(board);
+    const rows = claimRows(board, id);
     const plan = claimPlan(board, id, options, ports);
     checkedItemMove(board, id, 'claim', plan.how.checks);
-    try { requireBoardWriteSnapshot(board, snapshot, 'claim'); }
-    catch (error) {
-      if (!(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= 2) throw error;
+    if (!claimStillPrepared(board, id, { snapshot, rows, strict })) {
+      if (attempt >= CLAIM_PREPARE_ATTEMPTS - 1) throw staleBoardRefusal(board, snapshot, 'claim');
+      jitter(attempt);
       continue;
     }
     const prepared = Object.freeze({ ...options });
-    PREPARED_CLAIMS.set(prepared, { board, id, snapshot, plan });
+    PREPARED_CLAIMS.set(prepared, { board, id, snapshot, rows, strict, plan });
     return prepared;
   }
 }
@@ -265,11 +306,13 @@ export function prepareClaim(board, id, options, ports) {
 export function claim(board, id, options, ports) {
   const { moveItem } = ports;
   const prepared = prepareClaim(board, id, options, ports);
-  const { snapshot, plan } = PREPARED_CLAIMS.get(prepared);
+  const binding = PREPARED_CLAIMS.get(prepared);
+  const { snapshot, plan } = binding;
   const { agentId, head = null, reviewSkipped = null } = prepared;
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
   return atomic(board, () => {
-    requireBoardWriteSnapshot(board, snapshot, 'claim');
+    // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
+    if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
     const frozen = plan.frozen();
     const renewed = isRenewal(item);

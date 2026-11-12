@@ -190,38 +190,38 @@ test('the queue ranks unblockers and quick wins first and keeps coordinator over
 });
 
 
-test('ordinary milestone ordering preserves coordinator overrides until an explicit lift [N22,B13,H16]', t => {
+test('ordinary milestone ordering preserves coordinator overrides until an explicit lift [N22,B13,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   /** Read the outcome of the actual CLI and its reopened persistent board. */
-  function command(cwd, ...args) {
-    const result = box.run(cwd, ...args, '--json');
+  async function command(cwd, ...args) {
+    const result = await box.runLocal(cwd, ...args, '--json');
     assert.equal(result.code, 0, result.err + result.out);
     return JSON.parse(result.out);
   }
   for (const title of ['Pinned work', 'Sunk work', 'Ordinary work']) {
-    command(box.repo, 'add', 'web', title, '--specs', 'G1');
+    await command(box.repo, 'add', 'web', title, '--specs', 'G1');
   }
-  command(box.repo, 'milestone', 'add', 'Now', '--reason', 'Arrange fixture release', '--items', '1,2,3');
-  command(box.repo, 'milestone', 'pin', 'Now', '1', '--reason', 'release blocker');
-  command(box.repo, 'milestone', 'sink', 'Now', '2', '--reason', 'await the design');
-  const denied = box.run(box.web, 'milestone', 'order', 'Now', '2,3', '--json');
+  await command(box.repo, 'milestone', 'add', 'Now', '--reason', 'Arrange fixture release', '--items', '1,2,3');
+  await command(box.repo, 'milestone', 'pin', 'Now', '1', '--reason', 'release blocker');
+  await command(box.repo, 'milestone', 'sink', 'Now', '2', '--reason', 'await the design');
+  const denied = await box.runLocal(box.web, 'milestone', 'order', 'Now', '2,3', '--json');
   assert.equal(JSON.parse(denied.out).error.code, 'MILESTONE_PLACED');
-  const reordered = command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority').milestone;
+  const reordered = (await command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority')).milestone;
   assert.ok(reordered.order.includes(1), 'an ordinary agent cannot erase a coordinator pin by omission');
   assert.ok(reordered.sunk.includes(2), 'including a sunk item cannot lift it');
   assert.deepEqual(reordered.reasons, { '1': 'release blocker', '2': 'await the design' });
-  const again = command(box.repo, 'milestone', 'order', 'Now', '3,2', '--reason', 'Set fixture priority').milestone;
+  const again = (await command(box.repo, 'milestone', 'order', 'Now', '3,2', '--reason', 'Set fixture priority')).milestone;
   assert.ok(again.order.includes(1), 'even a coordinator ordinary re-rank is not an explicit lift');
   assert.ok(again.sunk.includes(2));
   assert.deepEqual(again.reasons, reordered.reasons);
   assert.deepEqual(again.items, [1, 2, 3], 'ordering does not remove milestone membership');
-  const refused = box.run(box.web, 'milestone', 'lift', 'Now', '1,2', '--json');
+  const refused = await box.runLocal(box.web, 'milestone', 'lift', 'Now', '1,2', '--json');
   assert.notEqual(refused.code, 0);
   assert.equal(JSON.parse(refused.out).error.code, 'COORDINATOR_ONLY');
-  command(box.repo, 'milestone', 'lift', 'Now', '1,2');
-  const lifted = command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority').milestone;
+  await command(box.repo, 'milestone', 'lift', 'Now', '1,2');
+  const lifted = (await command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority')).milestone;
   assert.deepEqual(lifted.order, [2, 3], 'coordinator ordering works once overrides are explicitly lifted');
   assert.equal(lifted.sunk, undefined);
   assert.equal(lifted.reasons, undefined);

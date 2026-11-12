@@ -481,7 +481,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false, fromHead = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -491,6 +491,8 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const { cursor, shoutCursor } = board.db.prepare(`SELECT
     (SELECT COALESCE(MAX(event_id),0) FROM event) AS cursor,
     (SELECT COALESCE(MAX(shout_id),0) FROM shout) AS shoutCursor`).get();
+  // A first read starts at the head: nothing before it is owed, and reading it all is the cost (#6152).
+  if (fromHead) { after = cursor; newsAfter = cursor; }
   const items = listItems(board, { all: true });
   const builds = items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId);
   const observed = typeof workingFiles === 'function' ? workingFiles(builds) : workingFiles;

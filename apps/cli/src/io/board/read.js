@@ -15,8 +15,10 @@ export async function writeFallback(ctx, work) {
 /** Open exactly as the synchronous read API does; only the CLI awaits a needed full-store import. */
 export async function withBoardRead(ctx, work) {
   const board = store.openBoardForRead(ctx.file, ctx.clock);
-  if (board && !board.current && !ctx.allowSchemaUpgrade) store.closeBoard(board);
-  if (!board || (!board.current && !ctx.allowSchemaUpgrade)) return writeFallback(ctx, work);
+  // Main repairs a drifted board on a write open, so a read there takes that path once (#5825).
+  const write = board && !board.current && (!ctx.allowSchemaUpgrade || board.drifted);
+  if (write) store.closeBoard(board);
+  if (!board || write) return writeFallback(ctx, work);
   try { return await withOpenedBoard(ctx, opened => work(opened, store), board); }
   catch (error) {
     const needsWrite = error instanceof store.ReadNeedsWrite || store.writeRefused(error);
