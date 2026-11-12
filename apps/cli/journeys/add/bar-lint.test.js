@@ -27,9 +27,8 @@ test('clause 1: add refuses four clauses, a clause with no tag and a measurement
   assert.match(long.message, /4 clauses and a bar holds at most 3/u);
   assert.match(long.next, /split it into items of at most 3 clauses/u);
   const untagged = refusal(add('Untagged', '1. a [test] 2. the cart shows its total'));
-  assert.equal(untagged.code, 'BAR_AMBIGUOUS');
-  assert.match(untagged.message, /clause 2 has no \[test\], \[command\] or \[measurement\] tag/u);
-  assert.match(untagged.next, /end clause 2 with \[test\], \[command\] or \[measurement\]/u);
+  assert.equal(untagged.code, 'CLAUSE_EVIDENCE_REQUIRED');
+  assert.match(untagged.message, /clause 2 has no evidence kind; end each numbered clause with exactly one \[test\|command\|screenshot\|measurement\|reasoning\]/u);
   const unmeasured = refusal(add('Unmeasured', '1. the page loads quickly [measurement]'));
   assert.match(unmeasured.message, /clause 1 is a \[measurement\] with no number/u);
   assert.match(unmeasured.next, /put the number in clause 1/u);
@@ -64,8 +63,8 @@ test('clause 3: edit refuses the same faults through the real CLI and leaves the
   const { box, refusal, add, edit } = project(t);
   const id = JSON.parse(add('Editable', GOOD).out).item.item_id;
   const bad = refusal(edit(id, '--criterion', '1. a [test] 2. no tag here'));
-  assert.equal(bad.code, 'BAR_AMBIGUOUS');
-  assert.match(bad.message, /clause 2 has no \[test\], \[command\] or \[measurement\] tag/u);
+  assert.equal(bad.code, 'CLAUSE_EVIDENCE_REQUIRED');
+  assert.match(bad.message, /clause 2 has no evidence kind; end each numbered clause with exactly one/u);
   const long = refusal(edit(id, '--criterion', '1. a [test] 2. b [test] 3. c [test] 4. d [test]'));
   assert.match(long.next, /split it into items of at most 3 clauses/u);
   assert.equal(onBoard(box, board => store.getItem(board, id).item_criterion), GOOD);

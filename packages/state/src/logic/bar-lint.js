@@ -41,10 +41,7 @@ export function lintBar(criterion, { allowLong = false } = {}) {
     const body = words(clause.text);
     if (!clause.kind) {
       if (clause.free) warnings.push({ code: 'BAR_NO_EVIDENCE_TAG', clause: clause.number, message: `${label} has no [test], [command] or [measurement] tag; end it with the one that proves it` });
-      else {
-        problems.push(`${label} has no [test], [command] or [measurement] tag`);
-        fix.push(`end ${label} with [test], [command] or [measurement]`);
-      }
+      // A numbered clause with no tag is refused by requireCriterionEvidence (CLAUSE_EVIDENCE_REQUIRED), which names the fix.
     } else if (clause.kind === 'measurement' && !/\d/u.test(body)) {
       problems.push(`${label} is a [measurement] with no number`);
       fix.push(`put the number in ${label}, such as "under 200 ms" or "at least 40 percent", or tag it [test] or [command]`);
