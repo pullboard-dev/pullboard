@@ -570,37 +570,10 @@
     "launch": 4
   },
   "apps/cli/journeys/land/affected.test.js": {
-    "launch": 8
-  },
-  "apps/cli/journeys/land/automatic.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/land/bisect.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/land/cadence.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/land/landing/bisect.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/land/landing/excluded.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/land/landing/failure.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/land/landing/first.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/land/landing/message.test.js": {
-    "launch": 11
-  },
   "apps/cli/journeys/land/landing/noop.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/land/landing/per.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/land/landing/smoke.test.js": {
     "launch": 1
@@ -608,14 +581,8 @@
   "apps/cli/journeys/land/main.test.js": {
     "launch": 41
   },
-  "apps/cli/journeys/land/merge.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/land/named.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/land/next.test.js": {
-    "launch": 9
+    "launch": 3
   },
   "apps/cli/journeys/land/switch.test.js": {
     "launch": 1
