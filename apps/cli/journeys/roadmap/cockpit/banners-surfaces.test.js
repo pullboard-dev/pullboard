@@ -35,3 +35,8 @@ test('a refusal handed to a banner as plain words is shown as written [C6,N26]',
   const detail = 'This computer could not reach the board.';
   assert.equal(hostedState('local-failed', { detail }).detail, detail);
 });
+
+test('a bracketed code in a refusal is dropped from a banner and its plain words stay [C6,N26]', () => {
+  assert.equal(hostedState('problem', { detail: '[RELAY_UNAVAILABLE] The relay is busy.' }).text, 'The relay is busy.');
+  assert.equal(hostedState('problem').text, 'This page could not take the connection Pullboard on this computer sent back.');
+});
