@@ -28,7 +28,7 @@ test('Doctrine redesign shows its sources, checks, review state and detail in re
     + '- G1 [approved, must] A local doctrine row keeps its item citation. | gate: commit-msg hook, review\n');
   box.git(repo.repo, 'add', '-A');
   box.git(repo.repo, 'commit', '-qm', 'test: seed real Doctrine gate evidence');
-  box.run(repo.repo, 'add', 'web', 'Doctrine citation', '--specs', 'G1', '--criterion', 'The doctrine row has an item citation.');
+  await box.inProcess(repo.repo, 'add', 'web', 'Doctrine citation', '--specs', 'G1', '--criterion', 'The doctrine row has an item citation.');
   const server = await startView(box);
   let chrome;
   try {
