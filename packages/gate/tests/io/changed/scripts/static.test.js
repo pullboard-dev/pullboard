@@ -45,9 +45,9 @@ function staticProject(accepted = {}) {
 }
 
 /** Run the canonical staged checker itself; hook installation belongs to the coordinator's later change. */
-function runChecker(box) {
+function runChecker(box, checker = join(box.repo, 'packages/gate/src/io/changed/scripts/static.js')) {
   return spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
-    join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), '--staged-hook'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+    checker, '--staged-hook'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
 }
 
 /** Stage one source file and judge its exact index bytes. */
@@ -71,6 +71,21 @@ test('the staged checker refuses a source with two import bindings on one line, 
   assert.ok(performance.now() - started < 1000, 'static refusal finishes under one second'); // budget: item #2571's frozen requirement sets the one-second ceiling.
   assert.notEqual(refused.status ?? refused.code, 0, 'the staged source is refused');
   assert.match(`${refused.stderr ?? refused.err}${refused.stdout ?? refused.out ?? ''}`, /src\/two\.js:1: one import binding per line \(2 bindings\)/u);
+});
+
+test('clause 1, clause 2: the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
+  const box = staticProject();
+  mkdirSync(join(box.repo, 'packages/gate/src/io'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/gate/src/io/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
+  box.git(box.repo, 'add', 'packages/gate/src/io/two.js');
+  const step = () => runChecker(box, CHECKER);
+  const first = step();
+  assert.equal(first.status, 0, first.stderr);
+  assert.match(first.stderr, /pullboard pre-commit: fixed: split multi-binding import lines in packages\/gate\/src\/io\/two\.js and staged them/u);
+  assert.equal(box.git(box.repo, 'show', ':packages/gate/src/io/two.js').trimEnd(), "import {\n  readFileSync,\n  existsSync,\n} from 'node:fs';\nexport const a = [readFileSync, existsSync];");
+  const second = step();
+  assert.equal(second.status, 0, second.stderr);
+  assert.doesNotMatch(second.stderr, /fixed:/u, 'a fixed file is never fixed or refused again');
 });
 
 test('the staged checker accepts a clean staged file [C7]', () => {

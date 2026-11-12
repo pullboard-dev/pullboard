@@ -44,3 +44,13 @@ test('clause 2: next names ITEM_FOLDER_PROTECTED for the locked item, claims the
   assert.ok(existsSync(join(folder, '.git')), 'the folder stays');
   assert.match(box.git(box.repo, 'worktree', 'list', '--porcelain'), new RegExp(`worktree ${folder.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n[^]*?locked Preserve item ${a} candidate`, 'u'), 'the folder stays locked');
 });
+
+test('pullboard claim of the locked item refuses ITEM_FOLDER_PROTECTED before the move, so A is never claimed (#5766) [B3,C7]', async () => {
+  const { box, a, folder, root } = protectedBoard();
+  const claimed = (await box.runLocal(root, 'claim', a));
+  const all = `${claimed.out}\n${claimed.err}`;
+  assert.notEqual(claimed.code, 0, all);
+  assert.match(all, /ITEM_FOLDER_PROTECTED/u);
+  assert.match((await box.runLocal(box.repo, 'show', a)).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'A stays open');
+  assert.ok(existsSync(join(folder, '.git')), 'the folder stays');
+});

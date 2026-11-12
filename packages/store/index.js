@@ -20,7 +20,7 @@ export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
-export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictsFor, rowDecisions } from './src/io/board/query.js';
+export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, agentLaneLocked, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictsFor, rowDecisions } from './src/io/board/query.js';
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
@@ -39,7 +39,7 @@ export { allItemsNeedingRescope, ineligibleReleaseIds, itemsNeedingRescope, next
 export { jsonChunks, writeJsonChunks } from './src/io/chunks.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/io/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/io/history.js';
-export { normalizeCheckBaseline, saveCheckBaseline } from './src/io/baseline/check.js';
+export { normalizeCheckBaseline, saveCheckBaseline, knownGreenBaseline, guardGreenCheck } from './src/io/baseline/check.js';
 export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds, mainRedBaselinesToRetake, mainRedItemCases } from './src/logic/known/main/reworks.js';
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
 export { mainRedBuildRouting } from './src/io/routing.js';
@@ -71,12 +71,12 @@ export { staleClaimRelease } from './src/logic/board/stale/claim.js';
 export { planStaleState } from './src/logic/board/stale/state/maintenance.js';
 export { staleStateLimits, staleInstant, latestStaleActivity, staleStateAge, staleReleaseNote, staleStateLine } from './src/logic/board/stale/state/policy.js';
 export { applyStaleState } from './src/logic/board/stale/apply.js';
-export { automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
+export { readableRigorText, automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
 export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance.js';
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim } from './src/io/board/claim.js';
 export { writeBoardCommand } from './src/io/board/write.js';
-export { boardWriteSnapshot, requireBoardWriteSnapshot } from './src/io/board/write/preparation.js';
+export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
 export { invalidateItemPatch } from './src/io/board/patch/attach.js';
 export { writeRowDecisions } from './src/io/board/record/decisions.js';
@@ -101,7 +101,7 @@ export { rejectionReturnEnabled } from './src/logic/rework.js';
 
 export { createItemSlice } from "./src/io/board/item/slice.js";
 
-export { nextIdleChanged } from './src/logic/board/stats.js';
+export { nextIdleChanged } from './src/io/board/record/idle.js';
 
 export { prepareSubmit, sealStrictRenames } from './src/io/board/submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/io/board/checkpoint.js';

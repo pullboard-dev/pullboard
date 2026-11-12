@@ -30,6 +30,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -63,6 +64,8 @@ async function project() {
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec '${process.execPath}' '${BIN}' "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = fixtureEnv(home, bin);
+  // The home is also the machine home; its submits settle whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(home);
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).toString().trim();
   /** Run one CLI command through the production dispatch in this process; a watch stays a child process. */
   const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
@@ -474,7 +477,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(usage.length, 3, 'only release and the two submissions checkpoint usage');
   assert.ok(usage.every(event => event.event_by === builder.agent));
   assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length,
-    Number(firstSubmission.activity.digests.length > 0) + Number(secondSubmission.activity.digests.length > 0));
+    // A seat's first delivery starts it at the board head (#6152): it records a receipt with no digest. Later ones record only with a digest.
+    1 + Number(secondSubmission.activity.digests.length > 0));
   assert.deepEqual(watch.out.lines.map(({ line }) => JSON.parse(line)).filter(row => !row.notice)
     .map(row => [row.sequence, row.kind, row.item, row.actor]),
   recorded.map(event => [event.event_id, event.event_kind, event.item_id, event.event_by]),
