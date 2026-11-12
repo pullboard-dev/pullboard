@@ -40,7 +40,7 @@ const BREAKABLE_CLI = [
  * Land one accepted item whose merged tree breaks the project's own CLI through the ordinary, non-parallel path, and
  * return main and origin before and after. `separate` takes the local-trunk path instead of the inline batch gate.
  */
-async function landBrokenCli({ separate }) {
+function landBrokenCli({ separate }) {
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -55,7 +55,7 @@ async function landBrokenCli({ separate }) {
   submitItem(box, entry, '// BREAK PASS\n');
   acceptItem(box, entry);
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.remote, 'rev-parse', 'main');
-  const landed = await box.runLocal(box.repo, 'land');
+  const landed = box.run(box.repo, 'land');
   return { landed, main, origin, mainAfter: box.git(box.repo, 'rev-parse', 'main'), originAfter: box.git(box.remote, 'rev-parse', 'main') };
 }
 
@@ -95,8 +95,8 @@ test('a candidate that ships no CLI entry has nothing to smoke [C7]', t => {
   assert.deepEqual(runLandingCliSmoke(dir), { ran: [] });
 });
 
-test('a non-parallel inline landing whose candidate help throws is refused before main moves, naming the command [C7]', { timeout: 180_000 }, async () => {
-  const { landed, main, origin, mainAfter, originAfter } = await landBrokenCli({ separate: false });
+test('a non-parallel inline landing whose candidate help throws is refused before main moves, naming the command [C7]', { timeout: 180_000 }, () => {
+  const { landed, main, origin, mainAfter, originAfter } = landBrokenCli({ separate: false });
   assert.notEqual(landed.code, 0, landed.out);
   assert.match(landed.err, /LAND_CLI_SMOKE/u);
   assert.match(landed.err, /pullboard help/u);
@@ -104,8 +104,8 @@ test('a non-parallel inline landing whose candidate help throws is refused befor
   assert.equal(originAfter, origin, 'origin did not move');
 });
 
-test('a local-trunk landing whose candidate help throws lands nothing, naming the command [C7]', { timeout: 180_000 }, async () => {
-  const { landed, main, origin, mainAfter, originAfter } = await landBrokenCli({ separate: true });
+test('a local-trunk landing whose candidate help throws lands nothing, naming the command [C7]', { timeout: 180_000 }, () => {
+  const { landed, main, origin, mainAfter, originAfter } = landBrokenCli({ separate: true });
   assert.match(`${landed.out}\n${landed.err}`, /nothing landed: .*pullboard help/u);
   assert.equal(mainAfter, main, 'main did not move');
   assert.equal(originAfter, origin, 'origin did not move');
