@@ -49,7 +49,7 @@ test('pullboard why names one cause per unlanded item and every idle seat [N26,C
 });
 
 test('a review with no live eligible reviewer says why, and a lane hold reads as held [N26,C7]', () => {
-  const base = ports({ laneHold: lane => (lane === 'core' ? { hold_reason: 'core lane paused' } : null) });
+  const base = ports({ laneHold: (_board, lane) => (lane === 'core' ? { hold_reason: 'core lane paused' } : null) });
   const none = flowWhy({}, { ...base, reviewEligibility: () => ({ eligible: ['gone-1'], ineligible: [{ agent: 'build-1', rule: 'built it' }] }) });
   const review = none.items.find(row => row.id === 2);
   assert.deepEqual([review.cause, review.eligible], ['held', undefined]);
