@@ -2013,7 +2013,7 @@
     "launch": 10
   },
   "apps/cli/journeys/verify/compare/checkout.test.js": {
-    "launch": 1
+    "launch": 3
   },
   "apps/cli/journeys/verify/fixes.test.js": {
     "launch": 6
