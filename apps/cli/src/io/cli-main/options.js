@@ -114,6 +114,7 @@ const OPTIONS = {
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
   prune: { type: 'boolean' },
+  utilization: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
   update: { type: 'boolean' },

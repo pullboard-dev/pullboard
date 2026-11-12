@@ -2,6 +2,8 @@ export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
+export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
+export { readJobSpans } from './src/io/runners/utilization.js';
 export { buildTimeStats, buildTimeLines } from './src/logic/build/time.js';
 export {
   nativeToolCallIds,
