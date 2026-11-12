@@ -67,7 +67,7 @@ function fullRuns(box) { return allRuns(box).filter(row => !row.alone); }
  * Why: one landing per item caps the trunk near two items an hour, so the default must be the whole
  * waiting queue in one gate run, and a red batch must cost about log2(n) gates, never n.
  */
-export async function assertWholeQueueBatch({ landProject, itemWorktree, submitItemLocal, acceptItemLocal, json, onBoard }, { separate = false } = {}) {
+export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, submitItemLocal, acceptItemLocal, json, onBoard }, { separate = false } = {}) {
   const box = landProject();
   if (separate) {
     const path = join(box.repo, 'pullboard.json');
@@ -78,8 +78,12 @@ export async function assertWholeQueueBatch({ landProject, itemWorktree, submitI
   const remoteBefore = box.git(box.remote, 'rev-parse', 'main');
   const red = 10;
   box.env.LAND_SUPPRESS_RED = '1';
-  const entries = Array.from({ length: WAITING }, (_, index) => itemWorktree(box, index + 1, `web/land-${index + 1}.test.js`));
   const phases = [];
+  const entries = await timed(phases, 'setup', async () => {
+    const made = [];
+    for (let index = 0; index < WAITING; index += 1) made.push(await itemWorktreeLocal(box, index + 1, `web/land-${index + 1}.test.js`));
+    return made;
+  });
   await timed(phases, 'submit', async () => { for (const [index, entry] of entries.entries()) await submitItemLocal(box, entry, index === red ? 'RED\n' : 'PASS\n'); });
   await timed(phases, 'accept', async () => { for (const entry of entries) await acceptItemLocal(box, entry); });
   // The acceptance proof is for the old main; a real later change makes the batch run its landing gate.

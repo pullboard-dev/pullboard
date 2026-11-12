@@ -72,6 +72,18 @@ function itemWorktree(box, number, file = FILES[number - 1], afterIds = [], chec
   return { path, item, file };
 }
 
+/** itemWorktree answered in this process: the same worktree, seat, item and claim without a node start-up per step [B3]. */
+async function itemWorktreeLocal(box, number, file = FILES[number - 1]) {
+  const path = join(box.dir, `land-${number}`);
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
+  assert.equal((await joinFixtureSeat(box, path, 'web', { run: box.runLocal })).code, 0);
+  const item = (await fileFixtureItem(box, box.repo, { lane: 'web', title: `Land fixture ${number}`,
+    criterion: `land fixture ${number} remains valid`, check: `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`,
+    args: ['--specs', 'G1'], run: box.runLocal })).item_id;
+  assert.equal((await box.runLocal(path, 'claim', String(item))).code, 0);
+  return { path, item, file };
+}
+
 /** Build and submit a private fixture through its real hooks and item check. */
 function submitItem(box, entry, contents = 'PASS\n') {
   const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
@@ -125,5 +137,5 @@ function moveMainPastSubmit(box, number = 0) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
 }
