@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
@@ -37,13 +38,13 @@ function goneFolder(box, id, { commit }) {
 }
 
 for (const commit of [true, false]) {
-  test(`clause 1: [C7] claiming an item whose folder names a removed worktree yields a working folder and says ${commit ? 'earlier commits wait' : 'nothing waits'}`, t => {
+  test(`clause 1: [C7] claiming an item whose folder names a removed worktree yields a working folder and says ${commit ? 'earlier commits wait' : 'nothing waits'}`, async t => {
     const helpers = createE2eHelpers();
     t.after(() => helpers.cleanup());
     const box = helpers.project('true');
     const id = file(box, 'stale folder');
     const path = goneFolder(box, id, { commit });
-    const claimed = box.run(box.web, 'claim', String(id), '--json');
+    const claimed = await runCliInProcess(['claim', String(id), '--json'], { cwd: box.web, env: box.env });
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
     assert.equal(JSON.parse(claimed.out).itemFolder, path);
     assert.equal(box.git(path, 'branch', '--show-current'), `web/item-${id}`, 'git works in the folder');
