@@ -1427,9 +1427,6 @@
   "apps/cli/journeys/verify/landing.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/verify/landing/drill.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/verify/landing/interrupted.test.js": {
     "launch": 2
   },
