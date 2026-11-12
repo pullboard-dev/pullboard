@@ -151,3 +151,42 @@ test('submit names a real main conflict and leaves the builder checkout intact [
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), source);
   assert.equal(box.git(box.web, 'status', '--porcelain'), '');
 });
+
+test('a BOARD_BUSY refusal after the main merge restores the pre-submit head [C7,V4]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'busy after merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', 'test -f web/feature.txt', '--json'));
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  const claimed = (await box.runLocal(box.web, 'claim', String(id)));
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
+  const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add busy fixture [G1]');
+  assert.equal(committed.status, 0, committed.stderr);
+  const source = box.git(box.web, 'rev-parse', 'HEAD');
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/main.txt'), 'main\n');
+  box.git(box.repo, 'add', 'web/main.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance main');
+  // A post-merge hook takes the board write lock the moment the merge lands, as another seat's command would.
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const holder = join(box.dir, 'hold.mjs');
+  const locked = join(box.dir, 'locked');
+  writeFileSync(holder, `import { DatabaseSync } from 'node:sqlite';
+import { writeFileSync } from 'node:fs';
+const db = new DatabaseSync(${JSON.stringify(file)});
+db.exec('BEGIN IMMEDIATE');
+writeFileSync(${JSON.stringify(locked)}, 'x');
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 16000); // budget: outlast SQLite's 10 s timeout plus the 2 s queue bound.
+db.exec('ROLLBACK');
+`);
+  const hooks = join(box.repo, '.git', 'hooks');
+  mkdirSync(hooks, { recursive: true });
+  writeFileSync(join(hooks, 'post-merge'), `#!/bin/sh\n${JSON.stringify(process.execPath)} ${JSON.stringify(holder)} &\nwhile [ ! -f ${JSON.stringify(locked)} ]; do sleep 0.05; done\n`, { mode: 0o755 });
+  const result = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
+  assert.equal(result.code, 1, `${result.err}\n${result.out}`);
+  assert.equal(JSON.parse(result.out).error.code, 'BOARD_BUSY', result.out);
+  assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), source, 'the refused submit leaves the head where it was');
+  assert.equal(box.git(box.web, 'status', '--porcelain'), '');
+});

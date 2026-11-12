@@ -399,6 +399,29 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
 }
 
 export async function submitHere(ctx, id, infra, companionInput = null) {
+  const before = headCommit(ctx.info.root);
+  try { return await submitComposed(ctx, id, infra, companionInput); }
+  catch (error) {
+    if (error?.code === 'BOARD_BUSY') restoreMergedHead(ctx.info.root, before);
+    throw error;
+  }
+}
+
+/**
+ * Put the item folder back on its pre-submit head after a BOARD_BUSY refusal that followed the automatic main merge.
+ * Why: the refusal records nothing, so a moved head only strands the clause evidence ticked at the old head [#6096].
+ * Only a clean tree whose head is exactly that merge (first parent the old head) is reset; any other state is left alone.
+ */
+function restoreMergedHead(root, before) {
+  if (!before) return;
+  const now = headCommit(root);
+  if (!now || now === before || !isClean(root)) return;
+  const parents = tryGit(root, ['show', '-s', '--format=%P', now]);
+  if (parents.status !== 0 || parents.stdout.trim().split(' ')[0] !== before || parents.stdout.trim().split(' ').length !== 2) return;
+  tryGit(root, ['reset', '--hard', '-q', before]);
+}
+
+async function submitComposed(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx), pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted(id);
