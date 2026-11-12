@@ -5,10 +5,12 @@ import assert from 'node:assert/strict';
 import {
   mkdtempSync,
   rmSync,
+  readFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import {
   machine,
   project,
@@ -26,10 +28,18 @@ import {
   landRoadmapItem,
 } from '../../../tests/fixtures/cockpit/roadmap.js';
 
+/** Pins controller dispatch: the fixture's accept reads the commit a controller submit records at once; pull leaves it to the gate job [P7]. */
+function pinController(box) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let settings = {};
+  try { settings = JSON.parse(readFileSync(file, 'utf8')); } catch { /* no settings written yet */ }
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
+}
+
 test('a milestone lists work to ship first, shipped below, and no withdrawn items [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for shipping-order checks.');
-  const box = machine();
+  const box = machine(); pinController(box);
   const alpha = project(box, 'shipping-rows');
   for (const title of ['First verified', 'First open', 'Second verified', 'Dropped idea', 'Second open']) {
     box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
@@ -100,7 +110,7 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
 test('the roadmap chips keep their scroll through a redraw with wide fonts [N26]', async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Roadmap chip row.');
-  const box = machine();
+  const box = machine(); pinController(box);
   const alpha = project(box, 'roadmap-chips-wide');
   box.run(alpha.repo, 'add', 'web', 'Next release item', '--specs', 'G1', '--criterion', 'renders');
   box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '1');
@@ -167,7 +177,7 @@ test('the roadmap keeps every upcoming release open [N26]', {
 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for roadmap disclosure checks.');
-  const box = machine();
+  const box = machine(); pinController(box);
   const alpha = project(box, 'all-upcoming-open');
   for (const title of ['Shipped one', 'Shipped two', 'Next release', 'Later release']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   for (const id of [1, 2]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
