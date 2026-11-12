@@ -276,6 +276,12 @@ function gitData(root, args, gitDirectory) {
     { cwd: root, env: cleanGitEnvironment(), maxBuffer: 32 * 1024 * 1024 });
 }
 
+/** The merged text of one plan data file, or the path when both sides changed the same entry; the landing's own decision [C7,D3]. */
+export function mergePlanData(path, ancestor, ours, theirs) {
+  const resolution = sourceResolution(path, ancestor, ours, theirs);
+  return resolution?.source === undefined ? { conflicts: [path] } : { source: resolution.source };
+}
+
 /** Read exactly three regular-file stages with identical modes and valid UTF-8, refusing deletes and symlinks. */
 function stageResolution(root, path, records, gitDirectory, version = MECHANICAL_VERSION, orderedData = false) {
   if (records.length !== 3 || records.some((record, index) => record.stage !== index + 1 || record.mode !== records[0].mode)
