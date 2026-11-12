@@ -87,20 +87,52 @@ export function searchItems(board, text, { sidecar, limit, exclude } = {}) {
   return rank(searchIndex(board, { sidecar }), text, { limit, exclude });
 }
 
+/** Item states that are finished; a related-items block never lists them. */
+const CLOSED = ['verified', 'withdrawn'];
+
+/** How many items may be missing from the sidecar before an add-time lookup rebuilds it instead of reading it as it is. */
+const STALE_ITEMS = 20;
+
+/**
+ * Each hit with its item's state and title, read by id so a lookup never loads the whole board.
+ *
+ * @param {object} board
+ * @param {{ id: number, score: number }[]} hits
+ * @returns {{ id: number, score: number, state: string, title: string }[]}
+ */
+function describe(board, hits) {
+  if (!hits.length) return [];
+  const rows = board.db.prepare(`SELECT item_id AS id, item_status AS state, item_title AS title FROM item WHERE item_id IN (${hits.map(() => '?').join(',')})`).all(...hits.map(hit => hit.id));
+  const byId = new Map(rows.map(row => [row.id, row]));
+  return hits.map(hit => ({ id: hit.id, score: hit.score, state: byId.get(hit.id)?.state ?? 'unknown', title: byId.get(hit.id)?.title ?? '' }));
+}
+
 /**
  * The best matches for a text with each item's state and title, for a person to read.
  *
  * @param {object} board - An open board.
  * @param {string} text
- * @param {{ sidecar: string, limit?: number, exclude?: number[], open?: boolean }} options - `open` keeps only items still to be done.
+ * @param {{ sidecar: string, limit?: number, exclude?: number[] }} options
  * @returns {{ id: number, score: number, state: string, title: string }[]}
  */
-export function searchItemRows(board, text, { sidecar, limit = 5, exclude, open = false }) {
-  const byId = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
-  const closed = new Set(['verified', 'withdrawn']);
-  const hits = searchItems(board, text, { sidecar, exclude, limit: open ? Infinity : limit });
-  return hits
-    .map(hit => ({ id: hit.id, score: hit.score, state: byId.get(hit.id)?.item_status ?? 'unknown', title: byId.get(hit.id)?.item_title ?? '' }))
-    .filter(row => !open || !closed.has(row.state))
-    .slice(0, limit);
+export function searchItemRows(board, text, { sidecar, limit = 5, exclude }) {
+  return describe(board, searchItems(board, text, { sidecar, exclude, limit }));
+}
+
+/**
+ * The nearest open items to a text, for advice when an item is filed; it reads the sidecar as it is unless it is missing or
+ * well behind the board, so filing stays fast, and it throws on a broken index for the caller to ignore.
+ * Why rank, not a score threshold: duplicates score from 0.17 to 1.0, inside the noise of unrelated items [C7].
+ *
+ * @param {object} board - An open board.
+ * @param {string} text - The new item's title, criterion and brief.
+ * @param {{ sidecar: string, limit?: number, exclude?: number[] }} options
+ * @returns {{ id: number, score: number, state: string, title: string }[]}
+ */
+export function nearestOpenItems(board, text, { sidecar, limit = 3, exclude = [] }) {
+  const stored = readSearchIndex(sidecar);
+  const total = board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
+  const index = stored && total - stored.ids.length <= STALE_ITEMS ? stored : buildSearchIndex(board, { sidecar });
+  const open = new Set(board.db.prepare(`SELECT item_id AS id FROM item WHERE item_status NOT IN (${CLOSED.map(() => '?').join(',')})`).all(...CLOSED).map(row => row.id));
+  return describe(board, rank(index, text, { limit: Infinity, exclude }).filter(hit => open.has(hit.id)).slice(0, limit));
 }
