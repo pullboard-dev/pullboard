@@ -168,8 +168,8 @@ function phaseEvidence(t, { timedOut = false } = {}) {
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    // Two slots each: the frozen check and the proof hold a lease apiece (#3325).
-    runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 2, browser: 2 })),
+    // One slot each, as on main: the frozen check and the proof take a runner apiece, and a runner whose cleanup is unverified has no second slot to take the proof again (#3325).
+    runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 1, browser: 1 })),
     gate: { runnersFirst: true, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner: false } }));
   writeFileSync(join(root, 'source.txt'), 'committed phase evidence source');
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
