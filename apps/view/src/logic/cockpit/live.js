@@ -13,11 +13,34 @@ ${pageScriptPart2(pageScope)}function syncBoardMode(root) {
   document.body.classList.toggle('requests', requests);
 }
 
-${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
+${pageScriptPart3(pageScope)}/**
+ * Draw the shown board from its own read, before the rest of the boards answer (#6589): a board not yet on the page,
+ * as on a page load or a switch, fills its frame in at once. The read that started it still draws the full answer.
+ * An address naming another board leaves the draw to that board's own refresh.
+ */
+function drawEarly(root, generation, early) {
+  if (root !== view.root || data?.root === root || generation < refreshDrawn.generation) return;
+  early.root = root;
+  if (!addressReady) {
+    const place = placeAtAddress(early);
+    if (place?.root && place.root !== root) return;
+    if (place) applyPlace(place, globalThis.history?.state);
+    addressReady = true;
+  }
+  seen = boardText(early);
+  data = early;
+  syncBoardMode(root);
+  itemSearches.clear();
+  render();
+  address(false);
+  void loadAddressedShout();
+}
+
+async function refresh(fresh = null, attempt = 1) {
   const generation = ++refreshStarted;
   const root = view.root;
   const mark = root ? view.seen['pb.seen.' + root] ?? keep('pb.seen.' + root) : null;
-  const next = await boardState(root, mark, fresh);
+  const next = await boardState(root, mark, fresh, fresh ? null : (early) => drawEarly(root, generation, early));
   // The person switched projects while this answer was on its way: the switch's own refresh shows it.
   if (root !== view.root) return;
   // A board left and opened again: an answer that started before one already drawn is older than it, so it is not

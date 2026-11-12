@@ -172,6 +172,15 @@ main { padding: var(--space-5) var(--space-6) var(--space-9); }
 .first code { font: 600 var(--text-sm) var(--mono); color: var(--ink); }
 .boardless .first { display: block; }
 .loading .top, .loading [data-pane], .boardless .top, .boardless [data-pane] { display: none; }
+/* The current screen's frame while its board state is on its way (#6589): the screen's cards, empty, where the board
+ * fills them in. A two-column screen keeps its detail column; the rest show one column. */
+.board-frame { display: grid; gap: var(--space-5); align-items: start; }
+.board-frame[hidden], .loading .board-frame, .boardless .board-frame { display: none; }
+.board-frame .frame-primary { display: grid; gap: var(--space-5); min-width: 0; }
+.frame-card { min-height: 56px; }
+.frame-card.frame-list { min-height: 360px; }
+.frame-card.frame-detail { min-height: 240px; }
+.board-frame:not(.two) .frame-detail { display: none; }
 a { color: var(--accent-strong); text-underline-offset: 2px; }
 a.go, a.ghost { display: inline-flex; align-items: center; text-decoration: none; }
 a.ghost { color: var(--ink); }

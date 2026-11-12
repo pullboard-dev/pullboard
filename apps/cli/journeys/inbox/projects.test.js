@@ -215,6 +215,83 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
   }
 });
 
+test('a page load draws its frame at once and fills each part in as its board arrives [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for page frame checks.');
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const beta = project(box, 'beta');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Alpha framed item', '--specs', 'G1', '--criterion', 'shown');
+  await box.inProcess(beta.repo, 'add', 'web', 'Beta framed item', '--specs', 'G1', '--criterion', 'shown');
+  let view, chrome;
+  /** What a person sees: the tabs and the frame as laid out, the marked tab, the sidebar and the main text. */
+  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify({
+    loading: document.body.classList.contains('loading'),
+    tabs: getComputedStyle(document.querySelector('#tabs')).display !== 'none' && getComputedStyle(document.querySelector('.top')).display !== 'none',
+    lit: document.querySelector('.tab.on')?.dataset.tab ?? null,
+    tab: view.tab,
+    frame: getComputedStyle(document.querySelector('#board-frame')).display,
+    cards: [...document.querySelectorAll('#board-frame .frame-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
+    names: [...document.querySelectorAll('#proj-list .pname')].map((node) => node.textContent),
+    lines: [...document.querySelectorAll('#proj-list .repo small')].map((node) => node.textContent),
+    main: document.querySelector('main').innerText,
+  })`));
+  try {
+    view = await startView(box);
+    const [alphaId, betaId] = [await boardId(view, alpha.repo), await boardId(view, beta.repo)];
+    chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'page-frame-chrome'));
+    // The person last looked at alpha; each board's state is held before real HTTP until the test lets it through.
+    await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+      try { localStorage.setItem('pb.project', ${JSON.stringify(alpha.repo)}); } catch {}
+      const nativeFetch = window.fetch.bind(window);
+      const gate = window.__frameGate = { open: new Set(), blocked: [] };
+      gate.release = (id) => { gate.open.add(id); gate.blocked.filter((entry) => entry.id === id).forEach((entry) => entry.resolve()); };
+      window.fetch = async (input, init) => {
+        const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
+        const id = /^\\/api\\/v1\\/boards\\/([^/]+)\\/state$/.exec(path)?.[1];
+        if (id && !gate.open.has(decodeURIComponent(id))) await new Promise((resolve) => gate.blocked.push({ id: decodeURIComponent(id), resolve }));
+        return nativeFetch(input, init);
+      };
+    })()` });
+    await chrome.send('Page.navigate', { url: view.link.href });
+    await chrome.waitFor('window.__frameGate?.blocked.length >= 2');
+    const framed = await read();
+    assert.equal(framed.loading, false, 'the page leaves its loading mark once the board list answers');
+    assert.equal(framed.tabs, true, 'the tabs show before any board state arrives');
+    assert.equal(framed.lit, framed.tab, 'the current tab is marked in the frame');
+    assert.equal(framed.frame, 'grid', 'the current screen draws its frame before any board state arrives');
+    assert.ok(framed.cards >= 2, 'the frame lays out the screen\'s cards, not a blank page');
+    assert.deepEqual(framed.names, ['alpha', 'beta'], 'the sidebar lists every board before any state arrives');
+    assert.deepEqual(framed.lines, ['Loading…', 'Loading…']);
+
+    // The shown board arrives while the other is still held: it fills its frame in without waiting for the slowest board.
+    await chrome.stable(`window.__frameGate.release(${JSON.stringify(alphaId)}), true`);
+    await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && data?.project && document.querySelector('#board-frame').hidden`);
+    assert.equal(await chrome.stable(`window.__frameGate.blocked.some((entry) => entry.id === ${JSON.stringify(betaId)}) && !window.__frameGate.open.has(${JSON.stringify(betaId)})`), true, 'beta is still held');
+    await chrome.click(`document.querySelector('[data-tab="items"]')`);
+    const early = await read();
+    assert.match(early.main, /Alpha framed item/, 'the shown board fills in as soon as its own state arrives');
+    assert.doesNotMatch(early.main, /Loading project…/);
+    assert.deepEqual(early.lines, ['1 item open', 'Loading…'], 'its sidebar row fills in; the held board still says loading');
+
+    await chrome.stable(`window.__frameGate.release(${JSON.stringify(betaId)}), true`);
+    await chrome.waitFor(`[...document.querySelectorAll('#proj-list .repo small')].every((node) => node.textContent !== 'Loading…')`);
+    const filled = await read();
+    assert.deepEqual(filled.lines, ['1 item open', '1 item open'], "the other board's row fills in when its state arrives");
+    assert.match(filled.main, /Alpha framed item/, 'the shown board stays drawn');
+    assert.deepEqual(chrome.exceptions, [], 'drawing in parts raises no uncaught exception');
+  } finally {
+    try {
+      if (chrome) {
+        await chrome.stable('window.__frameGate && [...new Set(window.__frameGate.blocked.map((entry) => entry.id))].forEach((id) => window.__frameGate.release(id))').catch(() => {});
+        await closeSnapshotChrome(chrome);
+      }
+    } finally {
+      if (view) await view.stop();
+    }
+  }
+});
+
 test('the page never tells a person with boards to run init while the list loads [N26,H5]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for loading-state checks.');
