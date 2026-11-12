@@ -25,27 +25,28 @@ function landingItems(items) {
  * checks and pushes. Offering the same landing again returns the job as it stands.
  *
  * Why: the board host only keeps rows, so a landing survives the board host sleeping, and nothing here runs git.
- * Behind gate.runnerDispatch pull with trunk.remote set, so today's lander stays the default.
+ * One job kind for every landing: automatic on accept, by hand, and forced, whatever gate.runnerDispatch says (#5864).
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, config: { trunk?: { remote?: string }, landing?: { trunkRemote?: string } },
- *   mode: string, trunk?: string, check?: string[] | null, needs?: string[], checkout?: boolean, now?: number }} request - checkout: the
- *   remote is the board host's own checkout with trunk checked out, so the push updates its work tree too [P7].
+ *   mode?: string, trunk?: string, check?: string[] | null, needs?: string[], checkout?: boolean, forced?: string | null, now?: number }} request - checkout: the
+ *   remote is the board host's own checkout with trunk checked out, so the push updates its work tree too [P7]; forced: the
+ *   reason a forced landing names, carried on the job and its key; mode is no longer read, since landing pulls in any mode.
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, mode, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, now = Date.now() }) {
-  if (mode !== 'pull') throw new Refused('LANDING_NOT_PULL', 'landing runs as a runner job only when gate.runnerDispatch is pull; today\'s lander lands this board');
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, forced = null, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
   if (!SHA.test(expect ?? '')) throw new Refused('LANDING_EXPECT', 'a landing job names the full trunk sha its items were accepted against');
   if (!REF.test(trunk)) throw new Refused('LANDING_TRUNK_REF', 'the trunk is a refs/ name, like refs/heads/main');
   if (check !== null && (!Array.isArray(check) || check.length === 0 || check.some(part => typeof part !== 'string'))) throw new Refused('LANDING_CHECK', 'a landing check is a command as a list of strings, like ["npm", "run", "gate"]');
+  if (forced !== null && (typeof forced !== 'string' || !forced.trim())) throw new Refused('FORCED_REASON', 'a forced landing names why it went around the gate: --forced "<why>"');
   const landed = landingItems(items);
-  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed])).digest('hex').slice(0, 16);
+  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : [])])).digest('hex').slice(0, 16);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(checkout ? { checkout: true } : {}) } });
+    payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 
 /**

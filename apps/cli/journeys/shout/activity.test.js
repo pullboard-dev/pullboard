@@ -53,7 +53,7 @@ const verifiedIsFinal = Boolean(MACHINE.states.find((state) => state.id === 'ver
 
 test('activity shows each submit note and verdict with landing evidence [N26]', { timeout: 120_000 }, async () => {
   const box = machine(), alpha = project(box, 'activity-evidence');
-  box.run(alpha.repo, 'add', 'web', 'Readable evidence', '--specs', 'G1', '--criterion', 'Evidence is readable.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Readable evidence', '--specs', 'G1', '--criterion', 'Evidence is readable.');
   // @pullboard-board-file journey: native event records are served to the real Activity browser view.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -191,8 +191,8 @@ test('the activity lifecycle draws a move out of a state below the row [N26, M1]
 test("the history is a timeline of the item's states [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   build(box, alpha, 1, 'greeting.html');
   sendBack(box, alpha, 1, 'no greeting');
   build(box, alpha, 1, 'greeting-again.html');
@@ -200,8 +200,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge fixture item', alpha.branch);
   const trunkCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
   assert.notEqual(trunkCommit, box.git(alpha.repo, 'rev-parse', alpha.branch), 'the receipt names the trunk merge commit');
-  box.run(alpha.repo, 'merged', '1', trunkCommit);
-  box.run(alpha.web, 'claim', '2');
+  await box.inProcess(alpha.repo, 'merged', '1', trunkCommit);
+  await box.inProcess(alpha.web, 'claim', '2');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -266,21 +266,21 @@ test("the history is a timeline of the item's states [N26]", async () => {
 test('the activity tab draws the lifecycle from the declaration, as the README does, with live counts [N26, M1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar', 'Banner', 'Menu', 'Search']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar', 'Banner', 'Menu', 'Search']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'greeting.html');
   accept(box, alpha, 1);
   build(box, alpha, 2, 'farewell.html');
   sendBack(box, alpha, 2, 'no farewell');
   // Withdrawn from claimed twice, from submitted once and from open once, so each route has its count.
   for (const id of ['6', '8']) {
-    box.run(alpha.web, 'claim', id);
-    box.run(alpha.repo, 'withdraw', id, 'not this release');
+    await box.inProcess(alpha.web, 'claim', id);
+    await box.inProcess(alpha.repo, 'withdraw', id, 'not this release');
   }
   build(box, alpha, 7, 'menu.html');
-  box.run(alpha.repo, 'withdraw', '7', 'the menu moved to the next release');
-  box.run(alpha.web, 'claim', '3');
-  box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'withdraw', '4', 'the footer moved to the next release');
+  await box.inProcess(alpha.repo, 'withdraw', '7', 'the menu moved to the next release');
+  await box.inProcess(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.repo, 'withdraw', '4', 'the footer moved to the next release');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -399,7 +399,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
 test('a closed lifecycle stays closed, across a reload and a restart of the view [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   const first = await startView(box);
   const store = storage();
   let port;
@@ -449,9 +449,9 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
 test('ages stay true while the board is quiet [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--kind', 'decision', '--decision');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -479,9 +479,9 @@ test('ages stay true while the board is quiet [N26]', async () => {
 test('times say which day they were [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(alpha.repo, 'shout', 'web', '#1 is in');
+  await box.inProcess(alpha.repo, 'shout', 'web', '#1 is in');
   const view = await startView(box);
   try {
     const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>|<div class="day-rule" role="separator"><span>([^<]*)<\/span><\/div>/g)].map((match) => match[1] ?? match[2]);
@@ -534,14 +534,14 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
 
   const box = machine();
   const demo = project(box, 'said');
-  box.run(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
-  box.run(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
-  for (let n = 1; n <= 40; n++) box.run(demo.repo, 'shout', 'web', `Filler ${n}`);
+  await box.inProcess(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
+  for (let n = 1; n <= 40; n++) await box.inProcess(demo.repo, 'shout', 'web', `Filler ${n}`);
   const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
-  box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
-  box.run(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
-  box.run(demo.repo, 'lanes', 'lead', 'web', 'web-1');
-  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
+  await box.inProcess(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
+  await box.inProcess(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
+  await box.inProcess(demo.repo, 'lanes', 'lead', 'web', 'web-1');
+  await box.inProcess(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
   let chrome;
@@ -550,7 +550,7 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
     const [board] = (await (await fetchLive(`${view.base}/api/v1/boards`, { headers })).json()).boards;
     const state = (await (await fetchLive(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
     const ask = state.asked.find((row) => row.shout_text === 'Ship the greeting today?');
-    box.run(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
+    await box.inProcess(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
     const asker = ask.shout_from;
 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -613,8 +613,8 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
 test('activity names the item each event moved [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting <b>bold</b>', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting <b>bold</b>', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -636,9 +636,9 @@ test('older history says it is still loading until the stream completes [N26,H5]
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the history-loading proof.');
   const box = machine();
   const streaming = project(box, 'streaming');
-  box.run(streaming.repo, 'add', 'web', 'Greet the visitor', '--criterion', 'greets');
-  box.run(streaming.repo, 'shout', 'web', 'The oldest shout, read once the feed reaches its end');
-  for (let n = 1; n <= 41; n++) box.run(streaming.repo, 'shout', 'web', `Filler ${n}`);
+  await box.inProcess(streaming.repo, 'add', 'web', 'Greet the visitor', '--criterion', 'greets');
+  await box.inProcess(streaming.repo, 'shout', 'web', 'The oldest shout, read once the feed reaches its end');
+  for (let n = 1; n <= 41; n++) await box.inProcess(streaming.repo, 'shout', 'web', `Filler ${n}`);
   const live = await startView(box);
   const reads = [];
   // The relay transport's shape (#903): board reads, plus historyProgress(boardId) the test moves by hand.

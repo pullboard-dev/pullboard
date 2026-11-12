@@ -35,15 +35,15 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
   const box = machine(), demo = project(box, 'shouts-redesign');
   const longTitle = 'A long item title ' + 'bounded '.repeat(30);
   for (const title of ['Greeting', longTitle, 'Question for the person'])
-    box.run(demo.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The page greets the visitor.');
+    await box.inProcess(demo.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The page greets the visitor.');
   build(box, demo, 1, 'greeting.html');
-  box.run(demo.web, 'claim', '2');
-  box.run(demo.web, 'shout', 'coordinator', '#1: May I ship this greeting?', '--kind', 'question', '--decision');
+  await box.inProcess(demo.web, 'claim', '2');
+  await box.inProcess(demo.web, 'shout', 'coordinator', '#1: May I ship this greeting?', '--kind', 'question', '--decision');
   const longWords = ('#2: Keep these exact words. ' + 'A long native message with source and context. '.repeat(30)).slice(0, 399).trim();
-  box.run(demo.web, 'shout', 'web', longWords);
-  box.run(demo.repo, 'shout', 'web', '#2: Coordinator reply with src/cockpit.js and ABC_CODE and 0123456789abcdef0123456789abcdef01234567.');
-  box.run(demo.repo, 'shout', 'person', '#3: Which greeting should we use?', '--decision');
-  box.run(demo.repo, 'shout', 'web', 'A general update without an item.');
+  await box.inProcess(demo.web, 'shout', 'web', longWords);
+  await box.inProcess(demo.repo, 'shout', 'web', '#2: Coordinator reply with src/cockpit.js and ABC_CODE and 0123456789abcdef0123456789abcdef01234567.');
+  await box.inProcess(demo.repo, 'shout', 'person', '#3: Which greeting should we use?', '--decision');
+  await box.inProcess(demo.repo, 'shout', 'web', 'A general update without an item.');
   const view = await startView(box), native = await boardOf(view, demo.repo);
   const question = native.shouts.find(message => message.shout_text === '#1: May I ship this greeting?');
   assert.ok(question, 'the real board recorded the agent question');
@@ -149,7 +149,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 4');
     }
-    box.run(demo.repo, 'answer', String(question.shout_id), 'Ship the greeting.');
+    await box.inProcess(demo.repo, 'answer', String(question.shout_id), 'Ship the greeting.');
     await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
     await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
     await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
