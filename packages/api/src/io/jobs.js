@@ -13,6 +13,8 @@ import { upsertProgressStep } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
+import { JOB_CLASSES } from '../../../jobs/index.js';
+import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -62,6 +64,13 @@ function runArgv(run) {
   return run;
 }
 
+/** Refuse a priority class that is not one of JOB_CLASSES; return it, or null for none. */
+function jobClass(name) {
+  if (name === null || name === undefined) return null;
+  if (!JOB_CLASSES.includes(name)) throw new Refused('JOB_PRIORITY', `a job's priority is one of ${JOB_CLASSES.join(', ')}; offer { priority: "interactive" }`);
+  return name;
+}
+
 /** Refuse a runner id that is not a plain name. */
 function runnerId(runner) {
   if (typeof runner !== 'string' || !NAME.test(runner)) throw new Refused('JOB_RUNNER', 'a runner id is a plain name of letters, digits, colon, dot, dash or underscore; pass { runner }');
@@ -74,15 +83,17 @@ function runnerId(runner) {
  *
  * The run is the argv a runner executes at the candidate commit [P7]. A payload, when given, is a small JSON object
  * the claiming runner gets back with its claim: what to work on, such as a landing's items and expected trunk sha.
+ * The priority is the job's class, set here by the command that enqueues it and never by a runner (JOB_CLASSES).
  * A request is the job's own larger input, read back by the runner holding it with jobRequest: for a gate, the argv to
  * run and the data it reads on stdin [P7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, now?: number }} fields
+ * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, now = Date.now() }) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, now = Date.now() }) {
   const wanted = names(needs, 'needs');
+  const rank = jobClass(priority);
   const argv = runArgv(run);
   if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
   if (payload !== null && Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_BYTES) throw new Refused('JOB_PAYLOAD', `a job payload is at most ${PAYLOAD_BYTES} bytes; name commits and refs, and let the runner fetch the code from git`);
@@ -98,7 +109,7 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
     if (job.step === 'queued' && job.steps.length === 0) {
       // The whole request goes in first, so the job's step ends on offered and the claim scan finds it.
       if (offered !== request) writeStep(db, id, REQUEST_STEP, { request }, { now });
-      writeStep(db, id, 'offered', { needs: wanted, ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}) }, { now });
+      writeStep(db, id, 'offered', { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}) }, { now });
     }
     return jobView(db, id);
   });
@@ -204,26 +215,25 @@ export function boardQueueMode(db, wanted) {
  * Why: a job is a row, not a process. Nothing on the board host waits on a runner; a dead runner only lets its lease
  * lapse, and the token the claim returns is what authenticates that runner's renewals and receipt.
  *
+ * With a reserve (gate.jobReserve), the claim takes the highest priority class first and keeps each class its reserved
+ * share of the runner's `jobs` slots; with none, landing jobs first, then test runs, then the rest, each by age (claimableJobs) [C7].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number }} request
+ * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [] }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
-  // Order: landing jobs first, then an agent's test run, then gate shards and other bulk work, each in creation order [C7].
   return atomically(db, () => {
-    const open = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
-      ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-      WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 ELSE 2 END, job.job_created, job.job_id LIMIT ?`).all(now, SCAN_ROWS);
-    for (const row of open) {
-      const { needs = [], run = [], payload = null } = JSON.parse(row.job_step_payload);
-      if (only && !only.has(row.job_kind)) continue;
-      if (!needs.every(need => has.has(need))) continue;
+    const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
+      runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
+    for (const { row, offer } of ordered) {
+      const { needs = [], run = [], payload = null } = offer;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
@@ -357,14 +367,14 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {Record<string, any>} body
- * @param {{ mode: string, now?: number, trunk?: () => string | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
+ * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [] }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained() });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve() });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
