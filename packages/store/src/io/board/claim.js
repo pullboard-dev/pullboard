@@ -211,12 +211,14 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
           const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
             .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
-          if (found.item_parent_id !== null || isRework(found)) return null;
-          const top = held.filter(row => row.item_parent_id === null && !isRework(row));
-          const { n, how } = claimsPerSeat(board, perSeat);
-          return top.length >= n ? new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`) : null;
+          // An item-folder claim may sit beside N-1 other top-level claims, N sized by the board (#6262).
+          if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
+            const top = held.filter(row => row.item_parent_id === null && !isRework(row));
+            const { n, how } = claimsPerSeat(board, perSeat);
+            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
+          }
         }
-        if (modern) return null;
+        if (modern && (itemFolder === true || isRenewal(found))) return null;
         if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db
           .prepare(
