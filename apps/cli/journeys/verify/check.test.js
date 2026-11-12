@@ -120,7 +120,7 @@ async function submitted(box, repo, web, title, check) {
   writeFileSync(join(web, 'web', `item-${id}.js`), 'export const complete = true;\n');
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', `feat(web): complete fixture ${id} [G1]`);
-  await succeeds(box, web, 'submit', String(id));
+  await succeeds(box, web, 'submit', String(id), '--wait');
   box.git(repo, 'switch', '--detach', 'web/one');
   return { id, commit: box.git(web, 'rev-parse', 'HEAD') };
 }
@@ -184,7 +184,7 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
     writeFileSync(join(web, 'web', `item-${item.id}.js`), 'export const complete = true; // revised\n');
     box.git(web, 'add', '-A');
     box.git(web, 'commit', '-q', '-m', `fix(web): correct fixture ${item.id} [G1]`);
-    await succeeds(box, web, 'submit', String(item.id));
+    await succeeds(box, web, 'submit', String(item.id), '--wait');
     box.git(repo, 'switch', '--detach', 'web/one');
     const accepted = await succeeds(box, repo, 'verify', String(item.id), 'accept', '--as', 'coordinator', '--note', 'the rework fixed the missed edge');
     assert.match(accepted, /no frozen check ran/);
