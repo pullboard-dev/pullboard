@@ -45,7 +45,7 @@ export function replayClient(root, env, ...args) {
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
       try { return JSON.parse(result.stdout); }
-      catch { throw new Error(result.failure ?? result.context); }
+      catch { throw new Error((result.failure ?? result.context) + '\nstdout head: ' + String(result.stdout).slice(0, 600)); }
     });
 }
 
@@ -79,7 +79,7 @@ export function replayClientWithoutCheckpoint(root, env) {
   return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env }).then((result) => {
     if (result.failure) throw new Error(result.failure);
     try { return JSON.parse(result.stdout); }
-    catch { throw new Error(result.failure ?? result.context); }
+    catch { throw new Error((result.failure ?? result.context) + '\nstdout head: ' + String(result.stdout).slice(0, 600)); }
   });
 }
 
@@ -115,7 +115,7 @@ export function replayResult(root, env, ...args) {
     .then((result) => {
       if (result.error) throw new Error(result.failure);
       try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
-      catch { throw new Error(result.failure ?? result.context); }
+      catch { throw new Error((result.failure ?? result.context) + '\nstdout head: ' + String(result.stdout).slice(0, 600)); }
     });
 }
 /** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */
