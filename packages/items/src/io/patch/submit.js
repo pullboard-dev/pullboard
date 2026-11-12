@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto';
 /** Claimed companions bind their original author source to actual native composed proof [C7,V4,H16]. */
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gitSpawnSync } from "../../../../git/index.js";
 import { cleanGitEnvironment } from "../../../../git/index.js";
@@ -15,6 +13,7 @@ import { validateItemPatchInput } from "./review.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 import { claimedItemRoot } from '../claim.js';
+import { scratchFolder } from '../../../../config/index.js';
 
 /** The claimed item's validated checkout, offered to the engine ports through the items front door [C7]. */
 export { claimedItemRoot };
@@ -164,7 +163,7 @@ export function sealItemPatchSubmit(board, id, options) {
 /** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch, after any diagnostics the work left running. */
 export async function withItemPatchSubmit(root, binding, work) {
   if (!binding) return work(root);
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-companion-submit-')));
+  const directory = realpathSync(scratchFolder('pullboard-companion-submit-'));
   const checkout = join(directory, 'repo');
   try {
     git(root, ['worktree', 'add', '--detach', checkout, binding.commit]);

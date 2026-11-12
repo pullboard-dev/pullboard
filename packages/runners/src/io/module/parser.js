@@ -1,16 +1,15 @@
 /** One private compile-only VM child per derived runner closure [C7,P3]. */
 import { spawn } from 'node:child_process';
 import { lstatSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/index.js';
+import { scratchFolder } from '../../../../config/index.js';
 
 const MAX_BYTES = 2 ** 26;
 const TIMEOUT_MS = 10_000;
@@ -146,7 +145,7 @@ export function createRunnerModuleParser() {
   /** Start the trusted parser entry without source input or repository evaluation. */
   function start() {
     if (child) return;
-    directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-parser-'));
+    directory = scratchFolder('pullboard-runner-parser-');
     // Execute the module-load snapshot, never a path that can change after its freshness check.
     const worker = join(directory, 'compiler-worker.mjs');
     writeFileSync(worker, LOADED_COMPILER.worker, { mode: 0o400, flag: 'wx' });
