@@ -41,8 +41,10 @@ function checkout(cwd) {
  * @returns {Promise<{ code: number, output: string }>}
  */
 function runFiles(root, command, files) {
+  // A parent node --test's context would make a node --test child report to it and exit 0 on red.
+  const { NODE_TEST_CONTEXT: _parent, ...env } = process.env;
   return new Promise((resolve) => {
-    const child = spawn(`${command.trimEnd()} ${files.map((file) => shellWord('./' + file)).join(' ')}`, { cwd: root, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(`${command.trimEnd()} ${files.map((file) => shellWord('./' + file)).join(' ')}`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', (part) => { output += part; });
     child.stderr.on('data', (part) => { output += part; });
