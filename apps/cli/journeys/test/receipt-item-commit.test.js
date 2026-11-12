@@ -13,14 +13,14 @@ import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import {
   HOST,
   installSshStandIn,
-} from '../../../tests/fixtures/runner/ssh.js';
-import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
-import { MACHINE_CONTEXT_ENV } from '../../../../../packages/drive/index.js';
-import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
+} from '../../tests/fixtures/runner/ssh.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { MACHINE_CONTEXT_ENV } from '../../../../packages/drive/index.js';
+import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
