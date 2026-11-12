@@ -1352,9 +1352,6 @@
   "packages/store/tests/io/board/write.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/builder.test.js": {
-    "launch": 12
-  },
   "apps/cli/journeys/tool-build/pinned.test.js": {
     "launch": 6
   },
