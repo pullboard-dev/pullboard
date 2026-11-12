@@ -73,7 +73,7 @@ test('a timed-out checkpoint PUT retries identical ciphertext through the native
   assert.equal(trace[2].ciphertext, trace[1].ciphertext);
   assert.equal(trace[2].status, 200);
   assert.equal(result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length));
-  const exported = (await box.cli('export')).document;
+  const exported = (await box.cliLocal('export')).document;
   assert.equal(exported.tables.shout.filter(row => row.shout_text === 'RETRY_CHECKPOINT_CONTROL').length, 1,
     'the identical checkpoint retry does not execute the person intent twice');
 });
@@ -124,7 +124,7 @@ test('a newer acknowledged checkpoint covers an earlier timed-out PUT [H16,C7]',
   });
   const plaintext = opened[0] === 0x1f && opened[1] === 0x8b ? gunzipSync(opened) : opened;
   const restored = JSON.parse(new TextDecoder().decode(plaintext));
-  const exported = (await box.cli('export')).document;
+  const exported = (await box.cliLocal('export')).document;
   assert.equal(Number(exported.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value), saved.sequence);
   assert.equal(Number(restored.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value), saved.sequence);
   assert.equal(restored.tables.shout.filter(row => row.shout_text === 'COVERED_CHECKPOINT_CONTROL').length, 1);

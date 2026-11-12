@@ -32,7 +32,13 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
 import { personNeedsState } from '../../../view/index.js';
-import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+import {
+  fileFixtureItem,
+  fixtureJoinRoute,
+  fixtureMachineSettings,
+  joinFixtureSeat,
+} from '../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -108,7 +114,7 @@ async function stopFixtureLanding(root) {
 }
 
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
-function project(t) {
+async function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
   const clients = [];
   t.after(async () => {
@@ -159,16 +165,19 @@ function project(t) {
     MCP_NETWORK_LOG: join(dir, 'network.log'),
   });
   delete env.PULLBOARD_MODEL;
+  // Submits here hold the gate in the submitting process, so the machine home pins controller dispatch (#6182-#6185).
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const guard = join(dir, 'network-guard.mjs');
   writeFileSync(guard, NETWORK_GUARD);
   /** Run real Git under the fixture's isolated identity. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
-  /** Run the real CLI in its own process; extra holds the environment of the shell it runs from. */
-  const run = (cwd, args, extra = {}) => runFixtureChild(process.execPath, [BIN, ...fixtureJoinRoute(args)], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
+  /** Run the production CLI dispatch in this process; extra holds the environment of the shell it runs from. */
+  const runLocal = (cwd, args, extra = {}) => runCliInProcess(fixtureJoinRoute([...args]), { cwd, env: { ...env, ...extra } });
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
-  const initialized = run(repo, ['init', '--model', 'coordinator-model']);
+  const initialized = await runLocal(repo, ['init', '--model', 'coordinator-model']);
   assert.equal(initialized.status, 0, fixtureChildMessage(initialized));
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -179,15 +188,16 @@ function project(t) {
   const web = join(dir, 'web-1');
   git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const sessionA = { CODEX_SESSION_ID: 'mcp-session-a' };
-  const joined = run(web, ['join', 'web', '--model', 'fixture-model', '--json'], sessionA);
-  assert.equal(joined.status, 0, fixtureChildMessage(joined));
-  const agent = JSON.parse(joined.stdout).agent;
-  return { dir, env, run, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
+  const joined = await joinFixtureSeat({}, web, 'web', { model: 'fixture-model', run: (cwd, ...args) => runLocal(cwd, args, sessionA) });
+  assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
+  const agent = JSON.parse(joined.out).agent;
+  const runLocalArgs = (cwd, ...args) => runLocal(cwd, args);
+  return { dir, env, runLocal, runLocalArgs, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
 /** Run one CLI command with --json and return its single document and status. */
-function cli(box, cwd, args, extra = {}) {
-  const result = box.run(cwd, [...args, '--json'], extra);
+async function cli(box, cwd, args, extra = {}) {
+  const result = await box.runLocal(cwd, [...args, '--json'], extra);
   let document;
   try { document = JSON.parse(result.stdout); } catch { assert.fail(`${args.join(' ')} printed no JSON\n${fixtureChildMessage(result)}`); }
   return { status: result.status, document };
@@ -198,6 +208,7 @@ function cli(box, cwd, args, extra = {}) {
  * requests on its stdin, replies matched by id from its stdout, stderr kept apart for evidence.
  */
 function mcpClient(t, box, cwd, extra = {}) {
+  // Process-level: the stdio MCP server is a long-lived child spoken to over pipes, so it stays a real process.
   const child = startFixtureChild(process.execPath, ['--import', pathToFileURL(box.guard).href, BIN, 'mcp'], {
     cwd, env: { ...box.env, ...extra }, stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -291,20 +302,18 @@ function assertProtocolOnly(lines) {
 }
 
 /** The person's decision fixture: the agent asks its coordinator, and the coordinator passes it up. */
-function personDecision(box) {
-  const asked = cli(box, box.web, ['shout', 'coordinator', 'Ship the MCP patch?', '--kind', 'question', '--decision'], box.sessionA);
+async function personDecision(box) {
+  const asked = await cli(box, box.web, ['shout', 'coordinator', 'Ship the MCP patch?', '--kind', 'question', '--decision'], box.sessionA);
   assert.equal(asked.status, 0, JSON.stringify(asked.document));
-  const passed = cli(box, box.repo, ['pass', String(asked.document.id), 'The person should decide.']);
+  const passed = await cli(box, box.repo, ['pass', String(asked.document.id), 'The person should decide.']);
   assert.equal(passed.status, 0, JSON.stringify(passed.document));
   return passed.document.id;
 }
 
 test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) => {
-  const box = project(t);
-  const added = cli(box, box.repo, ['add', 'web', 'MCP fixture item', '--criterion', 'an MCP client can read this item']);
-  assert.equal(added.status, 0, JSON.stringify(added.document));
-  const itemId = added.document.item.item_id;
-  const decisionId = personDecision(box);
+  const box = await project(t);
+  const itemId = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'MCP fixture item', criterion: 'an MCP client can read this item', check: null, run: box.runLocalArgs })).item_id;
+  const decisionId = await personDecision(box);
 
   const client = mcpClient(t, box, box.web, box.sessionA);
   const hello = await initialize(client);
@@ -335,7 +344,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
 
   const shown = await client.call('show_item', { id: itemId });
   assert.equal(shown.isError, false, JSON.stringify(shown));
-  const cliShown = cli(box, box.web, ['show', String(itemId)]);
+  const cliShown = await cli(box, box.web, ['show', String(itemId)]);
   assert.deepEqual(shown.structuredContent, cliShown.document, 'show_item returns pullboard show --json');
 
   const before = counts(box.database);
@@ -347,7 +356,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   assert.equal(row.shout_to, 'coordinator');
   assert.equal(row.shout_text, 'Hello from MCP; is this inbox visible?');
   assert.equal(shoutKind(box.database, shouted.structuredContent.id), 'question');
-  const inbox = cli(box, box.repo, ['inbox']);
+  const inbox = await cli(box, box.repo, ['inbox']);
   assert.ok(inbox.document.shouts.some((shout) => shout.shout_id === row.shout_id && shout.shout_from === box.agent), 'the coordinator reads it from the agent');
 
   const toLane = await client.call('shout', { to: 'all', text: '-- a dash-led note stays text' });
@@ -363,24 +372,24 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
 
   // The same engine: a refusal reaches the client with the CLI's own code, message and next step.
   const selfShout = await client.call('shout', { to: box.agent, text: 'talking to myself' });
-  const cliSelf = cli(box, box.web, ['shout', box.agent, 'talking to myself'], box.sessionA);
+  const cliSelf = await cli(box, box.web, ['shout', box.agent, 'talking to myself'], box.sessionA);
   assert.equal(cliSelf.status, 1);
   assert.equal(selfShout.isError, true);
   assert.equal(selfShout.structuredContent.error.code, 'SELF_SHOUT');
   assert.deepEqual(selfShout.structuredContent, cliSelf.document);
   const missing = await client.call('show_item', { id: 999 });
   assert.equal(missing.isError, true);
-  assert.deepEqual(missing.structuredContent, cli(box, box.web, ['show', '999']).document);
+  assert.deepEqual(missing.structuredContent, (await cli(box, box.web, ['show', '999'])).document);
   // Values of the right type reach the CLI, so its own refusal comes back: EMPTY_SHOUT and USAGE.
   const blank = await client.call('shout', { to: 'coordinator', text: '   ' });
-  const cliBlank = cli(box, box.web, ['shout', 'coordinator', '   '], box.sessionA);
+  const cliBlank = await cli(box, box.web, ['shout', 'coordinator', '   '], box.sessionA);
   assert.equal(cliBlank.document.error.code, 'EMPTY_SHOUT');
   assert.equal(blank.isError, true);
   assert.deepEqual(blank.structuredContent, cliBlank.document, 'a blank shout is the CLI\'s EMPTY_SHOUT');
   const blankIdea = await client.call('capture_idea', { text: '   ' });
   assert.equal(blankIdea.structuredContent.error.code, 'EMPTY_SHOUT', 'a blank idea is the CLI\'s EMPTY_SHOUT');
   const zero = await client.call('show_item', { id: 0 });
-  const cliZero = cli(box, box.web, ['show', '0']);
+  const cliZero = await cli(box, box.web, ['show', '0']);
   assert.equal(cliZero.document.error.code, 'USAGE');
   assert.equal(zero.isError, true);
   assert.deepEqual(zero.structuredContent, cliZero.document, 'item 0 is the CLI\'s USAGE');
@@ -407,7 +416,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
   const other = mcpClient(t, box, box.web, { CODEX_SESSION_ID: 'mcp-session-b' });
   await initialize(other);
   const intruder = await other.call('shout', { to: 'coordinator', text: 'not my checkout' });
-  const cliIntruder = cli(box, box.web, ['shout', 'coordinator', 'not my checkout'], { CODEX_SESSION_ID: 'mcp-session-b' });
+  const cliIntruder = await cli(box, box.web, ['shout', 'coordinator', 'not my checkout'], { CODEX_SESSION_ID: 'mcp-session-b' });
   assert.equal(cliIntruder.document.error.code, 'NOT_YOUR_CHECKOUT');
   assert.equal(intruder.isError, true);
   assert.deepEqual(intruder.structuredContent, cliIntruder.document);
@@ -416,11 +425,9 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
 });
 
 test('board_status answers through MCP on a board with a held item [A9,N26]', async (t) => {
-  const box = project(t);
-  const added = cli(box, box.repo, ['add', 'web', 'Held MCP item', '--criterion', 'a held item still lets MCP read the board']);
-  assert.equal(added.status, 0, JSON.stringify(added.document));
-  const itemId = added.document.item.item_id;
-  const claimed = cli(box, box.web, ['claim', String(itemId)], box.sessionA);
+  const box = await project(t);
+  const itemId = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Held MCP item', criterion: 'a held item still lets MCP read the board', check: null, run: box.runLocalArgs })).item_id;
+  const claimed = await cli(box, box.web, ['claim', String(itemId)], box.sessionA);
   assert.equal(claimed.status, 0, JSON.stringify(claimed.document));
 
   const client = mcpClient(t, box, box.web, box.sessionA);
@@ -436,8 +443,8 @@ test('board_status answers through MCP on a board with a held item [A9,N26]', as
 });
 
 test('[P6,A9] a person\'s move through MCP is refused', async (t) => {
-  const box = project(t);
-  const decisionId = personDecision(box);
+  const box = await project(t);
+  const decisionId = await personDecision(box);
   const specBefore = readFileSync(join(box.repo, 'SPEC.md'));
   const before = counts(box.database);
 
@@ -466,18 +473,16 @@ test('[P6,A9] a person\'s move through MCP is refused', async (t) => {
 
   assert.deepEqual(counts(box.database), before, 'no shout or event was written');
   assert.deepEqual(readFileSync(join(box.repo, 'SPEC.md')), specBefore, 'SPEC.md is unchanged');
-  const open = cli(box, box.repo, ['decisions', '--as', 'person']);
+  const open = await cli(box, box.repo, ['decisions', '--as', 'person']);
   assert.ok(open.document.decisions.some((ask) => ask.shout_id === decisionId), 'the decision is still open');
   // The same moves are possible from the person's own terminal, so the refusal is MCP's, not the fixture's.
-  const approved = cli(box, box.repo, ['spec', 'approve', 'G2']);
+  const approved = await cli(box, box.repo, ['spec', 'approve', 'G2']);
   assert.equal(approved.status, 0, JSON.stringify(approved.document));
 });
 
 test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s refusals [A9,P6]', async (t) => {
-  const box = project(t);
-  const added = cli(box, box.repo, ['add', 'web', 'An item worked through MCP', '--specs', 'G1', '--criterion', 'web/mcp.txt exists.']);
-  assert.equal(added.status, 0, JSON.stringify(added.document));
-  const id = added.document.item.item_id;
+  const box = await project(t);
+  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'An item worked through MCP', criterion: 'web/mcp.txt exists.', args: ['--specs', 'G1'], check: null, run: box.runLocalArgs })).item_id;
   const builder = mcpClient(t, box, box.web, box.sessionA);
   await initialize(builder);
   const names = (await builder.request('tools/list')).result.tools.map((tool) => tool.name);
@@ -485,7 +490,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
 
   // The same refusal, code and next step, whether the CLI or MCP makes the move.
   const missing = await builder.call('claim', { id: 9999 });
-  const cliMissing = cli(box, box.web, ['claim', '9999'], box.sessionA);
+  const cliMissing = await cli(box, box.web, ['claim', '9999'], box.sessionA);
   assert.equal(missing.isError, true);
   assert.equal(cliMissing.status, 1);
   assert.deepEqual(missing.structuredContent.error, cliMissing.document.error, 'a refused claim reads the same through MCP');
@@ -502,7 +507,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
 
   // A builder never verifies its own work, through MCP as through the CLI.
   const own = await builder.call('verify', { id, decision: 'accept', note: 'I built it.' });
-  const cliOwn = cli(box, box.web, ['verify', String(id), 'accept', '--note', 'I built it.'], box.sessionA);
+  const cliOwn = await cli(box, box.web, ['verify', String(id), 'accept', '--note', 'I built it.'], box.sessionA);
   assert.equal(own.isError, true);
   assert.equal(own.structuredContent.error.code, cliOwn.document.error.code, 'self-verification is refused alike');
   const resumed = await builder.call('resume', {});
@@ -515,7 +520,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   const sessionB = { CODEX_SESSION_ID: 'mcp-session-b' };
-  const reviewerJoined = cli(box, review, ['join', 'web', '--model', 'reviewer-model'], sessionB);
+  const reviewerJoined = await cli(box, review, ['join', 'web', '--model', 'reviewer-model'], sessionB);
   assert.equal(reviewerJoined.status, 0, JSON.stringify(reviewerJoined.document));
   const reviewer = mcpClient(t, box, review, sessionB);
   await initialize(reviewer);
@@ -524,7 +529,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   const accepted = await reviewer.call('verify', { id, decision: 'accept', note: 'web/mcp.txt exists at the submitted commit.' });
   assert.equal(accepted.isError, false, JSON.stringify(accepted.structuredContent));
   assertProtocolOnly((await reviewer.close()).lines);
-  const shown = cli(box, box.repo, ['show', String(id)]);
+  const shown = await cli(box, box.repo, ['show', String(id)]);
   assert.equal(shown.document.item_status, 'verified', 'the item was claimed, submitted and verified through MCP alone');
   const networkLog = readFileSync(box.env.MCP_NETWORK_LOG, 'utf8');
   assert.equal(networkLog.includes('attempt'), false, `no tool opened a network connection\n${networkLog}`);
@@ -539,34 +544,32 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   box.git(box.dir, 'init', '-q', '-b', 'main', other);
   writeFileSync(join(other, '.mcp.json'), `${JSON.stringify({ mcpServers: { mine: { command: 'mine' } } })}\n`);
   writeFileSync(join(other, '.codex', 'config.toml'), 'model = "mine"\n\n[mcp_servers.mine]\ncommand = "mine"\n');
-  const merged = box.run(other, ['init', '--model', 'coordinator-model']);
+  const merged = await box.runLocal(other, ['init', '--model', 'coordinator-model']);
   assert.equal(merged.status, 0, fixtureChildMessage(merged));
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(other, '.mcp.json'), 'utf8')).mcpServers).sort(), ['mine', 'pullboard'], 'an existing server is kept');
   const toml = readFileSync(join(other, '.codex', 'config.toml'), 'utf8');
   assert.ok(toml.startsWith('model = "mine"\n\n[mcp_servers.mine]\ncommand = "mine"\n'), 'existing Codex settings are kept as written');
   assert.match(toml, /^\[mcp_servers\.pullboard\]$/mu);
-  const again = box.run(other, ['init', '--model', 'coordinator-model']);
+  const again = await box.runLocal(other, ['init', '--model', 'coordinator-model']);
   assert.equal(readFileSync(join(other, '.codex', 'config.toml'), 'utf8'), toml, 'a second init adds nothing');
   assert.ok(again.status === 0 || again.status === 1, 'a second init leaves the registration alone');
 });
 
 test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16]', async t => {
-  const box = project(t);
+  const box = await project(t);
   const clause = 'web/mcp.txt contains a heading.';
-  const added = cli(box, box.repo, ['add', 'web', 'A quoted MCP rejection', '--specs', 'G1', '--criterion', clause]);
-  assert.equal(added.status, 0, JSON.stringify(added.document));
-  const id = added.document.item.item_id;
-  assert.equal(cli(box, box.web, ['claim', String(id)], box.sessionA).status, 0);
+  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'A quoted MCP rejection', criterion: clause, args: ['--specs', 'G1'], check: null, run: box.runLocalArgs })).item_id;
+  assert.equal((await cli(box, box.web, ['claim', String(id)], box.sessionA)).status, 0);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'mcp.txt'), '<p>The heading is absent.</p>\n');
   box.git(box.web, 'add', 'web/mcp.txt');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): write the rejected MCP fixture [G1]');
-  const submitted = cli(box, box.web, ['submit', String(id)], box.sessionA);
+  const submitted = await cli(box, box.web, ['submit', String(id)], box.sessionA);
   assert.equal(submitted.status, 0, JSON.stringify(submitted.document));
   const review = join(box.dir, 'clause-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD').trim());
   const session = { CODEX_SESSION_ID: 'mcp-clause-reviewer' };
-  assert.equal(cli(box, review, ['join', 'web', '--model', 'reviewer-model'], session).status, 0);
+  assert.equal((await cli(box, review, ['join', 'web', '--model', 'reviewer-model'], session)).status, 0);
   const reviewer = mcpClient(t, box, review, session);
   await initialize(reviewer);
   const input = { id, decision: 'reject', reason: 'TEST_FAILURE', note: 'The required heading is absent.' };
@@ -577,14 +580,14 @@ test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16
   const rejected = await reviewer.call('verify', { ...input, clause });
   assert.equal(rejected.isError, false, JSON.stringify(rejected.structuredContent));
   assert.equal(rejected.structuredContent.clause, clause);
-  const shown = cli(box, box.repo, ['show', String(id)]);
+  const shown = await cli(box, box.repo, ['show', String(id)]);
   assert.equal(shown.document.verdicts[0].clause, clause);
   assertProtocolOnly((await reviewer.close()).lines);
 });
 
 
 test('MCP code-map tools pin usages, impact and cell answers and refuse escaping paths [A9,C7,D3]', async t => {
-  const box = project(t);
+  const box = await project(t);
   const files = {
     'package.json': JSON.stringify({ type: 'module' }),
     'src/leaf.js': 'export function leaf() { return 1; }\n',

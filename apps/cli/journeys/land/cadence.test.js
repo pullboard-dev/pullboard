@@ -134,7 +134,7 @@ test('landing cadence is opt-in and validates both compatible policy forms [E30,
 });
 
 test('land runs on cadence at either injected-clock boundary and lands all waiting acceptances [E30,E10,E29]', { timeout: 120_000 }, // budget: two private real submit/accept cycles and one full landing; hang ceiling, not speed.
-() => {
+async () => {
   const box = project();
   const off = json(box, box.repo, 'land', '--due');
   assert.equal(off.cadence.enabled, false);
@@ -142,7 +142,7 @@ test('land runs on cadence at either injected-clock boundary and lands all waiti
   configure(box, { every: '10m', accepted: 2 });
   const first = accepted(box, 'first');
   const base = box.git(box.repo, 'rev-parse', 'main');
-  const waiting = box.run(box.repo, 'land', '--due', '--json');
+  const waiting = await box.runLocal(box.repo, 'land', '--due', '--json');
   assert.equal(waiting.code, 0, waiting.err + waiting.out);
   const status = JSON.parse(waiting.out);
   assert.equal(status.batch, null);
@@ -152,7 +152,7 @@ test('land runs on cadence at either injected-clock boundary and lands all waiti
   assert.equal(status.cadence.due, false);
   assert.equal(typeof status.cadence.oldestWaitMs, 'number');
   assert.ok(Number.isFinite(status.cadence.oldestWaitMs), 'the native observation serializes a finite numeric age');
-  const explanation = box.run(box.repo, 'land', '--due');
+  const explanation = await box.runLocal(box.repo, 'land', '--due');
   assert.equal(explanation.code, 0, explanation.err + explanation.out);
   assert.match(explanation.err + explanation.out, /count 1\/2/u);
   assert.match(explanation.err + explanation.out, /oldest wait .*\/600000ms/u);

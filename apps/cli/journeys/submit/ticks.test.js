@@ -19,8 +19,8 @@ const RUN = 'node --test --test-reporter=./web/outcome-reporter.js web/inspectio
 const CRITERION = 'The submitted page meets its bar:\n1) The heading is present [test]\n2) The count appears [test]\n3) The page fits at 375px [test]';
 
 /** Run a Pullboard command and fail with its full output when it is refused. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = (await box.runLocal(cwd, ...args));
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -55,7 +55,7 @@ function outcomeReporter(box) {
   ].join('\n'));
 }
 
-test('submit requires named evidence for every clause and the reviewer packet binds each case [C7]', { timeout: 240_000 }, () => {
+test('submit requires named evidence for every clause and the reviewer packet binds each case [C7]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   const configPath = join(box.repo, 'pullboard.json');
@@ -72,11 +72,11 @@ test('submit requires named evidence for every clause and the reviewer packet bi
 
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', builder, '-b', 'web/inspection');
-  ok(box, builder, 'join', 'web', '--model', 'inspection-fixture');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Inspect every clause', '--specs', 'G1', '--criterion', CRITERION,
-    '--check', RUN, '--route', 'strong', '--brief', 'Files:\n- web/page.html\nTest:\n- each named case cites its clause', '--json').out);
+  (await ok(box, builder, 'join', 'web', '--model', 'inspection-fixture'));
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Inspect every clause', '--specs', 'G1', '--criterion', CRITERION,
+    '--check', RUN, '--route', 'strong', '--brief', 'Files:\n- web/page.html\nTest:\n- each named case cites its clause', '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  (await ok(box, builder, 'claim', String(id)));
   mkdirSync(join(builder, 'web'), { recursive: true });
   writeFileSync(join(builder, 'web/page.html'), '<h1>Dashboard</h1><p>Count: 3</p><p>Fits at 375px.</p>\n');
   writeFileSync(join(builder, 'web/inspection.test.js'), [
@@ -91,24 +91,24 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   ].join('\n'));
   commit(box, builder, 'feat(web): inspect each numbered clause [G1]');
 
-  const missing = box.run(builder, 'submit', String(id), '--no-next');
+  const missing = (await box.runLocal(builder, 'submit', String(id), '--no-next'));
   assert.notEqual(missing.code, 0, 'an uninspected criterion cannot submit');
   assert.match(missing.err, /CLAUSE_UNTICKED/u);
   assert.match(missing.err, /clause 1 \(The heading is present/u);
-  ok(box, builder, 'fact', String(id), 'note', 'clause 1 [test]: web/inspection.test.js :: clause 2: the count appears');
-  const wrongCase = box.run(builder, 'submit', String(id), '--no-next');
+  (await ok(box, builder, 'fact', String(id), 'note', 'clause 1 [test]: web/inspection.test.js :: clause 2: the count appears'));
+  const wrongCase = (await box.runLocal(builder, 'submit', String(id), '--no-next'));
   assert.notEqual(wrongCase.code, 0, 'a different clause case is not evidence for clause 1');
   assert.match(wrongCase.err, /clause 1 .*named test case citing clause 1/u);
   for (const [number, title] of [[1, 'the heading is present'], [2, 'the count appears'], [3, 'the page fits at 375px']]) {
-    ok(box, builder, 'fact', String(id), 'note', `clause ${number} [test]: web/inspection.test.js :: clause ${number}: ${title}`);
+    (await ok(box, builder, 'fact', String(id), 'note', `clause ${number} [test]: web/inspection.test.js :: clause ${number}: ${title}`));
   }
-  const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
+  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
   assert.equal(submitted.gate.green, true, 'the submit gate ran the named clause cases');
-  const detail = ok(box, box.repo, 'show', String(id), '--detail').out;
+  const detail = (await ok(box, box.repo, 'show', String(id), '--detail')).out;
   assert.match(detail, /inspection, clause by clause:/u, 'submit records its evidence checklist for the reviewer');
   for (const number of [1, 2, 3]) assert.match(detail, new RegExp(`clause ${number}:`));
 
-  const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
+  const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   assert.deepEqual(packet.clauses.slice(0, 3).map(clause => clause.n), [1, 2, 3]);
   for (const [index, title] of ['clause 1: the heading is present', 'clause 2: the count appears', 'clause 3: the page fits at 375px'].entries()) {
     const clause = packet.clauses[index];
@@ -118,14 +118,14 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   const reviewer = join(box.dir, 'web-reviewer');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  ok(box, reviewer, 'join', 'api', '--model', 'inspection-reviewer');
-  const badClause = box.run(reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'a different clause',
-    '--note', 'the reviewer must name the missed requirement', '--no-next');
+  (await ok(box, reviewer, 'join', 'api', '--model', 'inspection-reviewer'));
+  const badClause = (await box.runLocal(reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'a different clause',
+    '--note', 'the reviewer must name the missed requirement', '--no-next'));
   assert.notEqual(badClause.code, 0, 'rejecting without a frozen checklist clause is refused');
   assert.match(badClause.err, /BAR_CLAUSE_UNKNOWN/u);
-  ok(box, reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page fits at 375px [test]',
-    '--note', 'the responsive requirement needs another review', '--no-next');
-  const rejected = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).verdicts.at(-1);
+  (await ok(box, reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page fits at 375px [test]',
+    '--note', 'the responsive requirement needs another review', '--no-next'));
+  const rejected = JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out).verdicts.at(-1);
   assert.equal(rejected.verdict_decision, 'REJECT');
   assert.equal(rejected.clause, 'The page fits at 375px [test]');
 });

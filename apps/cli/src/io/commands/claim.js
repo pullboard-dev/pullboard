@@ -14,6 +14,7 @@ import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { requireNoCoordinatorPath } from './add.js';
+import { refuseClaimMissingPaths } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
 import {
@@ -35,6 +36,8 @@ export async function run(io, { first }) {
   sayQueuedReds(io, board, () => me);
   cleanItemFolders(ctx, board, me, { spare: true });
   const filed = getItem(board, id);
+  // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
+  if (filed && !outsideBuildProblem(board, filed)) await refuseClaimMissingPaths(ctx, board, id);
   if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
     check: filed.item_check, brief: filed.item_brief });
   let result;
@@ -51,7 +54,7 @@ export async function run(io, { first }) {
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
   let itemFolder = null;
   try {
-    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed,
+    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed, onConflict: (files, line) => io.say(`warning: ${line}`),
       onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
         text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
         ref: null }]),

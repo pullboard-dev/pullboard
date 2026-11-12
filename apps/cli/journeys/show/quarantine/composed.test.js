@@ -17,14 +17,15 @@ import { proofRunReceipt } from '../../../../../packages/store/index.js';
 import { readGateReceipt } from '../../../../../packages/gate/index.js';
 import { receiptStore } from '../../../../../packages/gate/index.js';
 
-test('clause 1: two actual composed Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', t => {
+test('clause 1: two actual composed Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', async t => {
+  // Process-level: the two composed Submit pairs run as real child processes through the builder seat's hooks; only the ledger reads are in-process.
   const companion = true;
   const box = fixture(t, false, companion);
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
   // f562d717d8: a Submit pair files its quarantine at once, so the first pair already holds the one active repair.
-  assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ stderr: String(first.stderr ?? '').slice(-2500), quarantines: snapshot(box).quarantines, jobs: snapshot(box).jobs, steps: snapshot(box).steps, ledger: box.cli('flakes').document, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
+  assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ stderr: String(first.stderr ?? '').slice(-2500), quarantines: snapshot(box).quarantines, jobs: snapshot(box).jobs, steps: snapshot(box).steps, ledger: (await box.call('flakes')).document, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
   const second = submit(box);
   assert.equal(second.code, 0, JSON.stringify(second.document)); // the active quarantine lets the computed verdict through
   const state = snapshot(box);
@@ -74,7 +75,7 @@ test('clause 1: two actual composed Submit pairs quarantine once, retain raw rec
     try { assert.throws(() => proofRunReceipt(board, { agentId: receipt.proof.seat, itemId: box.id, receiptId: receipt.id }), error => error.code === 'PROOF_RUN_STALE'); }
     finally { store.closeBoard(board); }
   }
-  const ledger = box.cli('flakes').document;
+  const ledger = (await box.call('flakes')).document;
   const row = ledger.regressions.find(value => value.file === 'test/alternating.test.mjs' && value.name === TITLE);
   assert.ok(row);
   assert.equal(row.classification, 'possible-regression');
@@ -88,5 +89,5 @@ test('clause 1: two actual composed Submit pairs quarantine once, retain raw rec
     }
   }
   // f562d717d8: the Submit backfill files an ordinary nativeCore quarantine, not an autoSubmit one, so health lists none.
-  assert.deepEqual(box.cli('health').document.autoQuarantines, []);
+  assert.deepEqual((await box.call('health')).document.autoQuarantines, []);
 });

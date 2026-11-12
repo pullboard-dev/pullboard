@@ -43,7 +43,12 @@ Set up
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
                                         measures the runner's cores and memory; --slots declares a fixed count that always wins
   pullboard runner measure [<ssh-host>]  re-measure cores and memory on the runner itself (run it again after a hardware change)
+  pullboard runner drain <ssh-host>     take a runner out of rotation: no new job, running jobs finish; undrain returns it
   pullboard runner list                 each runner's slots and browsers, measured cores and memory, and the slots the formula gives
+  pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
+  pullboard runner install-serve <ssh-host> --board <board-url> [--key <key>] | --remove
+                                        run runner serve on that runner as a login service that restarts on exit
+  pullboard runner local [--off]        this machine's own runner on loopback; a pull submit starts it, --off stops it
   pullboard view [--project] [--port N] [--no-open]  every project on this machine in your browser; default http://127.0.0.1:4890
   pullboard view --lan                  a private link for a phone on the local IPv4 network
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port
@@ -51,8 +56,9 @@ Set up
                                         add items, shout and hold lanes from it
   pullboard view --export <dir> [--public]  a read-only snapshot with event replay, for any static host
                                         --public requires a checked public filter
-  pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
+  pullboard serve [--port N] [--address <ipv4>]  local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
+                                        serve.address and serve.port in ~/.pullboard/settings.json listen for runners with the board key (default loopback)
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
                                         board status, show, shout and capture an idea; a person's move is refused
   pullboard relay [status|on|off|pair|join <code>] [--url <address>] [--name <computer>]  link, inspect or unlink this board's sealed relay
@@ -90,14 +96,14 @@ Work
                                         --review-family: require that declared family; case-insensitive, never guessed from model
                                         --brief: what a cold agent needs; --route light: any model can build it
                                         --private: keep this item in your device-local board for this repo
+                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
+                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard move <handle#id|owner/handle#id|~handle#id|id> --to <handle|owner/handle|~handle> [--private]
                                         --private makes a bare item ID refer to this repo's device-local board
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
-                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
-                                        with --criterion and a brief, --check is needed below strong
-                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
-  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+  pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
@@ -188,6 +194,7 @@ Work
                                         in an agent seat it queues on the board and returns at once with a run id;
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
+  pullboard test --cancel <run id>      stop your queued or running test run and free its slot
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
@@ -389,6 +396,7 @@ Role guides
 Gate and hooks
   pullboard push-receipts               additive check of Git pre-push stdin, native receipts and accepted-policy smoke; does not replace the active hook
   pullboard gate [--landing [--receipt]]  run the configured gate; --receipt produces fresh native landing evidence
+  pullboard gate --withdraw <id>         stop the item's queued or running gate; its holder or the coordinator; submit again to start a new one
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
@@ -404,10 +412,16 @@ Additional commands
   pullboard heartbeat [--claims]      record this seat's local session activity; no board move; --claims keeps beating while the seat holds a claim or queued gate
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
+  pullboard search <text>              the top 5 items most like the text, with score, id, state and title; read-only
   pullboard seats                     current seat states and local 24-hour timing ledger
+  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, the most items held at once, and the median and p90 wait from a submit or test start to the seat's next board action
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
+  pullboard stats review [--window <duration>] [--until <ISO time>]  review queue depth by hour, time from submit to verdict, and reject rate per reviewer family
+  pullboard stats runners [--window <duration>] [--until <ISO time>]  runner slot wait (queued to running) p50/p90/max and queue depth per job kind and hour
+  pullboard stats runners --health [--window <duration>] [--until <ISO time>]  run time per job kind per runner (p50/p90) and runner up spans, lost leases, retries and re-placed jobs
+  pullboard stats runners --lag [--window <duration>] [--until <ISO time>]  main check lag: time from each main commit landing to its first full-suite result, and to its first red (--main-lag is the same)
   pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
   pullboard trace <agent|item> [--since 2h] [--json]  an agent's or an item's timeline from the command trace and the board's events
 

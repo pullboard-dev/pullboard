@@ -16,23 +16,26 @@ const MAX_READ_BYTES = 32 * 1024 * 1024;
 /** Resolve private machine storage independently of any repository or relay. */
 export function boardHoldLog() { return join(machineHome(), 'board-holds.jsonl'); }
 
+/** Resolve the machine's every-write log, read back to name the writers a stale preparation saw. */
+export function boardWritesLog() { return join(machineHome(), 'board-writes.jsonl'); }
+
 /** Keep only bounded operational labels, never CLI arguments, notes, SQL or session material. */
 function label(value, fallback) {
   return typeof value === 'string' && /^[A-Za-z0-9_./:-]{1,100}$/u.test(value) ? value : fallback;
 }
 
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, allWrites = false }) {
+export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, allWrites = false }) {
   if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS)) return;
   let fd;
   try {
     const directory = machineHome();
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    fd = openSync(allWrites ? join(directory, 'board-writes.jsonl') : boardHoldLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
+    fd = openSync(allWrites ? boardWritesLog() : boardHoldLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
     if (!fstatSync(fd).isFile()) throw new Error('hold log is not a regular file');
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
-      heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs) } : {}), outcome: label(outcome, 'released'),
+      heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs), pid: Number.isSafeInteger(pid) && pid > 0 ? pid : null } : {}), outcome: label(outcome, 'released'),
       phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null,
       // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
       move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,

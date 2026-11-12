@@ -1,14 +1,46 @@
-## What changed?
+Every PR is a record: 2-3 sentences, then YAML. Keep one section, delete the other.
+Spec: [RFC 0009](../docs/rfcs/0009-contribution-records.md).
+Sign the CLA once on your pullboard.dev contributor profile.
 
-## Linked issue
+## Fix
 
-Fixes #
+The thing it changes. Why. What it unblocks.
 
-## Which approved spec rows does this serve?
+```yaml
+rows:
+  - G1.2
+refs:
+  - 42
+draft: false
+forbidden:
+  - <fix you ruled out>
+compat:
+  - <what must keep working>
+status: not_run
+bar:
+  - 1: <what must hold> [test]
+check:
+  - 1: <test file> > <test name>
+evidence:
+  - 1: <result, for a clause the gate cannot run>
+```
 
-## How was it proven?
+## Proposal
 
-## Contribution checks
+The rows it adds or changes. Why. The call needed.
 
-
-On your first pull request, agree to the [CLA](../CLA.md) by posting this sentence as a comment on your pull request: "I have read CLA.md and I agree to it." The CLA agreement is required before merge.
+```yaml
+rows:
+  - G1.2
+conflicts_with:
+  - G1.3
+decision_needed: <the call the owner must make>
+draft: true
+status: not_claimed
+bar:
+  - 1: <what the spec change must hold> [command]
+check:
+  - 1: <command>
+later_bar:
+  - 1: <what the implementation must prove>
+```
