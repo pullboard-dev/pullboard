@@ -22,13 +22,13 @@ test('clause 1: a pull-dispatch check from the item folder records its proof, a 
 async t => {
   const box = await pullProject(t, 1, { check: () => 'node bin/check.js', tooling: { 'bin/check.js': CHECK } });
   const [id] = box.ids;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, 'built\n', `feat(web): build item ${id} [G1]`).status, 0);
 
   // The night of 12 Nov: the sentinel released the claim, and the check in the item folder ran with no seat behind it.
-  const released = box.run(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'claim lapsed', '--no-next');
+  const released = await box.runLocal(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'claim lapsed', '--no-next');
   assert.equal(released.code, 0, released.err + released.out);
   const lapsed = await box.runLocal(folder, 'check', String(id), '--yes');
   assert.notEqual(lapsed.code, 0, 'a check with no seat behind it is refused');
@@ -37,16 +37,16 @@ async t => {
   assert.match(lapsed.out + lapsed.err, new RegExp(`pullboard claim ${id}`, 'u'), 'the refusal names the renewal');
 
   // Renewed, the same check in the same folder records its native receipt, and submit accepts it.
-  const renewed = box.run(box.web, 'claim', String(id), '--json');
+  const renewed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(renewed.code, 0, renewed.err);
   const before = runs(box);
   const checked = await box.runLocal(folder, 'check', String(id), '--yes');
   assert.equal(checked.code, 0, checked.out + checked.err);
   assert.doesNotMatch(checked.out + checked.err, /PROOF_RUN_UNAVAILABLE/u);
   assert.equal(runs(box), before + 1, 'the frozen check ran once');
-  const shown = box.run(box.repo, 'show', String(id));
+  const shown = await box.runLocal(box.repo, 'show', String(id));
   assert.match(shown.out, new RegExp(`receipt [0-9a-f-]{36}: check, item #${id}`, 'u'), 'the board holds the check\'s native receipt');
-  const submitted = box.run(folder, 'submit', String(id), '--json');
+  const submitted = await box.runLocal(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   assert.doesNotMatch(submitted.out + submitted.err, /PROOF_RUN_UNAVAILABLE/u);
   assert.equal(JSON.parse(submitted.out).queued, true, 'the submit queued its gate as one runner job');
