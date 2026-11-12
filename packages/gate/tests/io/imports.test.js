@@ -100,6 +100,7 @@ test('a subprocess error is not a cached compiler observation [C7]', t => {
 
 
 test('the real browser-slot preload retains census reuse while opaque options still invalidate it [C7,O5]', t => {
+  isolateMachineHome(t);
   const calls = compilerCalls(t);
   const before = process.env.NODE_OPTIONS;
   t.after(() => { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; });

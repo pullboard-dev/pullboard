@@ -1,6 +1,7 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { sharedToolsTarget } from '../submit/handoff.js';
 import { toolsSnapshot } from '../submit/handoff.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -121,7 +122,6 @@ import {
   frozenCheck,
   itemPolicy,
   policyAt,
-  policyVersion,
   requireTrunkMerge,
   submissionPaths,
 } from '../../../../../packages/sandbox/index.js';
@@ -496,7 +496,6 @@ export async function verifyHere(ctx, id, { second, values }) {
       digest,
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
-      policyVersion: policyVersion(policy),
       sourceAdvanceHead: item.item_effective_head ?? null,
       review,
       ...(companionDigest ? { companionDigest } : {}),
@@ -641,6 +640,9 @@ async function recordComparison(ctx, item, result) {
   });
 }
 
+/** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
+const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../submit/handoff.js', import.meta.url).href };
+
 /** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
 export async function startAutomaticComparison(ctx, id) {
   const item = withBoardRead(ctx, board => store.getItem(board, id));
@@ -651,7 +653,7 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }
 
@@ -665,7 +667,7 @@ export async function reviveStalledComparison(ctx, id) {
   } else if (plan.action === 'restart') {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   }
 }
 

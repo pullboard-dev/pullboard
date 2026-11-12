@@ -28,7 +28,7 @@ test('clause 1: the adaptive size starts at 4, halves after a blocked or bisecte
     { state: 'blocked', supersededByMain: 'a'.repeat(40) }, { state: 'gating' }]), 2, 'drops, superseded batches and unfinished ones say nothing about redness');
 });
 
-test('clause 2: line.landingBatchSize overrides the adaptive size for real landing, and per-item landing keeps one [C7,H24]', t => {
+test('clause 2: line.landingBatchSize overrides the adaptive size for real landing, and per-item landing takes every item [C7,H24,#5815]', t => {
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/adaptive/main' });
@@ -36,7 +36,8 @@ test('clause 2: line.landingBatchSize overrides the adaptive size for real landi
   assert.equal(landingMaximum(board, batched, Infinity, true), 4, 'automatic landing with no history: the starting size');
   assert.equal(landingMaximum(board, batched, 2, true), 2, 'a caller limit below the size holds');
   assert.equal(landingMaximum(board, batched), Infinity, 'a hand landing with no setting still takes every waiting item');
-  assert.equal(landingMaximum(board, { landing: { perItem: true } }), 1);
+  assert.equal(landingMaximum(board, { landing: { perItem: true } }, Infinity, true), Infinity, 'per-item landing takes every clean item, even automatically');
+  assert.equal(landingMaximum(board, { landing: { perItem: true } }, 3, true), 3, 'a caller limit still holds');
   store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 6, reason: 'Measured fixture batch size',
     window: { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 } });
   assert.equal(landingMaximum(board, batched, Infinity, true), 6, 'the setting wins over the adaptive size');

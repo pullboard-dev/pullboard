@@ -1,4 +1,4 @@
-/** The board's runner job queue, served by the board API and kept out of the runner worker's import graph: offer a job with the capabilities it needs, claim by capability, renew, release, post a receipt [P7]. */
+/** The board's runner job queue, served by the board API and kept out of the runner worker's import graph: offer a job with the capabilities it needs, claim by capability, renew, release, post progress and a receipt [P7]. */
 import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { timingSafeEqual } from 'node:crypto';
@@ -8,6 +8,7 @@ import { atomically } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { upsertProgressStep } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
@@ -25,6 +26,12 @@ const RUN_ARG_BYTES = 4096;
 const PAYLOAD_BYTES = 16 * 1024;
 // Budget: a job's request (a gate's pinned commits, config and trusted entries) stays inline, under the 64 KiB blob threshold the claim scan reads.
 const REQUEST_BYTES = 60 * 1024;
+// Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
+const PROGRESS_BYTES = 60 * 1024;
+/** A repository-relative test path: never absolute, never climbing out, never a host or checkout folder. */
+const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
+/** The per-file states a progress step may say. */
+const PROGRESS_STATES = new Set(['waiting', 'running', 'green', 'red']);
 
 /** The sha256 hex of a lease token: the board keeps only this, so its rows never hold a usable token. */
 function tokenHash(token) {
@@ -92,6 +99,29 @@ export function openJob(db, { kind, item, candidate }) {
   const row = db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step <> 'done' ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
   return row ? jobView(db, row.job_id) : null;
+}
+
+/**
+ * True while the queue holds a job offered through it that has not finished: a gate or landing row a pull submit or
+ * pilot wrote, offered or leased. Why: turning pull or its pilot off must let those jobs drain, so no queued or running
+ * gate is stranded with its builder waiting; new submits already take the controller path [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ */
+export function queueDraining(db) {
+  return Boolean(db.prepare(`SELECT 1 FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_step <> 'done' LIMIT 1`).get());
+}
+
+/**
+ * The mode a board's job queue answers in: pull while this machine wants pull gates (gate.runnerDispatch pull or a
+ * pull pilot), and pull while jobs offered earlier still drain; controller otherwise [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {() => string} wanted - the machine's queue mode (the config cell's jobQueueMode).
+ */
+export function boardQueueMode(db, wanted) {
+  return wanted() === 'pull' || queueDraining(db) ? 'pull' : 'controller';
 }
 
 /**
@@ -210,7 +240,36 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now() 
 }
 
 /**
- * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'release' | 'receipt', ... }`.
+ * Record the latest test progress of a job's current claim: files selected, finished and failing so far, and each file's
+ * state by repository-relative path. Only the runner whose token the current claim returned may post, as for a receipt
+ * (#5758). Each attempt keeps one progress row, replaced by every post, and the job's own step is left as it is, so a
+ * lapsed lease still reads as claimable and the board grows by one row per attempt, not one per post [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ job: string, runner: string, token: string, progress: { selected?: number | null, finished: number, failures: number, files?: Record<string, string>, latest?: string[] }, now?: number }} request
+ * @returns {{ job: string, attempt: number, recorded: boolean }}
+ */
+export function postProgress(db, { job, runner, token, progress, now = Date.now() }) {
+  const count = value => Number.isSafeInteger(value) && value >= 0;
+  const files = progress?.files ?? {}, latest = progress?.latest ?? [];
+  if (!progress || typeof progress !== 'object' || Array.isArray(progress) || !count(progress.finished) || !count(progress.failures)
+    || (progress.selected != null && !count(progress.selected)) || !files || typeof files !== 'object' || Array.isArray(files) || !Array.isArray(latest)
+    || Object.entries(files).some(([file, state]) => !RELATIVE_FILE.test(file) || !PROGRESS_STATES.has(state)) || latest.some(file => typeof file !== 'string' || !RELATIVE_FILE.test(file))) {
+    throw new Refused('JOB_PROGRESS', 'progress is { finished, failures, selected?, files: { "<repo-relative path>": "waiting|running|green|red" }, latest: [paths] }; send repository-relative paths only');
+  }
+  const kept = { selected: progress.selected ?? null, finished: progress.finished, failures: progress.failures, files, latest };
+  const text = JSON.stringify(kept);
+  if (Buffer.byteLength(text) > PROGRESS_BYTES) throw new Refused('JOB_PROGRESS', `a progress step is at most ${PROGRESS_BYTES} bytes; send finished and running files only`);
+  return atomically(db, () => {
+    const { attempt, step } = heldBy(db, job, runner, token);
+    if (step === 'done') throw new Refused('JOB_DONE', `job ${job} already posted its receipt; progress ends with the receipt`);
+    upsertProgressStep(db, job, attempt, text, now);
+    return { job, attempt, recorded: true };
+  });
+}
+
+/**
+ * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'release' | 'progress' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
  *
@@ -225,7 +284,7 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now() 
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, capabilities, kinds, job, token, receipt } = body ?? {};
+  const { action, runner, capabilities, kinds, job, token, receipt, progress } = body ?? {};
   if (action === 'claim') {
     const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, now });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
@@ -233,11 +292,12 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, now });
+  if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
-  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, release or receipt');
+  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, release, progress or receipt');
 }

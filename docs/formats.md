@@ -353,7 +353,6 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_files` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
 | `item` | `item_review_by` | `TEXT` | `nullable` |
 | `item` | `item_review_until` | `TEXT` | `nullable` |
-| `item` | `item_verify_policy` | `TEXT` | `nullable` |
 | `job` | `job_id` | `TEXT` | `PRIMARY KEY` |
 | `job` | `job_kind` | `TEXT` | `NOT NULL` |
 | `job` | `job_item` | `INTEGER` | `nullable` |

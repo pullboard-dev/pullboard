@@ -1,7 +1,7 @@
 /** Landing's automatic wake custody behind its cell front door [B35,C7]. */
 export { automaticLandingDirectory, scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding } from './src/io/automatic/scheduler.js';
 /** Landing retry and backoff policy for the automatic lander [C7]. */
-export { retryableLandingRefusal, HELD_TRUNK_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
+export { retryableLandingRefusal, HELD_TRUNK_REFUSALS, LANDING_ADOPT_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
 /** Landing, queue and main-red front door [C7] */
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
@@ -60,7 +60,7 @@ export * from "./src/io/history.js";
 export * from "./src/io/train/repoints.js";
 export * from "./src/io/post/land.js";
 export * from "./src/io/plan/check.js";
-export { requireLandingCompanions, requireLandingModuleResolution } from './src/io/guards.js';
+export { requireLandingCompanions, requireLandingModuleResolution, requireLandingSecretFree } from './src/io/guards.js';
 export { finishLanding, LANDING_FINISH_STEPS } from './src/io/finish.js';
 export * from './light.js';
 export { PHASE_LINE } from './src/io/timing.js';
@@ -71,3 +71,6 @@ export { holdRefreshFlight } from './src/io/main/red/refresh/flight.js';
 export { placeUncoveredOnTrunk, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';
 /** Landing as a runner job: the board offers a row, a runner merges and pushes trunk by compare-and-swap [P7]. */
 export { runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
+/** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
+export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
+export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';

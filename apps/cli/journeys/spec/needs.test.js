@@ -46,11 +46,11 @@ test('one builder lists what needs the person [N26,A9]', async (t) => {
     ['shout', 'person', 'Which public interface should we keep?', '--decision'],
     ['hold', 'web', '--reason', 'Await the interface decision.'],
   ]) {
-    const result = box.run(box.repo, ...args);
+    const result = await box.runIn(box.repo, ...args);
     assert.equal(result.code, 0, result.err || result.out);
   }
   // A real resume reads the same pending, unapplied decisions as the MCP tool.
-  const resumed = box.run(box.repo, 'resume', '--json');
+  const resumed = await box.runIn(box.repo, 'resume', '--json');
   assert.equal(resumed.code, 0, resumed.err || resumed.out);
   const card = JSON.parse(resumed.out);
   assert.ok(Array.isArray(card.needsYou), 'resume exposes the shared person needs list');
@@ -65,7 +65,7 @@ test('one builder lists what needs the person [N26,A9]', async (t) => {
   assert.ok(!expected.some(need => ['G4', 'G5'].includes(need.id)), 'approved and declined unapplied rows stay out');
   const state = personNeedsState(box.repo);
   assert.deepEqual(personNeeds(state), expected);
-  const statusCard = box.run(box.repo, 'status', '--json');
+  const statusCard = await box.runIn(box.repo, 'status', '--json');
   assert.equal(statusCard.code, 0, statusCard.err || statusCard.out);
   assert.deepEqual(JSON.parse(statusCard.out).needs, expected, 'lightweight status preserves every kind of person obligation');
   const before = JSON.stringify(state);
@@ -94,7 +94,7 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
   const repo = join(box.dir, 'newcomer');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = box.run(repo, 'init', '--blueprint', writeLegacyWebQuestions(repo, readBlueprint('web-app')));
+  const initialized = await box.runIn(repo, 'init', '--blueprint', writeLegacyWebQuestions(repo, readBlueprint('web-app')));
   assert.equal(initialized.code, 0, initialized.err || initialized.out);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: preserve newcomer setup');
@@ -105,17 +105,17 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
 
   // Reproduce the dead end invited by the old wording, then restore the exact pending source.
   writeFileSync(file, source.replace(`- ${question.id} [pending,`, `- ${question.id} [approved,`));
-  const handEdit = box.run(repo, 'spec', 'check');
+  const handEdit = await box.runIn(repo, 'spec', 'check');
   assert.notEqual(handEdit.code, 0);
   assert.match(handEdit.out + handEdit.err, /pending question answered by hand/u);
   writeFileSync(file, source);
 
-  const resumed = box.run(repo, 'resume', '--json');
+  const resumed = await box.runIn(repo, 'resume', '--json');
   assert.equal(resumed.code, 0, resumed.err || resumed.out);
   const pending = JSON.parse(resumed.out).needsYou.filter(need => need.kind === 'pending');
   assert.equal(pending.length, 4, 'all four explicit blueprint questions remain visible');
   for (const need of pending) assert.equal(need.what, `pullboard spec answer ${need.id} "<choice>"`);
-  const human = box.run(repo, 'resume');
+  const human = await box.runIn(repo, 'resume');
   assert.equal(human.code, 0, human.err || human.out);
   assert.doesNotMatch(human.out, /answer in SPEC\.md/u);
   assert.ok(human.out.includes(`pullboard spec answer ${question.id} "<choice>"`));
@@ -123,15 +123,15 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
   const browserNeeds = browserBuilder({ spec: parseSpec(source).rows }).filter(need => need.kind === 'pending');
   assert.deepEqual(JSON.parse(JSON.stringify(browserNeeds)), pending, 'the standalone browser builder gives the same commands');
 
-  const answered = box.run(repo, 'spec', 'answer', question.id, 'SvelteKit');
+  const answered = await box.runIn(repo, 'spec', 'answer', question.id, 'SvelteKit');
   assert.equal(answered.code, 0, answered.err || answered.out);
   assert.equal(readFileSync(file, 'utf8'), source, 'the command records the decision before changing the file');
-  const applied = box.run(repo, 'spec', 'apply');
+  const applied = await box.runIn(repo, 'spec', 'apply');
   assert.equal(applied.code, 0, applied.err || applied.out);
   const row = parseSpec(readFileSync(file, 'utf8')).rows.find(row => row.id === question.id);
   assert.equal(row.status, 'approved');
   assert.match(row.text, /^The app is built with: SvelteKit\./u);
-  const checked = box.run(repo, 'spec', 'check');
+  const checked = await box.runIn(repo, 'spec', 'check');
   assert.equal(checked.code, 0, checked.err || checked.out);
 });
 

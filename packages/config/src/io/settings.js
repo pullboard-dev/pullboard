@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import {
@@ -18,6 +19,7 @@ import {
 import { validateRunner } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
 import { validateServe } from '../logic/settings.js';
+import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -113,6 +115,32 @@ export function setWorkerBudget(budget) {
   return next;
 }
 
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
+}
+
+/**
+ * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token'} key
+ * @param {string} value
+ */
+export function setBoardRemote(key, value) {
+  const current = loadMachineSettings();
+  const { [key]: _old, ...rest } = current.board ?? {};
+  const board = value === 'off' ? rest : { ...rest, [key]: value };
+  validateBoardRemote(board, 'the command line');
+  const { board: _board, ...others } = current;
+  const next = Object.keys(board).length ? { ...others, board } : others;
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Set the runner deadline for new work without changing any admitted or queued run. */
 export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
@@ -153,6 +181,47 @@ export function submitAuthorizationMode() {
  */
 export function runnerDispatchMode() {
   return loadMachineSettings().gate?.runnerDispatch === 'pull' ? 'pull' : 'controller';
+}
+
+/**
+ * The pull-gate pilot from gate.pullPilot: the items named, and the percentage of other items, whose submits take the
+ * pull gate while gate.runnerDispatch stays controller [P7]. Absent or empty, the pilot is off.
+ * @returns {{ items: number[], share: number }}
+ */
+export function pullPilot() {
+  const pilot = loadMachineSettings().gate?.pullPilot;
+  return { items: pilot?.items ?? [], share: pilot?.share ?? 0 };
+}
+
+/**
+ * Whether one item's submit takes the pull gate: always under gate.runnerDispatch pull; under controller only when the
+ * pilot names the item or the item falls in the pilot's share [P7]. The share is chosen by a hash of the item number,
+ * so every resubmit of one item takes the same path and a queued gate job is never stranded by a coin flip.
+ * @param {number} item
+ */
+export function pullGateFor(item) {
+  if (runnerDispatchMode() === 'pull') return true;
+  const { items, share } = pullPilot();
+  if (items.includes(Number(item))) return true;
+  return share > 0 && createHash('sha256').update(`pull-pilot:${item}`).digest().readUInt32BE(0) % 10_000 < share * 100;
+}
+
+/**
+ * Whether this machine may run its own local runner: on unless gate.localRunner is exactly false. Why on: a solo
+ * user's machine is board host and runner at once, so pulled gates and landings need no setup [P7].
+ */
+export function localRunnerEnabled() {
+  return loadMachineSettings().gate?.localRunner !== false;
+}
+
+/**
+ * The mode the board's runner job queue serves in: pull under gate.runnerDispatch pull or while a pull pilot is on, so
+ * runners can take the pilot's gate jobs; controller otherwise [P7]. Landing and runner runs keep runnerDispatchMode.
+ */
+export function jobQueueMode() {
+  if (runnerDispatchMode() === 'pull') return 'pull';
+  const { items, share } = pullPilot();
+  return items.length || share > 0 ? 'pull' : 'controller';
 }
 
 /**

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 /** Coordinator policy and immutable submission declarations, independent of check execution [V4,V16,L3,M3]. */
 import {
   localDependencyIds,
@@ -52,49 +51,29 @@ export function requireTrunkMerge(root, commit, retainedRef = trunkRef(root)) {
 }
 
 /**
- * The policy a move on this item is judged under: live accepted main for a bar-only freeze [B4,R2].
+ * Use a legacy claim's frozen policy pin; otherwise the trunk's own settings at the claim base.
  *
- * Why: a bar frozen by the previous release pinned a policy commit and keeps it (N-1); a bar-only freeze pins none,
- * so lanes, checks and verify rules are read from the commit being judged, never from claim time.
+ * Why the merge base: a bar freezes no pullboard.json since B4, and a claim made where the item's work is already
+ * committed records that candidate commit as its base. Reading policy there would let a candidate choose its own
+ * install and deadline; the newest trunk commit it shares is the owner's policy.
  */
 export function itemPolicy(root, item) {
   let frozen;
   try { frozen = JSON.parse(item.item_frozen ?? 'null'); }
   catch { throw new Refused('NO_POLICY', 'the frozen criterion is invalid; ask the coordinator to refreeze this item'); }
-  return frozen?.policy?.commit ? policyAt(root, frozen.policy.commit) : livePolicy(root);
+  return policyAt(root, frozen?.policy?.commit ?? trustedClaimBase(root, item.item_claim_head));
 }
 
-/**
- * Accepted main's policy, read from the retained trunk branch when the coordinator checkout is detached for review.
- *
- * Why: a reviewer verifies from a detached checkout of the submitted commit; the live policy is still trunk's.
- */
-function livePolicy(root) {
-  try { return mainPolicy(root); } catch (error) {
-    const branch = error?.code === 'NO_POLICY' ? trunkRef(root) : null;
-    if (!branch) throw error;
-    const ref = branch.startsWith('refs/') ? branch : `refs/heads/${branch}`;
-    return policyAt(root, policyGit(root, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]).trim());
-  }
-}
-
-/** Canonical JSON with sorted object keys, so key order never reads as a policy change. */
-function canonical(value) {
-  return JSON.stringify(value, (_key, entry) => entry && typeof entry === 'object' && !Array.isArray(entry)
-    ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : entry);
-}
-
-/**
- * The version a move records: the policy commit and a digest of its config, plus the verify rules a submit pins [B4,R2].
- *
- * @param {{ commit: string, config: any }} policy
- * @returns {{ commit: string, digest: string, verify: { policy: string, family: string, familyRelaxAt?: number } }}
- */
-export function policyVersion(policy) {
-  const verify = policy.config.verify ?? {};
-  return { commit: policy.commit, digest: createHash('sha256').update(canonical(policy.config)).digest('hex'),
-    verify: { policy: verify.policy, family: verify.family,
-      ...(Number.isSafeInteger(verify.familyRelaxAt) && verify.familyRelaxAt > 0 ? { familyRelaxAt: verify.familyRelaxAt } : {}) } };
+/** The newest trunk commit a claim base shares, or the base itself when it is on the trunk or no trunk resolves. */
+function trustedClaimBase(root, head) {
+  if (!/^[0-9a-f]{40,64}$/u.test(head ?? '')) return head;
+  let base;
+  try {
+    const trunk = trunkRef(root);
+    if (!trunk) return head;
+    base = policyGit(root, ['merge-base', head, trunk]).trim();
+  } catch { return head; }
+  return /^[0-9a-f]{40,64}$/u.test(base) ? base : head;
 }
 
 /** Compare a path's mode and object, including deletions, against an authenticated main snapshot. */
