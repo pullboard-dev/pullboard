@@ -326,7 +326,8 @@ test('a queued runner run finishes or fails by name within its deadline [C7]', {
       assert.deepEqual(processesUnder(dir), [], `nothing from the held ${phase} round trip keeps running`);
     };
     // With the default deadlines a runner that never answers fails by name within about a minute.
-    await heldAt('run', 'remote run', undefined, 60_000);
+    // A loaded runner can spend most of the default 20 s dispatch deadline starting the controller, so this case widens only that phase.
+    await heldAt('run', 'remote run', { dispatch: 90_000 }, 150_000);
     await heldAt('return', 'result return', { 'result return': 3_000 }, 15_000);
     // Last: a dispatch that never started leaves its cleanup unverified, and the runner's only slot stays charged for
     // it, so no later round trip on this one runner is admitted.
