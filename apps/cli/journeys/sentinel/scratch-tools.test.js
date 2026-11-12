@@ -8,6 +8,8 @@ import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { withCellLintParser } from '../../../../packages/codemap/index.js';
@@ -15,6 +17,11 @@ import { holdDoctrine } from '../../../../packages/doctrine/index.js';
 import { captureTestRuntimes } from '../../../../packages/sandbox/light.js';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../tests/fixtures/testkit.js';
+
+/** The folder's path with its parent resolved: the folder itself may be gone by the time it is checked. */
+function resolved(folder) {
+  return join(realpathSync(dirname(folder)), basename(folder));
+}
 
 /** Runs the body with PULLBOARD_SCRATCH set (or cleared), then restores it. */
 function withScratch(value, body) {
@@ -58,11 +65,11 @@ test('with scratch set, codemap parse, doctrine base and sandbox runtime folders
   writeFileSync(log, '');
   const { repo, frozen, head } = doctrineRepo(log, t);
   withScratch(scratch, () => holdDoctrine(repo, { mainCommit: frozen, commit: head, timeoutMs: 60000 }));
-  const ran = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => realpathSync(line));
+  const ran = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(resolved);
   assert.ok(ran.some(line => line.startsWith(`${scratch}/pullboard-doctrine-base-`)), ran.join('\n'));
   const capture = withScratch(scratch, () => captureTestRuntimes({}));
   t.after(() => capture.finish());
-  assert.ok(realpathSync(capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR).startsWith(`${scratch}/pullboard-test-runtimes-`), capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR);
+  assert.ok(resolved(capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR).startsWith(`${scratch}/pullboard-test-runtimes-`), capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR);
   assert.ok(existsSync(capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR));
 });
 
@@ -70,5 +77,5 @@ test('unset: codemap parse and sandbox runtime folders use os.tmpdir() as before
   assert.ok(withScratch(undefined, () => parserFolder(tmpdir())), 'the parser folder is under os.tmpdir()');
   const capture = withScratch(undefined, () => captureTestRuntimes({}));
   t.after(() => capture.finish());
-  assert.ok(realpathSync(capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR).startsWith(realpathSync(tmpdir())));
+  assert.ok(resolved(capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR).startsWith(realpathSync(tmpdir())));
 });
