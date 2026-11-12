@@ -43,7 +43,7 @@ function testFile(cases, red = []) {
  * A real repository with a bare origin, per-item separate-publish landing and queued submits, whose main already fails
  * one named case in web/main-red.test.js and holds its open Main red repair; plus one item whose frozen check runs that file.
  */
-async function mainRedLandingProject(helpers) {
+function mainRedLandingProject(helpers) {
   const box = helpers.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -68,11 +68,11 @@ async function mainRedLandingProject(helpers) {
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  const repair = await fixtureAdd(box.runIn, box.repo, 'web', `Main red: ${MAIN_RED}`, '--specs', 'G1', '--route', 'strong',
+  const repair = fixtureAdd(box.run, box.repo, 'web', `Main red: ${MAIN_RED}`, '--specs', 'G1', '--route', 'strong',
     '--criterion', `Repair this exact case on main: ${MAIN_RED_CASE}.`, '--brief', `Files:\n- ${MAIN_RED}\nTest:\n- ${MAIN_RED}\n`,
     '--check', `node web/runner.js ${MAIN_RED}`, '--wait', '--json');
   assert.equal(repair.code, 0, repair.err + repair.out);
-  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Change beside a main red', '--specs', 'G1', '--route', 'strong',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Change beside a main red', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The change lands beside main\'s own red.', '--brief', `Files:\n- web/snapshot.txt\nTest:\n- ${MAIN_RED}\n`,
     '--check', `node web/runner.js ${MAIN_RED}`, '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
@@ -91,12 +91,12 @@ function boardRecord(box, id) {
 
 /** Claim, commit and submit the item through the real queued worker; returns its submitted commit. */
 async function submitQueued(helpers, box, id) {
-  const claimed = await box.runIn(box.web, 'claim', String(id), '--json');
+  const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const source = JSON.parse(claimed.out).itemFolder ?? box.web;
   const committed = helpers.commitFile(box, source, 'web/snapshot.txt', 'candidate\n', 'feat(web): change beside a main red [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = await box.runIn(source, 'submit', String(id), '--no-next', '--json');
+  const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   await helpers.waitFor(() => ['green', 'infrastructure', 'red', 'incomplete'].includes(boardRecord(box, id).job?.state), // budget: real queued worker hang ceiling
     'queued worker terminal result', 100_000); // budget: hang ceiling for one real queued gate; no elapsed-time assertion
@@ -104,10 +104,10 @@ async function submitQueued(helpers, box, id) {
 }
 
 /** Accept the item at its submitted commit as the coordinator, from the main checkout. */
-async function accept(box, id, commit) {
+function accept(box, id, commit) {
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
-    const verdict = await box.runIn(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
     assert.equal(verdict.code, 0, verdict.err + verdict.out);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
@@ -151,7 +151,7 @@ async function cleanupQueued(helpers, box) {
 
 test('clause 1: a submit recorded green by the main-owned rule is reused at the real automatic landing instead of running the plan [C7,#3685]', { timeout: 200_000 }, async t => {
   const helpers = createE2eHelpers();
-  const { box, id, repair } = await mainRedLandingProject(helpers);
+  const { box, id, repair } = mainRedLandingProject(helpers);
   t.after(() => cleanupQueued(helpers, box));
   const commit = await submitQueued(helpers, box, id);
   const record = boardRecord(box, id);
@@ -163,7 +163,7 @@ test('clause 1: a submit recorded green by the main-owned rule is reused at the 
   assert.deepEqual(record.submit.submissionProof.knownMainFailures?.failures.map(row => [row.file, row.name, row.item]), [[MAIN_RED, MAIN_RED_CASE, repair]],
     `the receipt still lists main's red against its repair: ${JSON.stringify(record.submit)}`);
   assert.match(record.submit.tooling ?? '', /^[a-f0-9]{40,64}$/u, 'the submit records the tooling tree that judged it');
-  await accept(box, id, commit);
+  accept(box, id, commit);
   const result = landBatch(box, id);
   assert.equal(result.error, null, JSON.stringify(result.lines));
   assert.ok(result.lines.some(line => line.includes(`reused #${id}'s submit receipt`)), `landing reuses the main-owned green receipt: ${result.lines.join('\n')}`);

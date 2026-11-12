@@ -48,14 +48,14 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
-test('accept installs ignored dependencies from frozen policy and doctor audits the same private check [V18,V2]', async () => {
+test('accept installs ignored dependencies from frozen policy and doctor audits the same private check [V18,V2]', () => {
   const box = privateCheckSubmission({
     install: 'echo frozen-install-ran; mkdir -p web/.deps; printf installed > web/.deps/ready',
     check: 'test -f web/.deps/ready',
   });
-  const accepted = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the private install created the ignored dependency folder', '--json');
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the private install created the ignored dependency folder', '--json');
   assert.equal(accepted.code, 0, accepted.err);
-  const doctor = await box.runIn(box.repo, 'doctor', '--json');
+  const doctor = box.run(box.repo, 'doctor', '--json');
   assert.equal(doctor.code, 0, doctor.out);
 
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -70,9 +70,9 @@ test('accept installs ignored dependencies from frozen policy and doctor audits 
   assert.doesNotMatch(proof.output, /malicious-install-ran/);
 });
 
-test('accept without check.install keeps CHECK_RED and names the missing setting [V18,V2]', async () => {
+test('accept without check.install keeps CHECK_RED and names the missing setting [V18,V2]', () => {
   const box = privateCheckSubmission({ check: 'echo check-failed; test -f web/.deps/ready' });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'checking missing private dependency', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'checking missing private dependency', '--json');
   assert.equal(refused.code, 1);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -82,10 +82,10 @@ test('accept without check.install keeps CHECK_RED and names the missing setting
   assert.match(error.next, /^reject with the failing behavior or ask the builder to fix and resubmit/);
 });
 
-test('check refusal shows secret-scanned failure lines and a durable full-output file [V18,V2]', async () => {
+test('check refusal shows secret-scanned failure lines and a durable full-output file [V18,V2]', () => {
   const planted = 'sk-proj-' + 'a'.repeat(40);
   const box = privateCheckSubmission({ check: `i=1; while [ "$i" -le 45 ]; do echo "CHECK-LINE-$i"; i=$((i + 1)); done; printf '%s\\n' 'ASSERTION: expected 4, received 3' 'OPENAI_KEY=${planted}'; exit 1` });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the frozen assertion fails', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the frozen assertion fails', '--json');
   assert.equal(refused.code, 1, refused.err);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -107,13 +107,13 @@ test('check refusal shows secret-scanned failure lines and a durable full-output
   assert.equal((statSync(artifact).mode & 0o777), 0o600, 'private verifier artifacts are owner-readable only');
 });
 
-test('check refusal stays typed and includes bounded diagnostics when artifact storage is unavailable [V18,V19]', async () => {
+test('check refusal stays typed and includes bounded diagnostics when artifact storage is unavailable [V18,V19]', () => {
   const box = privateCheckSubmission({ check: 'echo diagnostic-tail-marker; exit 1' });
   const gitDir = box.git(box.repo, 'rev-parse', '--git-common-dir');
   const outputDirectory = join(box.repo, gitDir, 'pullboard');
   mkdirSync(outputDirectory, { recursive: true });
   writeFileSync(join(outputDirectory, 'check-output'), 'blocks the diagnostic directory');
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the failing check cannot save a full artifact', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the failing check cannot save a full artifact', '--json');
   assert.equal(refused.code, 1);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -140,10 +140,10 @@ test('private worker drains noisy output and reports a failed log path instead o
   assert.match(result.output, /output capped at 8 MiB; middle omitted/);
 });
 
-test('full multiline output artifact streams beyond the bounded capture under a constrained heap [V18,V2]', async () => {
+test('full multiline output artifact streams beyond the bounded capture under a constrained heap [V18,V2]', () => {
   const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); const line=Buffer.alloc(1023,120); fs.writeSync(1,"START-FULL\\n"); for(let i=0;i<9000;i++){fs.writeSync(1,line);fs.writeSync(1,"\\n")} fs.writeSync(1,"TAIL-FULL-OUTPUT\\n"); process.exitCode=1'` });
   box.env.NODE_OPTIONS = '--max-old-space-size=96';
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the full failing check output is retained', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the full failing check output is retained', '--json');
   assert.equal(refused.code, 1, refused.err);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -157,10 +157,10 @@ test('full multiline output artifact streams beyond the bounded capture under a 
   assert.equal((statSync(artifact).mode & 0o777), 0o600);
 });
 
-test('oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', async () => {
+test('oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', () => {
   const planted = 'sk-proj-' + 'z'.repeat(40);
   const box = privateCheckSubmission({ check: `node -e 'process.stdout.write("BEGIN-LONG\\n"+"😀".repeat(17*1024)+"${planted}\\nTAIL-LONG\\n");process.exitCode=1'` });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the oversized diagnostic line must fail closed', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the oversized diagnostic line must fail closed', '--json');
   assert.equal(refused.code, 1, refused.err);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -173,10 +173,10 @@ test('oversized single output lines are discarded with an explicit safe-scan mar
   assert.doesNotMatch(saved, new RegExp(planted));
 });
 
-test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', async () => {
+test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', () => {
   const planted = 'sk-proj-' + 'b'.repeat(40);
   const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); fs.writeSync(1,"x".repeat(32766)+"😀\\n"); fs.writeSync(1,"x".repeat(32762)+"${planted}\\nTAIL-CHUNK\\n"); process.exitCode=1'` });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the streamed scanner handles chunk boundaries', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the streamed scanner handles chunk boundaries', '--json');
   assert.equal(refused.code, 1, refused.err);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -190,7 +190,7 @@ test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V
   assert.match(saved, /TAIL-CHUNK/);
 });
 
-test('a check output survives the browser launch guard [V18,V2]', async () => {
+test('a check output survives the browser launch guard [V18,V2]', () => {
   const probe = sandbox();
   const observed = join(probe.dir, 'guard-stdio.json');
   const preload = join(probe.dir, 'observe-guard.mjs');
@@ -215,7 +215,7 @@ if (process.argv.length === 1) fs.writeFileSync(${JSON.stringify(observed)}, JSO
   const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); fs.writeSync(1,"x".repeat(32766)+"😀\\n"); fs.writeSync(1,"x".repeat(32762)+"${planted}\\nTAIL-CHUNK\\n"); process.exitCode=1'` });
   box.env.NODE_OPTIONS = `--import=${pathToFileURL(preload).href}`;
   box.env.PULLBOARD_TEST_BROWSER_SLOT = 'none';
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the guard preserves the private check writer', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the guard preserves the private check writer', '--json');
   assert.equal(refused.code, 1, refused.err);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_RED');
@@ -231,9 +231,9 @@ if (process.argv.length === 1) fs.writeFileSync(${JSON.stringify(observed)}, JSO
   assert.doesNotMatch(saved, new RegExp(planted));
 });
 
-test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', async () => {
+test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', () => {
   const box = privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
   assert.equal(refused.code, 1);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_UNVERIFIED');
@@ -264,26 +264,26 @@ test('a submission without a frozen check keeps the no-check pass path [V18,V2]'
   });
 });
 
-test('accept runs a successful frozen check that writes a file larger than the log cap [V18,V2]', async () => {
+test('accept runs a successful frozen check that writes a file larger than the log cap [V18,V2]', () => {
   const box = privateCheckSubmission({ check: 'mkdir -p web/.deps; node -e \'require("node:fs").writeFileSync("web/.deps/check.bin", Buffer.alloc(20 * 1024 * 1024)); console.log("large-check-file-written")\'' });
-  const accepted = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the check wrote its real 20 MiB artifact', '--json');
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the check wrote its real 20 MiB artifact', '--json');
   assert.equal(accepted.code, 0, accepted.out);
   assert.equal(JSON.parse(accepted.out).decision, 'ACCEPT');
 });
 
-test('accept installs a real dependency file larger than the log cap before checking [V18,V2]', async () => {
+test('accept installs a real dependency file larger than the log cap before checking [V18,V2]', () => {
   const box = privateCheckSubmission({
     install: 'mkdir -p web/.deps; node -e \'require("node:fs").writeFileSync("web/.deps/dependency.bin", Buffer.alloc(20 * 1024 * 1024)); console.log("large-install-file-written")\'',
     check: 'node -e \'if (require("node:fs").statSync("web/.deps/dependency.bin").size !== 20 * 1024 * 1024) process.exit(1)\'',
   });
-  const accepted = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the private install produced the complete 20 MiB dependency', '--json');
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the private install produced the complete 20 MiB dependency', '--json');
   assert.equal(accepted.code, 0, accepted.out);
   assert.equal(JSON.parse(accepted.out).decision, 'ACCEPT');
-  const doctor = await box.runIn(box.repo, 'doctor', '--json');
+  const doctor = box.run(box.repo, 'doctor', '--json');
   assert.equal(doctor.code, 0, doctor.out);
 });
 
-test('a successful noisy check drains beyond the log cap and keeps bounded head and tail output [V18,V2]', async () => {
+test('a successful noisy check drains beyond the log cap and keeps bounded head and tail output [V18,V2]', () => {
   const box = privateCheckSubmission({ check: 'node -e \'process.stdout.write("BEGIN-MARKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-MARKER\\n")\'' });
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
@@ -294,13 +294,13 @@ test('a successful noisy check drains beyond the log cap and keeps bounded head 
   assert.match(proof.output, /BEGIN-MARKER/);
   assert.match(proof.output, /END-MARKER/);
   assert.match(proof.output, /output capped at 8 MiB; middle omitted/);
-  const accepted = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'a noisy successful check passes with bounded output', '--json');
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'a noisy successful check passes with bounded output', '--json');
   assert.equal(accepted.code, 0, accepted.out);
 });
 
-test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async () => {
+test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', () => {
   const box = privateCheckSubmission({ timeout: '100ms', check: 'echo timeout-marker; case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
   assert.equal(refused.code, 1);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_UNVERIFIED');
@@ -311,14 +311,14 @@ test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', async () => {
+test('a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', () => {
   const box = privateCheckSubmission({ check: 'echo forbidden-shell-ran' });
   const isolatedPath = join(box.dir, 'git-only-path');
   mkdirSync(isolatedPath);
   const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
   symlinkSync(gitPath, join(isolatedPath, 'git'));
   box.env.PATH = isolatedPath;
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the shell is unavailable', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the shell is unavailable', '--json');
   assert.equal(refused.code, 1, refused.err);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_UNVERIFIED');
@@ -327,9 +327,9 @@ test('a frozen check whose shell cannot start is identified as a startup failure
   assert.match(error.message, /full output file:/);
 });
 
-test('accept reports a frozen install timeout before running the check [V18,V2]', async () => {
+test('accept reports a frozen install timeout before running the check [V18,V2]', () => {
   const box = privateCheckSubmission({ timeout: '100ms', install: 'echo install-started; while :; do :; done', check: 'echo forbidden-check-ran' });
-  const refused = await box.runIn(box.review, 'verify', '1', 'accept', '--note', 'the install must finish within its frozen deadline', '--json');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the install must finish within its frozen deadline', '--json');
   assert.equal(refused.code, 1);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_UNVERIFIED');
@@ -339,7 +339,7 @@ test('accept reports a frozen install timeout before running the check [V18,V2]'
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', async () => {
+test('clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   // The shell must start and write both pid files inside this budget; on a loaded machine that takes seconds.
@@ -349,8 +349,8 @@ test('clause 1: private check timeout kills a TERM-resistant shell and its track
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true', '--brief', 'Files:\n- web/index.html\nTest:\n- the check stops')).code, 0);
-  assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true', '--brief', 'Files:\n- web/index.html\nTest:\n- the check stops').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
   const commit = attackCommit(box, box.web);
