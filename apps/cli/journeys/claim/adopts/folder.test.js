@@ -102,6 +102,7 @@ test('clause 1: a claim moves a clean idle item folder from a seat that still ha
   const { box, id, folder } = await priorFolder();
   const second = await seat(box, 'web-b', 'session-b');
   const claimed = await as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
+  if (claimed.code !== 0) { const { spawnSync } = await import('node:child_process'); const l = spawnSync('lsof', ['-w', '-d', 'cwd', '-Fpcn']); const lines = String(l.stdout ?? '').split('\n'); const hits = lines.map((x, i) => /web-a-item/.test(x) ? lines.slice(Math.max(0, i - 2), i + 1).join('|') : '').filter(Boolean); assert.fail(`DBG err=${l.error?.code} st=${l.status} n=${lines.length} git=[${box.git(folder, 'status', '--porcelain', '--untracked-files=all').toString().trim().slice(0, 60)}] hits=${hits.join(';').slice(0, 150)}`); }
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
   assert.ok(adopted && adopted !== folder, claimed.out);
