@@ -9,7 +9,7 @@ export { atomic, logEvent } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
 export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
-export { LEDGER_SCHEMA_SQL, ledgerHits, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
+export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
