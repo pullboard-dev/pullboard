@@ -374,7 +374,7 @@
   "apps/cli/tests/fixtures/init/shards.js": {
     "poll": 1
   },
-  "apps/cli/journeys/init/shards.test.js": {
+  "apps/cli/journeys/init/shards/stop.test.js": {
     "sleep": 4
   }
 }
