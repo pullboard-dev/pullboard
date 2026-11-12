@@ -25,8 +25,8 @@ const STOP_WAIT_MS = 30_000;
  * A pulled land job, run in the local runner's landing checkout: merge, check, push trunk by compare-and-swap [P7].
  * Why a static import: this process outlives the checkout that started it, which may be an item folder removed later.
  */
-function land(claim, { cache, renew }) {
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew });
+function land(claim, { cache, renew, env }) {
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
 }
 
 /** Run the local runner until SIGINT or SIGTERM; exit 0 at once when another already runs on this machine. */
