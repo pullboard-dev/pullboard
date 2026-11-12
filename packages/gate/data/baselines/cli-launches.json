@@ -957,7 +957,7 @@
     "launch": 4
   },
   "apps/cli/journeys/resume/presence.test.js": {
-    "launch": 1
+    "launch": 17
   },
   "apps/cli/journeys/resume/tour-demo.test.js": {
     "launch": 2

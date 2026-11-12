@@ -38,7 +38,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   const observedAt = Date.now();
@@ -62,7 +62,6 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
     assert.equal(store.agentById(board, imported).heartbeatAt, display.heartbeatAt);
     assert.equal(withLocalSeatPresence(board, [{ agent_id: imported }])[0].presence, 'gone', 'imported display activity never becomes local authority');
     const started = Date.now();
-    // Process-level: the PRESENCE_BUSY warning is written by the Node process to its own stderr.
     const next = box.run(box.web, 'next', '--build', '--json');
     assert.equal(next.code, 0, next.err + next.out);
     assert.equal(JSON.parse(next.out).item.item_id, item, 'actual next reaches its native work result');
@@ -72,7 +71,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
   assert.equal(store.agentById(board, 'web-1').heartbeatAt, local.heartbeatAt, 'fallback never persisted its cached projection');
 });
 
-test('presence fallback does not hide a corrupt private sidecar [B3,C7]', async t => {
+test('presence fallback does not hide a corrupt private sidecar [B3,C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-corrupt-'));
   // @pullboard-board-file persistence: only this disposable board and its own sidecar are changed.
   const board = openBoard(join(root, 'board.sqlite'));
@@ -184,7 +183,7 @@ test('live-only advice never changes authenticated setting or claim replay [B3,N
     'a non-live seat can still see work it already holds');
 });
 
-test('a seat presence moves live to idle to gone from its heartbeat [B3]', async (t) => {
+test('a seat presence moves live to idle to gone from its heartbeat [B3]', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-'));
   let at = Date.parse('2026-10-24T12:00:00Z');
   const board = openBoard(join(root, 'board.sqlite'), { now: () => new Date(at) });
@@ -276,8 +275,8 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   const board = openBoard(file);
   const events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
   board.db.exec('BEGIN IMMEDIATE');
-  const status = (await box.runLocal(box.web, 'status', '--json'));
-  const explicit = (await box.runLocal(box.web, 'heartbeat', '--json'));
+  const status = box.run(box.web, 'status', '--json');
+  const explicit = box.run(box.web, 'heartbeat', '--json');
   board.db.exec('ROLLBACK');
   assert.equal(status.code, 0, status.err + status.out);
   const summary = JSON.parse(status.out);
@@ -294,7 +293,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
     const commands = settings.hooks[event].flatMap(entry => entry.hooks.map(hook => hook.command));
     assert.ok(commands.some(command => command.includes(`hook ${event}`)), event);
   }
-  const heartbeat = (await box.runLocal(box.web, 'heartbeat', '--json'));
+  const heartbeat = box.run(box.web, 'heartbeat', '--json');
   assert.equal(heartbeat.code, 0, heartbeat.err + heartbeat.out);
   assert.equal(JSON.parse(heartbeat.out).presence, 'live');
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1, 'a separate CLI process in the same minute performs no additional heartbeat write');
@@ -339,15 +338,15 @@ test('plain status counts large seat history and hides gone seats behind --all [
   heartbeatSeat(board, 'web-1');
   assert.equal(store.listAgents(board).filter(seat => seat.presence === 'gone').length, 100);
   store.closeBoard(board);
-  const plain = (await box.runLocal(box.web, 'status'));
+  const plain = box.run(box.web, 'status');
   assert.equal(plain.code, 0, plain.err + plain.out);
   assert.match(plain.out, /seats: 2 live, 1 idle, 100 gone/u);
   assert.ok(plain.out.includes(`${idle}: idle`));
   assert.ok(gone.every(id => !plain.out.includes(`${id}: gone`)), 'plain status never prints historical gone rows');
-  const all = (await box.runLocal(box.web, 'status', '--all'));
+  const all = box.run(box.web, 'status', '--all');
   assert.equal(all.code, 0, all.err + all.out);
   assert.ok(gone.every(id => all.out.includes(`${id}: gone`)), 'the explicit flag retains access to every identity');
-  const structured = (await box.runLocal(box.web, 'status', '--json'));
+  const structured = box.run(box.web, 'status', '--json');
   assert.equal(structured.code, 0, structured.err + structured.out);
   const summary = JSON.parse(structured.out);
   assert.deepEqual(summary.presenceCounts, { live: 2, idle: 1, gone: 100 });
@@ -396,10 +395,10 @@ test('read commands never refresh presence while committed writes and hooks do [
   /** Reuse production parsing/dispatch with the same private identity and captured streams. */
   box.run = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
   // Complete the genuine baseline before measuring hooks, rather than racing its background event.
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
+  const added = await fixtureAdd(box.run, box.repo, 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const withdrawn = await box.runLocal(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
+  const withdrawn = await box.run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
   assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(file);
@@ -413,22 +412,22 @@ test('read commands never refresh presence while committed writes and hooks do [
   local.exec('CREATE TABLE writes(n INTEGER NOT NULL); INSERT INTO writes VALUES(0); CREATE TRIGGER count_update AFTER UPDATE ON heartbeat BEGIN UPDATE writes SET n=n+1; END');
   board.db.exec('BEGIN IMMEDIATE');
   try {
-    const status = await box.runLocal(box.web, 'status', '--json');
+    const status = await box.run(box.web, 'status', '--json');
     assert.equal(status.code, 0, status.err + status.out);
     const summary = JSON.parse(status.out);
     assert.equal(summary.agents.find(seat => seat.agent_id === 'web-1').presence, 'gone', 'status projects the stored observation without reviving it');
     assert.equal(local.prepare('SELECT at FROM heartbeat WHERE seat=?').get(key).at, stale);
     for (const args of [['show', String(id), '--json'], ['list', '--json']]) {
-      const result = await box.runLocal(box.web, ...args);
+      const result = await box.run(box.web, ...args);
       assert.equal(result.code, 0, result.err + result.out);
       assert.equal(JSON.parse(result.out).version, 1);
     }
-    const next = await box.runLocal(box.web, 'next', '--json');
+    const next = await box.run(box.web, 'next', '--json');
     assert.ok([0, 1].includes(next.code), next.err + next.out);
     assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM item WHERE item_status='claimed'").get().n, 0, 'the next control really makes no claim');
     assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'none of the read commands writes the private sidecar');
   } finally { board.db.exec('ROLLBACK'); }
-  const shouted = await box.runLocal(box.web, 'shout', 'all', 'Committed write refreshes this seat', '--json');
+  const shouted = await box.run(box.web, 'shout', 'all', 'Committed write refreshes this seat', '--json');
   assert.equal(shouted.code, 0, shouted.err + shouted.out);
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1);
   const shout = board.db.prepare('SELECT shout_at FROM shout WHERE shout_from=? ORDER BY shout_id DESC LIMIT 1').get('web-1');
@@ -436,19 +435,19 @@ test('read commands never refresh presence while committed writes and hooks do [
   assert.ok(Date.parse(observed) >= Date.parse(shout.shout_at), 'the local refresh follows the committed native shout');
   local.prepare('UPDATE heartbeat SET at=? WHERE seat=?').run(stale, key);
   local.exec('UPDATE writes SET n=0');
-  const refused = await box.runLocal(box.web, 'shout', 'missing-reader', 'This write must refuse', '--json');
+  const refused = await box.run(box.web, 'shout', 'missing-reader', 'This write must refuse', '--json');
   assert.equal(refused.code, 1, refused.err + refused.out);
   assert.equal(JSON.parse(refused.out).error.code, 'NO_READER');
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'a refused native write cannot refresh presence');
   const events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
-  const hook = await box.runLocal(box.web, 'heartbeat', '--json');
+  const hook = await box.run(box.web, 'heartbeat', '--json');
   assert.equal(hook.code, 0, hook.err + hook.out);
   assert.equal(JSON.parse(hook.out).presence, 'live');
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1, 'an explicit agent hook still refreshes the stale private observation');
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n, events, 'the hook remains local, not an ordered move');
   local.prepare('UPDATE heartbeat SET at=? WHERE seat=?').run(stale, key);
   local.exec('UPDATE writes SET n=0');
-  const resumed = await box.runLocal(box.web, 'resume', '--json');
+  const resumed = await box.run(box.web, 'resume', '--json');
   assert.equal(resumed.code, 0, resumed.err + resumed.out);
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 0, 'public resume is not an activity hook');
   const { readFileSync } = await import('node:fs');
@@ -485,13 +484,13 @@ test('explicit SessionStart observation upgrades an existing resume hook without
   const custom = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo custom; pullboard resume', timeout: 17 }] };
   settings.hooks.SessionStart = [custom];
   writeFileSync(file, JSON.stringify(settings));
-  const upgraded = (await box.runLocal(box.repo, 'init', '--verbose'));
+  const upgraded = box.run(box.repo, 'init', '--verbose');
   assert.equal(upgraded.code, 0, upgraded.err + upgraded.out);
   const after = JSON.parse(readFileSync(file, 'utf8'));
   assert.equal(after.hooks.SessionStart.length, 2);
   assert.ok(after.hooks.SessionStart[0].hooks[0].command.includes('hook SessionStart'));
   assert.deepEqual(after.hooks.SessionStart[1], custom, 'the existing user hook bytes remain its own command');
-  const again = (await box.runLocal(box.repo, 'init', '--verbose'));
+  const again = box.run(box.repo, 'init', '--verbose');
   assert.equal(again.code, 0, again.err + again.out);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), after, 'repeated init never duplicates the observation hook');
 });
