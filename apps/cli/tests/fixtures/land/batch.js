@@ -15,6 +15,9 @@ import {
 import { PHASE_LINE } from '../../../../../packages/landing/index.js';
 import { setPhase } from './probe.js';
 import { report } from './probe.js';
+import { startCpu } from './probe-cpu.js';
+import { stopCpu } from './probe-cpu.js';
+import { summarizeDir } from './probe-cpu.js';
 
 /** The waiting queue a batch must take whole; the criterion asks for at least sixteen seen. */
 export const WAITING = 16;
@@ -28,8 +31,10 @@ export const PHASE_BUDGET_MS = 240_000;
  */
 async function timed(phases, name, work) {
   setPhase(name);
+  if (name === 'accept' || name === 'submit') await startCpu();
   const start = Date.now();
   const value = await work();
+  if (name === 'accept' || name === 'submit') await stopCpu(name);
   const elapsed = Date.now() - start;
   phases.push([name, elapsed]);
   console.log(`# phase ${name}: ${(elapsed / 1000).toFixed(1)} s`);
@@ -106,8 +111,11 @@ export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, co
   const callsBefore = calls(box).length;
 
   box.env.GIT_TRACE2_EVENT = join(box.dir, 'trace2.jsonl');
+  box.env.NODE_OPTIONS = `--cpu-prof --cpu-prof-interval 500 --cpu-prof-dir=${join(box.dir, 'cpu')}`;
   const landed = await timed(phases, 'land', () => box.run(box.repo, 'land', '--json'));
   delete box.env.GIT_TRACE2_EVENT;
+  delete box.env.NODE_OPTIONS;
+  summarizeDir('land', join(box.dir, 'cpu'));
   report(join(box.dir, 'trace2.jsonl'));
   console.log(landed.err.split('\n').filter(l => /phase|ms|took/.test(l)).slice(0, 40).map(l => '# land-err ' + l).join('\n'));
   assert.equal(landed.code, 0, `${landed.err}\n${landed.out}`);
