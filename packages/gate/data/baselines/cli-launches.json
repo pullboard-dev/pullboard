@@ -615,7 +615,7 @@
     "launch": 6
   },
   "apps/cli/journeys/mcp/main.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/merged/consistency.test.js": {
     "launch": 7
