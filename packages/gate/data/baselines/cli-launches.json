@@ -171,7 +171,7 @@
     "launch": 3
   },
   "apps/cli/journeys/check/receipts.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/status/drive.test.js": {
     "launch": 2
@@ -339,7 +339,7 @@
     "launch": 1
   },
   "apps/cli/journeys/view/background.test.js": {
-    "launch": 10
+    "launch": 9
   },
   "packages/kernel/tests/logic/seal.test.js": {
     "launch": 1
@@ -352,9 +352,6 @@
   },
   "apps/cli/journeys/handoff/dead/running.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/exit/rules.test.js": {
-    "launch": 8
   },
   "apps/cli/journeys/ship/command.test.js": {
     "launch": 2
@@ -375,7 +372,7 @@
     "launch": 4
   },
   "apps/cli/journeys/land/accept.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/relay/browser.test.js": {
     "launch": 3
@@ -390,7 +387,7 @@
     "launch": 1
   },
   "apps/cli/journeys/relay/setup.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/engine/merged.test.js": {
     "launch": 2
@@ -451,9 +448,6 @@
   },
   "apps/cli/journeys/relay/person/cockpit-requests.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/companion/main.test.js": {
-    "launch": 4
   },
   "packages/runners/tests/io/probe.test.js": {
     "launch": 1
@@ -576,7 +570,7 @@
     "launch": 1
   },
   "apps/cli/journeys/decisions/row.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "packages/gate/tests/io/static/check/registry.test.js": {
     "launch": 1
@@ -603,7 +597,7 @@
     "launch": 8
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
-    "launch": 12
+    "launch": 9
   },
   "apps/lib/tests/durable/daemons.test.js": {
     "launch": 2
@@ -657,7 +651,7 @@
     "launch": 2
   },
   "apps/cli/journeys/submit/preflight.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/gate/newcomer.test.js": {
     "launch": 1
@@ -890,9 +884,6 @@
   "packages/gate/tests/io/edges/checks.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/trace/command.test.js": {
-    "launch": 7
-  },
   "apps/cli/journeys/submit/infra.test.js": {
     "launch": 8
   },
@@ -963,7 +954,7 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/landing/accept.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
@@ -1014,7 +1005,7 @@
     "launch": 2
   },
   "apps/cli/journeys/fact/receipts.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "apps/cli/journeys/export/public.test.js": {
     "launch": 8
@@ -1083,7 +1074,7 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 29
+    "launch": 28
   },
   "apps/cli/journeys/milestone/title.test.js": {
     "launch": 3
@@ -1277,9 +1268,6 @@
   "apps/cli/journeys/submit/compare.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/check/accept.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/join/idempotent.test.js": {
     "launch": 2
   },
@@ -1314,7 +1302,7 @@
     "launch": 3
   },
   "apps/cli/journeys/red/content-cache.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "apps/cli/journeys/handoff/main.test.js": {
     "launch": 13
@@ -1359,7 +1347,7 @@
     "launch": 4
   },
   "apps/cli/journeys/show/review/worker.test.js": {
-    "launch": 10
+    "launch": 4
   },
   "apps/cli/journeys/seats/timing.test.js": {
     "launch": 4
@@ -1407,7 +1395,7 @@
     "launch": 2
   },
   "apps/cli/journeys/test/warning.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/lifecycle/merge.test.js": {
     "launch": 1
@@ -1517,9 +1505,6 @@
   "apps/cli/journeys/rigor/view.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/claim/adopts/folder.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "launch": 3
   },
@@ -1561,9 +1546,6 @@
   },
   "apps/cli/journeys/next/eval.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/submit/landing/backoff.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/relay/agent.test.js": {
     "launch": 2
@@ -1692,7 +1674,7 @@
     "launch": 1
   },
   "apps/cli/journeys/release/model.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/runner/browser/runners.test.js": {
     "launch": 1

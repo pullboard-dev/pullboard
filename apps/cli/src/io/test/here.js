@@ -8,6 +8,7 @@ import { compareMainFailures } from '../../../../../packages/landing/index.js';
 import { withMainCheckout } from '../../../../../packages/landing/index.js';
 import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { knownRedCheck } from './known.js';
+import { updateMainReds } from './main-reds.js';
 import { recordClauseTicks } from '../commands/submit.js';
 import { withBoardRead } from '../context.js';
 
@@ -28,11 +29,16 @@ export async function runHere(io, ctx, { agent, item, files, values }) {
     file: row.file, main: result.main, result: row.result,
     message: `file ${row.result === 'red' ? 'also fails on' : row.result === 'absent' ? 'is absent on' : 'passes on'} main at ${result.main}: ${row.file} (case comparison unavailable)`,
   }));
+  const cases = (result.failureCases ?? result.runFailures ?? []).filter(row => row?.file && row.name);
+  const named = result.pulled ? result.runFailures != null : result.failureCases != null || result.green;
   delete result.failureCases;
+  delete result.runFailures;
   delete result.mainComparison;
   for (const notice of [...result.mainFailures, ...result.mainFileFailures]) io.say(notice.message);
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
+  // A red run that names no cases proves nothing about which files failed, so it neither files nor closes.
+  if (result.green || named) await updateMainReds(io, ctx, { green: result.green, files: result.files, cases });
   if (result.green && item !== undefined) await recordClauseTicks(io, item, files);
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
   if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);
