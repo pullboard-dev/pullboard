@@ -158,7 +158,7 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
 
 test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', async t => {
   const box = crossLaneFixture(t);
-  const web = box.seat('own-web', 'web', box.session);
+  const web = box.seat('own-web', 'web', box.session, 'strong', true);
   const foreign = box.add('api', 'Earlier foreign work');
   const own = box.add('web', 'Ready own-lane work');
   box.milestone('earlier', foreign); box.milestone('later', own);
@@ -177,7 +177,7 @@ test('ordinary next prefers its own lane, then names foreign work without claimi
 
 test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', async t => {
   const box = crossLaneFixture(t);
-  const web = box.seat('idle-web', 'web', box.session);
+  const web = box.seat('idle-web', 'web', box.session, 'strong', true);
   const dirty = box.seat('dirty-api', 'api', box.session);
   const busy = box.seat('busy-api', 'api', box.session);
   const peer = box.seat('peer-api', 'api', 'separate-peer-session');
