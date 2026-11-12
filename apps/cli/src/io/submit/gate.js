@@ -6,6 +6,7 @@ import { throwTrustedRefusal } from './remote.js';
 import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { shellWord } from '../../../../../packages/runners/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { trunkRemote } from '../../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -96,7 +97,7 @@ const memos = await import('./apps/cli/src/io/memo.js').then(module => module.ru
 const selected = name => !input.parts || input.parts.includes(name);
 const outcomes = {};
 const refusal = error => ({ code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}),
-  ...(typeof error.machineryRule === 'string' ? { machineryRule: error.machineryRule } : {}) });
+  ...(typeof error.machineryRule === 'string' ? { machineryRule: error.machineryRule } : {}), ...(error.rerun === false ? { rerun: false } : {}) });
 /** In per-part mode a Refused ends only its own part and is recorded under it; otherwise it ends the whole analysis as before. */
 const part = async (name, work) => {
   if (!input.perPart) return work();
@@ -112,6 +113,23 @@ const step = async (name, work) => {
   try { return await work(); } finally { result.steps[name] = Math.round(performance.now() - started); }
 };
 const refuse = (code, message) => Object.assign(new Error(message), { name: 'Refused', code });
+const OBJECT = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+const present = commit => spawnSync('git', ['--no-replace-objects', 'cat-file', '-e', commit + '^{commit}'], { cwd: root, stdio: 'ignore' }).status === 0;
+/**
+ * Fetch each named commit this checkout lacks from the job's trunk remote, by id first, then by the remote's branches;
+ * return the ones still missing. Why: a job checkout holds only main and the candidate, while an item claimed on
+ * another item's commit has its claim base only on that item's branch, so its lane policy was unreadable here (#5808).
+ */
+const fetchMissing = (commits, remote) => {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  const fetch = args => spawnSync('git', ['fetch', '-q', '--no-tags', '--no-write-fetch-head', '--', remote, ...args], { cwd: root, env, stdio: 'ignore' });
+  let missing = commits.filter(commit => !present(commit));
+  if (!missing.length || !remote || remote.startsWith('-')) return missing;
+  for (const commit of missing) spawnSync('git', ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--no-write-fetch-head', '--', remote, commit], { cwd: root, env, stdio: 'ignore' });
+  missing = missing.filter(commit => !present(commit));
+  if (missing.length) fetch(['+refs/heads/*:refs/pullboard/trunk-heads/*']);
+  return missing.filter(commit => !present(commit));
+};
 const trusted = command => command.split(/(\\s+)/u).map(word => /^[\\w./-]+\\.[cm]?js$/u.test(word) && !isAbsolute(word)
   && existsSync(join(tools, word)) ? JSON.stringify(join(tools, word)) : word).join('');
 try {
@@ -147,6 +165,16 @@ try {
     const sandbox = await import('./packages/sandbox/index.js').catch(() => null);
     if (typeof sandbox?.submissionPaths !== 'function') { result.authorization = { skipped: 'accepted main lacks submissionPaths' }; return; }
     let mechanical = [];
+    // The claim base and frozen policy commit come from the trunk remote when this checkout lacks them, never from the controller [P7,#5808].
+    const held = input.authorization.item ?? {};
+    let frozenPolicy = null;
+    try { frozenPolicy = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit ?? null; } catch { /* submissionPaths refuses an unreadable bar */ }
+    const remote = process.env.PULLBOARD_TRUNK_REMOTE || input.trunkRemote || '';
+    const absent = fetchMissing([...new Set([held.item_claim_head, frozenPolicy].filter(commit => OBJECT.test(commit ?? '')))], remote);
+    // A commit the trunk remote truly lacks is a real refusal, recorded once: no rerun can make it appear.
+    if (absent.length) throw Object.assign(refuse('NO_POLICY', 'the claim base or frozen policy commit ' + absent.map(commit => commit.slice(0, 12)).join(', ')
+      + ' is not on the trunk remote ' + (remote || '(none named)') + ', so lane ownership cannot be checked on the runner'),
+      { next: 'push that commit to the trunk remote, or ask the coordinator to refreeze the item so it is claimed on main, then submit again', rerun: false });
     try {
       const paths = sandbox.submissionPaths(root, input.authorization.item, input.source, { mainCommit: input.main, dependencies: [], onMechanicalPaths: found => { mechanical = found; } });
       result.authorization = { paths, mechanical, ownership: null };
@@ -217,7 +245,7 @@ try {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
   else if (error?.retryable === true && typeof error.code === 'string') result.refusal = { code: error.code, message: String(error.message), retryable: true };
   else if (error?.name !== 'Refused') throw error;
-  else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
+  else result.refused = refusal(error);
 }
 process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n');
 `;
@@ -366,7 +394,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization } : {}) };
+    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization, trunkRemote: request.trunkRemote ?? trunkRemote(root) ?? '' } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
@@ -377,7 +405,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
     ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
   fixtureMemos.keepRunnerFixtureMemo(step.value, undefined, lease.runner?.host ?? null); const { value, directory, sha256 } = step;
-  if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
+  if (value.refused) throw Object.assign(new Refused(value.refused.code, value.refused.message, value.refused.next), value.refused.rerun === false ? { rerun: false } : {});
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');
   }
@@ -412,7 +440,9 @@ export function sharedRemoteAnalysis(startJob) {
     const analysis = await (job ??= startJob(signal));
     const refused = analysis.outcomes?.[part]?.refused;
     // The doctrine's machinery identity rides along, so its refusal trial reads the same rule as a local hold.
-    if (refused) throw Object.assign(new Refused(refused.code, refused.message, refused.next), typeof refused.machineryRule === 'string' ? { machineryRule: refused.machineryRule } : {});
+    // A refusal no rerun can change (a commit the trunk remote lacks) says so, so the queued worker records it once [#5808].
+    if (refused) throw Object.assign(new Refused(refused.code, refused.message, refused.next), typeof refused.machineryRule === 'string' ? { machineryRule: refused.machineryRule } : {},
+      refused.rerun === false ? { rerun: false } : {});
     return analysis;
   };
 }
