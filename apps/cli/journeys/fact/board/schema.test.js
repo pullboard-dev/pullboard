@@ -120,8 +120,8 @@ test('main leaves manually drifted triggers and their invalid stamp untouched [M
 });
 
 /** Require a real private public command to succeed with its original diagnostics. */
-function succeeds(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function succeeds(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}\n${result.out}\n${result.err}`);
   return result;
 }
@@ -133,28 +133,28 @@ function choice(box, cwd, value) {
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
 
-test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', () => {
+test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
   const box = e2e.project();
   choice(box, box.repo, 'base');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-  const added = succeeds(box, box.repo, 'add', 'web', 'Carry after declaration upgrade', '--specs', 'G1',
+  const added = await succeeds(box, box.repo, 'add', 'web', 'Carry after declaration upgrade', '--specs', 'G1',
     '--criterion', 'The unchanged acceptance survives a trunk-only merge', '--check', 'node --check web/feature.js', '--json');
   const id = JSON.parse(added.out).item.item_id;
-  succeeds(box, box.web, 'claim', String(id));
+  await succeeds(box, box.web, 'claim', String(id));
   const accepted = choice(box, box.web, 'accepted');
-  succeeds(box, box.web, 'submit', String(id));
+  await succeeds(box, box.web, 'submit', String(id));
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
-  try { succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
+  try { await succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
   choice(box, box.repo, 'trunk');
-  succeeds(box, box.repo, 'reopen', String(id), '--conflict', 'web/feature.js');
-  succeeds(box, box.web, 'claim', String(id));
+  await succeeds(box, box.repo, 'reopen', String(id), '--conflict', 'web/feature.js');
+  await succeeds(box, box.web, 'claim', String(id));
   assert.notEqual(box.tryGit(box.web, 'merge', '-q', '--no-edit', 'main').status, 0);
   const head = choice(box, box.web, 'resolved');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   olderDeclaration(file);
   const before = observe(file);
-  succeeds(box, box.repo, 'status');
+  await succeeds(box, box.repo, 'status');
   assert.deepEqual(observe(file), before, 'a public main read still does not migrate declarations');
   // The ordinary E2E CLI runs this agent's unmerged source, which correctly cannot own another
   // repository's shared DDL. Copy the actual candidate into a genuine private main source checkout.
@@ -164,11 +164,12 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   box.git(application, 'init', '-q', '-b', 'main');
   box.git(application, 'add', '-A');
   box.git(application, 'commit', '-q', '-m', 'chore: candidate main source');
+  // Process-level: this runs the copied candidate main checkout's own entry, which an in-process call cannot reach.
   const opened = runFixtureChild(process.execPath, [join(application, 'apps/cli/pullboard.js'), 'inbox', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(opened.status, 0, opened.stderr + opened.stdout);
   assert.ok(observe(file).schema.find(row => row.name === 'machine_item_move').sql.includes("'claimed>verified'"));
-  succeeds(box, box.web, 'submit', String(id));
+  await succeeds(box, box.web, 'submit', String(id));
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     const item = db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
