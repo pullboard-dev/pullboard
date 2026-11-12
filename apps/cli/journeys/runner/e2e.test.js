@@ -118,8 +118,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   ].join('\n'));
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
   const has = (file, text) => `grep -q ${text} ${file}`;
-  assert.equal(await addDiagnosedLight(box, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
-  assert.equal(await addDiagnosedLight(box, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
+  assert.equal((await addDiagnosedLight(box, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js'))).code, 0);
+  assert.equal((await addDiagnosedLight(box, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js'))).code, 0);
   const made = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light'));
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
