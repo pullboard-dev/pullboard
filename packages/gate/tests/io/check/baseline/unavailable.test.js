@@ -1,7 +1,7 @@
 /** A baseline that could not run keeps the refusal that stopped it, and show prints it [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Refused } from '../../../../../kernel/src/logic/refused.js';
+import { Refused } from '../../../../../kernel/index.js';
 import { sayCheckBaseline } from '../../../../src/logic/format.js';
 import { unavailableBaseline } from '../../../../src/io/check/baseline/worker.js';
 
