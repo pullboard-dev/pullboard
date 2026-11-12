@@ -8,6 +8,7 @@ import { commonJsIn } from '../../../packages/gate/index.js';
 import { importsIn } from '../../../packages/gate/index.js';
 import { packageFiles } from '../../../packages/runners/index.js';
 import { runnerPackage } from '../../../packages/runners/index.js';
+import { trustedWorkerEntry } from '../../../packages/runners/light.js';
 
 test('worker closure contains the artifact protocol without controller initialization [C7]', () => {
   const root = resolve(import.meta.dirname, '../../..');
@@ -18,5 +19,13 @@ test('worker closure contains the artifact protocol without controller initializ
     assert.ok(files.has('apps/runner/src/io/worker.js'));
     assert.ok(files.has('packages/resources/src/io/artifact.js'));
     assert.equal(files.has('packages/runners/src/io/main.js'), false, 'worker does not load controller initialization');
+  }
+});
+
+test('the trusted-runtime check accepts the legacy worker entry and the new one; any other entry is refused [C7]', () => {
+  assert.equal(trustedWorkerEntry('apps/runner/src/io/scripts/worker.js'), true, 'legacy entry (0.9.3 manifests)');
+  assert.equal(trustedWorkerEntry('apps/runner/runner-worker.js'), true, 'new entry');
+  for (const other of ['apps/runner/src/io/worker.js', '../apps/runner/runner-worker.js', 'package.json', '', undefined]) {
+    assert.equal(trustedWorkerEntry(other), false, `any other entry is refused: ${other}`);
   }
 });
