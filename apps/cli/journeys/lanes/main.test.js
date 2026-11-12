@@ -38,7 +38,7 @@ const CONFIG = {
   shared: ['redteam/'],
 };
 
-test('a lane commits only exact gate paths for its staged test rename [L3,B34]', t => {
+test('a lane commits only exact gate paths for its staged test rename [L3,B34]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -63,7 +63,7 @@ test('a lane commits only exact gate paths for its staged test rename [L3,B34]',
     writeFileSync(join(box.web, 'SPEC.md'), changed);
     box.git(box.web, 'add', 'SPEC.md');
     assert.equal(specGateMoveOnly(box.web, 'SPEC.md'), false);
-    const refused = box.run(box.web, 'hook', 'pre-commit');
+    const refused = (await box.runLocal(box.web, 'hook', 'pre-commit'));
     assert.equal(refused.code, 1, refused.out + refused.err);
     assert.match(refused.out + refused.err, /outside the web lane: SPEC\.md/u);
   }
@@ -80,7 +80,7 @@ test('a lane commits only exact gate paths for its staged test rename [L3,B34]',
   'the exact committed gate move also passes native submission ownership');
 });
 
-test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', t => {
+test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('claim-web', 'web', box.session);
   const api = box.seat('claim api', 'api', box.session);
@@ -90,7 +90,7 @@ test('WRONG_LANE names a clean native lane checkout and the claim there retains 
   const refusal = JSON.parse(wrong.out).error;
   assert.equal(refusal.code, 'WRONG_LANE');
   assert.equal(refusal.next, `cd '${api.root}' && pullboard claim ${id}`);
-  assert.equal(box.json(box.run(box.repo, 'show', String(id), '--json')).item_status, 'open');
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(id), '--json'))).item_status, 'open');
   box.json(box.runAs(box.session, api.root, 'claim', String(id), '--json'));
   mkdirSync(join(api.root, 'api'), { recursive: true });
   writeFileSync(join(api.root, 'api/proof.js'), 'export const proof = true;\n');
@@ -115,31 +115,31 @@ after(policyFixtures.cleanup);
  *
  * Why: ownership routing (814a7def2a) replaced the immediate OUTSIDE_LANE refusal for proved foreign paths; the owner decides.
  */
-function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
+async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
   const waiting = JSON.parse(submitted.out).waitingOwner;
   assert.deepEqual(waiting.owners, [owner], label);
   for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
-  const item = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+  const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
 }
 
 /** Claim a real item before the coordinator moves one API path into its web lane. */
-function reassignedPathFixture() {
+async function reassignedPathFixture() {
   const box = policyFixtures.project('true');
   mkdirSync(join(box.repo, 'api'));
   writeFileSync(join(box.repo, 'api/shared.js'), 'original\n');
   box.git(box.repo, 'add', 'api/shared.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Update reassigned path', '--specs', 'G1',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Update reassigned path', '--specs', 'G1',
     '--criterion', 'the reassigned path has the new content', '--check', 'true', '--route', 'strong');
   assert.equal(added.code, 0, added.err);
-  const claimed = box.run(box.web, 'claim', '1');
+  const claimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.err);
-  const before = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  const before = JSON.parse((await box.runLocal(box.web, 'show', '1', '--json')).out);
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('api/shared.js');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
@@ -153,53 +153,53 @@ function reassignedPathFixture() {
   return { box, before, trunkPolicy };
 }
 
-test('refreeze picks up a lane change made after the claim [V2,L3]', () => {
-  const { box, before, trunkPolicy } = reassignedPathFixture();
-  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), 'api', ['api/shared.js'],
+test('refreeze picks up a lane change made after the claim [V2,L3]', async () => {
+  const { box, before, trunkPolicy } = await reassignedPathFixture();
+  await assertWaitsOnOwner(box, 1, (await box.runLocal(box.web, 'submit', '1', '--json')), 'api', ['api/shared.js'],
     'a landed lane change does not silently widen the frozen claim');
-  const refreshed = box.run(box.repo, 'refreeze', '1');
+  const refreshed = (await box.runLocal(box.repo, 'refreeze', '1'));
   assert.equal(refreshed.code, 0, refreshed.err);
-  const refrozen = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  const refrozen = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
   const originalFreeze = JSON.parse(before.item_frozen);
   const currentFreeze = JSON.parse(refrozen.item_frozen);
   assert.equal(currentFreeze.policy, undefined, 'the refreeze holds the bar alone, no policy pin [B4]');
   assert.deepEqual(currentFreeze, originalFreeze,
     'a lane-only policy change keeps the criterion, title, check and cited rows unchanged');
   assert.equal(refrozen.item_status, 'open');
-  const lifted = box.run(box.repo, 'hold', '1', '--off');
+  const lifted = (await box.runLocal(box.repo, 'hold', '1', '--off'));
   assert.equal(lifted.code, 0, lifted.err + lifted.out);
-  const reclaimed = box.run(box.web, 'claim', '1');
+  const reclaimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
+  const submitted = (await box.runLocal(box.web, 'submit', '1', '--json'));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const item = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  const item = JSON.parse((await box.runLocal(box.web, 'show', '1', '--json')).out);
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_frozen_digest, refrozen.item_frozen_digest, 'reclaim and submission keep the bar digest');
 });
 
-test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
-  const { box, before, trunkPolicy } = reassignedPathFixture();
-  const renewed = box.run(box.web, 'claim', '1');
+test('a claimed item keeps its policy until refreeze [V2,L3]', async () => {
+  const { box, before, trunkPolicy } = await reassignedPathFixture();
+  const renewed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(renewed.code, 0, renewed.err);
-  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), 'api', ['api/shared.js'],
+  await assertWaitsOnOwner(box, 1, (await box.runLocal(box.web, 'submit', '1', '--json')), 'api', ['api/shared.js'],
     'submission still enforces the old ownership until an explicit coordinator refreeze');
-  const lifted = box.run(box.repo, 'hold', '1', '--off');
+  const lifted = (await box.runLocal(box.repo, 'hold', '1', '--off'));
   assert.equal(lifted.code, 0, lifted.err + lifted.out);
   // A changed lane policy is not a bar change: the re-claim succeeds and keeps the bar bytes [B4].
-  const reclaim = box.run(box.web, 'claim', '1');
+  const reclaim = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(reclaim.code, 0, reclaim.err + reclaim.out);
   assert.doesNotMatch(reclaim.err + reclaim.out, /NO_POLICY/u);
-  const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  const reclaimed = JSON.parse((await box.runLocal(box.web, 'show', '1', '--json')).out);
   assert.equal(reclaimed.item_frozen, before.item_frozen, 'the re-claim keeps the criterion bytes');
   assert.equal(reclaimed.item_frozen_digest, before.item_frozen_digest);
   assert.equal(JSON.parse(reclaimed.item_frozen).policy, undefined);
   assert.notEqual(trunkPolicy, before.item_claim_head);
 });
 
-test('submit and patch attach share frozen ownership and move together on refreeze [L2,L3,V2,V4]', () => {
-  const { box, before, trunkPolicy } = reassignedPathFixture();
+test('submit and patch attach share frozen ownership and move together on refreeze [L2,L3,V2,V4]', async () => {
+  const { box, before, trunkPolicy } = await reassignedPathFixture();
   const previous = before.item_claim_head;
-  const author = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
+  const author = JSON.parse((await box.runLocal(box.web, 'whoami', '--json')).out).id;
   const patchFile = join(box.dir, 'ownership.patch');
   writeFileSync(patchFile, [
     'diff --git a/api/shared.js b/api/shared.js',
@@ -210,38 +210,38 @@ test('submit and patch attach share frozen ownership and move together on refree
     '+patched',
     '',
   ].join('\n'));
-  assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), 'api', ['api/shared.js']);
-  const deniedAttach = box.run(box.repo, 'patch', 'attach', '1', patchFile,
-    '--key', 'ownership', '--author', author, '--json');
+  await assertWaitsOnOwner(box, 1, (await box.runLocal(box.web, 'submit', '1', '--json')), 'api', ['api/shared.js']);
+  const deniedAttach = (await box.runLocal(box.repo, 'patch', 'attach', '1', patchFile,
+    '--key', 'ownership', '--author', author, '--json'));
   assert.equal(deniedAttach.code, 1, deniedAttach.err + deniedAttach.out);
   const error = JSON.parse(deniedAttach.out).error;
   assert.equal(error.code, 'OUTSIDE_LANE');
   assert.ok(error.message.includes(previous), 'the refusal names the frozen ownership commit');
   assert.ok(error.message.includes("api/shared.js (api's)"), 'the old policy owns the exact path');
-  const unchanged = JSON.parse(box.run(box.repo, 'patch', 'list', '1', '--json').out);
+  const unchanged = JSON.parse((await box.runLocal(box.repo, 'patch', 'list', '1', '--json')).out);
   assert.deepEqual(unchanged.patches, [], 'rejected ownership writes no companion');
-  const refrozen = box.run(box.repo, 'refreeze', '1', '--json');
+  const refrozen = (await box.runLocal(box.repo, 'refreeze', '1', '--json'));
   assert.equal(refrozen.code, 0, refrozen.err + refrozen.out);
-  const lifted = box.run(box.repo, 'hold', '1', '--off');
+  const lifted = (await box.runLocal(box.repo, 'hold', '1', '--off'));
   assert.equal(lifted.code, 0, lifted.err + lifted.out);
-  const reclaimed = box.run(box.web, 'claim', '1', '--json');
+  const reclaimed = (await box.runLocal(box.web, 'claim', '1', '--json'));
   assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
+  const submitted = (await box.runLocal(box.web, 'submit', '1', '--json'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const item = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  const item = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
   assert.equal(item.item_status, 'submitted');
   assert.equal(JSON.parse(item.item_frozen).policy, undefined, 'the bar carries no policy pin [B4]');
-  const attached = box.run(box.repo, 'patch', 'attach', '1', patchFile,
-    '--key', 'ownership', '--author', author, '--json');
+  const attached = (await box.runLocal(box.repo, 'patch', 'attach', '1', patchFile,
+    '--key', 'ownership', '--author', author, '--json'));
   assert.equal(attached.code, 0, attached.err + attached.out);
   assert.equal(JSON.parse(attached.out).changed, true, 'the same author now owns this path under the refrozen policy');
 });
 
 /** A web item that merged main, after which main changed the same foreign file again. */
-function mergedMainFixture(title) {
+async function mergedMainFixture(title) {
   const box = policyFixtures.project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong')).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
   assert.equal(policyFixtures.commitFile(box, box.repo, 'coordinator.txt', 'main one\n', 'chore: main change one').status, 0);
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
@@ -249,23 +249,23 @@ function mergedMainFixture(title) {
   return box;
 }
 
-test('a merge of main whose foreign-lane files advanced again still submits [L3,V4]', () => {
-  const box = mergedMainFixture('Merged main');
-  const submitted = box.run(box.web, 'submit', '1', '--json');
+test('a merge of main whose foreign-lane files advanced again still submits [L3,V4]', async () => {
+  const box = await mergedMainFixture('Merged main');
+  const submitted = (await box.runLocal(box.web, 'submit', '1', '--json'));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
 });
 
-test('a real outside-lane edit after the merge of main is refused by name [L3,V4]', () => {
-  const box = mergedMainFixture('Edit after merge');
+test('a real outside-lane edit after the merge of main is refused by name [L3,V4]', async () => {
+  const box = await mergedMainFixture('Edit after merge');
   mkdirSync(join(box.web, 'api'), { recursive: true });
   writeFileSync(join(box.web, 'api/stray.js'), 'outside\n');
   policyFixtures.attackCommit(box, box.web);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
-  assertWaitsOnOwner(box, 1, submitted, 'api', ['api/stray.js']);
+  const submitted = (await box.runLocal(box.web, 'submit', '1', '--json'));
+  await assertWaitsOnOwner(box, 1, submitted, 'api', ['api/stray.js']);
   assert.equal(JSON.parse(submitted.out).waitingOwner.paths.includes('coordinator.txt'), false, 'main-only files never count');
 });
 
-test('lane hook permits only an owned rename and its exact foreign import repoint [L3]', t => {
+test('lane hook permits only an owned rename and its exact foreign import repoint [L3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -281,13 +281,13 @@ test('lane hook permits only an owned rename and its exact foreign import repoin
   const view = join(box.web, 'api/view.js');
   writeFileSync(view, before.replace('old.js', 'other.js'));
   box.git(box.web, 'add', 'api/view.js');
-  assert.equal(box.run(box.web, 'hook', 'pre-commit').code, 1, 'unrelated path refuses');
+  assert.equal((await box.runLocal(box.web, 'hook', 'pre-commit')).code, 1, 'unrelated path refuses');
   writeFileSync(view, before.replace('old.js', 'new.js').replace('result = value', 'result = 2'));
   box.git(box.web, 'add', 'api/view.js');
-  assert.equal(box.run(box.web, 'hook', 'pre-commit').code, 1, 'logic edit refuses');
+  assert.equal((await box.runLocal(box.web, 'hook', 'pre-commit')).code, 1, 'logic edit refuses');
   writeFileSync(view, before.replace('old.js', 'new.js'));
   box.git(box.web, 'add', 'api/view.js');
-  const accepted = box.run(box.web, 'hook', 'pre-commit');
+  const accepted = (await box.runLocal(box.web, 'hook', 'pre-commit'));
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.web, 'commit', '-q', '-m', 'test: move module');
@@ -296,7 +296,7 @@ test('lane hook permits only an owned rename and its exact foreign import repoin
     item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
 });
 
-test('lane hook accepts a deleted shim repoint only to its exact body [L3]', t => {
+test('lane hook accepts a deleted shim repoint only to its exact body [L3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -313,10 +313,10 @@ test('lane hook accepts a deleted shim repoint only to its exact body [L3]', t =
   const view = join(box.web, 'api/view.js');
   writeFileSync(view, before.replace('shim.js', 'body.js').replace('result = value', 'result = 2'));
   box.git(box.web, 'add', 'api/view.js');
-  assert.equal(box.run(box.web, 'hook', 'pre-commit').code, 1, 'additional logic edit refuses');
+  assert.equal((await box.runLocal(box.web, 'hook', 'pre-commit')).code, 1, 'additional logic edit refuses');
   writeFileSync(view, before.replace('shim.js', 'body.js'));
   box.git(box.web, 'add', 'api/view.js');
-  const accepted = box.run(box.web, 'hook', 'pre-commit');
+  const accepted = (await box.runLocal(box.web, 'hook', 'pre-commit'));
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.web, 'commit', '-q', '-m', 'test: remove shim');
@@ -342,7 +342,7 @@ function planBlobs(placements) {
   return { before: path => before[path], after: path => after[path] };
 }
 
-test('a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', () => {
+test('a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', async () => {
   const root = mkdtempSync(join(tmpdir(), 'lanes-plan-'));
   try {
     planGit(root, 'init', '-q', '-b', 'main');
@@ -394,18 +394,18 @@ async function nativePlanRowFixture(t, { mainFile } = {}) {
 }
 
 /** Add and claim a real web item for native plan-row submission coverage. */
-function nativePlanRowItem(box, title) {
-  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'the owned new file has a canonical plan row',
+async function nativePlanRowItem(box, title) {
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'the owned new file has a canonical plan row',
     '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   return id;
 }
 
 /** Commit the candidate's canonical plan row and retain item authorship in Git history. */
-function commitPlanRow(box, id, shardPath, source) {
+async function commitPlanRow(box, id, shardPath, source) {
   const shard = JSON.parse(readFileSync(join(box.web, shardPath), 'utf8'));
   shard.paths.push([source, `packages/x/src/core/${source.slice('src/'.length)}`, 'rule']);
   writeFileSync(join(box.web, shardPath), JSON.stringify(shard, null, 2) + '\n');
@@ -415,32 +415,32 @@ function commitPlanRow(box, id, shardPath, source) {
 
 test('native submit accepts a plan row for an item file after reclaim and refreeze while main lacks it [L3,C7,#2108]', async t => {
   const { box, shardPath } = await nativePlanRowFixture(t);
-  const id = nativePlanRowItem(box, 'Place an item-created source file');
+  const id = await nativePlanRowItem(box, 'Place an item-created source file');
   mkdirSync(join(box.web, 'src'), { recursive: true });
   writeFileSync(join(box.web, 'src/new.js'), 'export {};\n');
   box.git(box.web, 'add', 'src/new.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): create planned source [G1]', '-m', `Pullboard-Item: #${id}`);
   const ownCommit = box.git(box.web, 'rev-parse', 'HEAD');
-  const released = box.run(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'reclaim after the item source commit', '--json');
+  const released = (await box.runLocal(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'reclaim after the item source commit', '--json'));
   assert.equal(released.code, 0, released.err + released.out);
-  const refrozen = box.run(box.repo, 'refreeze', String(id), '--json');
+  const refrozen = (await box.runLocal(box.repo, 'refreeze', String(id), '--json'));
   assert.equal(refrozen.code, 0, refrozen.err + refrozen.out);
-  const reclaimed = box.run(box.web, 'claim', String(id), '--json');
+  const reclaimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
-  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_claim_head, ownCommit,
+  assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(id), '--json')).out).item_claim_head, ownCommit,
     'the reclaim uses the item commit as its new base');
-  commitPlanRow(box, id, shardPath, 'src/new.js');
-  const submitted = box.run(box.web, 'submit', String(id), '--json');
+  await commitPlanRow(box, id, shardPath, 'src/new.js');
+  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--json'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_status, 'submitted');
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).item_status, 'submitted');
 });
 
 test('native submit refuses a plan row for a file already present on main [L3,C7,#2108]', async t => {
   const { box, shardPath } = await nativePlanRowFixture(t, { mainFile: 'src/already-main.js' });
-  const id = nativePlanRowItem(box, 'Refuse a plan row for a main file');
-  commitPlanRow(box, id, shardPath, 'src/already-main.js');
+  const id = await nativePlanRowItem(box, 'Refuse a plan row for a main file');
+  await commitPlanRow(box, id, shardPath, 'src/already-main.js');
   // The plan shard is no web path, so ownership routing sends the row to its owner rather than landing it (814a7def2a).
-  assertWaitsOnOwner(box, id, box.run(box.web, 'submit', String(id), '--json'), 'coordinator', [shardPath]);
+  await assertWaitsOnOwner(box, id, (await box.runLocal(box.web, 'submit', String(id), '--json')), 'coordinator', [shardPath]);
 });
 
 test('cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
