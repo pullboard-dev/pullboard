@@ -1,23 +1,18 @@
-/** @pullboard-test-input apps/view/src/io/palette/client.js apps/view/src/io/palette/palette.css */
+/** @pullboard-test-input apps/view/src/io/palette/client.js */
 /** The page's search box, command palette and keyboard shortcuts, mounted by one call in the page script [U94 item 6, #6616]. */
 import { readFileSync } from 'node:fs';
 
 const CLIENT = readFileSync(new URL('./client.js', import.meta.url), 'utf8');
-const STYLES = readFileSync(new URL('./palette.css', import.meta.url), 'utf8');
 
 /**
  * The script text that mounts the palette in the hosted page. It runs inside the page's own script, so it reads
- * the page's tabs, board in memory, go() and theme directly; it adds its stylesheet and fetches nothing.
+ * the page's tabs, board in memory, go() and theme directly; its rules come from the view stylesheet (a page may not add styles inline) and it fetches nothing.
  *
  * @returns {string} Script text to place after the page's other parts.
  */
 export function paletteScript() {
-  const css = JSON.stringify(STYLES).replace(/</gu, '\\u003c');
   return `${CLIENT}
 (() => {
-  const style = document.createElement('style');
-  style.textContent = ${css};
-  document.head.appendChild(style);
   pbPalette({
     document,
     mac: /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
