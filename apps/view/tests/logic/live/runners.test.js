@@ -77,8 +77,9 @@ test('clause 2: runner records full of host names, addresses, users, seats, path
 });
 
 test('the fail-closed text blocks still refuse a private name that reaches the runner projection [N26]', () => {
-  const leaked = sources({ job: { files: ['apps/runner-a.example.test/a.test.js'] } });
+  const privateHost = ['test-host', 'local'].join('.');
+  const leaked = sources({ job: { files: [`apps/${privateHost}/a.test.js`] } });
   assert.throws(() => publicSnapshot({ live: leaked }), error => error.code === 'PUBLIC_EXPORT_BLOCKED' && /machine or host name/u.test(error.message)
-    && !error.message.includes('mac-studio-7'));
+    && !error.message.includes('test-host'));
   assert.throws(() => publicSnapshot({ live: sources() }, { privateBoard: true }), /private item/u);
 });
