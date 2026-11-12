@@ -150,10 +150,12 @@ export function classifyMaintenanceTree(tree, {
 
   let inactiveSince = timestamp(previous?.inactiveSince);
   for (const seat of matchingSeats) {
-    const presence = seat.presence;
-    const retiredAt = timestamp(seat.completedTakeoverAt);
-    if (retiredAt === null && (presence === 'live' || presence === 'idle')) return result('active', true, `seat-${presence}`, agentIds, itemIds);
-    if (retiredAt === null && presence !== 'gone' && presence !== null && presence !== undefined) return result('active', true, 'seat-presence-unknown', agentIds, itemIds);
+    // A joined seat keeps its checkout until a completed takeover retires it. Presence comes from hook heartbeats,
+    // which a hookless, rejoined or pooled seat never refreshes, so "gone" never proves the seat has left (#5969).
+    if (timestamp(seat.completedTakeoverAt) === null) {
+      const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
+      return result('active', true, reason, agentIds, itemIds);
+    }
     const activity = seatActivity(seat);
     if (activity === null) return result('active', true, 'seat-age-unknown', agentIds, itemIds);
     if (now < activity || now - activity < grace) return result('active', true, 'seat-recent-or-clock-rollback', agentIds, itemIds);
@@ -166,5 +168,10 @@ export function classifyMaintenanceTree(tree, {
   const elapsed = now - inactiveSince;
   const oldEnough = elapsed >= grace;
   const kind = outsideRoot ? 'scratch' : closedWork ? 'finished' : 'orphaned';
-  return result(kind, false, outsideRoot ? 'outside-configured-worktree-root' : closedWork ? 'all-linked-work-closed' : 'no-live-seat-or-work-claim', agentIds, itemIds, inactiveSince, oldEnough);
+  // Maintenance's own scratch area is a retired seat or a seat's item folder inside the configured worktree root;
+  // a sibling checkout, a hand-made worktree or anything outside that root is someone else's and is never removed (#5969).
+  if (outsideRoot || (matchingSeats.length === 0 && !itemSeat)) {
+    return result(kind, true, 'outside-maintenance-scratch', agentIds, itemIds, inactiveSince, oldEnough);
+  }
+  return result(kind, false, closedWork ? 'all-linked-work-closed' : 'no-live-seat-or-work-claim', agentIds, itemIds, inactiveSince, oldEnough);
 }
