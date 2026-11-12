@@ -10,6 +10,7 @@ import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
 import { jobBlobsPending } from "./blobs.js";
 import { migrateJobBlobs } from "./blobs.js";
 import { compactBoard } from "./blobs.js";
+import { sharedColumnsAhead } from "./schema.js";
 import {
   SCHEMA,
   SCHEMA_VERSION,
@@ -161,7 +162,14 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL, migrate, storeTriggers)), onDiagnostic);
+      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL, migrate, storeTriggers);
+      // Code behind trunk refuses before any write: carrying on replayed newer caches under the lock for minutes (#5899).
+      const ahead = sharedColumnsAhead(db, expected);
+      if (ahead.length) {
+        throw new Refused('UNMERGED_SCHEMA', `this code is older than the shared board, which has ${ahead.length} column${ahead.length === 1 ? '' : 's'} it does not know (${ahead.slice(0, 3).join(', ')}${ahead.length > 3 ? ', ...' : ''}); an old writer must not change a newer board`,
+          'run the main checkout\'s pullboard (the pullboard on your PATH), or merge main into this worktree, then retry');
+      }
+      reportSharedSchema(file, sharedSchemaDiagnostic(db, expected), onDiagnostic);
     }
     guardMoves(board);
     // Writable commands catch up old writers or missing local projections once. Read-only open

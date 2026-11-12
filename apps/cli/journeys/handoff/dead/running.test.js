@@ -63,7 +63,7 @@ function gone(pid) {
 }
 
 /** A native project with handoff on and a gate that holds while the candidate says "hold", until released. */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -88,9 +88,9 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Dead running handoff', '--specs', 'G1',
-    '--criterion', 'A dead running handoff never blocks the next submit.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Dead running handoff', '--specs', 'G1',
+    '--criterion', 'A dead running handoff never blocks the next submit.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   t.after(async () => {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
@@ -103,9 +103,9 @@ function fixture(t) {
 }
 
 test('#3995 clause 1: killing the submit worker mid-tests relaunches the same gate, which finishes from its last recorded section with no SUBMIT_HANDOFF_DEAD [C7,V4]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
   const first = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
@@ -116,7 +116,7 @@ test('#3995 clause 1: killing the submit worker mid-tests relaunches the same ga
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
   // Let the relaunched gate pass its held section, then ask for the same head again: recovery relaunches the job.
   writeFileSync(join(box.dir, 'release'), 'release\n');
-  const again = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
+  const again = await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json');
   assert.doesNotMatch(again.out + again.err, /SUBMIT_HANDOFF_DEAD/u, 'a dead running worker never ends the gate');
   await box.helpers.waitFor(() => driverRecord(box.boardFile, first.id)?.relaunches === 1, 'the same job was relaunched', 120000); // budget: relaunch ceiling, no timing assertion.
   await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the relaunched gate finished', 120000); // budget: real gate ceiling, no timing assertion.
@@ -228,14 +228,14 @@ test('clause 3: a worker whose event loop is blocked for 3 minutes finishes with
   assert.doesNotMatch(JSON.stringify(job.steps), /SUBMIT_HANDOFF_DEAD/u);
 });
 
-test('#4073 clause 1: a running hand-off resumes only while its item is claimed by its seat at its digest; otherwise SUBMIT_HANDOFF_CHANGED [C7]', t => {
+test('#4073 clause 1: a running hand-off resumes only while its item is claimed by its seat at its digest; otherwise SUBMIT_HANDOFF_CHANGED [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Running hand-off resume', '--specs', 'G1', '--criterion', 'A running hand-off resumes only for its claim.', '--check', 'true', '--wait', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Running hand-off resume', '--specs', 'G1', '--criterion', 'A running hand-off resumes only for its claim.', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = fixtureOpenBoard(box);
   try {
