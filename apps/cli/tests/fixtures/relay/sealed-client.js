@@ -310,7 +310,6 @@ export { requireSupportedEngine } from '../../../../../packages/state/index.js';
 export { seal as sealMove } from '../../../../../packages/kernel/index.js';
 export { store, openBoard, ENGINE_VERSION };
 
-/** relayRecover through a runtime door, so the journeys import no link cell [H16]. */
-export async function relayRecover(...args) { return (await import(pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/link/index.js')).href)).relayRecover(...args); }
-/** syncRelay through a runtime door, so the journeys import no link cell [H16]. */
-export async function syncRelay(...args) { return (await import(pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/link/index.js')).href)).syncRelay(...args); }
+/** Relay doors of the link cell, re-exported for the split sealed recovery journeys [H16]. */
+export { relayRecover } from '../../../../../packages/link/index.js';
+export { syncRelay } from '../../../../../packages/link/index.js';
