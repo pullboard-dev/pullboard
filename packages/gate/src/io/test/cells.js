@@ -269,8 +269,8 @@ export function declaredReads(source, cells) {
 }
 
 /**
- * Per cell: whether it is sealed. A cell is sealed when it has tests, every one conforms, no file outside it imports past its
- * front door, and no test outside it reads its files by path (a source-tree or source-cell input naming it).
+ * Per cell: whether it is sealed. A cell is sealed when it has tests, every one conforms, and no file outside it imports past its
+ * front door. Tests outside it that read its files by path (a declared source-tree or source-cell input) are counted as `pathReaders`, a ratchet, and never unseal it.
  *
  * @param {ReturnType<typeof classifyTests>} rows
  * @param {{ cells: string[], deepImporters?: Record<string, number>, pathReaders?: Record<string, string[]> }} facts
@@ -283,7 +283,7 @@ export function sealedReport(rows, { cells, deepImporters = {}, pathReaders = {}
     const findings = own.filter(row => row.kind === 'finding').length;
     const deep = deepImporters[cell] ?? 0;
     const readers = Object.entries(pathReaders).filter(([file, read]) => read.includes(cell) && testOwnerCell(file) !== cell).length;
-    return { cell, sealed: own.length > 0 && findings === 0 && deep === 0 && readers === 0, tests: own.length, findings, deepImporters: deep, pathReaders: readers };
+    return { cell, sealed: own.length > 0 && findings === 0 && deep === 0, tests: own.length, findings, deepImporters: deep, pathReaders: readers };
   });
 }
 

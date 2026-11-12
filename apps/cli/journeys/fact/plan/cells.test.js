@@ -572,7 +572,7 @@ test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
   }
 });
 
-test('a cell read by path by a test outside it is not sealed, and the report lists each reader with its cells [C7]', async () => {
+test('a cell read by path by a test outside it stays sealed, and the report lists each reader as a ratchet [C7]', async () => {
   const { declaredReads, sealedReport, testCellsProblems } = await import('../../../../../packages/gate/src/io/test/cells.js');
   const cells = ['a', 'b', 'apps/cli'];
   assert.deepEqual(declaredReads('/** @pullboard-test-input source-tree */\nx\n', cells), ['a', 'apps/cli', 'b']);
@@ -581,7 +581,7 @@ test('a cell read by path by a test outside it is not sealed, and the report lis
   const rows = [{ file: 'packages/a/tests/x.test.js', cell: 'a', kind: 'cell' }, { file: 'packages/b/tests/y.test.js', cell: 'b', kind: 'cell' }];
   const pathReaders = { 'packages/b/tests/y.test.js': ['a', 'b'] };
   const report = Object.fromEntries(sealedReport(rows, { cells: ['a', 'b'], pathReaders }).map(row => [row.cell, row]));
-  assert.equal(report.a.sealed, false, 'a test in b reads a by path');
+  assert.equal(report.a.sealed, true, 'a declared path read does not unseal the cell');
   assert.equal(report.a.pathReaders, 1);
   assert.equal(report.b.sealed, true, 'a test reading its own cell does not count');
   const problems = testCellsProblems(ROOT, { facts: { cells: ['a'], deepImporters: {}, pathReaders: { 'packages/b/tests/y.test.js': ['a'] } }, listing: { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 1e9, sealed: [], pathReaders: { a: 0 } } });
