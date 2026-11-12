@@ -1,5 +1,5 @@
 /** Runtime budget decisions keep real observations separate from audit placement [C7]. */
-export const DEFAULT_TEST_FILE_BUDGET_MS = 600_000;
+export const DEFAULT_TEST_FILE_BUDGET_MS = 120_000;
 
 /** Validate a finite positive bound instead of silently accepting malformed limits. */
 export function testFileLimit(value = DEFAULT_TEST_FILE_BUDGET_MS) {
