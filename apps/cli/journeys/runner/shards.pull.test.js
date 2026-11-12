@@ -127,3 +127,21 @@ async t => {
   assert.ok(first > 0 && second > first && kept > second && tail > kept, fact);
   assert.match(readFileSync(log, 'utf8'), /^not ok 2 - keeps the guard$/mu, 'the named log holds the shard\'s full output');
 });
+
+/** A red shard's TAP with `count` failing cases, then passing subtests that fill its tail. */
+function manyRedTap(count) {
+  const failing = Array.from({ length: count }, (_, n) => [`not ok ${n + 1} - case number ${n}`, '  ---', '  duration_ms: 1', `  location: './web/p0.test.js:${n + 1}:1'`,
+    "  failureType: 'testCodeFailure'", "  error: 'x'", '  ...']).flat();
+  return ['TAP version 13', ...failing, ...Array.from({ length: 300 }, (_, n) => `ok ${count + n + 1} - passing subtest ${n}`), `1..${count + 300}`, `# fail ${count}`, ''].join('\n');
+}
+
+test('a red pulled proof shard with more than 50 not ok cases still names every one in the fact [C7]', { timeout: 240_000 }, // budget: as clause 1 of the shard journey.
+async t => {
+  const count = 60;
+  const { box, id, board, url } = await shardedGate(t, './web/p0.test.js', manyRedTap(count));
+  for (const runner of ['r-red', 'r-green']) assert.equal((await serveOnce(box, url, runner)).code, 0);
+  const fact = facts(board, id).split('Gate job ').find(text => /failing parts/u.test(text)) ?? '';
+  const named = fact.split('\n').filter(line => /^proof not ok: web\/p0\.test\.js :: case number \d+ \(shard /u.test(line));
+  assert.equal(named.length, count, 'every not ok case is named, none cut to a cap');
+  assert.doesNotMatch(fact, /more in shard/u, 'no case is left to the log');
+});

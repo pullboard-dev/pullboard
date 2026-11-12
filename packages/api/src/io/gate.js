@@ -22,8 +22,6 @@ const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
-// Budget: a red shard names at most this many 'not ok' cases in the fact; its kept log holds the rest.
-const SHARD_CASES = 50;
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
 export const SHARD_JOB_KIND = 'gate-shard';
 /** Budget: a gate request with its ledger hits stays this far under the queue's 60 KiB job-request cap (jobs.js). */
@@ -162,7 +160,7 @@ function offerProofShards(board, { job, receipt, offered }) {
 function redShard(part) {
   const phase = part.phase ?? {};
   const rows = Array.isArray(phase.errors) && phase.errors.length ? phase.errors : Array.isArray(phase.failures) ? phase.failures : [];
-  const cases = rows.filter(row => typeof row?.name === 'string' && row.name).slice(0, SHARD_CASES)
+  const cases = rows.filter(row => typeof row?.name === 'string' && row.name)
     .map(row => ({ file: typeof row.file === 'string' && row.file ? row.file : null, name: row.name }));
   const omitted = Math.max(0, (Number(phase.errorCount) || rows.length) - cases.length);
   const folder = typeof part.output?.folder === 'string' && part.output.folder ? part.output.folder : null;
