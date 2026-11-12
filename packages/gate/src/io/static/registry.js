@@ -32,6 +32,7 @@ import {
 } from '../paths/lint.js';
 import { STATIC_CHECKS } from '../../../index.js';
 import { cliReachRows } from '../../../index.js';
+import { keylessRows } from '../../../index.js';
 import { repoPath } from '../../../../kernel/light.js';
 import { blobOid } from './cache.js';
 import { fileCache } from './cache.js';
@@ -143,6 +144,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const scope = cellScopedKey(treeSources(root, sources), ['apps/cli'], { edgeCache: edgeCacheOf(context) });
     return context.cache('cli-reach', 1).get('cli-reach', `${scope}:${main}`, () => cliReachRows(root));
   } },
+  // Modules a test closure reaches whose imports the graph newly cannot read; both graphs are kept per commit (#5840).
+  { name: 'keyless', run: root => keylessRows(root) },
   // Edges are read per file by blob; the ceilings and the plan are read fresh each run [5567].
   { name: 'cells-edges', run: (root, sources, context = MEMORY) => {
     const cache = context.cache('file-edges', 1), text = new Map(treeSources(root, sources).map(row => [row.file, row.source]));
