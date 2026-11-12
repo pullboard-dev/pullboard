@@ -35,6 +35,7 @@ import {
   boardOf,
   fetchLive,
   serveFolder,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
 import {
@@ -94,8 +95,8 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
     assert.deepEqual(JSON.parse(page.run('JSON.stringify(projectNeeds(data.project))')), calls,
       'the combined-project list follows exactly the substituted builder');
     assert.deepEqual(needEntries(page.show('needs')), [
-      ['decide:701', '#701', 'Builder decision one?', 'Asked by reviewer', 'Decide'],
-      ['decide:702', '#702', 'Builder decision two?', 'Asked by reviewer', 'Decide'],
+      ['decide:701', '#701', 'Builder decision one?', 'Asked by reviewer', 'Your decision'],
+      ['decide:702', '#702', 'Builder decision two?', 'Asked by reviewer', 'Your decision'],
       ['spec:S701', 'S701', 'Builder question one.', 'answer in SPEC.md', 'Review'],
       ['spec:S702', 'S702', 'Builder question two.', 'answer in SPEC.md', 'Review'],
       ['tab:shouts', 'builder-lane', 'Builder hold.', 'lane held by builder', 'Review'],
@@ -347,7 +348,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
     page.run("openTab('items'); render();");
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator', 'Decide']], "the person's call identifies its source, question and action");
+    assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator', 'Your decision']], "the person's call identifies its source, question and action");
     assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
     assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
     page.run("openTab('shouts'); render();");
@@ -562,7 +563,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Needs you is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
           ['spec', 'G3', 'G3Should the greeting name the visitor?', 'pullboard spec answer G3 "<choice>"', 'Review'],
-          ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Decide'],
+          ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Your decision'],
           ['tab', 'web', 'webFreeze for the demo', 'lane held by coordinator', 'Review'],
           ['tab', null, '2 draft spec rows to approve or drop', 'In the Spec tab, one by one or a section at a time', 'Review'],
         ], `${at}: the person's calls, each a row, the drafts one row with their count`);
@@ -701,6 +702,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
+    await openItemsNeeds(chrome);
     if (!await chrome.stable(`document.querySelector('#needs [data-agent-approved="G1"] details').open`)) {
       await chrome.click(`document.querySelector('#needs [data-agent-approved="G1"] summary')`);
     }
@@ -789,6 +791,7 @@ test('a sentinel draft in Needs you is approved and declined from the view [N26,
     await chrome.waitFor('document.querySelectorAll("#needs [data-sentinel-draft]").length === 2');
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
+    await openItemsNeeds(chrome);
     const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#needs [data-sentinel-draft]')].map(row => ({
       name: row.dataset.sentinelDraft, text: row.textContent, directory: row.querySelector('[data-needs-field=directory]')?.textContent,
       actions: [...row.querySelectorAll('button')].map(button => [button.dataset.sentinelDecision, button.textContent.trim()]),

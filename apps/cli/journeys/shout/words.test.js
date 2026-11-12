@@ -39,6 +39,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Seed authoritative health transitions through the normal ordered receiver, never fabricated event rows. */
@@ -187,6 +188,7 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
       if (name === 'shouts') assert.match(text, /Keep \[MY_CODE\] and these words\./u, 'free user words remain exact');
     }
     await tab(chrome, 'items');
+    await openItemsNeeds(chrome);
     assert.match(await chrome.stable('document.querySelector("#needs").innerText'), /Asked by coordinator/u, 'the person keeps the actual source of the decision');
     assert.doesNotMatch(await chrome.stable('document.querySelector("#needs").innerText'), /\(unknown\)/u, 'Needs attribution shows no invented model');
     await press(chrome, 'document.querySelector("#chain [data-item=\\\"1\\\"]")');

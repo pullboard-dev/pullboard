@@ -24,6 +24,7 @@ import {
   press,
   pickProject,
   chooseFilter,
+  openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { MACHINE_MODEL } from '../../../tests/fixtures/cockpit/machine.js';
 import {
@@ -108,6 +109,7 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
       await chrome.click("document.querySelector('#detail .item-panel-latest .verdict .note .ref')");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
       await chooseFilter(chrome, 'state:active');
+      await openItemsNeeds(chrome);
       const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
       if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
       await chrome.click(`${decision}.querySelector('button[data-go^="decide:"]')`);

@@ -32,6 +32,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   stopOwnedChrome,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('read-only Needs-you preserves each entry as text while its transport stays read-only [N26,N27,B26]', { timeout: 90_000 }, async (t) => {
@@ -125,6 +126,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.deepEqual(normalEntries.map((row) => row[0]), ['G3', '#' + await chrome.stable('data.project.decisions[0].shout_id'), 'web', null], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
     assert.match(normalEntries[1][2], /^Asked by coordinator @[^ ]+$/, 'the API-provided decision timestamp is shown as an age; a seat with no declared model shows its bare id (5665f8678a)');
     assert.match(normalEntries[2][2], /^lane held by coordinator @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
+    await openItemsNeeds(chrome);
     await chrome.click(`document.querySelector('#needs .needs-drafts [data-go="tab:spec"]')`);
     await chrome.waitFor('view.tab === "spec"');
     assert.equal(await chrome.stable('data.project.spec.some(row => row.id === "G4" && row.status === "draft")'), true,

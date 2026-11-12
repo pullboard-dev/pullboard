@@ -547,6 +547,11 @@ function needEntries(html) {
     .map((row) => [row[1] ?? null, row[2] ?? null, row[3], row[4], row[5]]);
 }
 
+/** Open the Items page's collapsed questions-and-sentinels group so its rows can be pressed and measured [N26]. */
+async function openItemsNeeds(chrome) {
+  await chrome.waitFor("(() => { const group = document.querySelector('#needs details[data-items-needs]'); if (group && !group.open) group.open = true; return !!group?.open; })()");
+}
+
 /**
  * One item's row in the list, or '' when the list does not show it.
  */
@@ -1262,4 +1267,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
