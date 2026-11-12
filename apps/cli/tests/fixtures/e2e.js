@@ -427,10 +427,10 @@ export function crossLaneFixture(t) {
     return JSON.parse(result.out);
   }
   /** An existing seat is joined by the actual owner session, rather than a test-only owner flag. */
-  function seat(name, lane, identity, route = 'strong') {
+  function seat(name, lane, identity, route = 'strong', lockLane = false) {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    return { ...json(joinFixtureSeat(box, root, lane, { route, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
+    return { ...json(joinFixtureSeat(box, root, lane, { route, lockLane, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
   }
   /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {

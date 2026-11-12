@@ -39,3 +39,17 @@ test('clause 1: review reuses the submit proof only when commit, tree, base and 
   // Same candidate, base and tooling: the key matches, so the next refusal is about the recorded admission, not a tree.
   assert.equal(reusableSubmitProof(events, base).reason, 'no linked submit admission');
 });
+
+test('clause 1: in the default shape (wholeSuite) a narrow submit receipt is not reused, so the landing runs the full gate; a whole-suite receipt for the identical tree is [C7,#6271]', () => {
+  assert.equal(landingReceiptReuse(input()).reuse, true, 'a narrow receipt reuses when the plan is narrow (separate shape)');
+  const narrow = landingReceiptReuse(input({ wholeSuite: true }));
+  assert.deepEqual([narrow.reuse, narrow.code], [false, 'PLAN_WIDER']);
+  const whole = landingReceiptReuse(input({ wholeSuite: true, readEvents: () => submit({}, { full: true }) }));
+  assert.equal(whole.reuse, true);
+  assert.equal(landingReceiptReuse(input({ wholeSuite: true, tree: 'treeX', readEvents: () => submit({}, { full: true }) })).code, 'CANDIDATE_CHANGED');
+});
+
+test('clause 2: without wholeSuite (landing.publish "separate") a narrow receipt reuses exactly as before [C7,#6271]', () => {
+  assert.deepEqual(landingReceiptReuse(input({ wholeSuite: false })), { reuse: true, code: null, item: 7, commit: 'c1', tree: 'treeC' });
+  assert.equal(landingReceiptReuse(input({ wholeSuite: false, files: ['test/a.test.js', 'test/b.test.js'] })).code, 'PLAN_WIDER');
+});

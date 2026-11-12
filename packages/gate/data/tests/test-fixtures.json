@@ -972,6 +972,10 @@
     "raw-cli": 5,
     "tempdir": 10
   },
+  "apps/cli/journeys/hold/demo-lanes.test.js": {
+    "raw-cli": 2,
+    "tempdir": 3
+  },
   "apps/cli/journeys/view/detail.test.js": {
     "raw-cli": 4
   },
