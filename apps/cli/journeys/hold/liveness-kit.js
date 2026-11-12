@@ -81,11 +81,12 @@ export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}
   if (fault === 'kill') rmSync(victim.path, { recursive: true, force: true });
   const start = box.clock.now().getTime();
   let item = await readItem(box, id);
+  let recovered = null;
   while (!flow.done(item) && box.clock.now().getTime() - start <= 2 * LIVENESS_BOUND_MS) {
     box.advance(TICK_MS);
-    if (flow.recover) await flow.recover();
+    if (flow.recover) recovered = await flow.recover();
     await cli(box, survivor.path, ['shout', 'all', '--kind', 'idea', 'Liveness kit: the surviving seat writes while a holder is gone.']);
     item = await readItem(box, id);
   }
-  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id };
+  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id, ...(recovered ? { recovery: `${recovered.code}: ${recovered.out}${recovered.err}`.slice(0, 400) } : {}) };
 }
