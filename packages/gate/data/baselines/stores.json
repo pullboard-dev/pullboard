@@ -528,6 +528,10 @@
       "kind": "json",
       "owner": "packages/runners/src/io/runtime.js"
     },
+    "runner-services.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/service.js"
+    },
     "runners.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/memo.js"
