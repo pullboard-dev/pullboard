@@ -21,8 +21,8 @@ const BRANCH = 'refs/heads/main';
 const REVIEWER_MODEL = 'Landing reviewer';
 
 /** Require an actual successful JSON command. */
-function json(box, root, ...args) {
-  const result = box.run(root, ...args, '--json');
+async function json(box, root, ...args) {
+  const result = await box.runLocal(root, ...args, '--json');
   assert.equal(result.code, 0, result.out + result.err);
   return JSON.parse(result.out);
 }
@@ -38,7 +38,7 @@ function commit(box, root, message) {
  * A board that lands accepted items itself, with a committed test on its trunk whose case really fails, so no run at
  * the trunk can release its defect, and a reviewer seat in another lane.
  */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -49,19 +49,19 @@ function fixture(t) {
   commit(box, box.repo, 'chore: the board lands accepted items and a red held test is committed');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api', '--model', REVIEWER_MODEL, '--route', 'strong');
+  await json(box, reviewer, 'join', 'api', '--model', REVIEWER_MODEL, '--route', 'strong');
   return { box, reviewer };
 }
 
 /** Build one web item on the current trunk and submit it, leaving it for the reviewer. */
-function submitted(box, name) {
+async function submitted(box, name) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const file = `web/${name}.txt`;
-  const id = json(box, box.repo, 'add', 'web', `Build ${name}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`).item.item_id;
-  json(box, box.web, 'claim', String(id));
+  const id = (await json(box, box.repo, 'add', 'web', `Build ${name}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`)).item.item_id;
+  await json(box, box.web, 'claim', String(id));
   writeFileSync(join(box.web, file), `${name}\n`);
   const head = commit(box, box.web, `feat(web): build ${name} [G1]`);
-  json(box, box.web, 'submit', String(id));
+  await json(box, box.web, 'submit', String(id));
   return { id, head };
 }
 
@@ -74,13 +74,13 @@ function fileDefect(box) {
 }
 
 /** An open test defect on the trunk, with one item accepted after it was filed. */
-function acceptedBesideDefect(t) {
-  const { box, reviewer } = fixture(t);
-  const item = submitted(box, 'waiting');
+async function acceptedBesideDefect(t) {
+  const { box, reviewer } = await fixture(t);
+  const item = await submitted(box, 'waiting');
   const defect = fileDefect(box);
   box.git(reviewer, 'checkout', '-q', '--detach', item.head);
-  box.run(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
-  assert.equal(json(box, box.repo, 'show', String(item.id)).item_status, 'verified', 'the item is accepted');
+  await box.runLocal(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
+  assert.equal((await json(box, box.repo, 'show', String(item.id))).item_status, 'verified', 'the item is accepted');
   return { box, item, defect };
 }
 
@@ -108,8 +108,8 @@ function landerPass(box) {
   return { log: run.stdout, result: JSON.parse(line.slice('RESULT '.length)) };
 }
 
-test('clause 1: an open test-defect repair item no longer holds the trunk: the lander\'s first pass lands the waiting accepted item [C7,#5862]', { timeout: 300_000 }, t => { // budget: one accept and one real lander pass in a private repo; hang ceiling, not speed.
-  const { box, item, defect } = acceptedBesideDefect(t);
+test('clause 1: an open test-defect repair item no longer holds the trunk: the lander\'s first pass lands the waiting accepted item [C7,#5862]', { timeout: 300_000 }, async t => { // budget: one accept and one real lander pass in a private repo; hang ceiling, not speed.
+  const { box, item, defect } = await acceptedBesideDefect(t);
   assert.equal(onBoard(box, board => store.getItem(board, defect.item).item_status), 'open', 'the repair item is still open');
   // No pullboard land and no withdrawal: the accept-time landing or the scheduled lander's own pass lands the item.
   const pass = merged(box, item.id) ? { log: '' } : landerPass(box);

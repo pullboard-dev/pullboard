@@ -1,5 +1,12 @@
 /** Builder item folders hosted on a registered runner over SSH, so git and hooks leave the coordinator [C7]. */
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { shellWord } from './tooling/remote.js';
 import { sshEnvironment } from './tooling/remote.js';
 
@@ -158,4 +165,54 @@ export async function pushHostedItemBranch(runner, { itemId, branch }, options =
     return refused('HOSTED_PUSH_FAILED', `${where} could not push ${branch} to the coordinator: ${said}; if the coordinator branch moved, run git pull origin ${branch} on the runner, then submit again`);
   }
   return { folder, head, problem: null };
+}
+
+const FLIGHTS = new Map();
+const COMMIT = /^[0-9a-f]{40,64}$/u;
+
+/**
+ * Run `git pack-objects` for one commit's whole history into a file, and nothing else.
+ * @param {string} repo The trunk repository.
+ * @param {string} commit The trunk commit.
+ * @param {string} file Where the pack is written.
+ * @returns {Promise<void>} Resolves when the pack is complete.
+ */
+function packObjects(repo, commit, file) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['-C', repo, 'pack-objects', '--revs', '--stdout', '--quiet'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const chunks = [];
+    let stderr = '';
+    child.stdout.on('data', part => chunks.push(part));
+    child.stderr.setEncoding('utf8').on('data', part => { stderr = (stderr + part).slice(-400); });
+    child.once('error', reject);
+    child.once('close', status => {
+      if (status !== 0) return reject(new Error(`pack-objects failed: ${stderr.trim() || `status ${status}`}`));
+      try { writeFileSync(file, Buffer.concat(chunks)); resolve(); } catch (failure) { reject(failure); }
+    });
+    child.stdin.end(`${commit}\n`);
+  });
+}
+
+/**
+ * Serve one cached pack per trunk commit, so many runners fetching the same commit cost the coordinator one pack-objects.
+ * A new trunk commit builds a new pack and drops the old ones; concurrent callers for one commit share one build.
+ * Why: 24 concurrent upload-pack/pack-objects pairs against the Mac drove its load to 190.
+ * @param {string} repo The trunk repository (the coordinator's).
+ * @param {string} commit The trunk commit runners fetch.
+ * @param {{ dir: string }} options The directory holding cached packs.
+ * @returns {Promise<{ file: string, built: boolean }>} The pack file, and whether this call built it.
+ */
+export function cachedTrunkPack(repo, commit, { dir }) {
+  if (!COMMIT.test(commit ?? '')) throw new Error('trunk pack needs a full commit id');
+  const key = `${dir}\0${commit}`, file = join(dir, `trunk-${commit}.pack`);
+  if (existsSync(file)) return Promise.resolve({ file, built: false });
+  if (FLIGHTS.has(key)) return FLIGHTS.get(key).then(() => ({ file, built: false }));
+  mkdirSync(dir, { recursive: true });
+  const partial = `${file}.${process.pid}.tmp`;
+  const flight = packObjects(repo, commit, partial).then(() => {
+    renameSync(partial, file);
+    for (const name of readdirSync(dir)) if (/^trunk-[0-9a-f]+\.pack$/u.test(name) && name !== `trunk-${commit}.pack`) rmSync(join(dir, name), { force: true });
+  }).finally(() => { FLIGHTS.delete(key); rmSync(partial, { force: true }); });
+  FLIGHTS.set(key, flight);
+  return flight.then(() => ({ file, built: true }));
 }
