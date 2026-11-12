@@ -77,6 +77,9 @@ test('a plain project with no layout baseline, holding .claude, web and .mcp.jso
   for (const file of ['.claude/settings.json', '.codex/config.toml', '.mcp.json', 'web/index.html']) tree.write(file, '{}\n');
   addAll(tree.root);
   assert.deepEqual(layoutProblems(tree.root), []);
+  tree.write('web/app.test.js', "import { test } from 'node:test';\n");
+  const waits = STATIC_CHECKS.find(check => check.name === 'test-waits');
+  assert.deepEqual(waits.run({ root: tree.root, files: ['web/app.test.js'], read: () => ({ source: "import { test } from 'node:test';\n" }) }), [], 'test-waits has no baseline to judge');
 });
 
 test('.pullboard is an allowed root entry in a tree that keeps a layout baseline [C7,#6544]', t => {
