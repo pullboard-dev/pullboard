@@ -1481,12 +1481,6 @@
   "apps/cli/journeys/show/check.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/show/conflict.test.js": {
-    "launch": 10
-  },
-  "apps/cli/journeys/show/dollars.test.js": {
-    "launch": 11
-  },
   "apps/cli/journeys/show/failures.test.js": {
     "launch": 3
   },
@@ -1497,7 +1491,7 @@
     "launch": 12
   },
   "apps/cli/journeys/show/main.test.js": {
-    "launch": 13
+    "launch": 1
   },
   "apps/cli/journeys/show/policy/dependency.test.js": {
     "launch": 10
@@ -1512,7 +1506,7 @@
     "launch": 7
   },
   "apps/cli/journeys/show/provenance.test.js": {
-    "launch": 12
+    "launch": 5
   },
   "apps/cli/journeys/show/quarantine/composed-lift.test.js": {
     "launch": 2
@@ -1533,34 +1527,22 @@
     "launch": 5
   },
   "apps/cli/journeys/show/rules.test.js": {
-    "launch": 22
-  },
-  "apps/cli/journeys/show/split.test.js": {
-    "launch": 7
+    "launch": 10
   },
   "apps/cli/journeys/show/thread.test.js": {
     "launch": 6
   },
   "apps/cli/journeys/show/timeout.test.js": {
-    "launch": 3
+    "launch": 2
   },
   "apps/cli/journeys/show/usage/anchor.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/show/usage/offpath.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "apps/cli/journeys/show/usage/split/cache.test.js": {
-    "launch": 11
-  },
-  "apps/cli/journeys/show/usage/split/shared.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/show/verdict/trunk.test.js": {
-    "launch": 5
-  },
-  "apps/cli/journeys/show/verdict/trunk/moved.test.js": {
-    "launch": 5
+    "launch": 2
   },
   "apps/cli/journeys/skills/main.test.js": {
     "launch": 7
