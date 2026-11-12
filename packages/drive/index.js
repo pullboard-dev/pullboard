@@ -16,7 +16,8 @@ export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/logi
 export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/logic/gate.js';
 export { createGateAdmission, gateDispatcherRow } from './src/io/gate/admission.js';
-export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, LOST } from './src/io/queue.js';
+export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, testRunItem, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, LOST } from './src/io/queue.js';
 export * from './light.js';
 export { boardEndpoint, boardTrunkPack, checkoutCandidate, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
+export { pruneRunnerStores } from "./src/io/prune.js";
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';

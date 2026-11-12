@@ -43,10 +43,10 @@ export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   if (env.PULLBOARD_OWN_CLI === '1') return null;
   const own = real(dirname(dirname(dirname(entry)))), here = real(cwd); // apps/cli/pullboard.js sits three levels below the root [V32]
   if (!own || !here) return null;
-  if (here !== own && !here.startsWith(own + sep) && !sameRepository(own, here)) return null;
   let marker;
   try { marker = statSync(join(own, '.git')); } catch { return null; }
   if (!marker.isFile()) return null;
+  if (here !== own && !here.startsWith(own + sep) && !sameRepository(own, here)) return null;
   const located = git(own, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
   if (located.status !== 0) return { why: 'git could not locate the main checkout' };
   const [top, gitDir, commonDir] = located.stdout.trim().split('\n');

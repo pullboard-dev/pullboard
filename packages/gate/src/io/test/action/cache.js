@@ -348,14 +348,14 @@ export function suiteProven(files, results) {
 }
 
 /**
- * The board ledger's hits a pulled job named for this run, as `file\0inputKey\0context` keys; empty when none or
- * unreadable, so every file runs as before. Why a file: the hits ride in the job, and a test's own runners never see them.
+ * The board ledger's hits a pulled job named for this run, and a landing's main reds (fail rows at main), as `file\0inputKey\0context` keys
+ * mapped to 'reused' or 'main red'; empty when none or unreadable, so every file runs. Why a file: the hits ride in the job [P7,CD2].
  */
 function ledgerHitKeys(env) {
-  const keys = new Set();
+  const keys = new Map();
   try {
-    const { contexts, files } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
-    for (const [file, inputKey, context] of files) if (typeof contexts[context] === 'string') keys.add(`${file}\0${inputKey}\0${contexts[context]}`);
+    const { contexts, files, mainRed = [] } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    for (const [list, kind] of [[mainRed, 'main red'], [files, 'reused']]) for (const [file, inputKey, context] of list) if (typeof contexts[context] === 'string') keys.set(`${file}\0${inputKey}\0${contexts[context]}`, kind);
   } catch { /* No hit list: nothing is reused from the ledger. */ }
   return keys;
 }
@@ -414,13 +414,13 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const account = [];
   const reusedTestOutcomes = [];
   const run = [];
-  const hits = recordOnly ? new Set() : ledgerHitKeys(env);
+  const hits = recordOnly ? new Map() : ledgerHitKeys(env);
   for (const file of selectors) {
-    // The board ledger proved this file at this inputKey and context class: a runner with an empty store reuses it too [P7,CD2].
-    if (file.key && hits.has(`${file.path}\0${file.inputKey}\0${digest(file.context)}`)) {
+    // The ledger proved this file at this inputKey and context class, or main fails it at that identical key: a landing charges that red to main, never runs it [P7,CD2].
+    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit) {
       account.push(reusedAccount(store, file));
       results.set(file.path, { status: 'pass', source: 'ledger' });
-      write(`# reused ${file.inputKey} from ledger (${file.path})\n`);
+      write(`# ${hit} ${file.inputKey} from ledger (${file.path})\n`);
       continue;
     }
     const entry = recordOnly ? null : reusableResult(store, file.key);

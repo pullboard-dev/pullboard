@@ -203,7 +203,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say });
   const summary = retainTestOutput(root, ran.output);
   const result = { green: ran.green, output: renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
-    files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [] };
+    files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures };
   if (ran.green) return result;
   if (paths.length === 1 && values['compare-main'] !== true) { result.mainSkipped = 'one file: add --compare-main to also run it on main'; return result; }
   const redFiles = [...new Set(ran.failures?.map(row => row.file) ?? paths)];
