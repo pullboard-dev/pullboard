@@ -48,6 +48,7 @@ import { shout } from "./shout.js";
 import { ROUTE_CALIBRATION_ENGINE } from "../../../../state/light.js";
 import { listAgents } from './query.js';
 import { measureBoardWritePhase } from './write/lock.js';
+import { endReviewLease } from './review/lease.js';
 
 /**
  * Record a verdict on submitted work, or a sealed re-review of unlanded work (E8,V1,V3,V8).
@@ -140,6 +141,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
+    endReviewLease(board, id);
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
     if (!isAccept) {
       // A rejection goes to any eligible seat at once (#2779): from REJECT_OPEN_ENGINE no window is sealed, even when one is passed.
