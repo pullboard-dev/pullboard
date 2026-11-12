@@ -127,7 +127,7 @@ async function submitted(box, repo, web, title, check) {
 
 /** Remove all files created by a test's private repository and SQLite board. */
 function clean(box) {
-  rmSync(box.dir, { recursive: true, force: true });
+  rmSync(box.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // a just-finished in-process submit may still be writing its last files
 }
 
 test('accept records none or green in its event and JSON, and says when unchecked [V19,V8]', async () => {
