@@ -24,6 +24,7 @@ import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
+import { layoutProblems } from '../layout.js';
 
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.
@@ -118,6 +119,8 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'store-registry', run: storeRegistryCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
   // Compatibility toggles carry a removeBy date; one past it, or a rising count, turns every submit red until removed [O6,C7].
+  // The layout rule counts never rise above the tree's baseline; a whole-tree run, cheap, so the file list is ignored.
+  { name: 'layout', run: ({ root }) => layoutProblems(root) },
   { name: 'compat-toggles', run: ({ text, previous, now }) => {
     let source;
     try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
