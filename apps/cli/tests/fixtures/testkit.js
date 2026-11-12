@@ -27,9 +27,10 @@ function fixtureResult(result) {
   return { code: result.code ?? result.status, out: result.out ?? result.stdout ?? '', err: result.err ?? result.stderr ?? '' };
 }
 
-/** Join a fixture worktree with the model and route required by current admission rules. */
+/** Join a fixture worktree with the model and route required by current admission rules; an awaited runner gives an awaited result. */
 export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(run(root, 'join', lane, '--model', model, '--route', route, '--json'));
+  const result = run(root, 'join', lane, '--model', model, '--route', route, '--json');
+  return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
 /** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */

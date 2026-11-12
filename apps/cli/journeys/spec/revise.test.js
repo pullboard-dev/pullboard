@@ -34,11 +34,11 @@ function row(box, id) {
   return parseSpec(readFileSync(join(box.repo, 'SPEC.md'), 'utf8')).rows.find(entry => entry.id === id);
 }
 
-test('a proposed change to an approved row waits in Needs you and applies only when the person approves it [P6,B23,N39]', { timeout: 120_000 }, () => {
+test('a proposed change to an approved row waits in Needs you and applies only when the person approves it [P6,B23,N39]', { timeout: 120_000 }, async () => {
   const box = fixtures.project('true');
   const file = join(box.repo, 'SPEC.md');
   const original = readFileSync(file, 'utf8');
-  const proposal = JSON.parse(succeeds(box.run(box.web, 'spec', 'draft', 'The page renders accessibly.',
+  const proposal = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', 'The page renders accessibly.',
     '--revises', 'G1', '--gate', 'true', '--reason', 'The old gate was removed.', '--json')).out);
   assert.ok(proposal.id && proposal.id !== 'G1', 'the proposal has its own actionable identity');
   assert.equal(readFileSync(file, 'utf8'), original, 'proposing never edits the approved requirement');
@@ -48,18 +48,18 @@ test('a proposed change to an approved row waits in Needs you and applies only w
   for (const text of ['The page renders.', 'The page renders accessibly.', 'web test', 'true', 'The old gate was removed.']) {
     assert.ok(shown.includes(text), `Needs you includes the old/new effect and reason: ${text}`);
   }
-  const agentApproval = box.run(box.web, 'spec', 'approve', proposal.id);
+  const agentApproval = await box.runIn(box.web, 'spec', 'approve', proposal.id);
   assert.notEqual(agentApproval.code, 0, 'an agent cannot approve its proposal');
-  succeeds(box.run(box.repo, 'spec', 'apply'));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   assert.equal(readFileSync(file, 'utf8'), original, 'apply before a person decision leaves the row untouched');
-  succeeds(box.run(box.repo, 'spec', 'approve', proposal.id));
+  succeeds(await box.runIn(box.repo, 'spec', 'approve', proposal.id));
   assert.equal(readFileSync(file, 'utf8'), original, 'the person decision remains pending explicit apply');
-  succeeds(box.run(box.repo, 'spec', 'apply'));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   assert.equal(row(box, 'G1').text, 'The page renders accessibly.');
   assert.equal(row(box, 'G1').gate, 'true');
   assert.equal(row(box, 'G1').status, 'approved');
   assert.ok(!personNeedsState(box.repo).needs.some(entry => entry.id === proposal.id), 'the completed proposal leaves Needs you');
-  const history = JSON.parse(succeeds(box.run(box.repo, 'export')).out).tables.event;
+  const history = JSON.parse(succeeds(await box.runIn(box.repo, 'export')).out).tables.event;
   const decision = history.find(event => event.event_kind === 'row_decision' && JSON.stringify(event).includes(proposal.id));
   assert.ok(decision, 'durable row history identifies the proposal and person decision');
   assert.equal(decision.event_by, 'person', 'the approval history attributes the actual person');
@@ -68,10 +68,10 @@ test('a proposed change to an approved row waits in Needs you and applies only w
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
 
   const approved = readFileSync(file, 'utf8');
-  const declined = JSON.parse(succeeds(box.run(box.web, 'spec', 'draft', 'An unwanted replacement.',
+  const declined = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', 'An unwanted replacement.',
     '--revises', 'G1', '--status', 'retired', '--reason', 'Consider retiring it.', '--json')).out);
-  succeeds(box.run(box.repo, 'spec', 'decline', declined.id, '--reason', 'Keep the existing requirement.'));
-  succeeds(box.run(box.repo, 'spec', 'apply'));
+  succeeds(await box.runIn(box.repo, 'spec', 'decline', declined.id, '--reason', 'Keep the existing requirement.'));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   assert.equal(readFileSync(file, 'utf8'), approved, 'declining a revision never retires or rejects its approved target');
   assert.ok(!personNeedsState(box.repo).needs.some(entry => entry.id === declined.id));
 
@@ -83,45 +83,45 @@ test('a proposed change to an approved row waits in Needs you and applies only w
   writeFileSync(file, approved);
   box.git(box.repo, 'add', 'SPEC.md');
 
-  const retired = JSON.parse(succeeds(box.run(box.web, 'spec', 'draft', 'The page renders accessibly.',
+  const retired = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', 'The page renders accessibly.',
     '--revises', 'G1', '--status', 'retired', '--reason', 'The feature is no longer supported.', '--json')).out);
-  succeeds(box.run(box.repo, 'spec', 'approve', retired.id));
-  succeeds(box.run(box.repo, 'spec', 'apply'));
+  succeeds(await box.runIn(box.repo, 'spec', 'approve', retired.id));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   assert.equal(row(box, 'G1').status, 'retired', 'the person can approve an explicit status revision');
   assert.ok(!personNeedsState(box.repo).needs.some(entry => [proposal.id, retired.id].includes(entry.id)), 'older applied revisions stay closed after the target gets a newer decision');
   box.git(box.repo, 'add', 'SPEC.md');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: apply the person-approved retirement');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.notEqual(box.run(box.web, 'spec', 'draft', 'Change a retired row.', '--revises', 'G1', '--reason', 'Not approved.').code, 0);
+  assert.notEqual((await box.runIn(box.web, 'spec', 'draft', 'Change a retired row.', '--revises', 'G1', '--reason', 'Not approved.')).code, 0);
 
 });
 
-test('[P6,B23,N39] revisions require a reason and stale proposals cannot change a newer approved row', { timeout: 120_000 }, () => {
+test('[P6,B23,N39] revisions require a reason and stale proposals cannot change a newer approved row', { timeout: 120_000 }, async () => {
   const box = fixtures.project('true');
-  assert.notEqual(box.run(box.web, 'spec', 'draft', 'Missing reason.', '--revises', 'G1').code, 0);
-  assert.notEqual(box.run(box.web, 'spec', 'draft', 'Missing target.', '--revises', 'G99', '--reason', 'No such row.').code, 0);
-  const statusOnly = JSON.parse(succeeds(box.run(box.web, 'spec', 'draft', '--revises', 'G1', '--status', 'retired', '--reason', 'Consider retirement.', '--json')).out);
+  assert.notEqual((await box.runIn(box.web, 'spec', 'draft', 'Missing reason.', '--revises', 'G1')).code, 0);
+  assert.notEqual((await box.runIn(box.web, 'spec', 'draft', 'Missing target.', '--revises', 'G99', '--reason', 'No such row.')).code, 0);
+  const statusOnly = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', '--revises', 'G1', '--status', 'retired', '--reason', 'Consider retirement.', '--json')).out);
   const statusNeed = personNeedsState(box.repo).needs.find(entry => entry.id === statusOnly.id);
   assert.equal(statusNeed.proposed.text, 'The page renders.', 'omitted text preserves the approved wording');
-  succeeds(box.run(box.repo, 'spec', 'decline', statusOnly.id, '--reason', 'Keep it.'));
-  const first = JSON.parse(succeeds(box.run(box.web, 'spec', 'draft', 'An obsolete proposal.', '--revises', 'G1', '--reason', 'First idea.', '--json')).out);
-  const second = JSON.parse(succeeds(box.run(box.web, 'spec', 'draft', 'The replacement the person chooses.', '--revises', 'G1', '--reason', 'Better idea.', '--json')).out);
-  assert.notEqual(box.run(box.repo, 'spec', 'approve', first.id, second.id).code, 0, 'one batch cannot overwrite two proposals for the same target');
+  succeeds(await box.runIn(box.repo, 'spec', 'decline', statusOnly.id, '--reason', 'Keep it.'));
+  const first = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', 'An obsolete proposal.', '--revises', 'G1', '--reason', 'First idea.', '--json')).out);
+  const second = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', 'The replacement the person chooses.', '--revises', 'G1', '--reason', 'Better idea.', '--json')).out);
+  assert.notEqual((await box.runIn(box.repo, 'spec', 'approve', first.id, second.id)).code, 0, 'one batch cannot overwrite two proposals for the same target');
   for (const id of [first.id, second.id]) {
     assert.equal(personNeedsState(box.repo).needs.find(entry => entry.id === id).what, 'approve or decline revision', 'a refused batch records no partial approval');
   }
-  succeeds(box.run(box.repo, 'spec', 'approve', second.id));
-  assert.notEqual(box.run(box.repo, 'spec', 'approve', first.id).code, 0, 'a later command cannot orphan an unapplied approval');
-  succeeds(box.run(box.repo, 'spec', 'apply'));
+  succeeds(await box.runIn(box.repo, 'spec', 'approve', second.id));
+  assert.notEqual((await box.runIn(box.repo, 'spec', 'approve', first.id)).code, 0, 'a later command cannot orphan an unapplied approval');
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   const approved = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  assert.notEqual(box.run(box.repo, 'spec', 'approve', first.id).code, 0, 'a stale source cannot be approved over a different current row');
-  succeeds(box.run(box.repo, 'spec', 'decline', first.id, '--reason', 'Superseded.'));
-  succeeds(box.run(box.repo, 'spec', 'apply'));
+  assert.notEqual((await box.runIn(box.repo, 'spec', 'approve', first.id)).code, 0, 'a stale source cannot be approved over a different current row');
+  succeeds(await box.runIn(box.repo, 'spec', 'decline', first.id, '--reason', 'Superseded.'));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), approved);
   assert.ok(!personNeedsState(box.repo).needs.some(entry => entry.id === first.id));
 });
 
-test('[B23,N39] a real gate rename gives the new path and an exact revision command', { timeout: 120_000 }, () => {
+test('[B23,N39] a real gate rename gives the new path and an exact revision command', { timeout: 120_000 }, async () => {
   const box = fixtures.sandbox();
   const root = join(box.dir, 'existing-repo');
   mkdirSync(root);
@@ -136,8 +136,8 @@ test('[B23,N39] a real gate rename gives the new path and an exact revision comm
   writeFileSync(join(root, 'test/new.test.js'), '// A tracked test in the project before Pullboard was installed.\n// Renamed with an edit, so the gate repoint needs a person.\n');
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'test: rename the gate');
-  succeeds(box.run(root, 'init'));
-  const check = box.run(root, 'spec', 'check');
+  succeeds(await box.runIn(root, 'init'));
+  const check = await box.runIn(root, 'spec', 'check');
   assert.notEqual(check.code, 0);
   const output = check.out + check.err;
   assert.match(output, /renamed to test\/new\.test\.js/u);

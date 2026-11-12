@@ -162,13 +162,49 @@ export function cacheSummary(rows) {
 }
 
 /**
- * The output text for per-file rows: one frame per file, then the summary line.
+ * The reuse ledger for a set of per-file rows: hits reused a green, misses had a key but ran, keyless had no key at all,
+ * with the most common keyless reason. Why: reuse fails open, so a change that strips every key (#5815: 125 of 125
+ * files) showed only as slow landings; this line makes it visible on every receipt and landing (#5839).
+ *
+ * @param {Array<{ outcome: string, key: string | null, missed: string | null }>} rows
+ * @returns {string} `ledger: H hits, M misses, K keyless (top reason)`
+ */
+export function ledgerLine(rows) {
+  const keyless = rows.filter(row => row.outcome !== 'reused' && !row.key);
+  const hits = rows.filter(row => row.outcome === 'reused').length;
+  const reasons = new Map();
+  for (const row of keyless) {
+    const reason = String(row.missed ?? 'unknown').replace(/^no key: /u, '').replace(' in reached file ', ' in ');
+    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+  }
+  const top = [...reasons].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+  return `ledger: ${hits} hits, ${rows.length - hits - keyless.length} misses, ${keyless.length} keyless${top ? ` (${top})` : ''}`;
+}
+
+/**
+ * The ledger line for every per-file row a run output holds, or null when it holds none, so a caller can say so.
+ *
+ * @param {string} output
+ * @returns {string | null}
+ */
+export function ledgerFromOutput(output) {
+  if (typeof output !== 'string') return null;
+  const rows = [];
+  for (const line of output.split('\n')) {
+    if (!line.startsWith(FRAME)) continue;
+    try { rows.push(JSON.parse(line.slice(FRAME.length))); } catch { /* A torn frame is left out of the count. */ }
+  }
+  return rows.length ? ledgerLine(rows) : null;
+}
+
+/**
+ * The output text for per-file rows: one frame per file, then the summary line and the ledger line.
  *
  * @param {Array<{ file: string, outcome: string, key: string | null, missed: string | null }>} rows
  * @returns {string}
  */
 export function formatCacheRows(rows) {
-  return rows.map(row => `${FRAME}${JSON.stringify(row)}\n`).join('') + `# ${cacheSummary(rows)}\n`;
+  return rows.map(row => `${FRAME}${JSON.stringify(row)}\n`).join('') + `# ${cacheSummary(rows)}\n# ${ledgerLine(rows)}\n`;
 }
 
 /**
@@ -192,9 +228,9 @@ export function readCacheRows(output) {
  * The profile fields for a run's cache account: the summary line and each file's row, or nothing when the run printed none.
  *
  * @param {string} output
- * @returns {{ testCache?: { summary: string, files: object[] } }}
+ * @returns {{ testCache?: { summary: string, ledger: string, files: object[] } }}
  */
 export function cacheProfile(output) {
   const read = readCacheRows(output);
-  return read ? { testCache: { summary: read.summary, files: read.rows } } : {};
+  return read ? { testCache: { summary: read.summary, ledger: ledgerLine(read.rows), files: read.rows } } : {};
 }

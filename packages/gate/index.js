@@ -5,7 +5,7 @@ export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTri
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/io/main/verdict.js";
-export { testClosures, codeMapGraph, cliReachRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
+export { testClosures, codeMapGraph, cliReachRows, keylessRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
 export { CLI_FRONT_DOORS, packageCliReach } from "./src/logic/reach.js";
 export { packageBranchCoverage } from "./src/io/coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/io/browser/admission.js";
@@ -102,7 +102,7 @@ export { keepClaimsAlive } from "./src/io/keepalive.js";
 export { gateHealthLines } from "./src/logic/health.js";
 export { gateHealthReport } from "./src/io/health.js";
 export { maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';
-export { firstChangedInput, recordInputParts } from './src/io/test/account.js';
+export { firstChangedInput, recordInputParts, ledgerFromOutput } from './src/io/test/account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/io/test/shards.js";
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';

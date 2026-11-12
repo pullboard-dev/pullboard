@@ -1,4 +1,5 @@
 /** Shared spec project fixtures for the split spec journey files. */
+import { runCliInProcess } from '../process.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../child.js';
 import { runFixtureChild } from '../child.js';
@@ -60,6 +61,9 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   const command = (...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);
+  /** The same commands in this process: awaited, same result fields, no ~1 s CLI startup [C7]. */
+  const cmd = (...args) => runCliInProcess(args, { cwd: root, env });
+  const spec = (...args) => cmd('spec', ...args);
   // A --separate-git-dir repository keeps its Git metadata in another folder (#915).
   const metadata = separateGitDir ? realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-git-'))) : null;
   if (metadata) t.after(() => rmSync(metadata, { recursive: true, force: true }));
@@ -72,7 +76,7 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   if (freshInit) {
     git('add', '-A');
     git('commit', '-q', '-m', 'chore: fresh pullboard init');
-    return { root, run, command, env, git, specName: config.spec, practiceName: config.practice };
+    return { root, run, command, cmd, spec, env, git, specName: config.spec, practiceName: config.practice };
   }
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName, gate: 'true', lanes: { review: { owns: [] } } }));
   rmSync(join(root, 'SPEC.md'), { force: true });
@@ -82,7 +86,7 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  return { root, run, command, env, git, specName, practiceName };
+  return { root, run, command, cmd, spec, env, git, specName, practiceName };
 }
 
 /** Blueprint questions as blueprint add writes them: the default answer, then every choice; B5 lists 13 parts. */
@@ -94,6 +98,11 @@ export const QUESTION_SPEC = `${SPEC}
 - B4 [pending, must] Which store holds the files: SQLite. Choices: SQLite, Postgres. | gate: review
 - B5 [pending, must] Which region hosts it: r1. Choices: r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13. | gate: review
 `;
+
+/** Run one CLI command in this process in a box with an environment of the test's choosing [C7]. */
+export function runInProcessAt(box, cwd, args, env = box.env) {
+  return runCliInProcess(args, { cwd, env });
+}
 
 /** Run one CLI command in a box with an environment of the test's choosing. */
 export function runIn(box, cwd, args, env = box.env) {

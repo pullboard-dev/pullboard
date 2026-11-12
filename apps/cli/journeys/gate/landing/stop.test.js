@@ -22,12 +22,12 @@ after(e2e.cleanup);
 const runner = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 
 /** Run only three private fixture files; the held earlier file makes the failure out of order. */
-test("a landing stop keeps the failing test's report [C7,V4]", () => {
+test("a landing stop keeps the failing test's report [C7,V4]", async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'report-project');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
-  const initialized = box.run(root, 'init');
+  const initialized = (await box.runLocal(root, 'init'));
   assert.equal(initialized.code, 0, initialized.err || initialized.out);
   const started = join(box.dir, 'held-started');
   const queued = join(box.dir, 'queued-started');
@@ -62,7 +62,7 @@ test('queued work must not start', () => writeFileSync(${JSON.stringify(queued)}
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify(config, null, 2));
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: prepare a landing report fixture');
-  const result = box.run(root, 'gate', '--landing', '--json');
+  const result = (await box.runLocal(root, 'gate', '--landing', '--json'));
   assert.equal(result.code, 1, result.err || result.out);
   assert.equal(existsSync(started), true, 'the first file was active before the assertion');
   assert.equal(existsSync(queued), false, 'early stopping still prevents queued work');
