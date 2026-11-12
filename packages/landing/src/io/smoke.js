@@ -66,22 +66,22 @@ function scratchEnvironment(home) {
 
 /** The script a smoke child runs: each chain's commands in order, the chains side by side, one JSON line back. */
 const CHAIN_RUNNER = `
-const { spawn } = require('node:child_process');
-const { entry, timeout, chains } = JSON.parse(process.argv[1]);
-const run = step => new Promise(done => {
-  const child = spawn(process.execPath, [entry, ...step.args], { cwd: step.cwd });
-  let stdout = '', stderr = '', error = null;
-  const timer = setTimeout(() => child.kill('SIGKILL'), timeout);
-  child.stdout.on('data', part => { stdout += part; });
-  child.stderr.on('data', part => { stderr += part; });
-  child.on('error', failure => { error = failure.message; });
-  child.on('close', (status, signal) => { clearTimeout(timer); done({ status, signal, stdout, stderr, error }); });
-});
-Promise.all(chains.map(async chain => {
-  const rows = [];
-  for (const step of chain) { const result = await run(step); rows.push({ label: step.label, result }); if (result.status !== 0) break; }
-  return rows;
-})).then(all => process.stdout.write(JSON.stringify(all)));
+  const { spawn } = require('node:child_process');
+  const { entry, timeout, chains } = JSON.parse(process.argv[1]);
+  const run = step => new Promise(done => {
+    const child = spawn(process.execPath, [entry, ...step.args], { cwd: step.cwd });
+    let stdout = '', stderr = '', error = null;
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeout);
+    child.stdout.on('data', part => { stdout += part; });
+    child.stderr.on('data', part => { stderr += part; });
+    child.on('error', failure => { error = failure.message; });
+    child.on('close', (status, signal) => { clearTimeout(timer); done({ status, signal, stdout, stderr, error }); });
+  });
+  Promise.all(chains.map(async chain => {
+    const rows = [];
+    for (const step of chain) { const result = await run(step); rows.push({ label: step.label, result }); if (result.status !== 0) break; }
+    return rows;
+  })).then(all => process.stdout.write(JSON.stringify(all)));
 `;
 
 /**
