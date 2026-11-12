@@ -82,8 +82,24 @@ function trunkSources(root, env) {
  * Bind placement to committed source, never an unstaged plan or the process working directory. With deferUnplaced
  * a missing placement returns to the cells check, which refuses it only on Cells reorg work (#2473).
  */
+/** The cells-plan index whose presence on accepted main turns placement on. */
+const CELLS_PLAN_INDEX = 'packages/codemap/data/plan/cells.json';
+
+/**
+ * Whether accepted main carries a cells plan, so placement has anything to check.
+ * Why: with no plan, placement is this one read; a submit then skips the placement receipt, whose key hashes the
+ * checker's import closure (about 1,700 files, 0.7-4 s on a loaded runner) before any test may start (#5752) [C7].
+ *
+ * @param {string} root
+ * @param {string} base
+ * @returns {boolean}
+ */
+export function hasCellsPlan(root, base) {
+  return Boolean(readTrunkEntry(root, base, CELLS_PLAN_INDEX).stdout);
+}
+
 export function requirePlannedSource(root, base, commit, { deferUnplaced = false } = {}) {
-  const index = 'packages/codemap/data/plan/cells.json';
+  const index = CELLS_PLAN_INDEX;
   const accepted = readTrunkEntry(root, base, index);
   if (!accepted.stdout) return;
   if (!/^100(?:644|755) blob /u.test(accepted.stdout)) throw new Refused('CELLS_PLAN_UNPLACED', 'restore a regular cells-plan index on accepted main');
