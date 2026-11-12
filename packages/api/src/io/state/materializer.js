@@ -10,6 +10,8 @@ import { Worker } from 'node:worker_threads';
 
 /** How long after a build lands, at least, before another build of a board still being read starts. */
 const BUILD_GAP_MS = 250;
+/** How long a closing worker may take to save and exit before it is terminated. */
+const CLOSE_GRACE_MS = 2_000;
 /** How many sequences a board's clients hold that its deltas start from, most recently sent kept. */
 const HELD_SEQUENCES = 24;
 
@@ -226,7 +228,11 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       const record = await latest(board);
       return record.search.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
     },
-    /** Save each board's latest build and stop the worker. */
+    /**
+     * Save each board's latest build and stop the worker, ending it after CLOSE_GRACE_MS if it has not exited. Why: the
+     * close message waits behind queued builds and then force-saves a full snapshot, which held a process open for 70 s.
+     * A terminated worker loses nothing: the snapshot only speeds the next start, and the board is the source of truth.
+     */
     close() {
       for (const entry of boards.values()) {
         clearTimeout(entry.timer);
@@ -235,6 +241,8 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       if (failure) return;
       closing = true;
       worker.postMessage({ type: 'close' });
+      const grace = setTimeout(() => { worker.terminate(); }, CLOSE_GRACE_MS);
+      worker.once('exit', () => clearTimeout(grace));
     },
   };
 }

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /** CLI launches in tests (journeys most) are a ceiling that only falls: convert to runCliInProcess, never add a process [C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { blobOid } from '../static/cache.js';
 import { lex } from '../scan.js';
@@ -218,8 +220,8 @@ function launchReach(source, code) {
 }
 
 /** Inspect every test file as text; `cache` keeps a file's sites by blob. */
-export function cliLaunchReport(root, { cache = null } = {}) {
-  return walk(root, JOURNEY).flatMap(path => {
+export function cliLaunchReport(root, { cache = null, only = null } = {}) {
+  return (only ? only.filter(path => JOURNEY.test(path) && existsSync(join(root, path))).sort() : walk(root, JOURNEY)).flatMap(path => {
     const text = readText(root, path);
     return cache ? cache.get(path, blobOid(text), () => cliLaunchSites(text, path)) : cliLaunchSites(text, path);
   });
