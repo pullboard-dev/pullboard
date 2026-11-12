@@ -345,7 +345,7 @@
     "launch": 1
   },
   "apps/cli/journeys/gate/resource.test.js": {
-    "launch": 1
+    "launch": 3
   },
   "apps/cli/journeys/gate/rotates.test.js": {
     "launch": 1

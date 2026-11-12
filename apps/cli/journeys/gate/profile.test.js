@@ -165,7 +165,7 @@ function featureCommit(box, cwd) {
 /** Hold the only private machine gate slot until the real gate queues behind it. */
 async function occupyGateSlot(box, repo) {
   const source = `import { takeResource } from ${JSON.stringify(RESOURCE_MODULE)};\nconst lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(repo)}, agent: 'profile-test-holder' });\nconsole.log('ready');\nfor await (const line of process.stdin) if (line.trim() === 'release') { lease.release(); break; }`;
-  // process-level: a real process: holds the machine gate slot until released.
+  // process-level: holds the machine gate slot until released.
   const child = spawn(process.execPath, ['--input-type=module', '-e', source], { cwd: repo, env: box.env, stdio: ['pipe', 'pipe', 'pipe'] });
   const ready = new Promise((resolveReady, reject) => {
     const timer = setTimeout(() => reject(new Error('gate slot holder did not start')), 10_000); // budget: hang ceiling for the private gate holder readiness handshake.
@@ -200,7 +200,7 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
   const holder = await occupyGateSlot(box, fixture.repo);
   const holderExited = once(holder, 'exit');
-  // process-level: a real process: the gate queues behind the held slot and is timed as a process.
+  // process-level: the gate queues behind the held slot and is timed as a process.
   const gate = spawn(process.execPath, [BIN, 'gate'], { cwd: fixture.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const gateExited = once(gate, 'exit');
   const gateOutput = [];
@@ -477,7 +477,7 @@ test('a timing profile keeps every selected file while its digest names only ten
 
 /** Start a private submit process and collect its separate streams until close. */
 function startProfiledSubmit(box, cwd) {
-  // process-level: a real process: submit queues behind the held slot and is timed as a process.
+  // process-level: submit queues behind the held slot and is timed as a process.
   const child = spawn(process.execPath, [BIN, 'submit', '1', '--json'], {
     cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'],
   });

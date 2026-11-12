@@ -113,7 +113,7 @@ async function fixture(t) {
 
 /** Launch a normal submit and retain its exact terminal output while another process is held. */
 function launch(box, builder, mode) {
-  // process-level: a real process: two submits must run concurrently and one is held.
+  // process-level: two submits must run concurrently and one is held.
   const child = startFixtureChild(process.execPath, [BIN, 'submit', String(builder.id), '--json'], { cwd: builder.root, env: { ...box.env, CACHE_CASE: mode }, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '', stderr = ''; let finished = false;
   child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });

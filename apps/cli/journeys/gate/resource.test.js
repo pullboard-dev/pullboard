@@ -32,16 +32,9 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
 after(reapFixtures);
 
-/** Run one pullboard command in a fixture, require success, and return its output. */
-async function pullboard(box, root, args) {
-  const result = await runCliInProcess(args, { cwd: root, env: box.env });
-  assert.equal(result.status, 0, `${args.join(' ')}: ${result.failure ?? ''}${result.stdout}${result.stderr}`);
-  return result.stdout;
-}
-
 /** Launch a real gate CLI in its own process group and collect its output; a real process on purpose, as queueing and slot lifetime are the case. */
 function launch(box, root, args = ['gate']) {
-  // process-level: a real process: queueing and slot lifetime are the case.
+  // process-level: queueing and slot lifetime are the case.
   const child = spawn(process.execPath, [BIN, ...args], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   return trackChild(child);
 }
@@ -176,20 +169,29 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end', 'item check start', 'item check']);
 });
 
+// process-level: this case runs beside whole-suite holders that must see real, separate callers.
+/** Run one pullboard command as its own process in a fixture, require success, and return its output. */
+function pullboardProcess(box, root, args) {
+  const result = spawnSync(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(result.status, 0, `${args.join(' ')}: ${result.failure ?? ''}${result.stdout}${result.stderr}`);
+  return result.stdout;
+}
+
 test('a short check never waits behind whole suites [C7]', async () => {
   const box = fixture();
   const settingsRoot = gateRepo(box, 'settings-view');
-  assert.equal(JSON.parse(await pullboard(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 0, 'gate.shortSlots defaults to 0');
-  assert.match(await pullboard(box, settingsRoot, ['settings']), /^gate\.shortSlots: 0 \(off/mu, 'pullboard settings shows the default');
-  const refused = await runCliInProcess(['settings', 'gate.shortSlots', 'two'], { cwd: settingsRoot, env: box.env });
+  assert.equal(JSON.parse(pullboardProcess(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 0, 'gate.shortSlots defaults to 0');
+  assert.match(pullboardProcess(box, settingsRoot, ['settings']), /^gate\.shortSlots: 0 \(off/mu, 'pullboard settings shows the default');
+  // process-level: same reason as pullboardProcess above.
+  const refused = spawnSync(process.execPath, [BIN, 'settings', 'gate.shortSlots', 'two'], { cwd: settingsRoot, env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0);
   assert.match(`${refused.stdout}${refused.stderr}`, /BAD_SHORT_SLOTS/u);
   // Whole suites take a browser slot too; two of them fill a two-slot gate only with two browser slots.
-  await pullboard(box, settingsRoot, ['settings', 'gateSlots', '2']);
-  await pullboard(box, settingsRoot, ['settings', 'browserSlots', '2']);
-  await pullboard(box, settingsRoot, ['settings', 'gate.shortSlots', '1']);
-  assert.equal(JSON.parse(await pullboard(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 1);
-  assert.match(await pullboard(box, settingsRoot, ['settings']), /^gate\.shortSlots: 1$/mu, 'pullboard settings shows the value');
+  pullboardProcess(box, settingsRoot, ['settings', 'gateSlots', '2']);
+  pullboardProcess(box, settingsRoot, ['settings', 'browserSlots', '2']);
+  pullboardProcess(box, settingsRoot, ['settings', 'gate.shortSlots', '1']);
+  assert.equal(JSON.parse(pullboardProcess(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 1);
+  assert.match(pullboardProcess(box, settingsRoot, ['settings']), /^gate\.shortSlots: 1$/mu, 'pullboard settings shows the value');
 
   const holders = await wholeSuiteHolders(box, ['whole-one', 'whole-two']);
   const waiting = [];
@@ -208,7 +210,7 @@ test('a short check never waits behind whole suites [C7]', async () => {
     directory.child = launchTestRunner(box, shortProbeSuite(box, 'directory-run'), ['test/'], directory.marker, directory.release);
     waiting.push(directory);
     await waitFor(() => directory.child.stderrText.includes('waiting for a gate slot:'), 'a directory run to queue');
-    const queued = JSON.parse(await pullboard(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
+    const queued = JSON.parse(pullboardProcess(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
     assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'seat-test']);
     assert.equal(queued[1].requestedSlot, undefined, 'a whole suite is never offered a short slot');
     assert.equal(queued[2].requestedSlot, undefined, 'a directory run is never offered a short slot');
@@ -220,13 +222,13 @@ test('a short check never waits behind whole suites [C7]', async () => {
     assert.equal(outcome, 'ran', 'with gate.shortSlots 1 a named-file run starts while both gate slots hold whole suites');
     assert.deepEqual([ordinary, wholeWaiter, directory].map(run => existsSync(run.marker)), [false, false, false], 'the runs queued ahead of it still wait');
 
-    const status = JSON.parse(await pullboard(box, settingsRoot, ['resources', '--json']));
+    const status = JSON.parse(pullboardProcess(box, settingsRoot, ['resources', '--json']));
     assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
     const gate = status.resources.find(resource => resource.name === 'gate');
     assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
     assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
       'pool status names the slot each run holds');
-    const text = await pullboard(box, settingsRoot, ['resources']);
+    const text = pullboardProcess(box, settingsRoot, ['resources']);
     const gateText = text.slice(text.indexOf('\ngate (machine'));
     assert.equal((gateText.match(/held by .*\(short slot, seat-test\)/gu) ?? []).length, 1, 'the text status names the short slot');
     assert.equal((gateText.match(/held by .*\(gate slot, gate, browser\)/gu) ?? []).length, 2, 'the text status names each gate slot');
@@ -244,16 +246,16 @@ test('a short check never waits behind whole suites [C7]', async () => {
 
   const off = fixture();
   const offRoot = gateRepo(off, 'settings-off');
-  await pullboard(off, offRoot, ['settings', 'gateSlots', '2']);
-  await pullboard(off, offRoot, ['settings', 'browserSlots', '2']);
-  await pullboard(off, offRoot, ['settings', 'gate.shortSlots', '0']);
+  pullboardProcess(off, offRoot, ['settings', 'gateSlots', '2']);
+  pullboardProcess(off, offRoot, ['settings', 'browserSlots', '2']);
+  pullboardProcess(off, offRoot, ['settings', 'gate.shortSlots', '0']);
   const offHolders = await wholeSuiteHolders(off, ['off-one', 'off-two']);
   const named = { marker: join(off.dir, 'named.started'), release: join(off.dir, 'named.release') };
   try {
     named.child = launchTestRunner(off, shortProbeSuite(off, 'named-off'), ['--test-name-pattern', PROBE_PATTERN, 'test/short-probe.test.js'], named.marker, named.release);
     const outcome = await waitFor(() => (existsSync(named.marker) ? 'ran' : named.child.stderrText.includes('waiting for a gate slot:') ? 'waiting' : false), 'the named-file run to start or queue');
     assert.equal(outcome, 'waiting', 'with gate.shortSlots 0 a named-file run waits for a gate slot, as before');
-    const gate = JSON.parse(await pullboard(off, offRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate');
+    const gate = JSON.parse(pullboardProcess(off, offRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate');
     assert.equal(gate.line.length, 1);
     assert.equal(gate.line[0].requestedSlot, 'short-eligible', 'the waiting run is marked as one that names its files');
     writeFileSync(offHolders[0].release, 'release\n');

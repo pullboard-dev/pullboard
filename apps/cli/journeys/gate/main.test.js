@@ -140,7 +140,7 @@ test('record real file ${id} [C7]', async () => {
       const env = { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
         PULLBOARD_MACHINE_HOME: join(root, `machine-${setting.files}-${caseIndex}`) };
       env.PULLBOARD_LANDING_RUN = example.landing ? '1' : '0';
-      // process-level: a real process: the test runner is its own node entry and reads its own argv and env.
+      // process-level: the test runner is its own node entry and reads its own argv and env.
       const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...example.args, ...selected], {
         cwd: root, env, encoding: 'utf8',
       });
@@ -158,7 +158,7 @@ test('record real file ${id} [C7]', async () => {
   writeFileSync(config, JSON.stringify({ testConcurrency: { files: 3, browser: 2 } }));
   for (const value of ['4294967296', '9'.repeat(400)]) {
     const capture = join(root, `invalid-concurrency-${value.length}.jsonl`);
-    // process-level: a real process: the test runner is its own node entry and reads its own argv and env.
+    // process-level: the test runner is its own node entry and reads its own argv and env.
     const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'),
       `--test-concurrency=${value}`, ...selected], {
       cwd: root, env: { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_CAP_CAPTURE: capture,
@@ -173,7 +173,7 @@ test('record real file ${id} [C7]', async () => {
     '--experimental_test_isolation', '--experimental_test-isolation', '--experimental-test_isolation']) {
     for (const args of [[`${flag}=none`], [flag, 'none']]) {
       const capture = join(root, `isolation-${isolationCase++}.jsonl`);
-      // process-level: a real process: the test runner is its own node entry and reads its own argv and env.
+      // process-level: the test runner is its own node entry and reads its own argv and env.
       const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...args, selected.at(-1)], {
         cwd: root, env: { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
           PULLBOARD_MACHINE_HOME: join(root, 'machine-isolation') }, encoding: 'utf8',
@@ -322,7 +322,7 @@ try {
   let commandClosed;
   let holderResult;
   try {
-    // process-level: a real process: a held gate slot is process lifetime.
+    // process-level: a held gate slot is process lifetime.
     holderRun = spawn(process.execPath, ['--input-type=module', '-e', holderSource], {
       cwd: box.repo, env: box.env, stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -341,7 +341,7 @@ try {
     assert.equal(ready.ready, true, `the private gate holder did not start: ${JSON.stringify(ready.result ?? holderOutput)}`);
 
     for (const words of [['status'], ['run'], ['unexpected', 'word']]) {
-      // process-level: a real process: the command must queue behind a held slot and be killed.
+      // process-level: the command must queue behind a held slot and be killed.
       commandRun = spawn(process.execPath, [BIN, 'gate', ...words], {
         cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -481,7 +481,7 @@ test('gate after init in an existing repo says to commit the init files [I1,C7]'
   const shims = join(dir, 'bin');
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} "$@"\n`, { mode: 0o755 });
-  // process-level: a real process: git runs the installed hooks, which call the CLI.
+  // process-level: git runs the installed hooks, which call the CLI.
   const applied = runFixtureChild('/bin/sh', ['-c', fix], { cwd: repo, env: { ...env, PATH: `${shims}:${env.PATH ?? ''}` }, encoding: 'utf8' });
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
   const afterFix = await run('gate', '--json');
@@ -608,7 +608,7 @@ function shellWord(value) {
 function privateCheck(box, command) {
   const logPath = join(box.dir, 'private-command.log');
   const pidFile = logPath + '.pid';
-  // process-level: a real process: the production private-check worker.
+  // process-level: the production private-check worker.
   const run = runFixtureChild(process.execPath, [PRIVATE_WORKER], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
     input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }),

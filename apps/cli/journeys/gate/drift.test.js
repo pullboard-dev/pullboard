@@ -150,7 +150,7 @@ test('clause 1: native submit refuses an unplanned source while independent chec
   assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(id), '--json')).out).item_status, 'claimed',
     'placement refusal records no accepted submission');
   const before = readPlan(box.web);
-  // process-level: a real process: the plan script is its own node entry, not the CLI.
+  // process-level: the plan script is its own node entry, not the CLI.
   const placed = runFixtureChild(process.execPath, [PLAN, '--place', 'src/plan-gate-added.js', '--cell', 'items'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(placed.status, 0, placed.stdout + placed.stderr);
