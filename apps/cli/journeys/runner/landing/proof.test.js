@@ -135,11 +135,11 @@ test('clause 1: a red file whose inputKey differs from main\'s fail row is not c
   const box = project(t);
   const board = cellBoard(t, ':memory:');
   const main = await redMain(board, box);
-  box.put('src/b.js', 'export const b = 3; // item 4 touches b\n');
+  box.put('src/b.js', 'export const b = 4;\n');
   const item = box.commit('feat(core): item 4 [P7]');
   git(box.dev, ['push', '-q', 'origin', `${item}:refs/heads/item/4`]);
   await proveItem(board, box, item, ['test/b.test.js']);
   const { receipt } = await land(board, box, { id: 4, commit: item, ref: 'refs/heads/item/4' }, 'r-own', main);
-  assert.notEqual(receipt.outcome, 'landed', 'the item changed b\'s inputs, so its red is its own');
+  assert.equal(receipt.outcome, 'red', `the item changed b's inputs, so its red is its own: ${JSON.stringify(receipt)}`);
   assert.equal(receipt.proof?.mainRed, undefined, 'nothing was charged to main');
 });
