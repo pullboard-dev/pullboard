@@ -180,9 +180,9 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const reset = box.run(box.repo, ['edit', String(second.item_id), '--check', fileCheck('done', 'second-red-marker.txt'), '--wait', '--json'], undefined, { env });
   assert.equal(reset.status, 0, `${reset.stdout}${reset.stderr}`);
   assert.equal(JSON.parse(reset.stdout).item.item_check_baseline.result, 'red');
-  const nextClaimed = box.run(box.web, ['next', '--json']);
-  assert.equal(nextClaimed.status, 0, `a changed check with a red baseline lifts the hold for next: ${nextClaimed.stdout}${nextClaimed.stderr}`);
-  assert.equal(showItem(box, second.item_id).item.item_status, 'claimed', 'next claimed the item once its check was red on main');
+  const nextClaimed = box.run(box.web, ['next', '--build', '--json']);
+  assert.equal(nextClaimed.status, 0, `a changed check with a red baseline lifts the hold for next --build: ${nextClaimed.stdout}${nextClaimed.stderr}`);
+  assert.equal(showItem(box, second.item_id).item.item_status, 'claimed', 'next --build claimed the item once its check was red on main');
 
   const plain = project({ content: 'green', worktrees: true });
   const { result: warned, item: open } = addChecked(plain, 'Unheld green check', fileCheck('green', 'plain-check-marker.txt'));
