@@ -1178,8 +1178,11 @@
   "apps/cli/journeys/export/fetch.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/test/run/queued.test.js": {
-    "launch": 6
+  "apps/cli/journeys/test/run/queued/check.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/test/run/queued/wait.test.js": {
+    "launch": 2
   },
   "packages/items/tests/io/claim.test.js": {
     "launch": 1
