@@ -13,18 +13,18 @@ after(e2e.cleanup);
 const RULES = { maxHeader: 72, types: ['feat', 'fix', 'docs', 'test', 'chore', 'refactor'] };
 
 /** A real seat claim in a real project, so the installed commit-msg hook runs on every commit. */
-function claimed() {
+async function claimed() {
   const box = e2e.project('true');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Header style', '--criterion', 'the hook fixes header style', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claim = box.run(box.web, 'claim', String(id));
+  const claim = await box.runLocal(box.web, 'claim', String(id));
   assert.equal(claim.code, 0, claim.err);
   return box;
 }
 
-test('clause 1, clause 2: a real commit with a capitalised, over-long, full-stopped header lands fixed on the first try and says each fix [C7]', () => {
-  const box = claimed();
+test('clause 1, clause 2: a real commit with a capitalised, over-long, full-stopped header lands fixed on the first try and says each fix [C7]', async () => {
+  const box = await claimed();
   const long = 'feat(web): Retain the context of every claim across a long and winding session of work. [G1]';
   assert.ok(long.length > 72);
   const result = e2e.commitFile(box, box.web, 'web/style.txt', 'work\n', long);
@@ -39,8 +39,8 @@ test('clause 1, clause 2: a real commit with a capitalised, over-long, full-stop
   assert.ok(result.stderr.includes(`pullboard commit-msg: fixed: header is now: ${header}`), result.stderr);
 });
 
-test('a header already in style passes without a fix note [C7]', () => {
-  const box = claimed();
+test('a header already in style passes without a fix note [C7]', async () => {
+  const box = await claimed();
   const result = e2e.commitFile(box, box.web, 'web/plain.txt', 'work\n', 'feat(web): retain context [G1]');
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stderr, /fixed:/u);
