@@ -13,6 +13,9 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
+import { HOST } from '../runner/ssh.js';
+import { installSshStandIn } from '../runner/ssh.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
 import { runFixtureChild } from '../child.js';
 import { runFixtureChildAsync } from '../child.js';
 import { runCliInProcess } from '../process.js';
@@ -127,4 +130,75 @@ async function submittedProof(box) {
   return row ? JSON.parse(row.event_detail) : null;
 }
 
-export { cli, cliAsync, local, fixture, submittedProof, put, source };
+/** The production collector observes real Node events inside the worker's source tree. */
+function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
+  return box => {
+    const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
+    const timingModule = new URL('../../../../../packages/gate/index.js', import.meta.url).href;
+    const beginTiming = timing ? 'beginSuiteTiming(process.cwd(), process.argv.slice(2));' : '';
+    if (duplicate) put(box.root, 'test/second.test.js', source());
+    if (phases) {
+      put(box.root, 'test/check-only.test.js', "import { describe, test } from 'node:test';\ntest('criterion only pass [G1]', () => {});\n");
+      put(box.root, 'test/shared-pass.test.js', "import { describe, test } from 'node:test';\ntest('shared phase pass [G1]', () => {});\n");
+      put(box.root, 'test/check-runner.js', `import { spawnSync } from 'node:child_process';
+import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+// The actual private controller observes its own clean source and wall duration.
+${beginTiming}
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js',
+  'test/check-only.test.js', 'test/shared-pass.test.js'], { encoding: 'utf8', env: process.env });
+process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
+`);
+    }
+    const outcomesModule = new URL('../../../../../packages/gate/src/io/test/outcomes.js', import.meta.url).href;
+    put(box.root, 'test/native-outcomes.js', `export { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(outcomesModule)};\n`);
+    put(box.root, 'test/outcome-reporter.js', `import { tap } from 'node:test/reporters';
+import { testOutcomeCollector, formatTestOutcomes } from './native-outcomes.js';
+export default async function* report(events) {
+  const collector = testOutcomeCollector(process.cwd());
+  let count = null;
+  async function* observe() {
+    for await (const event of events) {
+      collector.observe(event);
+      if (event.type === 'test:summary') count = event.data.counts.tests;
+      yield event;
+    }
+  }
+  for await (const chunk of tap(observe())) yield chunk;
+  const outcomes = formatTestOutcomes(process.env[${JSON.stringify(TIMING_RUN_ID_ENV)}], collector.finish(count !== null, count));
+  yield ${corrupt === 'malformed' ? "outcomes.replace('version', 'invalidVersion')" : 'outcomes'};
+  ${corrupt === 'foreign' ? "yield formatTestOutcomes('00000000-0000-4000-8000-000000000000', collector.finish(count !== null, count));" : ''}
+}
+`);
+    put(box.root, 'test/runner.js', `import { spawnSync } from 'node:child_process';
+import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+// Preserve genuine producer timing; no fabricated frame or completed-file claim.
+${beginTiming}
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js', ...${JSON.stringify(files)}],
+  { encoding: 'utf8', env: process.env });
+process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');
+process.exitCode = run.status ?? 1;
+`);
+  };
+}
+
+/** The existing stand-in launches the real worker locally; zero local slots prove the remote path was used. */
+async function remote(box) {
+  const bin = join(box.directory, 'remote-bin'), worker = join(box.directory, 'worker'), home = join(box.directory, 'worker-home');
+  const machineHome = join(home, '.pullboard'), requests = join(box.directory, 'requests.jsonl');
+  for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
+  box.env.PATH = bin + ':' + box.env.PATH;
+  installSshStandIn({ bin, worker, home, machineHome, requests });
+  let result = await local(box, box.root, 'runner', 'add', HOST, '--slots', '2', '--browser', '1');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
+    result = await local(box, box.root, 'settings', key, value);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
+  return requests;
+}
+
+/** Read actual profile bytes through public response paths; do not manufacture failure identity. */
+function readProfile(path) { return JSON.parse(readFileSync(path, 'utf8')); }
+
+
+export { beforeMain, remote, readProfile, cli, cliAsync, local, fixture, submittedProof, put, source };
