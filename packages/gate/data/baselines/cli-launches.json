@@ -819,46 +819,34 @@
     "launch": 4
   },
   "apps/cli/journeys/relay/agent.test.js": {
-    "launch": 8
+    "launch": 2
   },
   "apps/cli/journeys/relay/approval.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/relay/browser.test.js": {
-    "launch": 14
+    "launch": 3
   },
   "apps/cli/journeys/relay/browser/client.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/relay/canary.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/relay/canary/ack.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/canary/delivery.test.js": {
-    "launch": 9
-  },
-  "apps/cli/journeys/relay/canary/watch.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/relay/checkpoint.test.js": {
-    "launch": 13
+    "launch": 4
   },
   "apps/cli/journeys/relay/cockpit.test.js": {
     "launch": 9
   },
-  "apps/cli/journeys/relay/computer.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/relay/deploy.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/relay/devices.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/relay/expired.test.js": {
-    "launch": 44
+    "launch": 5
   },
   "apps/cli/journeys/relay/heartbeat.test.js": {
     "launch": 3
@@ -867,16 +855,10 @@
     "launch": 1
   },
   "apps/cli/journeys/relay/hosted/shapes.test.js": {
-    "launch": 9
-  },
-  "apps/cli/journeys/relay/installable.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/keyfile.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/relay/local/first.test.js": {
-    "launch": 12
+    "launch": 7
   },
   "apps/cli/journeys/relay/local/first/key.test.js": {
     "launch": 2
@@ -885,79 +867,49 @@
     "launch": 2
   },
   "apps/cli/journeys/relay/machine/storage.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/relay/main-access.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/relay/main-offline.test.js": {
-    "launch": 9
+    "launch": 3
   },
   "apps/cli/journeys/relay/main-pairing.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/relay/main/unlink.test.js": {
-    "launch": 5
-  },
-  "apps/cli/journeys/relay/mint.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/relay/needs.test.js": {
     "launch": 4
   },
   "apps/cli/journeys/relay/outbox.test.js": {
-    "launch": 28
-  },
-  "apps/cli/journeys/relay/pairing.test.js": {
-    "launch": 11
-  },
-  "apps/cli/journeys/relay/pairing/options.test.js": {
-    "launch": 3
+    "launch": 7
   },
   "apps/cli/journeys/relay/person/actions.test.js": {
-    "launch": 18
+    "launch": 7
   },
   "apps/cli/journeys/relay/person/approval.test.js": {
-    "launch": 9
-  },
-  "apps/cli/journeys/relay/person/checkpoints.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/relay/person/cockpit-requests.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/relay/person/credential.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/relay/person/decline.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/relay/person/delivery.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/relay/person/outbox.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/relay/person/page.test.js": {
-    "launch": 13
+    "launch": 1
   },
   "apps/cli/journeys/relay/person/recovery.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/relay/person/requests.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/relay/person/scroll.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/relay-pairing.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/relay/relink.test.js": {
-    "launch": 21
-  },
   "apps/cli/journeys/relay/rigor.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/relay/sealed.test.js": {
     "launch": 2
@@ -974,16 +926,10 @@
   "apps/cli/journeys/relay/setup/once.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/snapshot/recovery.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/relay/snapshot/size.test.js": {
-    "launch": 7
+    "launch": 3
   },
   "apps/cli/journeys/relay/snapshot/size/phone.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/relay/ssh.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/relay/sync.test.js": {
@@ -992,9 +938,6 @@
   "apps/cli/journeys/relay/team/access.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/team/coordinator.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/relay/transport.test.js": {
     "launch": 1
   },
@@ -1002,7 +945,7 @@
     "launch": 22
   },
   "apps/cli/journeys/relay/upload/pause.test.js": {
-    "launch": 11
+    "launch": 6
   },
   "apps/cli/journeys/relay/upload/status.test.js": {
     "launch": 1

@@ -124,11 +124,11 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   await box.link();
 
   // Pair a second native CLI while the board is small; it must later restore the relay snapshot.
-  const pairing = await box.cli('relay', 'pair');
+  const pairing = await box.cliLocal('relay', 'pair');
   const second = await box.otherDeviceJoin(pairing.document.code);
 
   // An ordinary older JSON snapshot remains readable by the CLI after the relay compacts it.
-  assert.equal((await box.cli('add', box.lane, 'legacy snapshot cursor')).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, 'legacy snapshot cursor')).code, 0);
   let sourceState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   let legacyDocument = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const legacySealed = await sealedSnapshot(box, legacyDocument, sourceState.sequence, false);
@@ -222,7 +222,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   assert.ok(Buffer.from(uncompressedSealed, 'base64url').byteLength > LEGACY_BODY_THRESHOLD, 'the uncompressed legacy seal exceeds the former body bound');
 
   assert.equal((await box.cli('status')).code, 0, 'the local CLI publishes a compressed pending snapshot');
-  assert.equal((await box.cli('add', box.lane, 'advance compressed snapshot')).code, 0, 'an acknowledged move advances the relay snapshot cursor');
+  assert.equal((await box.cliLocal('add', box.lane, 'advance compressed snapshot')).code, 0, 'an acknowledged move advances the relay snapshot cursor');
   assert.equal((await box.cli('status')).code, 0, 'the local CLI publishes the advanced compressed checkpoint');
   const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const snapshotRequest = box.transit.filter(row => row.method === 'PUT' && row.path.endsWith('/state')).at(-1);
@@ -316,7 +316,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   assert.match(status.stdout, new RegExp(`relay snapshot for ${sourceState.board}: sealed snapshot \\d+\\.\\d MB over the relay limit ${displayedLimit} MB`));
   const doctor = await textCommand(box, 'doctor');
   assert.equal(doctor.code, 1);
-  const doctorJSON = await box.cli('doctor');
+  const doctorJSON = await box.cliLocal('doctor');
   assert.equal(doctorJSON.code, 1);
   assert.ok(doctorJSON.document.problems.some(problem => problem.code === 'RELAY_SNAPSHOT_LIMIT'), 'doctor JSON names the stable oversize rule');
   assert.match(doctor.stdout, new RegExp(`relay snapshot for ${sourceState.board}: sealed snapshot \\d+\\.\\d MB over the relay limit ${displayedLimit} MB`));

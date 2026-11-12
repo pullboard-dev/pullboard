@@ -64,7 +64,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     timing.begin('fixture setup and item creation', '4 serial private CLI children; each has the existing 55,000 ms child bound');
     const box = await relayClientFixture(t);
     const title = 'PERSON_REQUEST_SHOUT_FIXTURE';
-    assert.equal((await box.cli('add', box.lane, title)).code, 0);
+    assert.equal((await box.cliLocal('add', box.lane, title)).code, 0);
     timing.finish();
     timing.begin('relay link', cliChildDeadlineMs(3));
     await box.link();
@@ -142,7 +142,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     assert.equal(personShouts.length, 1, 'the authored person shout occurs exactly once');
     timing.finish();
     timing.begin('final export', cliChildDeadlineMs(3));
-    const exported = (await box.cli('export')).document;
+    const exported = (await box.cliLocal('export')).document;
     assert.equal(exported.tables.shout.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text).length, 1);
     timing.finish();
   } catch (error) {
@@ -182,7 +182,7 @@ test('an agent-sealed row approval is refused before any row receipt or spec edi
   });
   assert.equal(uploaded.status, 200, 'the opaque journal accepts authenticated ciphertext without interpreting it');
   assert.equal((await box.cli('status')).code, 0, 'native replay records the sender refusal');
-  const exported = (await box.cli('export')).document;
+  const exported = (await box.cliLocal('export')).document;
   const receipts = JSON.parse(exported.tables.board_meta.find(row => row.meta_key === 'relay_person_requests').meta_value);
   const refused = receipts.find(entry => entry.id === document.id);
   assert.equal(refused.status, 'refused');
