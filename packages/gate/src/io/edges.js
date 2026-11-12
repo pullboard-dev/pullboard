@@ -379,6 +379,7 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
       for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it, or add "${name}->${target}" to allowedEdges in packages/codemap/data/plan/cells.json`);
     }
   }
+  if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) add('packages/codemap', 1, `allowedEdges entry "${entry}" is used by no import; remove it from allowedEdges in the cells plan`);
   problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) }));
   return problems;
 }
@@ -425,6 +426,23 @@ export function durableEdgeProblems(root, { files, read = file => readFileSync(r
     }
   }
   return problems;
+}
+
+/**
+ * The allowedEdges entries no import in the tree uses.
+ * Why: a declaration nothing needs is a standing permission for a new import to hide behind; it must go [C7].
+ *
+ * @param {string} root
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options]
+ * @returns {string[]} The unused entries, in plan order.
+ */
+export function unusedAllowedEdges(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
+  const used = new Set();
+  for (const file of (files ?? walk(root, SOURCE)).filter(path => SOURCE.test(path) && !TESTISH.test(path))) {
+    const from = cellOf(file).cell;
+    for (const edge of edgesOf(file, read(file))) used.add(`${from}->${edge.to}${edge.deep ? '/src' : ''}`);
+  }
+  return [...declaredEdges(root)].filter(entry => !used.has(entry));
 }
 
 /** Record the ceilings at today's undeclared counts, and each light door's measured cold load in ms. */
