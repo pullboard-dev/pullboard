@@ -14,7 +14,7 @@ import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 /** Four independent submitted items accepted in order, each step answered in this process so the file stays inside its budget [B3,R3]. */
 async function verifiedFourLocal(box) {
@@ -36,6 +36,8 @@ test('land stops again with an expired waiver, and a changed test on main releas
   const entry = itemWorktree(box, 1, 'web/feature.js');
   submitItem(box, entry);
   acceptItem(box, entry);
+  // The submit's green receipt would cover a landing on its own main, so move main past it and let the landing gate run [#3685].
+  moveMainPastSubmit(box);
   delete box.env.LAND_SUPPRESS_RED;
   const held = json(box, box.repo, 'land');
   assert.equal(held.batch.state, 'flaky');
