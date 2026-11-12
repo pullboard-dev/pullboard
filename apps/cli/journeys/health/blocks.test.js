@@ -37,16 +37,16 @@ after(e2e.cleanup);
 
 test('a block clears when its audience completes the same move [C6,N26]', async t => {
   const box = e2e.project();
-  const ask = text => {
-    const result = box.run(box.repo, 'shout', 'person', text, '--decision', '--json');
+  const ask = async text => {
+    const result = await box.runLocal(box.repo, 'shout', 'person', text, '--decision', '--json');
     assert.equal(result.code, 0, `${result.err}\n${result.out}`);
     return JSON.parse(result.out).id;
   };
-  const first = ask('First choice?');
-  const second = ask('Another choice?');
+  const first = await ask('First choice?');
+  const second = await ask('Another choice?');
   const info = repoInfo(box.repo);
   box.env.CLAUDECODE = '1';
-  const blocked = box.run(box.repo, 'answer', String(first), 'yes', '--as', 'person');
+  const blocked = await box.runLocal(box.repo, 'answer', String(first), 'yes', '--as', 'person');
   assert.equal(blocked.code, 1, blocked.err);
   const needs = () => personNeedsState(box.repo).needs.filter(row => row.kind === 'block');
   assert.equal(needs().length, 1, 'the stopped person move appears in Needs you');
@@ -54,31 +54,31 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
     projects: () => [{ root: box.repo, name: 'blocks-clear', project: '', added: '2026-10-22T00:00:00.000Z' }] });
   t.after(() => api.close());
   assert.equal((await apiNeeds(api, box.repo)).blocks.length, 1, 'the API caches the initial block');
-  const wrongActor = box.run(box.repo, 'answer', String(first), 'agent answer');
+  const wrongActor = await box.runLocal(box.repo, 'answer', String(first), 'agent answer');
   assert.equal(wrongActor.code, 1, wrongActor.err);
   assert.ok(readBlocks(info.commonDir).some(block => block.owner === 'coordinator'),
     'the refused default answer leaves a coordinator-audience block');
   assert.ok(needs().length > 0, 'a different actor cannot clear the person move');
   delete box.env.CLAUDECODE;
   for (const option of ['--help', '--version']) {
-    const informational = box.run(box.repo, 'answer', String(first), option);
+    const informational = await box.runLocal(box.repo, 'answer', String(first), option);
     assert.equal(informational.code, 0, informational.err);
     assert.ok(needs().length > 0, `${option} does not complete the stopped move`);
   }
-  const other = box.run(box.repo, 'answer', String(second), 'yes', '--as', 'person');
+  const other = await box.runLocal(box.repo, 'answer', String(second), 'yes', '--as', 'person');
   assert.equal(other.code, 0, other.err);
   assert.ok(needs().length > 0, 'success on another item leaves the first block');
-  const completed = box.run(box.repo, 'answer', String(first), 'yes', '--as', 'person');
+  const completed = await box.runLocal(box.repo, 'answer', String(first), 'yes', '--as', 'person');
   assert.equal(completed.code, 0, completed.err);
   assert.deepEqual(needs(), [], 'the matching completed move clears Needs you at once');
   assert.deepEqual((await apiNeeds(api, box.repo)).blocks, [], 'the clear invalidates the cached API projection');
-  const health = JSON.parse(box.run(box.repo, 'health', '--json').out);
+  const health = JSON.parse((await box.runLocal(box.repo, 'health', '--json')).out);
   assert.deepEqual(health.blocks.codes, [], 'health no longer counts resolved blocks');
   assert.deepEqual(readBlocks(info.commonDir), [], 'the active ledger view excludes explicit clears');
 
-  const waiting = ask('Still waiting?');
+  const waiting = await ask('Still waiting?');
   box.env.CLAUDECODE = '1';
-  assert.equal(box.run(box.repo, 'answer', String(waiting), 'yes', '--as', 'person').code, 1);
+  assert.equal((await box.runLocal(box.repo, 'answer', String(waiting), 'yes', '--as', 'person')).code, 1);
   delete box.env.CLAUDECODE;
   assert.equal(personBlockWords(info.commonDir, new Date()).length, 1, 'an unmatched block remains');
   assert.equal(personBlockWords(info.commonDir, new Date(Date.now() + 86_400_001)).length, 0,
@@ -115,24 +115,24 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
   assert.deepEqual(readBlocks(milestoneInfo.commonDir), [], 'the matching named milestone success clears it');
 });
 
-test('a successful edit clears only its own item [C6]', () => {
+test('a successful edit clears only its own item [C6]', async () => {
   const box = e2e.project();
-  const add = title => {
-    const result = fixtureAdd(box.run, box.repo, 'web', title, '--json');
+  const add = async title => {
+    const result = await fixtureAdd(box.runLocal, box.repo, 'web', title, '--json');
     assert.equal(result.code, 0, `${result.err}\n${result.out}`);
     return JSON.parse(result.out).item.item_id;
   };
-  const first = add('First item');
-  const second = add('Second item');
+  const first = await add('First item');
+  const second = await add('Second item');
   const info = repoInfo(box.repo);
-  const blocked = box.run(box.repo, 'edit', String(second), '--route', 'not-a-route');
+  const blocked = await box.runLocal(box.repo, 'edit', String(second), '--route', 'not-a-route');
   assert.equal(blocked.code, 1, blocked.err);
   const before = readBlocks(info.commonDir);
   assert.equal(before.length, 1, 'the refused edit is recorded');
-  const unrelated = box.run(box.repo, 'edit', String(first), '--brief', 'First updated');
+  const unrelated = await box.runLocal(box.repo, 'edit', String(first), '--brief', 'First updated');
   assert.equal(unrelated.code, 0, unrelated.err);
   assert.equal(readBlocks(info.commonDir).length, 1, 'editing another item leaves the blocked edit');
-  const completed = box.run(box.repo, 'edit', `#${second}`, '--brief', 'Second updated');
+  const completed = await box.runLocal(box.repo, 'edit', `#${second}`, '--brief', 'Second updated');
   assert.equal(completed.code, 0, completed.err);
   assert.deepEqual(readBlocks(info.commonDir), [], 'the same item clears across its accepted #id spelling');
 });
@@ -153,7 +153,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
 
   // A person-only move from an agent's terminal: the person, not the agent, can clear it.
   box.env.CLAUDECODE = '1';
-  const person = box.run(box.repo, 'answer', '1', 'yes', '--as', 'person');
+  const person = await box.runLocal(box.repo, 'answer', '1', 'yes', '--as', 'person');
   delete box.env.CLAUDECODE;
   assert.equal(person.code, 1, person.err);
   assert.match(person.err, /^pullboard: only the person can clear this; it is in their Needs you list now$/mu);
@@ -198,7 +198,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
 
   // An agent's coordinator-only move: the agent is told to take it to the coordinator.
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const held = box.run(box.web, 'hold', 'api', '--reason', 'the api lane waits');
+    const held = await box.runLocal(box.web, 'hold', 'api', '--reason', 'the api lane waits');
     assert.equal(held.code, 1, held.err);
     assert.match(held.err, /\[COORDINATOR_ONLY\]/u);
     assert.match(held.err, /^pullboard: only the coordinator can clear this; tell them: pullboard shout coordinator --kind blocker "blocked by COORDINATOR_ONLY on pullboard hold: only the coordinator holds a lane"$/mu);
@@ -207,7 +207,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.equal(personNeedsState(box.repo).needs.filter(row => row.kind === 'block').length, 3);
 
   // Health counts the day's blocks by code and drafts an item for the one that repeated.
-  const report = JSON.parse(box.run(box.repo, 'health', '--json').out);
+  const report = JSON.parse((await box.runLocal(box.repo, 'health', '--json')).out);
   const byCode = Object.fromEntries(report.blocks.codes.map(entry => [entry.code, entry]));
   assert.equal(byCode.COORDINATOR_ONLY.count, 3);
   assert.deepEqual(byCode.COORDINATOR_ONLY.commands, ['pullboard hold']);
@@ -220,12 +220,12 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.deepEqual(report.blocks.drafts.map(draft => draft.cause), ['refusal:COORDINATOR_ONLY', 'refusal:TOKEN_EXPIRED']);
   const [draft] = report.blocks.drafts;
   assert.equal(draft.title, 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY');
-  const text = box.run(box.repo, 'health', '--detail').out;
+  const text = (await box.runLocal(box.repo, 'health', '--detail')).out;
   assert.match(text, /^ {2}COORDINATOR_ONLY 3x on pullboard hold, stopped web-1; the coordinator clears it: ask the coordinator/mu);
   assert.match(text, /^ {2}repeated, draft an item: pullboard add coordinator 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY'/mu);
 
   // The drafted item files as it reads.
-  const added = fixtureAdd(box.run, box.repo, draft.lane, draft.title, '--brief', draft.brief, '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, draft.lane, draft.title, '--brief', draft.brief, '--json');
   assert.equal(added.code, 0, added.err);
   assert.equal(JSON.parse(added.out).item.item_title, draft.title);
 

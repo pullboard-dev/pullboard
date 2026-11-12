@@ -35,6 +35,7 @@ test('[A2,C7,N26] a read of an unchanged board reports a newer flow asOf, with t
     // The clock reads in milliseconds: a read that lands in the same one as the last is read again until it moves on.
     for (let again = 0; again < 200 && next.proofStats.flow.asOf <= previous.proofStats.flow.asOf; again += 1) next = await read();
     assert.ok(next.proofStats.flow.asOf > previous.proofStats.flow.asOf, `read ${index} reports a newer asOf than the one before: ${previous.proofStats.flow.asOf} then ${next.proofStats.flow.asOf}`);
+    if (next.statsComparison?.available) assert.equal(next.statsComparison.current.until, next.observedAt, `read ${index} ends its comparison window at its own observedAt`);
     assert.equal(next.sequence, first.sequence, `read ${index} holds the same board content`);
     assert.deepEqual(next.items, first.items, `read ${index} holds the same items`);
     previous = next;
