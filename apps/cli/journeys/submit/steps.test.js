@@ -58,6 +58,8 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   for (const code of codes) assert.ok(Object.hasOwn(NEXT_STEPS, code), `${code} has an explicit recovery entry`);
   assert.equal(refusalDocument({ code: 'FUTURE_REMOTE_RULE', message: 'The service refused.', next: 'ask the service owner to restore this board' }).error.next,
     'ask the service owner to restore this board', 'remote recovery guidance survives serialization');
+  assert.equal(refusalDocument(new Refused('SNAPSHOT_REQUIRED', 'fetch the latest sealed state, then resume after its sequence')).error.next,
+    'fetch the latest sealed state with GET /api/v2/boards/:id/state, then resume events after its sequence', 'the relay snapshot refusal names the exact call [H5]');
   assert.match(refusalDocument(new Refused('FUTURE_REMOTE_RULE', 'The service refused.')).error.next, /service owner.*FUTURE_REMOTE_RULE/u,
     'an unknown remote rule names its owner and code rather than inventing a command');
   assert.equal(refusalDocument(new Refused('REMOTE_COORDINATOR_MODEL',
