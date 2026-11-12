@@ -10,23 +10,23 @@ const now = Date.parse('2026-11-11T19:00:00.000Z');
 const ago = minutes => new Date(now - minutes * MINUTE).toISOString();
 const BATCH = '0f6a2b7e-1111-4222-8333-944455556666';
 /** Real-looking private names that must never leave the machine. */
-const SECRETS = ['mac-studio-7.local', '192.168.1.98', 'corey', 'core-1898', 'auxiliary-53-anvil-8b9e36', '/Users/corey/Code/pullboard', 'gate:52:abc:x', BATCH, 'view-336'];
+const SECRETS = ['runner-a.example.test', '192.0.2.98', 'user', 'core-1898', 'auxiliary-53-anvil-8b9e36', '/home/user/Code/pullboard', 'gate:52:abc:x', BATCH, 'view-336'];
 
 /** Raw runner records as readLiveRunners returns them: two pushed runners on a landing and a test, one idle, one pulling a gate. */
 function sources({ job = {} } = {}) {
   return {
     now,
-    configured: [{ host: 'mac-studio-7.local' }, { host: '192.168.1.98' }, { host: 'corey@mini' }],
+    configured: [{ host: 'runner-a.example.test' }, { host: '192.0.2.98' }, { host: 'user@mini' }],
     runners: [
-      { host: 'mac-studio-7.local', holders: [
-        { agent: 'coordinator', repo: `/Users/corey/Code/pullboard/.git/pullboard/landings/${BATCH}/candidates/abc/worktree`, since: ago(30), item: '', kind: 'landing', landing: 1 },
-        { agent: 'core-1898', repo: '/Users/corey/Code/pullboard/.claude/worktrees/seat', since: ago(3), item: '41', kind: 'test', landing: 0 },
+      { host: 'runner-a.example.test', holders: [
+        { agent: 'coordinator', repo: `/home/user/Code/pullboard/.git/pullboard/landings/${BATCH}/candidates/abc/worktree`, since: ago(30), item: '', kind: 'landing', landing: 1 },
+        { agent: 'core-1898', repo: '/home/user/Code/pullboard/.claude/worktrees/seat', since: ago(3), item: '41', kind: 'test', landing: 0 },
       ] },
-      { host: '192.168.1.98', holders: [{ agent: 'view-336', repo: `/home/corey/landings/${BATCH}/x/`, since: ago(30), item: '', kind: 'landing', landing: 1 }] },
-      { host: 'corey@mini', holders: [] },
+      { host: '192.0.2.98', holders: [{ agent: 'view-336', repo: `/home/user/landings/${BATCH}/x/`, since: ago(30), item: '', kind: 'landing', landing: 1 }] },
+      { host: 'user@mini', holders: [] },
     ],
     jobs: [{ id: 'gate:52:abc:x', kind: 'gate', item: 52, runner: 'auxiliary-53-anvil-8b9e36', claimedAt: now - 2 * MINUTE,
-      files: ['apps/a.test.js', 'apps/b.test.js', 'apps/c.test.js', '/Users/corey/Code/pullboard/private.test.js'], progress: null, ...job }],
+      files: ['apps/a.test.js', 'apps/b.test.js', 'apps/c.test.js', '/home/user/Code/pullboard/private.test.js'], progress: null, ...job }],
     landings: [{ batch: BATCH, items: [1196, 1197], startedAt: now - 30 * MINUTE, label: 'candidate', files: null, selected: 4, progress: null }],
     fileTimes: { 'apps/a.test.js': 2 * MINUTE, 'apps/b.test.js': 4 * MINUTE, 'apps/c.test.js': 6 * MINUTE },
   };
@@ -60,7 +60,7 @@ test('each running item carries per-file state and the latest finished files whe
   assert.deepEqual(quiet.runs.find(run => run.kind === 'landing'), { kind: 'landing', item: 1196, items: [1196, 1197], runners: [1, 2], minutesRunning: 30,
     selected: 4, done: null, failing: null, minutesLeft: 0, files: null, latest: [] });
   const progress = { finished: 2, failures: 1, files: { 'apps/a.test.js': 'pass', 'apps/b.test.js': 'fail', 'apps/c.test.js': 'running' },
-    latest: [{ file: 'apps/b.test.js', state: 'red' }, { file: '/Users/corey/x.test.js', state: 'green' }, { file: 'apps/a.test.js', state: 'green' }] };
+    latest: [{ file: 'apps/b.test.js', state: 'red' }, { file: '/home/user/x.test.js', state: 'green' }, { file: 'apps/a.test.js', state: 'green' }] };
   const reported = publicRunners(sources({ job: { progress } })).runs.find(run => run.kind === 'gate');
   assert.deepEqual(reported.files.map(entry => entry.state), ['green', 'red', 'running']);
   assert.deepEqual(reported.latest, [{ file: 'apps/b.test.js', state: 'red' }, { file: 'apps/a.test.js', state: 'green' }]);
@@ -77,7 +77,7 @@ test('clause 2: runner records full of host names, addresses, users, seats, path
 });
 
 test('the fail-closed text blocks still refuse a private name that reaches the runner projection [N26]', () => {
-  const leaked = sources({ job: { files: ['apps/mac-studio-7.local/a.test.js'] } });
+  const leaked = sources({ job: { files: ['apps/runner-a.example.test/a.test.js'] } });
   assert.throws(() => publicSnapshot({ live: leaked }), error => error.code === 'PUBLIC_EXPORT_BLOCKED' && /machine or host name/u.test(error.message)
     && !error.message.includes('mac-studio-7'));
   assert.throws(() => publicSnapshot({ live: sources() }, { privateBoard: true }), /private item/u);
