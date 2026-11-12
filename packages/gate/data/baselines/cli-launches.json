@@ -116,9 +116,6 @@
   "apps/cli/journeys/handoff/tools.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/show/quarantine/composed.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/shout/shouts/scrollbar.test.js": {
     "launch": 14
   },
@@ -129,7 +126,7 @@
     "launch": 7
   },
   "apps/cli/journeys/relay/local/first.test.js": {
-    "launch": 6
+    "launch": 3
   },
   "apps/cli/journeys/relay/person/scroll.test.js": {
     "launch": 1
@@ -238,9 +235,6 @@
   },
   "apps/cli/journeys/spec/redesign.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/ledger/history.test.js": {
-    "launch": 3
   },
   "packages/runners/tests/io/run/reporter.test.js": {
     "launch": 4
@@ -467,9 +461,6 @@
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/land/next.test.js": {
-    "launch": 3
-  },
   "packages/gate/tests/io/main/resource.test.js": {
     "launch": 4
   },
@@ -495,7 +486,7 @@
     "launch": 1
   },
   "apps/cli/journeys/status/board/move.test.js": {
-    "launch": 3
+    "launch": 2
   },
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
@@ -563,9 +554,6 @@
   "apps/cli/journeys/next/help.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/merged/receipts-refusal.test.js": {
-    "launch": 3
-  },
   "packages/drive/tests/scaled.test.js": {
     "launch": 1
   },
@@ -595,6 +583,15 @@
   },
   "apps/cli/journeys/init/origin.test.js": {
     "launch": 8
+  },
+  "apps/cli/journeys/init/origin/behind.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/init/origin/reads.test.js": {
+    "launch": 3
+  },
+  "apps/cli/journeys/init/origin/states.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
     "launch": 9
@@ -658,9 +655,6 @@
   },
   "apps/cli/journeys/resume/board.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/init/offer.test.js": {
-    "launch": 3
   },
   "apps/lib/tests/schema.test.js": {
     "launch": 1
@@ -1178,8 +1172,11 @@
   "apps/cli/journeys/export/fetch.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/test/run/queued.test.js": {
-    "launch": 6
+  "apps/cli/journeys/test/run/queued/check.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/test/run/queued/wait.test.js": {
+    "launch": 2
   },
   "packages/items/tests/io/claim.test.js": {
     "launch": 1
@@ -1693,9 +1690,6 @@
   },
   "apps/cli/journeys/fact/review/packet/reds.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/resume/guidance.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/check-baseline/replay.test.js": {
     "launch": 1

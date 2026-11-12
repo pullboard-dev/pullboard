@@ -1,6 +1,7 @@
 /** A board hold receipt names the move and the slowest step inside it, and status lists the longest holds of the last hour [C7,P4]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -9,7 +10,7 @@ import { closeCellBoard } from '../../../../../packages/store/tests/fixtures/cel
 import { openCellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { runFixtureChild } from '../../../tests/fixtures/child.js'; // the two inline-script children below stay processes: each is a fresh writer process whose own hold rows land in the machine home
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -75,7 +76,7 @@ test('clause 2: status lists the five longest holds of the last hour with at, mo
   const log = join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl');
   const lines = [[10_000, 1_500, 'm1'], [20_000, 9_000, 'm2'], [30_000, 3_000, 'm3'], [40_000, 2_000, 'm4'], [50_000, 4_000, 'm5'],
     [60_000, 2_500, 'm6'], [7_200_000, 60_000, 'too-old']];
-  runFixtureChild(process.execPath, ['-e', `require('node:fs').mkdirSync(${JSON.stringify(box.env.PULLBOARD_MACHINE_HOME)}, { recursive: true })`], { env: box.env });
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   for (const [age, held, move] of lines) appendFileSync(log, (await row(age, held, move)));
   const result = (await box.runLocal(box.repo, 'status', '--json'));
   assert.equal(result.code, 0, result.err);

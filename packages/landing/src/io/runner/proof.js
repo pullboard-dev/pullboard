@@ -6,6 +6,8 @@ const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 // An enclosing run's reuse, stage, store or hit settings never reach the landing proof: it plans from its own checkout.
 const INHERITED = /^PULLBOARD_(TEST_(ACTIONS|STAGE|REUSE|RESULT_\w+)|LEDGER_HITS)$/u;
 const REUSED = /^# reused [0-9a-f]{64} from ledger \(/u;
+// A file main fails at its identical inputKey: charged to main, never run, so it holds no landing [P7].
+const MAIN_RED = /^# main red [0-9a-f]{64} from ledger \(/u;
 
 /** Quote one word for the shell the runner command runs in. */
 function shellWord(word) {
@@ -15,12 +17,13 @@ function shellWord(word) {
 /**
  * The landing check that proves `proof.files` on the merged tree: the project's runner command over those files, with
  * the board's hit list, so run-tests reuses a file whose inputKey and context class a ledger row proved and runs only
- * the misses. A file whose import closure main changed has a new inputKey, so it misses and runs. The hit list goes in
+ * the misses. A file whose import closure main changed has a new inputKey, so it misses and runs; a file main fails at
+ * its identical inputKey (`ledger.mainRed`) is main's red and is counted, not run. The hit list goes in
  * on the run's stdin, never as a file: run-tests reuses nothing in a dirty tree, and the runner keeps no state file.
  *
- * @param {{ runner: string, files: string[], ledger?: { contexts: string[], files: Array<[string, string, number]> } | null }} proof
+ * @param {{ runner: string, files: string[], ledger?: { contexts: string[], files: Array<[string, string, number]>, mainRed?: Array<[string, string, number]> } | null }} proof
  * @param {{ env?: NodeJS.ProcessEnv }} [options]
- * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, proof: { files: number, reused: number, ran: number } }>}
+ * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
 export function ledgerProofCheck(proof, { env = process.env } = {}) {
   return ({ root }) => new Promise(resolve => {
@@ -29,19 +32,20 @@ export function ledgerProofCheck(proof, { env = process.env } = {}) {
     const child = spawn(command, { shell: true, cwd: root, stdio: ['pipe', 'pipe', 'pipe'], env: { ...clean, [LEDGER_HITS_ENV]: '/dev/stdin' } });
     child.stdin.on('error', () => { /* A runner that never reads its hit list just runs every file. */ });
     child.stdin.end(JSON.stringify(proof.ledger ?? { contexts: [], files: [] }));
-    let tail = '', reused = 0, pending = '';
+    let tail = '', reused = 0, mainRed = 0, pending = '';
     const read = chunk => {
       const text = pending + chunk.toString('utf8');
       const lines = text.split('\n');
       pending = lines.pop();
-      for (const line of lines) if (REUSED.test(line)) reused++;
+      for (const line of lines) { if (REUSED.test(line)) reused++; if (MAIN_RED.test(line)) mainRed++; }
       tail = (tail + text).slice(-2000);
     };
     child.stdout.on('data', read);
     child.stderr.on('data', chunk => { tail = (tail + chunk.toString('utf8')).slice(-2000); });
     const finish = (ok, detail) => {
       if (REUSED.test(pending)) reused++;
-      resolve({ ok, detail, proof: { files: proof.files.length, reused, ran: proof.files.length - reused } });
+      if (MAIN_RED.test(pending)) mainRed++;
+      resolve({ ok, detail, proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
     };
     child.on('error', error => finish(false, String(error.message).slice(0, 300)));
     child.on('exit', (code, signal) => finish(code === 0, code === 0 ? null : `landing proof exited ${code ?? signal}: ${tail.slice(-300)}`));
