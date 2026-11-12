@@ -88,7 +88,8 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').slowestMs, holds[0].heldMs);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').totalMs, holds[0].heldMs);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').p50Ms, holds[0].heldMs);
-  const narrow = await box.runLocal(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
+  // Process-level case: an unrefused throw from a future window must end a real CLI with a nonzero exit; in process it would propagate to the test.
+  const narrow = box.run(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
   assert.notEqual(narrow.code, 0, 'invalid future windows do not quietly report an invented zero');
   const shown = await box.runLocal(box.repo, 'stats', '--window', '24h');
   assert.equal(shown.code, 0, shown.err);

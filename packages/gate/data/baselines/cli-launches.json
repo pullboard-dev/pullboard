@@ -1719,7 +1719,7 @@
     "launch": 1
   },
   "apps/cli/journeys/stats/log.test.js": {
-    "launch": 2
+    "launch": 3
   },
   "apps/cli/journeys/status/board/lock.test.js": {
     "launch": 3
