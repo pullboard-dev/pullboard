@@ -17,7 +17,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /**
- * A seeded board with one item and a joined seat, warmed once. Commands measure there, never in this checkout:
+ * A seeded board with a joined seat holding its one item, so the board is warm and next answers the seat's own work. Commands measure there, never in this checkout:
  * a runner's gate checkout has no shared board, so every command there refused UNMERGED_SCHEMA after a load
  * the real command never pays, and the first command in a fresh board pays the board's creation [#5997].
  */
@@ -26,8 +26,8 @@ before(async () => {
   const box = e2e.project();
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Measure the closure');
   assert.equal(added.code, 0, added.err);
-  const warmed = await box.runLocal(box.web, 'whoami');
-  assert.equal(warmed.code, 0, warmed.err);
+  const claimed = await box.runLocal(box.web, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.err);
   seat = box;
 });
 
