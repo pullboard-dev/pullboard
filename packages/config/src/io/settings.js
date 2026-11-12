@@ -447,6 +447,28 @@ export function recordRunnerMeasurement(host, observation) {
   }, { observation: true });
 }
 
+/**
+ * Take a registered runner out of rotation (`drain`) or back in: dispatch and pull claims give it no new job, its running
+ * jobs keep their leases and finish. Why: a runner jammed overnight and nothing could rest it while a fix rolled out.
+ */
+export function setRunnerDrain(host, drain) {
+  return updateRunnerSettings(host, () => {
+    const current = loadMachineSettings();
+    const index = (current.runners ?? []).findIndex(runner => runner.host === host);
+    if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is not registered`, 'run pullboard runner list');
+    const { drain: _drained, ...rest } = current.runners[index];
+    const runner = validateRunner(drain ? { ...rest, drain: true } : rest);
+    const runners = [...current.runners]; runners[index] = runner;
+    writeMachineSettings({ ...current, runners });
+    return runner;
+  }, { observation: true });
+}
+
+/** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */
+export function drainedRunnerHosts() {
+  return (loadMachineSettings().runners ?? []).filter(runner => runner.drain === true).map(runner => runner.host);
+}
+
 /** Stop dispatching to a runner immediately; admitted jobs keep their leases until they finish. */
 export function removeRunner(host) {
   return updateRunnerSettings(host, () => {
