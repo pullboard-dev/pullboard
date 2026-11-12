@@ -45,6 +45,7 @@ import { returnCulprit } from './diagnose.js';
 import { namedFailures } from './diagnose.js';
 import { returnRefusedItem } from './diagnose.js';
 import { landingFault } from './diagnose.js';
+import { parkRepeatedItem } from './diagnose.js';
 import { landingSpan } from '../../../../resources/index.js';
 import { timedPhase } from '../timing.js';
 import { requireLandingModuleResolution } from '../guards.js';
@@ -327,6 +328,9 @@ export async function landOnTrunk(state) {
     }
     // The refusal is kept with its code so a RUNNER_SOURCE count across these blocked batches can hold the items [C7].
     if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    // The same refusal on the same item's head parks it, as the pushing shape's batches do, so the next wake selects
+    // the other accepted items. Why: a red at a separate landing looped 82 times in 9 minutes and blocked all [C7,#6269].
+    for (const entry of state.batch.items ?? []) await parkRepeatedItem(state, { id: entry.id, item_commit: entry.commit, commit: entry.commit });
     state.say(`nothing landed: ${error.message}`);
     return;
   }
