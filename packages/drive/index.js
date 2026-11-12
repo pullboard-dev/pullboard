@@ -20,4 +20,5 @@ export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queu
 export * from './light.js';
 export { boardEndpoint, boardTrunkPack, checkoutCandidate, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
 export { pruneRunnerStores } from "./src/io/prune.js";
+export { pruneStaleSlots } from "./src/io/prune.js";
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';

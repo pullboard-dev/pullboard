@@ -187,7 +187,7 @@ export function handoffRefusedResult(error) {
  */
 export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait, agentId }) {
   ctx.submissionResult = {};
-  const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
+  const { lockWaits } = await submitUntilSettled((attempt, avoided, inPlace) => { ctx.lockRetry = inPlace; return submit(ctx, request.item, request.infra); }, { say: line => process.stderr.write(line + '\n'), waitInventory,
     // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
     onInfrastructure: async rerun => {
       const now = Date.now();

@@ -116,6 +116,7 @@ export async function main(rawArgv, streams) {
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
   const binding = timingSeat(cwd);
   const finish = beginSeatTiming(cwd, 'command', argv[0] ?? 'help', item, binding);
+  const stopBeat = (await import('../beater/command.js')).keepCommandAlive(cwd);
   const lockPort = Symbol.for('pullboard.seat-timing.lock');
   const previous = globalThis[lockPort];
   globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);
@@ -125,7 +126,7 @@ export async function main(rawArgv, streams) {
   try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
-    finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
+    stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
   }
