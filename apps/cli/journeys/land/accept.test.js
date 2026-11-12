@@ -44,13 +44,13 @@ function sessionEnv(box, identity) {
  * @param {string} identity - The session id.
  * @param {string} cwd - Where the command runs.
  * @param {...string} args - The command's arguments.
- * @returns {object}
+ * @returns {Promise<object>}
  */
-function jsonAs(box, identity, cwd, ...args) {
+async function jsonAs(box, identity, cwd, ...args) {
   const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
   Object.assign(box.env, sessionEnv(box, identity));
   try {
-    const result = box.run(cwd, ...args, '--json');
+    const result = await box.runLocal(cwd, ...args, '--json');
     assert.equal(result.code, 0, result.out + result.err);
     return JSON.parse(result.out);
   } finally {
@@ -80,9 +80,9 @@ function commit(box, root, message) {
  * setting, Corey 5 Nov), holding one submitted item in each of two lanes and a reviewer worktree at each head.
  *
  * @param {object} t - The test context.
- * @returns {{ box: object, items: object[] }}
+ * @returns {Promise<{ box: object, items: object[] }>}
  */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -95,22 +95,23 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  joinFixtureSeat(box, api, 'api', { model: FIXTURE_MODEL }); // the strong route, as the web seat joined
+  await joinFixtureSeat(box, api, 'api', { model: FIXTURE_MODEL, run: box.runLocal }); // the strong route, as the web seat joined
   const builders = { web: box.web, api };
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
-  const items = ['web', 'api'].map((lane, index) => {
-    const id = jsonAs(box, 'coordinator-session', box.repo, 'add', lane, `Build ${lane}`, '--specs', lane === 'api' ? 'G2' : 'G1',
-      '--criterion', `the ${lane} file is built`, '--check', `grep -q built ${files[lane]}`).item.item_id;
-    assert.equal(box.run(builders[lane], 'claim', String(id)).code, 0);
+  const items = [];
+  for (const [index, lane] of ['web', 'api'].entries()) {
+    const id = (await jsonAs(box, 'coordinator-session', box.repo, 'add', lane, `Build ${lane}`, '--specs', lane === 'api' ? 'G2' : 'G1',
+      '--criterion', `the ${lane} file is built`, '--check', `grep -q built ${files[lane]}`)).item.item_id;
+    assert.equal((await box.runLocal(builders[lane], 'claim', String(id))).code, 0);
     writeFileSync(join(builders[lane], files[lane]), 'built\n');
     const head = commit(box, builders[lane], `feat(${lane}): build the ${lane} file [${lane === 'api' ? 'G2' : 'G1'}]`);
-    const submitted = box.run(builders[lane], 'submit', String(id));
+    const submitted = await box.runLocal(builders[lane], 'submit', String(id));
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
     const reviewer = join(box.dir, `reviewer-${index}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
-    return { id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] };
-  });
+    await jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
+    items.push({ id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] });
+  }
   onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 1,
     reason: 'Batch size stays one', window: { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 } }));
   return { box, items };
@@ -126,6 +127,7 @@ function fixture(t) {
  */
 async function accept(box, item) {
   const acceptedAt = Date.now();
+  // Process-level: the accept's wall-clock budget covers the detached automatic lander it starts, so it stays a real process.
   const result = await runFixtureChildAsync(process.execPath, [BIN, 'verify', String(item.id), 'accept', '--note', 'Read the diff and ran its frozen check.'],
     { cwd: item.reviewer, env: sessionEnv(box, item.session), stdio: ['ignore', 'pipe', 'pipe'] });
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -173,7 +175,7 @@ function assertLandedAlone(box, item, batch, acceptedAt) {
 }
 
 test('clause 1: within 60 s of an ACCEPT the automatic lander starts that item\'s landing alone, with no cadence wait, and records merged [C7]', { timeout: 360_000 }, async t => { // budget: two real accept-to-merged landings in a private repo; hang ceiling, not speed.
-  const { box, items } = fixture(t);
+  const { box, items } = await fixture(t);
   const [first, second] = items;
 
   const one = await accept(box, first);

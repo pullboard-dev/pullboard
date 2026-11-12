@@ -375,7 +375,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     const root = fixture('names');
     const named = [
       "import { test } from 'node:test';",
-      "test('a name with an id [G1.2]', async (t) => {",
+      "test('a name with an id [C7]', async (t) => {",
       "  await t.test('a subtest nests under its parent', () => {});",
       "  const fixture = \"test('a fixture test written out', () => {});\";",
       '});',
