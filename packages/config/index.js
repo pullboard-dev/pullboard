@@ -104,6 +104,9 @@ export {
   SETTING_DESCRIPTIONS,
   CLI_SETTABLE,
   describeSetting,
+  settingDescriptions,
+  compatibilityToggleProblems,
+  INVENTORY_FILE,
 } from './src/io/settings/descriptions.js';
 export {
   knownConfigKeys,
