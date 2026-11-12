@@ -49,7 +49,7 @@ function observe(file) {
       stamp: db.prepare('PRAGMA application_id').get().application_id,
       names: db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().map(row => row.name),
       triggers: new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger'").all().map(row => [row.name, row.sql])),
-      rows: db.prepare('SELECT * FROM board_meta ORDER BY meta_key').all(),
+      rows: db.prepare("SELECT * FROM board_meta WHERE meta_key NOT LIKE 'local:%' ORDER BY meta_key").all(),
     };
   } finally { db.close(); }
 }
@@ -87,7 +87,7 @@ test('clause 1: opening a drifted board creates the job tables and indexes it la
   for (const name of ADDITIVE) assert.ok(repaired.names.includes(name), `${name} was created`);
   assert.equal(repaired.standing, 'current', 'the repaired shape matches, so the board is restamped');
   assert.doesNotMatch(diagnostics.join('\n'), /different shape/u);
-  assert.deepEqual(repaired.rows, before.rows, 'no board_meta row was moved or rewritten');
+  assert.deepEqual(repaired.rows, before.rows, 'no board_meta row was moved or rewritten; only local proof counters count the guards event');
 });
 
 test('clause 1: a board with foreign drift gains the additive tables but keeps its stamp, guards and report [A5,M3]', () => {
