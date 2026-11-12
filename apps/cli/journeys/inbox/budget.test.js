@@ -86,6 +86,7 @@ function measure(box, bin) {
   const sizes = {};
   for (const command of Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name))) {
     // A refusal still prints its default text; only stdout lands in a reader's context as output.
+    // Process-level: the merge-base main tree is a different checkout, so its CLI entry must be its own process.
     const result = runFixtureChild(process.execPath, [bin, command, ...(DEFAULT_ARGS[command] ?? [])],
       { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 20_000 });
     sizes[command] = result.signal ? Infinity : Buffer.byteLength(result.stdout ?? '');
@@ -125,7 +126,7 @@ function seeded() {
   return box;
 }
 
-test('clause 1: every measured command prints within its main size and declared budget on a seeded board [C7,N26]', () => {
+test('clause 1: every measured command prints within its main size and declared budget on a seeded board [C7,N26]', async () => {
   const box = seeded();
   const headSizes = measure(box, helpers.BIN);
   const main = mainTree();
@@ -135,11 +136,11 @@ test('clause 1: every measured command prints within its main size and declared 
   } finally {
     if (main) rmSync(main, { recursive: true, force: true });
   }
-  const full = box.run(box.repo, 'list', 'web', '--detail');
+  const full = await box.runLocal(box.repo, 'list', 'web', '--detail');
   assert.ok(Buffer.byteLength(full.out) > DEFAULT_OUTPUT_BUDGET, '--detail still prints every row');
-  const bounded = box.run(box.repo, 'list', 'web');
+  const bounded = await box.runLocal(box.repo, 'list', 'web');
   assert.match(bounded.out, /more lines withheld to keep this output within 8192 bytes; add --detail for all of it, or --json/u);
-  assert.equal(JSON.parse(box.run(box.repo, 'list', 'web', '--json').out).items.length, 300, '--json is never trimmed by the text budget');
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'list', 'web', '--json')).out).items.length, 300, '--json is never trimmed by the text budget');
 });
 
 test('a long withheld next step is cut to one line and the whole output stays within the budget [C7,N26]', () => {
@@ -174,7 +175,7 @@ test('streams and reference pages are declared unbounded, and a single long line
   assert.equal(cutLine('short'), 'short');
 });
 
-test('inbox after a read shows nothing old: a delivered interrupt comes back only as its id [N26,R2]', () => {
+test('inbox after a read shows nothing old: a delivered interrupt comes back only as its id [N26,R2]', async () => {
   const box = outputBudgetProject();
   // @pullboard-board-file journey: the real CLI subprocesses read this answered decision as an interrupt.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -182,12 +183,12 @@ test('inbox after a read shows nothing old: a delivered interrupt comes back onl
     const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which path?', decision: true, lanes: ['web'] });
     store.answerDecision(board, question, { agentId: 'coordinator', text: 'Use the reviewed path', lanes: ['web'] });
   } finally { store.closeBoard(board); }
-  const first = box.run(box.web, 'inbox');
+  const first = await box.runLocal(box.web, 'inbox');
   assert.match(first.out, /Use the reviewed path/u, 'the first read delivers the answer');
-  const second = box.run(box.web, 'inbox');
+  const second = await box.runLocal(box.web, 'inbox');
   assert.doesNotMatch(second.out, /Use the reviewed path|Which path\?/u, 'the second read replays nothing old');
   assert.match(second.out, /1 delivered interrupt still unacted: event:\d+; clear with pullboard inbox --acted-on <ids>/u);
-  const id = JSON.parse(box.run(box.web, 'inbox', '--json').out).activity.pending[0];
-  assert.equal(box.run(box.web, 'inbox', '--acted-on', id).code, 0);
-  assert.match(box.run(box.web, 'inbox').out, /no new shouts or activity/u, 'acting on it clears the reminder');
+  const id = JSON.parse((await box.runLocal(box.web, 'inbox', '--json')).out).activity.pending[0];
+  assert.equal((await box.runLocal(box.web, 'inbox', '--acted-on', id)).code, 0);
+  assert.match((await box.runLocal(box.web, 'inbox')).out, /no new shouts or activity/u, 'acting on it clears the reminder');
 });
