@@ -167,7 +167,6 @@ test('clause 3: the board host only offers a row and records a receipt; the runn
   const onBoard = work => { const board = openCellBoard(file); try { return work(board.db); } finally { closeCellBoard(board); } };
   const config = { landing: { trunkRemote: box.remote } };
   onBoard(db => {
-    assert.throws(() => offerLandingJob(db, { items: [one], expect: box.seed, config, mode: 'controller' }), error => error.code === 'LANDING_NOT_PULL', 'today\'s lander stays the default');
     assert.throws(() => offerLandingJob(db, { items: [one], expect: box.seed, config: {}, mode: 'pull' }), error => error.code === 'LANDING_TRUNK_REMOTE');
   });
   const offered = onBoard(db => offerLandingJob(db, { items: [one], expect: box.seed, config, mode: 'pull', now: 1 }));

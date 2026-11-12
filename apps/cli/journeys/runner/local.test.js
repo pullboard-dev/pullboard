@@ -24,7 +24,8 @@ import { pullQueue } from '../../tests/fixtures/pull.js';
 import { serveOnce } from '../../tests/fixtures/pull.js';
 import { submitOne } from '../../tests/fixtures/pull.js';
 
-const GATE = { runnerDispatch: 'pull', localRunner: true };
+// No gate.runnerDispatch: a fresh board's default is pull, so its gates run as pulled jobs on the loopback runner [P7].
+const GATE = { localRunner: true };
 // A runner's checkout is a worktree whose .git is a file, so the stand-in parts record nothing; the gate's receipt is the record.
 const RECORD = 'export function record() {}\n';
 // The proof holds while the FIXTURE_HOLD file names a path this checkout has, so one runner can be kept busy on purpose.

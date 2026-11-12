@@ -82,7 +82,7 @@ test('a fresh board files new work where it can be built [N26, N27]', async () =
   const fresh = join(box.dir, 'fresh');
   mkdirSync(fresh);
   box.git(fresh, 'init', '-q', '-b', 'main');
-  box.run(fresh, 'init');
+  await box.inProcess(fresh, 'init');
   const beta = project(box, 'beta', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, review: { owns: [] } } });
   const view = await startView(box);
   try {
@@ -213,7 +213,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   const normal = project(box, 'normal-board', SPEC, { name: 'Normal board' });
   const missing = project(box, 'missing-board', SPEC, { name: 'Missing board' });
   writeFileSync(join(missing.repo, 'pullboard.json'), '{not valid json');
-  box.run(normal.repo, 'add', 'web', 'Readable beside the refused board', '--specs', 'G1');
+  await box.inProcess(normal.repo, 'add', 'web', 'Readable beside the refused board', '--specs', 'G1');
   const primary = join(box.dir, 'migration-cli');
   const linked = join(box.dir, 'migration-cli-linked');
   mkdirSync(primary);

@@ -17,7 +17,7 @@ import { startFixtureChild } from '../../../../tests/fixtures/child.js';
 function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
 /** Use real Git and SQLite; each regime produces genuinely buildable light items. */
-function fixture(t, hold) {
+async function fixture(t, hold) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = 'Scaler fixture';
@@ -36,7 +36,7 @@ function fixture(t, hold) {
       else store.editItem(board, id, { agentId: 'coordinator', route: 'light', reason: 'Private light-worker fixture' });
     }
   });
-  const settings = box.run(box.repo, 'settings', 'workers.budget', '96/day');
+  const settings = await box.runLocal(box.repo, 'settings', 'workers.budget', '96/day');
   assert.equal(settings.code, 0, settings.err);
   let child, closed;
   t.after(async () => {
@@ -67,7 +67,7 @@ function fixture(t, hold) {
 
 for (const hold of [true, false]) {
   test(`three actual scaler cycles ${hold ? 'count unjoined live agents once' : 'reuse ended agents without new worktrees'} [C7,B26]`, { timeout: 180_000 }, async t => { // budget: three native five-second cycles and private Git registration, not a throughput assertion.
-    const f = fixture(t, hold);
+    const f = await fixture(t, hold);
     const result = await f.run();
     assert.equal(result.code, 0, result.stderr + '\n' + result.stdout);
     assert.equal(result.cycles, 3);

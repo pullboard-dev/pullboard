@@ -294,3 +294,14 @@ Approved by the person on 31 October 2026 ("Seals are approved"; Proposal A). Th
 - Until seals exist, a generated tier manifest classifies each test file (one cell and pure, or infrastructure and journey), and per-change selection uses only the touched cells' tests. [A6]
 
 **Why.** None of §8 was built, so every change ran heavy tests: about 1.5 runner-hours per item, with 93% of builder time going to tools. Keying verdicts to content makes a change pay only for the cells it actually changes, which turns minutes of testing per item into about a minute now, and toward none once seals hold.
+
+## Standing rules and the check that enforces each
+
+These rules stay after the move plan is retired. Each line names the static check class that refuses its breach, as `check: <name>`; a class name is one in `pullboard doctor`'s static registry, and a metric after a slash is one of the cell lints' counters.
+
+- A cell is a folder: the folder that holds a file names its cell, and a file outside every cell or the root allowlist is refused. [CD11, CD61] check: cell-lints/strays
+- Cells import each other only through the front door: a deep import into another cell's `src` is refused. [CD19] check: cells-edges
+- The allowed cross-cell edges are one declared rule: an undeclared new import is refused. [CD19] check: cells-edges
+- No import cycle between cells: an edge that closes a cycle is refused. [CD23] check: cell-lints/cycles
+- The shim ratchet: re-export shims only fall, never grow. [CD25, CD64] check: cell-lints/shims
+- File size caps: 500 lines is the aim and 1,500 the hard maximum, and an oversized file takes no added lines. [CD33] check: cell-lints/fileSize

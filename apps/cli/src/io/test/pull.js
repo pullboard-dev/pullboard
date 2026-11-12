@@ -32,7 +32,7 @@ const CASES = 100;
  * candidate's own focused runner in the candidate checkout and prints one receipt line with the run's output tail and
  * its failing cases, read by main's TAP reader. Why main's reader: it is the one the gate trusts to name cases.
  */
-const testJobEntry = GATE_RECEIPT => `import { spawnSync } from 'node:child_process';
+const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -45,7 +45,8 @@ try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
 // A runner job is nobody's subtest: a node:test context inherited from the runner's own host would skip every file.
-const env = { ...process.env };
+// This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
+const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1' };
 delete env.NODE_TEST_CONTEXT;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
@@ -101,11 +102,12 @@ function shellWord(value) {
  */
 async function offerTestJob(ctx, { item, commit, main, command, files }) {
   const { root } = ctx.info;
-  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js')]);
+  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
+    import('../../../../../packages/gate/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
-  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT), data: { main, source: commit, command, files } }, commits: [main] };
+  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV), data: { main, source: commit, command, files } }, commits: [main] };
   const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
   return { job: job.id, ref };
@@ -201,7 +203,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say });
   const summary = retainTestOutput(root, ran.output);
   const result = { green: ran.green, output: renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
-    files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [] };
+    files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures };
   if (ran.green) return result;
   if (paths.length === 1 && values['compare-main'] !== true) { result.mainSkipped = 'one file: add --compare-main to also run it on main'; return result; }
   const redFiles = [...new Set(ran.failures?.map(row => row.file) ?? paths)];

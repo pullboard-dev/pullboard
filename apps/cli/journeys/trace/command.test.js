@@ -16,16 +16,16 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** A scratch repo with one open item on the web lane; returns the box and the item id. */
-function scratch() {
+async function scratch() {
   const box = e2e.project('true');
-  const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Trace me', criterion: 'The file is committed.' }).item_id;
+  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Trace me', criterion: 'The file is committed.', run: box.runLocal })).item_id;
   return { box, id };
 }
 
-test('clause 1: trace <agent> prints that agent\'s calls and board events in time order, one line each [C7]', () => {
-  const { box, id } = scratch();
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
-  const json = JSON.parse(box.run(box.web, 'trace', 'web-1', '--since', '2h', '--json').out);
+test('clause 1: trace <agent> prints that agent\'s calls and board events in time order, one line each [C7]', async () => {
+  const { box, id } = await scratch();
+  assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
+  const json = JSON.parse((await box.runLocal(box.web, 'trace', 'web-1', '--since', '2h', '--json')).out);
   assert.equal(json.version, 1);
   const claim = json.entries.find(entry => entry.source === 'event' && entry.command === 'claim');
   assert.ok(claim, JSON.stringify(json.entries));
@@ -33,10 +33,10 @@ test('clause 1: trace <agent> prints that agent\'s calls and board events in tim
   assert.equal(claim.item, id);
   const times = json.entries.map(entry => Date.parse(entry.time));
   assert.deepEqual(times, [...times].sort((a, b) => a - b), 'entries are in time order');
-  const text = box.run(box.web, 'trace', 'web-1').out.trim().split('\n');
+  const text = (await box.runLocal(box.web, 'trace', 'web-1')).out.trim().split('\n');
   assert.ok(text.length >= json.entries.length, 'one line per entry');
   assert.ok(text.some(line => line.split('  ')[1] === 'claim' && line.includes(`#${id}`)), text.join('\n'));
-  assert.equal(box.run(box.web, 'trace', 'web-1', '--since', 'soon').code === 0, false, 'a bad --since is refused');
+  assert.equal((await box.runLocal(box.web, 'trace', 'web-1', '--since', 'soon')).code === 0, false, 'a bad --since is refused');
 });
 
 test('clause 1: a refused call shows its refusal code and why, and --since drops older entries [C7]', () => {
@@ -62,11 +62,11 @@ test('clause 1: a successful call shows the intent the agent stated with --why [
   assert.equal(traceLine(entries[1]), '2026-11-06T12:01:00.000Z  show  #7  ok  4ms  -');
 });
 
-test('clause 2: trace <item> prints every agent\'s calls and events on that item, and --json is one versioned document [C7]', () => {
-  const { box, id } = scratch();
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
-  assert.equal(box.run(box.web, 'show', String(id), '--json').code, 0);
-  const run = box.run(box.web, 'trace', String(id), '--json');
+test('clause 2: trace <item> prints every agent\'s calls and events on that item, and --json is one versioned document [C7]', async () => {
+  const { box, id } = await scratch();
+  assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
+  assert.equal((await box.runLocal(box.web, 'show', String(id), '--json')).code, 0);
+  const run = (await box.runLocal(box.web, 'trace', String(id), '--json'));
   assert.equal(run.code, 0, run.err);
   const json = JSON.parse(run.out);
   assert.equal(json.version, 1);

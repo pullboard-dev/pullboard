@@ -12,6 +12,13 @@ import {
   serveApi,
 } from '../../../../../packages/api/index.js';
 import { apiBoards } from '../../../../../packages/api/index.js';
+import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
+import { servedModuleMoved } from '../../../../../packages/drive/index.js';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { spawnReachable } from '../../../../../packages/jobs/index.js';
+import { pullboardHome } from '../../../../../packages/store/index.js';
+import { servedTrunkPack } from '../../../../../packages/runners/index.js';
 import { performanceCores } from '../../../../../packages/gate/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
 import {
@@ -21,6 +28,8 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
+import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import {
@@ -31,6 +40,8 @@ import {
 import {
   git,
 } from '../../../../../packages/git/index.js';
+import { gitChildEnv } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import {
   registerProjectAndLink,
 } from '../../../../../packages/seats/index.js';
@@ -62,8 +73,10 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideMainTestRecorder(recordMainTestReceipt);
   traceServeStartup('serve-listen-start');
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
   traceServeStartup('serve-listen-ready');
@@ -76,13 +89,35 @@ export async function serveHere(io, values) {
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
-  await new Promise((stop) => {
-    const stopped = () => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(); };
+  // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
+  const log = join(pullboardHome(), 'serve.log');
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close,
+    affects: servedModuleMoved({ root: CODE_ROOT, entries: [join(CODE_ROOT, 'apps/cli/pullboard.js'), fileURLToPath(import.meta.url)] }), log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
+    relaunch: () => spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
+  const restarted = await new Promise((stop) => {
+    const stopped = (moved) => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(moved === true); };
     process.once('SIGINT', stopped);
     process.once('SIGTERM', stopped);
+    fresh.restarted.then(() => stopped(true));
   });
-  await api.close();
+  fresh.stop();
+  if (!restarted) await api.close();
   return 0;
+}
+
+/** The checkout this CLI's code runs from. */
+const CODE_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+
+/** The commit the CLI's checkout is at, or null outside a Git checkout. */
+function codeCommit() {
+  const read = tryGit(CODE_ROOT, ['rev-parse', 'HEAD'], { env: gitChildEnv(CODE_ROOT) });
+  return read.status === 0 ? read.stdout.trim() : null;
+}
+
+/** This process's own serve arguments, pinned to the port it holds, so a restart answers at the same address. */
+function sameServe(port) {
+  const args = process.argv.slice(2).filter((arg, index, all) => arg !== '--port' && all[index - 1] !== '--port' && !arg.startsWith('--port='));
+  return [...process.execArgv, process.argv[1], ...args, '--port', String(port)];
 }
 
 /**
@@ -93,8 +128,9 @@ export async function serveHere(io, values) {
  * @param {{ projects: () => Array<{ root: string, name: string, project: string, added: string }>, secret: string }} options
  */
 export async function loopbackBoardApi(io, { projects, secret }) {
-  const ctx = context(io), openers = nativeBoardOpeners(io), ids = new Map();
+  const ctx = context(io), openers = { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideMainTestRecorder(recordMainTestReceipt);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
   const boards = () => {

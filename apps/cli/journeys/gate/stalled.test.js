@@ -35,7 +35,7 @@ function withBoard(name, body) {
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
-test('clause 1: a running shadow gate job whose hand-off worker is alive reads running, not stalled [C7]', () => {
+test('clause 1: a running shadow gate job whose hand-off worker is alive reads running, not stalled [C7]', async () => {
   withBoard('shadow', (db) => {
     const now = 10 * 60_000;
     createJob(db, { id: 'alive', kind: 'gate', item: 1, now: 0 });
@@ -70,8 +70,8 @@ function document(result) {
 }
 
 /** The text `pullboard show` prints for the item. */
-function showText(box, id) {
-  const result = box.run(box.repo, 'show', String(id));
+async function showText(box, id) {
+  const result = (await box.runLocal(box.repo, 'show', String(id)));
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return result.out;
 }
@@ -93,9 +93,9 @@ test('clause 1: show and status read a lease-free running shadow gate as running
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const id = document(fixtureAdd(box.run, box.repo, 'web', 'Shadow stalled handoff', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'A live worker keeps the gate running.', '--check', 'true', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   assert.equal(helpers.commitFile(box, box.web, 'web/shadow.txt', 'shadow\n', 'feat(web): shadow candidate [G1]').status, 0);
-  assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'))).queued, true);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile);
   let job;
@@ -108,11 +108,12 @@ test('clause 1: show and status read a lease-free running shadow gate as running
   const record = pid => setDriverProcess(join(box.repo, '.git', 'pullboard', 'board.sqlite'), job.id, { pid });
 
   record(process.pid);
-  assert.match(showText(box, id), /queued gate: running at /u, 'show: a live worker keeps the lease-free gate running');
-  assert.deepEqual(document(box.run(box.repo, 'status', '--json')).stalledGates.filter(row => row.id === job.id), [], 'status: not listed stalled');
+  assert.match(await showText(box, id), /queued gate: running at /u, 'show: a live worker keeps the lease-free gate running');
+  assert.deepEqual(document((await box.runLocal(box.repo, 'status', '--json'))).stalledGates.filter(row => row.id === job.id), [], 'status: not listed stalled');
 
+  // process-level: a worker that has exited.
   const gone = spawnSync(process.execPath, ['-e', '']);
   record(gone.pid);
-  assert.match(showText(box, id), /queued gate: stalled \(reclaimable\)/u, 'show: a dead worker reads stalled');
-  assert.equal(document(box.run(box.repo, 'status', '--json')).stalledGates.filter(row => row.id === job.id).length, 1, 'status: listed stalled');
+  assert.match(await showText(box, id), /queued gate: stalled \(reclaimable\)/u, 'show: a dead worker reads stalled');
+  assert.equal(document((await box.runLocal(box.repo, 'status', '--json'))).stalledGates.filter(row => row.id === job.id).length, 1, 'status: listed stalled');
 });

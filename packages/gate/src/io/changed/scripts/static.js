@@ -1,11 +1,11 @@
 /** Execute the shared gate-cell static checker with the hook's exact staged source, plus the gate's test fixture and test-name checks [C7]. */
 import { fileURLToPath } from 'node:url';
-import { changedStaticFailures } from '../../../../index.js';
-import { stagedHookFailures as gateStagedFailures } from '../../../../index.js';
+import { changedStaticFailures } from '../static.js';
+import { stagedHookFailures as gateStagedFailures } from '../static.js';
 import { fixtureGrowthIn } from '../../test/fixtures.js';
 import { testNameSites } from '../../test/names.js';
 import { TEST_FILE } from '../../scan.js';
-export { changedStaticFailures } from '../../../../index.js';
+export { changedStaticFailures } from '../static.js';
 
 const FIXTURE_CEILINGS = 'packages/gate/data/tests/test-fixtures.json';
 

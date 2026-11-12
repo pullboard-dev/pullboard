@@ -1,8 +1,10 @@
 /** New work defaults to mid, so a plain add and the Main-red filer never refuse DIAGNOSIS_REQUIRED [C7,B13]. */
 import assert from 'node:assert/strict';
 import {
+  mkdirSync,
   mkdtempSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,8 +19,11 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
 /** A plain `add` that names no route: the shared fixture runner files bare adds as strong (#5428), so these cases spawn the CLI themselves. */
-function plainAdd(helpers, box, ...args) {
-  const result = runFixtureChild(process.execPath, [helpers.BIN, 'add', ...args], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+function plainAdd(helpers, box, ...args) { return plainCli(helpers, box, 'add', ...args); }
+
+/** Run any pullboard command the same way. */
+function plainCli(helpers, box, command, ...args) {
+  const result = runFixtureChild(process.execPath, [helpers.BIN, command, ...args], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr };
 }
 
@@ -67,10 +72,40 @@ test("clause 1: pullboard add with --check \"node apps/cli/src/io/run/tests.js '
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
+  // The bar names files that must exist on the fixture's main, or the add refuses them as unbuildable.
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), '// fixture runner\n');
+  writeFileSync(join(box.repo, 'test/x.test.js'), '// fixture test\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: add the bar files');
   const added = plainAdd(helpers, box, 'web', 'Quoted check', '--specs', 'G1', '--criterion', 'x passes [test]',
     '--check', "node apps/cli/src/io/run/tests.js 'test/x.test.js'", '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const { item } = JSON.parse(added.out);
   assert.match(item.item_brief, /^Test: test\/x\.test\.js$/mu, item.item_brief);
   assert.equal(item.item_route, 'mid', 'an undiagnosed default starts mid, never a light add that refuses');
+});
+
+test('clause 1: a diagnosis fact on a strong item keeps it strong and prints the coordinator edit command; a mid item still goes light [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox());
+  const brief = 'Files: web/handler.js\nTest: test/handler.test.js asserts the canonical result';
+  const diagnosis = 'Files: web/handler.js Change: return the canonical result Test case: test/handler.test.js asserts the canonical result';
+  const ids = {};
+  for (const route of ['strong', 'mid']) {
+    const added = plainAdd(helpers, box, 'web', `Diagnose ${route}`, '--criterion', 'the handler returns the canonical result [test]', '--check', 'true', '--brief', brief, '--route', route, '--json');
+    assert.equal(added.code, 0, added.err + added.out);
+    ids[route] = JSON.parse(added.out).item.item_id;
+  }
+  const fact = id => { const r = plainCli(helpers, box, 'fact', String(id), 'diagnosis', diagnosis); return { status: r.code, stdout: r.out, stderr: r.err }; };
+  const strong = fact(ids.strong);
+  assert.equal(strong.status, 0, `${strong.stderr}${strong.stdout}`);
+  assert.match(strong.stdout, new RegExp(`pullboard edit ${ids.strong} --route light`, 'u'), strong.stdout);
+  assert.equal(onBoard(box, board => store.getItem(board, ids.strong).item_route), 'strong');
+  const mid = fact(ids.mid);
+  assert.equal(mid.status, 0, `${mid.stderr}${mid.stdout}`);
+  assert.doesNotMatch(mid.stdout, /pullboard edit/u);
+  assert.equal(onBoard(box, board => store.getItem(board, ids.mid).item_route), 'light');
 });

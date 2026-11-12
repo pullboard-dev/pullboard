@@ -57,10 +57,10 @@ test('a short code chip at a line end stays whole, and long code stays one chip 
   const box = machine();
   const demo = project(box, 'chip-ends');
   const long = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
-  box.run(demo.repo, 'shout', 'all', `Pass the --flag option, then read ${long} before you submit.`);
+  await box.inProcess(demo.repo, 'shout', 'all', `Pass the --flag option, then read ${long} before you submit.`);
   // Twenty-four wide characters are short by count but take two columns each: about 320px of one chip.
   const wide = '中文'.repeat(12);
-  box.run(demo.repo, 'shout', 'all', 'Wide code `' + wide + '` wraps too.');
+  await box.inProcess(demo.repo, 'shout', 'all', 'Wide code `' + wide + '` wraps too.');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-chip-end-chrome-'));
   let chrome;
@@ -116,19 +116,19 @@ test('clause 1: real Chrome styles shout code and item text without growing link
   const box = machine();
   const alpha = project(box, 'shout-code');
   const title = 'A `title` <img src=x onerror=alert(1)> #1';
-  box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Criterion `value` stays safe', '--brief', 'Run $ pullboard claim 1\nKeep `<safe>` literal.');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Criterion `value` stays safe', '--brief', 'Run $ pullboard claim 1\nKeep `<safe>` literal.');
+  await box.inProcess(alpha.web, 'claim', '1');
   const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const sample = 'Inline `code <b>safe</b>`; pullboard shout --decision; --flag; src/cockpit.js; 0123456789abcdef0123456789abcdef01234567.\nPreview SPEC.md:1-2@' + sourceHead + '. Invalid prefix:SPEC.md:1-2@' + sourceHead + '.\n```js\n<script>alert(1)</script>\n```\n$ pullboard claim 1\n<script>alert(1)</script>';
   const wrappedLinkedText = 'This deliberately long linked sample wraps across lines so text length does not define line height. '.repeat(3) + '#1';
-  box.run(alpha.repo, 'shout', 'person', sample, '--decision');
-  box.run(alpha.web, 'shout', 'all', 'A linked line #1');
-  box.run(alpha.web, 'shout', 'all', 'A plain line here');
-  box.run(alpha.web, 'shout', 'all', 'X #1');
-  box.run(alpha.web, 'shout', 'all', 'X');
-  box.run(alpha.web, 'shout', 'all', wrappedLinkedText);
-  box.run(alpha.web, 'shout', 'all', 'OK');
-  box.run(alpha.web, 'shout', 'all', '<script>alert(2)</script> outside code');
+  await box.inProcess(alpha.repo, 'shout', 'person', sample, '--decision');
+  await box.inProcess(alpha.web, 'shout', 'all', 'A linked line #1');
+  await box.inProcess(alpha.web, 'shout', 'all', 'A plain line here');
+  await box.inProcess(alpha.web, 'shout', 'all', 'X #1');
+  await box.inProcess(alpha.web, 'shout', 'all', 'X');
+  await box.inProcess(alpha.web, 'shout', 'all', wrappedLinkedText);
+  await box.inProcess(alpha.web, 'shout', 'all', 'OK');
+  await box.inProcess(alpha.web, 'shout', 'all', '<script>alert(2)</script> outside code');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shout-code-chrome-'));
   let chrome;
@@ -326,12 +326,12 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
 
   const box = machine();
   const alpha = project(box, 'cards');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G1', '--criterion', 'says goodbye');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G1', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.web, 'claim', '1');
   const second = join(box.dir, 'cards-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/cards2');
-  box.run(second, 'join', 'web');
+  await box.inProcess(second, 'join', 'web');
   // A committed page at a path too long for a phone, for a code reference to name.
   const deep = 'docs/a/very/long/path/that/keeps/going/past/a/phone/screen.md';
   mkdirSync(join(alpha.repo, deep, '..'), { recursive: true });
@@ -358,17 +358,17 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   earlier(alpha.repo, twoDays, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: older, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 65 * 60e3, (board) => shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: colour, decision: true, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 125e3, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: ship, decision: true, lanes: ['web'] }));
-  const asked = JSON.parse(box.run(alpha.repo, 'decisions', '--json')).decisions.find((d) => d.shout_text === ship);
-  box.run(alpha.repo, 'answer', String(asked.shout_id), 'Yes, ship it.');
-  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
-  box.run(alpha.web, 'shout', 'all', chips);
-  box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
-  box.run(alpha.web, 'shout', 'all', bodyOnly);
-  box.run(alpha.web, 'shout', 'all', longChips);
-  box.run(alpha.web, 'shout', 'all', refsShout);
-  box.run(alpha.web, 'shout', 'all', blockShout);
-  box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
-  box.run(alpha.web, 'shout', 'all', long);
+  const asked = JSON.parse(await box.inProcess(alpha.repo, 'decisions', '--json')).decisions.find((d) => d.shout_text === ship);
+  await box.inProcess(alpha.repo, 'answer', String(asked.shout_id), 'Yes, ship it.');
+  await box.inProcess(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
+  await box.inProcess(alpha.web, 'shout', 'all', chips);
+  await box.inProcess(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
+  await box.inProcess(alpha.web, 'shout', 'all', bodyOnly);
+  await box.inProcess(alpha.web, 'shout', 'all', longChips);
+  await box.inProcess(alpha.web, 'shout', 'all', refsShout);
+  await box.inProcess(alpha.web, 'shout', 'all', blockShout);
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
+  await box.inProcess(alpha.web, 'shout', 'all', long);
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-cards-chrome-'));
@@ -561,7 +561,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     const foldOf = () => chrome.stable(`JSON.stringify((() => { const c = document.querySelector('#feed #shout-${ids[long]}'), t = c.querySelector('.text'); return [c.querySelector('.more').textContent, Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight))]; })())`).then(JSON.parse);
     await chrome.click(`document.querySelector('#feed #shout-${ids[long]} .more')`);
     assert.deepEqual(await foldOf(), ['Show less', 12], 'more shows every line');
-    box.run(alpha.web, 'shout', 'all', 'A later shout.');
+    await box.inProcess(alpha.web, 'shout', 'all', 'A later shout.');
     await chrome.waitFor(`data.project.shouts.some((s) => s.shout_text === 'A later shout.') && [...document.querySelectorAll('#feed .shout .text')].some(node => node.textContent === 'A later shout.')`, 15_000); // budget: hang ceiling for the new shout to replace the feed card; no throughput claim.
     assert.deepEqual(await foldOf(), ['Show less', 12], 'an open shout stays open across a refresh');
     await chrome.click(`document.querySelector('#feed #shout-${ids[long]} .more')`);

@@ -63,7 +63,7 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   runFixtureGit(['commit', '-q', '-m', 'chore: commit private relay policy'], { cwd: box.root, env: box.env });
   securityStandIn(box);
 
-  const linked = await box.cli('relay', 'on', '--url', box.origin);
+  const linked = await box.cliLocal('relay', 'on', '--url', box.origin);
   assert.equal(linked.code, 0,
     'relay on succeeds when the available security command reports a locked keychain');
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -71,7 +71,7 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   const { link: pairingLink, ...publicLinkResult } = linked.document;
   assert.equal(JSON.stringify(publicLinkResult).includes(encoded), false, 'the JSON result has no key outside its pairing field');
   for (const args of [['status'], ['show', '1'], ['relay'], ['show', '999999']]) {
-    const result = await box.cli(...args);
+    const result = await box.cliLocal(...args);
     assert.equal(result.code, args[1] === '999999' ? 1 : 0,
       `${args.join(' ')} completes; refusal code: ${result.document?.error?.code ?? 'none'}`);
     assert.equal(JSON.stringify(result.document).includes(encoded), false, 'ordinary status, show, relay and refusals never contain the board key');
