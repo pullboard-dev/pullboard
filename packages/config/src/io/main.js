@@ -312,7 +312,7 @@ export function configProblems(config) {
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
-  // landing.stall: how long a landing batch may make no progress before it ends (10 minutes when unset, #3186, #3477).
+  // landing.stall: how long a landing batch may make no progress before it ends (2 minutes when unset, #3186, #3477, #5816).
   for (const key of ['timeout', 'stall']) {
     const value = config.landing?.[key];
     const match = typeof value === 'string' ? CHECK_TIMEOUT_RE.exec(value) : null;
