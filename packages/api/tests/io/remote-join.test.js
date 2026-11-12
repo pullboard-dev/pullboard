@@ -61,7 +61,7 @@ async (t) => {
   const joined = await seat.run('join', 'app', '--model', FIXTURE_MODEL, '--json');
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   const { agent } = JSON.parse(joined.stdout);
-  const moved = await seat.box.call(`${seat.box.path}/moves`, { verb: 'shout', agent, args: { to: 'coordinator', text: 'remote seat reporting' } });
+  const moved = await seat.box.call(`${seat.box.path}/moves`, { verb: 'shout', agent, args: { to: 'coordinator', kind: 'question', text: 'remote seat reporting' } });
   assert.equal(moved.status, 200, JSON.stringify(moved.document));
   assert.equal(moved.document.event.event_by, agent, 'the move acts as the remote agent, not the coordinator');
 });
