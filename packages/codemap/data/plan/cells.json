@@ -2262,6 +2262,7 @@
     "stats->resources",
     "apps/cli->stats",
     "apps/cli->queue",
+    "apps/cli->store",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
