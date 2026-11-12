@@ -171,7 +171,8 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
       'publication retains the canonical carried acceptance within its snapshot');
     const freshReview = prepareEngineMove(origin, 'verify', [id, { agentId: 'coordinator', decision: 'ACCEPT',
       note: 'a fresh verdict still requires its own reviewer authority', head,
-      digest: pending.item.item_frozen_digest, check: 'green',
+      // A bar-only freeze pins no verify policy, so the verdict carries the project's, as the verify command sends it [B4].
+      digest: pending.item.item_frozen_digest, check: 'green', policy: 'any', familyPolicy: 'off',
       review: { commit: head, head, trunk, paths: detail.paths } }]);
     const unprivilegedCoordinator = { kind: 'agent', agent: 'coordinator', userId: 'private-coordinator-without-root',
       policy: MERGE_ONLY_VERDICT_ENGINE };
