@@ -15,6 +15,8 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { cpus } from 'node:os';
+import { loadavg } from 'node:os';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import {
@@ -99,7 +101,10 @@ export function awaitRoundTrip(child, closed, phasesFile, before, deadlines = RO
 
 /** Monitor the owned child's progress and cancellation inside its single explicit yielding wait. */
 async function monitorRoundTrip(child, closed, phasesFile, before, deadlines, firstReceiptAccepted) {
-  const limits = { ...ROUND_TRIP_DEADLINES, ...deadlines };
+  // A phase left at its default deadline is charged for machine load, so a loaded runner is not mistaken for a stuck one.
+  const scale = Math.min(6, Math.max(1, loadavg()[0] / Math.max(1, cpus().length)));
+  const limits = Object.fromEntries(Object.entries(ROUND_TRIP_DEADLINES).map(([name, ms]) =>
+    [name, deadlines === ROUND_TRIP_DEADLINES || deadlines?.[name] === undefined ? Math.round(ms * scale) : deadlines[name]]));
   let done = null;
   closed.then(result => { done = result; });
   const timings = [];

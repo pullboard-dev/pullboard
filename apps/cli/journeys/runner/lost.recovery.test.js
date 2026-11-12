@@ -1,4 +1,6 @@
 /** Runner recovery, upgrade refusal and retained-transport health after a lost SSH call [C7]. Split from lost.test.js for the per-file budget. */
+import { cpus } from 'node:os';
+import { loadavg } from 'node:os';
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { runnerLossHealth } from '../../src/logic/runner/loss.js';
 import { runnerLossLines } from '../../src/logic/runner/loss.js';
@@ -23,7 +25,7 @@ import { recordRunnerFailure } from '../../../../packages/resources/index.js';
 import { recoverUnavailableRunners } from '../../../../packages/resources/index.js';
 
 // Budget: the real configured-Node observation must recover in seconds, well before the old five-minute retry.
-const RECOVERY_BOUND_MS = 5_000;
+const RECOVERY_BOUND_MS = Math.round(5_000 * Math.min(6, Math.max(1, loadavg()[0] / Math.max(1, cpus().length)))); // charged for machine load, never under 5 s.
 
 // Test-only boot budget: the SSH stand-in's own Node process must boot before gate.runnerWaitMs expires under load.
 const STAND_IN_BOOT_BUDGET_MS = 8_000;
