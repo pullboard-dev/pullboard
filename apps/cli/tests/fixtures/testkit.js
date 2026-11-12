@@ -157,6 +157,26 @@ export function fixtureMachineSettings(machineHome, settings) {
 }
 
 /**
+ * The gate dispatch under which a fixture's submit, test run or comparison settles inside the command that started it.
+ * Why one constant: a pulled gate runs accepted main's own Pullboard packages, which a fixture project's main lacks, so
+ * fixtures name their dispatch here instead of inheriting the machine default; when controller dispatch goes, only this changes [P7].
+ */
+export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'controller' });
+
+/**
+ * Make a fixture machine home whose submits settle the same way whatever the machine's runnerDispatch default is:
+ * the folder, and its settings with FIXTURE_GATE_DISPATCH under any gate fields the fixture names.
+ *
+ * @param {string} machineHome - The fixture's machine home folder.
+ * @param {object} [settings] - Further machine settings; its gate fields keep their own values beside the dispatch.
+ * @returns {void}
+ */
+export function fixtureSettledMachine(machineHome, settings = {}) {
+  mkdirSync(machineHome, { recursive: true });
+  fixtureMachineSettings(machineHome, { ...settings, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
+}
+
+/**
  * Write a file the repository's cells-plan tooling reads (packages/codemap/data/plan/cells.json) into a fixture project before its commit.
  *
  * Why: the hand-policy check sends tests here instead of writing packages/codemap/data/plan/cells.json by hand.
