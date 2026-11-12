@@ -20,7 +20,7 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   // sleep is only the floor. Either way the overhead left is submit's own, and two serial checks would double it (#5752).
   const slower = Math.max(...receipts.map(receipt => receipt.durationMs));
   assert.ok(slower >= Math.max(...runs.map(run => run.end - run.start)), `the receipt times the whole check: ${slower}ms`);
-  const where = `before the checks ${Math.min(...runs.map(run => run.start)) - started}ms, after them ${started + wallMs - Math.max(...runs.map(run => run.end))}ms; ${((result.err + result.out).match(/submit [a-z -]+: [0-9.]+s at [0-9]+/gu) ?? []).join(', ')}`;
+  const where = `before the checks ${Math.min(...runs.map(run => run.start)) - started}ms, after them ${started + wallMs - Math.max(...runs.map(run => run.end))}ms`;
   t.diagnostic(`submit ${wallMs}ms; slower check ${slower}ms; ${where}`);
   assert.ok(wallMs <= slower * 1.2, `submit ${wallMs}ms, slower check ${slower}ms; ${where}`);
   assert.equal(new Set(receipts.map(receipt => receipt.id)).size, 2);

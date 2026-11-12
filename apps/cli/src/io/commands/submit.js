@@ -263,7 +263,6 @@ import { reportPreflight } from '../submit/preflight.js';
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
   ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
-  process.stderr.write(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s at ${Math.round(performance.now())}\n`);
   const end = Date.now();
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
@@ -673,11 +672,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   /** Judge the test result, including exact-main comparison, while other independent stages run. */
   const judgeTests = async (signal) => {
   await preflightPassed;
-  process.stderr.write(`submit probe l-tests: 0s at ${Math.round(performance.now())}\n`); 
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
   let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests, check: frozenCheck(held) },
     runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
-  process.stderr.write(`submit probe m-tests-done: 0s at ${Math.round(performance.now())}\n`); 
   if (signal.aborted) throw signal.reason;
   // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
   const judgeStart = Date.now();
@@ -863,7 +860,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   recordGateSpan({ phase: 'tests-judge', start: judgeStart, outcome: 'done' });
   return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionVerdict, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
-  process.stderr.write(`submit probe j-stages: 0s at ${Math.round(performance.now())}\n`); ctx.submitAttempt.stage = 'runner';
+  ctx.submitAttempt.stage = 'runner';
   // Independent stages start together; a red refuses immediately. A driven gate (ctx.runGateStages) records each stage [C7].
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
   const stages = await (ctx.runGateStages ?? runGateStages)([
@@ -885,7 +882,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
             throw new Refused('GATE_RED', `preflight is red; no runner was queued. Fix the named source, commit, and submit again:\n${lines.join('\n')}`);
           }
         }
-        process.stderr.write(`submit probe k-preflight: 0s at ${Math.round(performance.now())}\n`); settlePreflight.resolve();
+        settlePreflight.resolve();
         return placed;
       } catch (error) { settlePreflight.reject(error); throw error; }
     } },
