@@ -109,9 +109,6 @@
   "apps/cli/tests/fixtures/cockpit/journey/routes.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "sleep": 2
-  },
   "apps/cli/journeys/init/origin/paint.test.js": {
     "sleep": 1
   },
@@ -127,7 +124,7 @@
   "apps/cli/journeys/relay/signin.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/roadmap/cockpit.test.js": {
+  "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
     "sleep": 1
   },
   "apps/cli/journeys/shout/shouts.test.js": {

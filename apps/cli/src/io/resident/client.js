@@ -280,6 +280,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
   let code, place, starts;
   try {
     if (!residentCommand(argv)) return Promise.resolve(null);
+    // The environment alone can refuse (a test run, PULLBOARD_RESIDENT=0): answer that before codeVersion asks Git [C7].
+    if (!residentAllowed(env, false)) return Promise.resolve(null);
     starts = residentStarts(argv);
     code = codeVersion(entry);
     if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
