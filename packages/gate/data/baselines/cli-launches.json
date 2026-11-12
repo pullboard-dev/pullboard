@@ -575,9 +575,6 @@
   "apps/cli/journeys/init/empty.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/gate.test.js": {
-    "launch": 34
-  },
   "apps/cli/journeys/init/geometry.test.js": {
     "launch": 1
   },
@@ -1673,9 +1670,6 @@
   "apps/cli/journeys/study/metrics.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/advisory.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/submit/branch.test.js": {
     "launch": 2
   },
@@ -1766,9 +1760,6 @@
   "apps/cli/journeys/submit/landing/backoff.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/submit/line.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/submit/loop.test.js": {
     "launch": 10
   },
@@ -1780,9 +1771,6 @@
   },
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/submit/noplan.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/submit/notes.test.js": {
     "launch": 5
@@ -1805,9 +1793,6 @@
   "apps/cli/journeys/submit/preflight/order.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/proof.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/submit/pull.test.js": {
     "launch": 1
   },
@@ -1823,20 +1808,8 @@
   "apps/cli/journeys/submit/retry.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/reuse.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/submit/review.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/submit/size.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/submit/stacked.test.js": {
     "launch": 29
-  },
-  "apps/cli/journeys/submit/steps.test.js": {
-    "launch": 6
   },
   "apps/cli/journeys/submit/ticks.test.js": {
     "launch": 4

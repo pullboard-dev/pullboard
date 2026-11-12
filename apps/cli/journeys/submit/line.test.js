@@ -16,8 +16,8 @@ const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
 /** Run the actual private CLI and retain its complete refusal when an assertion fails. */
-function json(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+async function json(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args, '--json');
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return JSON.parse(result.out);
 }
@@ -28,7 +28,7 @@ function commit(box, cwd, message) {
   box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('clause 1: deferred suite and cross-lane mechanical edit submit both notices on one line [V4,L3,C7]', () => {
+test('clause 1: deferred suite and cross-lane mechanical edit submit both notices on one line [V4,L3,C7]', async () => {
   const box = helpers.project('node --test', helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
@@ -43,18 +43,18 @@ test('clause 1: deferred suite and cross-lane mechanical edit submit both notice
   commit(box, box.repo, 'chore: seed deferred mechanical fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  json(box, builder, 'join', 'web');
-  const item = json(box, box.repo, 'add', 'web', 'Repoint the consumer import', '--specs', 'G1', '--check', 'node --test test/import.test.js',
+  await json(box, builder, 'join', 'web');
+  const item = await json(box, box.repo, 'add', 'web', 'Repoint the consumer import', '--specs', 'G1', '--check', 'node --test test/import.test.js',
     '--criterion', '1. The consumer imports the renamed module and test/import.test.js passes [test].').item.item_id;
-  json(box, builder, 'claim', String(item));
+  await json(box, builder, 'claim', String(item));
   box.git(builder, 'mv', 'web/old.js', 'web/new.js');
   writeFileSync(join(builder, 'api/consumer.js'), "import { value } from '../web/new.js';\nexport const result = value;\n");
   commit(box, builder, 'refactor(web): repoint consumer import [G1]');
-  json(box, builder, 'fact', String(item), 'note', 'clause 1 [test]: test/import.test.js proves clause 1: the consumer import resolves to the renamed module');
-  const submitted = json(box, builder, 'submit', String(item), '--no-next');
+  await json(box, builder, 'fact', String(item), 'note', 'clause 1 [test]: test/import.test.js proves clause 1: the consumer import resolves to the renamed module');
+  const submitted = await json(box, builder, 'submit', String(item), '--no-next');
   assert.equal(submitted.gate.deferred, true);
   assert.match(submitted.gate.report, /cross-lane mechanical edits: api\/consumer\.js/u);
-  const shown = json(box, builder, 'show', String(item));
+  const shown = await json(box, builder, 'show', String(item));
   assert.equal(shown.item_status, 'submitted');
   const event = shown.thread.findLast(row => row.kind === 'submit');
   assert.equal(event.detail.note, 'full suite deferred to the landing gate; cross-lane mechanical edits: api/consumer.js');
