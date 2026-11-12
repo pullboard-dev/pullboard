@@ -11,9 +11,6 @@
   "apps/cli/journeys/init/tools.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/shout/references.test.js": {
-    "launch": 15
-  },
   "apps/cli/journeys/spec/revision.test.js": {
     "launch": 1
   },
@@ -1270,9 +1267,6 @@
   },
   "apps/cli/journeys/lifecycle/merge.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/roadmap/cockpit/shipping.test.js": {
-    "launch": 16
   },
   "apps/cli/journeys/list/startup.test.js": {
     "launch": 10
