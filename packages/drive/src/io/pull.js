@@ -24,6 +24,7 @@ import { pipeline } from 'node:stream/promises';
 import { availableParallelism } from 'node:os';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
+import { totalmem } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -698,7 +699,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
     let answer;
-    try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots }); }
+    try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots, cores, ram: totalmem() }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
     if (!answer.claim) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].

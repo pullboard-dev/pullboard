@@ -185,6 +185,7 @@ export { readPipelineLedger } from './src/io/ledger.js';
 export { nearestRank } from './src/logic/runners/rank.js';
 export { HEALTH_PAYLOAD_STEPS, HEALTH_STEP_NAMES, UP_GAP_MS, runnerHealth, runnerHealthLines } from './src/logic/runners/health.js';
 export { ABANDONED_AFTER_MS, WAIT_STEP_NAMES, runnerWaitLines, runnerWaits, waitRows } from './src/logic/runners/wait.js';
+export { serveHosts } from './src/logic/runners/serves.js';
 export { readRunnerJobs } from './src/io/runners.js';
 export { MAIN_TEST_KIND, mainLag, mainLagLines } from './src/logic/runners/lag.js';
 export { readMainLandings } from './src/io/runners/lag.js';

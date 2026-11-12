@@ -137,7 +137,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, now = Date.now(), leaseMs = LEASE_MS }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS }) {
   runnerId(runner);
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
@@ -154,7 +154,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       if (taken.changes !== 1) continue;
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
-      writeStep(db, row.job_id, 'claimed', { runner, capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), token: tokenHash(token) }, { seq: attempt, now });
+      writeStep(db, row.job_id, 'claimed', { runner, capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
       return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
     }
     return null;
@@ -284,9 +284,9 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, capabilities, kinds, jobs, job, token, receipt, progress } = body ?? {};
+  const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, now });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
