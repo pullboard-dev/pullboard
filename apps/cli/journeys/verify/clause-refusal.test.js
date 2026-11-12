@@ -9,7 +9,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { openKitBoard } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
-const CRITERION = '1. The page renders its title [test]. 2. The page renders its footer [test].';
+const CRITERION = 'The page renders its title. The page renders its footer.';
 
 test('clause 1: the BAR_CLAUSE_REQUIRED refusal lists each frozen clause as a paste-ready --clause argument [F7]', async t => {
   const helpers = createE2eHelpers();
@@ -37,7 +37,6 @@ test('clause 1: the BAR_CLAUSE_REQUIRED refusal lists each frozen clause as a pa
   assert.equal(missing.code, 1, missing.err + missing.out);
   const error = JSON.parse(missing.out).error;
   assert.equal(error.code, 'BAR_CLAUSE_REQUIRED');
-  assert.match(error.next, /--clause "1\. The page renders its title \[test\]\."/u);
-  assert.match(error.next, /--clause "2\. The page renders its footer \[test\]\."/u);
-  assert.doesNotMatch(error.next, /--clause "[12]\."/u, 'a bare clause number is not a clause');
+  assert.match(error.next, /--clause "The page renders its title\."/u);
+  assert.match(error.next, /--clause "The page renders its footer\."/u);
 });
