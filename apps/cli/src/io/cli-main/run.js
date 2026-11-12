@@ -209,7 +209,8 @@ async function runMain(argv, streams) {
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
   // A seat whose board lives on another host reads and moves it over HTTP and opens no board.sqlite [P7].
-  if (parsed && !parsed.values.help && !parsed.values.version && REMOTE_COMMANDS.has(parsed.positionals[0])) {
+  // A command the board host runs for a channel (api, view, mcp) is already on the board, so it never posts back to itself.
+  if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && REMOTE_COMMANDS.has(parsed.positionals[0])) {
     const remote = await import('../remote/board.js');
     const target = remote.remoteBoard();
     if (target && ['show', 'whoami'].includes(parsed.positionals[0])) return remote.runRemoteRead(io, parsed, target);
