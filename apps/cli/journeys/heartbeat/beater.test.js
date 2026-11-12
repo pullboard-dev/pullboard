@@ -14,6 +14,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { agentSession } from '../../src/io/beater.js';
+import { processTable } from '../../src/io/beater.js';
 import { startClaimBeater } from '../../src/io/beater.js';
 import {
   createE2eHelpers,
@@ -26,7 +27,6 @@ import {
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-const BEATER = new URL('../../src/io/beater.js', import.meta.url).href;
 
 /** Resolve once `check` holds, re-reading it on each change in `dir`; fail after ten seconds without it. */
 async function whenTrue(dir, check, what) {
@@ -47,20 +47,20 @@ function exited(pid) {
 
 /** A long-lived stand-in for an agent session (Claude, Codex or any tool): it only sleeps until killed. */
 function fakeAgent(t) {
-  const agent = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  const agent = spawn('/bin/sleep', ['600'], { stdio: 'ignore' });
   t.after(() => { try { agent.kill('SIGKILL'); } catch { /* already gone */ } });
   return agent;
 }
 
-/** A joined seat holding one claim, made by the real CLI on a real Git repository and SQLite board. */
-function claimedSeat(env = {}) {
+/** A joined seat holding one claim, made by the real CLI, answered in this process, on a real Git repository and SQLite board. */
+async function claimedSeat(env = {}) {
   const box = helpers.project('true');
   Object.assign(box.env, env);
   const joined = joinFixtureSeat(box, box.web, 'web', { model: FIXTURE_MODEL });
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   const seat = JSON.parse(joined.out).agent;
   const id = String(fileFixtureItem(box, box.repo, { lane: 'web', title: 'Kept alive', check: 'true', args: ['--specs', 'G1'] }).item_id);
-  const claimed = box.run(box.web, 'claim', id);
+  const claimed = await box.inProcess(box.web, 'claim', id);
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const pullboard = join(box.repo, '.git', 'pullboard');
   return { box, seat, id, lock: join(pullboard, 'beaters', `${encodeURIComponent(seat)}.json`), presence: join(pullboard, 'board.sqlite.presence.sqlite') };
@@ -88,13 +88,12 @@ function heartbeatAt(presence, seat) {
 test('clause 1: the agent session is the nearest ancestor that is not the shell or a wrapper the CLI ran in, for any agent tool [B3]', t => {
   const agent = fakeAgent(t);
   // The agent opens a shell for one command, the way Claude's Bash tool and Codex both do; `; true` keeps the shell from exec'ing away.
-  const probe = `import(${JSON.stringify(BEATER)}).then(m => process.stdout.write(JSON.stringify(m.agentSession({ env: {} }))))`;
-  // The probe is a plain node child with a bare environment, not a test child, so it prints its own stdout.
-  const shell = spawnSync('/bin/sh', ['-c', `env "${process.execPath}" -e '${probe}'; true`], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
-  assert.equal(shell.status, 0, shell.stderr);
-  assert.notEqual(shell.stdout, '', `the probe printed its session: ${shell.stderr}`);
-  // The probe's own parent chain: sh (shell) -> this test process. The test process stands in for the agent here.
-  assert.equal(JSON.parse(shell.stdout).pid, process.pid, 'the shell and env are skipped; the first other ancestor is the session');
+  const shell = spawn('/bin/sh', ['-c', 'sleep 600; true'], { stdio: 'ignore' });
+  t.after(() => { try { shell.kill('SIGKILL'); } catch { /* already gone */ } });
+  // Read from the real process table, a CLI whose parent is that shell finds this test process, the shell's parent, as the session.
+  const real = agentSession({ env: {}, ppid: shell.pid, table: processTable() });
+  assert.equal(real?.pid, process.pid, 'the shell is skipped; the first other ancestor is the session');
+  assert.match(real.start, /^\S{3} \S{3} [ \d]\d \d\d:\d\d:\d\d \d{4}$/u, 'its start time tells it from a later process given the same pid');
   const table = new Map([[40, { ppid: 30, start: 'x', comm: '-zsh' }], [30, { ppid: 20, start: 'y', comm: '/usr/bin/timeout' }],
     [20, { ppid: 1, start: 'Wed Nov 11 14:43:32 2026', comm: '/opt/codex/bin/codex' }]]);
   assert.deepEqual(agentSession({ env: {}, ppid: 40, table }), { pid: 20, start: 'Wed Nov 11 14:43:32 2026' });
@@ -105,7 +104,7 @@ test('clause 1: the agent session is the nearest ancestor that is not the shell 
 
 test('clause 1: a claim starts a detached beater that beats while the agent lives and stops when the agent exits [B3,C7]', async t => {
   const agent = fakeAgent(t);
-  const f = claimedSeat({ PULLBOARD_CLAIM_BEATER: '1', PULLBOARD_AGENT_PID: String(agent.pid), PULLBOARD_BEATER_MS: '100' });
+  const f = await claimedSeat({ PULLBOARD_CLAIM_BEATER: '1', PULLBOARD_AGENT_PID: String(agent.pid), PULLBOARD_BEATER_MS: '100' });
   assert.equal(existsSync(f.lock), true, 'the claim recorded its beater');
   const beater = JSON.parse(readFileSync(f.lock, 'utf8'));
   t.after(() => { try { process.kill(beater.pid, 'SIGKILL'); } catch { /* already gone */ } });
@@ -124,13 +123,13 @@ test('clause 1: a claim starts a detached beater that beats while the agent live
 test('clause 1: the beater stops when the claim ends or the worktree is gone [B3,C7]', async t => {
   const agent = fakeAgent(t);
   const env = { PULLBOARD_CLAIM_BEATER: '1', PULLBOARD_AGENT_PID: String(agent.pid), PULLBOARD_BEATER_MS: '100' };
-  const released = claimedSeat(env);
+  const released = await claimedSeat(env);
   const first = JSON.parse(readFileSync(released.lock, 'utf8')).pid;
   t.after(() => { try { process.kill(first, 'SIGKILL'); } catch { /* already gone */ } });
-  const done = released.box.run(released.box.web, 'release', released.id, '--reason', 'BLOCKED', '--note', 'fixture beater done');
+  const done = await released.box.inProcess(released.box.web, 'release', released.id, '--reason', 'BLOCKED', '--note', 'fixture beater done');
   assert.equal(done.code, 0, `${done.out}\n${done.err}`);
   assert.equal(exited(first), true, 'the beater stops once the claim ended');
-  const removed = claimedSeat(env);
+  const removed = await claimedSeat(env);
   const second = JSON.parse(readFileSync(removed.lock, 'utf8')).pid;
   t.after(() => { try { process.kill(second, 'SIGKILL'); } catch { /* already gone */ } });
   rmSync(removed.box.web, { recursive: true, force: true });
@@ -139,11 +138,11 @@ test('clause 1: the beater stops when the claim ends or the worktree is gone [B3
 });
 
 test('clause 2: a long read command from a seat keeps the 60 s keepalive submit has [B3,C7]', async () => {
-  const f = claimedSeat({ PULLBOARD_KEEPALIVE_MS: '100' });
-  const released = f.box.run(f.box.web, 'release', f.id, '--reason', 'BLOCKED', '--note', 'free the seat so next waits');
+  const f = await claimedSeat({ PULLBOARD_KEEPALIVE_MS: '100' });
+  const released = await f.box.inProcess(f.box.web, 'release', f.id, '--reason', 'BLOCKED', '--note', 'free the seat so next waits');
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
   const old = ageHeartbeat(f.presence, f.seat);
   // next --wait with no work for the seat blocks about 3 s and writes no move; only the keepalive can beat.
-  const waited = f.box.run(f.box.web, 'next', '--wait', '0.05', '--lane', 'web');
+  const waited = await f.box.inProcess(f.box.web, 'next', '--wait', '0.05', '--lane', 'web');
   assert.ok(heartbeatAt(f.presence, f.seat) > old, `the waiting command beat its seat\n${waited.out}\n${waited.err}`);
 });
