@@ -56,3 +56,17 @@ materializer.close();`;
   const took = Date.now() - closedAt;
   assert.ok(took < 5_000, `the process took ${took} ms to exit after close(), with 2 s of grace`); // budget: declared ceiling, the clause allows 5 s for a busy process to exit after close().
 });
+
+test('clause 1: the 2 s grace timer is cleared when the worker exits, so no timer outlives an idle worker [A2,C7]', async () => {
+  // The child prints `closing` only when, after the worker has exited, no timer is left holding the process.
+  const source = `const { startStateMaterializer } = await import(${JSON.stringify(new URL('../../../src/io/state/materializer.js', import.meta.url).href)});
+const materializer = startStateMaterializer({ portsModule: ${JSON.stringify(busyPorts('materializer-idle', 0))}, projects: () => [], isMain: true,
+  openRevision: () => ({ revision: () => 'r1' }), Refused: class extends Error {} });
+await new Promise((resolve) => setTimeout(resolve, 500));
+materializer.close();
+await new Promise((resolve) => setTimeout(resolve, 500));
+await new Promise((resolve) => setImmediate(resolve));
+if (!process.getActiveResourcesInfo().includes('Timeout')) console.log('closing');`;
+  const clean = await runUntilExit(source, 10_000);
+  assert.ok(clean, 'a timer still held the process after the idle worker exited, or the child failed');
+});
