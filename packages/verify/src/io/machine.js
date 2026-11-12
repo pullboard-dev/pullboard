@@ -65,8 +65,12 @@ export function acceptMachineSubmission(board, item, options, { getItem, moveIte
     // The other accept guards were checked by submit just above; this move's own builder check runs here, since the verdict is the coordinator's.
     checks: { ...Object.fromEntries(MOVES.find(move => move.verb === 'accept').guards.map(name => [name, null])),
       notBuilder: found => found.item_built_by === 'coordinator' ? new Refused('SELF_VERIFY', `item #${found.item_id} was built by the coordinator, so it cannot also verify it`) : null },
-    before: found => recordVerdict(board, found, { agentId: 'coordinator', decision: 'ACCEPT', reason: 'CRITERION_MET', note,
-      digest: found.item_frozen_digest, head: options.commit }),
+    // The row the move reads is live: the accept move's `from` also lists verified, so its own state guard lets a verified row through; refuse it here, before any verdict is written.
+    before: found => {
+      if (found.item_status !== 'submitted') throw new Refused('NOT_SUBMITTED', `item #${found.item_id} is ${found.item_status}; machine acceptance applies to submitted work only`);
+      recordVerdict(board, found, { agentId: 'coordinator', decision: 'ACCEPT', reason: 'CRITERION_MET', note,
+      digest: found.item_frozen_digest, head: options.commit });
+    },
     set: () => ({ item_verdict: 'ACCEPT', item_verified_by: 'coordinator' }),
   });
   const review = { commit: options.commit, head: options.commit, trunk: options.policyCommit, paths: [...new Set(options.files ?? [])].sort() };

@@ -47,3 +47,11 @@ test('machine acceptance refuses NOT_SUBMITTED for an item that left submitted [
     assert.equal(box.calls.length, 0, 'no move and no event is written');
   }
 });
+
+test('machine acceptance refuses NOT_SUBMITTED on the live row when the item leaves submitted after the precheck [V1]', () => {
+  const box = fixture();
+  const live = { ...box.item, item_status: 'verified' };
+  const deps = { ...box.deps, moveItem: (board, id, verb, how) => { box.calls.push(['move', verb]); how.before(live); return live; } };
+  assert.throws(() => acceptMachineSubmission(box.db, box.item, box.options, deps), (error) => error.code === 'NOT_SUBMITTED');
+  assert.equal(box.calls.some(call => call[0] === 'event'), false, 'no accept event is logged');
+});
