@@ -138,10 +138,15 @@ export function sealItemPatchSubmit(board, id, options) {
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
     for (const receipt of receipts) board.nativePorts.quarantine.sealQuarantineVerdict(board, receipt);
     const { policyAt, frozenCheck } = board.enginePorts.sandboxPolicyReads;
-    const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
-    const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
-      check: frozenCheck(item), commit: binding.commit });
-    const phases = plan.phases.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+    // A pulled gate's plan is the one main's tooling made on the runner, read from the receipt the board recorded;
+    // re-planning here with this host's tooling would judge another plan than the one that ran [P7].
+    const pulled = options.pulledPlan ?? null;
+    const plan = pulled ? { check: frozenCheck(item), proofFiles: pulled.proofFiles, selection: { full: false, files: [] }, deferred: false, deferSelection: false }
+      : submitGatePlan(root, submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config),
+        { base: item.item_claim_head, trunk: options.policyCommit, check: frozenCheck(item), commit: binding.commit });
+    const phases = pulled ? pulled.phases.map(({ role, command }) => ({ role, command }))
+      : plan.phases.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+    if (pulled && Boolean(plan.check) !== (phases[0]?.role === 'criterion')) throw new Error('missing or substituted required phase');
     if (JSON.stringify(binding.phases) !== JSON.stringify(phases)
       || receipts.some((receipt, index) => receipt.proof.submitPhase !== phases[index]?.role || receipt.command !== phases[index]?.command)
       || plan.check && !receiptBlockingGreen(receipts[0])) throw new Error('missing or substituted required phase');

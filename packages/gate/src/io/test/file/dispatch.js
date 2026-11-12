@@ -16,6 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { availableParallelism } from 'node:os';
+import { loadavg } from 'node:os';
 import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { run } from 'node:test';
@@ -29,6 +30,7 @@ import { testOutcomeCollector } from '../outcomes.js';
 import { readTestFileBudgets } from './policy.js';
 import { testFileRelative } from './policy.js';
 import { testFileBudgetFailure } from '../../../logic/test/budget/file.js';
+import { testFileLoadScale } from '../../../logic/test/budget/file.js';
 import { fileRuntimeCapRefusal } from '../../file/cap.js';
 import { rootReceiptRuntimes } from '../../file/cap.js';
 import { readFileTimes } from '../value/timing.js';
@@ -108,6 +110,8 @@ export function dispatchTestFiles(options, env) {
   const lastRuntimes = { ...readFileTimes(budgetRoot), ...rootReceiptRuntimes(budgetRoot) };
   // PULLBOARD_FILE_RUNTIME_CAP_MS replaces the two-minute cap for a run; a fixture uses it to cross the cap in milliseconds.
   const runtimeCap = Number(env.PULLBOARD_FILE_RUNTIME_CAP_MS) > 0 ? Number(env.PULLBOARD_FILE_RUNTIME_CAP_MS) : undefined;
+  // PULLBOARD_TEST_LOAD pins the measured one-minute load, so a fixture's timing does not depend on its runner's load.
+  const sampleLoad = env.PULLBOARD_TEST_LOAD === undefined ? () => loadavg()[0] : () => Number(env.PULLBOARD_TEST_LOAD);
   const limit = options.concurrency === false ? 1 : options.concurrency === true
     ? Math.max(1, availableParallelism() - 1) : options.concurrency ?? 1;
   const acquire = acquisitionQueue();
@@ -168,11 +172,14 @@ export function dispatchTestFiles(options, env) {
         setup: undefined, execArgv });
       source.once('error', error => controller.abort(error));
       const events = [];
+      const loads = [sampleLoad()];
+      let sampledAt = Date.now();
       let summary;
       let afterPlan = false;
       drained = (async () => {
         for await (const event of source) {
           if ((event.type === 'test:stdout' || event.type === 'test:stderr') && event.data.message?.length) writeFileSync(outputMarker, String(Date.now()));
+          if (Date.now() - sampledAt >= 1000) { loads.push(sampleLoad()); sampledAt = Date.now(); }
           if (event.type === 'test:plan' && event.data.nesting === 0) { afterPlan = true; continue; }
           if (event.type === 'test:summary' && !event.data.file) { summary = event.data; continue; }
           if (trailer(event, afterPlan)) continue;
@@ -185,8 +192,10 @@ export function dispatchTestFiles(options, env) {
         if (summary.success && actualWorkers !== 1) throw new Error(`test file has no actual worker exit receipt: ${file}`);
         const portableFile = testFileRelative(budgetRoot, resolve(cwd, file));
         const budget = budgets.get(portableFile);
-        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit)
-          ?? (budget.audit ? null : fileRuntimeCapRefusal(portableFile, summary.duration_ms, lastRuntimes, events, runtimeCap));
+        // Both limits charge the file for its own work: wall time divided by the runner's measured load per core (#4944).
+        const scale = testFileLoadScale([...loads, sampleLoad()], availableParallelism());
+        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit, scale)
+          ?? (budget.audit ? null : fileRuntimeCapRefusal(portableFile, summary.duration_ms / scale, lastRuntimes, events, runtimeCap));
         if (over) {
           process.stderr.write(`test file budget: ${over}\n`);
           events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });
