@@ -185,14 +185,8 @@
   "apps/cli/journeys/doctor/main.test.js": {
     "launch": 42
   },
-  "apps/cli/journeys/doctrine/checks.test.js": {
-    "launch": 15
-  },
   "apps/cli/journeys/doctrine/main.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/doctrine/name.test.js": {
-    "launch": 32
   },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "launch": 2
@@ -201,7 +195,7 @@
     "launch": 1
   },
   "apps/cli/journeys/doctrine/rulings.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "apps/cli/journeys/edges/door.test.js": {
     "launch": 2
