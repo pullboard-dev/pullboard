@@ -157,6 +157,10 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     agent.group = agent.current.some(entry => entry.kind === 'build') ? 'building'
       : agent.current.length ? 'reviewing' : agent.last > now - 20 * 60_000 ? 'between items' : 'quiet';
   }
+  // The server's own four-hour counts stand in while the browser's history is incomplete; never a guess from a partial log.
+  const recent = project.dashboardRecent && typeof project.dashboardRecent === 'object' ? project.dashboardRecent : null;
+  /** One server-read count, or null when the board sent none. */
+  const read = key => Number.isInteger(recent?.[key]) && recent[key] >= 0 ? recent[key] : null;
   const times = [...landed.values()], pace = project.dashboardPace ?? project.milestones?.find(entry => entry.summary?.pace)?.summary.pace ?? null;
   const bins = Array.from({ length: 24 }, (_, index) => {
     const from = now - (24-index)*hour;
@@ -182,9 +186,11 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     totals: { working: agents.filter(agent => agent.group !== 'quiet').length,
       allTime: merged.size,
       day: pace?.last24h ?? (complete ? times.filter(at => at > now-24*hour).length : null),
-      recent: complete ? times.filter(at => at > start).length : null,
-      passed: complete ? passed : null,
-      sentBack: complete ? sentBack : null,
-      shouts: complete ? personShouts : null },
+      recent: complete ? times.filter(at => at > start).length : read('landed'),
+      passed: complete ? passed : read('passed'),
+      sentBack: complete ? sentBack : read('sentBack'),
+      shouts: complete ? personShouts : read('shouts') },
+    // Why a hero count is missing, for its hover; null once every count is a number.
+    unread: complete || recent ? null : 'The board has not sent its last-4-hour counts yet, and its full event history is still loading.',
   };
 }

@@ -6,6 +6,7 @@ import { modelPresentation } from "./cost/tab.js";
 import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
+import { dashboardRecent } from "./dashboard/recent.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /**
@@ -454,6 +455,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       dashboardNext: fields.dashboardNext,
       // Pace windows end on exact milliseconds, so they are read at this clock and never kept with the minute-marked fields.
       dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
+      // The hero's four-hour counts, so a board whose full history the browser never finishes reading still shows numbers.
+      dashboardRecent: dashboardRecent(board, new Map(all.map(item => [item.item_id, item])), now),
       dashboardLanded: fields.dashboardLanded,
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
