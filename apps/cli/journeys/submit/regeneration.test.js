@@ -1,6 +1,7 @@
 /** @pullboard-test-input packages/codemap/data/plan/seed.json */
 /** Real recorded tool commands regenerate conflicting source, with fresh full proof and no inherited verdict [C7,V4,V6]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -135,8 +136,10 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.equal(box.git('rev-parse', command === 'remove-shims' ? 'HEAD~2' : 'HEAD^'), currentMain);
   assert.match(readFileSync(join(box.root, 'packages/leaf/src/core/leaf.js'), 'utf8'), /value = 2/u);
   assert.ok(existsSync(marker), 'regeneration runs the full gate even when normal submit defers it');
-  assert.ok(item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === head && receipt.full === true),
-    `the new head has a full-gate receipt: ${JSON.stringify(item.proofReceipts)}`);
+  // The proof phase ran the project's full configured gate, whose receipt names that command's digest.
+  const fullGate = createHash('sha256').update(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate).digest('hex');
+  assert.ok(item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === head && receipt.submitPhase === 'proof' && receipt.command === fullGate),
+    'the new head has a full-gate proof receipt');
   assert.equal(item.queuedSubmit.state, 'green', 'recorded tools use a real queued handoff, not the foreground exemption');
   assert.equal(item.queuedSubmit.commit, head, 'the immutable queue captures the regenerated tool source');
   assert.equal(item.item_status, 'submitted');
