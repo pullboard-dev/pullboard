@@ -20,45 +20,45 @@ import { requireRelayOnChannel } from '../../../../../packages/person/index.js';
 import { parseSpec } from '../../../../../packages/spec/index.js';
 import { SPEC } from '../../../tests/fixtures/spec/box.js';
 import { specBox } from '../../../tests/fixtures/spec/box.js';
-import { runIn } from '../../../tests/fixtures/spec/box.js';
+import { runInProcessAt } from '../../../tests/fixtures/spec/box.js';
 import { SETUP_SPEC } from '../../../tests/fixtures/spec/box.js';
 import { answerCommandCase } from '../../../tests/fixtures/spec/box.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 
-test('an approved row waits for apply, not for the person [S1,I1,P6]', (t) => {
+test('an approved row waits for apply, not for the person [S1,I1,P6]', async (t) => {
   const box = specBox(t, { specSource: SETUP_SPEC });
   /** Setup details live on the diagnostic card; retain all original person/apply assertions. */
-  const resume = () => {
-    const read = runIn(box, box.root, ['resume', '--diagnostics']);
+  const resume = async () => {
+    const read = await runInProcessAt(box, box.root, ['resume', '--diagnostics']);
     assert.equal(read.status, 0, read.stdout + read.stderr);
     return read.stdout;
   };
-  const before = resume();
+  const before = await resume();
   assert.match(before, /For the person: pullboard spec approve A1; pullboard spec answer A2 "<choice>"/u,
     'a draft row is offered for approval and a pending question for an answer, never approve');
 
-  assert.equal(box.run('approve', 'A1').status, 0);
-  const halfway = resume();
+  assert.equal((await box.spec('approve', 'A1')).status, 0);
+  const halfway = await resume();
   assert.doesNotMatch(halfway, /spec approve A1|approve A1,|Waiting for the person to (approve|decide|answer) A1/u, 'an approved row is no longer asked of the person');
   assert.match(halfway, /The person already approved A1; pullboard spec apply writes them\./u, 'the approved row is named as waiting for apply');
   assert.match(halfway, /pullboard spec answer A2 "<choice>"/u, 'the open question is still offered as an answer');
 
-  assert.equal(box.run('answer', 'A2', 'Netlify').status, 0);
-  const decided = resume();
+  assert.equal((await box.spec('answer', 'A2', 'Netlify')).status, 0);
+  const decided = await resume();
   assert.match(decided, /The person approved A1, A2; apply them: pullboard spec apply\./u, 'with every row decided, the coordinator is told to apply');
   assert.match(decided, /^next: pullboard spec apply, then commit SPEC\.md$/mu);
   assert.doesNotMatch(decided, /Waiting for the person|For the person|spec approve/u, 'nothing is asked of the person again');
   for (const text of [before, halfway, decided]) assert.doesNotMatch(text, /reword|redraft/iu, 'no surface asks an agent to reword or redraft a row');
 
-  assert.equal(box.run('apply').status, 0);
+  assert.equal((await box.spec('apply')).status, 0);
   // runFixtureGit throws if the commit fails, so reaching the next line means SPEC.md is committed.
   runFixtureGit(['commit', '-q', '-m', 'docs(spec): apply row decisions', '--', box.specName], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  const after = resume();
+  const after = await resume();
   assert.doesNotMatch(after, /spec apply|Waiting for the person to (approve|decide|answer)/u, 'once applied and committed, setup moves on');
 });
 
-test('a joined seat requests answers for pending questions [S1,I1,P6]', t => {
+test('a joined seat requests answers for pending questions [S1,I1,P6]', async t => {
   for (const mixed of [false, true]) {
     const source = '# Spec\n\n## Q · Setup\n- Q1 [pending, must] It deploys to: Vercel. Choices: Vercel, Netlify. | gate: review\n'
       + (mixed ? '- A1 [draft, must] Every page works at phone width. | gate: review\n' : '');
@@ -71,9 +71,9 @@ test('a joined seat requests answers for pending questions [S1,I1,P6]', t => {
     box.git('commit', '-q', '-m', 'chore: configure the setup fixture lane');
     const builder = join(box.root, 'builder');
     box.git('worktree', 'add', '-q', '-b', 'build/setup', builder);
-    const joined = runIn(box, builder, ['join', 'build', '--model', 'Fixture']);
+    const joined = await runInProcessAt(box, builder, ['join', 'build', '--model', 'Fixture']);
     assert.equal(joined.status, 0, joined.stderr + joined.stdout);
-    const read = runIn(box, builder, ['resume', '--diagnostics', '--json']);
+    const read = await runInProcessAt(box, builder, ['resume', '--diagnostics', '--json']);
     assert.equal(read.status, 0, read.stderr + read.stdout);
     const card = JSON.parse(read.stdout);
     assert.match(card.setup.personCommand, /pullboard spec answer Q1 "<choice>"/u);
@@ -88,27 +88,27 @@ test('a joined seat requests answers for pending questions [S1,I1,P6]', t => {
   }
 });
 
-test('a changed approved draft needs a new decision before apply [S1,I1,P6]', t => {
+test('a changed approved draft needs a new decision before apply [S1,I1,P6]', async t => {
   const box = specBox(t, { specSource: '# Spec\n\n## A · Setup\n- A1 [draft, must] Every page works at phone width. | gate: review\n' });
-  assert.equal(box.run('approve', 'A1').status, 0);
+  assert.equal((await box.spec('approve', 'A1')).status, 0);
   const path = join(box.root, box.specName);
   writeFileSync(path, readFileSync(path, 'utf8').replace('phone width', 'desktop width'));
-  const staleApply = box.run('apply');
+  const staleApply = await box.spec('apply');
   assert.equal(staleApply.status, 1, staleApply.stdout + staleApply.stderr);
   assert.match(staleApply.stderr, /STALE_ROW_DECISION/u);
-  const read = runIn(box, box.root, ['resume', '--diagnostics', '--json']);
+  const read = await runInProcessAt(box, box.root, ['resume', '--diagnostics', '--json']);
   assert.equal(read.status, 0, read.stderr + read.stdout);
   const card = JSON.parse(read.stdout);
   assert.equal(card.setup.waitingOn, 'person-approval', 'the old decision does not approve the changed text');
   assert.deepEqual(card.setup.rowIds, ['A1']);
   assert.equal(card.setup.personCommand, 'pullboard spec approve A1');
   assert.doesNotMatch(card.next, /spec apply/u, 'applying the stale receipt would loop');
-  assert.equal(box.run('approve', 'A1').status, 0, 'the person can approve the current text');
-  const decided = JSON.parse(runIn(box, box.root, ['resume', '--diagnostics', '--json']).stdout);
+  assert.equal((await box.spec('approve', 'A1')).status, 0, 'the person can approve the current text');
+  const decided = JSON.parse((await runInProcessAt(box, box.root, ['resume', '--diagnostics', '--json'])).stdout);
   assert.equal(decided.setup.waitingOn, 'coordinator-apply');
-  assert.equal(box.run('apply').status, 0);
+  assert.equal((await box.spec('apply')).status, 0);
   runFixtureGit(['commit', '-q', '-m', 'docs(spec): apply current row decision', '--', box.specName], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  const applied = JSON.parse(runIn(box, box.root, ['resume', '--diagnostics', '--json']).stdout);
+  const applied = JSON.parse((await runInProcessAt(box, box.root, ['resume', '--diagnostics', '--json'])).stdout);
   assert.doesNotMatch(applied.next, /spec apply|approve A1/u);
 });
 
@@ -139,7 +139,7 @@ test('landing repoints only Git-renamed gate paths and keeps deleted gates missi
   assert.ok(!findings.some(row => row.id === 'G1' || row.id === 'G3'));
 });
 
-test('spec check fails when an approved row names a missing gate [S4]', (t) => {
+test('spec check fails when an approved row names a missing gate [S4]', async (t) => {
   // A gate file that was committed and then removed is a lost test: an approved must-row fails spec check and
   // names the row, the file and the removal (#809).
   const box = specBox(t, { specSource: SPEC });
@@ -150,24 +150,24 @@ test('spec check fails when an approved row names a missing gate [S4]', (t) => {
   box.git('rm', '-q', 'test/proof-gone.test.js');
   box.git('commit', '-q', '-m', 'test: remove the proof');
   writeFileSync(join(box.root, box.specName), `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/proof-gone.test.js\n`);
-  const text = box.run('check');
+  const text = await box.spec('check');
   assert.equal(text.status, 1, text.stdout + text.stderr);
   assert.match(text.stdout + text.stderr, /G9 error: gate file test\/proof-gone\.test\.js was removed from the repository/u);
 });
 
-test('a gate test that was never written only warns, so a new project passes [S4]', (t) => {
+test('a gate test that was never written only warns, so a new project passes [S4]', async (t) => {
   // A gate file that was never committed is a test not written yet: a warning, so the README's example still fits (#809).
   const source = `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/never-written.test.js\n`;
   const box = specBox(t, { specSource: source });
-  const text = box.run('check');
+  const text = await box.spec('check');
   assert.equal(text.status, 0, text.stdout + text.stderr);
   assert.match(text.stdout + text.stderr, /G9 warning: gate file test\/never-written\.test\.js does not exist yet/u);
 });
 
-test('a draft row with a missing gate file only warns [S4]', (t) => {
+test('a draft row with a missing gate file only warns [S4]', async (t) => {
   const source = `${SPEC}- G9 [draft, must] A rule not yet proved. | gate: test/not-yet.test.js\n`;
   const box = specBox(t, { specSource: source });
-  const text = box.run('check');
+  const text = await box.spec('check');
   assert.equal(text.status, 0, text.stdout + text.stderr);
   assert.match(text.stderr + text.stdout, /G9 warning: gate file test\/not-yet\.test\.js does not exist/u);
 });

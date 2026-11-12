@@ -29,10 +29,10 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   const box = e2e.project('true');
   assert.equal(e2e.commitFile(box, box.repo, 'web/shared.txt', 'base\n', 'chore: shared fixture').status, 0);
   box.git(box.web, 'merge', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Keep local work', '--specs', 'G1',
-    '--criterion', 'the shared source exists', '--check', 'test -f web/shared.txt', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Keep local work', '--specs', 'G1',
+    '--criterion', 'the shared source exists', '--check', 'test -f web/shared.txt', '--json'));
   assert.equal(added.code, 0, added.err);
-  const claimed = box.run(box.web, 'claim', '1', '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', '1', '--json'));
   assert.equal(claimed.code, 0, claimed.err);
   const workerPath = JSON.parse(claimed.out).itemFolder;
   assert.equal(e2e.commitFile(box, workerPath, 'web/shared.txt', 'worker\n', 'feat(web): local work [G1]').status, 0);
@@ -62,7 +62,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
     assert.ok(notices.some(text => text.includes('web/shared.txt') && text.includes('git merge main')),
       'the actual shared land publish/finishTrunk post-landing hook emits its warning');
   } finally { store.closeBoard(board); }
-  const merged = box.run(box.repo, 'merged', String(landed), trunk);
+  const merged = (await box.runLocal(box.repo, 'merged', String(landed), trunk));
   assert.equal(merged.code, 0, merged.err);
   assert.match(merged.out, /web\/shared\.txt/u);
   assert.match(merged.out, /git merge main/u);
@@ -75,7 +75,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
     assert.equal(notices.filter(notice => notice.shout_text.includes('web/shared.txt') && notice.shout_text.includes(trunk.slice(0, 12))).length, 1,
       'the land hook and merged receipt share one deduplicated board warning');
   } finally { store.closeBoard(read); }
-  const refused = box.run(workerPath, 'submit', '1', '--json');
+  const refused = (await box.runLocal(workerPath, 'submit', '1', '--json'));
   assert.equal(refused.code, 1);
   assert.match(refused.err + refused.out, /MERGE_CONFLICT/u);
   assert.match(refused.err + refused.out, /web\/shared\.txt/u);
@@ -83,6 +83,6 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   const resolved = e2e.commitFile(box, workerPath, 'web/shared.txt', 'worker and trunk\n', 'feat(web): merge main [G1]');
   assert.equal(resolved.status, 0, resolved.context);
   assert.equal(box.git(workerPath, 'rev-parse', 'HEAD^2'), trunk, 'normal merge retains the original history');
-  const submitted = box.run(workerPath, 'submit', '1', '--json');
+  const submitted = (await box.runLocal(workerPath, 'submit', '1', '--json'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
 });

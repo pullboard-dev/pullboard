@@ -19,6 +19,7 @@ import {
 import { validateRunner } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
 import { validateServe } from '../logic/settings.js';
+import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -110,6 +111,32 @@ export function workerBudget() {
 export function setWorkerBudget(budget) {
   const current = loadMachineSettings();
   const next = { ...current, workers: { ...current.workers, budget: { spend: budget.spend, window: budget.window } } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
+}
+
+/**
+ * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token'} key
+ * @param {string} value
+ */
+export function setBoardRemote(key, value) {
+  const current = loadMachineSettings();
+  const { [key]: _old, ...rest } = current.board ?? {};
+  const board = value === 'off' ? rest : { ...rest, [key]: value };
+  validateBoardRemote(board, 'the command line');
+  const { board: _board, ...others } = current;
+  const next = Object.keys(board).length ? { ...others, board } : others;
   writeMachineSettings(next);
   return next;
 }

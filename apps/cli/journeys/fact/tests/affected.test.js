@@ -496,6 +496,9 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/sandbox/tests/privacy/guard.test.js',
     'packages/gate/tests/logic/wait.test.js',
     'packages/gate/tests/io/test/waits.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
+    'packages/gate/tests/io/test/launches.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
@@ -514,8 +517,11 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/gate/tests/io/test/waits.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
+    'packages/gate/tests/io/test/launches.test.js',
   ];
-  assert.equal(guards.length, 8, 'all selected guards are scanned');
+  assert.equal(guards.length, 11, 'all selected guards are scanned');
   for (const guardScanFile of scanFiles) {
     assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
     const source = readFileSync(join(root, guardScanFile), 'utf8');

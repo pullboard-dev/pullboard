@@ -50,23 +50,28 @@ const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../apps/c
 
 /**
  * True when this `pullboard test` call belongs to an agent seat and so queues instead of blocking: a joined seat
- * (not the main checkout) inside an agent shell, with no `--wait`, and not itself a queued run's worker.
+ * (not the main checkout), not machine work, and not itself a queued run's worker. A seat holding a claim always
+ * queues, whatever `--wait`, PULLBOARD_TEST_WAIT or its shell says; a seat holding none queues only inside an agent
+ * shell without either.
  *
- * Why the agent-shell check: a person or a script in a seat worktree keeps the blocking answer it always had, and
- * PULLBOARD_TEST_WAIT lets any wrapper (an item check that runs pullboard test) keep it too.
+ * Why the claim decides: about 80 `pullboard test --wait` processes, each an agent waiting on runner results, ran the
+ * coordinator Mac out of memory on 11 Nov, and ssh-launched seats carry no agent marker. A claim is board state no
+ * shell can lose; a person or a script with no claim keeps the blocking answer it always had [P7].
  *
  * @param {any} ctx
  * @param {string|undefined} agent - The seat's agent id, or undefined when the checkout has no seat.
  * @param {Record<string, any>} values - The parsed switches.
  * @param {NodeJS.ProcessEnv} [environment]
- * @param {{ alive?: (pid: number) => boolean, pid?: number }} [options]
+ * @param {{ alive?: (pid: number) => boolean, pid?: number, claimed?: boolean }} [options] - `claimed`: the seat holds
+ *   at least one live build claim.
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid } = {}) {
-  if (values.wait === true || values['test-run'] !== undefined || environment.PULLBOARD_TEST_WAIT === '1') return false;
-  if (ctx.info.isMain || agent === undefined) return false;
-  if (!AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]))) return false;
-  return machineContext(environment, { alive, pid }) === null;
+export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
+  if (values['test-run'] !== undefined || ctx.info.isMain || agent === undefined) return false;
+  if (machineContext(environment, { alive, pid }) !== null) return false;
+  if (claimed) return true;
+  if (values.wait === true || environment.PULLBOARD_TEST_WAIT === '1') return false;
+  return AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]));
 }
 
 /**

@@ -107,7 +107,8 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
   for (let wait = RETRY.firstMs; !signal.aborted; wait = Math.min(wait * 2, RETRY.maxMs)) {
     try {
       say(`serving ${root} as board ${id}`);
-      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, signal, say: line => say(`${basename(root)}: ${line}`) });
+      // One job at a time on the board host: concurrent jobs belong on runners, never on the coordinator Mac (#5805).
+      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, jobs: 1, signal, say: line => say(`${basename(root)}: ${line}`) });
       wait = RETRY.firstMs;
     } catch (error) {
       if (signal.aborted) break;

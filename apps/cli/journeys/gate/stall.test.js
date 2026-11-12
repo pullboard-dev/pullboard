@@ -219,7 +219,7 @@ test('clause 3: the production sentinel loop shouts Stuck naming the item and jo
   // A scan that a concurrent board write made stale records nothing and the next scheduled run records it, so allow three.
   let shouts = [];
   for (let run = 0; run < 3 && !shouts.length; run += 1) {
-    const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
+    const sweep = (await box.runLocal(box.repo, 'sentinel', 'run', '--health-only'));
     assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
     shouts = stuckShouts();
   }
