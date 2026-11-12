@@ -1624,5 +1624,8 @@
   },
   "apps/cli/journeys/init/refresh.test.js": {
     "launch": 2
+  },
+  "apps/lib/tests/runner/once.test.js": {
+    "launch": 2
   }
 }

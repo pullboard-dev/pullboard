@@ -56,6 +56,7 @@ const source = { commit: ${JSON.stringify(commit)}, tree: ${JSON.stringify(tree)
 const protection = sourceObjects(${JSON.stringify(project)}, source);
 console.log(JSON.stringify({ commit: source.commit, protection, tags: candidateTags(${JSON.stringify(project)}, source) }));`;
   const env = { ...box.env, PULLBOARD_MACHINE_HOME: home, PATH: `${git.bin}:${box.env.PATH}` };
+  // Process-level: concurrent gate trips are separate node processes sharing one tree memo.
   const trips = await Promise.all(['echo shard-1', 'echo shard-2', 'echo shard-3', 'echo analysis'].map(command =>
     runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', trip(command)], { cwd: project, env, encoding: 'utf8' })));
   for (const run of trips) assert.equal(run.status, 0, run.context ?? run.stderr);
@@ -83,6 +84,7 @@ const keys = await memoizedActionKeys(${JSON.stringify(store)}, 'tree-identity',
   return new Map(['a.test.js', 'b.test.js', 'c.test.js'].map(name => [name, { key: 'f'.repeat(64), inputKey: name, reason: '' }]));
 }, { prune: false });
 console.log(JSON.stringify([...keys]));`;
+  // Process-level: three concurrent gate trips are separate node processes sharing one memo store.
   const runs = await Promise.all(['a.test.js', 'b.test.js', 'c.test.js'].map(file =>
     runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', ask(file)], { env: box.env, encoding: 'utf8' })));
   for (const run of runs) assert.equal(run.status, 0, run.context ?? run.stderr);
