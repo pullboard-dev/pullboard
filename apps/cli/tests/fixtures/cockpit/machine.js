@@ -71,10 +71,11 @@ function machine() {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
-  disableFixtureBackgroundView(env, dir);
   // Cockpit journeys hold their gate in the submitting process, so they pin controller dispatch like e2e.js does [P7].
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  // The background opt-out merges into those settings, so it goes second.
+  disableFixtureBackgroundView(env, dir);
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const invocations = [];
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
