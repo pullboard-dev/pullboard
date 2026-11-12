@@ -1921,5 +1921,8 @@
   },
   "apps/cli/journeys/relay/sync.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/speed/spawns.test.js": {
+    "launch": 6
   }
 }

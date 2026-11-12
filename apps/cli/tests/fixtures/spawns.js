@@ -1,7 +1,7 @@
 /**
  * A spawn counter for speed tests [C7]. Started with `--import`, it logs each child process the process starts, and
  * every process that inherits NODE_OPTIONS, to the file named by PULLBOARD_SPAWN_LOG, one line per child:
- * `<pid> <api> <command> <first two args>`. A test reads the log back with `spawnCounts`.
+ * `<pid> <api> <command> <first eight args>`. A test reads the log back with `spawnCounts`.
  * Why: a command's spawn count is the cost the speed pieces cut; the count is stable where milliseconds are not.
  */
 import { appendFileSync } from 'node:fs';
@@ -20,7 +20,7 @@ if (LOG) {
     childProcess[api] = function recorded(...args) {
       const command = typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '';
       const rest = Array.isArray(args[1]) ? args[1] : typeof args[0] === 'string' ? args[0].trim().split(/\s+/u).slice(1) : [];
-      appendFileSync(LOG, `${process.pid} ${api} ${command} ${rest.slice(0, 2).join(' ')}\n`);
+      appendFileSync(LOG, `${process.pid} ${api} ${command} ${rest.slice(0, 8).join(' ')}\n`);
       return real.apply(this, args);
     };
   }
