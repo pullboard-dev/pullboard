@@ -7,6 +7,7 @@ import { LEASE_MS } from '../../../jobs/index.js';
 import { atomically } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { readPayload } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { upsertProgressStep } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
@@ -26,6 +27,12 @@ const RUN_ARG_BYTES = 4096;
 const PAYLOAD_BYTES = 16 * 1024;
 // Budget: a job's request (a gate's pinned commits, config and trusted entries) stays inline, under the 64 KiB blob threshold the claim scan reads.
 const REQUEST_BYTES = 60 * 1024;
+// Budget: a request part this large or larger may be named by board id in the offered row instead of inlined.
+const PART_BYTES = 1024;
+// Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
+const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
+/** The step a request too large for its offered row is kept in; its parts in the offer name it. */
+const REQUEST_STEP = 'request';
 // Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
 const PROGRESS_BYTES = 60 * 1024;
 /** A repository-relative test path: never absolute, never climbing out, never a host or checkout folder. */
@@ -78,14 +85,78 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   const argv = runArgv(run);
   if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
   if (payload !== null && Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_BYTES) throw new Refused('JOB_PAYLOAD', `a job payload is at most ${PAYLOAD_BYTES} bytes; name commits and refs, and let the runner fetch the code from git`);
-  if (request !== null && (typeof request !== 'object' || Array.isArray(request) || Buffer.byteLength(JSON.stringify(request)) > REQUEST_BYTES)) {
-    throw new Refused('JOB_REQUEST', `a job request is a JSON object of at most ${REQUEST_BYTES} bytes; keep large inputs in git and name them`);
+  if (request !== null && (typeof request !== 'object' || Array.isArray(request) || Buffer.byteLength(JSON.stringify(request)) > STORED_REQUEST_BYTES)) {
+    throw new Refused('JOB_REQUEST', `a job request is a JSON object of at most ${STORED_REQUEST_BYTES} bytes; keep large inputs in git and name them`);
+  }
+  const offered = request === null ? null : namedRequest(request);
+  if (offered && Buffer.byteLength(JSON.stringify(offered)) > REQUEST_BYTES) {
+    throw new Refused('JOB_REQUEST', `a job request's offered row is a JSON object of at most ${REQUEST_BYTES} bytes once its parts of ${PART_BYTES} bytes or more are named; keep large inputs in git and name them`);
   }
   return atomically(db, () => {
     const job = createJob(db, { id, kind, item, candidate, base, now });
-    if (job.step === 'queued' && job.steps.length === 0) writeStep(db, id, 'offered', { needs: wanted, ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(request ? { request } : {}) }, { now });
+    if (job.step === 'queued' && job.steps.length === 0) {
+      // The whole request goes in first, so the job's step ends on offered and the claim scan finds it.
+      if (offered !== request) writeStep(db, id, REQUEST_STEP, { request }, { now });
+      writeStep(db, id, 'offered', { needs: wanted, ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}) }, { now });
+    }
     return jobView(db, id);
   });
+}
+
+/**
+ * The request as its offered row keeps it: the request itself when it fits REQUEST_BYTES, else a copy whose largest
+ * parts (strings and lists of PART_BYTES or more, largest first) are each replaced by a name for the job's request
+ * step, until it fits. Why: the claim scan reads every open offered row, so a row stays small however large a gate's
+ * inputs grow (#5417's 61,582-byte request); the whole request is read back only by the runner that holds the job (#6150).
+ *
+ * @param {Record<string, unknown>} request
+ * @returns {Record<string, unknown>}
+ */
+function namedRequest(request) {
+  let size = Buffer.byteLength(JSON.stringify(request));
+  if (size <= REQUEST_BYTES) return request;
+  const copy = structuredClone(request), parts = [];
+  const walk = (value, path) => {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      const bytes = Buffer.byteLength(JSON.stringify(child) ?? '');
+      if ((typeof child === 'string' || Array.isArray(child)) && bytes >= PART_BYTES) parts.push({ holder: value, key, path: [...path, key], bytes });
+      else walk(child, [...path, key]);
+    }
+  };
+  walk(copy, []);
+  for (const part of parts.sort((a, b) => b.bytes - a.bytes)) {
+    if (size <= REQUEST_BYTES) break;
+    const name = { $named: REQUEST_STEP, path: part.path, bytes: part.bytes };
+    part.holder[part.key] = name;
+    size += Buffer.byteLength(JSON.stringify(name)) - part.bytes;
+  }
+  return copy;
+}
+
+/** True when an offered request names a part of itself kept in the job's request step. */
+function namesParts(value) {
+  if (!value || typeof value !== 'object') return false;
+  if (value.$named === REQUEST_STEP) return true;
+  return Object.values(value).some(namesParts);
+}
+
+/**
+ * The whole request a job was offered with, or null: the offered row's request, read back from the job's request
+ * step when the row names its parts there [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @returns {Record<string, unknown> | null}
+ */
+export function offeredRequest(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
+  const request = row ? JSON.parse(row.job_step_payload).request ?? null : null;
+  if (!namesParts(request)) return request;
+  const kept = db.prepare('SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = ? AND job_step_seq = 0').get(job, REQUEST_STEP);
+  const whole = kept ? readPayload(db, kept.job_step_payload) : null;
+  if (!whole?.request) throw new Refused('JOB_REQUEST', `job ${job}'s offer names its request step, but the board no longer holds it; resubmit the item for a new gate job`);
+  return whole.request;
 }
 
 /**
@@ -206,7 +277,7 @@ export function jobRequest(db, { job, runner, token }) {
   heldBy(db, job, runner, token);
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
-  return { job, kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, base: row.job_base, request: JSON.parse(row.job_step_payload).request ?? null };
+  return { job, kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, base: row.job_base, request: offeredRequest(db, job) };
 }
 
 /**

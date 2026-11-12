@@ -826,8 +826,9 @@ function apiProjectScope(projects, scope) {
 }
 
 /** Read events in sequence, including changes made by other processes on the same board. */
-function afterEvents(root, after, isMain, boardOpeners) {
-  return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(after), isMain, boardOpeners);
+function afterEvents(root, after, isMain, boardOpeners, limit) {
+  // A limit stops the read itself: a large board's whole log is never built to be cut down afterwards.
+  return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id LIMIT ?').all(after, limit ?? -1), isMain, boardOpeners);
 }
 
 /** Resolve an authenticated local caller's agent to its own checkout, never another board. */
@@ -1367,7 +1368,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       window, now: new Date(now()), modelPresentation: costModelPresentation,
       }), codeIsMain, boardOpeners));
     },
-    events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners)),
+    events: (board, after, _who, limit) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
     request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
