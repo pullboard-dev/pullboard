@@ -8,7 +8,7 @@ const ms = text => { const value = Date.parse(String(text ?? '')); return Number
  * What the review flow needs, up to a moment.
  *
  * Why: a wait that began before the window still sits in its queue, so events are read from the start of the board;
- * only the verdicts are limited to the window, and reservations are those still live at its end.
+ * only the verdicts are limited to the window, and reservations are those still live at its end (the board clears one at a verdict, so a live one belongs to an item waiting for review).
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{until: number}} window - epoch ms
@@ -26,6 +26,6 @@ export function readReviewFlow(db, { until }) {
   const verdicts = db.prepare(`SELECT item_id AS item, verdict_at AS at, verdict_decision AS decision, verdict_verifier_family AS family FROM verdict
     WHERE verdict_at < ? ORDER BY verdict_id`).all(stop).map(row => ({ ...row, at: Date.parse(row.at) }));
   const reservedNow = db.prepare(`SELECT item_id AS item, item_review_by AS by, item_review_until AS until FROM item
-    WHERE item_status = 'submitted' AND item_review_by IS NOT NULL AND item_review_until > ? ORDER BY item_id`).all(stop);
+    WHERE item_review_by IS NOT NULL AND item_review_until > ? ORDER BY item_id`).all(stop);
   return { events, verdicts, reservedNow };
 }

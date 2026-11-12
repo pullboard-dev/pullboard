@@ -14,7 +14,7 @@ const MINUTE = 60_000;
 function seed(db) {
   const item = db.prepare("INSERT INTO item(item_id,item_lane,item_title,item_created_by,item_created_at,item_updated_at) VALUES (?,?,?,?,?,?)");
   for (let id = 1; id <= 6; id++) item.run(id, 'core', `seeded ${id}`, 'coordinator', iso('00:00:00.000'), iso('00:00:00.000'));
-  db.prepare("UPDATE item SET item_status='submitted', item_built_by='core-1', item_commit='c4', item_frozen_digest='d4', item_review_by='core-9', item_review_until=? WHERE item_id=4").run(iso('12:30:00.000'));
+  db.prepare("UPDATE item SET item_review_by='core-9', item_review_until=? WHERE item_id=4").run(iso('12:30:00.000'));
   const event = db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)');
   const put = (time, kind, id, detail = {}) => event.run(iso(time), 'core-1', kind, id, JSON.stringify(detail));
   put('07:30:00.000', 'submit', 5);
