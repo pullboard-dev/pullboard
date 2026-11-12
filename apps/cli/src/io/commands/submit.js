@@ -436,7 +436,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) })) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
     if (clauseProblem) throw clauseProblem;
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
@@ -1087,7 +1087,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
         }
       }
-      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
+      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held), head: submitted });
       if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: summary }]);
     }
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
