@@ -5,7 +5,6 @@ import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
-import { runCliInProcess } from './process.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -27,6 +26,7 @@ import { openBoard } from '../../../lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
+import { runCliInProcess } from './process.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
@@ -134,7 +134,7 @@ function sandbox({ declareFamilies = false } = {}) {
     const result = await runCliInProcess(args, { cwd, env });
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
-  return { dir, env, git, tryGit, run, inProcess, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -240,7 +240,7 @@ function launch(box, cwd, command, args) {
 async function waitFor(predicate, description, timeoutMs = 8_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const value = predicate();
+    const value = await predicate();
     if (value) return value;
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
   }
