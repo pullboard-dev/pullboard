@@ -1,7 +1,6 @@
 /** The take cases that run beside take.test.js so no file passes the per-file time budget [N2,V1,V2,B3,H16]. */
 import { installPostMoveHandoffCases } from '../../tests/fixtures/cases/handoff.js';
 import '../../tests/fixtures/next/take/cases.js';
-import '../../tests/fixtures/next/cases.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 import { test } from 'node:test';
