@@ -15,6 +15,7 @@ import { placeLandingHistory } from './history.js';
 import { placeLandingNewFiles } from './history.js';
 import { refreshLandingDocs } from './docs.js';
 import { measureHeldRules } from './doctrine.js';
+import { stageTestRegistries } from './registries.js';
 
 /** Printed instead of a patch when this checkout is not the tree the coordinator named, so the coordinator derives locally. */
 export const DERIVE_UNAVAILABLE = 'LANDING_DERIVE_UNAVAILABLE';
@@ -100,6 +101,7 @@ async function main() {
   const wanted = argument('--tree');
   if (git(root, ['rev-parse', 'HEAD^{tree}']) !== wanted) { process.stdout.write(`${DERIVE_UNAVAILABLE}\n`); return; }
   const { engines } = stageLandingDerived(root);
+  await stageTestRegistries(root, argument('--base') ?? 'HEAD^1');
   const badges = argument('--badges');
   if (badges) stageBadgeDocuments(root, JSON.parse(Buffer.from(badges, 'base64').toString('utf8')));
   const patch = await gitStdin(root, ['diff', '--cached', '--binary', 'HEAD']);
