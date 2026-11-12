@@ -2,7 +2,7 @@
 import { join } from 'node:path';
 
 /**
- * Construct a minimal environment from runner-owned values, excluding caller credentials and markers.
+ * A minimal environment from runner-owned values, excluding caller credentials and markers.
  *
  * @param {{ safePath: string, workerId?: string }} S - Job PATH and id.
  * @param {string} home - The job's own HOME.

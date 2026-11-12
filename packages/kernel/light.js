@@ -1,4 +1,4 @@
-/** Light kernel door the runner worker loads: refusal identity, job environment, lexing, registry guards, session ids, adapter audit and the process census parser, with no event or sealing code [C7,CD60]. */
+/** Light kernel door the runner worker loads: refusal identity, the job environment, lexing, registry guards, session ids, adapter audit and the process census parser, with no event or sealing code [C7,CD60]. */
 export { Refused } from './src/logic/refused.js';
 export { literalShellWords } from './src/logic/words.js';
 export { createRelayAdapter, createFakeRelayAdapter } from './src/logic/adapter.js';
