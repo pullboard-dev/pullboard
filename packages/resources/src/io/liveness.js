@@ -35,7 +35,8 @@ function recordLiveness(db, kind, row, detail = '') {
  */
 function freeHolder(db, row, relaunches, why = 'process gone, or its PID now names another process') {
   db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
-  recordLiveness(db, 'freed', row, why);
+  // The log names the holder it released, so a freed slot never changes hands silently [C7].
+  recordLiveness(db, 'freed', row, `released the ${row.name} slot held by ${row.agent || 'an unnamed holder'} (pid ${row.pid}${row.kind ? `, ${row.kind}` : ''}): ${why}`);
   if (!row.request) {
     recordLiveness(db, 'reopen', row, 'no captured request; the item reopens to its holder through next');
     return;

@@ -10,3 +10,4 @@ export { sampleRunnerLoad, localRunnerDescriptor } from './src/io/load.js';
 export { carriedRunnerTrunk } from './src/io/policy.js';
 export { probeRunnerTransport } from './src/io/probe.js';
 export { effectiveRunners, refreshRunnerMeasurements } from './src/io/slots.js';
+export { LEGACY_WORKER_ENTRY, WORKER_ENTRY, trustedWorkerEntry } from './src/logic/entries.js';

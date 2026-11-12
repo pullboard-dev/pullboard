@@ -1,9 +1,10 @@
 import { sharedRowHtml } from "../component.js";
+import { plainNeedWords } from "./list.js";
 
 /** Project the person's calls into grouped presentation rows without browser state [N26,B26]. */
 export function needsPanelModel(calls, project, { compact = false, person = false, expanded = [] } = {}) {
   const drafts = calls.find(row => row.kind === 'draft')?.count ?? 0;
-  const sorted = calls.filter(row => row.kind !== 'draft').map(row => row.kind === 'hold'
+  const sorted = calls.filter(row => row.kind !== 'draft').map(plainNeedWords).map(row => row.kind === 'hold'
     ? { ...row, at: row.at ?? project.holds?.find(hold => hold.hold_lane === row.id)?.hold_at } : row)
     .toSorted((a, b) => (Date.parse(a.at ?? a.approvedAt) || 0) - (Date.parse(b.at ?? b.approvedAt) || 0));
   /** Retain repeated causes and recorded proof references in the row model. */
