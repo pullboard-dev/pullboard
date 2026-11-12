@@ -44,7 +44,7 @@ withCellLintParser(compile => {
     lowerCellLintBaseline(plan.report, baseline);
     writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
   } else {
-    // --check counts current main and this checkout now; no committed baseline must match either [C7].
+    // --check holds this checkout to main's committed baseline, never to debt main merely carries now [C7,CD23].
     const main = mainCommit(root);
     process.exitCode = cachedCellsRun(root, ['cell-lints', mode, main ?? 'no-main'], () => {
       const current = build(), base = mainCellLintReport(root, parsers, main);

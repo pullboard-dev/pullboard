@@ -2,6 +2,9 @@ import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { readCellLintBaseline } from '../cell/lint/store.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../cell/lint/store.js';
 import { cellLintReport } from '../cell/lints.js';
 import { cellLintBaseline } from '../cell/lint/ratchet.js';
 import { Refused } from '../../../../kernel/index.js';
@@ -26,8 +29,8 @@ export function mainCommit(root) {
 
 /**
  * Count current main's cell debt now, from a clean temporary checkout of its exact commit [C7].
- * Ratchets compare a candidate with this computed baseline instead of a committed snapshot, so a snapshot
- * that drifted after landings can never refuse an unrelated item. Returns null when there is no main.
+ * When main commits a baseline, that committed snapshot is the allowance, so a landing that skipped the check
+ * cannot raise it; counted debt stands in only when main has none. Returns null when there is no main.
  */
 export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
   if (!commit) return null;
@@ -38,7 +41,9 @@ export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
     const selected = cloned.status === 0 ? gitRun(checkout, ['checkout', '--quiet', '--force', '--detach', commit]) : cloned;
     if (selected.status !== 0) throw new Refused('CELL_BASELINE', `main ${commit.slice(0, 12)} could not be checked out to count its cell debt; run git fetch, then the check again`);
     const report = cellLintReport(checkout, parsers);
-    return { commit, report, baseline: cellLintBaseline(report) };
+    // The committed snapshot is the authority when main has one; main's counted debt only stands in when it has none [C7,CD23].
+    const committed = existsSync(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(checkout) : null;
+    return { commit, report, baseline: committed ?? cellLintBaseline(report), committed: Boolean(committed) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
