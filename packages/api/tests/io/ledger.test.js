@@ -48,7 +48,7 @@ async t => {
   assert.ok(ledger, `the run printed keyed frames: ${text.slice(0, 2000)}`);
   const board = cellBoard(t, ':memory:');
   const job = 'gate:41:ledger';
-  const posted = postThrough(board, { id: job, kind: 'gate', receipt: { version: 1, status: 1, source: HEAD, gate: { green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: RED, name: 'a failing case' }], ledger }] } } });
+  const posted = postThrough(board, { id: job, kind: 'gate', receipt: { version: 1, status: 1, gate: { source: HEAD, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: RED, name: 'a failing case' }], ledger }] } } });
   assert.equal(posted.recorded, true);
 
   const rows = testResults(board.db, { receipt: `${job}#1` }).sort((a, b) => a.file.localeCompare(b.file));
@@ -65,6 +65,6 @@ test('clause 1: a shard receipt writes its files too, and a red phase with no ca
   assert.equal(phaseLedger(frames, { status: 1, failures: null }), null, 'no row is guessed for a red phase that names no case');
   const ledger = phaseLedger(`${frames}\n# pullboard test cache ${JSON.stringify({ file: 'z.test.js', outcome: 'ran', key: null, missed: 'no key: x' })}`, { status: 0 });
   assert.deepEqual(ledger.files.map(row => row[0]), ['x.test.js', 'y.test.js'], 'a keyless file is never a ledger row');
-  postThrough(board, { id: 'gate:42:shard:0', kind: 'gate-shard', receipt: { version: 1, kind: 'shard', status: 0, source: HEAD, gate: { green: true, phases: [{ role: 'proof', status: 0, ledger }] } } });
+  postThrough(board, { id: 'gate:42:shard:0', kind: 'gate-shard', receipt: { version: 1, status: 0, gate: { kind: 'shard', source: HEAD, green: true, phases: [{ role: 'proof', status: 0, ledger }] } } });
   assert.deepEqual(testResults(board.db, { inputKey: key }).map(row => [row.file, row.status, row.origin]).sort(), [['x.test.js', 'pass', 'shard:r-ledger'], ['y.test.js', 'pass', 'shard:r-ledger']]);
 });

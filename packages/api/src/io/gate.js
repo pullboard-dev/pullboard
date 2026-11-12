@@ -360,9 +360,10 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
  */
 export function recordReceiptLedger(board, { job, attempt = 0, receipt }, origin) {
   const runner = postedReceipt(board.db, job)?.runner ?? 'unknown';
-  const commit = SHA.test(String(receipt?.source ?? '')) ? receipt.source : null;
+  const gate = receipt?.gate ?? {};
+  const commit = SHA.test(String(gate.source ?? '')) ? gate.source : null;
   const rows = [];
-  for (const phase of Array.isArray(receipt?.phases) ? receipt.phases : []) {
+  for (const phase of Array.isArray(gate.phases) ? gate.phases : []) {
     const { contexts, files } = phase?.ledger ?? {};
     if (!Array.isArray(contexts) || !Array.isArray(files)) continue;
     for (const [file, inputKey, context, status] of files.filter(Array.isArray)) {
