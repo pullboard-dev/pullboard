@@ -1578,3 +1578,4 @@ body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
 .focus-batch { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-4); }
 .focus-batch p { margin: var(--space-1) 0; overflow-wrap: anywhere; }
 .focus-batch small { color: var(--muted, inherit); }
+/* @pullboard-notch-styles */

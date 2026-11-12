@@ -7,6 +7,7 @@ const VIEW_STYLESHEETS = new Map([
   ['items-row', './item/rows.css'],
   ['stage', './stage.css'],
   ['dashboard', './dashboard.css'],
+  ['notch', './notch.css'],
 ]);
 
 /**

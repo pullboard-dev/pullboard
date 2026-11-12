@@ -1,0 +1,37 @@
+/* The notch preview: one centred panel under the notch over a blurred page, and the rulings list in the same panel (#6651) [N26]. */
+.notch-veil { position: fixed; inset: var(--notch-bottom, 34px) 0 0; z-index: 25; background: color-mix(in oklab, var(--ground) 35%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.notch-veil[data-open="true"] { opacity: 1; pointer-events: auto; }
+.notch-panel { position: fixed; top: var(--notch-bottom, 34px); left: 50%; z-index: 26; width: 440px; max-width: calc(100vw - 32px); max-height: 70vh; overflow: auto; padding: 0 0 var(--space-1); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 60px var(--shade-far), 0 2px 6px var(--shade); font-size: var(--text-sm); opacity: 0; pointer-events: none; transform: translate(-50%, -10px) scale(.98); transform-origin: top center; transition: opacity .2s ease, transform .24s cubic-bezier(.2, .8, .2, 1); }
+.notch-panel[data-open="true"] { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+@media (prefers-reduced-motion: reduce) { .notch-veil, .notch-panel { transition: opacity .1s ease; } .notch-panel, .notch-panel[data-open="true"] { transform: translate(-50%, 0); } }
+.notch-panel h4 { margin: 0; padding: 14px var(--space-5) var(--space-3); font: 600 var(--text-2xs) var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
+.np-viz { padding: var(--space-0) var(--space-5) var(--space-4); }
+.np-split { display: block; width: 100%; height: 10px; }
+.np-track { fill: var(--surface-2); }
+.np-build { fill: var(--stage-building); } .np-review { fill: var(--stage-review); } .np-idle { fill: var(--stage-gated); }
+.np-key { display: flex; flex-wrap: wrap; gap: var(--space-4) 14px; margin-top: var(--space-2); font-size: var(--text-xs); color: var(--ink-muted); }
+.np-key span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; background: var(--c, var(--ink-faint)); }
+.np-key b { font: 600 var(--text-xs) var(--mono); color: var(--ink); }
+.np-k-build { --c: var(--stage-building); } .np-k-review { --c: var(--stage-review); } .np-k-idle { --c: var(--stage-gated); }
+.np-k-spec, .np-f-spec { --c: var(--blue); } .np-k-item, .np-f-item { --c: var(--violet); } .np-k-rigor, .np-f-rigor { --c: var(--warn); }
+.np-k-ship, .np-f-ship { --c: var(--accent); } .np-k-data, .np-f-data { --c: var(--reject); }
+.np-split rect[class^="np-f-"] { fill: var(--c, var(--ink-faint)); }
+.np-spark { display: block; width: 100%; height: 38px; }
+.np-bin { fill: color-mix(in oklab, var(--stage-merged) 28%, var(--surface)); } .np-now { fill: var(--accent); } .np-none { fill: var(--line-soft); }
+.np-axis { display: flex; justify-content: space-between; margin-top: var(--space-1); font: var(--text-2xs) var(--mono); color: var(--ink-faint); }
+.np-d { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: center; padding: 9px 14px; border-top: 1px solid var(--line-soft); line-height: var(--leading-snug); }
+.np-d:hover { background: var(--surface-2); }
+.np-ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; --c: var(--ink-faint); color: var(--c); background: color-mix(in oklab, var(--c) 14%, var(--surface)); }
+.np-ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.np-ic.np-build { --c: var(--stage-building); } .np-ic.np-review { --c: var(--stage-review); } .np-ic.np-idle { --c: var(--stage-gated); }
+.np-ic.np-land, .np-ic.np-pace, .np-ic.np-ship { --c: var(--stage-merged); } .np-ic.np-back, .np-ic.np-data { --c: var(--mark-back); }
+.np-ic.np-spec { --c: var(--blue); } .np-ic.np-item { --c: var(--violet); } .np-ic.np-rigor { --c: var(--warn); }
+.np-tx { min-width: 0; } .np-tx b { display: block; font-weight: 400; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-tx small { display: block; font-size: var(--text-xs); color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-tx small em { font-style: normal; font-weight: 600; color: var(--ink); }
+.np-val { font: 600 var(--text-sm) var(--mono); color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.np-val.np-g { color: var(--accent); } .np-val.np-a { color: var(--warn); } .np-val.np-r { color: var(--mark-back); }
+.np-act { padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: var(--text-xs); font-weight: 600; color: var(--accent); white-space: nowrap; cursor: pointer; }
+.np-d:hover .np-act { border-color: var(--accent); }
+.np-go { display: block; width: 100%; margin: 0; padding: 9px var(--space-5) var(--space-2); border: 0; border-top: 1px solid var(--line); background: none; font-size: var(--text-xs); font-weight: 600; color: var(--accent); text-align: right; cursor: pointer; }
+.np-empty { margin: 0; padding: var(--space-4) var(--space-5) var(--space-5); color: var(--ink-faint); }

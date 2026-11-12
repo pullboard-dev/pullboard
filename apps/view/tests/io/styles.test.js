@@ -8,7 +8,7 @@ import { composeViewStyles as composerModule } from '../../src/io/styles.js';
 
 const SHELL = new URL('../../src/io/', import.meta.url);
 const MARKER = /\/\* @pullboard-([\w-]+)-styles \*\//gu;
-const STYLESHEETS = { dashboard: 'dashboard', 'items-row': 'item/rows', stage: 'stage' };
+const STYLESHEETS = { dashboard: 'dashboard', notch: 'notch', 'items-row': 'item/rows', stage: 'stage' };
 
 test('clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns view.css with every @pullboard-*-styles marker replaced by its stylesheet [C7,#3020]', () => {
   assert.equal(composeViewStyles, composerModule, 'apps/view/index.js re-exports the composer from src/io/styles.js');

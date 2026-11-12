@@ -3,6 +3,7 @@
     "apps/view/tests/logic/activity/model/sentences.test.js",
     "apps/view/tests/logic/agent/floor/model.test.js",
     "apps/view/tests/logic/panel/model/pure.test.js",
+    "apps/view/tests/logic/notch/preview.test.js",
     "apps/view/tests/logic/hosted/render.test.js",
     "apps/view/tests/io/dashboard/model.test.js",
     "apps/view/tests/logic/render/group.test.js",
