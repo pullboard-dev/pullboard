@@ -38,18 +38,6 @@
   "apps/cli/journeys/baseline/delivery.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/blueprint/defaults.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/blueprint/init.test.js": {
-    "launch": 8
-  },
-  "apps/cli/journeys/blueprint/main.test.js": {
-    "launch": 12
-  },
-  "apps/cli/journeys/blueprint/save.test.js": {
-    "launch": 35
-  },
   "apps/cli/journeys/capacity/main.test.js": {
     "launch": 2
   },
