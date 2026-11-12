@@ -92,6 +92,28 @@ function acceptItem(box, entry) {
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 /**
+ * submitItem answered in this process: the commit still runs real git hooks, only the submit skips the node start-up.
+ * Why: sixteen seeds through child processes cannot finish in the per-file budget [B3].
+ */
+async function submitItemLocal(box, entry, contents = 'PASS\n') {
+  const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
+  assert.equal(committed.status, 0, committed.stderr);
+  entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
+  const submitted = await box.runLocal(entry.path, 'submit', String(entry.item), '--no-next');
+  assert.equal(submitted.code, 0, submitted.err);
+  return entry;
+}
+
+/** acceptItem answered in this process [B3]. */
+async function acceptItemLocal(box, entry) {
+  entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
+  box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
+  try {
+    const verdict = await box.runLocal(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    assert.equal(verdict.code, 0, verdict.err);
+  } finally { box.git(box.repo, 'switch', '-q', 'main'); }
+}
+/**
  * Advance main by one unrelated commit after an item's submit. Why: these fixtures submit with their red suppressed, so a
  * landing on the submit's own main would reuse that green receipt (#3685) and never run the landing gate under test.
  */
@@ -103,5 +125,5 @@ function moveMainPastSubmit(box, number = 0) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit };
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
 }
