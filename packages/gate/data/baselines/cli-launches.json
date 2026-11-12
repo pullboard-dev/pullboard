@@ -1463,9 +1463,6 @@
   "apps/cli/journeys/relay/upload/status.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/add/lanes.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/merged/forced.test.js": {
     "launch": 2
   },
