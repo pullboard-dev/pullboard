@@ -15,6 +15,7 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { runCliInProcess } from './process.js';
 import { closeBoard } from '../../../lib/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { FIXTURE_MODEL } from './e2e.js';
@@ -70,7 +71,11 @@ export function sandbox() {
       ...(input === undefined ? {} : { input }), ...options,
     });
   }
-  return { dir, env, git, run };
+  /** The same call as run, answered by the production dispatcher in this process (no node start-up); it reads the box env at call time. */
+  async function runLocal(cwd, args, input) {
+    return runCliInProcess(args, { cwd, env, ...(input === undefined ? {} : { input }) });
+  }
+  return { dir, env, git, run, runLocal };
 }
 
 /**
