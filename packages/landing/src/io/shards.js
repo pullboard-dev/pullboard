@@ -13,7 +13,7 @@ import { landingFloor } from '../../../gate/index.js';
 import { planFreeSlotShards } from '../../../gate/index.js';
 import { planLandingShards } from '../../../gate/index.js';
 
-export { fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards };
+export { fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards };
 
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
