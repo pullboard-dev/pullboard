@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from "./main.js";
+import { codeUsesRepository } from "./main.js";
 import { gitChildEnv } from "./main.js";
 import { repoInfo } from "./main.js";
 
@@ -10,8 +11,8 @@ import { repoInfo } from "./main.js";
  * Never borrow the caller's test or checkout admission, and never wait for the actual gate. */
 export async function nudgeSourceAdvances(root, { workerUrl, eligible }) {
   const info = repoInfo(root);
-  // A runner job's work folder is a linked worktree, so its code is never "from main"; the job is the machine's own checkout of main's code [C7].
-  if (!info.isMain || !(process.env.PULLBOARD_RUNNER_JOB || codeIsFromMain())) return null;
+  // A worktree of this repository's own code is never main's code; a runner job's work folder belongs to another repository.
+  if (!info.isMain || !(codeIsFromMain() || !codeUsesRepository(info.commonDir))) return null;
   // The higher-layer caller owns the application eligibility probe; this Git cell only
   // accepts its explicit decision and leaves real work to the normal worker.
   if (eligible !== true) return null;
