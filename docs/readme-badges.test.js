@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-input README.md docs/badges/checked.json docs/badges/items.json */
 /** README board badges use tracked endpoints that a real landing refreshes [I10,B3,V1]. */
 import assert from 'node:assert/strict';
