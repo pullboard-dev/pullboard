@@ -44,13 +44,15 @@ test('clause 1: sync publishes a board whose events exceed one string [C7]', asy
   const root = join(folder, 'work');
   sh(folder, 'init', '-q', 'work');
   sh(root, 'remote', 'add', 'origin', join(folder, 'origin.git'));
-  sh(root, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'chore: start');
+  sh(root, 'config', 'user.name', 'fixture');
+  sh(root, 'config', 'user.email', 'fixture@example.invalid');
+  sh(root, 'commit', '-q', '--allow-empty', '-m', 'chore: start');
   const board = fixtureBoard(t);
   fatten(board);
   const result = await syncGitBoard(root, board, { relayCommand: { cliOperation: 'sync' } });
   assert.equal(result.sequence, 0);
-  const tip = sh(root, 'rev-parse', 'refs/pullboard/board').stdout.trim();
-  const size = Number(sh(root, 'cat-file', '-s', tip + ':payload.json').stdout.trim());
+  const origin = join(folder, 'origin.git');
+  const size = Number(sh(origin, 'cat-file', '-s', 'refs/pullboard/board:payload.json').stdout.trim());
   assert.ok(size > constants.MAX_STRING_LENGTH, 'the published baseline is larger than one string');
 });
 
