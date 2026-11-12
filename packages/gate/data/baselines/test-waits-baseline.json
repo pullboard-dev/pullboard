@@ -362,9 +362,6 @@
   "packages/runners/tests/io/run/tests/filexit.test.js": {
     "sleep": 3
   },
-  "apps/cli/tests/fixtures/cockpit/lane.js": {
-    "sleep": 1
-  },
   "apps/relay/tests/fixtures/relay-phone-fixture.js": {
     "sleep": 1
   },
