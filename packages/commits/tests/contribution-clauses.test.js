@@ -180,6 +180,14 @@ test('[CR3] a command whose script is a symlink out of the repository is refused
   assert.equal(report.clauses[0].refusal?.code, 'CLAUSE_PATH', JSON.stringify(report.clauses, null, 2));
 });
 
+test('[CR3] a command option whose value is a symlink out of the repository is refused', async t => {
+  const outside = owned(t, 'pullboard-clauses-outside-');
+  outside.write('hook.cjs', 'console.log(1);\n');
+  const repo = fixture(t, {}, root => symlinkSync(join(outside.root, 'hook.cjs'), join(root, 'scripts', 'hook.cjs')));
+  const report = await clauses(repo, [['size runs [command]', 'node scripts/size.js --require=./scripts/hook.cjs']]);
+  assert.equal(report.clauses[0].refusal?.code, 'CLAUSE_PATH', JSON.stringify(report.clauses, null, 2));
+});
+
 test('[CR3] Node is pinned: a runner whose node reports another version is refused before any clause runs', async t => {
   const repo = fixture(t);
   await assert.rejects(clauses(repo, [['add returns the sum [test]', 'tests/add.test.js > adds two numbers']], { node: { version: 'v0.0.1' } }),
