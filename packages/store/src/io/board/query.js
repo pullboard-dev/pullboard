@@ -305,6 +305,11 @@ export function agentById(board, id) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(id));
 }
 
+/** Whether a seat joined with --lock-lane, recorded on its join event: `next` never moves it to another lane (GH #27). */
+export function agentLaneLocked(board, id) {
+  return board.db.prepare("SELECT 1 FROM event WHERE event_by = ? AND event_kind = 'join' AND event_detail LIKE '%\"lockLane\":true%' LIMIT 1").get(id) !== undefined;
+}
+
 /** Read the model label kept beside other board metadata, avoiding any board-schema migration. */
 export function agentModel(board, id) {
   return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${id}`)?.meta_value ?? null;
