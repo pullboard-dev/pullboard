@@ -65,7 +65,8 @@ test('clause 1: pullboard test from a checkout with an uncommitted tracked edit 
 
 test('clause 2: pullboard test from a clean checkout prints no uncommitted-changes line [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
   const box = await greenProject();
-  const ran = await box.runLocal(box.web, 'test', 'test/green.test.js');
+  // Process-level case: as above, only the real process stderr could carry the notice, so a clean run is read there.
+  const ran = box.run(box.web, 'test', 'test/green.test.js');
   assert.equal(ran.code, 0, ran.err);
   assert.doesNotMatch(ran.err, /uncommitted changes/u);
 });
