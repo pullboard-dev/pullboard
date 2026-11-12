@@ -414,6 +414,7 @@ Additional commands
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
+  pullboard stats review [--window <duration>] [--until <ISO time>]  review queue depth by hour, time from submit to verdict, and reject rate per reviewer family
   pullboard stats runners [--window <duration>] [--until <ISO time>]  runner slot wait (queued to running) p50/p90/max and queue depth per job kind and hour
   pullboard stats runners --health [--window <duration>] [--until <ISO time>]  run time per job kind per runner (p50/p90) and runner up spans, lost leases, retries and re-placed jobs
   pullboard stats runners --lag [--window <duration>] [--until <ISO time>]  main check lag: time from each main commit landing to its first full-suite result, and to its first red (--main-lag is the same)
