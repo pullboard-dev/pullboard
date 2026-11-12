@@ -30,6 +30,7 @@ function trunkRemote(t) {
   git(root, ['clone', '-q', '--bare', dev, remote]);
   git(dev, ['remote', 'add', 'origin', remote]);
   const item = (id, base = seed) => {
+    git(dev, ['fetch', '-q', 'origin', 'main']); // a base the landing made lives on the remote only
     git(dev, ['checkout', '-q', '--detach', base]);
     const sha = commit(`item-${id}.txt`, `item ${id}\n`, `feat(core): item ${id} [B3]`);
     git(dev, ['push', '-q', 'origin', `${sha}:refs/heads/item/${id}`]);
