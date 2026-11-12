@@ -1080,7 +1080,7 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 29
+    "launch": 28
   },
   "apps/cli/journeys/milestone/title.test.js": {
     "launch": 3
