@@ -27,6 +27,7 @@ import { openBoard } from '../../../lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
+import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { runCliInProcess } from './process.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
@@ -92,6 +93,7 @@ export function createE2eHelpers() {
    */
   const cleanup = () => {
     for (const dir of sandboxes) {
+      stopFixtureLocalRunner(join(dir, 'machine-home'));
       const deadline = Date.now() + 30_000;
       for (;;) {
         try { rmSync(dir, { recursive: true, force: true }); break; }
