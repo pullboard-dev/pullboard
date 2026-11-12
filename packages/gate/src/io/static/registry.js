@@ -42,6 +42,9 @@ import { toolingKey } from './cache.js';
 import { cellRows } from './cache.js';
 import { cellScopedKey } from './cache.js';
 
+/** The per-file CLI launch ceilings, as a repo-relative path [C7]. */
+export const CLI_LAUNCHES_FILE = 'packages/gate/data/baselines/cli-launches.json';
+
 /** What a check reads, so a change to none of those paths keeps main's answer [5814]: JavaScript sources, and test files among them. */
 const SOURCE = path => /\.[cm]?js$/u.test(path);
 const TEST = path => SOURCE(path) && (path.split('/').slice(0, -1).some(part => part === 'tests' || part === 'test') || /[-_.]test\.[cm]?js$/u.test(path));
@@ -127,7 +130,7 @@ function workerBundleRows(root) {
 export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/cli-launches.json'), 'utf8')))
+  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
   { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
