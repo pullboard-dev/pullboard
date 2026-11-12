@@ -1572,13 +1572,13 @@
     "launch": 9
   },
   "apps/cli/journeys/verify/checks.test.js": {
-    "launch": 20
+    "launch": 2
   },
   "apps/cli/journeys/verify/compare.test.js": {
-    "launch": 10
+    "launch": 3
   },
   "apps/cli/journeys/verify/compare/checkout.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/verify/fixes.test.js": {
     "launch": 6
@@ -1590,7 +1590,7 @@
     "launch": 14
   },
   "apps/cli/journeys/verify/landing.test.js": {
-    "launch": 5
+    "launch": 2
   },
   "apps/cli/journeys/verify/landing/drill.test.js": {
     "launch": 2
@@ -1602,7 +1602,7 @@
     "launch": 1
   },
   "apps/cli/journeys/verify/landing/verdict.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/verify/machine.test.js": {
     "launch": 1
