@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rmSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -15,6 +16,7 @@ import { fileRuntimeCapFailure } from '../../src/logic/cap.js';
 import { fileRuntimeCapOutput } from '../../src/logic/cap.js';
 import { fileRuntimeCapReport } from '../../src/logic/cap.js';
 import { splitSeam } from '../../src/logic/cap.js';
+import { MAX_LOAD_SCALE } from '../../src/logic/test/budget/file.js';
 
 const tests = [{ name: 'a', durationMs: 50_000 }, { name: 'b', durationMs: 60_000 }, { name: 'c', durationMs: 70_000 }];
 
@@ -70,10 +72,15 @@ test('clause 1: real file dispatch reads each file\'s last runtime from the rece
   env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
   env.PULLBOARD_FILE_RUNTIME_CAP_MS = '1000';
   const run = (...named) => runFixtureChild(process.execPath, [runner, ...named], { cwd: directory, encoding: 'utf8', detached: true, env });
+  env.PULLBOARD_TEST_LOAD = '0'; // an idle runner, so the growth is judged on wall time whatever the runner's real load
   const refused = run('grew.test.js');
+  delete env.PULLBOARD_TEST_LOAD; // the steady file is charged for the runner's real load, so a busy runner does not read it as growth
   assert.notEqual(refused.status, 0, 'a file that grew from 100 ms past the cap fails the run');
   assert.match(refused.stderr + refused.stdout, /grew\.test\.js now takes \d+s \(was 1s, \+\d+s\), over the 1s file cap; split seam: cut (?:after test 1 of 2 \("grew one \[C7\]"\)|before the last test \("grew two \[C7\]"\))/u);
   const listed = run('steady.test.js');
   assert.equal(listed.status, 0, listed.stderr + listed.stdout);
   assert.doesNotMatch(listed.stderr + listed.stdout, /file cap/u, 'a file already over the cap that does not grow is only listed, not refused');
+  env.PULLBOARD_TEST_LOAD = String(availableParallelism() * MAX_LOAD_SCALE);
+  const loaded = run('grew.test.js');
+  assert.equal(loaded.status, 0, `under four runnable jobs per core the same growth is charged under the cap (#4944): ${loaded.stderr}${loaded.stdout}`);
 });
