@@ -116,14 +116,18 @@ export async function waitForStableBoxes(chrome, find = 'document.documentElemen
 }
 
 /**
- * A page in a closed navigation menu (Rules or Insights, #6614) is reached as a person reaches it: press the menu's
- * button first. A target outside a menu, or not drawn yet, is left to the stable wait as before.
+ * A page in a closed navigation menu (Rules or Insights, #6614), or a project tool in the closed project list, is reached
+ * as a person reaches it: press the menu's button, or the project switcher, first. A target outside a menu, or not drawn yet, is left to the stable wait as before.
  * @param {object} chrome
  * @param {string} find
  * @returns {Promise<void>}
  */
 async function openNavMenuFor(chrome, find) {
-  const button = await rawChromeEvaluation(chrome, `(() => { try { const menu = (${find})?.closest?.('[data-nav-menu]'); return menu && menu.hidden ? '[aria-controls="' + menu.id + '"]' : null; } catch { return null; } })()`);
+  const button = await rawChromeEvaluation(chrome, `(() => { try {
+    const target = (${find}), menu = target?.closest?.('[data-nav-menu]'), side = target?.closest?.('#side');
+    if (menu && menu.hidden) return '[aria-controls="' + menu.id + '"]';
+    return side && !side.classList.contains('open') && getComputedStyle(target).display !== 'none' && target.getBoundingClientRect().width === 0 ? '#proj-switch' : null;
+  } catch { return null; } })()`);
   if (button) await press(chrome, `document.querySelector(${JSON.stringify(button)})`, { native: false });
 }
 

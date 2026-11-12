@@ -151,7 +151,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     const status = document.querySelector('.status');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-      tabs: [...document.querySelectorAll('#tabs .tab')].map((tab) => tab.textContent),
+      tabs: [...document.querySelectorAll('#tabs > .tab, #tabs .group-label')].map((tab) => tab.textContent),
       header: document.querySelector('.top').innerText.replace(/\\s+/g, ' ').trim(), live: document.querySelector('#live').textContent, liveInBar: !!document.querySelector('.status #live'),
       bar: [...document.querySelectorAll('.status [data-status]')].filter((part) => !part.hidden).map((part) => ({ to: part.dataset.status, text: part.textContent.replace(/\\s+/g, ' ').trim(), height: part.getBoundingClientRect().height })),
       barShown: getComputedStyle(status).display !== 'none', barBox: box(status), barTint: rgb(getComputedStyle(status).backgroundColor), barBlur: getComputedStyle(status).backdropFilter,
@@ -188,7 +188,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
         // The header carries the tabs and nothing else: no counts, no clock.
-        assert.deepEqual(r.tabs, ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap', 'Cost'], `${at}: the tabs carry no counts`);
+        assert.deepEqual(r.tabs.map((label) => label.split(' · ')[0]), ['Progress', 'Items', 'Shouts', 'Roadmap', 'Rules', 'Insights'], `${at}: the strip carries no counts`);
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);

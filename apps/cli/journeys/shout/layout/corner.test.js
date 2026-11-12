@@ -47,7 +47,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       mode: document.documentElement.dataset.side || 'docked', logo: box(document.querySelector('#side-toggle svg')), name: box(document.querySelector('#proj-name')),
       wordmark: shown(document.querySelector('#side-toggle span')), arrow: shown(document.querySelector('#proj-switch small')),
-      rows: [...document.querySelectorAll('#proj-list .proj.repo')].filter(shown).map((row) => {
+      rows: [...document.querySelectorAll('#proj-list .proj.repo')].map((row) => {
         const s = getComputedStyle(row), asks = row.querySelector('small .asks');
         return { name: row.querySelector('.pname').textContent, line: row.querySelector('small').textContent, pill: !!row.querySelector('.need'), on: row.classList.contains('on'),
           asks: asks ? { text: asks.textContent, first: row.querySelector('small').firstElementChild === asks, warn: getComputedStyle(asks).color === warn } : null,
