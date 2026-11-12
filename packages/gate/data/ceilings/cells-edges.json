@@ -3908,6 +3908,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/store/src/io/board/hold/log.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/store/src/io/board/indexes.js": {
       "cells": 2,
       "deep": 2
