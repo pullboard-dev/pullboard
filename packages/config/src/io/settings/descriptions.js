@@ -34,6 +34,7 @@ const ROWS = [
   ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Capacity', 'USD'],
   // This machine: Runners
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
+  ['runnerRates', 'Runner rate cards', 'For each runner host, its purchase price, months to pay off, load watts and power price per kWh; nothing computes with it yet.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['serve.address', 'Board API address', 'The interface address pullboard serve listens on; off loopback every request needs this machine\'s board key, so runners on the network can pull jobs.', 'Runners', 'address'],
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],

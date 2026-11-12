@@ -1,6 +1,7 @@
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
+import { validateRunnerRates } from './runner-rates.js';
 import { Refused } from '../../../kernel/light.js';
 import { machineSettingsFile } from '../../../resources/index.js';
 import { readMachineSettingsFile } from '../../../queue/index.js';
@@ -142,6 +143,7 @@ export function loadMachineSettings() {
   validateBoardRemote(value.board, file);
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
+  validateRunnerRates(value.runnerRates);
   validateBudget(value.budget, file);
   if (value.view !== undefined && (!value.view || typeof value.view !== 'object' || Array.isArray(value.view)
     || (value.view.background !== undefined && typeof value.view.background !== 'boolean'))) {
