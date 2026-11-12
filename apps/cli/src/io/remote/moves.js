@@ -54,14 +54,14 @@ function itemLine(item) {
 }
 
 /** Print the served board's result for one move in text form; --json prints the result document itself. */
-function sayResult(io, verb, result, board) {
-  const item = result?.item;
+function sayResult(io, verb, itemId, result, board) {
+  const item = result?.item && typeof result.item === 'object' ? result.item : null;
   if (verb === 'next') {
     if (item) io.say(`${result.review ? 'review reserved' : 'build claimed'}: ${itemLine(item)}`);
     else io.say(`next: no eligible work; ${(result?.reasons ?? []).join('; ').replace(/[\r\n]+/gu, ' ') || 'nothing offered'}`);
   } else {
     const done = { claim: 'claimed', fact: 'recorded a fact on', release: 'released', submit: 'submitted', done: 'submitted', verify: 'recorded a verdict on' }[verb];
-    io.say(`${done} ${item ? itemLine(item) : `#${result?.item_id ?? result?.id ?? ''}`} via ${board}`);
+    io.say(`${done} ${item ? itemLine(item) : `#${itemId}`} via ${board}`);
   }
   const following = result?.next;
   if (following?.item) io.say(`next ${following.review ? 'review reserved' : 'build claimed'}: ${itemLine(following.item)}`);
@@ -81,7 +81,7 @@ export async function runRemoteMove(io, parsed, remote) {
     const moved = await requestJson(remote, `${await boardPath(remote)}/moves`, body, MOVE_TIMEOUT_MS);
     const board = new URL(remote.url).origin;
     io.result?.(moved.result ?? moved);
-    sayResult(io, parsed.positionals[0], moved.result ?? moved, board);
+    sayResult(io, body.verb, body.item, moved.result ?? moved, board);
   } catch (error) {
     return reportRemoteRefusal(io, error);
   }
