@@ -2257,7 +2257,6 @@
     "apps/cli->config",
     "apps/cli->resources",
     "state->store",
-    "stats->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
