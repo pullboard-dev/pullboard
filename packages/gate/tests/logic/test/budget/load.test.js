@@ -16,7 +16,7 @@ test('clause 1: the load scale is the mean load per core, never under 1 and neve
 test('clause 1: a file over its wall budget only because the runner was loaded passes; one over its share still fails [C7]', () => {
   assert.equal(testFileBudgetFailure('a.test.js', 168_000, 120_000, false, 1.5), null, '#6360: 168 s at 1.5x load is 112 s of its own');
   assert.match(testFileBudgetFailure('a.test.js', 168_000, 120_000, false, 1.2),
-    /^a\.test\.js took 168000ms \(140000ms at runner load 1\.2x\), over its 120000ms test file budget/u);
-  assert.match(testFileBudgetFailure('a.test.js', 600_000, 120_000, false, 10), /150000ms at runner load 4\.0x/u);
+    /^a\.test\.js took 168000ms, over its 120000ms test file budget \(140000ms of its own at runner load 1\.2x\)/u);
+  assert.match(testFileBudgetFailure('a.test.js', 600_000, 120_000, false, 10), /150000ms of its own at runner load 4\.0x/u);
   assert.match(testFileBudgetFailure('a.test.js', 121_000, 120_000), /^a\.test\.js took 121000ms, over/u, 'an idle runner keeps the old message');
 });

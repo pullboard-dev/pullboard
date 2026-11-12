@@ -71,9 +71,10 @@ test('clause 1: real file dispatch reads each file\'s last runtime from the rece
   const env = Object.assign({}, process.env);
   env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
   env.PULLBOARD_FILE_RUNTIME_CAP_MS = '1000';
-  env.PULLBOARD_TEST_LOAD = '0'; // an idle runner, so the cap is judged on wall time whatever the runner's real load
   const run = (...named) => runFixtureChild(process.execPath, [runner, ...named], { cwd: directory, encoding: 'utf8', detached: true, env });
+  env.PULLBOARD_TEST_LOAD = '0'; // an idle runner, so the growth is judged on wall time whatever the runner's real load
   const refused = run('grew.test.js');
+  delete env.PULLBOARD_TEST_LOAD; // the steady file is charged for the runner's real load, so a busy runner does not read it as growth
   assert.notEqual(refused.status, 0, 'a file that grew from 100 ms past the cap fails the run');
   assert.match(refused.stderr + refused.stdout, /grew\.test\.js now takes \d+s \(was 1s, \+\d+s\), over the 1s file cap; split seam: cut (?:after test 1 of 2 \("grew one \[C7\]"\)|before the last test \("grew two \[C7\]"\))/u);
   const listed = run('steady.test.js');

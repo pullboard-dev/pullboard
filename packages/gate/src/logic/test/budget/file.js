@@ -36,6 +36,6 @@ export function testFileBudgetFailure(file, durationMs, limit, audit = false, sc
   if (!Number.isFinite(durationMs) || durationMs < 0) throw new TypeError(`missing test file runtime for ${file}`);
   const budget = testFileLimit(limit);
   const charged = durationMs / Math.min(MAX_LOAD_SCALE, Math.max(1, Number(scale) || 1));
-  const load = charged < durationMs ? ` (${Math.ceil(charged)}ms at runner load ${(durationMs / charged).toFixed(1)}x)` : '';
-  return charged > budget ? `${file} took ${Math.ceil(durationMs)}ms${load}, over its ${budget}ms test file budget; split it or move it to the audit` : null;
+  const load = charged < durationMs ? ` (${Math.ceil(charged)}ms of its own at runner load ${(durationMs / charged).toFixed(1)}x)` : '';
+  return charged > budget ? `${file} took ${Math.ceil(durationMs)}ms, over its ${budget}ms test file budget${load}; split it or move it to the audit` : null;
 }
