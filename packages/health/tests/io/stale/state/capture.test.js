@@ -14,6 +14,8 @@ import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js
 import { policyRepository } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
 import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { queueTestRun } from '../../../../../drive/index.js';
+import { testRunItem } from '../../../../../drive/index.js';
 import { captureLapsedClaims } from '../../../../index.js';
 
 const MINUTE = 60_000;
@@ -102,4 +104,24 @@ test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a q
   f.job({ kind: 'test-run', item: quiet.id, step: 'queued', agent: alive.holder });
   f.job({ kind: 'gate', item: quiet.id, step: 'red' });
   assert.deepEqual(f.seatGone(), [quiet.id]);
+});
+
+test('clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
+  const f = fixture(t);
+  const [quiet] = f.holders;
+  // A seat may hold several claims (child items are free), so its sole-claim rule names no item; the folder names one.
+  const second = quiet.id + 1000;
+  const claims = [quiet.id, second];
+  assert.equal(testRunItem({ claims }), undefined);
+  const item = testRunItem({ folder: quiet.id, claims });
+  assert.equal(item, quiet.id);
+  assert.equal(testRunItem({ named: second, folder: quiet.id, claims }), second, '--item wins');
+  assert.equal(testRunItem({ folder: 999, claims: [quiet.id] }), quiet.id, 'a folder the seat does not hold is ignored');
+  const scratch = privateFixtureFiles('pullboard-capture-queue-').root;
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const ctx = { info: { root: scratch, commonDir: scratch } };
+  const queued = queueTestRun(ctx, work => work(f.board), { agent: quiet.holder, item, items: claims, files: ['a.test.js'], head: null, now: f.now() - 5 * MINUTE },
+    { launch: () => ({ unref() {} }), now: f.now() - 5 * MINUTE });
+  assert.equal(f.board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(queued.id).job_item, quiet.id, 'the job row carries the item');
+  assert.deepEqual(f.seatGone(), [], 'the queued run is seen in flight');
 });

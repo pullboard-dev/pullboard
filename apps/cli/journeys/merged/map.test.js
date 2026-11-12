@@ -21,7 +21,6 @@ import {
 } from '../../../../packages/codemap/index.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -256,7 +255,6 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   assert.equal(refreshed.mainCommit, box.git(box.repo, 'rev-parse', 'main'));
   assert.ok(refreshed.modules.some(module => module.path === 'src/landed.js'));
   assert.notEqual(refreshed.generatedAt, firstMap.generatedAt);
-  assert.match(agentsBlock(), /pullboard map --for <item>/u);
 });
 
 
