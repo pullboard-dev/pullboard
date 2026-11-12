@@ -21,11 +21,12 @@ function goneFolder(box, id, { commit }) {
   const branch = `web/item-${id}`;
   if (commit) {
     // The earlier commit is made from the joined lane worktree: a seat cannot join inside an item folder.
-    box.git(box.web, 'switch', '-q', '-c', branch);
+    box.git(box.web, 'switch', '-q', '-c', `web/early-${id}`);
     writeFileSync(join(box.web, 'earlier.txt'), 'ported work\n');
     box.git(box.web, 'add', 'earlier.txt');
     box.git(box.web, 'commit', '-q', '-m', 'earlier work');
     box.git(box.web, 'switch', '-q', '-');
+    box.git(box.web, 'branch', '-m', `web/early-${id}`, branch);
     box.git(box.repo, 'worktree', 'add', '-q', path, branch);
   } else box.git(box.repo, 'worktree', 'add', '-q', '-b', branch, path, 'main');
   const gitdir = box.git(path, 'rev-parse', '--absolute-git-dir');
