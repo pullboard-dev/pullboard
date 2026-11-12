@@ -280,7 +280,9 @@ export async function threeReplicaFixture(t, timing) {
   assert.ok(gitBinary, 'the fixture PATH contains git');
   symlinkSync(realpathSync(gitBinary), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
-  for (const tool of ['sh', 'tar']) symlinkSync(realpathSync(process.env.PATH.split(delimiter).map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool)); // `merged` smokes via git archive | tar
+  // `merged` smokes via git archive | tar; ps and lsof are spawned by CLI process checks and may sit outside a runner's PATH
+  const toolDirs = [...process.env.PATH.split(delimiter), '/bin', '/usr/bin', '/usr/sbin', '/sbin'];
+  for (const tool of ['sh', 'tar', 'ps', 'lsof']) symlinkSync(realpathSync(toolDirs.map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool));
   symlinkSync(resolve(import.meta.dirname, '../../../pullboard.js'), join(privateBin, 'pullboard'));
   const envs = homes.map((home) => {
     const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
