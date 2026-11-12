@@ -21,7 +21,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Real Git/SQLite items use public submit, verdict and native landing before file history is queried. */
-function fixture() {
+async function fixture() {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
@@ -32,57 +32,57 @@ function fixture() {
   assert.equal(other.status, 0, other.stderr);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Return one public JSON result only after its native command succeeds. */
-  function json(cwd, ...args) {
-    const result = box.run(cwd, ...args, '--json');
+  async function json(cwd, ...args) {
+    const result = await box.runLocal(cwd, ...args, '--json');
     assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
     return JSON.parse(result.out);
   }
   for (const [index, title] of ['First item', 'Second item'].entries()) {
-    json(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} exists`,
+    await json(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} exists`,
       '--check', `test -f web/built-${index + 1}`);
   }
   /** Land an actual submitted item, preserving its item trailer and durable merge receipt. */
-  function landItem(id, file, text) {
+  async function landItem(id, file, text) {
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    json(box.web, 'claim', String(id));
+    await json(box.web, 'claim', String(id));
     const result = e2e.commitFile(box, box.web, file, text, `feat(web): build why item ${id} [G1]`);
     assert.equal(result.status, 0, result.stderr);
     const flag = e2e.commitFile(box, box.web, `web/built-${id}`, 'built\n', `feat(web): complete why item ${id} [G1]`);
     assert.equal(flag.status, 0, flag.stderr);
-    const submitted = json(box.web, 'submit', String(id));
+    const submitted = await json(box.web, 'submit', String(id));
     box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
-    try { json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The committed result exists.'); }
+    try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The committed result exists.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
-    assert.deepEqual(json(box.repo, 'land').landed, [id]);
+    assert.deepEqual((await json(box.repo, 'land')).landed, [id]);
   }
   return { ...box, json, landItem };
 }
 
-test('a decision records its origin and pullboard why names the decisions behind a file [N29,B29,P6]', () => {
-  const box = fixture();
+test('a decision records its origin and pullboard why names the decisions behind a file [N29,B29,P6]', async () => {
+  const box = await fixture();
   const web = box.web;
 
-  const ask = box.json(web, 'shout', 'coordinator', 'Keep line two upper case?', '--kind', 'question', '--decision').id;
-  const answer = box.json(box.repo, 'answer', String(ask), 'Keep it upper case', '--implies', '1',
-    '--origin', 'person-relayed', '--rationale', 'the person wants it to read as a heading').id;
-  const askOther = box.json(web, 'shout', 'coordinator', 'Change the other file?', '--kind', 'question', '--decision').id;
-  const answerOther = box.json(box.repo, 'answer', String(askOther), 'Change it', '--implies', '2').id;
+  const ask = (await box.json(web, 'shout', 'coordinator', 'Keep line two upper case?', '--kind', 'question', '--decision')).id;
+  const answer = (await box.json(box.repo, 'answer', String(ask), 'Keep it upper case', '--implies', '1',
+    '--origin', 'person-relayed', '--rationale', 'the person wants it to read as a heading')).id;
+  const askOther = (await box.json(web, 'shout', 'coordinator', 'Change the other file?', '--kind', 'question', '--decision')).id;
+  const answerOther = (await box.json(box.repo, 'answer', String(askOther), 'Change it', '--implies', '2')).id;
 
-  const inheritedAsk = box.json(web, 'shout', 'coordinator', 'Keep the inherited convention?', '--kind', 'question', '--decision').id;
-  const inherited = box.json(box.repo, 'answer', String(inheritedAsk), 'Keep the convention', '--implies', '2',
-    '--origin', 'inherited', '--rationale', 'the earlier design supplies no named decider').id;
-  const personAsk = box.json(box.repo, 'shout', 'person', 'Approve the other change?', '--decision').id;
-  const person = box.json(box.repo, 'answer', String(personAsk), 'I approve this change', '--as', 'person', '--implies', '2').id;
+  const inheritedAsk = (await box.json(web, 'shout', 'coordinator', 'Keep the inherited convention?', '--kind', 'question', '--decision')).id;
+  const inherited = (await box.json(box.repo, 'answer', String(inheritedAsk), 'Keep the convention', '--implies', '2',
+    '--origin', 'inherited', '--rationale', 'the earlier design supplies no named decider')).id;
+  const personAsk = (await box.json(box.repo, 'shout', 'person', 'Approve the other change?', '--decision')).id;
+  const person = (await box.json(box.repo, 'answer', String(personAsk), 'I approve this change', '--as', 'person', '--implies', '2')).id;
 
-  const third = box.json(web, 'shout', 'coordinator', 'One more?', '--kind', 'question', '--decision').id;
-  const forged = box.run(box.repo, 'answer', String(third), 'x', '--origin', 'person');
+  const third = (await box.json(web, 'shout', 'coordinator', 'One more?', '--kind', 'question', '--decision')).id;
+  const forged = await box.runLocal(box.repo, 'answer', String(third), 'x', '--origin', 'person');
   assert.notEqual(forged.code, 0, 'an agent cannot name the person as the origin');
   assert.match(forged.err, /BAD_ORIGIN/u);
 
-  box.landItem(1, 'web/shared.txt', 'one\nTWO\nthree\n');
-  box.landItem(2, 'web/other.txt', 'other, changed\n');
+  await box.landItem(1, 'web/shared.txt', 'one\nTWO\nthree\n');
+  await box.landItem(2, 'web/other.txt', 'other, changed\n');
 
-  const file = box.json(box.repo, 'why', 'web/shared.txt');
+  const file = await box.json(box.repo, 'why', 'web/shared.txt');
   assert.equal(file.file, 'web/shared.txt');
   assert.deepEqual(file.items.map((item) => item.id), [1], 'only the item whose landed commit touched the file');
   assert.deepEqual(file.rows.map((row) => row.id), ['G1']);
@@ -92,14 +92,14 @@ test('a decision records its origin and pullboard why names the decisions behind
   { id: answer, statement: 'Keep it upper case', rationale: 'the person wants it to read as a heading',
     decidedBy: 'unknown', relayedBy: 'coordinator', origin: 'person-relayed' });
 
-  const text = box.run(box.repo, 'why', 'web/shared.txt');
+  const text = await box.runLocal(box.repo, 'why', 'web/shared.txt');
   assert.equal(text.code, 0, text.err);
   assert.match(text.out, /person-relayed/u);
   assert.match(text.out, /Keep it upper case/u);
 
-  assert.deepEqual(box.json(box.repo, 'why', 'web/shared.txt:2').items.map((item) => item.id), [1], 'the changed line');
-  assert.deepEqual(box.json(box.repo, 'why', 'web/shared.txt:1').items, [], 'a line no landed commit touched');
-  const other = box.json(box.repo, 'why', 'web/other.txt');
+  assert.deepEqual((await box.json(box.repo, 'why', 'web/shared.txt:2')).items.map((item) => item.id), [1], 'the changed line');
+  assert.deepEqual((await box.json(box.repo, 'why', 'web/shared.txt:1')).items, [], 'a line no landed commit touched');
+  const other = await box.json(box.repo, 'why', 'web/other.txt');
   assert.deepEqual(other.decisions.map((entry) => [entry.id, entry.origin, entry.decidedBy]),
     [[answerOther, 'agent', 'coordinator'], [inherited, 'inherited', 'unknown'], [person, 'person', 'person']],
     'actual person answers and agent answers retain their authority; an inherited decider stays unknown');
@@ -114,14 +114,14 @@ test('a decision records its origin and pullboard why names the decisions behind
 
   assert.equal(originOf({}), 'unknown', 'a decision with no recorded origin is unknown');
   assert.equal(originOf({ provenance: { origin: 'inherited' } }), 'inherited');
-  assert.equal(box.json(box.repo, 'why', 'web/missing.txt').items.length, 0, 'a file no commit touched has nothing behind it');
-  const pending = box.json(box.repo, 'add', 'web', 'Not landed', '--specs', 'G1', '--criterion', 'Pending exists', '--check', 'test -f web/not-landed').item.item_id;
+  assert.equal((await box.json(box.repo, 'why', 'web/missing.txt')).items.length, 0, 'a file no commit touched has nothing behind it');
+  const pending = (await box.json(box.repo, 'add', 'web', 'Not landed', '--specs', 'G1', '--criterion', 'Pending exists', '--check', 'test -f web/not-landed')).item.item_id;
   box.git(web, 'merge', '-q', '--ff-only', 'main');
-  box.json(web, 'claim', String(pending));
+  await box.json(web, 'claim', String(pending));
   const unlanded = e2e.commitFile(box, web, 'web/shared.txt', 'one\nUNLANDED\nthree\n',
     `feat(web): pending change [G1]\n\nPullboard-Item: #${pending}`);
   assert.equal(unlanded.status, 0, unlanded.stderr);
-  assert.deepEqual(box.json(web, 'why', 'web/shared.txt').items.map(item => item.id), [1],
+  assert.deepEqual((await box.json(web, 'why', 'web/shared.txt')).items.map(item => item.id), [1],
     'a builder checkout cannot present its unlanded history as the primary branch');
 
 });
