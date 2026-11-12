@@ -15,8 +15,11 @@ import {
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
+import { lastRecordedLimit } from './stats/limits.js';
+import { recordLimitChange } from './stats/limits.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { context } from '../read.js';
+import { withBoard } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
@@ -77,6 +80,9 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once', 'jobs'].includes(key))) {
       throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--jobs <n>] [--once]');
     }
+    // A serve started with a different --jobs than the last one recorded on this machine's board is a change to the limits in effect (#6139).
+    const open = work => withBoard(context(io), work);
+    if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs));
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
