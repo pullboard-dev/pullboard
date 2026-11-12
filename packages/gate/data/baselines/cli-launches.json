@@ -386,9 +386,6 @@
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/deferral.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/gate/drift.test.js": {
     "launch": 1
   },
@@ -417,9 +414,6 @@
     "launch": 11
   },
   "apps/cli/journeys/gate/rotates.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/gate/stall.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/gate/stalled.test.js": {
@@ -1766,14 +1760,8 @@
   "apps/cli/journeys/sync/main.test.js": {
     "launch": 9
   },
-  "apps/cli/journeys/test/command.test.js": {
-    "launch": 5
-  },
-  "apps/cli/journeys/test/diagnose.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/test/knownred.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/test/placement.test.js": {
     "launch": 6
@@ -1784,11 +1772,8 @@
   "apps/cli/journeys/test/run/binding.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/test/run/queued.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/test/runners.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/test/selection/landing.test.js": {
     "launch": 1
@@ -1796,17 +1781,11 @@
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/test/summary.test.js": {
-    "launch": 9
-  },
   "apps/cli/journeys/test/tier-selection.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/test/timeout.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/test/warning.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/tool-build/pinned.test.js": {
     "launch": 13
