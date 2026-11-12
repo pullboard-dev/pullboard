@@ -165,7 +165,8 @@ test('the public CLI waits out a lost baseline reply and sends the move in relay
   const recover = setTimeout(() => box.rejectStateReads(null), 1500); // budget: hang ceiling for the outage the uncertain upload waits out.
   t.after(() => clearTimeout(recover));
   const text = 'public CLI move after a lost baseline reply';
-  const result = await box.cliLocal('shout', 'all', text);
+  // Process-level: in-process this shout stalls on the earlier stalled relay connections (upload-derived deadline), so it runs as a traced child.
+  const result = await box.cli('shout', 'all', text);
   assert.equal(result.code, 0, JSON.stringify(result.document));
   assert.equal(box.lostSnapshotReplies().length, 1, 'the relay accepted one baseline whose reply was lost');
   assert.equal(box.moveAcks.length, 1, 'the move went through relay order once the upload was decided');
