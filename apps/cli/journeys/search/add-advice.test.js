@@ -16,7 +16,7 @@ after(e2e.cleanup);
 async function file(box, title, criterion) {
   let last;
   const run = async (root, ...args) => (last = await box.runLocal(root, ...args));
-  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title, criterion, check: 'true', args: ['--specs', 'G1'], run });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title, criterion, check: 'true', diagnose: false, args: ['--specs', 'G1'], run });
   const advice = JSON.parse(last.out).diagnostics ?? [];
   return { id: item.item_id, advice };
 }
