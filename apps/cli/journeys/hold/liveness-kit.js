@@ -38,11 +38,12 @@ const STEPS = {
   },
   async verify(box, id) {
     box.submit(id);
-    // The reviewer takes the verify: `next` reserves the submitted item for it, then it is the holder that breaks.
-    const taken = await cli(box, box.seats.sibling.path, ['next']);
-    if (taken.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the reviewer's next ran red before the fault: ${taken.out}${taken.err}`);
-    const reviewer = box.seats.sibling;
-    return { holder: reviewer, done: item => item.item_status !== 'submitted' || item.item_review_by !== reviewer.id };
+    // A second seat, in another family, holds the verify claim: the reviewer's own `next --verify` reserves the submitted item for it.
+    const reviewer = box.seats.outside;
+    const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
+    if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
+    // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
+    return { holder: reviewer, done: item => item.item_status !== 'submitted' || !item.item_review_by };
   },
 };
 
@@ -63,7 +64,7 @@ function seeded(seed) {
  *
  * @param {import('node:test').TestContext} t
  * @param {{ step: string, fault?: 'kill'|'cut', seed?: number }} options `kill` removes the holder's checkout and heartbeat; `cut` only stops its heartbeat and writes; the seed picks which holder breaks.
- * @returns {Promise<{ step: string, fault: string, victim: string, state: string, owner: string|null, reviewer: string|null, elapsedMs: number, id: number }>} the final item state and the fake-clock time the board took
+ * @returns {Promise<{ step: string, fault: string, victim: string, state: string, owner: string|null, elapsedMs: number, id: number }>} the final item state and the fake-clock time the board took
  */
 export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}) {
   if (!STEPS[step]) throw new Refused('LIVENESS_STEP', `unknown step "${step}": choose one of ${STEP_NAMES.join(', ')}`);
@@ -82,5 +83,5 @@ export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}
     await cli(box, survivor.path, ['shout', 'all', '--kind', 'idea', 'Liveness kit: the surviving seat writes while a holder is gone.']);
     item = await readItem(box, id);
   }
-  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, reviewer: item.item_review_by ?? null, elapsedMs: box.clock.now().getTime() - start, id };
+  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id };
 }
