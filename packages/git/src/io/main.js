@@ -684,15 +684,17 @@ export function withGitCommandMemo(work) {
 
 /** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
 function memoKey(kind, cwd, args, maxBuffer, env) {
-  if (commandMemo === null || env !== process.env) return null;
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
-  const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
+  // The worktree list is asked from many modules, some with a cleaned environment; the environment is part of its key [C7].
+  const listing = command === 'worktree' && words[1] === 'list';
+  if (commandMemo === null || (env !== process.env && !listing)) return null;
+  const reads = listing || ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
     || (command === 'diff' && !args.includes('--output'))
     || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
-  return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
+  return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null, listing && env !== process.env ? env ?? null : null]) : null;
 }
 
 /** Forget every remembered answer when a call that is not a known read is about to run. */
