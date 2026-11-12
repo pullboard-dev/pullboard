@@ -9,6 +9,7 @@ import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
+import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
@@ -86,9 +87,10 @@ else {
     for (const [role, command] of [['check', input.check], ['proof', analysis.plan?.proofCommand]]) {
       if (!command) continue;
       // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
+      // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
       const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
       const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
-        env: { ...process.env, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
+        env: { ...process.env, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }));
       const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
       receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
         ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
