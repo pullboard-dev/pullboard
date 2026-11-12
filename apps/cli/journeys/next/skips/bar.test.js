@@ -1,4 +1,4 @@
-/** add and claim refuse a bar naming a path missing from main; next passes over it, and over a check green on main, reporting once [C7,B7]. */
+/** add and claim refuse a bar naming a path missing from main; next and next --take pass over it, and over a check green on main, reporting once [C7,B7]. */
 import assert from 'node:assert/strict';
 import {
   test,
@@ -58,6 +58,17 @@ test('clause 2: next skips the item naming a missing path, claims the next and t
   assert.match(first.out, /claimed #2: Fresh item/u, first.out);
   success(box, box.web, 'release', '2', '--reason', 'OTHER', '--note', 'fixture');
   success(box, box.web, 'next');
+  const inbox = success(box, box.repo, 'inbox').out;
+  assert.equal(inbox.split('next passes over #1 (BAR_PATH_MISSING)').length - 1, 1, inbox);
+});
+
+test('next --take skips the item naming a missing path, takes the next and tells the coordinator once [C7,B7]', () => {
+  const box = retiredPathBoard();
+  const first = success(box, box.web, 'next', '--take');
+  assert.match(first.out, /skipped #1: \[BAR_PATH_MISSING\]/u, first.out);
+  assert.match(first.out, /claimed #2: Fresh item/u, first.out);
+  success(box, box.web, 'release', '2', '--reason', 'OTHER', '--note', 'fixture');
+  success(box, box.web, 'next', '--take');
   const inbox = success(box, box.repo, 'inbox').out;
   assert.equal(inbox.split('next passes over #1 (BAR_PATH_MISSING)').length - 1, 1, inbox);
 });
