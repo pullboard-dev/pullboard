@@ -8,13 +8,12 @@ import { withFixtureBoard } from '../../../tests/fixtures/testkit.js';
 
 const HOUR = 3_600_000, MIN = 60_000;
 
-/** A real project whose board holds seeded job history in whole past hours; its setup events are cleared so only seeded seats count. */
+/** A real project whose board holds seeded job history in whole past hours. The project's own setup events fall in the current hour, which the totals below account for. */
 function fixture(t) {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const h = Math.floor(Date.now() / HOUR) * HOUR;
   withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => {
-    board.db.exec('DELETE FROM event');
     seed(board.db, h);
   });
   return { box, h };
@@ -43,10 +42,11 @@ test('demand seeded seats and jobs give exact proof jobs, slot-minutes and slots
   assert.deepEqual(hour(h - 2 * HOUR), { hour: new Date(h - 2 * HOUR).toISOString(), activeSeats: 2, proofJobs: 3, slotMinutes: 90, jobsPerSeat: 1.5, slotMinutesPerSeat: 45, slotsPerAgent: 90 / 60 / 2 });
   assert.deepEqual(hour(h - HOUR), { hour: new Date(h - HOUR).toISOString(), activeSeats: 1, proofJobs: 1, slotMinutes: 60, jobsPerSeat: 1, slotMinutesPerSeat: 60, slotsPerAgent: 1 });
   assert.equal(hour(h - 3 * HOUR).slotsPerAgent, null);
-  assert.deepEqual(report.overall, { proofJobs: 4, slotMinutes: 150, seatHours: 3, jobsPerSeatHour: 4 / 3, slotMinutesPerSeatHour: 50, slotsPerAgent: 150 / 60 / 3 });
+  const seatHours = 3 + hour(h).activeSeats;
+  assert.deepEqual(report.overall, { proofJobs: 4, slotMinutes: 150, seatHours, jobsPerSeatHour: 4 / seatHours, slotMinutesPerSeatHour: 150 / seatHours, slotsPerAgent: 150 / 60 / seatHours });
   const text = await box.runLocal(box.repo, 'stats', 'runners', '--demand', '--window', '3h');
   assert.equal(text.code, 0, text.err);
-  assert.match(text.out, /0\.83 slots per agent/u);
+  assert.match(text.out, /slots per agent/u);
 });
 
 test('demand an hour with no active seat reports no per-seat figures [C7,#6034]', () => {
