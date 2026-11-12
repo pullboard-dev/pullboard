@@ -116,9 +116,6 @@
   "apps/cli/journeys/handoff/tools.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/shout/shouts/scrollbar.test.js": {
-    "launch": 14
-  },
   "apps/cli/journeys/init/http.test.js": {
     "launch": 1
   },
@@ -1828,9 +1825,6 @@
   },
   "apps/cli/journeys/init/perf.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/verify/item/timeline.test.js": {
-    "launch": 14
   },
   "apps/cli/journeys/gate/profile.test.js": {
     "launch": 3
