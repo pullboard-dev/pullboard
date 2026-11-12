@@ -167,7 +167,7 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   const unauthorized = await fetch(endpoint, { headers: { 'if-none-match': tag } });
   assert.equal(unauthorized.status, 401, 'a cached ciphertext tag never grants access');
   writeFileSync(join(box.root, 'SPEC.md'), '# Browser fixture spec\n\n## G · Goals\n\n- G1 [draft, must] SPEC_PRESENTATION_ONLY_108 | gate: review\n');
-  assert.equal((await box.cli('status')).code, 0, 'a board read publishes changed spec presentation without a move');
+  assert.equal((await box.cliLocal('status')).code, 0, 'a board read publishes changed spec presentation without a move');
   const changed = await fetch(endpoint, { headers: { ...headers, 'if-none-match': tag } });
   assert.equal(changed.status, 200);
   assert.equal(changed.headers.get('etag') === tag, false);
@@ -185,7 +185,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const firstTitle = 'SEALED_BROWSER_INITIAL_108';
   const liveTitle = 'SEALED_BROWSER_LIVE_108';
   const secondTitle = 'SECOND_LINKED_BOARD_108';
-  assert.equal((await box.cli('add', box.lane, firstTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, firstTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -230,7 +230,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
 
 
-  assert.equal((await box.cli('add', box.lane, liveTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, liveTitle)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
   assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
     'ordinary native moves do not create a person request or claim that this device has one waiting');
@@ -349,7 +349,7 @@ test('a board without a snapshot waits without reloading the page [H5,H16]', {
   const healthyUpdate = 'NO_BOARD_HEALTHY_BOARD_UPDATE_339';
   const missingTitle = 'NO_BOARD_WAITING_BOARD_339';
   const missingEventsTitle = 'NO_BOARD_WAITING_EVENTS_339';
-  assert.equal((await box.cli('add', box.lane, healthyTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, healthyTitle)).code, 0);
   await box.link();
   const healthy = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const healthyKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -382,7 +382,7 @@ test('a board without a snapshot waits without reloading the page [H5,H16]', {
   assert.equal(box.calls.some(call => call.method === 'GET' && call.path.startsWith('/api/v1/boards/' + waitingEvents.id + '/events')), true,
     'the real browser requests the other listed board event stream over HTTP');
 
-  assert.equal((await box.cli('add', box.lane, healthyUpdate)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, healthyUpdate)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyUpdate) + ')');
 
   const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
@@ -417,7 +417,7 @@ test('real Chrome refuses a newer engine in the initial replay without exposing 
 }, async t => {
   const box = await relayClientFixture(t);
   const privateTitle = 'ENGINE_TWO_PRIVATE_108';
-  assert.equal((await box.cli('add', box.lane, privateTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, privateTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
@@ -440,7 +440,7 @@ test('real Chrome refuses a newer engine delivered over the live stream [H5,H15]
   const box = await relayClientFixture(t);
   const initialTitle = 'ENGINE_ONE_INITIAL_108';
   const privateTitle = 'ENGINE_TWO_LIVE_PRIVATE_108';
-  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initialTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
@@ -465,7 +465,7 @@ test('real Chrome waits for and installs the late snapshot that compacts a legac
   box.legacySnapshotApi(); // The stand-in deliberately publishes a historical API1 checkpoint below.
   const initialTitle = 'LATE_SNAPSHOT_INITIAL_108';
   const finalTitle = 'LATE_SNAPSHOT_REPAIRED_108';
-  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initialTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
@@ -503,7 +503,7 @@ test('an unauthenticated pairing link stays device-only through sign-in and a wr
 }, async t => {
   const box = await relayClientFixture(t);
   const marker = 'PRIVATE_BOARD_WITH_PAIRING_108';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -575,7 +575,7 @@ test('a phone not signed in sees one GitHub button and nothing about this comput
 }, async t => {
   const box = await relayClientFixture(t);
   const marker = 'PHONE_FIRST_SCREEN_BOARD_757';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -640,7 +640,7 @@ test('signed in with nothing shared shows one command and waits [H5,H17]', {
   for (const device of ['a phone', 'another computer']) {
     // Each device starts with no linked boards; the preceding phone iteration really shares its board.
     const box = await relayClientFixture(t);
-    assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+    assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
     const chrome = await startChrome();
     t.after(() => chrome.close());
     if (device === 'a phone') await asPhone(chrome);
@@ -680,7 +680,7 @@ test('a signed-in phone waits for its first listing before prescribing a command
 }, async t => {
   const box = await relayClientFixture(t);
   const marker = 'SHARED_AFTER_SLOW_LISTING_757';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await asPhone(chrome);
@@ -734,7 +734,7 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
     addItem(board, { by: 'coordinator', lane: box.lane, title: 'SECOND_QUEUED_108' });
   } finally { closeBoard(board); }
   box.refuseSnapshotWrites(true);
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.code, 0);
   assert.equal((status.document.diagnostics ?? []).some(line => line.includes('[RELAY_UNAVAILABLE]')), true,
     'a refused snapshot keeps the final projection pending for retry');
@@ -747,7 +747,7 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal((await oldState.json()).state.sequence, 0, 'the relay did not acknowledge the refused checkpoint');
 
   box.refuseSnapshotWrites(false);
-  const retried = await box.cli('status');
+  const retried = await box.cliLocal('status');
   assert.equal(retried.code, 0);
   assert.equal(retried.document.diagnostics?.length ?? 0, 0, 'the saved checkpoint retries without re-sending acknowledged moves');
   assert.equal(box.moveAcks.length, 2);
