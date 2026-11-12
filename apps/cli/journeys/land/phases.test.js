@@ -26,7 +26,7 @@ async () => {
   writeFileSync(join(box.repo, 'main-advance.txt'), 'main changed after acceptance\n');
   box.git(box.repo, 'add', 'main-advance.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main before landing');
-  const landed = await box.run(box.repo, 'land', '--json');
+  const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, `${landed.err}\n${landed.out}`);
   const result = JSON.parse(landed.out);
   const said = new Set();
