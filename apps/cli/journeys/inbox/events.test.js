@@ -11,9 +11,11 @@ import {
   join,
 } from 'node:path';
 import { test } from 'node:test';
+import { board as store } from '../../../lib/index.js';
 
 import { registerProject } from '../../../../packages/seats/index.js';
 import { serveView } from '../../src/io/commands/view.js';
+import { main as nativeTestMain } from '../../tests/fixtures/native.js';
 
 import {
   apiHttpFixture as fixture,

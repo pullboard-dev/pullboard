@@ -11,6 +11,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { board as store } from '../../../lib/index.js';
 
 import { registerProject } from '../../../../packages/seats/index.js';
 
