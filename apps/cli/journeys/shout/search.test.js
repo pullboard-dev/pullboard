@@ -456,12 +456,12 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     await tap(`#find-results [data-find="${shout}"]`);
     await chrome.waitFor(`view.tab === 'shouts' && document.getElementById('shout-${shout.slice(6)}')?.classList.contains('found')`);
 
-    // "/" goes to the search from the page, never from a field.
+    // "/" opens the palette from the page, never from a field.
     await chrome.stable("document.activeElement.blur(); document.body.focus()");
     await key('/', 'Slash', 191, '/');
-    r = await read();
-    const selected = await chrome.stable("(() => { const q = document.querySelector('#q'); return q.selectionStart === 0 && q.selectionEnd === q.value.length; })()");
-    assert.deepEqual([r.focused, selected], ['q', true], '"/" puts the cursor in the search, its last words selected to type over');
+    assert.deepEqual(JSON.parse(await chrome.stable("JSON.stringify([!!document.querySelector('#pal-overlay .pal-box'), document.activeElement.id])")), [true, 'pal-q'], '"/" opens the palette with the cursor in its field');
+    await key('Escape', 'Escape', 27);
+    assert.equal(await chrome.stable("document.querySelector('#pal-overlay').innerHTML"), '', 'Esc closes it');
     await chrome.stable("document.querySelector('#shout-text').focus()");
     await key('/', 'Slash', 191, '/');
     assert.equal(await chrome.stable("document.querySelector('#shout-text').value"), '/', 'and in a field it is only a slash');

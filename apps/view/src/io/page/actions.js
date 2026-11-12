@@ -1156,7 +1156,6 @@ $('q').addEventListener('blur', () => {
   if ($('find-results').hidden) return;
   closingFound = setTimeout(() => hideFound('left the field'), 120);
 });
-// "/" goes to the search from anywhere but a field.
 document.addEventListener('keydown', (event) => {
   if (!view.filterOpen) return;
   if (event.key === 'Escape') {
@@ -1176,12 +1175,7 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
-document.addEventListener('keydown', (event) => {
-  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable]')) return;
-  event.preventDefault();
-  $('q').focus();
-  $('q').select();
-});
+// "/" opens the palette from anywhere but a field (io/palette).
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const root = view.root;
