@@ -90,7 +90,8 @@ async function remoteState(box, state) {
 /** After the relay answers again, every local move must be inside the one accepted baseline. */
 async function assertUploadedLater(box, texts) {
   box.stallApi(false); box.legacySnapshotApi(false);
-  const status = await box.cliLocal('status');
+  // Process-level: status runs as a traced child, since in-process it stalls on the earlier stalled relay connections.
+  const status = await box.cli('status');
   assert.equal(status.code, 0);
   const state = link(box);
   assert.equal(state.baselineAccepted, true, 'the next command uploads the baseline');
@@ -164,8 +165,7 @@ test('the public CLI waits out a lost baseline reply and sends the move in relay
   const recover = setTimeout(() => box.rejectStateReads(null), 1500); // budget: hang ceiling for the outage the uncertain upload waits out.
   t.after(() => clearTimeout(recover));
   const text = 'public CLI move after a lost baseline reply';
-  // Process-level: the CLI waits out the outage synchronously in its own process, so an in-process run would freeze this file's timer that ends the outage.
-  const result = await box.cli('shout', 'all', text);
+  const result = await box.cliLocal('shout', 'all', text);
   assert.equal(result.code, 0, JSON.stringify(result.document));
   assert.equal(box.lostSnapshotReplies().length, 1, 'the relay accepted one baseline whose reply was lost');
   assert.equal(box.moveAcks.length, 1, 'the move went through relay order once the upload was decided');
@@ -191,7 +191,8 @@ test('a lock held past the wait refuses once with RELAY_BUSY and a retry step [B
 test('on an accepted baseline a stalled relay refuses once with a reason and the retry step, committing nothing [B26,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal((await box.cliLocal('status')).code, 0);
+  // Process-level: status runs as a traced child, since in-process it stalls on the earlier stalled relay connections.
+  assert.equal((await box.cli('status')).code, 0);
   assert.equal(link(box).baselineAccepted, true);
   box.stallApi(true);
   const run = await moves(box, ['must not commit outside the relay order']);
