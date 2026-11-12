@@ -26,12 +26,15 @@ import { recordNativeProof } from '../../../../../packages/verify/index.js';
  */
 export async function recordTestProofs(io, ctx, { items, files, result }) {
   const commit = headCommit(ctx.info.root);
+  process.stderr.write(`DBG record items=${items} commit=${commit}\n`);
   await actOn(io, async (actCtx, board, me) => {
     for (const id of items) {
       const found = getItem(board, id);
+      process.stderr.write(`DBG owner=${found.item_owner} me=${me.id}\n`);
       if (found.item_owner !== me.id) continue;
       const proofReceiptId = storeTestReceipt(board, { agentId: me.id, itemId: id, commit, files, runner: result.runner ?? null,
         durationMs: Math.round((result.seconds ?? 0) * 1000), counts: result.counts ?? undefined });
+      process.stderr.write(`DBG receipt=${proofReceiptId}\n`);
       if (proofReceiptId) await recordNativeProof(actCtx, found, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt, exitFailures: true }, board);
     }
     return 0;

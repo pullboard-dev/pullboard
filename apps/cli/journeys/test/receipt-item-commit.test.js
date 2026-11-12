@@ -81,7 +81,7 @@ test('clause 1 and 2: a green run with --item N records a proof-run naming N and
   const refused = await seatRun(box, 'test', 'test/ok.test.js', '--item', '9');
   assert.match(refused.err + refused.out, /NOT_YOURS/u, 'an item the seat does not hold is refused');
   const shown = await box.inProcess(box.web, 'show', '2');
-  assert.match(shown.out, /receipt [0-9a-f-]{36}: check, item #2/u, `show 2 lists the receipt: ${shown.out}`);
+  assert.match(shown.out, /receipt [0-9a-f-]{36}: check, item #2/u, `show 2 lists the receipt: ${ran.err}${ran.out} ${shown.out.slice(0, 300)}`);
   assert.match(shown.out, new RegExp(`commit ${head}`, 'u'), 'the receipt names the head sha');
   const other = await box.inProcess(box.web, 'show', '1');
   assert.doesNotMatch(other.out, /receipt [0-9a-f-]{36}: check/u, 'the claim --item did not name gets no receipt');
