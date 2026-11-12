@@ -12,7 +12,7 @@
     "launch": 1
   },
   "apps/cli/journeys/verify/check.test.js": {
-    "launch": 3
+    "launch": 6
   },
   "apps/cli/journeys/init/known/main/frozen.test.js": {
     "launch": 3

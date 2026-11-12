@@ -67,7 +67,12 @@ function sandbox() {
     const result = await runCliInProcess(args, { cwd, env });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  return { dir, env, git, run };
+  /** Process-level by nature: submit hands its gate to a detached child that outlives the call, which in-process dispatch cannot reproduce. */
+  const spawn = (cwd, ...args) => {
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
+  };
+  return { dir, env, git, run, spawn };
 }
 
 /** Initialize a real board repository and one joined builder worktree. */
@@ -111,7 +116,7 @@ async function submitted(box, repo, web, title, check) {
   writeFileSync(join(web, 'web', `item-${id}.js`), 'export const complete = true;\n');
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', `feat(web): complete fixture ${id} [G1]`);
-  await succeeds(box, web, 'submit', String(id));
+  assert.equal(box.spawn(web, 'submit', String(id)).code, 0);
   box.git(repo, 'switch', '--detach', 'web/one');
   return { id, commit: box.git(web, 'rev-parse', 'HEAD') };
 }
@@ -174,7 +179,7 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
     writeFileSync(join(web, 'web', `item-${item.id}.js`), 'export const complete = true; // revised\n');
     box.git(web, 'add', '-A');
     box.git(web, 'commit', '-q', '-m', `fix(web): correct fixture ${item.id} [G1]`);
-    await succeeds(box, web, 'submit', String(item.id));
+    assert.equal(box.spawn(web, 'submit', String(item.id)).code, 0);
     box.git(repo, 'switch', '--detach', 'web/one');
     const accepted = await succeeds(box, repo, 'verify', String(item.id), 'accept', '--as', 'coordinator', '--note', 'the rework fixed the missed edge');
     assert.match(accepted, /no frozen check ran/);
