@@ -314,12 +314,6 @@
   "apps/cli/journeys/fact/receipts.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/fact/review/packet/cases/fixture.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/fact/review/packet/cases/named.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/fact/review/packet/reds.test.js": {
     "launch": 1
   },
@@ -351,9 +345,6 @@
     "launch": 1
   },
   "apps/cli/journeys/fact/timing.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/fact/verdict/merge.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/fact/verdict/quarantine.test.js": {
