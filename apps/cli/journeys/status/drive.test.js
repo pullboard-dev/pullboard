@@ -5,6 +5,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   after,
   test,
@@ -113,7 +114,7 @@ test('clause 1: `status` and `next` each run the reclaim pass and drive at most 
     '};', ''].join('\n'));
   const preload = join(files.root, 'count-reclaim.mjs');
   box.env.RECLAIM_COUNT_FILE = countFile;
-  box.env.NODE_OPTIONS = `--import ${preload}`;
+  box.env.NODE_OPTIONS = `--import ${pathToFileURL(preload).href}`;
   const reclaimQueries = () => { try { return readFileSync(countFile, 'utf8').length; } catch { return 0; } };
 
   const status = box.run(box.repo, 'status', '--json');

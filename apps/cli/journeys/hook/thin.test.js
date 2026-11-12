@@ -12,6 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   after,
   test,
@@ -34,7 +35,7 @@ function counted(box, cwd, extraEnv, args) {
   rmSync(counts, { force: true });
   const bin = join(box.dir, 'bin/pullboard');
   const shim = readFileSync(bin, 'utf8').match(/exec "([^"]+)" "([^"]+)"/u);
-  const env = { ...box.env, ...extraEnv, COUNT_FILE: counts, NODE_OPTIONS: `--import ${preload}` };
+  const env = { ...box.env, ...extraEnv, COUNT_FILE: counts, NODE_OPTIONS: `--import ${pathToFileURL(preload).href}` };
   const result = runFixtureChild(shim[1], [shim[2], 'hook', ...args], { cwd, env, encoding: 'utf8' });
   const loads = existsSync(counts) ? readFileSync(counts, 'utf8').split('\n').filter(Boolean).map(line => line.split(' ')) : [];
   const pidOf = suffix => loads.find(([, url]) => url.endsWith(suffix))?.[0] ?? null;

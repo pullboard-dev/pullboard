@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   after,
   test,
@@ -107,7 +108,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
     "if(process.argv.includes('view'))process.on('SIGUSR2',async()=>{record({kind:'explicit-tick-start'});try{if(!tick)throw new Error('No sentinel callback');await tick();record({kind:'explicit-tick-finished'});}catch(error){record({kind:'explicit-tick-failed',error:error.message});}});",
     "if(process.argv.includes('sentinel')&&process.argv.includes('run')&&existsSync(hold)){record({kind:'held-sentinel'});await new Promise(done=>setTimeout(done,60000));}", // budget: a test-only hold before CLI execution, terminated by the observer's owned shutdown.
   ].join('\n'));
-  box.env.NODE_OPTIONS = `${box.env.NODE_OPTIONS ?? ''} --import=${probe}`.trim();
+  box.env.NODE_OPTIONS = `${box.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(probe).href}`.trim();
   const init = await box.runLocal(repo, 'init');
   assert.equal(init.code, 0, init.err || init.out);
   const worker = sessionRecord(box, port);
