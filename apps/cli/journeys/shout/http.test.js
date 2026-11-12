@@ -1422,17 +1422,17 @@ async (t) => {
   const listing = await (await fetchFresh(served.origin + '/api/v1/boards', { headers })).json();
   const id = listing.boards.find(board => resolve(board.root) === resolve(box.root)).id;
   const path = '/api/v1/boards/' + id;
-  const before = await box.cliLocal(box.root, 'log').events.length;
+  const before = (await box.cliLocal(box.root, 'log')).events.length;
   const refused = await fetchFresh(served.origin + path + '/requests', {
     method: 'POST', headers, body: JSON.stringify({ text: 'Please review this private fixture.' }),
   });
   assert.equal((await refused.json()).error?.code, 'B26_PERSON_CHANNEL');
   assert.notEqual(refused.status, 200);
-  assert.equal(await box.cliLocal(box.root, 'log').events.length, before, 'a standalone serve request adds no event');
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before, 'a standalone serve request adds no event');
   await stopServer();
   const view = await viewHttpBox(t, box);
   const requested = await view.call(view.path + '/requests', { text: 'Please review this from the actual view.' });
   assert.equal(requested.status, 200, "the actual view keeps the person's request channel");
   assert.equal(requested.document.event.event_by, 'person');
-  assert.equal(await box.cliLocal(box.root, 'log').events.length, before + 1);
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before + 1);
 });
