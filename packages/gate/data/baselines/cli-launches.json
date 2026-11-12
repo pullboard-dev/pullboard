@@ -515,9 +515,6 @@
   "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
-  "apps/cli/journeys/export/team/link.test.js": {
-    "launch": 5
-  },
   "apps/runner/tests/recovery/self.test.js": {
     "launch": 2
   },
@@ -940,9 +937,6 @@
   },
   "apps/cli/journeys/resume/presence.test.js": {
     "launch": 17
-  },
-  "apps/cli/journeys/shout/people.test.js": {
-    "launch": 10
   },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
@@ -1710,7 +1704,7 @@
     "launch": 1
   },
   "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "packages/landing/tests/io/step/gate/reporter.test.js": {
     "launch": 1
@@ -1801,9 +1795,6 @@
   },
   "apps/lib/tests/runner/prune.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/thread.test.js": {
-    "launch": 6
   },
   "apps/cli/journeys/watch/main.test.js": {
     "launch": 2
