@@ -35,7 +35,7 @@ test('thirty thousand events open on the phone within three seconds and stream a
   await chrome.waitFor('window.__phoneTiming.historyHeld', 120_000, 'old history is streaming after the first readable board'); // budget: generous hang ceiling for the held oldest-event-page handshake under suite load; the time is logged, never a throughput claim (#953).
   t.diagnostic(`old history reached its held page ${Date.now() - historyStarted} ms after the first paint at load ${loadavg()[0].toFixed(1)}`);
   try {
-    assert.equal((await box.cliLocal('add', box.lane, liveMarker)).code, 0, 'ordinary native moves continue while old history is pinned');
+    assert.equal((await box.cli('add', box.lane, liveMarker)).code, 0, 'ordinary native moves continue while old history is pinned');
     await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes('${liveMarker}')`, 15_000, 'new current state arrives while an older history page is held'); // budget: hang ceiling for the live-move handshake while old history is held, not a throughput claim.
   } finally {
     await chrome.stable('window.__olderHistoryAllowed = true; window.__releaseOlderHistory?.(); true');
