@@ -1,5 +1,4 @@
 import { readMainAudit } from '../../../../../packages/gate/index.js';
-import { closePolicySourceWake } from '../landing/queue.js';
 import { writeFileSync } from 'node:fs';
 import { waitForFixtureProgress } from '../progress.js';
 /** Shared board observations and owned-process helpers for real landing fixtures [B3,R3]. */
@@ -133,6 +132,18 @@ export function startInterruptedLanding(box, entry, t) {
       bytes + (existsSync(file) ? readFileSync(file).length : 0), 0),
     description: 'landing gate entered',
   }) };
+}
+
+/** Wait until the exact native source wake has settled and its owner drained, without the batch queue fixture. */
+function closePolicySourceWake(box, helpers, expectedGeneration) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  assert.ok(Number.isSafeInteger(expectedGeneration) && expectedGeneration > 0);
+  return helpers.waitFor(() => { // Budget: 120s runaway ceiling for actual native source publication and owner drain.
+    const wake = readMainAudit(join(directory, 'wake.json'));
+    const settled = readMainAudit(join(directory, 'settled.json'));
+    return !existsSync(join(directory, 'owner.json')) && settled?.generation >= expectedGeneration
+      && settled.generation === wake?.generation ? settled : false;
+  }, 'the exact native source wake closes before private branch repair or cleanup', 120_000);
 }
 
 /** Settle only the exact native wake recorded by this private fixture before counting foreground publish calls. */
