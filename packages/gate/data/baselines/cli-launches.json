@@ -894,7 +894,16 @@
     "launch": 13
   },
   "apps/cli/journeys/next/order.test.js": {
-    "launch": 88
+    "launch": 23
+  },
+  "apps/cli/journeys/next/order/queue.test.js": {
+    "launch": 23
+  },
+  "apps/cli/journeys/next/order/claims.test.js": {
+    "launch": 15
+  },
+  "apps/cli/journeys/next/order/focus.test.js": {
+    "launch": 27
   },
   "apps/cli/journeys/next/review.test.js": {
     "launch": 3
