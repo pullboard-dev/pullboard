@@ -26,13 +26,15 @@ Reds that main also has are not yours. Any new red blocks the landing.
 
 ## Land it by hand
 
-`pullboard land` only batches items that passed the gate, so it cannot land this fix. Merge the item's commit onto main yourself, then record the landing:
+`pullboard land` only batches items that passed the gate, so it cannot land this fix. Merge the item's candidate commit onto main yourself. The landing is the merge commit that `HEAD` points to after the merge, not the candidate sha, so read it and record that:
 
 ```
-git merge --no-ff <sha>
-pullboard merged <id> <sha> --forced "why the pipeline could not pass its own fix; the runner proof"
+git merge --no-ff <candidate-sha>
+git rev-parse HEAD
+pullboard merged <id> <HEAD-sha> --forced "why the pipeline could not pass its own fix; the runner proof"
 ```
 
+`<candidate-sha>` is the item's commit you proved on runners; `<HEAD-sha>` is the new merge commit that contains it.
 `--forced` records the work as landed without a verify, and keeps your reason on the item.
 
 Once the fix is on main, the pipeline passes ordinary work again.
