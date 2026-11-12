@@ -63,7 +63,7 @@ test('the private Cost overview renders prepared analytics and each confidence [
 test('the private Cost tab consumes the server projection and routes controls [N26]', { timeout: 120_000 }, async () => {
   const { machine, project, startView, press, serveFolder } = await import('../../../../tests/fixtures/cockpit/harness.js');
   const box = machine(), alpha = project(box, 'cost-projection');
-  box.run(alpha.repo, 'add', 'web', 'Seeded item', '--specs', 'G1', '--criterion', 'Appears in the private Cost view.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Seeded item', '--specs', 'G1', '--criterion', 'Appears in the private Cost view.');
   const view = await startView(box), dir = mkdtempSync(join(tmpdir(), 'cost-projection-')); let chrome;
   try {
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(dir, 'chrome'));
@@ -91,7 +91,7 @@ test('the private Cost tab consumes the server projection and routes controls [N
     assert.doesNotMatch(cockpitPage('', { snapshot:true, readOnly:true }), /costOverviewHtml|cost-analytics|Only you see this/u, 'public snapshots omit private Cost implementation');
     assert.deepEqual(chrome.exceptions, []);
     const output = join(dir, 'public');
-    box.run(alpha.repo, 'view', '--export', output, '--public');
+    await box.inProcess(alpha.repo, 'view', '--export', output, '--public');
     const publicView = await serveFolder(output, '/public/');
     let publicChrome;
     try {
