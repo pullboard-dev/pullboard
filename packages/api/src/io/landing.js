@@ -53,7 +53,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   const separate = config?.landing?.publish === 'separate';
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
-    payload: { remote, trunk, expect, items: own?.items ?? landed, ...(check ?? own?.gate ? { check: check ?? own.gate } : {}), ...(proof ? { proof } : {}),
+    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ? { check: check ?? own.gate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}),
       ...(separate ? { publish: 'separate' } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 
@@ -66,17 +66,15 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ id: number }[]} items
  * @param {{ gate?: unknown, affectedTests?: unknown }} config
- * @returns {{ items: { id: number, check?: string }[], gate: string[] | null }}
+ * @returns {{ checks: Record<string, string> | null, gate: string[] | null }} checks: each item's own check by item id.
  */
 function ownChecks(db, items, config) {
   const read = db.prepare('SELECT item_check FROM item WHERE item_id = ?');
-  const checked = items.map(entry => {
-    const command = read.get(entry.id)?.item_check;
-    return typeof command === 'string' && command.trim() ? { ...entry, check: command.trim() } : entry;
-  });
+  const checks = Object.fromEntries(items.map(entry => [String(entry.id), read.get(entry.id)?.item_check])
+    .filter(([, command]) => typeof command === 'string' && command.trim()).map(([id, command]) => [id, command.trim()]));
   const affected = typeof config?.affectedTests === 'string' && config.affectedTests.trim();
   const gate = !affected && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
-  return { items: checked, gate };
+  return { checks: Object.keys(checks).length ? checks : null, gate };
 }
 
 /**

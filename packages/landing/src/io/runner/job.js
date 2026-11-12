@@ -102,7 +102,7 @@ async function landingCheck(payload, env) {
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
     const parts = [...(payload.check ? [commandCheck(payload.check)] : []),
-      ...payload.items.filter(entry => merged.has(entry.id) && entry.check).map(entry => commandCheck(['sh', '-c', entry.check])),
+      ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => commandCheck(['sh', '-c', payload.checks[entry.id]])),
       ...(prove && files.length ? [prove({ ...payload.proof, files }, { env })] : [])];
     let proof = null;
     for (const part of parts) {
@@ -154,7 +154,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew }) {
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean, publish?: string, proof?: object }} payload - items[].check: the item's own check; checkout:
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object }} payload - checks: each item's own check by id; checkout:
  *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
