@@ -51,7 +51,7 @@ test('a size-paused baseline keeps its cipher, warns once per session and resume
   const before = puts();
   const probe = await pausedCrypto(box);
   assert.equal(probe.code, 0); assert.equal(probe.document.encryptions, 0); assert.equal(probe.document.notices, 0);
-  assert.equal((await box.cli('shout', 'all', 'local work while size is paused')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'local work while size is paused')).code, 0);
   assert.equal((await box.cli('status')).code, 0);
   assert.equal(state(box).snapshot.sealed === saved, true, 'blocked commands retain exact durable pending ciphertext');
   assert.equal(puts(), before, 'small capabilities probes replace failed whole-board uploads');
@@ -64,11 +64,11 @@ test('a size-paused baseline keeps its cipher, warns once per session and resume
   assert.equal((await box.cli('status')).code, 0);
   const resumed = state(box);
   assert.equal(resumed.baselinePause, undefined); assert.equal(resumed.snapshot, undefined); assert.equal(resumed.snapshotApiVersion, 2);
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0);
   assert.ok(exported.document.tables.shout.some(row => row.shout_text === 'local work while size is paused'));
   assert.equal(box.moveAcks.length, 0, 'all paused local work belongs to the fresh accepted baseline');
-  assert.equal((await box.cli('shout', 'all', 'first ordered move after upgrade')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'first ordered move after upgrade')).code, 0);
   assert.deepEqual(box.moveAcks.map(row => row.event_id), [1]);
 });
 
@@ -105,7 +105,7 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   });
   const probe = await pausedCrypto(box);
   assert.equal(probe.code, 0); assert.equal(probe.document.encryptions, 0); assert.equal(probe.document.notices, 0);
-  assert.equal((await box.cli('shout', 'all', 'ordered move while checkpoint quota is paused')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'ordered move while checkpoint quota is paused')).code, 0);
   assert.deepEqual(box.moveAcks.map(row => row.event_id), [1]);
   assert.equal(state(box).checkpoint.sealed === saved.checkpoint.sealed, true);
   assert.equal(saved.snapshotApiVersion, 2, 'the native quota refusal occurred during a real bounded-page upload');
@@ -127,7 +127,7 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   assert.equal((await box.cli('status')).code, 0);
   assert.equal(state(box).checkpointRefusal, undefined); assert.equal(state(box).checkpoint, undefined);
   assert.equal(state(box).storage.limitBytes, 3_000_000);
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0);
   assert.equal(exported.document.tables.shout.filter(row => row.shout_text === 'ordered move while checkpoint quota is paused').length, 1);
 });

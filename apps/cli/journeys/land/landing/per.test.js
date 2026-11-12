@@ -44,14 +44,14 @@ function establishBaseFile(box, number) {
 }
 
 /** Add, join and claim one item whose check is the fixture's own single-file runner. */
-function item(box, number) {
+async function item(box, number) {
   const file = `web/land-${number}.test.js`;
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: `Land fixture ${number}`,
     criterion: `land fixture ${number} remains valid`, check: `${box.affected} ${file}`, args: ['--specs', 'G1'] }).item_id;
-  assert.equal(box.run(path, 'claim', String(id)).code, 0);
+  assert.equal((await box.runLocal(path, 'claim', String(id))).code, 0);
   return { path, item: id, file };
 }
 
@@ -65,16 +65,16 @@ function refuseEveryCommit(box) {
 }
 
 /** Run one plain land and return its JSON result; `code` is 1 when nothing landed and a culprit came back [C7,#4265]. */
-function land(box, code = 0) {
-  const result = box.run(box.repo, 'land', '--json');
+async function land(box, code = 0) {
+  const result = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(result.code, code, result.out + result.err);
   return JSON.parse(result.out);
 }
 
 test('clause 1: one landing batch lands all three verified items that merge cleanly, hooks off, each recorded merged [C7,#2901,#5815]', { timeout: 300_000 }, // budget: three real submits, accepts and one landing; hang ceiling only.
-() => {
+async () => {
   const box = perItemProject();
-  const first = item(box, 1), second = item(box, 2), third = item(box, 3);
+  const first = await item(box, 1), second = await item(box, 2), third = await item(box, 3);
   for (const entry of [first, second, third]) submitItem(box, entry);
   acceptItem(box, second); // accepted first, so it merges first
   acceptItem(box, first);
@@ -82,7 +82,7 @@ test('clause 1: one landing batch lands all three verified items that merge clea
   refuseEveryCommit(box);
   const start = box.git(box.repo, 'rev-parse', 'main');
 
-  const one = land(box);
+  const one = await land(box);
   assert.deepEqual(one.landed, [second.item, first.item, third.item], 'one run lands every clean item in accept order');
   assert.equal(one.batch.items.length, 3, 'all three ride one batch');
   const tip = box.git(box.repo, 'rev-parse', 'main');
@@ -96,10 +96,10 @@ test('clause 1: one landing batch lands all three verified items that merge clea
 });
 
 test('clause 2: a red batch isolates its culprit and lands the rest in the same run [C7,#2901,#5815]', { timeout: 300_000 }, // budget: two real submits, accepts and one bisected landing; hang ceiling only.
-() => {
+async () => {
   const box = perItemProject();
   establishBaseFile(box, 1);
-  const red = item(box, 1), green = item(box, 2);
+  const red = await item(box, 1), green = await item(box, 2);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); submitItem(box, green); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, red);
@@ -107,7 +107,7 @@ test('clause 2: a red batch isolates its culprit and lands the rest in the same 
   moveMainPastSubmit(box); // the red submit was recorded green with its red suppressed; main moves so landing runs its own gate [C7]
   const start = box.git(box.repo, 'rev-parse', 'main');
 
-  const one = land(box);
+  const one = await land(box);
   assert.deepEqual(one.landed, [green.item], 'the green item lands in the same run');
   assert.deepEqual(one.culprits.map(entry => entry.id), [red.item], 'the bisection names the red item');
   const tip = box.git(box.repo, 'rev-parse', 'main');
@@ -118,21 +118,21 @@ test('clause 2: a red batch isolates its culprit and lands the rest in the same 
 });
 
 test('two land runs on an unchanged board never record the same stop twice [C7,#2901]', { timeout: 300_000 }, // budget: one real submit, accept and three landings; hang ceiling only.
-() => {
+async () => {
   const box = perItemProject();
   establishBaseFile(box, 1);
-  const red = item(box, 1);
+  const red = await item(box, 1);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, red);
   moveMainPastSubmit(box);
 
-  land(box, 1);
+  await land(box, 1);
   const recorded = events(box);
   const reopens = rows => rows.filter(row => row.item_id === red.item && row.event_kind === 'reopen').length;
   assert.equal(reopens(recorded), 1, 'the stop is recorded once');
-  land(box);
-  land(box);
+  await land(box);
+  await land(box);
   const later = events(box);
   assert.equal(reopens(later), 1, 'no second reopen');
   assert.deepEqual(later.slice(recorded.length).map(row => row.event_kind), [], 'the later runs record nothing');

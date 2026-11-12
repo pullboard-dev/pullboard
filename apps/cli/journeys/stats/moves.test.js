@@ -114,12 +114,12 @@ test('moves real CLI reads explicit transcript file and leaves native history un
   assert.equal(missing.code, 1); assert.equal(JSON.parse(missing.stdout).error.code, 'USAGE');
 });
 
-test('real inbox history preserves numeric pagination and keeps its action distinct [A1,A2,R2]', t => {
+test('real inbox history preserves numeric pagination and keeps its action distinct [A1,A2,R2]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const sent = box.run(box.web, 'shout', 'coordinator', 'History cursor control', '--kind', 'question', '--json');
+  const sent = await box.runLocal(box.web, 'shout', 'coordinator', 'History cursor control', '--kind', 'question', '--json');
   assert.equal(sent.code, 0, sent.out + sent.err);
-  const read = box.run(box.web, 'inbox', '--history', '--since', '0', '--json');
+  const read = await box.runLocal(box.web, 'inbox', '--history', '--since', '0', '--json');
   assert.equal(read.code, 0, read.err);
   const page = JSON.parse(read.out);
   assert.equal(page.shouts.length, 1);
@@ -127,12 +127,12 @@ test('real inbox history preserves numeric pagination and keeps its action disti
   assert.equal(typeof page.next, 'number');
   assert.equal(typeof page.nextAction, 'string');
   assert.equal(Object.keys(page).at(-1), 'nextAction');
-  const continued = box.run(box.web, 'inbox', '--history', '--since', String(page.next), '--json');
+  const continued = await box.runLocal(box.web, 'inbox', '--history', '--since', String(page.next), '--json');
   assert.equal(continued.code, 0, continued.err);
   const empty = JSON.parse(continued.out);
   assert.deepEqual(empty.shouts, []);
   assert.equal(empty.next, page.next, 'an empty page preserves the continuation cursor');
-  const projected = box.run(box.web, 'inbox', '--history', '--since', '0', '--json', '--fields', 'next');
+  const projected = await box.runLocal(box.web, 'inbox', '--history', '--since', '0', '--json', '--fields', 'next');
   assert.equal(projected.code, 0, projected.err);
   assert.deepEqual(JSON.parse(projected.out), { version: 1, next: page.next });
 });
@@ -167,17 +167,17 @@ test('automatic infra notes distinguish import-only proof from other guarded dif
   assert.match(infraNote({ ...options }).note, /Automatically drafted/u, 'missing identity never fabricates import-only proof');
 });
 
-test('claim states header and infra rules once in text and preserves JSON [C7,V4]', t => {
+test('claim states header and infra rules once in text and preserves JSON [C7,V4]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Measure claim guidance', '--specs', 'G1', '--check', 'true');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Measure claim guidance', '--specs', 'G1', '--check', 'true');
   assert.equal(added.code, 0, added.err);
-  const claimed = box.run(box.web, 'claim', '1', '--json');
+  const claimed = await box.runLocal(box.web, 'claim', '1', '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const document = JSON.parse(claimed.out);
   assert.equal(document.commitRules, undefined, 'guidance adds no JSON fields');
   assert.equal(document.next, undefined, 'JSON claim retains its native shape');
-  const renewed = box.run(box.web, 'claim', '1');
+  const renewed = await box.runLocal(box.web, 'claim', '1');
   assert.equal(renewed.code, 0, renewed.err);
   assert.equal(renewed.out.match(/Commit headers must/gu)?.length, 1);
   assert.equal(renewed.out.match(/Submit drafts --infra/gu)?.length, 1);

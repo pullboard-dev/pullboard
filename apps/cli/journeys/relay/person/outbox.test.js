@@ -77,7 +77,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   const box = await relayClientFixture(t);
   const title = 'PERSON_OUTBOX_BROWSER_READY';
   const text = 'PERSON_OUTBOX_PRIVATE_REQUEST_TEXT';
-  assert.equal((await box.cli('add', box.lane, title)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, title)).code, 0);
   await box.link();
   const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
@@ -142,7 +142,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   assertSnapshotCheckpoints(trace, 3);
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds'); // budget: declared eight-second native snapshot delay (7900ms lower bound).
   const completed = await waitForRequest(chrome, link.board, requestId, 'done');
-  const exported = (await box.cli('export')).document;
+  const exported = (await box.cliLocal('export')).document;
   const shouts = exported.tables.shout.filter(row => row.shout_from === 'person' && row.shout_text === text);
   assert.equal(shouts.length, 1, 'one recovered intent creates exactly one authored person shout');
   assert.equal(completed.state.personRequests.find(row => row.id === requestId).status, 'done');
@@ -152,6 +152,6 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   assert.equal(control.code, 0, 'repeated native replay stays idempotent');
   assert.equal(control.snapshotTrace.length, 0, 'a completed request status has no checkpoint to republish');
   assert.equal(control.snapshotDeadlineMs, cliChildDeadlineMs(0), 'a no-upload control keeps only the product bound and margin');
-  const repeatedExport = (await box.cli('export')).document;
+  const repeatedExport = (await box.cliLocal('export')).document;
   assert.equal(repeatedExport.tables.shout.filter(row => row.shout_from === 'person' && row.shout_text === text).length, 1);
 });
