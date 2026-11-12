@@ -576,7 +576,7 @@
     "launch": 2
   },
   "apps/cli/journeys/init/ignore.test.js": {
-    "launch": 24
+    "launch": 1
   },
   "apps/cli/journeys/init/known/main/frozen.test.js": {
     "launch": 3
