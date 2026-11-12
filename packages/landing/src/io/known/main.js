@@ -10,6 +10,7 @@ import { laneOf } from '../../../../seats/index.js';
 import { listItems } from '../../../../store/index.js';
 import { fileMainRed } from '../../../../items/index.js';
 import { mainRedKeyLines } from '../../../../items/index.js';
+import { mainRedEvidenceLines } from '../../../../items/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 
 /**
@@ -113,7 +114,7 @@ export async function fileKnownMainReds(state, known) {
           const criterion = `Repair these exact cases on main ${state.batch.base}: ${cases.join('; ')}. They fail at main alone, found by landing batch ${state.batch.id}.`;
           // A repair is diagnosed by the seat that takes it, so it files on the strong route.
           return state.write('addItem', [{ by: 'coordinator', lane, title, route: 'strong', specIds: [], parentId: null, after: [],
-            criterion, brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: ${source}\n${mainRedKeyLines(fresh)}`,
+            criterion, brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: ${source}\n${mainRedKeyLines(fresh)}${mainRedEvidenceLines(fresh)}`,
             check: `${String(state.config.affectedTests ?? '').trim()} ${word(file)}`.trim() }]);
         } });
       const item = result.created ?? owner;

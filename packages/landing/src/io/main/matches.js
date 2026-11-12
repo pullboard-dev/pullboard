@@ -71,6 +71,28 @@ function stableFailure(all, root) {
   return { stable, stableData: createHash('sha256').update(JSON.stringify(values)).digest('hex').slice(0, 16) };
 }
 
+/** The most stderr a filed main red keeps per failing case (#3090). */
+const EVIDENCE_BYTES = 4096;
+
+/**
+ * The evidence a repair needs from one failure's diagnostics: the assertion's file:line, the expected and actual values
+ * and the whole diagnostic block up to 4 KB, never cut at the stack caret [C7].
+ * Why: a short first error hid where the assertion sat and what it compared, so the repairer reran the case to learn it.
+ */
+function failureEvidence(all, root) {
+  const { stack = '', expected, actual } = diagnosticFields(all);
+  const strip = text => String(text).replaceAll('file://', '').replaceAll(`${String(root).replace(/\/+$/u, '')}/`, '');
+  const frame = stack.split('\n').map(line => /\(?([^\s()]+\.[cm]?js):(\d+):\d+\)?\s*$/u.exec(line.trim())).find(match => match && !match[1].startsWith('node:'));
+  const stderr = strip(all.join('\n')).slice(0, EVIDENCE_BYTES);
+  const evidence = {
+    ...(frame ? { location: `${strip(frame[1])}:${frame[2]}` } : {}),
+    ...(expected === undefined ? {} : { expected: strip(expected).slice(0, 512) }),
+    ...(actual === undefined ? {} : { actual: strip(actual).slice(0, 512) }),
+    stderr,
+  };
+  return secretsIn([{ path: 'main failure output', line: 1, text: JSON.stringify(evidence) }]).length ? { stderr: '[redacted evidence]' } : evidence;
+}
+
 /** Extract the first safe diagnostic line without changing the failure signature. */
 function firstError(lines, root) {
   const index = lines.findIndex(line => line.startsWith('error:'));
@@ -110,7 +132,7 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => {
       const error = firstError(details[index].lines, executionRoot);
-      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable, stableData: details[index].stableData } : {}) };
+      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable, stableData: details[index].stableData } : {}), evidence: failureEvidence(details[index].all, executionRoot) };
     }) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }
