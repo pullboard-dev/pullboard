@@ -154,7 +154,7 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
 });
 
 /** Public next commands use a private Git/SQLite board; no seeded state claims a gate execution. */
-test('next offers the focus milestone first and explains a claimable outside fallback [N2,B16]', t => {
+test('next offers the focus milestone first and explains a claimable outside fallback [N2,B16]', async t => {
   const box = crossLaneFixture(t);
   const owner = box.seat('focus-owner', 'web', box.session);
   const peer = box.seat('focus-peer', 'web', 'focus-peer-session');
@@ -162,16 +162,16 @@ test('next offers the focus milestone first and explains a claimable outside fal
   const focused = box.add('web', 'Named focus work');
   box.milestone('0.9.4', outside);
   box.milestone('0.9.3', focused);
-  const ordinary = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
+  const ordinary = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--build', '--json')));
   assert.equal(ordinary.item.item_id, outside, 'unset retains the existing roadmap order');
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json'));
+  box.json((await box.runAsLocal(box.session, owner.root, 'release', String(outside), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json')));
 
-  box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--overflow', 'on', '--json'));
-  const picked = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
+  box.json((await box.runLocal(box.repo, 'milestone', 'focus', '0.9.3', '--overflow', 'on', '--json')));
+  const picked = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--build', '--json')));
   assert.equal(picked.item.item_id, focused, 'the named focus overrides an earlier roadmap milestone');
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json'));
-  box.json(box.runAs('focus-peer-session', peer.root, 'claim', String(focused), '--json'));
-  const fallback = box.runAs(box.session, owner.root, 'next', '--build');
+  box.json((await box.runAsLocal(box.session, owner.root, 'release', String(focused), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json')));
+  box.json((await box.runAsLocal('focus-peer-session', peer.root, 'claim', String(focused), '--json')));
+  const fallback = (await box.runAsLocal(box.session, owner.root, 'next', '--build'));
   assert.equal(fallback.code, 0, `${fallback.out}\n${fallback.err}`);
   const focusLines = fallback.out.split('\n').filter(line => /focus.*0\.9\.3|0\.9\.3.*focus/iu.test(line));
   assert.equal(focusLines.length, 1, 'one line explains why next leaves the named focus');
@@ -180,11 +180,11 @@ test('next offers the focus milestone first and explains a claimable outside fal
     assert.equal(store.getItem(board, outside).item_owner, owner.agent, 'a peer-held focus does not starve claimable outside work');
     assert.equal(store.getItem(board, focused).item_owner, peer.agent, 'focus never steals another seat’s claim');
   } finally { store.closeBoard(board); }
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json'));
-  box.json(box.runAs('focus-peer-session', peer.root, 'release', String(focused), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json'));
-  box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', 'off',
-    '--reason', 'Restore ordinary roadmap selection', '--window', '{"activeItems":2}', '--json'));
-  const restored = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
+  box.json((await box.runAsLocal(box.session, owner.root, 'release', String(outside), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json')));
+  box.json((await box.runAsLocal('focus-peer-session', peer.root, 'release', String(focused), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next', '--json')));
+  box.json((await box.runLocal(box.repo, 'settings', 'line', 'focusMilestone', 'off',
+    '--reason', 'Restore ordinary roadmap selection', '--window', '{"activeItems":2}', '--json')));
+  const restored = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--build', '--json')));
   assert.equal(restored.item.item_id, outside, 'turning focus off restores the original order');
 });
 
@@ -218,7 +218,7 @@ test('historical focus reviews retain reservations and modern reviews enforce fo
 });
 
 /** Native offers are observed against real private Git and SQLite, with synthetic lifecycle records explicitly not gate proofs. */
-test('next offers the focus milestone first across review and build modes [N2,B16]', t => {
+test('next offers the focus milestone first across review and build modes [N2,B16]', async t => {
   const box = crossLaneFixture(t);
   const owner = box.seat('mixed-owner', 'web', box.session);
   const author = box.seat('mixed-author', 'api', 'mixed-author-session');
@@ -236,16 +236,16 @@ test('next offers the focus milestone first across review and build modes [N2,B1
     }
   } finally { store.closeBoard(board); }
   const peer = box.seat('mixed-peer', 'web', 'mixed-peer-session');
-  const ordinary = box.json(box.runAs('mixed-peer-session', peer.root, 'next', '--json'));
+  const ordinary = box.json((await box.runAsLocal('mixed-peer-session', peer.root, 'next', '--json')));
   assert.equal(ordinary.review, true, 'three waiting reviews meet the unchanged offer threshold');
   assert.equal(ordinary.item.item_id, outside);
-  box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', '0.9.3',
-    '--reason', 'Focus across both kinds of next work', '--window', '{"activeItems":2}', '--json'));
-  const picked = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
+  box.json((await box.runLocal(box.repo, 'settings', 'line', 'focusMilestone', '0.9.3',
+    '--reason', 'Focus across both kinds of next work', '--window', '{"activeItems":2}', '--json')));
+  const picked = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--json')));
   assert.equal(picked.item.item_id, focused, 'a focused build outranks an outside review');
   assert.equal(picked.review, false);
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--reason', 'BLOCKED', '--no-next', '--json'));
-  const review = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
+  box.json((await box.runAsLocal(box.session, owner.root, 'release', String(focused), '--reason', 'BLOCKED', '--no-next', '--json')));
+  const review = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--verify', '--json')));
   assert.equal(review.item, null, 'review-only next does not leave an enforced focus');
   const focusedReview = box.add('api', 'Focused review before focused build');
   const updated = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
@@ -255,10 +255,10 @@ test('next offers the focus milestone first across review and build modes [N2,B1
     submitFixture(updated, focusedReview, { agentId: author.agent, commit: box.git(box.repo, 'rev-parse', 'HEAD'),
       tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') });
   } finally { store.closeBoard(updated); }
-  const preferredReview = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
+  const preferredReview = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--json')));
   assert.equal(preferredReview.item.item_id, focusedReview, 'an eligible focused review is offered');
   assert.equal(preferredReview.review, true);
-  const oldestReview = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
+  const oldestReview = box.json((await box.runAsLocal(box.session, owner.root, 'next', '--verify', '--json')));
   assert.equal(oldestReview.item.item_id, focusedReview, 'review-only selection stays inside focus');
   assert.equal(oldestReview.review, true);
 });
@@ -293,20 +293,20 @@ test('focus milestone policy survives export while old reserve-next retains its 
   assert.equal(historical.result.item.item_id, outside, 'a historical reservation keeps its previous roadmap order');
 });
 
-test('blocked release --on records and coordinator edit --after none clears the wait [B5,B10,N2]', t => {
+test('blocked release --on records and coordinator edit --after none clears the wait [B5,B10,N2]', async t => {
   const box = crossLaneFixture(t);
-  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json')));
   const blocker = box.add('web', 'Prerequisite');
   const work = box.add('web', 'Blocked task');
-  box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
-  box.json(box.runAs(box.session, box.web, 'release', String(work), '--reason', 'BLOCKED', '--on', String(blocker), '--no-next', '--json'));
-  const shown = box.json(box.run(box.repo, 'show', String(work), '--json'));
+  box.json((await box.runAsLocal(box.session, box.web, 'claim', String(work), '--json')));
+  box.json((await box.runAsLocal(box.session, box.web, 'release', String(work), '--reason', 'BLOCKED', '--on', String(blocker), '--no-next', '--json')));
+  const shown = box.json((await box.runLocal(box.repo, 'show', String(work), '--json')));
   assert.equal(shown.item_after, String(blocker));
-  const before = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
+  const before = box.json((await box.runAsLocal(box.session, box.web, 'next', '--build', '--json')));
   assert.notEqual(before.item?.item_id, work);
-  box.json(box.runAs(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json'));
-  box.json(box.run(box.repo, 'edit', String(work), '--after', 'none', '--reason', 'Remove prerequisite', '--json'));
-  box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
+  box.json((await box.runAsLocal(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json')));
+  box.json((await box.runLocal(box.repo, 'edit', String(work), '--after', 'none', '--reason', 'Remove prerequisite', '--json')));
+  box.json((await box.runAsLocal(box.session, box.web, 'claim', String(work), '--json')));
 });
 
 

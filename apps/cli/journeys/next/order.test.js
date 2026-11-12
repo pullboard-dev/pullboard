@@ -40,7 +40,7 @@ import {
 } from 'node:path';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
-test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
+test('next offers the item on the longest remaining path first [N2,B13,N20]', async t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const add = (title, after = []) => store.addItem(board, {
@@ -66,7 +66,7 @@ test('next offers the item on the longest remaining path first [N2,B13,N20]', t 
 });
 
 /** The sharpened primary score leaves a real equal-score tie for the critical path to resolve. */
-test('equal primary scores use the longer remaining path before age [N2,B13,N20]', t => {
+test('equal primary scores use the longer remaining path before age [N2,B13,N20]', async t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const add = (title, after = []) => store.addItem(board, {
@@ -85,7 +85,7 @@ test('equal primary scores use the longer remaining path before age [N2,B13,N20]
   assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, long, 'the queue resolves the same equal-score tie');
 });
 
-test('a file overlap keeps the hard collision skip under the sharpened precedence [N2,N20]', t => {
+test('a file overlap keeps the hard collision skip under the sharpened precedence [N2,N20]', async t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const busy = store.register(board, { lane: 'api', path: '/soft-overlap', route: 'strong' });
@@ -103,7 +103,7 @@ test('a file overlap keeps the hard collision skip under the sharpened precedenc
     'an independent item remains offerable while the collision stays blocked');
 });
 
-test('historical review paths replay while modern reviews use age [C7,N2,B13,H16]', t => {
+test('historical review paths replay while modern reviews use age [C7,N2,B13,H16]', async t => {
   const { board, builder, reviewer } = boardFixture();
   t.after(() => store.closeBoard(board));
   const independent = submitted(board, builder, 'Older independent submission', 'strong', 1);
@@ -120,7 +120,7 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
     'modern review age precedes the critical path under coordinator37962');
 });
 
-test('recorded review selection keeps its historical path priority on replay [N2,H16]', t => {
+test('recorded review selection keeps its historical path priority on replay [N2,H16]', async t => {
   for (const engine of [CRITICAL_PATH_ENGINE - 1, REVIEW_ROUTING_ENGINE - 1, ENGINE_VERSION]) {
     const { board, builder, reviewer } = boardFixture(engine);
     const replica = openBoard(':memory:');
@@ -149,7 +149,7 @@ test('recorded review selection keeps its historical path priority on replay [N2
   }
 });
 
-test('historical reviewers keep earliest-milestone submissions first [B16,H16]', (t) => {
+test('historical reviewers keep earliest-milestone submissions first [B16,H16]', async (t) => {
   const { board, builder, reviewer } = boardFixture();
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   t.after(() => store.closeBoard(board));
@@ -181,7 +181,7 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
 });
 
-test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
+test('a builder gets the earliest milestone\'s open items first [B16]', async (t) => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
 
@@ -217,7 +217,7 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
   assert.notEqual(resumed.item.item_id, unlistedStrong);
 });
 
-test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t) => {
+test('recorded reserve-next moves retain their versioned ordering [B16,H16]', async (t) => {
   assert.ok(ENGINE_VERSION >= 8, 'roadmap selection is carried by engine 8 or newer');
   for (const version of [1, 2, 3, 4, 5, 6, 7, ENGINE_VERSION]) {
     const { board, builder, reviewer } = boardFixture(version);
@@ -235,7 +235,7 @@ test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t
   }
 });
 
-test('next in the main checkout names the lane worktree to join [N2,B26]', t => {
+test('next in the main checkout names the lane worktree to join [N2,B26]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.sandbox(), repo = join(box.dir, 'fresh-board');
@@ -243,9 +243,9 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   box.git(repo, 'init', '-q', '-b', 'main');
   const model = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await box.runLocal(repo, 'init')).code, 0);
   if (model !== undefined) box.env.PULLBOARD_MODEL = model;
-  assert.equal(box.run(repo, 'lane', 'add', 'app', '--owns', 'app/').code, 0);
+  assert.equal((await box.runLocal(repo, 'lane', 'add', 'app', '--owns', 'app/')).code, 0);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up the fresh board');
   for (const title of ['First app item', 'Second app item']) {
@@ -253,7 +253,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
       '--criterion', 'The app item creates its readiness marker.', '--check', 'test -f app/ready', '--json');
     assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   }
-  const json = box.run(repo, 'next', '--json');
+  const json = (await box.runLocal(repo, 'next', '--json'));
   assert.equal(json.code, 1, json.out);
   const refusal = JSON.parse(json.out).error;
   assert.equal(refusal.code, 'NOTHING_FREE', 'the empty coordinator queue keeps its refusal code');
@@ -261,16 +261,16 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   assert.equal(refusal.next, 'pullboard worktree app --model "<model name>"');
   assert.doesNotMatch(refusal.message + refusal.next, /wait|keep looking/iu);
   for (const args of [[], ['--wait', '0.01']]) {
-    const text = box.run(repo, 'next', ...args);
+    const text = (await box.runLocal(repo, 'next', ...args));
     assert.equal(text.code, 1);
     assert.match(text.err, /2 items open in lane app/u);
     assert.match(text.err, /pullboard worktree app --model "<model name>"/u);
     assert.doesNotMatch(text.err, /pullboard next --wait|keep looking/iu);
   }
-  const opened = box.run(repo, 'worktree', 'app', '--model', 'Newcomer test', '--json');
+  const opened = (await box.runLocal(repo, 'worktree', 'app', '--model', 'Newcomer test', '--json'));
   assert.equal(opened.code, 0, `${opened.out}\n${opened.err}`);
   const seat = JSON.parse(opened.out);
-  const next = box.run(seat.path, 'next', '--build', '--json');
+  const next = (await box.runLocal(seat.path, 'next', '--build', '--json'));
   assert.equal(next.code, 0, `${next.out}\n${next.err}`);
   assert.equal(JSON.parse(next.out).item.item_lane, 'app', 'the suggested command reaches work through the normal claim');
   const idle = helpers.project('true');
@@ -282,9 +282,9 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   assert.equal(JSON.parse(plain.out).next, 'nothing for this seat: end your turn', 'the plain loop ends the turn instead of refusing');
 });
 
-test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', (t) => {
+test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
-  const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  const web = box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json')));
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
   const peerBinding = box.binding(peer.root);
   const api = box.seat('owned-api', 'api', box.session);
@@ -293,53 +293,53 @@ test('an agent exhausts ready own-lane work, then names another lane\'s item wit
   box.milestone('first', first);
   box.milestone('later', later);
 
-  const own = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
+  const own = box.json((await box.runAsLocal(box.session, box.web, 'next', '--build', '--json')));
   assert.equal(own.item.item_id, later, 'ready own-lane work precedes an earlier release in another lane');
   assert.equal(own.item.item_owner, web.agent);
   assert.equal(own.seat, undefined, 'the claim stays with the seat that ran next');
-  box.json(box.runAs(box.session, box.web, 'release', String(later), '--reason', 'BLOCKED', '--no-next', '--json'));
-  box.json(box.run(box.repo, 'hold', String(later), '--reason', 'Own-lane work is intentionally blocked', '--json'));
-  const seats = () => box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort();
-  const before = seats();
-  const named = box.runAs(box.session, box.web, 'next', '--build', '--json');
+  box.json((await box.runAsLocal(box.session, box.web, 'release', String(later), '--reason', 'BLOCKED', '--no-next', '--json')));
+  box.json((await box.runLocal(box.repo, 'hold', String(later), '--reason', 'Own-lane work is intentionally blocked', '--json')));
+  const seats = async () => box.json((await box.runLocal(box.repo, 'seats', '--json'))).seats.map(row => row.seat).sort();
+  const before = await seats();
+  const named = (await box.runAsLocal(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(named.code, 1, 'an idle lane claims nothing in another lane');
   const message = JSON.parse(named.out).error.message;
   assert.match(message, new RegExp(`#${first}\\b.*api lane`, 'u'), `next names the other lane's item and lane: ${message}`);
-  assert.equal(box.json(box.run(box.repo, 'show', String(first), '--json')).item_status, 'open', 'the named item stays unclaimed');
-  assert.deepEqual(seats(), before, 'no seat is created or borrowed');
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(first), '--json'))).item_status, 'open', 'the named item stays unclaimed');
+  assert.deepEqual(await seats(), before, 'no seat is created or borrowed');
   assert.deepEqual(box.binding(peer.root), peerBinding, 'another session’s seat is never borrowed or rebound');
-  const claimed = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
+  const claimed = box.json((await box.runAsLocal(box.session, api.root, 'next', '--build', '--json')));
   assert.equal(claimed.item.item_id, first, 'the API seat claims the API item itself');
   assert.equal(claimed.item.item_owner, api.agent);
-  const sibling = box.runAs(box.session, box.web, 'next', '--build', '--json');
+  const sibling = (await box.runAsLocal(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(sibling.code, 1, 'the idle sibling never resumes the API seat’s claim (#958)');
-  box.json(box.run(box.repo, 'hold', String(later), '--off', '--json'));
-  const wrongLane = box.runAs(box.session, api.root, 'claim', String(later), '--json');
+  box.json((await box.runLocal(box.repo, 'hold', String(later), '--off', '--json')));
+  const wrongLane = (await box.runAsLocal(box.session, api.root, 'claim', String(later), '--json'));
   assert.equal(wrongLane.code, 1);
   assert.equal(JSON.parse(wrongLane.out).error.code, 'WRONG_LANE', 'a seat’s write authority stays its own lane');
   assert.notEqual(web.agent, api.agent);
 });
 
-test('a seat that holds nothing is never told it holds another seat\'s claim [N2,B13]', (t) => {
+test('a seat that holds nothing is never told it holds another seat\'s claim [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const holder = box.seat('claim-holder', 'web', box.session);
   const idle = box.seat('claim-idle', 'web', box.session);
   const bystander = box.seat('claim-bystander', 'api', box.session);
   const held = box.add('web', 'Held by the first seat');
-  box.json(box.runAs(box.session, holder.root, 'claim', String(held), '--json'));
+  box.json((await box.runAsLocal(box.session, holder.root, 'claim', String(held), '--json')));
   for (const seat of [idle, bystander]) {
-    const next = box.runAs(box.session, seat.root, 'next', '--build', '--json');
+    const next = (await box.runAsLocal(box.session, seat.root, 'next', '--build', '--json'));
     const text = `${next.out}\n${next.err}`;
     assert.doesNotMatch(text, /you hold #/u, `${seat.agent} is never told it holds the claim of ${holder.agent}`);
     assert.equal(text.includes(holder.root), false, `${seat.agent} is never sent to ${holder.agent}'s checkout`);
     if (next.code === 0) assert.notEqual(JSON.parse(next.out).item.item_id, held, 'the held item is not offered again');
   }
-  const own = box.json(box.runAs(box.session, holder.root, 'next', '--build', '--json'));
+  const own = box.json((await box.runAsLocal(box.session, holder.root, 'next', '--build', '--json')));
   assert.equal(own.item.item_id, held, 'the holding seat is still told it holds its item');
   assert.equal(own.held, true);
 });
 
-test('next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', (t) => {
+test('next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const web = box.seat('owned-mid-web', 'web', box.session, 'mid');
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
@@ -349,15 +349,15 @@ test('next names the lane to open for work the agent lacks, and creates no seat 
   box.milestone('strong-only', tooStrong);
   box.milestone('first-eligible', first);
   const before = box.git(box.repo, 'worktree', 'list', '--porcelain');
-  const seatsBefore = box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort();
+  const seatsBefore = box.json((await box.runLocal(box.repo, 'seats', '--json'))).seats.map(row => row.seat).sort();
 
-  const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
+  const next = (await box.runAsLocal(box.session, web.root, 'next', '--build', '--json'));
   assert.equal(next.code, 1, next.out);
   const error = JSON.parse(next.out).error;
   assert.match(error.message, new RegExp(`#${first}\\b.*api lane`, 'u'), 'the route still skips stronger work and names the eligible item');
   assert.match(error.message, /pullboard worktree api/u, 'and the command that opens a seat for that lane');
   assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), before, 'next opens no worktree');
-  assert.deepEqual(box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort(), seatsBefore, 'and joins no seat');
+  assert.deepEqual(box.json((await box.runLocal(box.repo, 'seats', '--json'))).seats.map(row => row.seat).sort(), seatsBefore, 'and joins no seat');
   assert.deepEqual(box.binding(peer.root), peerBinding);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
