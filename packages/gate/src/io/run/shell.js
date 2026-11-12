@@ -28,6 +28,11 @@ import {
   stagedScript,
 } from '../stages.js';
 import { Refused } from '../../../../kernel/index.js';
+import { runStallMs } from './stall.js';
+import {
+  processRows,
+  watchRun,
+} from './stall.js';
 import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
 
 /**
@@ -103,12 +108,29 @@ export function runShell(root, command, options) {
   } finally { execution.return(); }
 }
 
-/** Execute the same shell plan without blocking other admitted checks. */
+/**
+ * Execute the same shell plan without blocking other admitted checks. A run with no hard timeout that makes no output,
+ * CPU or process change for the stall interval (options.stallMs, PULLBOARD_RUN_STALL_MS, 15 min) is stopped, named
+ * PULLBOARD_RUN_STALLED and ends red, so it frees its slot instead of holding it forever.
+ */
 export async function runShellAsync(root, command, options) {
+  const stallMs = options?.timeoutMs ? 0 : runStallMs(options?.stallMs);
   const execution = shellExecution(root, command, options);
   try {
     let step = execution.next();
-    while (!step.done) step = execution.next(await spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal: options?.signal }));
+    while (!step.done) {
+      const guard = new AbortController();
+      let stalled = null;
+      const watch = watchRun({ stallMs, rows: () => processRows(spawnCaptured), onStall: info => { stalled = info; guard.abort(); } });
+      const signal = options?.signal ? AbortSignal.any([options.signal, guard.signal]) : guard.signal;
+      let result;
+      try { result = await spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal, onSpawn: watch.spawned, onOutput: watch.output }); }
+      catch (error) { if (!stalled) throw error; result = { status: null, stdout: '', stderr: '' }; } finally { watch.stop(); }
+      if (stalled) {
+        result = { ...result, status: 1, stdout: `${result.stdout ?? ''}\nPULLBOARD_RUN_STALLED: no output and no CPU or process change for ${Math.round(stalled.idleMs / 1000)}s; stopped: ${stalled.processes}\n` };
+      }
+      step = execution.next(result);
+    }
     return step.value;
   } finally { execution.return(); }
 }
