@@ -5,20 +5,20 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-
-const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
+import { runCliInProcess } from '../../fixtures/process.js';
 
 /** A served board with an app-lane agent, its local seat, and a boardless clone on its own machine home using its hooks. */
 async function remoteSeat(t) {
   const box = await apiHttpBox(t);
   const linked = join(box.dir, 'agent');
   runFixtureGit(['worktree', 'add', '-q', '--detach', linked], { cwd: box.root, env: box.env, stdio: 'pipe' });
-  const agent = box.cli(linked, 'join', 'app').agent;
+  const joined = await runCliInProcess(['join', 'app', '--json'], { cwd: linked, env: box.env });
+  assert.equal(joined.status, 0, joined.stdout + joined.stderr);
+  const agent = JSON.parse(joined.stdout).agent;
   const clone = join(box.dir, 'studio');
   runFixtureGit(['clone', '-q', box.root, clone], { cwd: box.dir, env: box.env, stdio: 'pipe' });
   // Hook settings stay in each repository's own config; a clone opts into the committed hooks as a seat host does.
@@ -26,8 +26,8 @@ async function remoteSeat(t) {
   const machine = join(box.dir, 'studio-home');
   mkdirSync(machine);
   const env = { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: agent };
-  /** Run the real CLI in the clone without blocking the in-process server. */
-  const run = (...args) => runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd: clone, env });
+  /** Run the real CLI dispatch in the clone, awaited, so the in-process server keeps answering. */
+  const run = (...args) => runCliInProcess(args, { cwd: clone, env });
   /** Stage one new file and commit it through the real hooks, without blocking the server. */
   const commit = (cwd, path, childEnv = env) => {
     mkdirSync(join(cwd, path, '..'), { recursive: true });
