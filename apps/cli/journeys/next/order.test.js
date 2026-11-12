@@ -249,7 +249,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', async
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up the fresh board');
   for (const title of ['First app item', 'Second app item']) {
-    const added = fixtureAdd(box.run, repo, 'app', title, '--route', 'strong',
+    const added = await fixtureAdd(box.runLocal, repo, 'app', title, '--route', 'strong',
       '--criterion', 'The app item creates its readiness marker.', '--check', 'test -f app/ready', '--json');
     assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   }
@@ -274,10 +274,10 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', async
   assert.equal(next.code, 0, `${next.out}\n${next.err}`);
   assert.equal(JSON.parse(next.out).item.item_lane, 'app', 'the suggested command reaches work through the normal claim');
   const idle = helpers.project('true');
-  const empty = JSON.parse(idle.run(idle.repo, 'next', '--build', '--json').out).error;
+  const empty = JSON.parse((await idle.runLocal(idle.repo, 'next', '--build', '--json')).out).error;
   assert.equal(empty.code, 'NOTHING_FREE');
   assert.equal(empty.next, 'To keep looking: pullboard next --take', 'an idle board points to the bounded native take');
-  const plain = idle.run(idle.repo, 'next', '--json');
+  const plain = await idle.runLocal(idle.repo, 'next', '--json');
   assert.equal(plain.code, 0, 'plain next on an idle board finishes without waiting');
   assert.equal(JSON.parse(plain.out).next, 'nothing for this seat: end your turn', 'the plain loop ends the turn instead of refusing');
 });

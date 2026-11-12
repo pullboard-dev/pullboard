@@ -141,10 +141,10 @@ test('an explicit colliding claim warns but remains available to the builder [N2
   const busy = box.seat('collision-busy', 'web', 'collision-busy-session');
   const manual = box.seat('collision-manual', 'web', 'collision-manual-session');
   /** A real coordinator-created brief in the private project's permitted web lane. */
-  const add = title => box.json(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
+  const add = async title => box.json(await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1',
     '--brief', 'Files: web/shared.js\nTest: an explicit choice names its overlap', '--json')).item.item_id;
-  const a = add('A holds the shared file');
-  const b = add('B is an explicit override');
+  const a = await add('A holds the shared file');
+  const b = await add('B is an explicit override');
   box.json((await box.runAsLocal('collision-busy-session', busy.root, 'claim', String(a), '--json')));
   const claimed = (await box.runAsLocal('collision-manual-session', manual.root, 'claim', String(b)));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
@@ -214,10 +214,10 @@ test("a claimed item whose files grow into another claimed item's files names th
   const left = box.seat('growth-left', 'web', 'growth-left-session');
   const right = box.seat('growth-right', 'web', 'growth-right-session');
   /** Create ordinary coordinator briefs in the private project's permitted lane. */
-  const add = (title, file) => box.json(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
+  const add = async (title, file) => box.json(await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1',
     '--brief', `Files: ${file}\nTest: growing work names its newly shared file`, '--json')).item.item_id;
-  const a = add('A already holds x', 'web/x.js');
-  const b = add('B initially holds only y', 'web/y.js');
+  const a = await add('A already holds x', 'web/x.js');
+  const b = await add('B initially holds only y', 'web/y.js');
   box.json((await box.runAsLocal('growth-left-session', left.root, 'claim', String(a), '--json')));
   box.json((await box.runAsLocal('growth-right-session', right.root, 'claim', String(b), '--json')));
   /** Read only this fixture's public board state and close before the next native command. */

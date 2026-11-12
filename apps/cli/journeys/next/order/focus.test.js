@@ -344,6 +344,7 @@ test('next does not hand out an item whose functions overlap work in progress [N
   const main = box.git(root, 'rev-parse', 'HEAD').trim();
   const plan = submitGatePlan(root, { gate: 'true', affectedTests: 'node bin/record-args.js', submitGate: 'landing', submitInvariants: [], registryGuards: [] },
     { base: main, trunk: main, changed: [], check: null, crossRunTests: next.crossRunTests });
+  // Process-level case: the proof command is a real shell line the gate runs, so it stays a spawned process.
   const run = spawnSync('/bin/sh', ['-c', plan.proofCommand], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.ok(JSON.parse(readFileSync(join(root, 'ran.json'), 'utf8')).includes('./test/shared.test.js'), 'the selected cross-run test actually reaches the proof command');
