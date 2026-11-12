@@ -13,6 +13,7 @@ import {
   recordRunnerGui,
   runnerResourceStatus,
 } from '../../../../../packages/resources/index.js';
+import { parseToolchains } from '../../../../../packages/config/index.js';
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
@@ -98,7 +99,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     return (await import('../runner/local/serve.js')).localRunnerCommand(io, { off: values.off === true });
   }
   if (first === 'install-serve') {
-    // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
+    // Deploy pull mode: runner serve as a launchd service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
     const usage = 'pullboard runner install-serve <ssh-host> --board <board-url> [--key <board-key>] | pullboard runner install-serve <ssh-host> --remove';
     if (!second || rest.length || Object.keys(values).some(key => !['json', 'board', 'key', 'remove'].includes(key))
       || (values.remove ? values.board !== undefined || values.key !== undefined : typeof values.board !== 'string')) throw new Refused('USAGE', usage);
@@ -109,8 +110,19 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
     const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
-    if (values.remove) { io.say(`removed runner serve from ${runner.host}`); return 0; }
+    if (values.remove) {
+      io.say(`removed runner serve from ${runner.host}`);
+      if (service.sudo) io.say(`a LaunchDaemon is still installed; to remove it, on ${runner.host} run: ${service.sudo}`);
+      return 0;
+    }
+    if (service.form === 'daemon') {
+      // A board on the local network: macOS Local Network privacy lets a LaunchDaemon run as the runner user through.
+      io.say(`runner serve on ${runner.host} is a LaunchDaemon ${service.label} run as ${service.user}, since macOS Local Network privacy blocks a LaunchAgent from the board's local network address; log ${service.log}`);
+      if (!service.loaded) io.say(`one step left, as an administrator: on ${runner.host} run: ${service.sudo}`);
+      return service.loaded ? 0 : 1;
+    }
     io.say(`installed runner serve on ${runner.host} as launchd agent ${service.label}, restarting on exit; log ${service.log}`);
+    if (service.sudo) io.say(`an older LaunchDaemon is still installed; on ${runner.host} run: ${service.sudo}`);
     if (!service.loaded) io.say(`launchd did not load it now (no login session?); it starts at the next login, or run on the runner: launchctl bootstrap gui/$(id -u) ${service.plist}`);
     return service.loaded ? 0 : 1;
   }
@@ -157,11 +169,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   if (first !== 'add' || !second || rest.length || slotsGiven && !/^[1-9]\d*$/u.test(values.slots)
     || values.browser !== undefined && !/^(?:0|[1-9]\d*)$/u.test(values.browser)
     || slotsGiven && values.browser === undefined || !slotsGiven && values.browser !== undefined && Number(values.browser) !== 0) {
-    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] | pullboard runner measure [<ssh-host>]');
+    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] [--toolchain node=22,python=3.12] | pullboard runner measure [<ssh-host>]');
   }
   const prior = (loadMachineSettings().runners ?? []).find(runner => runner.host === second);
   const node = values.node ?? prior?.node;
   const root = values.root ?? prior?.root;
+  // A re-registration keeps the declared toolchains unless it declares new ones.
+  const toolchains = values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
   const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true });
@@ -175,7 +189,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const sized = slotsGiven ? { slots: Number(values.slots), browser: Number(values.browser), fixed: true }
     : { ...computeRunnerSlots(measuredSize), ...(values.browser === '0' ? { browser: 0 } : {}) };
   if (sized.slots === 0) throw new Refused('BAD_RUNNER', `runner ${second} has no capacity after the core and memory reserves; use a larger runner or an explicit fixed count`);
-  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey });
+  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(toolchains ? { toolchains } : {}) });
   const runner = addRunner({ ...configured, gui: observation.gui });
   recordRunnerGui(runner.host, observation.gui);
   io.result?.({ runner });

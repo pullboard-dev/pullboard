@@ -1,4 +1,4 @@
-/** One pullboard pre-commit hook run in a claimed worktree starts at most 22 git processes [C7]. */
+/** One pullboard pre-commit hook run in a claimed worktree starts at most 12 git processes [C7]. */
 import assert from 'node:assert/strict';
 import {
   chmodSync,
@@ -18,7 +18,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 1: pre-commit starts at most 22 git processes under a git-counting PATH shim [C7]', { timeout: 60_000 }, async () => {
+test('clause 1: pre-commit starts at most 12 git processes under a git-counting PATH shim [C7]', { timeout: 60_000 }, async () => {
   const box = helpers.project();
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Hook spawns', '--specs', 'G1').code, 0);
   box.env.CODEX_SESSION_ID = 'hook-spawns-6197';
@@ -36,5 +36,5 @@ test('clause 1: pre-commit starts at most 22 git processes under a git-counting 
   const result = await runCliInProcess(['hook', 'pre-commit'], { cwd: box.web, env: { ...box.env, PATH: `${bin}:${box.env.PATH}` } });
   assert.equal(result.code, 0, result.err);
   const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean);
-  assert.ok(calls.length <= 22, `pre-commit started ${calls.length} git processes:\n${calls.join('\n')}`); // budget: frozen #6197 clause 1 permits 22, down from 34.
+  assert.ok(calls.length <= 12, `pre-commit started ${calls.length} git processes:\n${calls.join('\n')}`); // budget: frozen #6197 clause 1 permits 12, down from 22.
 });

@@ -106,6 +106,7 @@ test('clause 1: pullboard claim of the mid-merge item refuses with the named cod
   assert.ok(all.includes(folder), 'names the folder');
   assert.match(all, new RegExp(`#${a} holds an unfinished merge`, 'u'));
   assert.equal(box.git(folder, 'status', '--porcelain'), status, 'the folder is untouched');
+  assert.match((await box.runLocal(box.repo, 'show', a)).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'refused before the move: A was never claimed (#5766)');
 });
 
 test('clause 2: pullboard health lists the folder with its unfinished operation, seat and item [B3,C7]', async () => {
