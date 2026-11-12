@@ -16,7 +16,6 @@ import { readGateReceipt } from '../../../../packages/gate/index.js';
 import { appliedSequence } from '../../../../packages/state/index.js';
 import { applyEngineMove } from '../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../packages/state/index.js';
-import { prepareTrainLanding } from '../../../../packages/landing/index.js';
 import { TRAIN_LANDING_ENGINE } from '../../../../packages/state/light.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { prepareCommitMetadata } from '../../../../packages/commits/index.js';
@@ -58,7 +57,7 @@ test('native train evidence seals at origin and replays without private receipt 
   const tip = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   // Only acceptance is synthetic lifecycle setup; the Git source, SQLite prefix and gate receipt are real.
   onBoard(box, origin => {
-    const request = prepareTrainLanding(box.repo, origin, [id], tip, receipt.id);
+    const request = origin.enginePorts.prepareTrainLanding(box.repo, origin, [id], tip, receipt.id);
     const before = store.events(origin).length;
     assert.throws(() => recordTrainLanding(origin, { ...request,
       receipt: { ...receipt, command: '0'.repeat(64) } }), { code: 'GATE_RUN_UNBOUND' });

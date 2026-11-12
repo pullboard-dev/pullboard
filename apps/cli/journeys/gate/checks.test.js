@@ -25,10 +25,6 @@ import {
   readGateReceipt,
   receiptStore,
 } from '../../../../packages/gate/index.js';
-import {
-  prepareTrainLanding,
-  prepareNativeTrainLanding,
-} from '../../../../packages/landing/index.js';
 import { recordTrainLanding } from '../../../../packages/landing/index.js';
 import { copyCommittedPackageFiles } from '../../tests/fixtures/copy.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
@@ -169,7 +165,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     assert.ok(receipt, 'the native gate retained its source-bound receipt');
 
     const landed = onBoard(box, board => {
-      const request = prepareTrainLanding(box.repo, board, [prepared.trainId], tip, receiptId);
+      const request = board.enginePorts.prepareTrainLanding(box.repo, board, [prepared.trainId], tip, receiptId);
       assert.deepEqual(request.checkRepointPlan.entries.map(entry => entry.id).sort((a, b) => a - b),
         [prepared.openId, prepared.claimedId].sort((a, b) => a - b));
       const blocked = request.checkRepointPlan.blocked.toSorted((a, b) => a.id - b.id);
@@ -193,7 +189,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
         const edit = store.events(board, { itemId: id }).find(event => event.event_kind === 'edit');
         assert.deepEqual(JSON.parse(edit.event_detail).barCorrection.fields, ['check']);
       }
-      const repeated = prepareNativeTrainLanding(box.repo, board, landed.id, receiptId);
+      const repeated = board.enginePorts.prepareNativeTrainLanding(box.repo, board, landed.id, receiptId);
       assert.deepEqual(recordTrainLanding(board, repeated), landed,
         'the recorded correction report does not break idempotent landed-batch recovery');
     });
