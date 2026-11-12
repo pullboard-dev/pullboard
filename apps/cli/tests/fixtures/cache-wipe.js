@@ -34,7 +34,9 @@ export function cacheWipeBoard() {
   const helpers = createE2eHelpers();
   const box = helpers.project();
   mkdirSync(join(box.repo, 'web'), { recursive: true });
-  writeFileSync(join(box.repo, TEST_FILE), "require('node:test')('the fixture proves one case [G1]', () => require('node:assert/strict').equal(1, 1));\n");
+  // A complete ES-module import graph needs a module-typed root package and no CommonJS.
+  writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
+  writeFileSync(join(box.repo, TEST_FILE), "import { test } from 'node:test';\ntest('the fixture proves one case [G1]', () => {});\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the cache fixture');
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cache wipe fixture item' });
