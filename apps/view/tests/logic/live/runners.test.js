@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { estimateLeft } from '../../../src/logic/live/runners.js';
+import { loadPercents } from '../../../src/logic/live/runners.js';
 import { publicRunners } from '../../../src/logic/live/runners.js';
 import { publicSnapshot } from '../../../src/logic/public.js';
 
@@ -36,7 +37,7 @@ test('clause 1: publicSnapshot lists runners 1..N with busy or idle and, for bus
   const { live } = publicSnapshot({ live: sources() });
   assert.deepEqual(live.runners.map(runner => [runner.runner, runner.state]), [[1, 'busy'], [2, 'busy'], [3, 'idle'], [4, 'busy']],
     'configured runners in settings order, then other runners by sorted name; numbers only');
-  for (const runner of live.runners) assert.deepEqual(Object.keys(runner), ['runner', 'state', 'jobs']);
+  for (const runner of live.runners) assert.deepEqual(Object.keys(runner), ['runner', 'state', 'busy', 'cpu', 'ram', 'jobs']);
   assert.deepEqual(live.runners[0].jobs, [
     // The landing gate: 4 files selected over 2 runner shards, median 4 min each, 30 min in; nothing says done or failing yet.
     { kind: 'landing', item: 1196, selected: 4, done: null, failing: null, minutesLeft: 0 },
@@ -81,4 +82,21 @@ test('the fail-closed text blocks still refuse a private name that reaches the r
   assert.throws(() => publicSnapshot({ live: leaked }), error => error.code === 'PUBLIC_EXPORT_BLOCKED' && /machine or host name/u.test(error.message)
     && !error.message.includes('mac-studio-7'));
   assert.throws(() => publicSnapshot({ live: sources() }, { privateBoard: true }), /private item/u);
+});
+
+test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy per runner and no host, address or user name [N26]', () => {
+  const raw = sources({ job: { progress: { finished: 1, load: { at: ago(0), average: [6, 5, 4], cpus: 8, freeMB: 4096, memoryMB: 16384 } } } });
+  raw.runners[0].load = { busyPercent: 91.6, freeMB: 1024, memoryMB: 32768, host: 'mac-studio-7.local', user: 'corey', address: '192.168.1.98' };
+  const { live } = publicSnapshot({ live: raw });
+  assert.deepEqual(live.runners.map(({ runner, busy, cpu, ram }) => ({ runner, busy, cpu, ram })), [
+    { runner: 1, busy: true, cpu: 92, ram: 97 },
+    { runner: 2, busy: true, cpu: null, ram: null },
+    { runner: 3, busy: false, cpu: null, ram: null },
+    { runner: 4, busy: true, cpu: 75, ram: 75 },
+  ], 'a sampled busy percent, else load over cores; RAM is the used share; an unsampled runner reads null');
+  const text = JSON.stringify(live);
+  for (const secret of [...SECRETS, 'mini']) assert.equal(text.includes(secret), false, `the runner load leaks ${secret}`);
+  assert.equal(/freeMB|memoryMB|cpus|average|busyPercent/u.test(text), false, 'only the two percents leave the machine');
+  assert.deepEqual(loadPercents({ average: [40], cpus: 8, freeMB: 9, memoryMB: 4 }), { cpu: 100, ram: 0 }, 'percents clamp to 0..100');
+  assert.deepEqual(loadPercents(null), { cpu: null, ram: null });
 });

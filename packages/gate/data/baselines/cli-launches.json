@@ -24,7 +24,7 @@
     "launch": 16
   },
   "apps/cli/journeys/baseline/delivery.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/capacity/main.test.js": {
     "launch": 2
@@ -45,7 +45,7 @@
     "launch": 8
   },
   "apps/cli/journeys/check-baseline/replay.test.js": {
-    "launch": 6
+    "launch": 1
   },
   "apps/cli/journeys/check-baseline/runner.test.js": {
     "launch": 3
@@ -107,11 +107,8 @@
   "apps/cli/journeys/digest/main.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/doctor/frozen.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/doctor/main.test.js": {
-    "launch": 42
+    "launch": 2
   },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "launch": 2
@@ -121,15 +118,6 @@
   },
   "apps/cli/journeys/edges/door.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/edit/budget.test.js": {
-    "launch": 13
-  },
-  "apps/cli/journeys/edit/references.test.js": {
-    "launch": 9
-  },
-  "apps/cli/journeys/edit/route.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/edit/verdict.test.js": {
     "launch": 6
@@ -710,14 +698,14 @@
   "apps/cli/journeys/next/order.test.js": {
     "launch": 23
   },
-  "apps/cli/journeys/next/order/queue.test.js": {
-    "launch": 23
-  },
   "apps/cli/journeys/next/order/claims.test.js": {
     "launch": 15
   },
   "apps/cli/journeys/next/order/focus.test.js": {
     "launch": 27
+  },
+  "apps/cli/journeys/next/order/queue.test.js": {
+    "launch": 23
   },
   "apps/cli/journeys/next/review.test.js": {
     "launch": 3
@@ -938,15 +926,6 @@
   "apps/cli/journeys/reopen/relands.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/request/clause.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/request/requests/api.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/request/requests/typed.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/resident/board.test.js": {
     "launch": 6
   },
@@ -1131,10 +1110,10 @@
     "launch": 2
   },
   "apps/cli/journeys/settings/worker/scale/launch.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/settings/worker/scale/overlaunch.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/ship/command.test.js": {
     "launch": 5
