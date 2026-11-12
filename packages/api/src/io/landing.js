@@ -49,7 +49,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : [])])).digest('hex').slice(0, 16);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
-  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, needs, now,
+  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
     payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(proof ? { proof } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 
