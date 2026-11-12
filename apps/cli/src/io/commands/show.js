@@ -116,6 +116,7 @@ export async function run(io, { first, values }) {
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
     const seatPath = agents.find((agent) => agent.agent_id === callerId)?.agent_path;
