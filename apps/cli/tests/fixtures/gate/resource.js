@@ -22,6 +22,7 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../../../packages/resources/index.js'
 import { TEST_FILE_POOL_ENV } from '../../../../../packages/gate/index.js';
 import { executionServicesSource } from './execution.js';
 import { fixtureProjectPolicy } from '../testkit.js';
+import { fixtureSettledMachine } from '../testkit.js';
 
 export const RUNNER = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
 export const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
@@ -78,6 +79,8 @@ export function fixture() {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
+  // Submits here settle in the command, so no fixture waits on a pull runner it never starts [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   delete env[GATE_SLOT_HELD_ENV];
   // The runner this file runs on holds a token of its own run's file pool; whole-suite fixture runs need a pool of their own.
   delete env[TEST_FILE_POOL_ENV];
