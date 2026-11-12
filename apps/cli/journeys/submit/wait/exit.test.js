@@ -143,7 +143,8 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');
-  const shown = cli(box, box.root, 'show', String(box.item), '--history');
-  assert.fail(`DEBUG show ${shown.status}\n${shown.stdout}${shown.stderr}`);
+  const diag = cli(box, box.builder, 'resume', '--diagnostics');
+  const nxt = cli(box, box.builder, 'next', '--no-take');
+  assert.fail(`DEBUG resume ${diag.status}\n${diag.stdout}${diag.stderr}\nNEXT ${nxt.status}\n${nxt.stdout}${nxt.stderr}`);
   assert.equal(submittedProof(box), null, 'a lost worker cannot fabricate a gate outcome');
 });
