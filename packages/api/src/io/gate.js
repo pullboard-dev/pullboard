@@ -12,6 +12,9 @@ import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { withLandingPermit } from './permit.js';
+import { applyMainTestReceipt } from './recheck.js';
+import { MAIN_TEST_KIND } from './recheck.js';
+import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
@@ -354,6 +357,8 @@ export function provideMainComparison(lookup) {
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  */
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
+  // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
+  if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
   const answer = jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
@@ -405,6 +410,7 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  if (kind === MAIN_TEST_KIND) return applyMainTestReceipt(board, posted);
   return { applied: false, outcome: 'recorded' };
 }
 
