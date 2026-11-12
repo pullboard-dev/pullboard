@@ -125,6 +125,7 @@ export { QUEUED_START_GRANT_ENGINE } from './src/logic/engines/queued-start-gran
 export { QUEUE_FAIRNESS_ENGINE } from './src/logic/engines/queue-fairness-engine.js';
 export { QUEUE_PREEMPT_ENGINE } from './src/logic/engines/queue-preempt-engine.js';
 export { QUOTED_LANDING_FAILURE_ENGINE } from './src/logic/engines/quoted-landing-failure-engine.js';
+export { REJECTED_FIRST_ENGINE } from './src/logic/engines/rejected-first-engine.js';
 export { RECURRING_JOB_ENGINE } from './src/logic/engines/job-engine.js';
 export { REFERENCE_ENGINE } from './src/logic/engines/reference-engine.js';
 export { REJECTED_WORK_RETURN_ENGINE } from './src/logic/engines/rejected-work-return-engine.js';
