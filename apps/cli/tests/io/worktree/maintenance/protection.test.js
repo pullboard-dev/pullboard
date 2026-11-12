@@ -26,3 +26,22 @@ test('clause 2 [test]: classification protects trees outside the scratch area wh
   assert.equal(retired.protected, false);
   assert.equal(retired.oldEnough, true);
 });
+
+test('clause 3 [test]: a retired seat spare is removable, a live seat spare is kept, a stray spare name is kept [C7,#5776]', () => {
+  const NOW = Date.UTC(2026, 9, 30, 17);
+  const mainRoot = '/tmp/pullboard';
+  const base = { mainRoot, currentRoot: mainRoot, items: [], now: NOW, workingDirectories: [], previous: { firstSeenAt: NOW - 10 * DAY },
+    config: { worktrees: 'inside', worktreeMaintenance: { grace: '1d', exclude: [] } } };
+  const seatPath = '/tmp/pullboard/.claude/worktrees/w-1';
+  const spare = { path: `${seatPath}-spare` };
+  const seat = { agent_id: 'core-1', path: seatPath, presence: 'gone', heartbeatAt: null, createdAt: NOW - 10 * DAY };
+  const live = classifyMaintenanceTree(spare, { ...base, seats: [seat] });
+  assert.equal(live.protected, true);
+  assert.equal(live.reason, 'seat-joined');
+  const retired = classifyMaintenanceTree(spare, { ...base, seats: [{ ...seat, completedTakeoverAt: NOW - 2 * DAY }] });
+  assert.equal(retired.protected, false);
+  assert.equal(retired.oldEnough, true);
+  const stray = classifyMaintenanceTree({ path: '/tmp/pullboard/.claude/worktrees/other-spare' }, { ...base, seats: [seat] });
+  assert.equal(stray.protected, true);
+  assert.equal(stray.reason, 'outside-maintenance-scratch');
+});

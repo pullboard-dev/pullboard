@@ -5,12 +5,14 @@ import assert from 'node:assert/strict';
 import {
   mkdtempSync,
   rmSync,
+  readFileSync,
   mkdirSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import {
   closeBoard,
   events,
@@ -31,10 +33,18 @@ import {
   MACHINE_MODEL,
 } from '../../../tests/fixtures/cockpit/machine.js';
 
+/** Pins controller dispatch: the fixture's accept reads the commit a controller submit records at once; pull leaves it to the gate job [P7]. */
+function pinController(box) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let settings = {};
+  try { settings = JSON.parse(readFileSync(file, 'utf8')); } catch { /* no settings written yet */ }
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
+}
+
 test('clause 1: the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'The frozen timeline journey requires real Chrome.');
-  const box = machine(), demo = project(box, 'item-timeline');
+  const box = machine(); pinController(box); const demo = project(box, 'item-timeline');
   await box.inProcess(demo.repo, 'add', 'web', 'Timeline sentences', '--specs', 'G1', '--criterion', 'The real fixture module parses.', '--check', 'node --check web/timeline.js', '--wait');
   await box.inProcess(demo.repo, 'add', 'web', 'Reference target', '--specs', 'G1', '--criterion', 'The reference opens this actual item.');
   const reviewer = JSON.parse(await box.inProcess(demo.repo, 'worktree', 'web', '--model', 'Timeline reviewer fixture', '--json'));

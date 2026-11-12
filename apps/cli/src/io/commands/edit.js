@@ -21,6 +21,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -66,6 +67,7 @@ export async function run(io, args) {
     agentId: me.id,
     ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
     ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(readFileSync(values['machine-commands-file'], 'utf8')) }),
+    ...(values.title === undefined ? {} : { title: values.title }),
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
@@ -95,6 +97,7 @@ export async function run(io, args) {
   // criterion and check alone never refuses on it (#5709).
   if (change.criterion !== undefined || change.check !== undefined) {
     const before = store.getItem(board, id);
+    if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);

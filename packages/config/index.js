@@ -53,6 +53,7 @@ export {
   pullGateFor,
   jobQueueMode,
   localRunnerEnabled,
+  localLoadShare,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
@@ -72,6 +73,8 @@ export {
   addRunner,
   recordRunnerMeasurement,
   removeRunner,
+  setRunnerDrain,
+  drainedRunnerHosts,
   machineSettingsFile,
 } from './src/io/settings.js';
 export {

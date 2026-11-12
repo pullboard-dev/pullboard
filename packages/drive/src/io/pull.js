@@ -24,6 +24,7 @@ import { pipeline } from 'node:stream/promises';
 import { availableParallelism } from 'node:os';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
+import { totalmem } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -32,6 +33,7 @@ import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
+import { pruneStaleSlots } from './prune.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -507,6 +509,16 @@ function gateReceipt(result, commit, durationMs) {
 }
 
 /**
+ * Whether a machine under this load takes another job: its one-minute load is under `share` of its cores [P7].
+ * Why: with no runners the machine runs its own gates, and a job taken at any load thrashed a busy Mac; the row waits in the queue instead.
+ *
+ * @param {{ load: number, cores: number, share: number }} machine
+ */
+export function localLoadAdmits({ load, cores, share }) {
+  return load < share * cores;
+}
+
+/**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
  * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
  *
@@ -520,11 +532,12 @@ function gateReceipt(result, commit, durationMs) {
  * @param {number | string} [options.jobs] - How many jobs run at once; default PULLBOARD_RUNNER_JOBS, else serveSlots().
  * @param {number} [options.cores] - This runner's cores, shared out between its jobs; default availableParallelism().
  * @param {AbortSignal} [options.signal]
+ * @param {() => boolean} [options.admit] - Asked before each claim; false leaves the queue untouched and tries again after the idle wait.
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
  * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
- * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
+ * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean>, env: Record<string, string> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job. Its cache is the
  *   slot's own folder, the serve's cache for slot 0.
@@ -533,7 +546,7 @@ function gateReceipt(result, commit, durationMs) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
@@ -547,6 +560,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   // Job environment folders a running job owns, which a prune never removes.
   const liveEnvironments = new Set();
   let prunedAt = 0;
+  // Earlier serves' slot folders are dead once this one starts, so they go before the first job [P7].
+  try { const gone = await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
   /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
   const prune = () => {
     if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
@@ -564,19 +579,21 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
   };
   /** Run a handled kind in this process and post its result as the receipt; a lost lease posts nothing. */
-  const handled = async (claim, held, workCache) => {
+  const handled = async (claim, held, workCache, name) => {
     const renew = async () => {
       try { return (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
       catch (error) { return error instanceof BoardUnreachable; }
     };
     let receipt;
-    try { receipt = await handlers[claim.kind](claim, { cache: workCache, renew }); }
+    // A land job's proof runs under the same environment a gate job does, so its ledger context key matches the gate's [P7].
+    liveEnvironments.add(name);
+    try { receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: jobEnvironment(cache, name, claim.job).env }); }
     catch (error) {
       // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${error?.message ?? error}`);
       await reliably({ action: 'release', ...held }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
       return { outcome: 'released' };
-    }
+    } finally { liveEnvironments.delete(name); }
     try {
       await reliably({ action: 'receipt', ...held, receipt });
       say(`posted ${claim.job}: ${receipt?.outcome ?? 'done'}`);
@@ -596,7 +613,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   const runClaim = async (claim, trunk, slot) => {
     const held = { job: claim.job, runner: id, token: claim.token };
     say(`claimed ${claim.job} (attempt ${claim.attempt}) at ${claim.candidate} in slot ${slot}`);
-    if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot))) };
+    if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
     let lost = false, onLost = () => {};
@@ -697,8 +714,12 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   while (!signal?.aborted && !failure) {
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
+    if (!admit()) {
+      if (once) { say('not claiming: the machine is over its load share'); break; }
+      await Promise.race([sleep(idleMs), ...active]); continue;
+    }
     let answer;
-    try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots }); }
+    try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots, cores, ram: totalmem() }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
     if (!answer.claim) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].

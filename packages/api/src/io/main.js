@@ -94,6 +94,7 @@ import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { jobQueueMode } from '../../../config/index.js';
+import { drainedRunnerHosts } from '../../../config/index.js';
 import { boardJobQueueCall } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
@@ -102,6 +103,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
+import { registeredBoard } from './registered.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -792,15 +794,9 @@ function projectDecisionListing(selected, projects, isMain, boardOpeners) {
   return { version: 1, project: home.project ?? '', decisions, unreadable };
 }
 
-/** Resolve only registered boards, so a request cannot open an arbitrary path on the machine. */
+/** Resolve only registered boards, opened read-only up to the match (#1040), so a request cannot open an arbitrary path. */
 function findBoard(id, projects, isMain, boardOpeners) {
-  // Each request resolves its board, so this opens boards read-only and stops at the match (#1040).
-  const board = projects().find((project) => {
-    try { return withReadBoard(project.root, (current) => store.boardId(current), isMain, boardOpeners) === id; }
-    catch { return false; } // An unreadable board is left out, as the board listing leaves it out.
-  });
-  if (!board) throw new Refused('NO_BOARD', `no registered board ${id}; run pullboard serve in its repo and use GET /api/v1/boards`);
-  return { ...board, id };
+  return registeredBoard(id, projects, (root) => withReadBoard(root, (current) => store.boardId(current), isMain, boardOpeners));
 }
 
 /** Restrict a local API to exactly one registered repository by its canonical Git common directory.
@@ -1359,7 +1355,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)), trunkPack: boardOpeners?.trunkPack && ((board, commit) => boardOpeners.trunkPack(board.root, commit)),
-    jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now: now(), trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
+    jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now: now(), drained: drainedRunnerHosts, trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return projectRead(board, () => withReadBoard(board.root, current => costAnalytics({

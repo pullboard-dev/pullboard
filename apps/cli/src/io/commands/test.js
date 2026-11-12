@@ -4,6 +4,7 @@ import { Refused } from '../../../../../packages/kernel/light.js';
 import { queuesTestRun } from '../../../../../packages/drive/index.js';
 import { testRunItem } from '../../../../../packages/drive/index.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
+import { cancelTestRun } from '../../../../../packages/drive/index.js';
 import { readTestRun } from '../../../../../packages/drive/index.js';
 import { testRunLines } from '../../../../../packages/drive/index.js';
 import { workTestRun } from '../../../../../packages/drive/index.js';
@@ -31,14 +32,16 @@ async function seatClaims(ctx, agent) {
  * Run `pullboard test <files>` and return its exit code. An agent seat's call queues the run on the board and returns
  * at once with its run id; `pullboard next` hands the result back. A seat holding a claim always queues, even with
  * `--wait`. For a person or a script with no claim, `--wait` runs it here and blocks: 0 when every named file passes.
- * `--status <id>` prints one run's state once.
+ * `--status <id>` prints one run's state once; `--cancel <id>` stops the seat's own queued or running run.
  *
  * Why queue for seats: seats sat 16-54 min in sleep-and-pgrep loops on runner-queued runs; waiting is an error [C7].
  */
 export async function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   if (values.status !== undefined) return sayTestRunStatus(io, ctx, values.status);
-  const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
+  if (values.cancel !== undefined) return cancelRun(io, ctx, values.cancel);
+  const { expandTestFolders } = await import('../../../../../packages/runners/index.js');
+  const files = expandTestFolders(ctx.info.root, [first, second, ...rest].filter((file) => file !== undefined && file !== ''));
   if (values.diagnose === true && (files.length !== 1 || values.affected === true)) throw new Refused('USAGE', '--diagnose requires exactly one named test file');
   const seat = (await import('../board/access.js')).resourceAgent(ctx);
   const agent = seat ?? `pid-${process.pid}`;
@@ -89,4 +92,15 @@ function sayTestRunStatus(io, ctx, id) {
   if (found.status === 'queued' || found.status === 'running') io.say(`test run ${found.id} ${found.status}: ${found.files.join(' ') || '--affected'}; pullboard next brings the result`);
   else for (const line of testRunLines(found)) io.say(line);
   return ['red', 'lost', 'refused'].includes(found.status) ? 1 : 0;
+}
+
+/** Cancel this seat's own queued or running run and free its slot: `pullboard test --cancel <run id>`. */
+async function cancelRun(io, ctx, id) {
+  if (typeof id !== 'string' || !id.trim()) throw new Refused('USAGE', 'pass the run id: pullboard test --cancel <run id>');
+  const seat = (await import('../board/access.js')).resourceAgent(ctx);
+  if (seat === undefined) throw new Refused('NOT_YOURS', 'only the seat that queued a run cancels it; run pullboard test --cancel from that seat\'s folder');
+  const cancelled = withBoard(ctx, board => cancelTestRun(board, id.trim(), seat));
+  io.result?.(cancelled);
+  io.say(`cancelled test run ${cancelled.id}: its slot is free; queue it again with pullboard test ${cancelled.files.join(' ') || '--affected'}`);
+  return 0;
 }
