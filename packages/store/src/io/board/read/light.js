@@ -10,6 +10,7 @@ import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
 import { itemWorkInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
+import { pulledGateRecords } from '../../submit/handoff/records.js';
 import { boardDataVersion } from '../version.js';
 import { withSeatPresence } from '../../presence.js';
 import { withDerivedFamily } from '../../../../../items/light.js';
@@ -112,11 +113,12 @@ export function listItems(board, { lane, all = false } = {}) {
   const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
   // Every item's hand-off record in one read of the job tables, where the record lives [C7].
   const records = handoffRecords(board.db);
+  const pulled = pulledGateRecords(board.db);
   const items = rows.map((row) => {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
-    item.item_stage = itemStage(item, records.get(item.item_id) ?? null, Boolean(row.landed), at);
+    item.item_stage = itemStage(item, pulled.get(item.item_id) ?? records.get(item.item_id) ?? null, Boolean(row.landed), at);
     // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
     if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !itemWorkInFlight(board, item)) {
       item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
