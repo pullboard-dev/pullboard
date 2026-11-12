@@ -331,7 +331,7 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]
  */
 export function jobEnvironment(cache, name, job, host = process.env) {
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
-  rmSync(folder, { recursive: true, force: true });
+  try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
   for (const path of [home, temporary]) mkdirSync(path, { recursive: true, mode: 0o700 });
   const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
   const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
@@ -543,10 +543,11 @@ export function localLoadAdmits({ load, cores, share }) {
  *   slot's own folder, the serve's cache for slot 0.
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
@@ -682,7 +683,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const survivors = await reapJob(claim.job, running.pid, { claim: tag, graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
-    rmSync(job.folder, { recursive: true, force: true });
+    // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
+    try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
