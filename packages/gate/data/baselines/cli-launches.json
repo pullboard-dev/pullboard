@@ -864,7 +864,7 @@
     "launch": 1
   },
   "apps/cli/journeys/relay/upload.test.js": {
-    "launch": 22
+    "launch": 6
   },
   "apps/cli/journeys/release/metadata.test.js": {
     "launch": 6
