@@ -416,6 +416,20 @@ export function applyJobReceipt(board, posted, ports = {}) {
 }
 
 /**
+ * Record a red land receipt on each unmerged item the job named, as a note leading with the receipt's first
+ * line (the run-tests refusal or first failing test), so `pullboard show` prints why the landing went red.
+ * Why: the receipt otherwise stayed on the job, and the item sat accepted with no word of its red landing.
+ */
+function recordRedLanding(board, job, named, receipt) {
+  const first = String(receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
+  for (const id of named) {
+    const item = store.getItem(board, id);
+    if (!item || item.item_merged_commit) continue;
+    store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} red: ${first}`.slice(0, 600) });
+  }
+}
+
+/**
  * Mark each item a landed receipt names merged at the trunk commit the runner pushed: the items it merged and those
  * trunk already held. An item no longer accepted and unmerged is left as it is. Any other outcome (a conflict, a red
  * check, a busy trunk) changes no item; the items stay accepted for the next landing.
@@ -425,9 +439,10 @@ export function applyJobReceipt(board, posted, ports = {}) {
  * @returns {{ applied: boolean, outcome: string, merged?: number[] }}
  */
 export function applyLandingReceipt(board, { job, receipt }) {
-  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
+  if (receipt?.outcome === 'red') recordRedLanding(board, job, named, receipt);
+  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
   const merged = [];
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
