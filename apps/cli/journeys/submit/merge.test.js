@@ -185,8 +185,9 @@ writeFileSync(${JSON.stringify(locked)}, 'x');
 Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 45000); // budget: outlast SQLite's 10 s timeout plus the 2 s queue bound.
 db.exec('ROLLBACK');
 `);
-  const hooks = join(box.repo, '.git', 'hooks');
+  const hooks = join(box.dir, 'hooks');
   mkdirSync(hooks, { recursive: true });
+  box.git(box.repo, 'config', 'core.hooksPath', hooks);
   writeFileSync(join(hooks, 'post-merge'), `#!/bin/sh\n${JSON.stringify(process.execPath)} ${JSON.stringify(holder)} &\nwhile [ ! -f ${JSON.stringify(locked)} ]; do sleep 0.05; done\n`, { mode: 0o755 });
   const refused = await runFixtureChildAsync(process.execPath, [BIN, 'submit', String(id), '--no-next', '--json'],
     { cwd: box.web, env: { ...box.env, PULLBOARD_BOARD_QUEUE_MS: '1000' } });
