@@ -408,7 +408,8 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   t.mock.timers.tick(Date.parse(leaseUntil) - clockNow + 1);
   await changedOnce('lease-expiry');
 
-  const evented = await box.cliLocal(box.root, 'add', 'app', 'Event plus state notification', '--criterion', 'both frames arrive', '--specs', 'G1');
+  // Process-level: the mocked clock is past the lease here, so an in-process command would sweep the claim first; a child keeps the real clock.
+  const evented = box.cli(box.root, 'add', 'app', 'Event plus state notification', '--criterion', 'both frames arrive', '--specs', 'G1');
   const eventFrame = await nextFrame();
   assert.equal(eventFrame.event, 'message');
   assert.equal(eventFrame.data.event.event_kind, 'add');
