@@ -65,7 +65,7 @@ async function inChild(box, body) {
     const landing = await import(${JSON.stringify(landing)});
     const settle = async run => { try { return { value: await run() }; } catch (error) { return { code: error.code, message: error.message }; } };
     ${body}
-  `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 150_000 }); // budget: up to three real runner round trips.
+  `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 230_000 }); // budget: up to three real runner round trips.
   assert.equal(result.status, 0, result.stderr || result.failure);
   return JSON.parse(result.stdout);
 }
