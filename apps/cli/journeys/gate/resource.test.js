@@ -13,6 +13,8 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { awaitNestedPhase } from '../../../../packages/gate/index.js';
+import { withNestedGroup } from '../../../../packages/gate/index.js';
 import { fixture } from '../../tests/fixtures/gate/resource.js';
 import { probeSuite } from '../../tests/fixtures/gate/resource.js';
 import { launchTestRunner } from '../../tests/fixtures/gate/resource.js';
@@ -151,22 +153,24 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   assert.ok(verify.stdoutText.includes('place 1'), `verify accept prints its queued gate-slot position: ${verify.stdoutText}${verify.stderrText}`);
   assert.match(verify.stdoutText, /gate waiting:/);
   const verifyNext = launchTestRunner(box, verifyFocusedRoot, ['--test-name-pattern', PROBE_PATTERN, 'test/probe.test.js'], verifyFocusedMarker, verifyFocusedRelease);
-  await waitFor(() => /waiting for a gate slot:/u.test(verifyNext.stderrText) || verifyNext.exitCode !== null, 'the later focused run to enter the queue');
-  assert.equal(existsSync(verifyFocusedMarker), false, 'the focused run has not started while the holder owns the slot');
-  assert.equal(events(box).includes('item check'), false);
-  writeFileSync(verifyRelease, 'release\n');
-  await waitFor(() => events(box).includes('item check start'), 'the older verify check to acquire the released slot');
-  assert.equal(existsSync(verifyFocusedMarker), false, 'the later focused run stays behind review');
-  writeFileSync(checkRelease, 'release\n');
-  await waitFor(() => events(box).includes('item check'), 'the verify check to release its slot');
-  await waitFor(() => existsSync(verifyFocusedMarker), 'the focused run to start after review releases');
-  const verifyRun = await verify.closed;
-  assert.equal(verifyRun.code, 0, `${verify.stderrText}${verify.stdoutText}`);
-  writeFileSync(verifyFocusedRelease, 'release\n');
-  const [verifyHolderResult, verifyNextResult] = await Promise.all([verifyHolder.closed, verifyNext.closed]);
-  assert.equal(verifyHolderResult.code, 0);
-  assert.equal(verifyNextResult.code, 0, verifyNext.stderrText + verifyNext.stdoutText);
-  assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end', 'item check start', 'item check']);
+  await awaitNestedPhase(verifyNext, async () => {
+    await waitFor(() => /waiting for a gate slot:/u.test(verifyNext.stderrText) || verifyNext.exitCode !== null, 'the later focused run to enter the queue');
+    assert.equal(existsSync(verifyFocusedMarker), false, 'the focused run has not started while the holder owns the slot');
+    assert.equal(events(box).includes('item check'), false);
+    writeFileSync(verifyRelease, 'release\n');
+    await waitFor(() => events(box).includes('item check start'), 'the older verify check to acquire the released slot');
+    assert.equal(existsSync(verifyFocusedMarker), false, 'the later focused run stays behind review');
+    writeFileSync(checkRelease, 'release\n');
+    await waitFor(() => events(box).includes('item check'), 'the verify check to release its slot');
+    await waitFor(() => existsSync(verifyFocusedMarker), 'the focused run to start after review releases');
+    const verifyRun = await verify.closed;
+    assert.equal(verifyRun.code, 0, `${verify.stderrText}${verify.stdoutText}`);
+    writeFileSync(verifyFocusedRelease, 'release\n');
+    const [verifyHolderResult, verifyNextResult] = await Promise.all([verifyHolder.closed, verifyNext.closed]);
+    assert.equal(verifyHolderResult.code, 0);
+    assert.equal(verifyNextResult.code, 0, verifyNext.stderrText + verifyNext.stdoutText);
+    assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end', 'item check start', 'item check']);
+  });
 });
 
 // process-level: this case runs beside whole-suite holders that must see real, separate callers.
@@ -193,75 +197,80 @@ test('a short check never waits behind whole suites [C7]', async () => {
   assert.equal(JSON.parse(pullboardProcess(box, settingsRoot, ['settings', '--json'])).settings.gate.shortSlots, 1);
   assert.match(pullboardProcess(box, settingsRoot, ['settings']), /^gate\.shortSlots: 1$/mu, 'pullboard settings shows the value');
 
-  const holders = await wholeSuiteHolders(box, ['whole-one', 'whole-two']);
-  const waiting = [];
-  try {
-    // Each waiter below is offered the free short slot on its first poll, so starting there would show at once.
-    const ordinary = { marker: join(box.dir, 'ordinary.started'), release: join(box.dir, 'ordinary.release'), waiting: join(box.dir, 'ordinary.waiting') };
-    ordinary.child = launchOrdinaryLease(box, settingsRoot, ordinary);
-    waiting.push(ordinary);
-    assert.equal(await waitFor(() => (existsSync(ordinary.marker) ? 'ran' : existsSync(ordinary.waiting) ? 'waiting' : false), 'an unnamed run to start or queue'),
-      'waiting', 'a run that does not name its test files never takes the short slot, even with no browser');
-    const wholeWaiter = { marker: join(box.dir, 'whole-waiter.started'), release: join(box.dir, 'whole-waiter.release') };
-    wholeWaiter.child = launchTestRunner(box, probeSuite(box, 'whole-waiter'), [], wholeWaiter.marker, wholeWaiter.release);
-    waiting.push(wholeWaiter);
-    await waitFor(() => wholeWaiter.child.stderrText.includes('waiting for a gate slot:'), 'a third whole suite to queue');
-    const directory = { marker: join(box.dir, 'directory.started'), release: join(box.dir, 'directory.release') };
-    directory.child = launchTestRunner(box, shortProbeSuite(box, 'directory-run'), ['test/'], directory.marker, directory.release);
-    waiting.push(directory);
-    await waitFor(() => directory.child.stderrText.includes('waiting for a gate slot:'), 'a directory run to queue');
-    const queued = JSON.parse(pullboardProcess(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
-    assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'seat-test']);
-    assert.equal(queued[1].requestedSlot, undefined, 'a whole suite is never offered a short slot');
-    assert.equal(queued[2].requestedSlot, undefined, 'a directory run is never offered a short slot');
-    const shortRoot = shortProbeSuite(box, 'short-run');
-    const short = { marker: join(box.dir, 'short.started'), release: join(box.dir, 'short.release') };
-    short.child = launchTestRunner(box, shortRoot, ['--test-name-pattern', PROBE_PATTERN, 'test/short-probe.test.js'], short.marker, short.release);
-    waiting.push(short);
-    const outcome = await waitFor(() => (existsSync(short.marker) ? 'ran' : short.child.stderrText.includes('waiting for a gate slot:') ? 'waiting' : false), 'the named-file run to start or queue');
-    assert.equal(outcome, 'ran', 'with gate.shortSlots 1 a named-file run starts while both gate slots hold whole suites');
-    assert.deepEqual([ordinary, wholeWaiter, directory].map(run => existsSync(run.marker)), [false, false, false], 'the runs queued ahead of it still wait');
+  await withNestedGroup(async add => {
+    const holders = await wholeSuiteHolders(box, ['whole-one', 'whole-two'], add);
+    const waiting = [];
+    try {
+      // Each waiter below is offered the free short slot on its first poll, so starting there would show at once.
+      const ordinary = { marker: join(box.dir, 'ordinary.started'), release: join(box.dir, 'ordinary.release'), waiting: join(box.dir, 'ordinary.waiting') };
+      ordinary.child = launchOrdinaryLease(box, settingsRoot, ordinary);
+      waiting.push(ordinary);
+      assert.equal(await waitFor(() => (existsSync(ordinary.marker) ? 'ran' : existsSync(ordinary.waiting) ? 'waiting' : false), 'an unnamed run to start or queue'),
+        'waiting', 'a run that does not name its test files never takes the short slot, even with no browser');
+      const wholeWaiter = { marker: join(box.dir, 'whole-waiter.started'), release: join(box.dir, 'whole-waiter.release') };
+      wholeWaiter.child = add(launchTestRunner(box, probeSuite(box, 'whole-waiter'), [], wholeWaiter.marker, wholeWaiter.release));
+      waiting.push(wholeWaiter);
+      await waitFor(() => wholeWaiter.child.stderrText.includes('waiting for a gate slot:'), 'a third whole suite to queue');
+      const directory = { marker: join(box.dir, 'directory.started'), release: join(box.dir, 'directory.release') };
+      directory.child = add(launchTestRunner(box, shortProbeSuite(box, 'directory-run'), ['test/'], directory.marker, directory.release));
+      waiting.push(directory);
+      await waitFor(() => directory.child.stderrText.includes('waiting for a gate slot:'), 'a directory run to queue');
+      const queued = JSON.parse(pullboardProcess(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
+      assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'seat-test']);
+      assert.equal(queued[1].requestedSlot, undefined, 'a whole suite is never offered a short slot');
+      assert.equal(queued[2].requestedSlot, undefined, 'a directory run is never offered a short slot');
+      const shortRoot = shortProbeSuite(box, 'short-run');
+      const short = { marker: join(box.dir, 'short.started'), release: join(box.dir, 'short.release') };
+      short.child = add(launchTestRunner(box, shortRoot, ['--test-name-pattern', PROBE_PATTERN, 'test/short-probe.test.js'], short.marker, short.release));
+      waiting.push(short);
+      const outcome = await waitFor(() => (existsSync(short.marker) ? 'ran' : short.child.stderrText.includes('waiting for a gate slot:') ? 'waiting' : false), 'the named-file run to start or queue');
+      assert.equal(outcome, 'ran', 'with gate.shortSlots 1 a named-file run starts while both gate slots hold whole suites');
+      assert.deepEqual([ordinary, wholeWaiter, directory].map(run => existsSync(run.marker)), [false, false, false], 'the runs queued ahead of it still wait');
 
-    const status = JSON.parse(pullboardProcess(box, settingsRoot, ['resources', '--json']));
-    assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
-    const gate = status.resources.find(resource => resource.name === 'gate');
-    assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
-    assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
-      'pool status names the slot each run holds');
-    const text = pullboardProcess(box, settingsRoot, ['resources']);
-    const gateText = text.slice(text.indexOf('\ngate (machine'));
-    assert.equal((gateText.match(/held by .*\(short slot, seat-test\)/gu) ?? []).length, 1, 'the text status names the short slot');
-    assert.equal((gateText.match(/held by .*\(gate slot, gate, browser\)/gu) ?? []).length, 2, 'the text status names each gate slot');
-    const reuse = wholeSuiteInheritance(box, settingsRoot, JSON.parse(readFileSync(short.marker, 'utf8')));
-    assert.equal(reuse.stdout, 'SHORT_SLOT_FULL_SUITE', 'a whole suite cannot reuse a short lease from inside the short check');
-  } finally {
-    await releaseAll([...holders, ...waiting]);
-  }
-  for (const run of [...holders, ...waiting]) {
-    const { code } = await run.child.closed;
-    // Node refuses a directory operand once the run is admitted; only its queueing is under test here.
-    if (run.child.stdoutText.includes('ERR_UNSUPPORTED_DIR_IMPORT')) assert.equal(code, 1);
-    else assert.equal(code, 0, `${run.child.stderrText}${run.child.stdoutText}`);
-  }
+      const status = JSON.parse(pullboardProcess(box, settingsRoot, ['resources', '--json']));
+      assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
+      const gate = status.resources.find(resource => resource.name === 'gate');
+      assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
+      assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
+        'pool status names the slot each run holds');
+      const text = pullboardProcess(box, settingsRoot, ['resources']);
+      const gateText = text.slice(text.indexOf('\ngate (machine'));
+      assert.equal((gateText.match(/held by .*\(short slot, seat-test\)/gu) ?? []).length, 1, 'the text status names the short slot');
+      assert.equal((gateText.match(/held by .*\(gate slot, gate, browser\)/gu) ?? []).length, 2, 'the text status names each gate slot');
+      const reuse = wholeSuiteInheritance(box, settingsRoot, JSON.parse(readFileSync(short.marker, 'utf8')));
+      assert.equal(reuse.stdout, 'SHORT_SLOT_FULL_SUITE', 'a whole suite cannot reuse a short lease from inside the short check');
+    } finally {
+      await releaseAll([...holders, ...waiting]);
+    }
+    for (const run of [...holders, ...waiting]) {
+      const { code } = await run.child.closed;
+      // Node refuses a directory operand once the run is admitted; only its queueing is under test here.
+      if (run.child.stdoutText.includes('ERR_UNSUPPORTED_DIR_IMPORT')) assert.equal(code, 1);
+      else assert.equal(code, 0, `${run.child.stderrText}${run.child.stdoutText}`);
+    }
+
+  });
 
   const off = fixture();
   const offRoot = gateRepo(off, 'settings-off');
   pullboardProcess(off, offRoot, ['settings', 'gateSlots', '2']);
   pullboardProcess(off, offRoot, ['settings', 'browserSlots', '2']);
   pullboardProcess(off, offRoot, ['settings', 'gate.shortSlots', '0']);
-  const offHolders = await wholeSuiteHolders(off, ['off-one', 'off-two']);
-  const named = { marker: join(off.dir, 'named.started'), release: join(off.dir, 'named.release') };
-  try {
-    named.child = launchTestRunner(off, shortProbeSuite(off, 'named-off'), ['--test-name-pattern', PROBE_PATTERN, 'test/short-probe.test.js'], named.marker, named.release);
-    const outcome = await waitFor(() => (existsSync(named.marker) ? 'ran' : named.child.stderrText.includes('waiting for a gate slot:') ? 'waiting' : false), 'the named-file run to start or queue');
-    assert.equal(outcome, 'waiting', 'with gate.shortSlots 0 a named-file run waits for a gate slot, as before');
-    const gate = JSON.parse(pullboardProcess(off, offRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate');
-    assert.equal(gate.line.length, 1);
-    assert.equal(gate.line[0].requestedSlot, 'short-eligible', 'the waiting run is marked as one that names its files');
-    writeFileSync(offHolders[0].release, 'release\n');
-    await waitFor(() => existsSync(named.marker), 'the named-file run to start once a gate slot frees');
-  } finally {
-    await releaseAll(named.child ? [...offHolders, named] : offHolders);
-  }
-  for (const run of named.child ? [...offHolders, named] : offHolders) assert.equal((await run.child.closed).code, 0, `${run.child.stderrText}${run.child.stdoutText}`);
+  await withNestedGroup(async add => {
+    const offHolders = await wholeSuiteHolders(off, ['off-one', 'off-two'], add);
+    const named = { marker: join(off.dir, 'named.started'), release: join(off.dir, 'named.release') };
+    try {
+      named.child = add(launchTestRunner(off, shortProbeSuite(off, 'named-off'), ['--test-name-pattern', PROBE_PATTERN, 'test/short-probe.test.js'], named.marker, named.release));
+      const outcome = await waitFor(() => (existsSync(named.marker) ? 'ran' : named.child.stderrText.includes('waiting for a gate slot:') ? 'waiting' : false), 'the named-file run to start or queue');
+      assert.equal(outcome, 'waiting', 'with gate.shortSlots 0 a named-file run waits for a gate slot, as before');
+      const gate = JSON.parse(pullboardProcess(off, offRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate');
+      assert.equal(gate.line.length, 1);
+      assert.equal(gate.line[0].requestedSlot, 'short-eligible', 'the waiting run is marked as one that names its files');
+      writeFileSync(offHolders[0].release, 'release\n');
+      await waitFor(() => existsSync(named.marker), 'the named-file run to start once a gate slot frees');
+    } finally {
+      await releaseAll(named.child ? [...offHolders, named] : offHolders);
+    }
+    for (const run of named.child ? [...offHolders, named] : offHolders) assert.equal((await run.child.closed).code, 0, `${run.child.stderrText}${run.child.stdoutText}`);
+  });
 });
