@@ -491,10 +491,7 @@
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/trace/why.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/shout/shouts.test.js": {
+    "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
   "apps/runner/tests/recovery/self.test.js": {
@@ -1626,7 +1623,7 @@
     "launch": 2
   },
   "apps/cli/journeys/verify/landing/interrupted.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/lib/tests/no/cli.test.js": {
     "launch": 1
