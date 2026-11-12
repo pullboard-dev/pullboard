@@ -16,6 +16,8 @@ import { registerProject } from '../../../../packages/seats/index.js';
 import { serveView } from '../../src/io/commands/view.js';
 
 import {
+  apiHttpFixture as fixture,
+  apiHttpBox as httpBox,
   registerFixtureRunner,
   shellWord,
   FIXTURE_BRIEF,
