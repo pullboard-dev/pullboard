@@ -228,6 +228,10 @@ async function pulledGate(box) {
       const row = db.prepare(`SELECT step.job_step_payload AS payload FROM job JOIN job_step AS step ON step.job_step_job = job.job_id
         AND step.job_step_name = 'receipt' WHERE job.job_kind = 'gate' AND job.job_item = ? ORDER BY step.job_step_id DESC LIMIT 1`).get(box.item);
       return row ? JSON.parse(row.payload).receipt.gate : null;
+    } catch (error) {
+      // The submit or runner may hold the board's write lock at this instant; the next poll reads again.
+      if (/database is locked/u.test(String(error?.message))) return null;
+      throw error;
     } finally { db.close(); }
   };
   // budget: hang ceiling for the loopback runner's gate, never a speed assertion.
