@@ -533,9 +533,6 @@
   "packages/doctrine/tests/hooks.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/export/team/access.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/verify/team/repair.test.js": {
     "launch": 3
   },
@@ -986,9 +983,6 @@
   "apps/cli/journeys/runner/e2e.test.js": {
     "launch": 7
   },
-  "apps/cli/journeys/skills/main.test.js": {
-    "launch": 7
-  },
   "packages/landing/tests/io/prune.test.js": {
     "launch": 1
   },
@@ -1357,9 +1351,6 @@
   },
   "packages/config/tests/io/compat.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/patch/item/patches.test.js": {
-    "launch": 1
   },
   "packages/resources/tests/io/heartbeat/blocked.test.js": {
     "launch": 1
