@@ -32,7 +32,6 @@
     "apps/cli/journeys/stats/cold.test.js": 1,
     "apps/cli/journeys/stats/main.test.js": 1,
     "apps/cli/journeys/submit/compare.test.js": 1,
-    "apps/cli/journeys/submit/gate.test.js": 1,
     "apps/cli/journeys/submit/invariants.test.js": 1,
     "apps/cli/journeys/submit/lease.test.js": 1,
     "apps/cli/journeys/submit/main/red.test.js": 1,
