@@ -33,8 +33,8 @@ const STEPS = {
     return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' && item.item_owner !== box.seats.builder.id };
   },
   async submit(box, id) {
-    box.submit(id);
-    return { holder: box.seats.builder, done: item => item.item_status !== 'submitted' || item.item_owner === null };
+    box.submit(id); // the submit is the work done: past it the board owns the item, so a dead holder cannot strand it
+    return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' };
   },
 };
 
