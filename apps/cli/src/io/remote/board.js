@@ -109,7 +109,7 @@ export async function runRemoteRead(io, parsed, remote) {
     if (!(error instanceof Refused)) throw error;
     io.refusal(error);
     await io.prepareRefusal();
-    io.err(`pullboard: [${error.code}] ${error.message}\nnext: ${io.refusalDocument(error).error.next}`);
+    io.err(`pullboard: ${error.message}\nnext: ${io.refusalDocument(error).error.next}`);
     io.flush(1);
     return 1;
   }
