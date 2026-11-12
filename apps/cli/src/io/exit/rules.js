@@ -20,11 +20,11 @@ import { tryGit } from '../../../../../packages/git/index.js';
 
 // This module is itself imported only once exit rules are on, so a command on a board without them never pays for these cells [C7].
 const [statsCell, itemsCell, storeCell] = await Promise.all([
-  import('../../../../../packages/stats/index.js'),
+  import('../../../../../packages/stats/light.js'),
   import('../../../../../packages/items/index.js'),
   import('../../../../../packages/store/index.js'),
 ]);
-/** The stats cell, loaded with this module. */
+/** The stats cell's light door, loaded with this module. */
 function stats() { return statsCell; }
 /** The items cell's session digests, loaded with this module. */
 function items() { return itemsCell; }
