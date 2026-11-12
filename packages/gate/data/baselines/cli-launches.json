@@ -5,9 +5,6 @@
   "apps/cli/journeys/add/check.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/add/lanes.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/agents/main.test.js": {
     "launch": 6
   },
