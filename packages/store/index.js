@@ -118,5 +118,5 @@ export { objectItemPatch } from './src/io/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/io/board/wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
-export { boardHoldLog, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
+export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
