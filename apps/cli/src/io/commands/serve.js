@@ -11,6 +11,7 @@ import { savedKeyedResults } from '../../../../../packages/pin/index.js';
 import {
   serveApi,
 } from '../../../../../packages/api/index.js';
+import { apiBoards } from '../../../../../packages/api/index.js';
 import { performanceCores } from '../../../../../packages/gate/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
 import {
@@ -82,6 +83,26 @@ export async function serveHere(io, values) {
   });
   await api.close();
   return 0;
+}
+
+/**
+ * The board API on loopback for the boards `projects` lists, composed as `pullboard serve` composes it, for the local
+ * runner [P7]. boards() names each board's id, read once per board.
+ *
+ * @param {object} io
+ * @param {{ projects: () => Array<{ root: string, name: string, project: string, added: string }>, secret: string }} options
+ */
+export async function loopbackBoardApi(io, { projects, secret }) {
+  const ctx = context(io), openers = nativeBoardOpeners(io), ids = new Map();
+  provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
+    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
+  const boards = () => {
+    const unread = projects().filter(project => !ids.has(project.root));
+    if (unread.length) for (const board of apiBoards(() => unread, ctx.allowSchemaUpgrade, openers)) ids.set(board.root, board.id);
+    return projects().filter(project => ids.has(project.root)).map(project => ({ root: project.root, id: ids.get(project.root) }));
+  };
+  return { origin: new URL(api.url).origin, key: secret, boards, close: api.close };
 }
 
 /**
