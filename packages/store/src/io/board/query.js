@@ -11,6 +11,7 @@ import { itemById } from "../../logic/board/item/lookup.js";
 import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
 import { handoffRecord } from "../submit/handoff/records.js";
+import { pulledGateRecords } from "../submit/handoff/records.js";
 import {
   activityEventDetail,
   activityInterests,
@@ -115,7 +116,7 @@ export function getItem(board, id) {
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
   const stored = itemById(board, id);
-  const item = { ...current(board, stored), item_stage: itemStage(stored, handoffRecord(board.db, id) ?? null,
+  const item = { ...current(board, stored), item_stage: itemStage(stored, pulledGateRecords(board.db, id).get(id) ?? handoffRecord(board.db, id) ?? null,
     Boolean(board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='merged' LIMIT 1").get(id)), now(board)) };
   const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
