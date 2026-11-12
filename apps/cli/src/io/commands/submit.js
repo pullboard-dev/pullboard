@@ -670,7 +670,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
-    onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+    onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig,
+      cachedMain: file => cachedMainComparison(root, acceptedMain.commit, [file]).files[0] }, { ordered, withBoard, resourceAgent, checkAtCommit }),
       { withDb: work => withBoard(ctx, board => work(board.db)), gate: { id: `submit:${id}:${companion?.commit ?? commit}`, item: Number(id), candidate: companion?.commit ?? commit }, repo: root, owner: me.id, cases: failingCases }) }));
   /** Record the runner's authorization result as the local check would have left it; a skipped check runs here. */
   const recordRemoteAuthorization = analysis => {
@@ -832,7 +833,6 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         recordedRuns: withBoard(ctx, board => gateRuns(board)), execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
-      { const it = withBoard(ctx, board => store.listItems(board, { all: true })); process.stderr.write(`DBGS id=${id} ${typeof id} items=${JSON.stringify(it.map(i => [i.item_id, i.item_title, i.item_status, i.item_check, Boolean(i.item_frozen), i.item_merged_commit]))} fail=${JSON.stringify(failures.map(f => [f.file, f.ran, f.name]))}\n`); }
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
       const matched = proofMainFailures(failures, comparison, mainFailureBase, { criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? held.item_criterion ?? '', check: frozenCheck(held) });
@@ -865,7 +865,6 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       }
     } catch { /* An unavailable baseline never authorizes a red submission. */ }
   }
-  process.stderr.write(`DBGS crit=${criterionNotices.length} proof=${proofNotices.length} fails=${failures?.length} base=${mainFailureBase} cmp=${Boolean(comparison)} green=${gate.isGreen} accepted=${checkAccepted} waived=${waived}\n`);
   const mainFailures = [...new Map([...criterionNotices, ...proofNotices].map(row => [JSON.stringify([row.file, row.name, row.status]), row])).values()];
   const plainMainFailures = mainFailures.map(row => row.message).join('\n');
   const unowned = [...criterionUnowned, ...proofUnowned];

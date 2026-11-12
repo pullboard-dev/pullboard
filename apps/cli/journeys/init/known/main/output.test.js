@@ -72,17 +72,18 @@ test('identical main case is first in text and structured in test and submit, wi
 test('a unique repair owner appears at the top of submit text and in test JSON [V4,B3,C7]', async t => {
   const box = fixture(t);
   const owner = fileMainRed(box);
-  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
-  assert.equal(tested.status, 1, tested.stdout + tested.stderr);
-  assert.equal(JSON.parse(tested.stdout).mainFailures.length, 1, tested.stdout);
-  notice(JSON.parse(tested.stdout).mainFailures[0], box, { owner });
+  // Submit runs first: the JSON test run below files its own Main red for the case, after which the file has two owners.
   const submitted = await text(box, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
   const lines = submitted.stdout.split('\n');
   const explanation = lines.findIndex(line => line.startsWith('also fails on main at '));
   assert.ok(explanation >= 0);
   assert.ok(explanation < lines.findIndex(line => line.startsWith('submitted #')), 'case explanation precedes submission summary');
-  assert.ok(lines[explanation].includes(`(not yours; owner #${owner}) [main receipt `), lines[explanation] + submitted.stderr.slice(0, 2500));
+  assert.ok(lines[explanation].includes(`(not yours; owner #${owner}) [main receipt `));
+  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
+  assert.equal(tested.status, 1, tested.stdout + tested.stderr);
+  assert.equal(JSON.parse(tested.stdout).mainFailures.length, 1, tested.stdout);
+  notice(JSON.parse(tested.stdout).mainFailures[0], box, { owner });
 });
 
 test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', async t => {
