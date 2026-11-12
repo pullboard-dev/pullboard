@@ -25,12 +25,6 @@ import {
   cleanupFixtures,
   withBoard,
 } from '../../tests/fixtures/check-baseline.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
-
-/** Run the CLI through production dispatch in this process; same result shape as box.run [C7]. */
-async function local(box, cwd, args, input, options = {}) {
-  return runCliInProcess(args, { cwd, env: options.env ?? box.env, ...(input === undefined ? {} : { input }) });
-}
 
 after(cleanupFixtures);
 
@@ -42,7 +36,7 @@ test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in 
   const command = fileCheck('committed', 'add-baseline-marker', observations);
   const edit = heldCheck(box, 'edit-background');
   t.after(() => writeFileSync(edit.release, 'release'));
-  const added = await local(box, box.repo, ['add', 'web', 'Automatic baseline', '--check', command, '--json']);
+  const added = box.run(box.repo, ['add', 'web', 'Automatic baseline', '--check', command, '--json']);
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const item = JSON.parse(added.stdout).item;
   assert.equal(item.item_check_baseline.result, 'pending');
@@ -53,8 +47,8 @@ test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in 
   assert.notEqual(locations[0], box.repo);
   assert.ok(locations[0].startsWith(box.worker), `the baseline ran in the registered runner's checkout: ${locations[0]}`);
   assert.equal(existsSync(locations[0]), false, 'the isolated checkout is removed after the baseline completes');
-  assert.match((await local(box, box.repo, ['show', String(item.item_id)])).stdout, /CRITERION_PROVES_NOTHING/u);
-  const edited = await local(box, box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
+  assert.match(box.run(box.repo, ['show', String(item.item_id)]).stdout, /CRITERION_PROVES_NOTHING/u);
+  const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
   assert.equal(existsSync(edit.finished), false, 'edit returns before its changed check finishes');
   assert.equal(JSON.parse(edited.stdout).item.item_check_baseline.result, 'pending');
@@ -100,19 +94,19 @@ test('[B35,V2,H16] #2370 waited add releases checkout while its baseline runs', 
   assert.equal(JSON.parse(stdout).item.item_check_baseline.result, 'green');
 });
 
-test('[B35,V2] #2370 waited add records a red baseline and flags an already-green check', async () => {
+test('[B35,V2] #2370 waited add records a red baseline and flags an already-green check', () => {
   const box = project({ content: 'before' });
   const red = addChecked(box, 'Red baseline', fileCheck('after'));
   assert.equal(red.item.item_check_baseline.result, 'red');
   assert.equal(red.item.item_check_baseline.main, box.git(box.repo, 'rev-parse', 'main'));
-  const green = await local(box, box.repo, ['add', 'web', 'Already green', '--check', fileCheck('before'), '--wait']);
+  const green = box.run(box.repo, ['add', 'web', 'Already green', '--check', fileCheck('before'), '--wait']);
   assert.equal(green.status, 0, `${green.stdout}${green.stderr}`);
   assert.match(green.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
 });
 
-test('[B35,V2] manual check-baseline is refused because creation owns the observation', async () => {
+test('[B35,V2] manual check-baseline is refused because creation owns the observation', () => {
   const box = project();
-  const refused = await local(box, box.repo, ['check-baseline', '1']);
+  const refused = box.run(box.repo, ['check-baseline', '1']);
   assert.notEqual(refused.status, 0);
   assert.match(`${refused.stdout}${refused.stderr}`, /CHECK_BASELINE_AUTOMATIC.*the board baselines checks on add/u);
 });
