@@ -148,7 +148,7 @@ scenario('a long shout folds and stays open across a refresh', async ({ Given, W
   const box = machine();
   const p = project(box, 'fold');
   const long = ['A long note that folds.', ...Array.from({ length: 11 }, (_, n) => `Line ${n + 2} of the note.`)].join('\n');
-  await box.inProcess(p.web, 'shout', 'all', long);
+  box.run(p.web, 'shout', 'all', long);
   const { chrome } = await open(box);
   let id;
   await Given('a twelve-line shout in the feed', async () => {
@@ -165,7 +165,7 @@ scenario('a long shout folds and stays open across a refresh', async ({ Given, W
     await Then('every line shows and the control says Show less', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show less', 12, true]))}`));
     const later = `A later shout at ${at}.`;
     await When('a new shout refreshes the feed', async () => {
-      await box.inProcess(p.web, 'shout', 'all', later);
+      box.run(p.web, 'shout', 'all', later);
       await chrome.waitFor(`[...document.querySelectorAll('#feed .shout .text')].some((node) => node.textContent === ${JSON.stringify(later)})`, 15_000); // budget: hang ceiling for the live refresh to bring the new shout; no throughput claim.
     });
     await Then('the long shout is still open', async () => {
@@ -179,7 +179,7 @@ scenario('a long shout folds and stays open across a refresh', async ({ Given, W
 scenario('the person shouts with Enter and sees when the coordinator heard it', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'heard');
-  await box.inProcess(p.web, 'shout', 'all', 'Starting on the greeting.');
+  box.run(p.web, 'shout', 'all', 'Starting on the greeting.');
   const { chrome } = await open(box);
   await Given('the shouts feed', () => openShouts(chrome, 1));
   /** The card with these words in the open conversation: its text, recipient and Heard line. */
@@ -201,7 +201,7 @@ scenario('the person shouts with Enter and sees when the coordinator heard it', 
       await chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, '→ coordinator', 'Not heard yet']))} && ${q('#shout-text')}.value === ''`, 15_000); // budget: hang ceiling for the sent shout to be recorded and shown; no throughput claim.
       assert.equal(await chrome.stable(`data.project.shouts.filter((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === ${JSON.stringify(words)}).length`), 1, 'Enter sent it once, to the coordinator');
     });
-    await When("the coordinator's inbox reads it", async () => { await box.inProcess(p.repo, 'inbox'); });
+    await When("the coordinator's inbox reads it", () => { box.run(p.repo, 'inbox'); });
     await Then('it says Heard by coordinator', () => chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, '→ coordinator', 'Heard by coordinator']))}`, 15_000)); // budget: hang ceiling for the inbox read to reach the view; no throughput claim.
   });
 });
@@ -209,14 +209,14 @@ scenario('the person shouts with Enter and sees when the coordinator heard it', 
 scenario('picking an agent filters the feed and addresses the composer, and its x returns to the coordinator', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'pick');
-  await box.inProcess(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  await box.inProcess(p.web, 'claim', '1');
+  box.run(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(p.web, 'claim', '1');
   const second = join(box.dir, 'pick-web-2');
   box.git(p.repo, 'worktree', 'add', '-q', second, '-b', 'web/pick2');
-  await box.inProcess(second, 'join', 'web');
-  await box.inProcess(p.web, 'shout', 'all', 'web-1 reports in.');
-  await box.inProcess(second, 'shout', 'all', 'web-2 reports in.');
-  await box.inProcess(p.repo, 'shout', 'web-1', 'The coordinator answers web-1.');
+  box.run(second, 'join', 'web');
+  box.run(p.web, 'shout', 'all', 'web-1 reports in.');
+  box.run(second, 'shout', 'all', 'web-2 reports in.');
+  box.run(p.repo, 'shout', 'web-1', 'The coordinator answers web-1.');
   const { chrome } = await open(box);
   await Given('the shouts feed with shouts from several agents', () => openShouts(chrome, 3));
   const total = await chrome.stable('data.project.shouts.length');
@@ -260,7 +260,7 @@ scenario('picking an agent filters the feed and addresses the composer, and its 
 scenario('answering a decision moves it out of Decision needed and marks its card answered', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'decide');
-  for (const n of [1, 2, 3, 4]) await box.inProcess(p.repo, 'shout', 'person', `Ship option ${n} today?`, '--decision');
+  for (const n of [1, 2, 3, 4]) box.run(p.repo, 'shout', 'person', `Ship option ${n} today?`, '--decision');
   const { chrome } = await open(box);
   await Given('four decisions wait for the person', () => openShouts(chrome, 4));
   await layouts(async ({ at }) => {
@@ -296,7 +296,7 @@ scenario('a code reference opens its lines', async ({ Given, When, Then, open, l
   box.git(p.repo, 'commit', '-q', '-m', 'docs: notes');
   const head = box.git(p.repo, 'rev-parse', 'HEAD');
   const refs = [1, 2, 3, 4].map((n) => `notes.txt:${n}-${n + 1}@${head}`);
-  for (const ref of refs) await box.inProcess(p.web, 'shout', 'all', `See ${ref} for the lines.`);
+  for (const ref of refs) box.run(p.web, 'shout', 'all', `See ${ref} for the lines.`);
   const { chrome } = await open(box);
   await Given('shouts that name lines of committed code', () => openShouts(chrome, refs.length));
   let n = 0;
@@ -319,9 +319,9 @@ scenario('a code reference opens its lines', async ({ Given, When, Then, open, l
 scenario('Hide agents survives a reload', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'hide');
-  await box.inProcess(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  await box.inProcess(p.web, 'claim', '1');
-  await box.inProcess(p.web, 'shout', 'all', 'web-1 reports in.');
+  box.run(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(p.web, 'claim', '1');
+  box.run(p.web, 'shout', 'all', 'web-1 reports in.');
   const { chrome } = await open(box);
   await Given('the shouts feed beside the agents panel', () => openShouts(chrome, 1));
   /** Whether the panel shows, whether the pane is bare, and what the toggle in the composer's line says. */
