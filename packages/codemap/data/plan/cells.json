@@ -262,6 +262,11 @@
       "order": 49,
       "name": "app:relay",
       "file": "packages/codemap/data/plan/49-app-relay.json"
+    },
+    {
+      "order": 50,
+      "name": "search",
+      "file": "packages/codemap/data/plan/50-search.json"
     }
   ],
   "stays": [
@@ -2236,7 +2241,7 @@
     "queue->kernel",
     "api->jobs",
     "api->kernel",
-      "keys->store",
+    "keys->store",
     "landing->git",
     "landing->pin",
     "landing->store",
@@ -2317,6 +2322,7 @@
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
-    "apps/relay->seats"
+    "apps/relay->seats",
+    "search->store"
   ]
 }
