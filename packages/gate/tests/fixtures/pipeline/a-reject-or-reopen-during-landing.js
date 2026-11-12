@@ -2,7 +2,7 @@
  * A reject or reopen during landing [C7]: two verified items are selected for one landing batch, and while the
  * batch's landing gate holds (after select, before any merge reaches main) the coordinator reopens the second.
  * The invariant: every landing step re-checks verified at the commit, so the reopened item drops out of the batch;
- * main never takes its commit, it records no merge, and the item stays open. The other item still lands.
+ * main never takes its commit, it records no merge, and the item stays out. The stale batch is refused whole (LAND_ITEM_MOVED).
  * Run alone with `node packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js`.
  */
 import assert from 'node:assert/strict';
