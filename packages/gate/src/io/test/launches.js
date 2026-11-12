@@ -20,6 +20,9 @@ const SPAWN = /(?<![\w$])(?:(?:[\w$]+\s*\.\s*)?(?:spawnSync|execFileSync|execFil
 const NODE_OR_CLI_TEXT = /['"`]node['"`]|\bnode\s|pullboard\.js/u;
 /** Node or the CLI named by an identifier, read with strings masked so '/bin/sh' and 'bin/*.js' are not the `bin` entry. */
 const NODE_OR_CLI_NAME = /\bexecPath\b|pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bin)\b/u;
+/** The pullboard CLI named in a launch's text or by identifier; any other node child (run-tests, node --test, script mains, -e) is not a CLI launch. */
+const CLI_TEXT = /pullboard\.js/u;
+const CLI_NAME = /pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bin)\b/u;
 /** The kit box methods that run the CLI as a child process (apps/cli/tests/fixtures/e2e.js); `box` is the kit's own name. */
 const BOX_LAUNCH = /(?<![\w$.])box\s*\.\s*(?:run|runAs|cli|cliAt|runGate|launch)\s*\(/gu;
 
@@ -47,13 +50,14 @@ export function cliLaunchSites(source, path) {
   const { code } = lex(source);
   const found = [];
   /** Record one site at an offset of the source. */
-  const add = at => found.push({ path, line: lineAt(source, at), kind: 'launch', text: MESSAGE });
+  const add = (at, target) => found.push({ path, line: lineAt(source, at), kind: 'launch', target, text: MESSAGE });
   for (const match of code.matchAll(SPAWN)) {
     const open = match.index + match[0].length - 1;
     const close = closingAt(code, open);
-    if (NODE_OR_CLI_TEXT.test(source.slice(open, close)) || NODE_OR_CLI_NAME.test(code.slice(open, close))) add(match.index);
+    if (!NODE_OR_CLI_TEXT.test(source.slice(open, close)) && !NODE_OR_CLI_NAME.test(code.slice(open, close))) continue;
+    add(match.index, CLI_TEXT.test(source.slice(open, close)) || CLI_NAME.test(code.slice(open, close)) ? 'cli' : 'other');
   }
-  for (const match of code.matchAll(BOX_LAUNCH)) add(match.index);
+  for (const match of code.matchAll(BOX_LAUNCH)) add(match.index, 'cli');
   return found.sort((left, right) => left.line - right.line);
 }
 
@@ -63,6 +67,25 @@ export function cliLaunchReport(root, { cache = null } = {}) {
     const text = readText(root, path);
     return cache ? cache.get(path, blobOid(text), () => cliLaunchSites(text, path)) : cliLaunchSites(text, path);
   });
+}
+
+/**
+ * Split launches into pullboard CLI launches and other child processes, per file and in total.
+ *
+ * Why: the 0.9.4 goal counts only real CLI launches; the ceilings in cli-launches.json still cover both (#5946).
+ *
+ * @param {{ path: string, target: string }[]} problems - Sites from cliLaunchReport.
+ * @returns {{ files: Record<string, { cli: number, other: number }>, totals: { cli: number, other: number } }}
+ */
+export function cliLaunchSplit(problems) {
+  const files = {};
+  const totals = { cli: 0, other: 0 };
+  for (const { path, target } of problems) {
+    files[path] ??= { cli: 0, other: 0 };
+    files[path][target]++;
+    totals[target]++;
+  }
+  return { files, totals };
 }
 
 /** Count launches per file, as `{ path: { launch: n } }` like the other ceiling baselines. */
@@ -94,7 +117,11 @@ export function tightenCliLaunchBaseline(problems, baseline) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = resolve(process.argv.slice(2).find(value => !value.startsWith('--')) ?? process.cwd());
   const problems = cliLaunchReport(root);
-  if (process.argv.includes('--report')) console.log(JSON.stringify(cliLaunchCounts(problems), null, 2));
+  if (process.argv.includes('--split')) {
+    const { files, totals } = cliLaunchSplit(problems);
+    for (const [path, row] of Object.entries(files)) console.log(`${path}: pullboard CLI launches ${row.cli}, other child processes ${row.other}`);
+    console.log(`total: pullboard CLI launches ${totals.cli}, other child processes ${totals.other}`);
+  } else if (process.argv.includes('--report')) console.log(JSON.stringify(cliLaunchCounts(problems), null, 2));
   else if (process.argv.includes('--write')) writeFileSync(BASELINE_URL, JSON.stringify(cliLaunchCounts(problems), null, 2) + '\n'); // first record only
   else {
     const baseline = JSON.parse(readFileSync(BASELINE_URL, 'utf8'));
