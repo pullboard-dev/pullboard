@@ -1,6 +1,7 @@
 /** Intake takes --brief so a pull request files on the mid route; without it the refusal names --brief [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   fixtureJSON,
   intakeFixture,
@@ -17,9 +18,9 @@ test('intake --brief files a mid-route item [C7]', t => {
   assert.match(item.item_brief, /Files: test\/contribution\.test\.js/u);
 });
 
-test('intake without --brief refuses NO_BRIEF naming --brief [C7]', t => {
+test('intake without --brief refuses NO_BRIEF naming --brief [C7]', async t => {
   const box = intakeFixture(t);
-  const result = box.run(box.repo, 'intake', box.pull.html_url, '--criterion', 'The contributed behavior works.', '--check', 'npm test', '--route', 'mid', '--json');
+  const result = await runCliInProcess(['intake', box.pull.html_url, '--criterion', 'The contributed behavior works.', '--check', 'npm test', '--route', 'mid', '--json'], { cwd: box.repo, env: box.env });
   assert.notEqual(result.code, 0);
   const error = JSON.parse(result.out || result.err).error;
   assert.equal(error.code, 'NO_BRIEF');
