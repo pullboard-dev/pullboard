@@ -12,7 +12,11 @@ import { jobsOf } from '../../../../packages/jobs/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { verify } from '../../../../packages/store/index.js';
 import { closeBoard } from '../../../lib/index.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { captureCommandInProcess } from '../../tests/fixtures/process.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { context } from '../../index.js';
+import { landAfterAcceptance } from '../../index.js';
+import { wakeIo } from '../../src/io/landing/automatic.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { openKitBoard } from '../../tests/fixtures/testkit.js';
 import { pullProject } from '../../tests/fixtures/pull.js';
@@ -73,16 +77,14 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-/** Run the automatic lander's own entry, as a landing wake does, in a child process at the main checkout. */
-function landAfterAccept(box) {
-  const source = [
-    `import { wakeIo } from ${JSON.stringify(new URL('../../src/io/landing/automatic.js', import.meta.url).href)};`,
-    `import { context, landAfterAcceptance } from ${JSON.stringify(new URL('../../index.js', import.meta.url).href)};`,
-    'console.log("RESULT " + JSON.stringify(await landAfterAcceptance(context(wakeIo(process.argv[1])))));',
-  ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
-  return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice(7));
+/** Run the automatic lander's own entry in this process, as a landing wake does, at the main checkout with the box's environment. */
+async function landAfterAccept(box) {
+  const run = await captureCommandInProcess(async (args, streams) => {
+    streams.stdout.write(JSON.stringify(await landAfterAcceptance(context(wakeIo(box.repo)))));
+    return 0;
+  }, [], { cwd: box.repo, env: box.env });
+  assert.equal(run.code, 0, run.err);
+  return JSON.parse(run.out);
 }
 
 /** A pull project with zero registered runners, the local runner on, no trunk remote, and automatic landing on. */
@@ -145,7 +147,7 @@ async function journey(t, box) {
   const before = box.git(box.repo, 'rev-parse', 'main');
   read(box, board => verify(board, first, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: one.commit,
     digest: getItem(board, first).item_frozen_digest, policy: 'any' }));
-  const offered = landAfterAccept(box);
+  const offered = await landAfterAccept(box);
   assert.match(String(offered.offered), /^land:/u, JSON.stringify(offered));
   const merged = await until(box, board => getItem(board, first).item_merged_commit);
   assert.match(read(box, board => receiptRunner(board, 'land')), /^local-/u, 'the local runner took the land job');
@@ -172,7 +174,7 @@ async function journey(t, box) {
 
   // Stopped cleanly: --off waits for it to exit and leaves no state behind.
   const live = runnerState(box).pid;
-  const off = box.run(box.repo, 'runner', 'local', '--off', '--json');
+  const off = await runCliInProcess(['runner', 'local', '--off', '--json'], { cwd: box.repo, env: box.env });
   assert.equal(off.code, 0, off.err);
   const answer = JSON.parse(off.out);
   assert.deepEqual([answer.stopped, answer.pid], [true, live]);
