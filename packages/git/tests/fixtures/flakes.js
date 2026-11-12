@@ -23,7 +23,7 @@ import {
   runFixtureGit,
 } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js';
-import { fixtureSettledMachine } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { HOST } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { evidenceReader } from './evidence.js';
@@ -45,10 +45,11 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.com',
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.com',
-    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0',
-    // A claim starts no detached beater bound to the test process, which the scratch wait below would sit out (#5726).
-    PULLBOARD_CLAIM_BEATER: '0' };
+    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0', PULLBOARD_CLAIM_BEATER: '0' };
   delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
+  // The submitting process holds this fixture's gate, so every flake journey pins controller dispatch like the cockpit fixture [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   for (const key of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[key]; // the host agent's session must not make builder and reviewer one session [V4]
   /** Run Git only within this fixture with a private deterministic identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
@@ -149,11 +150,13 @@ export function checkedItem(box) {
   const bin = join(box.scratch, 'baseline-bin'), worker = join(box.scratch, 'baseline-worker');
   const home = join(box.scratch, 'baseline-home'), machine = box.env.PULLBOARD_MACHINE_HOME;
   for (const path of [bin, worker, home, join(home, '.pullboard'), machine]) mkdirSync(path, { recursive: true });
+  // The stand-in runner's disk floor would otherwise be the host's real free space against 10 GB (RUNNER_DISK_FULL on a crowded runner).
+  fixtureMachineSettings(join(home, '.pullboard'), { gate: { diskFloorMB: 0 } });
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.scratch, 'baseline-ssh.jsonl'), nodeCommand: process.execPath });
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureSettledMachine(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { runnerDispatch: 'controller', browserFreeChecks: true, timingRunner: false },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
   let added;
@@ -165,7 +168,7 @@ export function checkedItem(box) {
     if (previous === null) unlinkSync(settings); else writeFileSync(settings, previous);
   }
   assert.equal(added.code, 0, JSON.stringify(added.document));
-  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
+  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), `baseline setup finished before the measured check: ${JSON.stringify(added.document.item.item_check_baseline)}`);
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
   writeFileSync(box.counter, '');
   return added.document.item.item_id;
