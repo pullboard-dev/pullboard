@@ -42,7 +42,7 @@ test('init names app.pullboard.dev and never the bare view address [I1,N26]', as
   box.git(repo, 'config', 'user.email', 'init@example.com');
   box.git(repo, 'commit', '-q', '--allow-empty', '-m', 'start');
 
-  const init = box.run(repo, 'init', '--yes', '--model', 'x');
+  const init = (await box.runLocal(repo, 'init', '--yes', '--model', 'x'));
   assert.equal(init.code, 0, init.err || init.out);
   const said = init.out + init.err;
   assert.ok(said.includes(HOSTED_ORIGIN), `init tells the person to open ${HOSTED_ORIGIN}:\n${said}`);

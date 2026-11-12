@@ -33,36 +33,36 @@ function queueAnswer(output) {
   return output.replace(/\nnext: pullboard next[^\n]*\s*$/u, '');
 }
 
-test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t) => {
+test('next follows the rank the coordinator set inside a milestone [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
-  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json'));
+  box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json')));
   const api = box.seat('rank-owned-api', 'api', box.session);
   const peer = box.seat('rank-peer-api', 'api', 'rank-peer-session');
   const oldest = box.add('web', 'Oldest unranked strong work');
   const first = box.add('api', 'Ranked mid API work', 'mid');
   const second = box.add('web', 'Second ranked strong work');
   const later = box.add('api', 'Later release work');
-  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${first},${second}`, '--json'));
+  box.json((await box.runLocal(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${first},${second}`, '--json')));
   box.milestone('later', later);
-  const ordered = box.runAs(box.session, box.web, 'milestone', 'order', 'current', `${first},${second}`, '--json');
+  const ordered = (await box.runAsLocal(box.session, box.web, 'milestone', 'order', 'current', `${first},${second}`, '--json'));
   assert.notEqual(ordered.code, 0, 'an agent cannot override automatic placement');
   assert.equal(JSON.parse(ordered.out).error.code, 'MILESTONE_PLACED');
-  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${first},${second}`, '--reason', 'Set fixture priority', '--json'));
-  const next = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
+  box.json((await box.runLocal(box.repo, 'milestone', 'order', 'current', `${first},${second}`, '--reason', 'Set fixture priority', '--json')));
+  const next = box.json((await box.runAsLocal(box.session, api.root, 'next', '--build', '--json')));
   assert.equal(next.item.item_id, first, 'explicit rank precedes route and age within the seat’s own lane');
   assert.equal(next.item.item_owner, api.agent);
-  box.json(box.runAs(box.session, api.root, 'release', String(first), '--reason', 'BLOCKED', '--json'));
-  box.json(box.runAs('rank-peer-session', peer.root, 'claim', String(first), '--json'));
-  const free = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
+  box.json((await box.runAsLocal(box.session, api.root, 'release', String(first), '--reason', 'BLOCKED', '--json')));
+  box.json((await box.runAsLocal('rank-peer-session', peer.root, 'claim', String(first), '--json')));
+  const free = box.json((await box.runAsLocal(box.session, box.web, 'next', '--build', '--json')));
   assert.equal(free.item.item_id, second, 'an occupied higher rank leaves the next free rank available');
-  const resumed = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
+  const resumed = box.json((await box.runAsLocal(box.session, box.web, 'next', '--build', '--json')));
   assert.equal(resumed.item.item_id, second, 'the agent resumes its own claim before pulling another rank');
   assert.equal(resumed.held, true);
-  const beginner = box.json(box.run(box.repo, 'help', '--json'));
+  const beginner = box.json((await box.runLocal(box.repo, 'help', '--json')));
   assert.doesNotMatch(JSON.stringify(beginner.overview ?? beginner), /milestone order|rank the queue/iu, 'newcomer help does not gain scheduling words');
 });
 
-test('clause 1: pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
+test('clause 1: pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const holder = box.seat('queue-holder', 'web', box.session);
   const oldest = box.add('web', 'Oldest unranked strong work');
@@ -71,13 +71,13 @@ test('clause 1: pullboard queue lists releases as breakpoints and items in pull 
   const waiting = box.add('web', 'Work after the claimed item');
   const later = box.add('api', 'Later release work');
   const loose = box.add('web', 'Work in no release');
-  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${ranked},${claimed},${waiting}`, '--json'));
+  box.json((await box.runLocal(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${ranked},${claimed},${waiting}`, '--json')));
   box.milestone('later', later);
-  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${ranked}`, '--reason', 'Set fixture priority', '--json'));
-  box.json(box.run(box.repo, 'edit', String(waiting), '--after', String(claimed), '--json'));
-  box.json(box.runAs(box.session, holder.root, 'claim', String(claimed), '--json'));
+  box.json((await box.runLocal(box.repo, 'milestone', 'order', 'current', `${ranked}`, '--reason', 'Set fixture priority', '--json')));
+  box.json((await box.runLocal(box.repo, 'edit', String(waiting), '--after', String(claimed), '--json')));
+  box.json((await box.runAsLocal(box.session, holder.root, 'claim', String(claimed), '--json')));
 
-  const text = box.run(box.repo, 'queue');
+  const text = (await box.runLocal(box.repo, 'queue'));
   assert.equal(text.code, 0, text.out + text.err);
   const lines = text.out.trim().split('\n');
   const at = (pattern) => lines.findIndex((line) => pattern.test(line));
@@ -93,7 +93,7 @@ test('clause 1: pullboard queue lists releases as breakpoints and items in pull 
   assert.match(lines[order[1] + 1], /^     unblocks 1 · effort 3 · ready and unblocks 1$/u, 'an item shows its unblock count, effort and why');
   assert.match(lines[order[3] + 2], new RegExp(`^     waits on #${claimed} \\(claimed\\)$`, 'u'), 'an item names what it waits on');
 
-  const document = box.json(box.run(box.repo, 'queue', '--json'));
+  const document = box.json((await box.runLocal(box.repo, 'queue', '--json')));
   assert.deepEqual(document.releases.map((release) => [release.name, release.landed, release.total, release.items.map((item) => item.id)]),
     [['current', 0, 4, [ranked, claimed, oldest, waiting]], ['later', 0, 1, [later]]]);
   assert.deepEqual(document.unreleased.map((item) => item.id), [loose]);
@@ -101,27 +101,27 @@ test('clause 1: pullboard queue lists releases as breakpoints and items in pull 
     unblocks: 1, effort: 3, why: 'ready and unblocks 1' });
 });
 
-test('the queue names the first item each route would pull [N2,B13]', (t) => {
+test('the queue names the first item each route would pull [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const strongWork = box.add('web', 'Strong release work');
   const midWork = box.add('api', 'Mid release work', 'mid');
   const lightWork = box.add('api', 'Light release work', 'mid');
-  box.json(box.run(box.repo, 'fact', String(lightWork), 'diagnosis',
-    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest case: a light seat selects this item from the release queue', '--json'));
-  box.json(box.run(box.repo, 'edit', String(lightWork), '--route', 'light', '--json'));
-  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
-  const document = box.json(box.run(box.repo, 'queue', '--json'));
+  box.json((await box.runLocal(box.repo, 'fact', String(lightWork), 'diagnosis',
+    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest case: a light seat selects this item from the release queue', '--json')));
+  box.json((await box.runLocal(box.repo, 'edit', String(lightWork), '--route', 'light', '--json')));
+  box.json((await box.runLocal(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json')));
+  const document = box.json((await box.runLocal(box.repo, 'queue', '--json')));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
-  const text = box.run(box.repo, 'queue');
+  const text = (await box.runLocal(box.repo, 'queue'));
   text.out = queueAnswer(text.out);
   assert.match(text.out.trim().split('\n').at(-1), new RegExp(`^next now: strong → #${strongWork}, mid → #${midWork}, light → #${lightWork}$`, 'u'));
   // The queue's answer is what next actually serves each route.
   for (const [route, lane, id] of [['light', 'api', lightWork], ['mid', 'api', midWork], ['strong', 'web', strongWork]]) {
     const seat = box.seat(`queue-${route}`, lane, `queue-${route}-session`, route);
-    const next = box.json(box.runAs(`queue-${route}-session`, seat.root, 'next', '--build', '--json'));
+    const next = box.json((await box.runAsLocal(`queue-${route}-session`, seat.root, 'next', '--build', '--json')));
     assert.equal(next.item.item_id, id, `a ${route} agent's next is the queue's ${route} item`);
   }
-  const queueWithoutHint = queueAnswer(box.run(box.repo, 'queue').out);
+  const queueWithoutHint = queueAnswer((await box.runLocal(box.repo, 'queue')).out);
   assert.match(queueWithoutHint.trim().split('\n').at(-1), /^next now: strong → nothing, mid → nothing, light → nothing$/u, 'claimed work leaves the routes nothing to pull');
 });
 

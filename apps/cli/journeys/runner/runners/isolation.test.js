@@ -175,6 +175,7 @@ test('a private check never refuses its own remote lease [C7,V4]', async (t) => 
     // Filling the only local slot is what sends a remote-capable waiter to the runner.
     held = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: box.repo,
       agent: 'private-check-local-holder', item: 'private-check-local-holder', kind: 'force-registered-runner' });
+    // Process-level: a verify child holds a force-registered runner while this test observes it.
     review = observe(startFixtureChild(process.execPath, [BIN, 'verify', '1', 'accept', '--note', 'the frozen check ran to a verdict', '--json'], {
       cwd: box.review, env, stdio: ['ignore', 'pipe', 'pipe'] }));
     let exited = null;

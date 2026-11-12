@@ -21,6 +21,8 @@ import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
+import { compatibilityToggleProblems } from '../../../../../config/index.js';
+import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
 
 /**
@@ -115,6 +117,12 @@ export const STATIC_CHECKS = Object.freeze([
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
+  // Compatibility toggles carry a removeBy date; one past it, or a rising count, turns every submit red until removed [O6,C7].
+  { name: 'compat-toggles', run: ({ text, previous, now }) => {
+    let source;
+    try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
+    return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
+  } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     const baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8'));
     return files.filter(isTestSource).flatMap(file => testWaitGrowth(testWaitSites(read(file).source, file), baseline).map(row => `${row.path}:${row.line}: ${row.text}`));
