@@ -149,6 +149,7 @@ import {
   deferredSelectionNote,
   runStaticChecks,
   runSubmitGate,
+  startCriterionRun,
   withGateSlot,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -643,7 +644,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   // Each cited row's gate test and each test file the bar names run with the proof, whatever seal and tier selection say [V4,C7].
   crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests });
-  const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
+  const runGate = (check, runnerPlan = {}, signal, earlyCriterion) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal, ...(earlyCriterion ? { earlyCriterion } : {}),
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
@@ -673,7 +674,14 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   await preflightPassed;
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
   let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests, check: frozenCheck(held) },
-    runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
+    (runnerPlan, early) => runGate(frozenCheck(held), runnerPlan, signal, early),
+    // The frozen check needs no test selection: it starts at once on its own lease. A companion source runs in a temporary checkout, so it keeps the in-gate start.
+    () => companion || !frozenCheck(held) ? null : startCriterionRun(root, { check: frozenCheck(held), executionServices, outputRoot: root,
+      outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, trunk: acceptedMain.commit,
+      proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
+      signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined,
+      onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit, privateCheck: false, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+      timing: frozenCheckTiming(held), agent: me.id, item: String(id), signal }));
   if (signal.aborted) throw signal.reason;
   // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
   const judgeStart = Date.now();
