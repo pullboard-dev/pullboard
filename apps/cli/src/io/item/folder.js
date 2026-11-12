@@ -56,6 +56,9 @@ function canonical(path) {
   try { return realpathSync(path); } catch { return null; }
 }
 
+/** The trunk branch read once per root for the life of the process, so one claim runs git config pullboard.trunk once [C7]. */
+const trunkBranches = new Map();
+
 /**
  * The project's configured trunk branch, or main when none is recorded.
  * Why: a project whose trunk is master or trunk had claim fail on a hard-coded main [C7,#3759].
@@ -63,9 +66,13 @@ function canonical(path) {
  * @returns {string}
  */
 export function trunkBranch(root) {
+  const known = trunkBranches.get(root);
+  if (known) return known;
   let configured = null;
   try { configured = trunkRef(root); } catch { /* An unreadable trunk setting reads as unset. */ }
-  return typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+  const trunk = typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+  trunkBranches.set(root, trunk);
+  return trunk;
 }
 
 /**
