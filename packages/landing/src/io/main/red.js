@@ -138,7 +138,9 @@ export function readCache(file) {
           const failures = cachedFailureSignatures(outcome, path);
           entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
             ...(outcome.fileIsolation === true && outcome.result === 'red' ? { fileIsolation: true } : {}),
-            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}) };
+            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}),
+            ...(/^[0-9a-f]{40,64}$/u.test(outcome.main ?? '') ? { main: outcome.main } : {}),
+            ...(typeof outcome.at === 'string' && Number.isFinite(Date.parse(outcome.at)) ? { at: outcome.at } : {}) };
         }
       }
     }
@@ -503,8 +505,9 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
         const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
         const fileIsolation = detailed && !run.isGreen && !failures && completeGate(run, { allowCancelled });
         if (detailed && !run.isGreen && !failures && !fileIsolation) throw new Error('focused main output has no complete named failure account');
+        // Main's commit and the time ride with each result, so the first red after a green names its landing [#5809].
         return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
-          ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}) };
+          ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
       const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });

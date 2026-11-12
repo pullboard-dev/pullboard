@@ -18,7 +18,6 @@ import {
   test,
 } from 'node:test';
 import {
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { fixture as nativeFixture } from '../../tests/fixtures/next/take.js';
@@ -28,6 +27,7 @@ import {
   prepareEngineMove,
 } from '../../../../packages/state/index.js';
 import * as store from '../../../../packages/store/index.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -37,7 +37,7 @@ const SPEC = '# Lane check fixture\n\n## G · Goals\n- G1 [approved, must] The f
 after(() => { for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true }); });
 
 /** A real repo with lanes web (web/) and api (api/), and a joined web seat in its own worktree. */
-function fixture() {
+async function fixture() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-lane-check-')));
   sandboxes.push(dir);
   const shims = join(dir, 'bin');
@@ -52,12 +52,12 @@ function fixture() {
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
-  const run = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const runLocal = async (cwd, ...args) => {
+    const result = await runCliInProcess(args, { cwd, env });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '' };
   };
   git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(run(repo, 'init').code, 0);
+  assert.equal((await runLocal(repo, 'init')).code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
     lanes: { web: { owns: ['web/', 'apps/cli/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
@@ -65,34 +65,34 @@ function fixture() {
   writeFileSync(join(repo, 'web', 'shared.txt'), 'base\n');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'chore: create fixture');
-  const created = run(repo, 'worktree', 'web', '--route', 'strong', '--model', 'fixture-model', '--json');
+  const created = await runLocal(repo, 'worktree', 'web', '--route', 'strong', '--model', 'fixture-model', '--json');
   assert.equal(created.code, 0, created.err + created.out);
-  return { repo, web: JSON.parse(created.out).path, run };
+  return { repo, web: JSON.parse(created.out).path, runLocal };
 }
 
 /** File an item from a directory and return the exit code and parsed error. */
-function add(box, cwd, lane, check) {
-  const result = fixtureAdd(box.run, cwd, lane, 'Lane check item', '--route', 'strong', '--specs', 'G1', '--criterion', 'It works', '--check', check, '--json');
+async function add(box, cwd, lane, check) {
+  const result = await fixtureAdd(box.runLocal, cwd, lane, 'Lane check item', '--route', 'strong', '--specs', 'G1', '--criterion', 'It works', '--check', check, '--json');
   return { code: result.code, doc: result.code === 0 ? JSON.parse(result.out) : JSON.parse(result.out).error };
 }
 
-test('clause 1: a web seat files an item whose check names test files its lane owns [C7,#2908]', () => {
-  const box = fixture();
-  const filed = add(box, box.web, 'web', 'node --test web/a.test.js');
+test('clause 1: a web seat files an item whose check names test files its lane owns [C7,#2908]', async () => {
+  const box = await fixture();
+  const filed = await add(box, box.web, 'web', 'node --test web/a.test.js');
   assert.equal(filed.code, 0, JSON.stringify(filed.doc));
-  const shown = JSON.parse(box.run(box.repo, 'show', String(filed.doc.item.item_id), '--json').out);
+  const shown = JSON.parse((await box.runLocal(box.repo, 'show', String(filed.doc.item.item_id), '--json')).out);
   assert.equal(shown.item_check, 'node --test web/a.test.js');
-  const second = add(box, box.web, 'web', 'node apps/cli/src/io/run/tests.js web/b.test.js && node apps/cli/src/io/run/tests.js web/c.test.js');
+  const second = await add(box, box.web, 'web', 'node apps/cli/src/io/run/tests.js web/b.test.js && node apps/cli/src/io/run/tests.js web/c.test.js');
   assert.equal(second.code, 0, JSON.stringify(second.doc));
 });
 
-test('clause 2: a check naming another lane\'s file is refused, naming the owner [C7,#2908]', () => {
-  const box = fixture();
-  const refused = add(box, box.web, 'web', 'node --test web/a.test.js api/b.test.js');
+test('clause 2: a check naming another lane\'s file is refused, naming the owner [C7,#2908]', async () => {
+  const box = await fixture();
+  const refused = await add(box, box.web, 'web', 'node --test web/a.test.js api/b.test.js');
   assert.notEqual(refused.code, 0);
   assert.equal(refused.doc.code, 'LANE_CHECK_FOREIGN');
   assert.match(refused.doc.message, /api\/b\.test\.js belongs to lane api/u);
-  const arbitrary = add(box, box.web, 'web', 'rm -rf web/');
+  const arbitrary = await add(box, box.web, 'web', 'rm -rf web/');
   assert.equal(arbitrary.doc.code, 'COORDINATOR_CHECK', 'a check that is not a test-file command stays the coordinator\'s');
 });
 

@@ -18,14 +18,14 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
-test('clause 3: a no-flag Haiku join receives light work and a private board can override its tier [C7]', t => {
+test('clause 3: a no-flag Haiku join receives light work and a private board can override its tier [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   const seat = join(box.dir, 'haiku-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', seat, 'main');
   box.env.PULLBOARD_MODEL = 'Claude 3 Haiku';
-  const joined = fixtureJoin(box.run, seat, 'api', '--json');
+  const joined = await fixtureJoin(box.runLocal, seat, 'api', '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   assert.equal(JSON.parse(joined.out).route, 'light');
 
@@ -37,7 +37,7 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', overrideSeat, 'main');
   writeFileSync(join(overrideSeat, 'pullboard.json'), `${JSON.stringify(config, null, 2)}\n`);
   box.env.PULLBOARD_MODEL = 'Fixture Haiku';
-  const overridden = fixtureJoin(box.run, overrideSeat, 'api', '--json');
+  const overridden = await fixtureJoin(box.runLocal, overrideSeat, 'api', '--json');
   assert.equal(overridden.code, 0, overridden.err + overridden.out);
   assert.equal(JSON.parse(overridden.out).route, 'strong', 'the board-held table changes join routing in this fixture only');
 
@@ -45,23 +45,23 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', unknownSeat, 'main');
   box.env.PULLBOARD_MODEL = 'Unlisted Vendor Model';
   box.env.PULLBOARD_FIXTURE_ROUTES = 'board';
-  const unknown = fixtureJoin(box.run, unknownSeat, 'api', '--json');
+  const unknown = await fixtureJoin(box.runLocal, unknownSeat, 'api', '--json');
   delete box.env.PULLBOARD_FIXTURE_ROUTES;
   assert.equal(unknown.code, 0, unknown.err + unknown.out);
   assert.equal(JSON.parse(unknown.out).route, 'mid', 'an unlisted model label falls back to mid');
 
-  const light = fixtureAdd(box.run, box.repo, 'api', 'Light fixture item', '--specs', 'G2', '--route', 'mid',
+  const light = await fixtureAdd(box.runLocal, box.repo, 'api', 'Light fixture item', '--specs', 'G2', '--route', 'mid',
     '--criterion', 'The fixture light item is available.', '--check', 'true', '--brief', 'Files: api/light.js\nChange: fixture\nTest: check passes', '--json');
   assert.equal(light.code, 0, light.err + light.out);
   const lightId = String(JSON.parse(light.out).item.item_id);
-  const diagnosed = box.run(box.repo, 'fact', lightId, 'diagnosis',
+  const diagnosed = await box.runLocal(box.repo, 'fact', lightId, 'diagnosis',
     'Files: api/light.js\nChange: keep the fixture item eligible for a light seat\nTest case: a light seat selects this item', '--json');
   assert.equal(diagnosed.code, 0, diagnosed.err + diagnosed.out);
-  const lowered = box.run(box.repo, 'edit', lightId, '--route', 'light', '--json');
+  const lowered = await box.runLocal(box.repo, 'edit', lightId, '--route', 'light', '--json');
   assert.equal(lowered.code, 0, lowered.err + lowered.out);
-  const strong = fixtureAdd(box.run, box.repo, 'api', 'Strong fixture item', '--specs', 'G2', '--json');
+  const strong = await fixtureAdd(box.runLocal, box.repo, 'api', 'Strong fixture item', '--specs', 'G2', '--json');
   assert.equal(strong.code, 0, strong.err + strong.out);
-  const offered = box.run(seat, 'next', '--build', '--json');
+  const offered = await box.runLocal(seat, 'next', '--build', '--json');
   assert.equal(offered.code, 0, offered.err + offered.out);
   assert.equal(JSON.parse(offered.out).item.item_id, JSON.parse(light.out).item.item_id,
     'the Haiku seat is offered its light item and cannot take the strong item');

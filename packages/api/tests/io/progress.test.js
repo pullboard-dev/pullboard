@@ -27,7 +27,7 @@ test('clause 2: a progress post without the job\'s lease token is refused, and t
   assert.deepEqual(progressRows(db, 'gate:progress'), [], 'no refused post recorded progress');
 
   const held = { job: 'gate:progress', runner: 'r-holder', token: claim.token };
-  assert.equal(refusal(() => call({ action: 'progress', ...held, progress: { ...progress, files: { '/Users/someone/repo/tests/a.test.js': 'green' } } })), 'JOB_PROGRESS', 'an absolute path is refused');
+  assert.equal(refusal(() => call({ action: 'progress', ...held, progress: { ...progress, files: { '/home/user/repo/tests/a.test.js': 'green' } } })), 'JOB_PROGRESS', 'an absolute path is refused');
   assert.equal(refusal(() => call({ action: 'progress', ...held, progress: { ...progress, files: { '../a.test.js': 'green' } } })), 'JOB_PROGRESS', 'a climbing path is refused');
   assert.deepEqual(call({ action: 'progress', ...held, progress }), { job: 'gate:progress', attempt: 1, recorded: true });
   call({ action: 'progress', ...held, progress: { ...progress, finished: 2, files: { ...progress.files, 'tests/b.test.js': 'red' }, failures: 1 } });
