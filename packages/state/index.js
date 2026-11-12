@@ -194,6 +194,7 @@ export { MILESTONE_PERSON_LIMIT_ENGINE } from './src/logic/engines/milestone-per
 export { STRANDED_DEPENDENCY_ENGINE } from './src/logic/engines/stranded-dependency-engine.js';
 export { TWO_TIER_DIAGNOSIS_ENGINE } from './src/logic/engines/two-tier-diagnosis-engine.js';
 export { REJECT_OPEN_ENGINE } from './src/logic/engines/reject-open-engine.js';
+export { REJECTED_FIRST_ENGINE } from './src/logic/engines/rejected-first-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from './src/logic/engines/clause-evidence-engine.js';
 export { lintBar, MAX_BAR_CLAUSES } from './src/logic/bar-lint.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './src/logic/evidence.js';
