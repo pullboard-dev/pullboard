@@ -134,9 +134,11 @@ async function withoutLsof(box, work) {
       try { symlinkSync(join(dir, name), join(bin, name)); } catch { /* a name another directory already supplied */ }
     }
   }
-  const previous = box.env.PATH;
+  // The claim runs in this process, so its lsof probe reads this process's PATH as well as the box's.
+  const previous = { box: box.env.PATH, process: process.env.PATH };
   box.env.PATH = [shims, bin].join(delimiter);
-  try { return await work(); } finally { box.env.PATH = previous; }
+  process.env.PATH = box.env.PATH;
+  try { return await work(); } finally { box.env.PATH = previous.box; process.env.PATH = previous.process; }
 }
 
 test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', async () => {
@@ -144,7 +146,7 @@ test('clause 1: with no lsof on the PATH a clean idle item folder is still adopt
   const second = await seat(box, 'web-b', 'session-b');
   const claimed = await withoutLsof(box, async () => {
     assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
-    return as(box, 'session-b', () => box.run(second.root, 'claim', id));
+    return as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
   });
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
