@@ -259,7 +259,7 @@ async function intakeFixture(t) {
   // @pullboard-board-file journey: real CLI intake and native composition share this private durable board.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
-  return { ...box, cli: box.runLocal, run, board, item, author, source };
+  return { ...box, run, board, item, author, source };
 }
 
 test('patch attach accepts real format-patch headers and trailer without changing hunk bytes [V4,H16]', async t => {
@@ -315,7 +315,7 @@ test('mixed-lane attach reports three owners and writes only unconfirmed per-lan
   assert.deepEqual(exportBoard(box.board), before, 'draft planning never attaches, confirms or mutates the board');
   const text = await box.runLocal(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source);
   assert.equal(text.needsConfirmation, true);
-  const collision = await box.cli(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory, '--json');
+  const collision = await box.runLocal(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory, '--json');
   assert.equal(collision.code, 1);
   assert.equal(JSON.parse(collision.out).error.code, 'ITEM_PATCH_OUTPUT');
   assert.equal(readFileSync(result.parts[0].file, 'utf8'), changes[0]);

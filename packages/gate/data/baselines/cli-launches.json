@@ -155,9 +155,6 @@
   "apps/cli/journeys/export/shouts.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/export/team/access.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/export/team/board.test.js": {
     "launch": 3
   },
@@ -716,9 +713,6 @@
   "apps/cli/journeys/patch/item/journey.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/patch/item/patches.test.js": {
-    "launch": 7
-  },
   "apps/cli/journeys/plan/write.test.js": {
     "launch": 12
   },
@@ -1231,9 +1225,6 @@
   },
   "apps/cli/journeys/show/usage/split/cache.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/skills/main.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/spec/board.test.js": {
     "launch": 3
