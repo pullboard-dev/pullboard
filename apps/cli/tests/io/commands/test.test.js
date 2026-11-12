@@ -1,9 +1,11 @@
 /** @pullboard-test-input source-tree */
 /** Test the CI-like test runner against real Git and PATH behavior [C7, S13]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
+import { expandTestFolders } from '../../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import {
   runFixtureExecFile as execFileSync,
+  privateFixtureFiles,
   runFixtureChild as spawnSync,
 } from '../../fixtures/child.js';
 import {
@@ -410,4 +412,13 @@ test('clause 2: test --status of an unknown run id still refuses with a next ste
   assert.equal(refused.code, 1, `${refused.out}${refused.err}`);
   assert.match(refused.err, /\[NO_TEST_RUN\]/u);
   assert.match(refused.err, /^next: /mu);
+});
+
+test('pullboard test given a folder expands it to the test files under it, never ERR_UNSUPPORTED_DIR_IMPORT [C7,S13]', (t) => {
+  const box = privateFixtureFiles('pullboard-test-folders-');
+  const root = box.root;
+  t.after(() => box.cleanup?.());
+  for (const file of ['dir/b.test.js', 'dir/sub/a.test.js', 'dir/helper.js', 'empty/readme.txt']) box.write(file, 'export {};\n');
+  assert.deepEqual(expandTestFolders(root, ['dir/', 'x.test.js']), ['dir/b.test.js', 'dir/sub/a.test.js', 'x.test.js']);
+  assert.throws(() => expandTestFolders(root, ['empty']), (error) => error.code === 'NO_TEST_FILE' && /empty/u.test(error.message));
 });

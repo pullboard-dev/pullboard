@@ -13,6 +13,7 @@ import {
 } from '../../../../../packages/api/index.js';
 import { apiBoards } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
+import { servedModuleMoved } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnReachable } from '../../../../../packages/jobs/index.js';
@@ -90,7 +91,8 @@ export async function serveHere(io, values) {
   traceServeStartup('serve-ready-written');
   // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
   const log = join(pullboardHome(), 'serve.log');
-  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close, log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close,
+    affects: servedModuleMoved({ root: CODE_ROOT, entries: [join(CODE_ROOT, 'apps/cli/pullboard.js'), fileURLToPath(import.meta.url)] }), log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
     relaunch: () => spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
   const restarted = await new Promise((stop) => {
     const stopped = (moved) => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(moved === true); };
