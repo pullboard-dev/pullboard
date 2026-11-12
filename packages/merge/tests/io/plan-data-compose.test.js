@@ -1,11 +1,10 @@
 /** @pullboard-world-pin builds real git repositories in a private root; every conflict is a real merge of two branches. */
-/** Plan shards and data-read files compose by entry wherever main is composed: source advance and review retry [C7,D3]. */
+/** Plan shards and data-read files compose by entry wherever main is composed: source advance (review retry is tested in verify) [C7,D3]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { withSourceComposition } from '../../index.js';
-import { retryReviewCommit } from '../../../verify/index.js';
 import { formatJson } from '../../../codemap/index.js';
 import { fixture } from '../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../landing/tests/fixtures/plan.js';
@@ -35,7 +34,7 @@ function twoBranches(t, files) {
   return { root, heads };
 }
 
-test('two branches that each add a plan shard row and a data-read row compose with both rows in both orders, by compose and by retry [C7,D3]', async t => {
+test('two branches that each add a plan shard row and a data-read row compose with both rows in both orders, by compose [C7,D3]', async t => {
   const { root, heads } = twoBranches(t, {
     [SHARD_FILE]: [shard([row(1)]), shard([row(1), row(2)]), shard([row(1), row(3)])],
     [READS_FILE]: [reads([read(1)]), reads([read(1), read(2)]), reads([read(1), read(3)])],
@@ -49,9 +48,6 @@ test('two branches that each add a plan shard row and a data-read row compose wi
       const files = JSON.parse(readFileSync(join(composition.directory, READS_FILE), 'utf8')).reads.map(entry => entry.line).sort();
       assert.deepEqual(files, [1, 2, 3]);
     });
-    const review = retryReviewCommit(root, ours, { commit: theirs });
-    assert.equal(JSON.parse(git(root, 'show', `${review}:${READS_FILE}`)).reads.length, 3, 'review admission merges the data-read rows too');
-    assert.equal(JSON.parse(git(root, 'show', `${review}:${SHARD_FILE}`)).paths.length, 3, 'and the shard rows');
   }
 });
 
@@ -64,7 +60,6 @@ test('a data-read row and a shard row edited differently on both sides still ref
     for (const [ours, theirs] of [heads, [...heads].reverse()]) {
       await assert.rejects(withSourceComposition(root, ours, theirs, async () => assert.fail('a same-row edit must not compose')),
         error => error.code === 'MERGE_CONFLICT' && error.message.includes(file));
-      assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(file));
     }
   }
 });
