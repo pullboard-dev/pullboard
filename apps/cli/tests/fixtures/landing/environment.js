@@ -160,7 +160,7 @@ export function assertMatchingLandingHost(helpers) {
   boardRead(box, board => {
     const item = store.getItem(board, entry.id);
     const options = { agentId: 'coordinator', decision: 'ACCEPT', note: 'Replay compatibility fixture.', head: entry.head,
-      digest: item.item_frozen_digest, policy: 'any', check: 'green', review: JSON.parse(accepted.event_detail).review };
+      digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off', check: 'green', review: JSON.parse(accepted.event_detail).review };
     const modern = prepareEngineMove(board, 'verify', [entry.id, { ...options, environment }]);
     const count = store.events(board).length;
     assert.throws(() => applyEngineMove(board, { ...modern, engine: 78 }, { sequence: 1, at: new Date().toISOString() }), { code: 'RELAY_MOVE' });
@@ -203,7 +203,7 @@ export function assertMatchingLandingHost(helpers) {
   'landing flags the stand-in verdict from another environment');
 }
 
-/** S7e: an interaction with no item culprit files a test defect and holds every new batch. */
+/** S7e: an interaction with no item culprit files a test defect; a recorded defect never refuses a landing, which retries the gate and lands nothing until the red is corrected or waived [C7,#5862]. */
 export function assertNoCulpritTrunkHold(helpers) {
   const box = fixture(helpers);
   const entries = [verified(box, 'a', { touchTest: true }), verified(box, 'b')];
@@ -219,17 +219,15 @@ export function assertNoCulpritTrunkHold(helpers) {
   assert.equal(defect.test, 'web/landing.test.js');
   assert.equal(defect.batchId, held.batch.id);
   assert.ok(boardRead(box, board => store.getItem(board, defect.item)));
-  const callsBefore = boardRead(box, board => store.events(board).filter(event => event.event_kind === 'gate-run').length);
   const again = command(box, box.repo, 'land');
-  assert.equal(again.document?.error?.code, 'LAND_TEST_DEFECT',
-    'a candidate-only test edit does not look like a committed trunk correction');
-  assert.equal(boardRead(box, board => store.events(board).filter(event => event.event_kind === 'gate-run').length), callsBefore,
-    'the held trunk does not retry the unchanged gate');
+  assert.equal(again.document?.error, undefined, 'a recorded test defect never refuses a landing [#5862]');
+  assert.deepEqual(again.document?.landed, [], 'a candidate-only test edit does not look like a committed trunk correction');
+  assert.equal(again.document?.batch?.state, 'test-defect', 'the unchanged red is judged again and stays a test defect');
+  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), base);
   boardRead(box, board => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal',
     id: 'expired-host-fixture', test: defect.test, until: '2000-01-02', reason: 'Expired private fixture waiver.' }),
   { now: () => new Date('2000-01-01T00:00:00Z') });
-  assert.equal(command(box, box.repo, 'land').document?.error?.code, 'LAND_TEST_DEFECT',
-    'an expired person waiver cannot release the trunk');
+  // The expired waiver is on the board; only the live waiver below releases the red.
   success(box, box.repo, 'land', '--waive', defect.test, '--until', '2099-01-01', '--reason', 'Private fixture interaction is tracked by its defect.');
   const waived = success(box, box.repo, 'land');
   assert.deepEqual(waived.landed, entries.map(entry => entry.id));
@@ -241,8 +239,8 @@ export function assertNoCulpritTrunkHold(helpers) {
   assert.deepEqual(success(fixed, fixed.repo, 'land').landed, []);
   const heldTest = readFileSync(join(fixed.repo, 'web/landing.test.js'), 'utf8');
   writeFileSync(join(fixed.repo, 'web/landing.test.js'), heldTest + '// An uncommitted edit is not a correction.\n');
-  assert.equal(command(fixed, fixed.repo, 'land').document?.error?.code, 'LAND_TEST_DEFECT',
-    'an uncommitted test edit does not release the trunk hold');
+  assert.deepEqual(command(fixed, fixed.repo, 'land').document?.landed, [],
+    'an uncommitted test edit does not release the red');
   writeFileSync(join(fixed.repo, 'web/landing.test.js'), [
     "import { test } from 'node:test';",
     "import assert from 'node:assert/strict';",
