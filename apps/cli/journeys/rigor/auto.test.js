@@ -275,17 +275,17 @@ test('a person can replace automatic advice without breaking a later spec apply 
   } finally { box.close(); }
 });
 
-test('spec show prints a readable Rigor source line, never the encoded JSON, and the file text still parses [D1,S1]', () => {
+test('spec show prints a readable Rigor source line, never the encoded JSON, and the file text still parses [D1,S1]', async () => {
   const box = fixture();
   try {
     for (const title of ['First', 'Second']) { const id = box.submit(title); box.failure(id); box.reject(id); }
     const draft = store.rowDrafts(box.board)[0];
-    const applied = box.run('spec', 'apply', '--json');
+    const applied = await box.runLocal('spec', 'apply', '--json');
     assert.equal(applied.status, 0, applied.stdout + applied.stderr);
     const file = readFileSync(join(box.root, draft.target === 'doctrine' ? 'DOCTRINE.md' : 'SPEC.md'), 'utf8');
     assert.match(file, /Source: rigor-auto:%7B/u, 'the stored text keeps the encoded source');
     assert.ok(automaticSourceFromText(draft.text), 'and still parses');
-    const shown = box.run('spec', 'show', draft.target === 'doctrine' ? `doctrine:${draft.id}` : draft.id);
+    const shown = await box.runLocal('spec', 'show', draft.target === 'doctrine' ? `doctrine:${draft.id}` : draft.id);
     assert.equal(shown.status, 0, shown.stdout + shown.stderr);
     assert.doesNotMatch(shown.stdout, /rigor-auto:%7B/u);
     assert.match(shown.stdout, /Source: Rigor evidence for .+, 2 occurrences across #\d+, #\d+\./u);
