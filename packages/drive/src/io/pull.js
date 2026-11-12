@@ -436,6 +436,7 @@ function gateReceipt(result, commit, durationMs) {
 
 /**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
+ * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
  *
  * @param {object} options
  * @param {string} options.board - The board's API URL.
@@ -443,7 +444,7 @@ function gateReceipt(result, commit, durationMs) {
  * @param {string} [options.runner] - This runner's id; default the host name plus a random suffix.
  * @param {string[]} [options.capabilities] - What this runner can run; default hostCapabilities().
  * @param {string} [options.cache] - Where fetched history and checkouts live; default ~/.pullboard-runner/pull.
- * @param {boolean} [options.once] - Return after one job (posted or released).
+ * @param {boolean} [options.once] - Return after one job (posted or released), or at once when the queue is empty.
  * @param {number | string} [options.jobs] - How many jobs run at once; default PULLBOARD_RUNNER_JOBS, else serveSlots().
  * @param {AbortSignal} [options.signal]
  * @param {typeof fetch} [options.fetchImpl]
@@ -609,7 +610,11 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
-    if (!answer.claim) { await Promise.race([sleep(idleMs), ...active]); continue; }
+    if (!answer.claim) {
+      // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
+      if (once) { say('nothing to claim: the queue is empty'); break; }
+      await Promise.race([sleep(idleMs), ...active]); continue;
+    }
     const task = start(answer.claim, answer.trunk);
     if (once) { await task; break; }
   }
