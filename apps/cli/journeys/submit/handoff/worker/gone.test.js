@@ -77,6 +77,7 @@ async function drainOnce(box, source, swept = () => true) {
   // drain again until the sweep's effect is observable on the board, never until one named process has ended.
   let run;
   await box.helpers.waitFor(() => { // budget: hang ceiling for the submit dispatcher to leave, not a timing assertion.
+    // Process-level: the real dispatcher process, started from the repository git folder.
     run = spawnSync(process.execPath, [join(source, 'apps/lib/src/io/handoff/dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
     assert.equal(run.status, 0, `the drain exits 0\n${run.stdout}${run.stderr}`);
     return swept();
@@ -98,6 +99,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   const worker = join(tools, 'apps/cli/src/io/gate/drive.js');
   // Only the launched gate driver process exits, before it drives anything.
   writeFileSync(worker, `if (process.argv[1]?.endsWith('gate-drive-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
+  // Process-level: submit from a copied builder tool tree, the installation under test.
   const subOut = execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(subOut).queued, true);
@@ -125,10 +127,10 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   await drain();
   assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: a second drain adds no event for the same item');
 
-  const shown = box.run(box.web, 'show', String(box.id));
+  const shown = await box.runLocal(box.web, 'show', String(box.id));
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /requeued on the same source after worker-gone/u, 'clause 2: show names the requeue and its reason');
-  const json = JSON.parse(box.run(box.web, 'show', String(box.id), '--json').out);
+  const json = JSON.parse((await box.runLocal(box.web, 'show', String(box.id), '--json')).out);
   assert.equal(json.queuedSubmit.requeuedFor, 'worker-gone', 'clause 2: show --json carries the reason');
 });
 
@@ -140,6 +142,7 @@ test('clause 1: a drain ends a hand-off whose folder no longer exists as infrast
   const worker = join(tools, 'apps/cli/src/io/gate/drive.js');
   // Only the launched gate driver process exits, before it drives anything.
   writeFileSync(worker, `if (process.argv[1]?.endsWith('gate-drive-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
+  // Process-level: submit from a copied builder tool tree, the installation under test.
   const subOut = execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(subOut).queued, true);

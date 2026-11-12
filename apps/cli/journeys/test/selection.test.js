@@ -13,7 +13,7 @@ import {
   accept,
 } from '../../tests/fixtures/test/selection.js';
 
-test('submit and review run only the changed package units and frozen check [C7,CS4,V4]', t => {
+test('clause 1: submit and review run only the changed package units and frozen check [C7,CS4,V4]', t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // Deliberate inherited context must not skip the selected units.
   const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
