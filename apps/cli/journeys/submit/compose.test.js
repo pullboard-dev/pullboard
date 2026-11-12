@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/codemap/data/plan/45-app-view.json packages/codemap/data/plan/cells.json packages/config/index.js */
+/** @pullboard-test-input packages/codemap/data/plan/46-app-view.json packages/codemap/data/plan/cells.json packages/config/index.js */
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** A builder's new source may carry exactly its own canonical placement across lane boundaries [L3,C7]. */
 import assert from 'node:assert/strict';
@@ -172,7 +172,7 @@ test('native view submit validates its core companion placement on the composed 
 
 /** Keep the pure authority boundary explicit; native journeys above supply real Git/index reads. */
 function syntheticPlanChange(change = value => value, ownNewFile = path => path === 'src/view/new.css') {
-  const path = 'packages/codemap/data/plan/45-app-view.json';
+  const path = 'packages/codemap/data/plan/46-app-view.json';
   const index = { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] };
   const cell = { name: 'app:view', order: 39, root: 'apps/view', paths: [
     ['src/view/old.css', 'apps/view/src/io/view/old.css', 'seed'],

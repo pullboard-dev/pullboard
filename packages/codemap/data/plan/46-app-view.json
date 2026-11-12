@@ -1,5 +1,5 @@
 {
- "order": 45,
+ "order": 46,
  "name": "app:view",
  "kind": "app",
  "root": "apps/view",
