@@ -19,3 +19,4 @@ export { createGateAdmission, gateDispatcherRow } from './src/io/gate/admission.
 export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, LOST } from './src/io/queue.js';
 export * from './light.js';
 export { boardEndpoint, checkoutCandidate, hostCapabilities, runJob, serveRunner, GATE_RECEIPT } from "./src/io/pull.js";
+export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';

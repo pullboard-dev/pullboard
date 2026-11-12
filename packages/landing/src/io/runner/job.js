@@ -11,6 +11,8 @@ const LANDING_JOB_KIND = 'land';
 const PUSH_ATTEMPTS = 5;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
+// A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
+const INTO_CHECKOUT = '--receive-pack=git -c receive.denyCurrentBranch=updateInstead receive-pack';
 
 /** Run git in the runner's landing checkout; throw with git's own words when it fails. */
 function must(root, args) {
@@ -64,7 +66,8 @@ function commandCheck(argv) {
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[] }} payload
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean }} payload - checkout:
+ *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, attempts?: number }} options
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed',
@@ -105,7 +108,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!result?.ok) return done('red', { detail: result?.detail ?? 'the landing check failed' });
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
-    const pushed = tryGit(root, ['push', '--porcelain', '--quiet', `--force-with-lease=${trunk}:${base}`, remote, `HEAD:${trunk}`]);
+    const pushed = tryGit(root, ['push', '--porcelain', '--quiet', ...(payload.checkout ? [INTO_CHECKOUT] : []), `--force-with-lease=${trunk}:${base}`, remote, `HEAD:${trunk}`]);
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: (pushed.stderr || pushed.stdout).slice(0, 300) });

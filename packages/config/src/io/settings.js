@@ -180,6 +180,14 @@ export function pullGateFor(item) {
 }
 
 /**
+ * Whether this machine may run its own local runner: on unless gate.localRunner is exactly false. Why on: a solo
+ * user's machine is board host and runner at once, so pulled gates and landings need no setup [P7].
+ */
+export function localRunnerEnabled() {
+  return loadMachineSettings().gate?.localRunner !== false;
+}
+
+/**
  * The mode the board's runner job queue serves in: pull under gate.runnerDispatch pull or while a pull pilot is on, so
  * runners can take the pilot's gate jobs; controller otherwise [P7]. Landing and runner runs keep runnerDispatchMode.
  */
