@@ -213,6 +213,7 @@ export function validateRunner(value) {
     }
   }
   if (value.fixed !== undefined && typeof value.fixed !== 'boolean') throw new Refused('BAD_RUNNER', 'runner fixed must be true or false');
+  if (value.drain !== undefined && typeof value.drain !== 'boolean') throw new Refused('BAD_RUNNER', 'runner drain must be true or false');
   for (const key of ['cores', 'memoryMB']) {
     if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 1)) throw new Refused('BAD_RUNNER', `runner ${key} must be a positive whole number measured on the runner`);
   }
@@ -221,7 +222,7 @@ export function validateRunner(value) {
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
-    ...(value.fixed === true ? { fixed: true } : {}),
+    ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
     ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };
 }
 
