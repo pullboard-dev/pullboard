@@ -46,7 +46,7 @@ function setup(wholeCoverage = false) {
   for (const path of [bin,worker,home,join(home,'.pullboard'),machine]) mkdirSync(path,{recursive:true});
   installSshStandIn({bin,worker,home,machineHome:join(home,'.pullboard'),requests:join(box.dir,'baseline-ssh.jsonl'),nodeCommand:process.execPath});
   box.env.PATH=`${bin}:${box.env.PATH}`;
-  fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{browserFreeChecks:true,timingRunner:false},
+  fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{runnerDispatch:'controller',browserFreeChecks:true,timingRunner:false},
     runners:[{host:HOST,slots:2,browser:2,node:process.execPath,root:join(home,'.pullboard-runner')}]});
   succeeds(act(box,'private-author-a',box.repo,'join','coordinator','--model','Private author'));
   mkdirSync(join(box.repo,'test'));
