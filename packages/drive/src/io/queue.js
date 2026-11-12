@@ -116,11 +116,25 @@ function workerLog(ctx, id) {
 }
 
 /**
+ * The item a test run records on its job: the one `--item` names, else the item folder the command runs in when the
+ * seat holds that claim, else the seat's sole claim. Why: a seat with several claims running from one item folder
+ * left the job with no item, so the stale sweep could not see its run in flight (#6130).
+ *
+ * @param {{ named?: number, folder?: number | null, claims?: number[] }} from
+ * @returns {number | undefined}
+ */
+export function testRunItem({ named, folder = null, claims = [] }) {
+  if (named !== undefined) return named;
+  if (folder !== null && claims.includes(folder)) return folder;
+  return claims.length === 1 ? claims[0] : undefined;
+}
+
+/**
  * Record a queued run on the board and start its detached worker. Returns at once with the run id.
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, files: string[], affected?: boolean, compareMain?: boolean }} run
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number }} [options]
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
@@ -129,13 +143,13 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   const log = workerLog(ctx, id);
   withBoard(board => {
     createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
-    writeStep(board.db, id, 'queued', { agent: run.agent, files: run.files, affected: run.affected === true,
+    writeStep(board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
   });
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
-    const args = [BIN, 'test', '--test-run', id, ...run.files,
+    const args = [BIN, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.

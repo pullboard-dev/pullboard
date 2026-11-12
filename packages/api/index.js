@@ -6,3 +6,4 @@ export { offerJob, openJob, claimJob, jobRequest, renewJob, releaseJob, postRece
 export { LANDING_JOB_KIND, offerLandingJob, openLandingJob } from "./src/io/landing.js";
 export { withLandingPermit } from "./src/io/permit.js";
 export { applyGateReceipt, applyJobReceipt, applyLandingReceipt, applyShardReceipt, boardJobQueueCall, compareGateWithMain, failingParts, gateLedgerHits, provideMainComparison, SHARD_JOB_KIND } from "./src/io/gate.js";
+export { provideMainTestRecorder } from "./src/io/recheck.js";

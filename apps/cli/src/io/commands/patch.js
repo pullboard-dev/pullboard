@@ -141,7 +141,7 @@ export async function run(io, { first, second, rest, values }) {
       const builderHead = builderPath ? headCommit(builderPath) : null;
       const source = values.source ?? (item.item_status === 'claimed' ? builderHead : item.item_commit);
       if (item.item_status === 'claimed' && (!source || builderHead && builderHead !== source)) {
-        throw new Refused('ITEM_PATCH_SOURCE', 'attach against the current builder head; name --source when its checkout is unavailable');
+        throw new Refused('ITEM_PATCH_SOURCE', 'attach against the current builder head; name --source when its checkout is unavailable; keep the item folder branch as the source and never merge the seat checkout head into it');
       }
       refuseLiveAttach(board, item, { key: values.key, author: values.author, commit: source, patch }, { asSubmitted, refuseUnreviewable, atomic: store.atomic, listAgents: store.listAgents, review: { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family } });
       result = await ordered(ctx, board, 'attachItemPatch', [id, {

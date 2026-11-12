@@ -51,6 +51,7 @@ const OPTIONS = {
   out: { type: 'string' },
   watch: { type: 'boolean' },
   'runner-only': { type: 'boolean' },
+  withdraw: { type: 'string' },
   after: { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },
@@ -83,6 +84,9 @@ const OPTIONS = {
   timeout: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },
+  health: { type: 'boolean' },
+  lag: { type: 'boolean' },
+  'main-lag': { type: 'boolean' },
   digest: { type: 'string' },
   // The rigor quality draft's options.
   base: { type: 'string' },
