@@ -50,9 +50,9 @@ test('clause 1: next claims an item whose lane policy changed after its freeze, 
 test('clause 2: no stale-policy marker or coordinator shout is raised for a policy change [B4,B7]', async t => {
   const box = barChangedThenFresh(t);
   await success(box, box.web, 'next');
-  const shown = await success(box, box.repo, 'show', '1', '--json').out;
+  const shown = (await success(box, box.repo, 'show', '1', '--json')).out;
   assert.equal(shown.split('staleFrozenPolicy').length - 1, 0, 'no marker fact');
-  assert.doesNotMatch(await success(box, box.repo, 'inbox').out, /next passes over #1/u, 'no shout to the coordinator');
+  assert.doesNotMatch((await success(box, box.repo, 'inbox')).out, /next passes over #1/u, 'no shout to the coordinator');
 });
 
 test('clause 3: a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', async t => {

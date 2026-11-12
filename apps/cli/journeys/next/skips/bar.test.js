@@ -58,7 +58,7 @@ test('clause 2: next skips the item naming a missing path, claims the next and t
   assert.match(first.out, /claimed #2: Fresh item/u, first.out);
   await success(box, box.web, 'release', '2', '--reason', 'OTHER', '--note', 'fixture');
   await success(box, box.web, 'next');
-  const inbox = await success(box, box.repo, 'inbox').out;
+  const inbox = (await success(box, box.repo, 'inbox')).out;
   assert.equal(inbox.split('next passes over #1 (BAR_PATH_MISSING)').length - 1, 1, inbox);
 });
 
@@ -77,6 +77,6 @@ test('clause 3: with checks.provesNothing hold, next passes over an item whose c
   const next = await success(box, box.web, 'next');
   assert.match(next.out, new RegExp(`skipped #${green.item_id}: \\[CRITERION_PROVES_NOTHING\\]`, 'u'), next.out);
   assert.match(next.out, /claimed #2: Fresh item/u, next.out);
-  const inbox = await success(box, box.repo, 'inbox').out;
+  const inbox = (await success(box, box.repo, 'inbox')).out;
   assert.equal(inbox.split(`next passes over #${green.item_id} (CRITERION_PROVES_NOTHING)`).length - 1, 1, inbox);
 });
