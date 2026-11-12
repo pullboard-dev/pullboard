@@ -24,9 +24,11 @@ test('after a sleep past every lease the fallback ends the job whose item moved 
   const { db } = cellBoard(t, ':memory:');
   const start = 1_000_000;
   for (const [id, item] of [['gate:live', 1], ['gate:moved-on', 2], ['gate:other-live', 3]]) {
-    createJob(db, { id, kind: 'gate', item, candidate: `c${item}`, now: start });
-    writeStep(db, id, 'shard.started', {}, { now: start });
-    assert.equal(takeJob(db, id, 'dead-driver', { now: start }).taken, true);
+    // Each lease is taken a second after the last, so "oldest lapse first" names one job.
+    const at = start + item * 1000;
+    createJob(db, { id, kind: 'gate', item, candidate: `c${item}`, now: at });
+    writeStep(db, id, 'shard.started', {}, { now: at });
+    assert.equal(takeJob(db, id, 'dead-driver', { now: at }).taken, true);
   }
   const now = start + SLEPT;
   assert.equal(reclaimLapsed(db, { now }).length, 3, 'every lease lapsed at once');
