@@ -167,7 +167,10 @@ test('clause 2: a dirty folder of a live seat is never touched and the refusal n
   assert.ok(existsSync(join(folder, 'scratch.txt')), 'the dirty folder keeps its file where it was');
 });
 
-test('clause 2: a folder with a process inside it is never touched and the refusal names its seat [B3,C7]', async () => {
+/** Whether this machine can list working directories; a process inside a folder is only seen where it can. */
+const lsofOnPath = process.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof')));
+
+test('clause 2: a folder with a process inside it is never touched and the refusal names its seat [B3,C7]', { skip: !lsofOnPath && 'lsof is not installed here, so a process inside a folder is unknown' }, async () => {
   const { box, id, first, folder } = priorFolder();
   const holder = spawn(process.execPath, ['-e', "console.log('ready'); setInterval(() => {}, 1000)"], { cwd: folder, stdio: ['ignore', 'pipe', 'ignore'] });
   try {
