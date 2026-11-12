@@ -87,6 +87,12 @@ export function personCommandContext(io, { main, ordered } = {}) {
  * @returns {T}
  */
 export function withBoard(ctx, work, opened) {
+  // A queued submit's lock stop retries this one call in place; the submit is never restarted (ctx.lockRetry, #3370).
+  return ctx.lockRetry && !opened ? ctx.lockRetry(() => openAndRun(ctx, work, opened)) : openAndRun(ctx, work, opened);
+}
+
+/** Open the board (or take the opened one) and run `work` on it. */
+function openAndRun(ctx, work, opened) {
   const board = opened ?? ctx.nativeBoard.openBoard(ctx.file, ctx.clock, { isMain: ctx.allowSchemaUpgrade,
     gitRoot: ctx.info.root,
     writeContext: { command: ctx.io.relayCommand?.cliOperation, path: ctx.info.root,
