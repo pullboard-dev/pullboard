@@ -56,6 +56,9 @@ function canonical(path) {
   try { return realpathSync(path); } catch { return null; }
 }
 
+/** The trunk branch read once per root for the life of the process, so one claim runs git config pullboard.trunk once [C7]. */
+const trunkBranches = new Map();
+
 /**
  * The project's configured trunk branch, or main when none is recorded.
  * Why: a project whose trunk is master or trunk had claim fail on a hard-coded main [C7,#3759].
@@ -63,9 +66,13 @@ function canonical(path) {
  * @returns {string}
  */
 export function trunkBranch(root) {
+  const known = trunkBranches.get(root);
+  if (known) return known;
   let configured = null;
   try { configured = trunkRef(root); } catch { /* An unreadable trunk setting reads as unset. */ }
-  return typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+  const trunk = typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+  trunkBranches.set(root, trunk);
+  return trunk;
 }
 
 /**
@@ -366,10 +373,11 @@ function sameDirectory(first, second) {
  * A reopened item resumes its earlier builder's branch the same way; a conflict is named file by file (#2906).
  *
  * @param {string} path the item folder
+ * @param {string} root the repository root, whose trunk setting is shared by every folder
  * @returns {string[]} the files a conflicting merge with main named; empty when the folder is at main's tip
  */
-function advanceToMain(path) {
-  const trunk = trunkBranch(path);
+function advanceToMain(path, root) {
+  const trunk = trunkBranch(root);
   if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
   if (status.status !== 0 || status.stdout) return [];
@@ -421,9 +429,10 @@ function replaceGoneFolder(root, path, ref) {
  */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
-  const conflicts = typeof path === 'string' && existsSync(path) ? advanceToMain(path) : [];
+  const trunk = trunkBranch(ctx.info.root);
+  const conflicts = typeof path === 'string' && existsSync(path) ? advanceToMain(path, ctx.info.root) : [];
   if (conflicts.length) {
-    const line = `merging ${trunkBranch(path)} into the item branch conflicts in ${conflicts.join(', ')}; the folder keeps the branch as it was: run git merge ${trunkBranch(path)} there and resolve those files`;
+    const line = `merging ${trunk} into the item branch conflicts in ${conflicts.join(', ')}; the folder keeps the branch as it was: run git merge ${trunk} there and resolve those files`;
     if (options.onConflict) options.onConflict(conflicts, line); else process.stderr.write(`warning: ${line}\n`);
   }
   return path;

@@ -38,6 +38,8 @@ test('clause 2: the default load share is 1.0 per core, and a load at or over it
   assert.equal(localLoadAdmits({ load: 4, cores: 4, share: 1 }), false);
   assert.equal(localLoadAdmits({ load: 1.9, cores: 4, share: 0.5 }), true);
   assert.equal(localLoadAdmits({ load: 2, cores: 4, share: 0.5 }), false);
+  assert.equal(localLoadAdmits({ load: 40, cores: 4, share: 1, running: 0 }), true, 'a runner holding no job takes one at any load');
+  assert.equal(localLoadAdmits({ load: 40, cores: 4, share: 1, running: 1 }), false, 'a runner already running a job still waits');
 });
 
 test('clause 2: with no runners a loaded machine leaves the row waiting, and it still runs once the load falls [P7,C7]', async t => {

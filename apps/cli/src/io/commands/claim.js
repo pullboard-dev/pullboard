@@ -2,6 +2,7 @@
 import { Refused } from '../../../../../packages/kernel/index.js';
 import {
   headCommit,
+  withGitCommandMemo,
 } from '../../../../../packages/git/index.js';
 import {
   events,
@@ -33,7 +34,8 @@ import {
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
-  const act = (work) => actOn(io, work);
+  // One claim asks Git for the worktree list and trunk once; a call that writes clears the memory [C7].
+  const act = (work) => withGitCommandMemo(() => actOn(io, work));
   return act(async (ctx, board, me) => {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
