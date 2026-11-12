@@ -52,7 +52,6 @@ export { FLOW_SIZE_ENGINE } from './src/logic/engines/flow-size-engine.js';
 export { FOCUS_BOUNDARY_ENGINE } from './src/logic/engines/focus-boundary-engine.js';
 export { FOCUS_MILESTONE_ENGINE } from './src/logic/engines/focus-milestone-engine.js';
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
-export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { GATE_RUN_ENGINE } from './src/logic/engines/gate-run-engine.js';
 export { GENERATED_DOCS_ENGINE } from './src/logic/engines/generated-docs-engine.js';
 export { GONE_CLAIM_ENGINE } from './src/logic/engines/gone-claim-engine.js';
