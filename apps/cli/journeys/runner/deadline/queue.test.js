@@ -118,7 +118,7 @@ test('clause 1: a first runner freed after the queue deadline executes with its 
     let pending;
     const release = join(box.dir, 'release-runner'), released = join(box.dir, 'runner-released');
     try {
-      const tooling = committedToolingSnapshot(join(import.meta.dirname, '../../../..'), box.env);
+      const tooling = committedToolingSnapshot(join(import.meta.dirname, '../../../../..'), box.env);
       const gate = pathToFileURL(join(tooling, 'packages/gate/index.js')).href;
       const command = 'node -e "console.log(\'LATE_FIRST_DISPATCH_EXECUTED\')"';
       const script = `import {writeFileSync,existsSync} from 'node:fs';

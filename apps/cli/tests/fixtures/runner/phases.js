@@ -24,7 +24,7 @@ import {
 import { stopGroup } from './group.js';
 
 export const TOOLING_SNAPSHOTS = new Map();
-export const ROUND_TRIP_DEADLINES = { dispatch: 45_000, 'remote run': 30_000, 'result return': 10_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit; dispatch took 20 s on runners at twice their cores.
+export const ROUND_TRIP_DEADLINES = { dispatch: 45_000, 'remote run': 30_000, 'result return': 30_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit; dispatch took 20 s and result return 10 s on runners at twice their cores.
 
 /** Run Git in the private source repository and preserve useful failure context. */
 export function git(repo, env, ...args) {
