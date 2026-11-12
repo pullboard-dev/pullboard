@@ -77,6 +77,9 @@ async function fixture() {
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   mkdirSync(join(repo, 'web'));
   writeFileSync(join(repo, 'web', 'shared.txt'), 'base\n');
+  // The comment case below names this journey's own path in a check, and the bar must find it on main.
+  mkdirSync(join(repo, 'apps/cli/journeys/check'), { recursive: true });
+  writeFileSync(join(repo, 'apps/cli/journeys/check/self.test.js'), '\n');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'chore: create bar fixture');
   const web = (await json(repo, 'worktree', 'web', '--route', 'strong')).path;
