@@ -14,15 +14,29 @@ import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('land stops again with an expired waiver, and a changed test on main releases the held batch [B3,R3]', () => {
+/** Four independent submitted items accepted in order, each step answered in this process so the file stays inside its budget [B3,R3]. */
+async function verifiedFourLocal(box) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  try {
+    const entries = [];
+    for (const [index, file] of FILES.entries()) entries.push(await itemWorktreeLocal(box, index + 1, file));
+    await Promise.all(entries.map(entry => commitItemLocal(box, entry)));
+    for (const entry of entries) await submitItemLocal(box, entry);
+    for (const entry of entries) await acceptItemLocal(box, entry);
+    return entries;
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
+}
+
+test('land stops again with an expired waiver, and a changed test on main releases the held batch [B3,R3]', async () => {
   const box = landProject();
   box.env.LAND_SUPPRESS_RED = '1';
   assert.equal(commitFile(box, box.repo, FILES[0], 'FLAKE\n', 'chore: install a flaky fixture test').status, 0);
-  const entry = itemWorktree(box, 1, 'web/feature.js');
-  submitItem(box, entry);
-  acceptItem(box, entry);
+  const entry = await itemWorktreeLocal(box, 1, 'web/feature.js');
+  await commitItemLocal(box, entry);
+  await submitItemLocal(box, entry);
+  await acceptItemLocal(box, entry);
   delete box.env.LAND_SUPPRESS_RED;
   const held = json(box, box.repo, 'land');
   assert.equal(held.batch.state, 'flaky');
@@ -42,7 +56,7 @@ test('land stops again with an expired waiver, and a changed test on main releas
 
 test('land adoption recovers an interrupted gate and keeps one receipt under a new coordinator [B3,R3]', async (t) => {
   const box = landProject();
-  const entries = verifiedFour(box);
+  const entries = await verifiedFourLocal(box);
   writeFileSync(box.hold, 'armed');
   const { child, closed, waitForGate } = startInterruptedLanding(box, BIN, t);
   await waitForGate();
