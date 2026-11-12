@@ -205,3 +205,14 @@ test('clause 1: help lists every edit option [C7]', async t => {
   assert.ok(parsed.has('after'), 'the parsed set includes --after');
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
 });
+
+test('every flag in pullboard help has a one-line meaning [I11]', () => {
+  const bare = [];
+  for (const [command, declaration] of Object.entries(HELP.commands)) {
+    for (const flag of declaration.flags) {
+      if (flag === '--help') continue;
+      if (!/^--[a-z][a-z-]*(?: \S[^—]*)? — \S/u.test(flag)) bare.push(`${command}: ${flag}`);
+    }
+  }
+  assert.deepEqual(bare, [], `give each flag a meaning in apps/cli/src/logic/help/flag-meanings.js:\n${bare.join('\n')}`);
+});
