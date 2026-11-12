@@ -1448,9 +1448,6 @@
   "apps/cli/journeys/runner/deadline.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/show/folder.test.js": {
-    "launch": 29
-  },
   "apps/cli/journeys/fact/landing/red.test.js": {
     "launch": 1
   },
