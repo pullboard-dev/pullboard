@@ -43,7 +43,10 @@ const STEPS = {
     const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
     if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
     // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
-    return { holder: reviewer, done: item => item.item_status !== 'submitted' || !item.item_review_by };
+    // A live reviewer in the other family asks for the review each tick: once the dead holder's reservation counts for nothing, it takes it over.
+    const taker = box.seats.sibling;
+    return { holder: reviewer, done: item => item.item_status !== 'submitted' || (Boolean(item.item_review_by) && item.item_review_by !== reviewer.id),
+      recover: () => cli(box, taker.path, ['next', '--verify', String(id)]) };
   },
 };
 
@@ -80,6 +83,7 @@ export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}
   let item = await readItem(box, id);
   while (!flow.done(item) && box.clock.now().getTime() - start <= 2 * LIVENESS_BOUND_MS) {
     box.advance(TICK_MS);
+    if (flow.recover) await flow.recover();
     await cli(box, survivor.path, ['shout', 'all', '--kind', 'idea', 'Liveness kit: the surviving seat writes while a holder is gone.']);
     item = await readItem(box, id);
   }
