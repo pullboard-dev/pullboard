@@ -593,9 +593,6 @@
   "apps/cli/journeys/lane/outside.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/lanes/main.test.js": {
-    "launch": 47
-  },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
     "launch": 1
   },
