@@ -308,7 +308,7 @@ async function personDecision(box) {
 
 test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) => {
   const box = await project(t);
-  const itemId = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'MCP fixture item', criterion: 'an MCP client can read this item', run: box.runLocalArgs })).item_id;
+  const itemId = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'MCP fixture item', criterion: 'an MCP client can read this item', check: null, run: box.runLocalArgs })).item_id;
   const decisionId = await personDecision(box);
 
   const client = mcpClient(t, box, box.web, box.sessionA);
@@ -422,7 +422,7 @@ test('[A9,P5] an MCP client reads the board and shouts as its agent', async (t) 
 
 test('board_status answers through MCP on a board with a held item [A9,N26]', async (t) => {
   const box = await project(t);
-  const itemId = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Held MCP item', criterion: 'a held item still lets MCP read the board', run: box.runLocalArgs })).item_id;
+  const itemId = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Held MCP item', criterion: 'a held item still lets MCP read the board', check: null, run: box.runLocalArgs })).item_id;
   const claimed = await cli(box, box.web, ['claim', String(itemId)], box.sessionA);
   assert.equal(claimed.status, 0, JSON.stringify(claimed.document));
 
@@ -478,7 +478,7 @@ test('[P6,A9] a person\'s move through MCP is refused', async (t) => {
 
 test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s refusals [A9,P6]', async (t) => {
   const box = await project(t);
-  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'An item worked through MCP', criterion: 'web/mcp.txt exists.', args: ['--specs', 'G1'], run: box.runLocalArgs })).item_id;
+  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'An item worked through MCP', criterion: 'web/mcp.txt exists.', args: ['--specs', 'G1'], check: null, run: box.runLocalArgs })).item_id;
   const builder = mcpClient(t, box, box.web, box.sessionA);
   await initialize(builder);
   const names = (await builder.request('tools/list')).result.tools.map((tool) => tool.name);
@@ -554,8 +554,8 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
 test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16]', async t => {
   const box = await project(t);
   const clause = 'web/mcp.txt contains a heading.';
-  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'A quoted MCP rejection', criterion: clause, args: ['--specs', 'G1'], run: box.runLocalArgs })).item_id;
-  assert.equal(await cli(box, box.web, ['claim', String(id)], box.sessionA).status, 0);
+  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'A quoted MCP rejection', criterion: clause, args: ['--specs', 'G1'], check: null, run: box.runLocalArgs })).item_id;
+  assert.equal((await cli(box, box.web, ['claim', String(id)], box.sessionA)).status, 0);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'mcp.txt'), '<p>The heading is absent.</p>\n');
   box.git(box.web, 'add', 'web/mcp.txt');
@@ -565,7 +565,7 @@ test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16
   const review = join(box.dir, 'clause-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD').trim());
   const session = { CODEX_SESSION_ID: 'mcp-clause-reviewer' };
-  assert.equal(await cli(box, review, ['join', 'web', '--model', 'reviewer-model'], session).status, 0);
+  assert.equal((await cli(box, review, ['join', 'web', '--model', 'reviewer-model'], session)).status, 0);
   const reviewer = mcpClient(t, box, review, session);
   await initialize(reviewer);
   const input = { id, decision: 'reject', reason: 'TEST_FAILURE', note: 'The required heading is absent.' };
