@@ -12,8 +12,10 @@ export function seedRealSize(box) {
   const at = '2026-10-01T00:00:00.000Z';
   const agent = db.prepare(`INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at)
     VALUES (?, ?, ?, ?, ?, ?)`);
-  const item = db.prepare(`INSERT INTO item (item_lane, item_title, item_criterion, item_route, item_status, item_built_by, item_commit, item_tree, item_created_by, item_created_at, item_updated_at)
-    VALUES (?, ?, 'The real fixture succeeds.', ?, ?, ?, ?, ?, 'coordinator', ?, ?)`);
+  const item = db.prepare(`INSERT INTO item (item_lane, item_title, item_criterion, item_route, item_created_by, item_created_at, item_updated_at)
+    VALUES (?, ?, 'The real fixture succeeds.', ?, 'coordinator', ?, ?)`);
+  // An item starts open; the board refuses any other first status, so a review item is filed open and then marked submitted.
+  const submit = db.prepare("UPDATE item SET item_status = 'submitted', item_built_by = ?, item_commit = ?, item_tree = ? WHERE item_id = ?");
   const event = db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
   const lanes = ['web', 'core', 'docs', 'review'];
   const routes = ['light', 'mid', 'strong'];
@@ -25,11 +27,13 @@ export function seedRealSize(box) {
     }
     const ids = [];
     for (let n = 0; n < REAL_SIZE.buildItems; n++) {
-      ids.push(Number(item.run(lanes[n % 3], `Real build ${n}`, routes[n % routes.length], 'open', null, null, null, at, at).lastInsertRowid));
+      ids.push(Number(item.run(lanes[n % 3], `Real build ${n}`, routes[n % routes.length], at, at).lastInsertRowid));
     }
     for (let n = 0; n < REAL_SIZE.reviewItems; n++) {
       const sha = String(n).padStart(40, '0');
-      ids.push(Number(item.run(lanes[n % 3], `Real review ${n}`, routes[n % routes.length], 'submitted', `real-${n}`, sha, sha, at, at).lastInsertRowid));
+      const id = Number(item.run(lanes[n % 3], `Real review ${n}`, routes[n % routes.length], at, at).lastInsertRowid);
+      submit.run(`real-${n}`, sha, sha, id);
+      ids.push(id);
     }
     for (let n = 0; n < REAL_SIZE.events; n++) {
       event.run(at, `real-${n % REAL_SIZE.agents}`, 'edit', ids[n % ids.length], '{}');
