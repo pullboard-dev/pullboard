@@ -140,8 +140,9 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
         assert.deepEqual(read.legend,[['landed','1'],['landing','1'],['review','1'],['building','1'],['waiting','1'],['held','1']]);
         // The legend's words since aaeff395a3, as roadmap-summary-card.test.js reads them.
         assert.deepEqual(read.legendText,['1 landed','1 accepted, landing','1 in review','1 building','1 waiting','1 held'],`${width}/${scheme}: every label is separated from its count by actual whitespace`);assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('.milestone-limit')?.textContent||''`),'',`${width}/${scheme}: the shared release header removes the extra total-and-limit line`);
+        // An entry declared inline-flex is a flex item of the legend, so Chrome reports its display as flex; card.test.js reads it the same way.
         const legendLayout=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('State summary')}.querySelectorAll('[data-summary-state]')].map(entry=>{const nodes=[...entry.children],centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return {display:getComputedStyle(entry).display,align:getComputedStyle(entry).alignItems,color:getComputedStyle(entry).color,weight:getComputedStyle(nodes[1]).fontWeight,tags:nodes.map(node=>node.tagName),centers,height:entry.getBoundingClientRect().height};}))`));
-        assert.ok(legendLayout.every(row=>row.display==='inline-flex'&&row.align==='center'&&Number(row.weight)>=600&&row.tags.join(',')==='I,B,SPAN'&&row.centers.every(center=>Math.abs(center-row.centers[0])<.75)),`${width}/${scheme}: every entry aligns its dot, bold count and label: ${JSON.stringify(legendLayout)}`);
+        assert.ok(legendLayout.every(row=>['flex','inline-flex'].includes(row.display)&&row.align==='center'&&Number(row.weight)>=600&&row.tags.join(',')==='I,B,SPAN'&&row.centers.every(center=>Math.abs(center-row.centers[0])<.75)),`${width}/${scheme}: every entry aligns its dot, bold count and label: ${JSON.stringify(legendLayout)}`);
         assert.equal(new Set(legendLayout.map(row=>row.color)).size,1,`${width}/${scheme}: the held control has the same text color as the other entries`);assert.ok(legendLayout.at(-1).height >= (width < 900 ? 44 : 32),`${width}/${scheme}: the held control keeps its ${width < 900 ? 44 : 32}px target`);
         const forecastLayout=JSON.parse(await chrome.stable(`JSON.stringify((()=>{const m=${milestone('State summary')},group=m.querySelector('.roadmap-forecast'),rate=m.querySelector('.roadmap-estimate'),pace=m.querySelector('.roadmap-pace'),completion=m.querySelector('.roadmap-completion');return {display:getComputedStyle(group).display,rate:rate.textContent,pace:pace.textContent,completion:completion.textContent,rateBold:rate.querySelectorAll('b').length,paceBold:pace.querySelectorAll('b').length};})())`));
         assert.equal(forecastLayout.display,'block',`${width}/${scheme}: the three facts stay in one flowing header line`);assert.equal(forecastLayout.rate,'1.2 items an hour');assert.equal(forecastLayout.pace,'7 landed in the last 6 h, 7 in the last 2 h');assert.match(forecastLayout.completion,/^done in about 6 days, [A-Za-z]+ (?:overnight|morning|afternoon|evening|night)$/u);assert.equal(forecastLayout.rateBold,0);assert.equal(forecastLayout.paceBold,0);
@@ -184,6 +185,9 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
 });
 
 test('a blocked roadmap item shows its dot and expands to say why [N26]', { timeout: 90_000 }, async (t) => {
+  const began = performance.now();
+  /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
+  const stage = phase => console.log('roadmap-blocked-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the roadmap blocker check.');
   const box = machine(), alpha = project(box, 'blocked-roadmap');
@@ -210,6 +214,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   await box.inProcess(other.repo, 'edit', '2', '--after', '1', '--reason', 'Waits on remote base.');
   await box.inProcess(other.repo, 'hold', 'web', '--reason', 'Review the remote dependency');
   await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');
+  stage('setup-end');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-blocked-roadmap-chrome-'));
   let chrome;
   const row = id => `[...document.querySelectorAll('#roadmap .milestone-item')].find(x=>x.querySelector('.id')?.textContent===${JSON.stringify(id)})`;
@@ -223,7 +228,9 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   async function reads() { return JSON.parse(await chrome.stable('JSON.stringify(window.__requests)')).filter(url => /\/items\/\d/.test(url)); }
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
+    stage('chrome-ready');
     await chrome.waitFor('data?.project?.milestones?.length===1');
+    stage('state-ready');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     t.diagnostic('blocked fixture items ' + await chrome.stable("JSON.stringify(data.project.items.filter(i=>i.id<=2).map(i=>({id:i.id,status:i.status,blockedBy:i.blockedBy??null,after:i.after??null})))"));
     // Since the approved N26 Roadmap redesign (b83469ff53, #2056) a waiting row reads "after #1" beside its title.
@@ -233,6 +240,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     assert.equal(await chrome.stable(`Boolean(${row('#3')}.querySelector('.roadmap-after, .block-dot'))`), false);
     await chrome.stable("window.__requests=[];window.__fetch=window.fetch;window.fetch=(url,options)=>{window.__requests.push(String(url));return window.__fetch(url,options);};true");
     const address = await chrome.stable('location.href');
+    stage('first-open');
     const blocked = await opened('#2');
     assert.match(blocked, /CriterionUse #1 and #3 <em>literally<\/em>\./u, 'the approved dense detail leads with the criterion');
     assert.doesNotMatch(blocked, /More detail stays in Items/u, 'only the first criterion sentence is shown');
@@ -243,6 +251,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     // The other board also has an item #2, so only this board's reads count.
     const local = await chrome.stable('boardPath(view.root)');
     assert.ok((await reads()).filter(url => url.endsWith(local + '/items/2')).length <= 1, 'the first opened row reads its detail once, ahead or on expand');
+    stage('rows-open');
     for (const id of ['#2', '#6', '#5']) {
       if (id !== '#2') await opened(id);
       const text = await chrome.stable(`${row(id)}.parentElement.querySelector('.milestone-why').textContent`);
