@@ -156,8 +156,8 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
 
     // Another repo's item opens on its own board, and Back and Forward move between the two boards.
     await openRoadmapItem(chrome, 'beacon#1');
-    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries')`);
-    const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .meta .item-stage'); return {
+    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries') && !!document.querySelector('#detail .item-panel-status .item-stage')`);
+    const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .item-panel-status .item-stage'); return {
       id: document.querySelector('#detail h2 span').innerText, label: chip.querySelector('.stage-word').innerText, chip: getComputedStyle(chip.querySelector('.stage-word')).color + ' on ' + getComputedStyle(chip.querySelector('.stage-word')).backgroundColor,
       dot: getComputedStyle(document.querySelector('#chain [data-item="1"] .dot')).backgroundColor }; })())`));
     const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
@@ -173,9 +173,9 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
     // colours, its list dot included; a withdrawn item is left out of the list while browsing.
     for (const row of seen.cards.flatMap((card) => card.rows).filter((each) => each.id.startsWith('#'))) {
       await openRoadmapItem(chrome, row.id);
-      await chrome.waitFor(`${showing('items', '/roadmap-demo/items/' + row.id.slice(1))} && document.querySelector('#detail h2 span')?.innerText === ${JSON.stringify(row.id)}`);
+      await chrome.waitFor(`${showing('items', '/roadmap-demo/items/' + row.id.slice(1))} && document.querySelector('#detail h2 span')?.innerText === ${JSON.stringify(row.id)} && !!document.querySelector('#detail .item-panel-status .item-stage')`);
       const here = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const chip = document.querySelector('#detail .meta .item-stage'), word = chip.querySelector('.stage-word'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
+        const chip = document.querySelector('#detail .item-panel-status .item-stage'), word = chip.querySelector('.stage-word'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
         return { label: word.innerText, chip: getComputedStyle(word).color + ' on ' + getComputedStyle(word).backgroundColor, dot: dot ? getComputedStyle(dot).backgroundColor : 'not listed' };
       })())`));
       assert.deepEqual(here, { label: row.label, chip: row.chip, dot: row.label === 'Withdrawn' ? 'not listed' : row.dot }, `${row.id}: the Items detail keeps the Roadmap stage and its state dot`);
