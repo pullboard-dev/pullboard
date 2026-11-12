@@ -779,9 +779,6 @@
   "apps/cli/journeys/export/addresses.test.js": {
     "launch": 8
   },
-  "apps/cli/journeys/relay/sync.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/verify/packet.test.js": {
     "launch": 2
   },
