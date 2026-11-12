@@ -50,3 +50,17 @@ test('a tree without the old paths pins the controller from packages/runners and
   f.write('packages/runners/index.js', 'export const door = false;\n');
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED');
 });
+
+test('the controller providers are the packages its real imports reach, and their bytes move the pin [C7,V32]', t => {
+  const f = tree(t, {
+    'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
+    'apps/runner/src/io/controller.js': "import '../../../../packages/runners/index.js';\nimport '../../../../packages/provider/index.js';\n",
+    'packages/runners/index.js': 'export const door = true;\n',
+    'packages/provider/index.js': 'export const provided = true;\n',
+  });
+  const loaded = captureRunnerTooling(f.root);
+  assert.ok(loaded.controllerProviders, 'the controller names providers');
+  assert.ok(currentRunnerTooling(f.root, loaded));
+  f.write('packages/provider/index.js', 'export const provided = false;\n');
+  assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED', 'a provider body the controller imports changes the pin');
+});
