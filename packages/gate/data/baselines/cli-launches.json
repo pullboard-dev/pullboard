@@ -720,7 +720,7 @@
     "launch": 1
   },
   "apps/cli/journeys/show/policy/dependency.test.js": {
-    "launch": 5
+    "launch": 8
   },
   "apps/cli/journeys/milestone/api.test.js": {
     "launch": 14

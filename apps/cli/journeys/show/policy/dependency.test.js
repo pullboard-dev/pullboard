@@ -27,8 +27,9 @@ const {
   project, commitFile, attackCommit,
 } = e2e;
 
-// Claims, submits and verifies stay processes: in-process, a later write by another identity runs the lapsed-claim sweep and
-// returns a claim that waits on an unlanded dependency (NOT_YOURS at submit). Setup and read-only calls run in-process (#6003).
+// Joins, adds, claims, submits and verifies stay processes: with any of them in-process, a later write by another identity
+// runs the lapsed-claim sweep and returns a claim that waits on an unlanded dependency (NOT_YOURS at submit). Only the
+// read-only show calls run in-process (#6003).
 test("a dependency's own verified dependency admits its files [N16,V4]", async () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -42,15 +43,15 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   const design = join(box.dir, 'design-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
   box.git(box.repo, 'worktree', 'add', '-q', design, '-b', 'design/one');
-  assert.equal((await fixtureJoin(box.runLocal, api, 'api')).code, 0);
-  assert.equal((await fixtureJoin(box.runLocal, design, 'design')).code, 0);
+  assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, design, 'design').code, 0);
 
   let nextId = 1;
   /** Add a fixture item from the coordinator checkout and return its sequential id. */
   const add = async (lane, title, after = null) => {
     const args = ['add', lane, title];
     if (after !== null) args.push('--after', String(after));
-    const result = await box.runLocal(box.repo, ...args);
+    const result = box.run(box.repo, ...args);
     assert.equal(result.code, 0, result.err || result.out);
     return nextId++;
   };
