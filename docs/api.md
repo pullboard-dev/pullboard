@@ -231,6 +231,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `hook pre-push` | `version:number`, `messages:array` |
 | `tool-build` | `version:number`, `build:object\|null` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
+| `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `red` | `version:number`, `file:string` |
 | `search` | `version:number`, `query:string`, `matches:array` |

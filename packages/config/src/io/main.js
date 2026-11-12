@@ -20,6 +20,7 @@ import { trunkProblems } from '../logic/trunk.js';
 export const CONFIG_FILE = 'pullboard.json';
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
+import { labelDeclarationProblems } from '../../../queue/light.js';
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
@@ -66,6 +67,7 @@ export function defaults() {
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
+    labels: {},
     // The route table is data, not code: packages/config/data/ceilings/model-tiers.json (a fresh copy per call) [P5].
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
@@ -288,6 +290,7 @@ export function configProblems(config) {
   if (config.landingShards !== undefined && (!Number.isSafeInteger(config.landingShards) || config.landingShards < 1 || config.landingShards > 64)) {
     problems.push('"landingShards" is a whole number from 1 to 64: how many shards the landing gate splits its test files into');
   }
+  problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
     || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
