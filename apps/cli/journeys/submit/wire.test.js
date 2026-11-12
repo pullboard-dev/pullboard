@@ -96,7 +96,7 @@ test('clause 1: the dispatcher runs each gate through a drive-cell driver under 
   const dir = temporaryDirectory('pullboard-durable-wire-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   machineHome(t, join(dir, 'home'));
-  const { commonDir, item } = setupServingHandoff(t);
+  const { commonDir, item } = (await setupServingHandoff(t));
 
 
   const tools = join(dir, 'tools');
@@ -226,14 +226,14 @@ try {
 });
 
 /** Seed a real claimed item and its queued handoff through the shared fixture seams. */
-function setupServingHandoff(t) {
+async function setupServingHandoff(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Wire fixture gate', '--specs', 'G1', '--criterion', 'The wire gate serves its item.', '--check', 'true', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Wire fixture gate', '--specs', 'G1', '--criterion', 'The wire gate serves its item.', '--check', 'true', '--json'));
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(item), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(item), '--json'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const commonDir = join(box.repo, '.git');
   withFixtureBoard(join(commonDir, 'pullboard', 'board.sqlite'), board => {
