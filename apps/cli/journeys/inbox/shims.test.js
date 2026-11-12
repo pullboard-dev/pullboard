@@ -475,21 +475,21 @@ test('remove-shims CLI prints and writes its kept-shim handoff [C7,D3]', t => {
   assert.match(readFileSync(join(out, 'cut-item.txt'), 'utf8'), /--after/u);
 });
 
-test('file-cut records the kept fact and shouts its cut draft on a real fixture board [C7,D3]', t => {
+test('file-cut records the kept fact and shouts its cut draft on a real fixture board [C7,D3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Remove private shims', '--criterion', 'Remove the shims.', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', String(id))).code, 0);
   const result = { keptDetails: [{ shim: 'src/example.js', reason: 'upward cut', importers: ['packages/one.js', 'packages/two.js'] }] };
   const handoff = writeShimHandoff(box.web, result, 'example', { lane: 'web', directory: join(box.dir, 'handoff'), fileCut: true, env: box.env });
   assert.equal(handoff.after, id);
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+  const shown = await box.inProcess(box.repo, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /packages\/one\.js/u);
-  const inbox = box.run(box.repo, 'inbox', '--json');
+  const inbox = await box.inProcess(box.repo, 'inbox', '--json');
   assert.equal(inbox.code, 0, inbox.err);
   assert.match(inbox.out, /Cells cut: remove remaining example shim importers/u);
   assert.match(inbox.out, /packages\/two\.js/u);

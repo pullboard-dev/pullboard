@@ -71,14 +71,14 @@ function realNodeMainProject() {
 }
 
 /** Submit both actual selected paths under a frozen node --test criterion. */
-function realNodeItem(box, number, red, later) {
+async function realNodeItem(box, number, red, later) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
   const added = fileFixtureItem(box, box.repo, { lane: 'web', title: `Real Node landing fixture ${number}`, args: ['--specs', 'G1'],
     criterion: `real selected Node tests ${number} pass their frozen check`, check: `node ${RUNNER} ${MAIN_RED} ${LATER_FILE}` });
   const entry = { path, item: added.item_id, file: MAIN_RED };
-  assert.equal(box.run(path, 'claim', String(entry.item)).code, 0);
+  assert.equal((await box.runLocal(path, 'claim', String(entry.item))).code, 0);
   writeFileSync(join(entry.path, LATER_FILE), later);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, entry, red); acceptItem(box, entry); return entry; }
@@ -104,11 +104,11 @@ function landBatch(box, itemId) {
   return JSON.parse(run.stdout.trim().split('\n').at(-1));
 }
 
-test('clause 1: an exact-main failure is fully collected with later selected work before landing; new red blocks [B3,C7]', () => {
+test('clause 1: an exact-main failure is fully collected with later selected work before landing; new red blocks [B3,C7]', async () => {
   const { box, red } = realNodeMainProject();
   const marker = join(box.dir, 'later-node-test-ran');
   const later = `import { test } from 'node:test'; import { writeFileSync } from 'node:fs'; test('later-passing-case', () => writeFileSync(${JSON.stringify(marker)}, 'ran'));\n`;
-  const entry = realNodeItem(box, 1, red, later);
+  const entry = await realNodeItem(box, 1, red, later);
   const landed = landBatch(box, entry.item);
   assert.equal(landed.error, null, `${landed.errorMessage}\n${JSON.stringify(landed.lines)}`);
   assert.equal(landed.batch.state, 'landed', JSON.stringify(landed.batch));
@@ -118,7 +118,7 @@ test('clause 1: an exact-main failure is fully collected with later selected wor
 
   const blockedProject = realNodeMainProject();
   const newRed = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('new-batch-red', () => { if (process.env.LAND_SUPPRESS_RED !== '1') assert.fail('new red'); });\n";
-  const blockedEntry = realNodeItem(blockedProject.box, 1, blockedProject.red, newRed);
+  const blockedEntry = await realNodeItem(blockedProject.box, 1, blockedProject.red, newRed);
   const blocked = landBatch(blockedProject.box, blockedEntry.item);
   assert.notEqual(blocked.batch.state, 'landed', 'a new selected red still blocks landing');
   assert.equal(blocked.merged, null);
