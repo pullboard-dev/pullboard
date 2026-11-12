@@ -49,7 +49,7 @@ async function fixture(t, { failing = false, sensitive = false, strict = false, 
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure machine fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Machine fixture', criterion: '1. the result exists [command]\n2. the result is built [command]', check: 'test -f web/result.txt',
-    brief: 'Files: web/result.txt\nTest: the result file exists and says built\n', args: ['--specs', 'G1', ...(sensitive ? ['--sensitive'] : [])], run: box.runLocal });
+    brief: 'Files: web/result.txt\nTest: the result file exists and says built\n', args: ['--specs', 'G1', ...(sensitive ? ['--sensitive'] : [])], diagnose: false, run: box.runLocal });
   const id = item.item_id;
   const commands = [{ clause: 1, command: 'test -f web/result.txt' },
     { clause: 2, command: failing ? 'test -f web/missing.txt' : 'test "$(cat web/result.txt)" = built' }];
@@ -128,7 +128,7 @@ test('machine authorization is coordinator-only, visible, reversible and off by 
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Opt-in fixture', criterion: '1. one [command]\n2. two [command]', check: 'true',
-    brief: 'Files: web/result.txt\nTest: the result file exists and says built\n', run: box.runLocal })).item_id;
+    brief: 'Files: web/result.txt\nTest: the result file exists and says built\n', diagnose: false, run: box.runLocal })).item_id;
   assert.equal((await json(box, box.repo, 'show', String(id))).machineVerification, null);
   const path = join(box.dir, 'commands.json');
   writeFileSync(path, JSON.stringify([{ clause: 1, command: 'true' }, { clause: 2, command: 'true' }]));
