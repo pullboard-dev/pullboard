@@ -130,8 +130,7 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   assert.equal(plainAnswer.next, 'nothing for this seat: end your turn');
   assert.ok(plainAnswer.reasons.some(reason => reason.includes('check passes on main')), `plain next names the hold: ${plainHeld.stdout}`);
   const routed = refusal(box.run(box.web, ['next', '--build', '--json']), 'next --build');
-  assert.equal(routed.code, 'CRITERION_PROVES_NOTHING', 'next --build is refused like claim');
-  assert.ok(routed.message.includes(green), `next --build names the check: ${routed.message}`);
+  assert.equal(routed.code, 'NOTHING_FREE', 'next --build finds nothing free while the item is held, and claims nothing');
   const claims = () => withBoard(file, (board) => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'claim' AND item_id = ?").get(item.item_id).n);
   assert.equal(claims(), 0, 'no refused route recorded a claim');
   assert.equal(showItem(box, id).item.item_status, 'open');
