@@ -6,8 +6,8 @@ const memory = new WeakMap();
 const HEARTBEAT_INTERVAL_MS = 60_000;
 export const SEAT_LIVE_WINDOW_MS = 10 * 60_000;
 const PRESENCE_BUSY_TIMEOUT_MS = 250;
-/** After a busy read, how long later reads of that class reuse the cached rows instead of waiting out the timeout again. */
-const PRESENCE_BUSY_BACKOFF_MS = 2_000;
+/** After a busy read, how long later reads of that class reuse the cached rows: a short command waits out the timeout once, not per read (2 s still cost a loaded runner 28 waits). */
+const PRESENCE_BUSY_BACKOFF_MS = 30_000;
 const LOCAL_TABLE = 'heartbeat';
 const IMPORTED_TABLE = 'imported_heartbeat';
 
