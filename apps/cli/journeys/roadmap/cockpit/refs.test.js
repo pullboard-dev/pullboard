@@ -25,6 +25,7 @@ import {
   pickProject,
   chooseFilter,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { MACHINE_MODEL } from '../../../tests/fixtures/cockpit/machine.js';
 import {
   openRoadmapChrome,
   openRoadmapItem,
@@ -163,7 +164,7 @@ test('the expanded row keeps send-backs short and names agents plainly [N26]', {
     const capped = await chrome.stable(`${row('#2')}.parentElement.querySelector('.roadmap-return').textContent`);
     assert.equal(capped.replace(/^.*?by coordinator: /u, ''), long.slice(0, 160).trimEnd() + '…', 'a sentence longer than 160 characters is cut there, with an ellipsis');
     const panel = await opened('#1');
-    assert.match(panel, /Agents.*web-1 \(Fixture Model\) built/u, 'an agent with a known model keeps the model after its name');
+    assert.match(panel, new RegExp(`Agents.*web-1 \\(${MACHINE_MODEL}\\) built`, 'u'), 'an agent with a known model keeps the model after its name');
     assert.doesNotMatch(panel, /\(unknown\)/u, 'the coordinator, whose model is unknown, is named alone with no placeholder');
     const times = JSON.parse(await chrome.stable(`JSON.stringify([...${row('#1')}.parentElement.querySelectorAll('.roadmap-history time')].map(t=>[t.getAttribute('datetime'),t.textContent]))`));
     assert.ok(times.length >= 3, 'the history lists its moves with times');
