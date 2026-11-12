@@ -1,4 +1,4 @@
-/** With no affectedTests (the init default), a red at landing goes back to its builder with its failing cases [C7,#6270]. */
+/** With no affectedTests (the init default), a red at landing goes back to its builder with its failing cases, and an accepted item that cannot land can be withdrawn [C7,#6270,#6469]. */
 import assert from 'node:assert/strict';
 import {
   chmodSync,
@@ -111,4 +111,17 @@ async () => {
   const shown = await box.runLocal(box.repo, 'show', String(entry.item));
   assert.match(shown.out, /the gate is red/u, 'show prints the pre-push red');
   await fixAndResubmit(box, entry);
+});
+
+test('clause 3: an accepted item the landing cannot take is moved by the coordinator with withdraw, not refused CLOSED [C7,#6469]', { timeout: 180_000 }, // budget: one real submit and accept; hang ceiling only.
+async () => {
+  const box = defaultProject();
+  const entry = acceptedRedItem(box);
+  const before = await itemRow(box, entry.item);
+  assert.equal(before.item_status ?? before.status, 'verified', 'the item is accepted and waiting to land');
+  const withdrawn = await box.runLocal(box.repo, 'withdraw', String(entry.item), 'cannot land; the coordinator moves it');
+  assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
+  assert.doesNotMatch(withdrawn.out + withdrawn.err, /CLOSED|NOT_SUBMITTED/u);
+  const after = await itemRow(box, entry.item);
+  assert.equal(after.item_status ?? after.status, 'withdrawn');
 });
