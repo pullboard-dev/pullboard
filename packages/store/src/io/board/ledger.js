@@ -86,3 +86,35 @@ export function testResults(db, { inputKey, receipt } = {}) {
     file: row.test_result_file, inputKey: row.test_result_input_key, command: row.test_result_command, context: row.test_result_context,
     status: row.test_result_status, receipt: row.test_result_receipt, origin: row.test_result_origin, commit: row.test_result_commit, at: row.test_result_at }));
 }
+
+/**
+ * The hit list a pulled gate or shard job carries: for each named file, its newest proof rows that passed under the
+ * proof command with no fail at the same key, as `[file, inputKey, context index]` over a shared context list. The
+ * runner reuses a file only when its own inputKey and context class match a row, so a stale or foreign row just
+ * misses. Why by file: the job's runner computes the keys; the board only knows which files it will run [P7,CD2].
+ * The rows fit `budget` bytes so the job request stays under the queue's cap; the rest are left out, so they run.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} files
+ * @param {{ command?: string, perFile?: number, budget?: number }} [options]
+ * @returns {{ contexts: string[], files: Array<[string, string, number]> } | null}
+ */
+export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget = 24_000 } = {}) {
+  if (missingLedgerTable(db) || !Array.isArray(files) || !files.length) return null;
+  const select = db.prepare(`SELECT DISTINCT pass.test_result_input_key AS inputKey, pass.test_result_context AS context FROM test_result pass
+    WHERE pass.test_result_file = ? AND pass.test_result_command = ? AND pass.test_result_status = 'pass'
+      AND NOT EXISTS (SELECT 1 FROM test_result red WHERE red.test_result_input_key = pass.test_result_input_key AND red.test_result_command = pass.test_result_command
+        AND red.test_result_context = pass.test_result_context AND red.test_result_file = pass.test_result_file AND red.test_result_status = 'fail')
+    ORDER BY pass.test_result_id DESC LIMIT ?`);
+  const contexts = [], rows = [];
+  let bytes = 0;
+  for (const file of [...new Set(files)].filter(file => FILE.test(String(file)))) {
+    for (const { inputKey, context } of select.all(file, command, perFile)) {
+      const index = contexts.includes(context) ? contexts.indexOf(context) : contexts.push(context) - 1;
+      bytes += file.length + inputKey.length + 12;
+      if (bytes > budget) return rows.length ? { contexts, files: rows } : null;
+      rows.push([file, inputKey, index]);
+    }
+  }
+  return rows.length ? { contexts, files: rows } : null;
+}

@@ -47,7 +47,7 @@ export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest } from "./src/io/tap.js";
-export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
+export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
 export { prepareTestResultExchange } from "./src/io/test/action/transfer.js";
 export { testCapacityReport } from "./src/io/test/capacity.js";
 export { testConversionPlan } from "./src/logic/test/conversion.js";
