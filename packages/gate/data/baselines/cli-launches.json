@@ -861,12 +861,9 @@
     "launch": 2
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 35
+    "launch": 29
   },
   "apps/cli/journeys/resume/flow/setup.test.js": {
-    "launch": 63
-  },
-  "apps/cli/journeys/resume/guidance.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/resume/plans.test.js": {
@@ -876,7 +873,7 @@
     "launch": 17
   },
   "apps/cli/journeys/resume/tour-demo.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/resume/tour-slow.test.js": {
     "launch": 1
