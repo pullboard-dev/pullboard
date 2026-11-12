@@ -852,7 +852,7 @@ function remoteJoin(root, body, isMain, boardOpeners) {
   if (typeof model !== 'string' || !model.trim()) throw new Refused('MODEL_REQUIRED', 'a remote join needs args.model; run pullboard join <lane> --model "<model name>"');
   const lanes = laneNames(loadConfig(root)).filter((name) => name !== COORDINATOR);
   if (!lanes.includes(lane)) throw new Refused('NO_LANE', `no lane "${String(lane ?? '')}"; lanes: ${lanes.join(', ') || 'none yet, declare them in pullboard.json'}`);
-  if (relayLinked(root)) throw new Refused('REMOTE_JOIN_RELAY', 'this board is a relay clone; set board.url to the board host that owns it');
+  if (relayLinked(root)) throw new Refused('WRONG_BOARD', 'this board is a relay clone; set board.url to the board host that owns it');
   return withBoard(root, (board) => {
     const agent = store.register(board, { lane, path: store.REMOTE_AGENT_PATH + randomBytes(16).toString('hex'), route, family, model });
     return { version: VERSION, event: board.lastEvent ?? null, result: { agent, lane, route, model } };
