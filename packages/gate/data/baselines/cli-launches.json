@@ -1643,74 +1643,26 @@
   "apps/cli/journeys/skills/main.test.js": {
     "launch": 7
   },
-  "apps/cli/journeys/spec/approval.test.js": {
-    "launch": 8
-  },
-  "apps/cli/journeys/spec/approval/baseline.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/spec/approval/origins.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/spec/behind.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/spec/board.test.js": {
-    "launch": 8
+    "launch": 3
   },
   "apps/cli/journeys/spec/changes.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/spec/citations.test.js": {
-    "launch": 8
+    "launch": 2
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/spec/e2e.test.js": {
-    "launch": 18
-  },
-  "apps/cli/journeys/spec/e2e/gates.test.js": {
-    "launch": 24
-  },
   "apps/cli/journeys/spec/e2e/next.test.js": {
-    "launch": 35
-  },
-  "apps/cli/journeys/spec/main.test.js": {
-    "launch": 8
-  },
-  "apps/cli/journeys/spec/main/answer.test.js": {
-    "launch": 22
-  },
-  "apps/cli/journeys/spec/main/draft.test.js": {
-    "launch": 17
-  },
-  "apps/cli/journeys/spec/main/gates.test.js": {
-    "launch": 10
-  },
-  "apps/cli/journeys/spec/main/signoff.test.js": {
-    "launch": 23
-  },
-  "apps/cli/journeys/spec/main/verifier.test.js": {
-    "launch": 18
-  },
-  "apps/cli/journeys/spec/needs.test.js": {
-    "launch": 10
+    "launch": 1
   },
   "apps/cli/journeys/spec/person.test.js": {
-    "launch": 22
+    "launch": 1
   },
   "apps/cli/journeys/spec/redesign.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/spec/revise.test.js": {
-    "launch": 28
-  },
   "apps/cli/journeys/spec/revision.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/spec/signoff.test.js": {
-    "launch": 31
   },
   "apps/cli/journeys/stats/cockpit.test.js": {
     "launch": 15

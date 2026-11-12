@@ -31,6 +31,7 @@ import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
+import { runCliInProcess } from './process.js';
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
 export const FIXTURE_MODEL = 'fixture-model';
@@ -109,7 +110,8 @@ function sandbox({ declareFamilies = false } = {}) {
     declaredFamilies.set(cwd, value);
     return value;
   };
-  const run = (cwd, ...args) => {
+  /** The fixture's join-family and route rules applied to an argv, shared by the process and in-process runners. */
+  const prepare = (cwd, args) => {
     if (declareFamilies && args[0] === 'join') {
       const familyFlag = args.findIndex(arg => arg === '--family' || arg.startsWith('--family='));
       if (familyFlag >= 0) declareFamily(cwd, args[familyFlag].startsWith('--family=') ? args[familyFlag].slice(9) : args[familyFlag + 1]);
@@ -120,10 +122,19 @@ function sandbox({ declareFamilies = false } = {}) {
       fixtureJoinRoute(args, env.PULLBOARD_MODEL);
       fixtureAddRoute(args);
     }
+  };
+  const run = (cwd, ...args) => {
+    prepare(cwd, args);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  return { dir, env, git, tryGit, run, declareFamilies, declareFamily };
+  /** The same runner in this process: awaited, same rules and result shape, no ~1 s CLI startup [C7]. */
+  const runIn = async (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = await runCliInProcess(args, { cwd, env });
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null };
+  };
+  return { dir, env, git, tryGit, run, runIn, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
