@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -16,11 +15,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
-  isAbsolute,
   join,
-  relative,
   resolve,
-  sep,
 } from 'node:path';
 import {
   runFixtureChild,
@@ -30,6 +26,7 @@ import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js'
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { HOST } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { evidenceReader } from './evidence.js';
 
 const BIN = resolve(import.meta.dirname, '../../../../apps/cli/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
@@ -89,26 +86,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   if (alwaysPass === 'controlled') writeFileSync(counter + '.mode', 'pass');
   writeTarget(root, counter, alwaysPass);
   git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
-  /** Read real private evidence only from this freshly owned counter or board evidence directory. */
-  function readData(file, encoding) {
-    if (typeof file !== 'string' || !isAbsolute(file)) throw new Error('private flake evidence requires an absolute file');
-    const path = resolve(file), evidence = join(root, '.git/pullboard');
-    const within = relative(evidence, path);
-    if (path !== counter && (!within || within === '..' || within.startsWith('..' + sep) || isAbsolute(within))) {
-      throw new Error('private flake evidence escaped its counter or board evidence');
-    }
-    let current = scratch;
-    const parts = relative(scratch, path).split(sep);
-    if (lstatSync(current).isSymbolicLink()) throw new Error('private flake evidence root is symbolic');
-    for (const part of parts) {
-      current = join(current, part);
-      const stat = lstatSync(current);
-      if (stat.isSymbolicLink() || (current === path ? !stat.isFile() : !stat.isDirectory())) {
-        throw new Error('private flake evidence is not a contained regular file');
-      }
-    }
-    return readFileSync(path, encoding);
-  }
+  const readData = evidenceReader({ scratch, root, counter });
   return { root, scratch, env, git, cli, cliAt, call, callAt, counter, readData, lane: 'build' };
 }
 
