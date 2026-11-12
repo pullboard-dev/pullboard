@@ -611,7 +611,7 @@ Every build claim and every review reservation is checked in one write transacti
 | reopen or reject mid-gate | next skips a gate older than the reopen; the driver keeps running | the driver ends at its next renewal tick | `packages/store/tests/io/board/next/gate.test.js` |
 | new head submitted while a gate runs | the old worker is signalled, its slot freed and the new head queued | same | `apps/cli/journeys/submit/replaces.test.js` |
 | lapsed gate job whose item moved on (zombie) | a fallback pass ends legacy kind gate rows; kind gate-drive is never listed | every job kind ends at once when its item leaves its serving state | `apps/cli/journeys/gate/jobs.test.js` |
-| review held on an item that was withdrawn or verified | the review job is not released; a heartbeating reviewer keeps extending it | a verdict, withdraw or reopen releases it in the same transaction | NONE |
+| review held on an item that was withdrawn or verified | the review job is not released; a heartbeating reviewer keeps extending it | a verdict, withdraw or reopen releases it in the same transaction | `packages/gate/tests/fixtures/pipeline/review-held-on-an-item-that-was-withdraw.js` |
 | next resumes a claim that changed in the same moment | you hold #N prints from the read snapshot | re-read in the transaction that prints | NONE |
 | a shout names an item this seat cannot act on | next --wait returns a shout asks you to act on #N for any item not verified or withdrawn | only an item this seat may claim, holds, or may review | NONE |
 | pullboard merged run twice | the second overwrites item_merged_commit and logs a second merged event | refused ALREADY_MERGED unless it names the same commit | NONE |
