@@ -156,7 +156,7 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
   });
 }
 
-test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {
+test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('own-web', 'web', box.session);
   const foreign = box.add('api', 'Earlier foreign work');
@@ -166,16 +166,16 @@ test('ordinary next prefers its own lane, then names foreign work without claimi
   assert.equal(first.item.item_id, own);
   assert.equal(first.item.item_owner, web.agent);
   box.json(box.runAs(box.session, web.root, 'release', String(own), '--reason', 'BLOCKED', '--no-next', '--json'));
-  box.json(box.run(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json'));
+  box.json((await box.runLocal(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json')));
   const worktrees = box.git(box.repo, 'worktree', 'list', '--porcelain');
   const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
   assert.equal(next.code, 1, next.out);
   assert.match(JSON.parse(next.out).error.message, new RegExp(`#${foreign}\\b.*api lane`, 'u'));
-  assert.equal(box.json(box.run(box.repo, 'show', String(foreign), '--json')).item_status, 'open');
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(foreign), '--json'))).item_status, 'open');
   assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), worktrees, 'next opens no seat or worktree');
 });
 
-test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', t => {
+test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('idle-web', 'web', box.session);
   const dirty = box.seat('dirty-api', 'api', box.session);
@@ -188,10 +188,10 @@ test('ordinary next never claims for a dirty, occupied or peer target-lane seat 
   const bindings = [dirty, busy, peer].map(seat => box.binding(seat.root));
   const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
   assert.equal(next.code, 1, next.out);
-  assert.equal(box.json(box.run(box.repo, 'show', String(free), '--json')).item_status, 'open', 'the foreign item is named, not claimed');
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(free), '--json'))).item_status, 'open', 'the foreign item is named, not claimed');
   assert.deepEqual([dirty, busy, peer].map(seat => box.binding(seat.root)), bindings);
   assert.equal(box.git(dirty.root, 'status', '--porcelain'), '?? uncommitted.txt');
-  assert.equal(box.json(box.run(box.repo, 'show', String(occupied), '--json')).item_owner, busy.agent);
+  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(occupied), '--json'))).item_owner, busy.agent);
 });
 
 test('a review goes only to an independent seat [V1,B3]', async t => {

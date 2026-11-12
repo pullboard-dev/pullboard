@@ -870,7 +870,7 @@
     "launch": 8
   },
   "apps/cli/journeys/next/claim.test.js": {
-    "launch": 13
+    "launch": 9
   },
   "apps/cli/journeys/next/claims.test.js": {
     "launch": 3
@@ -889,9 +889,6 @@
   },
   "apps/cli/journeys/next/hold.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/next/offer.test.js": {
-    "launch": 13
   },
   "apps/cli/journeys/next/order.test.js": {
     "launch": 88
@@ -920,14 +917,11 @@
   "apps/cli/journeys/next/skips/policy.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/next/steps.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/next/take.test.js": {
-    "launch": 9
+    "launch": 5
   },
   "apps/cli/journeys/next/verify.test.js": {
-    "launch": 6
+    "launch": 1
   },
   "apps/cli/journeys/patch/folder.test.js": {
     "launch": 1
