@@ -257,19 +257,24 @@ export function offerGateJob(db, { item, main, source, request, now = Date.now()
 
 /**
  * Write the submit's gate job row and return at once. The candidate is pinned under refs/pullboard/gate so a runner can
- * fetch it from the trunk remote; everything else this does is reads and one board write.
+ * fetch it from the trunk remote; everything else this does is reads and one board write. A companion submit's gate
+ * judges its composed source, and its submit record carries the composition, so the board binds the receipts to it [P7].
  *
  * @param {object} ctx
  * @param {{ held: object, me: { id: string }, commit: string, trunk: { commit: string }, main: { commit: string, config: object },
- *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean }} submission - files: what the
- *   item's commits changed since its claim, which the board records when the receipt submits the item.
+ *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean,
+ *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null }} submission - files: what the
+ *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
+ *   attached companions composed onto the builder head, or null.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function }} ports - The sandbox and store reads the submit command already holds.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full }, { frozenCheck, policyAt, listItems }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null }, { frozenCheck, policyAt, listItems }) {
   const { root } = ctx.info;
   const id = held.item_id;
-  const configured = submitGateConfig(full ? policyAt(root, commit).config : ctx.config, main.config);
+  // The gate judges what would land: the builder head, or the companions composed onto it.
+  const source = companion?.commit ?? commit;
+  const configured = submitGateConfig(full || companion ? policyAt(root, source).config : ctx.config, main.config);
   const config = full ? { ...configured, affectedTests: '', submitGate: 'full' } : configured;
   const crossRun = withBoard(ctx, board => {
     board.gitRoot = root;
@@ -278,23 +283,24 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   const doctrine = hasSubmitRules(root, main.commit, main.config.practice) ? { mainCommit: main.commit, commit, practice: main.config.practice,
     timeoutMs: main.config.check?.timeoutMs, ...(submitRulesNarrowable(root, main.commit, main.config.practice) ? { fast: true } : {}) } : null;
-  const request = gateJobRequest({ main: main.commit, source: commit, trunk: trunk.commit, base: claimHead, check: frozenCheck(held),
+  const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check: frozenCheck(held),
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
-    config, crossRunTests: namedProofTests(root, held, commit, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
-    produceInventory: inventoryCommits(root, main.commit, commit), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
+    config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
+    produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
-  request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files };
+  request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files,
+    ...(companion ? { companion } : {}) };
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
-  git(root, ['update-ref', `refs/pullboard/gate/${id}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source: commit, request }));
+  git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
+  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
-    text: `Gate job ${job.id} offered for ${commit.slice(0, 12)} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
+    text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
-  if (ctx.json) ctx.io.result({ item: id, commit, gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
+  if (ctx.json) ctx.io.result({ item: id, commit, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
   else ctx.io.say(`#${id} queued as gate job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   return 0;

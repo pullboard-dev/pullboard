@@ -630,8 +630,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
-  // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes [P7].
-  if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
+  // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes,
+  // a companion submit's gate judging its composed source, so no submit reaches the hand-off path [P7].
+  if (pullGate && !pending && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion }, { frozenCheck, policyAt, listItems: store.listItems });
   if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
