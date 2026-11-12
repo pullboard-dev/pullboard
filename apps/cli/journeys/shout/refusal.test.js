@@ -23,39 +23,39 @@ function record(box, kind, at) {
 }
 
 /** Count the shouts to the coordinator in the fixture. */
-function shouts(box) {
-  return JSON.parse(box.run(box.repo, 'export', '--json').out).tables.shout.length;
+async function shouts(box) {
+  return JSON.parse((await box.runIn(box.repo, 'export', '--json')).out).tables.shout.length;
 }
 
-test('[C7] a report shout right after the same agent verdict is refused naming the event; questions and old reports are delivered', () => {
+test('[C7] a report shout right after the same agent verdict is refused naming the event; questions and old reports are delivered', async () => {
   const box = fixtures.project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Reported item', '--specs', 'G1', '--criterion', 'works', '--check', 'true').code, 0);
+  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Reported item', '--specs', 'G1', '--criterion', 'works', '--check', 'true')).code, 0);
 
-  const quiet = box.run(box.web, 'shout', 'coordinator', 'Item #1 is done', '--kind', 'idea', '--json');
+  const quiet = await box.runIn(box.web, 'shout', 'coordinator', 'Item #1 is done', '--kind', 'idea', '--json');
   assert.equal(quiet.code, 0, 'a report with no recent event is delivered');
 
   record(box, 'accept', new Date());
-  const before = shouts(box);
+  const before = await shouts(box);
   for (const kind of ['idea', 'exception']) {
-    const refused = box.run(box.web, 'shout', 'coordinator', 'Accepted #1 with a clean check', '--kind', kind, '--json');
+    const refused = await box.runIn(box.web, 'shout', 'coordinator', 'Accepted #1 with a clean check', '--kind', kind, '--json');
     assert.equal(refused.code, 1, refused.out);
     const error = JSON.parse(refused.out).error;
     assert.equal(error.code, 'REPORT_RESTATES_EVENT');
     assert.match(error.message, /#1 already records your accept \(event \d+ at /, 'the refusal names the recorded event');
     assert.match(error.message, /pullboard show 1/);
   }
-  const viaItem = box.run(box.web, 'shout', '--item', '1', 'Accepted it', '--kind', 'idea', '--json');
+  const viaItem = await box.runIn(box.web, 'shout', '--item', '1', 'Accepted it', '--kind', 'idea', '--json');
   assert.equal(viaItem.code, 1, 'naming the item with --item is the same report');
-  assert.equal(shouts(box), before, 'refusals record no shout');
+  assert.equal(await shouts(box), before, 'refusals record no shout');
 
   // A bare '#1 blocked on the runner' only restates the board (BOARD_SHOWS_THIS, 3d6a7169b3); a blocker names its cause.
   for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner because its gate failed to start', '--kind', 'blocker'], ]) {
-    const sent = box.run(box.web, 'shout', 'coordinator', ...args, '--json');
+    const sent = await box.runIn(box.web, 'shout', 'coordinator', ...args, '--json');
     assert.equal(sent.code, 0, `${args.join(' ')}: ${sent.out}`);
   }
-  assert.equal(shouts(box), before + 2, 'questions and blockers are delivered after an accept');
+  assert.equal(await shouts(box), before + 2, 'questions and blockers are delivered after an accept');
 
-  const unrelated = box.run(box.web, 'shout', 'coordinator', 'An unrelated idea about review receipts', '--kind', 'idea', '--json');
+  const unrelated = await box.runIn(box.web, 'shout', 'coordinator', 'An unrelated idea about review receipts', '--kind', 'idea', '--json');
   assert.equal(unrelated.code, 0, 'a shout naming no item with a recent event is delivered');
 });
 
@@ -80,31 +80,31 @@ test('[C7] the refusal covers only the sender, only the last ten minutes and onl
 });
 
 
-test('[C7,B22] validated integration purposes pass while plain reports and unbound receipts still refuse', () => {
+test('[C7,B22] validated integration purposes pass while plain reports and unbound receipts still refuse', async () => {
   const box = fixtures.project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Integration item', '--specs', 'G1', '--criterion', 'works').code, 0);
+  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Integration item', '--specs', 'G1', '--criterion', 'works')).code, 0);
   record(box, 'submit', new Date());
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   /** Drive the real evidence parser, guard and persisted item message with a genuine Git object. */
-  const send = (kind, outcome, rev = commit) => box.run(box.web, 'shout', '--item', '1', 'Integration state for #1',
+  const send = (kind, outcome, rev = commit) => box.runIn(box.web, 'shout', '--item', '1', 'Integration state for #1',
     '--evidence', kind, '--outcome', outcome, '--commit', rev, '--json');
   /** A refused integration label cannot turn a redundant report into a persisted message. */
   const refuses = (result, code) => {
     assert.equal(result.code, 1, result.out);
     assert.equal(JSON.parse(result.out).error.code, code, result.out);
   };
-  const before = shouts(box);
-  refuses(send('receipt', 'done'), 'REPORT_RESTATES_EVENT');
-  refuses(send('attempt', 'measured'), 'REPORT_RESTATES_EVENT');
-  refuses(send('unknown', 'integrating'), 'BAD_EVIDENCE');
-  refuses(send('attempt', 'integrating', 'missing-integration-commit'), 'BAD_EVIDENCE');
-  assert.equal(shouts(box), before, 'invalid or irrelevant metadata bypasses no refusal');
-  const attempt = send('attempt', 'integrating');
+  const before = await shouts(box);
+  refuses(await send('receipt', 'done'), 'REPORT_RESTATES_EVENT');
+  refuses(await send('attempt', 'measured'), 'REPORT_RESTATES_EVENT');
+  refuses(await send('unknown', 'integrating'), 'BAD_EVIDENCE');
+  refuses(await send('attempt', 'integrating', 'missing-integration-commit'), 'BAD_EVIDENCE');
+  assert.equal(await shouts(box), before, 'invalid or irrelevant metadata bypasses no refusal');
+  const attempt = await send('attempt', 'integrating');
   assert.equal(attempt.code, 0, attempt.out);
-  const plain = box.run(box.web, 'shout', '--item', '1', 'Submitted #1', '--kind', 'idea', '--json');
+  const plain = await box.runIn(box.web, 'shout', '--item', '1', 'Submitted #1', '--kind', 'idea', '--json');
   refuses(plain, 'REPORT_RESTATES_EVENT');
-  const receipt = send('receipt', 'superseded');
+  const receipt = await send('receipt', 'superseded');
   assert.equal(receipt.code, 0, receipt.out);
-  refuses(send('receipt', 'done'), 'REPORT_RESTATES_EVENT');
-  assert.equal(shouts(box), before + 2, 'only the real attempt and its closing receipt are recorded');
+  refuses(await send('receipt', 'done'), 'REPORT_RESTATES_EVENT');
+  assert.equal(await shouts(box), before + 2, 'only the real attempt and its closing receipt are recorded');
 });

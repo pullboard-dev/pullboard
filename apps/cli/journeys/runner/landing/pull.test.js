@@ -33,7 +33,7 @@ async function acceptedOnPull(t) {
   const trunk = join(box.dir, 'trunk.git');
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false, trunkRemote: trunk } }, null, 2) + '\n');
+  writeFileSync(file, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false }, trunk: { remote: trunk } }, null, 2) + '\n');
   box.git(box.repo, 'commit', '-q', '-am', 'chore: name the trunk remote of record [G1]');
   box.git(box.dir, 'clone', '-q', '--bare', box.repo, trunk);
   const [id] = box.ids;
@@ -45,7 +45,7 @@ async function acceptedOnPull(t) {
   return { box, trunk, id, commit, queue, tip: () => box.git(box.dir, '--git-dir', trunk, 'rev-parse', 'refs/heads/main') };
 }
 
-test('clause 1: under pull with landing.trunkRemote set, the automatic lander offers one land job for the accepted item and merges nothing on the board host [P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, a submit, a pulled gate and a lander child.
+test('clause 1: under pull with trunk.remote set, the automatic lander offers one land job for the accepted item and merges nothing on the board host [P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, a submit, a pulled gate and a lander child.
 async t => {
   const { box, trunk, id, commit, queue, tip } = await acceptedOnPull(t);
   const main = box.git(box.repo, 'rev-parse', 'main'), before = tip();

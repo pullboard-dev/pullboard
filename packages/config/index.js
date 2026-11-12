@@ -19,7 +19,7 @@ export {
   defaultViewPort,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';
-export { trunkProblems } from './src/logic/trunk.js';
+export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
 export {
   JSON_SHAPES,
 } from './src/logic/json.js';
@@ -49,6 +49,10 @@ export {
   setGateRunnerWaitMs,
   browserByLaunchEnabled,
   runnerDispatchMode,
+  pullPilot,
+  pullGateFor,
+  jobQueueMode,
+  localRunnerEnabled,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
@@ -136,3 +140,4 @@ export {
 
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
+export { boardRemote, setBoardRemote } from './src/io/settings.js';

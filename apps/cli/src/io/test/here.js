@@ -13,10 +13,16 @@ import { withBoardRead } from '../context.js';
 
 /** Run the files here and block for the result: the person's, the script's and a queued run's worker path. */
 export async function runHere(io, ctx, { agent, item, files, values }) {
-  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, compareMain: values['compare-main'] === true, diagnose: values.diagnose === true, knownRed: knownRedCheck(ctx.info.root, () => withBoardRead(ctx, board => listItems(board, { all: true }))), agent, item, onWait: io.gateWaitReporter(io), say: line => io.err(line) });
-  if (values['compare-main'] === true && !result.green && !result.mainSkipped) io.err('pullboard test: waiting on the main comparison (--compare-main)');
-  result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
+  const knownRed = knownRedCheck(ctx.info.root, () => withBoardRead(ctx, board => listItems(board, { all: true })));
+  // Under pull dispatch, or for an item the pull pilot picks, the run is one runner job row: nothing is packed or sent from here [P7].
+  const pulled = await import('./pull.js');
+  const result = pulled.pullTestWanted(item, values)
+    ? await pulled.runPulledTests(ctx, { agent, item, files, values, knownRed, say: line => io.err(line) })
+    : await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, compareMain: values['compare-main'] === true, diagnose: values.diagnose === true, knownRed, agent, item, onWait: io.gateWaitReporter(io), say: line => io.err(line) });
+  if (values['compare-main'] === true && !result.green && !result.mainSkipped && !result.pulled) io.err('pullboard test: waiting on the main comparison (--compare-main)');
+  result.mainFailures = result.pulled ? result.pulledNotices : mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
     { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
+  delete result.pulledNotices;
   const covered = new Set(result.mainFailures.map(row => row.file));
   result.mainFileFailures = result.known.filter(row => !covered.has(row.file)).map(row => ({
     file: row.file, main: result.main, result: row.result,

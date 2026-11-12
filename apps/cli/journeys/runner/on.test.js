@@ -30,7 +30,7 @@ const SLEEP_MS = 3000;
 const TIMED = `import { test } from 'node:test';\nimport { setTimeout as pause } from 'node:timers/promises';\ntest('takes a known time', () => pause(${SLEEP_MS}));\n`;
 
 /** One project with a single free stand-in runner and no local slot; the stand-in shares this machine's load, so load-aware dispatch is off. */
-function runnerProject() {
+async function runnerProject() {
   const box = e2e.project('true');
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -39,9 +39,9 @@ function runnerProject() {
   for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['gate.loadAwareDispatch', 'off'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = box.run(box.repo, 'settings', key, value);
+    const set = await box.runLocal(box.repo, 'settings', key, value);
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
   const configFile = join(box.repo, 'pullboard.json'), config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -55,10 +55,10 @@ function runnerProject() {
   return { box, requests };
 }
 
-test('clause 1: pullboard test runs the folder commit on a free runner and prints pass/fail and failing cases [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for a stand-in runner run plus its main comparison; not a speed target.
-  const { box } = runnerProject();
+test('clause 1: pullboard test runs the folder commit on a free runner and prints pass/fail and failing cases [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for a stand-in runner run plus its main comparison; not a speed target.
+  const { box } = await runnerProject();
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
-  const ran = box.run(box.web, 'test', 'test/mixed.test.js');
+  const ran = await box.runLocal(box.web, 'test', 'test/mixed.test.js');
   assert.equal(ran.code, 1, `a failing case makes the run red: ${ran.err}`);
   assert.match(ran.err, new RegExp(`red on ${HOST}`, 'u'), 'it ran on the free runner');
   assert.match(ran.out, /^1 passed, 1 failed, 0 skipped$/mu, 'the pass/fail line prints');
@@ -70,8 +70,8 @@ test('clause 1: pullboard test runs the folder commit on a free runner and print
   assert.ok(received, 'the runner was sent the folder commit');
 });
 
-test('clause 2: pullboard test on a free runner returns within the file run time plus 10 seconds [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling; the speed bar is the assertion below.
-  const { box } = runnerProject();
+test('clause 2: pullboard test on a free runner returns within the file run time plus 10 seconds [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling; the speed bar is the assertion below.
+  const { box } = await runnerProject();
   const own = Date.now();
   const alone = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/timed.test.js'], { cwd: box.web, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
   const ownMs = Date.now() - own;

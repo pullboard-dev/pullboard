@@ -27,7 +27,7 @@ import { RUNNERS } from '../../tests/fixtures/blueprint.js';
 import { FRAMEWORKS } from '../../tests/fixtures/blueprint.js';
 import { draftedTexts } from '../../tests/fixtures/blueprint.js';
 
-test('blueprint commands say what they did [S1,I1]', () => {
+test('blueprint commands say what they did [S1,I1]', async () => {
   // Every file's bytes outside Git's object store (seat timing and the command trace are per-command telemetry, not board state), and every board event, so a repeat add is proven to change nothing.
   const snapshot = (box) => {
     const files = readdirSync(box.repo, { recursive: true, withFileTypes: true })
@@ -51,7 +51,7 @@ test('blueprint commands say what they did [S1,I1]', () => {
   const unfiled = json(box, 'blueprint', 'starters', 'web-app');
   assert.deepEqual(unfiled.blueprint, { name: 'web-app', title: 'Web app', version: 1 });
   assert.deepEqual(unfiled.starters.map((starter) => [starter.title, starter.filed, starter.id]), PUBLISHED.items.map((item) => [item.title, false, null]));
-  const unfiledText = box.run('blueprint', 'starters', 'web-app');
+  const unfiledText = await box.runLocal('blueprint', 'starters', 'web-app');
   assert.equal(unfiledText.status, 0, unfiledText.stdout + unfiledText.stderr);
   for (const item of PUBLISHED.items) assert.ok(unfiledText.stdout.split('\n').includes(`  not filed  ${item.title}`), `${item.title} is listed as not filed:\n${unfiledText.stdout}`);
 
@@ -59,7 +59,7 @@ test('blueprint commands say what they did [S1,I1]', () => {
   const firstAdd = json(box, 'blueprint', 'add', 'web-app');
   assert.equal(firstAdd.items.length, PUBLISHED.items.length, 'the add files every starter');
   const before = snapshot(box);
-  const again = box.run('blueprint', 'add', 'web-app');
+  const again = await box.runLocal('blueprint', 'add', 'web-app');
   assert.equal(again.status, 0, again.stdout + again.stderr);
   assert.match(again.stdout, /^Web app \(version 1\) is already on this board; nothing added/mu, 'a second add says so');
   assert.match(again.stdout, /pullboard blueprint starters web-app/u, 'a second add points at its starters');
@@ -72,7 +72,7 @@ test('blueprint commands say what they did [S1,I1]', () => {
   // Once added, each starter names the item its add filed, never the unrelated same-title item.
   const filed = json(box, 'blueprint', 'starters', 'web-app').starters;
   assert.equal(filed.length, PUBLISHED.items.length, 'every starter is listed');
-  const filedText = box.run('blueprint', 'starters', 'web-app').stdout.split('\n');
+  const filedText = (await box.runLocal('blueprint', 'starters', 'web-app')).stdout.split('\n');
   for (const [index, item] of PUBLISHED.items.entries()) {
     const own = firstAdd.items.find((entry) => entry.key === item.key);
     assert.ok(own && own.id !== decoy.item_id, `${item.title} was filed by the add as its own item`);
@@ -121,7 +121,7 @@ test('blueprint commands say what they did [S1,I1]', () => {
   assert.doesNotMatch(reinit.stdout, /added the Web app blueprint/u);
 });
 
-test('blueprint starters reads its own version on a board added before starter links [S1,I1]', () => {
+test('blueprint starters reads its own version on a board added before starter links [S1,I1]', async () => {
   // An older Pullboard filed starters with no link note (review of #734, the v1/v2 upgrade counter): two versions of one
   // custom blueprint, one title and one starter. Read back with no links, each version must still find the item it filed.
   const box = freshBoard();
@@ -143,7 +143,7 @@ test('blueprint starters reads its own version on a board added before starter l
   }
 });
 
-test('blueprint add files a blueprint as drafts after an add stopped part way [S1,I1]', () => {
+test('blueprint add files a blueprint as drafts after an add stopped part way [S1,I1]', async () => {
   // A finished add on one board gives the exact rows; a second board is left where an add stops
   // after its rows and first starter: the rows and the under-way marker written, item 1 added.
   const reference = freshBoard();
@@ -164,7 +164,7 @@ test('blueprint add files a blueprint as drafts after an add stopped part way [S
   assert.equal(json(box, 'blueprint', 'add', 'web-app').items.length, 0, 'and then a repeat adds nothing');
 });
 
-test('clause 1: init --blueprint starts a board from a blueprint [I1,S1]', () => {
+test('clause 1: init --blueprint starts a board from a blueprint [I1,S1]', async () => {
   const waiting = PUBLISHED.rules.length + PUBLISHED.questions.length;
 
   // A known and a local blueprint are added together: init sets up the board once, and stores
@@ -237,7 +237,7 @@ function pendingQuestion(repo, ask) {
   return rows[0].text;
 }
 
-test('blueprint add files a blueprint as drafts and runs nothing it supplies [S1,I1]', () => {
+test('blueprint add files a blueprint as drafts and runs nothing it supplies [S1,I1]', async () => {
   // A starter's check is stored on the item, but no check baseline starts: add executes nothing
   // from a blueprint, and says so. A blueprint is never read from a URL.
   const box = freshBoard({ gate: 'true' });
@@ -253,16 +253,16 @@ test('blueprint add files a blueprint as drafts and runs nothing it supplies [S1
   assert.equal(item.item_check_baseline ?? null, null, 'no check baseline was started');
   assert.equal(existsSync(marker), false, 'the check command never ran');
   assert.deepEqual(added.checksNotRun, [id], 'the summary names the checks that were not run');
-  const text = box.run('blueprint', 'add', 'checked.json');
+  const text = await box.runLocal('blueprint', 'add', 'checked.json');
   assert.match(text.stdout, /already on this board/u);
   for (const url of ['https://pullboard.dev/blueprints/web-app.json', 'file:///tmp/web-app.json']) {
-    const refused = box.run('blueprint', 'add', url, '--json');
+    const refused = await box.runLocal('blueprint', 'add', url, '--json');
     assert.equal(refused.status, 1, refused.stdout + refused.stderr);
     assert.equal(JSON.parse(refused.stdout).error.code, 'BLUEPRINT_URL');
   }
 });
 
-test('a question defaults from the repo it lands in [S1,I1]', () => {
+test('a question defaults from the repo it lands in [S1,I1]', async () => {
   const runners = readBlueprint('test-reliability', import.meta.dirname).questions[0].choices;
   assert.ok(['node:test', 'Mocha', 'Vitest', 'Jest', 'pytest'].every((choice) => runners.includes(choice)), 'the test-runner question offers node:test and Mocha besides Vitest, Jest and pytest');
 
@@ -298,7 +298,7 @@ test('a question defaults from the repo it lands in [S1,I1]', () => {
   assert.equal(pendingQuestion(mocha.repo, 'Its runner is'), 'Its runner is: Jest. Choices: Vitest, Jest.', 'an answer outside the choices is never used');
 });
 
-test('a question with nothing to read has no default [S1,I1]', () => {
+test('a question with nothing to read has no default [S1,I1]', async () => {
   // No package.json at all, and one that names nothing a question asks about.
   const bare = emptyRepo();
   const started = bare.run('init', '--blueprint', 'test-reliability');
@@ -318,8 +318,8 @@ test('a question with nothing to read has no default [S1,I1]', () => {
   assert.equal(pendingQuestion(plain.repo, 'Its colour is'), 'Its colour is: (choose one). Choices: Red, Blue.');
 });
 
-test('starter items land in a build lane, never the coordinator lane [S1,I1]', () => {
-  const lanesOf = (box) => (JSON.parse(box.run('list', '--all', '--json').stdout).items ?? []).map((item) => item.item_lane);
+test('starter items land in a build lane, never the coordinator lane [S1,I1]', async () => {
+  const lanesOf = async (box) => (JSON.parse((await box.runLocal('list', '--all', '--json')).stdout).items ?? []).map((item) => item.item_lane);
   const configLanes = (box) => JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes ?? {};
 
   // A fresh init with a blueprint: init proposes the app lane and the starters are filed in it.
@@ -327,7 +327,7 @@ test('starter items land in a build lane, never the coordinator lane [S1,I1]', (
   const fresh = emptyRepo();
   const started = fresh.run('init', '--blueprint', 'web-app', '--verbose');
   assert.equal(started.status, 0, started.stdout + started.stderr);
-  assert.deepEqual(lanesOf(fresh), Array(PUBLISHED.items.length).fill('app'), 'init files every starter in the lane it proposes');
+  assert.deepEqual(await lanesOf(fresh), Array(PUBLISHED.items.length).fill('app'), 'init files every starter in the lane it proposes');
   assert.match(started.stdout, /starter items filed in the app lane, proposed above; add it with the command printed there/u, 'init says the lane is a proposal');
   assert.match(started.stdout, /then tell the person which lanes you made: pullboard lane add app --owns app\//u, 'init prints the command that accepts it');
   assert.deepEqual(Object.keys(configLanes(fresh)).filter((name) => name === 'app'), [], 'the proposed lane is not written');
@@ -351,7 +351,7 @@ test('starter items land in a build lane, never the coordinator lane [S1,I1]', (
   assert.equal(placedLanes[1], 'web', 'a starter naming a missing lane goes to the first lane pullboard lane add made');
   assert.equal(placedLanes[2], 'web', 'a blueprint\'s coordinator lane is never used');
   assert.deepEqual(placed.proposedLanes, [], 'nothing is proposed when a build lane exists');
-  assert.deepEqual(lanesOf(laned).filter((lane) => lane === 'coordinator'), [], 'no starter lands in the coordinator lane');
+  assert.deepEqual((await lanesOf(laned)).filter((lane) => lane === 'coordinator'), [], 'no starter lands in the coordinator lane');
 
   // A blueprint that names an existing lane owning no folders, a verifier lane: that lane builds
   // nothing, so every starter goes to the first build lane, and add says so.
@@ -362,7 +362,7 @@ test('starter items land in a build lane, never the coordinator lane [S1,I1]', (
     items: PUBLISHED.items.map((item) => ({ ...item, lane: 'tests' })) })}\n`);
   const moved = verifier.run('blueprint', 'add', 'verifier-lane.json');
   assert.equal(moved.status, 0, moved.stdout + moved.stderr);
-  assert.deepEqual(lanesOf(verifier), Array(PUBLISHED.items.length).fill('web'), 'a starter naming a lane that owns no folders goes to the first build lane');
+  assert.deepEqual(await lanesOf(verifier), Array(PUBLISHED.items.length).fill('web'), 'a starter naming a lane that owns no folders goes to the first build lane');
   assert.match(moved.stdout, /asked for the tests lane, which owns no folders, so (?:it is|they are) filed in the web lane/u, 'add says the named lane was not used');
 
   // A board with no build lane, only a verifier lane that owns no folders: blueprint add proposes
@@ -381,7 +381,7 @@ test('starter items land in a build lane, never the coordinator lane [S1,I1]', (
   assert.match(said.stdout, /then tell the person which lanes you made: pullboard lane add app --owns app\//u, 'blueprint add prints the command that accepts it');
 });
 
-test('init takes a product and an architecture blueprint together [S1,I1]', () => {
+test('init takes a product and an architecture blueprint together [S1,I1]', async () => {
   const product = bundled('web-app');
   const architecture = bundled('serverless');
   // A practice blueprint that shares one rule with web-app and one question with serverless.
@@ -394,7 +394,7 @@ test('init takes a product and an architecture blueprint together [S1,I1]', () =
   const practiceFile = join(box.dir, 'house-rules.json');
   writeFileSync(practiceFile, `${JSON.stringify(practice)}\n`);
 
-  const started = box.run('init', '--blueprint', 'web-app', '--blueprint', 'serverless', '--blueprint', practiceFile, '--json');
+  const started = await box.runLocal('init', '--blueprint', 'web-app', '--blueprint', 'serverless', '--blueprint', practiceFile, '--json');
   assert.equal(started.status, 0, started.stdout + started.stderr);
   const result = JSON.parse(started.stdout);
   assert.deepEqual(result.blueprints.map((entry) => entry.name), ['web-app', 'serverless', 'house-rules'], 'every blueprint lands, in the order given');
@@ -426,7 +426,7 @@ test('init takes a product and an architecture blueprint together [S1,I1]', () =
   runFixtureGit(['commit', '-q', '-m', `feat(init): initialize blueprint fixture [${sharedRule}]`], { cwd: box.repo, env: box.env });
 
   // Starter items keep their blueprint name, and the shared starter cites the row already drafted.
-  const items = JSON.parse(box.run('list', '--json').stdout).items ?? [];
+  const items = JSON.parse((await box.runLocal('list', '--json')).stdout).items ?? [];
   assert.equal(items.length, product.items.length + architecture.items.length + practice.items.length, 'every starter is filed once');
   const owner = (item) => {
     const note = json(box, 'show', String(item.item_id)).thread

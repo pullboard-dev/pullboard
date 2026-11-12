@@ -5,7 +5,7 @@ export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTri
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/io/main/verdict.js";
-export { testClosures, codeMapGraph, cliReachRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
+export { testClosures, codeMapGraph, cliReachRows, keylessRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
 export { CLI_FRONT_DOORS, packageCliReach } from "./src/logic/reach.js";
 export { packageBranchCoverage } from "./src/io/coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/io/browser/admission.js";
@@ -30,6 +30,7 @@ export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVEN
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
+export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
 export { guiSession } from "./src/io/gui/session.js";
@@ -60,7 +61,7 @@ export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTe
 export { refreshTestPlacement } from "./src/io/test/placement/report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/io/test/placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/io/test/store.js";
-export { runFullSuite, testFiles, runTestFiles, inCleanCheckout } from "./src/io/test/run.js";
+export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNotice } from "./src/io/test/run.js";
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
 export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/io/test/value/timing.js";
@@ -95,6 +96,7 @@ export {
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
 export { changedStaticFailures, stagedHookFailures } from './src/io/changed/static.js';
 export { STATIC_CHECKS, runStaticRegistry } from './src/io/static/check/registry.js';
+export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
@@ -102,7 +104,7 @@ export { keepClaimsAlive } from "./src/io/keepalive.js";
 export { gateHealthLines } from "./src/logic/health.js";
 export { gateHealthReport } from "./src/io/health.js";
 export { maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';
-export { firstChangedInput, recordInputParts } from './src/io/test/account.js';
+export { firstChangedInput, recordInputParts, ledgerFromOutput } from './src/io/test/account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/io/test/shards.js";
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -46,13 +47,18 @@ function endWithoutVerdict(box, id) {
   } finally { board.db.close(); }
 }
 
+/** Remove the item's stored review packets, as the live no-verdict boards had none (#3448). */
+function dropPackets(box, id) {
+  rmSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id)), { recursive: true, force: true });
+}
+
 /** Run one health sweep as the coordinator, from the main checkout; no command by the item's seat runs. */
 function sweep(box) {
   const run = box.run(box.repo, 'sentinel', 'run', '--health-only');
   assert.equal(run.code, 0, `${run.err}\n${run.out}`);
 }
 
-test('clause 1: a hand-off that finishes with no verdict sends the item back [C7,V4]', async t => {
+test('clause 1: a hand-off that finishes with no verdict and no review packet goes back; one with a packet stays [C7,V4]', async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -80,6 +86,11 @@ test('clause 1: a hand-off that finishes with no verdict sends the item back [C7
   await helpers.waitFor(finished, 'the queued gate finishes and the item is submitted', 120000); // budget: worker completion ceiling, no timing assertion.
   const builder = state(box, id).item.item_built_by;
   endWithoutVerdict(box, id);
+  // A stored packet at head (a gate red only in main's named cases stores one) keeps the item in review (#5774).
+  sweep(box);
+  assert.equal(state(box, id).inReview, true, 'a head with a stored review packet stays in review');
+  assert.equal(state(box, id).reopens.length, 0, 'the sweep returns nothing while a packet is stored');
+  dropPackets(box, id);
   const stranded = state(box, id);
   assert.equal(noVerdictHandoff(stranded.job, stranded.item), true, 'the fixture reproduces the live no-verdict end state');
   assert.equal(stranded.inReview, true, 'before the sweep the item sits in review with no packet');
@@ -104,4 +115,5 @@ test('a green hand-off and a submitted item at a newer head are never returned [
   assert.equal(noVerdictHandoff({ state: 'submitted', gateGreen: false, submitted: 'b'.repeat(40) }, item), false);
   assert.equal(noVerdictHandoff({ state: 'submitted', gateGreen: false, submitted: item.item_commit }, { ...item, item_status: 'open' }), false);
   assert.equal(noVerdictHandoff({ state: 'submitted', gateGreen: false, submitted: item.item_commit }, item), true);
+  assert.equal(noVerdictHandoff({ state: 'submitted', gateGreen: false, submitted: item.item_commit }, item, true), false, 'a stored packet keeps it');
 });

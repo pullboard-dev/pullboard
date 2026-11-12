@@ -137,9 +137,9 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
   const box = machine();
   const alpha = project(box, 'alpha');
   const beta = project(box, 'beta');
-  box.run(alpha.repo, 'add', 'web', 'Alpha-only first item', '--specs', 'G1', '--criterion', 'shown');
-  box.run(alpha.repo, 'add', 'web', 'Alpha-only second item', '--specs', 'G2', '--criterion', 'shown');
-  box.run(beta.repo, 'add', 'web', 'Beta-only item', '--specs', 'G1', '--criterion', 'shown');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Alpha-only first item', '--specs', 'G1', '--criterion', 'shown');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Alpha-only second item', '--specs', 'G2', '--criterion', 'shown');
+  await box.inProcess(beta.repo, 'add', 'web', 'Beta-only item', '--specs', 'G1', '--criterion', 'shown');
   let view, profile, chrome;
   /** Read only the rendered project names and visible board content, including the status counts. */
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify({
@@ -220,7 +220,7 @@ test('the page never tells a person with boards to run init while the list loads
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for loading-state checks.');
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Alpha waiting item', '--specs', 'G1', '--criterion', 'shown');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Alpha waiting item', '--specs', 'G1', '--criterion', 'shown');
   const empty = machine();
   let view, bare, profile, chrome;
   // What a person reads now: the page's visible text, as laid out, so a hidden card never counts.
@@ -285,15 +285,15 @@ test('the page never tells a person with boards to run init while the list loads
 test('the sidebar lists every project and what needs the person [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   build(box, alpha, 1, 'greeting.html');
   sendBack(box, alpha, 1, 'no greeting on the page');
   build(box, alpha, 2, 'farewell.html');
   const beta = project(box, 'beta', `${SPEC}- G3 [pending] Should the page greet in French?\n`);
-  box.run(beta.repo, 'hold', 'web', '--reason', 'G3 is open');
+  await box.inProcess(beta.repo, 'hold', 'web', '--reason', 'G3 is open');
   const gamma = project(box, 'gam<i>ma');
-  box.run(gamma.repo, 'add', 'web', 'Gamma page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(gamma.repo, 'add', 'web', 'Gamma page', '--specs', 'G1', '--criterion', 'renders');
   const view = await startView(box);
   try {
     const page = await openPage(view);
