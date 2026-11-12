@@ -95,7 +95,7 @@ async t => {
   box.git(box.repo, 'commit', '-q', '-am', 'test: edit mixed [G1]');
   const { board } = await pullQueue(t, box, {});
   recordMainTestReceipt(box.repo, { main: later, file: 'web/main.test.js', verdict: 'red', job: 'job-later' });
-  recordMainTestReceipt(box.repo, { main: later, file: 'web/mixed.test.js', verdict: 'red', job: 'job-later-2' });
+  recordMainTestReceipt(box.repo, { main: box.git(box.repo, 'rev-parse', 'HEAD').trim(), file: 'web/mixed.test.js', verdict: 'red', job: 'job-later-2' });
   recordMainTestReceipt(box.repo, { main: later, file: 'web/third.test.js', verdict: 'green', job: 'job-later-3' });
   const ask = cases => criterionMainReceipts({ root: box.repo, db: board.db, main: first, cases });
   const same = ask([{ file: 'web/main.test.js', name: 'main case' }]);
@@ -106,7 +106,7 @@ async t => {
   // A case that passes on that main stays new.
   const passes = ask([{ file: 'web/third.test.js', name: 'main case' }]);
   assert.deepEqual([passes.classes[0].owner, passes.classes[0].own], ['candidate', ['main case']], JSON.stringify(passes.classes));
-  // A file changed between the two mains has no receipt for this main's content.
+  // A file changed since this main has no receipt for this main's content, even where a later main holds one.
   const changed = ask([{ file: 'web/mixed.test.js', name: 'main case' }]);
   assert.equal(changed.classes[0].owner, 'unknown', JSON.stringify(changed.classes));
   assert.equal(jobsOf(board.db, { kind: 'main-test' }).length, 1, 'the changed file queues its own main-test job');
