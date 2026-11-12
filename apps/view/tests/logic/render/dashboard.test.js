@@ -230,3 +230,16 @@ test('Dashboard shows a compact pipeline strip of seven stages that link to Item
   const empty = dashboardHtml({ ...model, stageCounts: Object.fromEntries(keys.map(key => [key, 0])) });
   assert.equal([...section(empty, 'Pipeline').matchAll(/<b>0<\/b>/gu)].length, 7, 'a stage with no items still shows 0');
 });
+
+test('Dashboard strip counts a verified item in a live landing batch as Landing, like Items Pipeline [N38]', () => {
+  const input = dashboardData({ populated: true });
+  const open = input.project.items.find(item => item.status === 'open');
+  const verified = { ...open, status: 'verified', merged: false };
+  const items = [verified, ...input.project.items.filter(item => item.id !== open.id)];
+  const before = dashboardModel({ ...input.project, items, landingBatches: [] }, input.events, { now: input.clockBase, complete: true }).stageCounts;
+  const batch = { id: 'live', state: 'running', startedAt: input.clockBase - 60_000, items: [{ id: verified.id }] };
+  const after = dashboardModel({ ...input.project, items, landingBatches: [batch] }, input.events, { now: input.clockBase, complete: true }).stageCounts;
+  assert.equal(after.landing, before.landing + 1, 'the batched item counts as Landing');
+  assert.equal(after.verified, before.verified - 1, 'and no longer as Verified');
+  assert.equal(Object.values(after).reduce((sum, count) => sum + count, 0), Object.values(before).reduce((sum, count) => sum + count, 0), 'no item is lost or counted twice');
+});
