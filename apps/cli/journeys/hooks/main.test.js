@@ -591,7 +591,7 @@ for (const channel of ['stderr', 'stdout', 'matching-output']) {
     writeFileSync(executable, `#!/bin/sh\nif [ "$1" = --version ]; then ${output}; exit 7; fi\nprintf '%s\\n' 'RULE_RAN' >&2\nexit 0\n`);
     chmodSync(executable, 0o755);
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-    for (const hook of ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push']) {
+    for (const hook of ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit']) {
       const file = join(box.root, `try-${hook}`);
       writeFileSync(file, hookScript(hook, '0.9.0'));
       const result = spawnSync('/bin/sh', [file, join(box.root, 'MESSAGE')], { cwd: box.root, env, input: 'private ref records\n', encoding: 'utf8', timeout: 6000 });

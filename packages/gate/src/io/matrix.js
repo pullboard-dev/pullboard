@@ -62,7 +62,7 @@ export const HOPS = Object.freeze([
     live: report => cause(report, 'SUBMIT_HANDOFF_DEAD') },
   { id: 'live-driver', stage: 'Gate', hop: 'live driver is never declared dead', harness: 'live-driver', fix: '515d062720',
     invariant: 'A sweeper never declares a live, same-incarnation driver dead for a lapsed lease alone.' },
-  { id: 'analysis-on-runner', stage: 'Gate', hop: 'analysis job on runner', harness: null,
+  { id: 'analysis-on-runner', stage: 'Gate', hop: 'analysis job on runner', harness: 'analysis-on-runner',
     invariant: 'Authorization, cells, doctrine and static run as one runner job and return their artifact.',
     live: report => phase(report, 'remote-analysis', null) },
   { id: 'runner-admission', stage: 'Gate', hop: 'runner admission', harness: 'ready-budget',
