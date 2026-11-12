@@ -1,6 +1,9 @@
 /** The environment every runner job's processes get: runner-owned values, never the host's [C7]. */
 import { join } from 'node:path';
 
+/** How many test workers a pulled job may use: its share of the runner's cores, set by the serve that runs it [P7,#5919]. */
+export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';
+
 /**
  * A minimal environment from runner-owned values, excluding caller credentials and markers.
  *

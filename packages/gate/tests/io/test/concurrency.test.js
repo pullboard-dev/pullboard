@@ -8,6 +8,7 @@ import { performanceCores } from '../../../src/io/test/concurrency.js';
 import { PULLED_JOB_ENV } from '../../../src/io/test/concurrency.js';
 import { testConcurrency } from '../../../src/io/test/concurrency.js';
 import { isolateTestMachine } from '../../../src/io/test/isolation.js';
+import { JOB_WORKERS_ENV } from '../../../../kernel/light.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
@@ -41,4 +42,12 @@ test('#5790 clause 1: a test process never inherits the pulled job marker, so a 
   const env = isolateTestMachine({ [PULLED_JOB_ENV]: '1', KEEP: 'yes' }, sandbox);
   assert.equal(env[PULLED_JOB_ENV], undefined);
   assert.equal(env.KEEP, 'yes');
+});
+
+test('#5919 clause 1: a pulled job whose serve set its worker share spreads its files over that share, at least 1 [P7]', t => {
+  assert.equal(executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '3' }), 3);
+  assert.equal(executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '0' }), availableParallelism(), 'a share below 1 is no share');
+  assert.equal(executionCores({ [JOB_WORKERS_ENV]: '3' }), performanceCores(), 'the share applies only inside a pulled job');
+  assert.equal(testConcurrency(project(t), executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '3' })).files, 3);
+  assert.equal(isolateTestMachine({ [JOB_WORKERS_ENV]: '3' }, project(t))[JOB_WORKERS_ENV], undefined, 'a test process never inherits the share');
 });
