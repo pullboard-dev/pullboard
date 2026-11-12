@@ -182,6 +182,7 @@
     "apps/cli/journeys/roadmap/cockpit/phone.test.js->apps/cli/tests/fixtures/cockpit/roadmap.js": 1,
     "apps/cli/journeys/roadmap/cockpit/refs.test.js->apps/cli/tests/fixtures/cockpit/harness.js": 1,
     "apps/cli/journeys/roadmap/cockpit/refs.test.js->apps/cli/tests/fixtures/cockpit/roadmap.js": 1,
+    "apps/cli/journeys/roadmap/cockpit/refs.test.js->apps/cli/tests/fixtures/cockpit/machine.js": 1,
     "apps/cli/journeys/roadmap/cockpit/releases.test.js->apps/cli/tests/fixtures/cockpit/harness.js": 1,
     "apps/cli/journeys/roadmap/cockpit/releases.test.js->apps/cli/tests/fixtures/cockpit/roadmap.js": 1,
     "apps/cli/journeys/roadmap/cockpit/shipping.test.js->apps/cli/tests/fixtures/cockpit/harness.js": 1,
