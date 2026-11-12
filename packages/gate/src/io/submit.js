@@ -224,8 +224,8 @@ export function startCriterionRun(root, { check, proofContext, onFailure, trunk,
     armed = lease;
     stamp();
     const run = await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true, signal: controller.signal });
-    // timedOut is visible to the slot, which asks another runner for the check itself instead of rerunning the proof.
-    return { run, lease, timedOut: run.timedOut === true };
+    // A timed-out check is the check's red and is never retried on another runner.
+    return { run, lease };
   }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, signal: controller.signal, ...runnerAdmission });
   // An abandoned early run must not surface as an unhandled rejection; the gate that awaits it still sees the error.
   promise.catch(() => {});
