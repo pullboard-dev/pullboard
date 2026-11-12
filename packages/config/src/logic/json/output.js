@@ -74,11 +74,11 @@ export function commandName(argv) {
   return flags.find(arg => !arg.startsWith('-')) ?? null;
 }
 
-/** Preserve diagnostic reports, byte-oriented exports and long-running protocols; interactive commands own one final action. */
+/** Preserve diagnostic reports, byte-oriented exports, search results and long-running protocols; interactive commands own one final action. */
 export function interactiveNext(command, argv = []) {
   // Rigor's plain diagnostic report owns its body; drafting and quality commands still guide an action.
   if (command === 'rigor' && !argv.some(arg => ['draft', 'quality', '--draft-splits', '--draft-quality'].includes(arg.split('=')[0]))) return false;
-  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health', 'maintenance'].includes(command);
+  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health', 'maintenance', 'search'].includes(command);
 }
 
 /** Choose one immediate action from acknowledged output, without reserving work or guessing a verdict. */
@@ -186,6 +186,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   let caller = 'unknown';
   let callerRoot;
   let written = false;
+  // Set when a command streamed its own document to stdout in --json mode (export), so no envelope follows it.
+  let streamed = false;
   const messages = [];
   const diagnostics = [];
   const emit = (target, lines, line) => {
@@ -242,6 +244,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     }
     if (!enabled || written) return;
     written = true;
+    // A command that wrote its whole document itself owns stdout: a second, empty envelope would break parsers.
+    if (streamed && !refusal && !code && result === undefined && !messages.length && !diagnostics.length && !remote) return;
     let document;
     if (refusal || (code && result === undefined)) {
       const text = refusal?.message ?? [...diagnostics, ...messages].join('\n');
@@ -282,7 +286,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     ...streams,
     recordedMove: false,
     physicalStdoutIsTTY: Boolean(streams.stdout.isTTY),
-    stdout: { get isTTY() { return enabled ? false : streams.stdout.isTTY; }, write: (text) => streams.stdout.write(text) },
+    stdout: { get isTTY() { return enabled ? false : streams.stdout.isTTY; }, write: (text) => { if (enabled) streamed = true; return streams.stdout.write(text); } },
     say,
     err: (line) => emit(streams.stderr, diagnostics, line),
     result: (value) => { result = value; },

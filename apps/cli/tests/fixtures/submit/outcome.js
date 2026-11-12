@@ -198,6 +198,8 @@ async function remote(box) {
   const bin = join(box.directory, 'remote-bin'), worker = join(box.directory, 'worker'), home = join(box.directory, 'worker-home');
   const machineHome = join(home, '.pullboard'), requests = join(box.directory, 'requests.jsonl');
   for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
+  // The worker side runs the controller too, so its machine home pins controller dispatch [P7].
+  fixtureMachineSettings(machineHome, { gate: { runnerDispatch: 'controller' } });
   box.env.PATH = bin + ':' + box.env.PATH;
   installSshStandIn({ bin, worker, home, machineHome, requests });
   let result = await local(box, box.root, 'runner', 'add', HOST, '--slots', '4', '--browser', '2');

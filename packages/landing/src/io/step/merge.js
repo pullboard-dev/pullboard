@@ -50,6 +50,18 @@ async function resetDirtyOnce(state) {
   throw new Refused('LAND_DIRTY', `landing batch ${state.batch.id} left its worktree dirty again after one reset; it is blocked and will not retry; inspect ${state.batch.root}`);
 }
 
+/**
+ * The verdict projector for one batch base, shared by every merge group of the batch.
+ * Why: its Git answers (ancestry, first-parent history, changed files) are fixed by the immutable base, so a bisection's
+ * ten merge groups asked Git the same questions for every item again; item state is still read from the board each time [C7].
+ */
+function baseVerdicts(state, base) {
+  state.baseVerdicts ??= new Map();
+  if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }));
+  return state.baseVerdicts.get(base);
+}
+
 /** Merge one ordered group from the immutable batch base, preserving each first-containing commit. */
 export async function mergeGroup(state, items) {
   await state.checkLease();
@@ -90,7 +102,7 @@ export async function mergeGroup(state, items) {
     const checked = landedCommit(item);
     if (!proven && checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
     requireLandingCompanions(batch.root, state.board, [item], checked);
-    const stale = proven ? null : verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
+    const stale = proven ? null : baseVerdicts(state, batch.base).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     if (composed) {
       merged.push({ id: item.item_id, commit: proven ? checked : item.item_commit, ...(checked !== (proven ? checked : item.item_commit) ? { reviewedCommit: checked } : {}), merge: composed.merges.get(item.item_id) });
