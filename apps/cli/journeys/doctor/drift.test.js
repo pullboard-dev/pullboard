@@ -107,24 +107,24 @@ test('clause 1: a board with foreign drift gains the additive tables but keeps i
 /** A committed private project whose board the production CLI opens in-process, as a released CLI does. */
 function releaseBox() {
   const box = e2e.project('true', undefined, { withWorktree: false });
-  const run = (...args) => runCliInProcess(args, { cwd: box.repo, env: box.env });
-  return { run, file: join(box.repo, '.git', 'pullboard', 'board.sqlite') };
+  const command = (...args) => runCliInProcess(args, { cwd: box.repo, env: box.env });
+  return { command, file: join(box.repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
 test('clause 2: pullboard status restores changed pullboard triggers, and doctor then reports none changed [M3,A5]', async () => {
-  const box = releaseBox();
-  const created = await box.run('status');
+  const project = releaseBox();
+  const created = await project.command('status');
   assert.equal(created.status, 0, created.stderr || created.stdout);
-  driftLikeWebsite(box.file);
-  const found = await box.run('doctor');
+  driftLikeWebsite(project.file);
+  const found = await project.command('doctor');
   for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard status`, 'u'));
 
-  const status = await box.run('status');
+  const status = await project.command('status');
   assert.equal(status.status, 0, status.stderr || status.stdout);
-  const repaired = observe(box.file);
+  const repaired = observe(project.file);
   for (const { name, sql } of storeTriggers()) assert.equal(repaired.triggers.get(name), sql, `${name} is this code's guard again`);
   assert.equal(repaired.standing, 'current');
-  const doctor = await box.run('doctor');
+  const doctor = await project.command('doctor');
   assert.doesNotMatch(doctor.stdout, /has changed/u, doctor.stdout);
   assert.doesNotMatch(doctor.stdout + doctor.stderr, /different shape/u);
 });
