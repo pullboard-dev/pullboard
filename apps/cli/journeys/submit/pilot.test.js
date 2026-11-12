@@ -38,13 +38,13 @@ function submitController(box, id) {
 test('clause 1: a pilot naming one item queues only that item; the others and every submit after it is off take the controller path [P7]', async t => {
   const box = await pullProject(t, 3, { gate: { runnerDispatch: 'controller' } });
   const [piloted, other, later] = box.ids;
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', pullPilot: { items: [piloted, later] } } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller', pullPilot: { items: [piloted, later] } } });
   const queued = submitOne(box, piloted);
   assert.equal(queued.document.queued, true, 'the piloted item queued its whole gate as one job');
   assert.deepEqual(gateJobs(box, piloted).map(row => [row.candidate, row.step]), [[queued.commit, 'offered']]);
   submitController(box, other);
   assert.deepEqual(gateJobs(box, other), [], 'no gate job row for the controller submit');
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller' } });
   submitController(box, later);
   assert.deepEqual(gateJobs(box, later), []);
 });
@@ -53,7 +53,7 @@ test('clause 1: turning the pilot off drains its queued and leased gate jobs to 
 async t => {
   const box = await pullProject(t, 2, { gate: { runnerDispatch: 'controller' } });
   const [queued, leased] = box.ids;
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', pullPilot: { items: [queued, leased] } } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller', pullPilot: { items: [queued, leased] } } });
   submitOne(box, queued);
   const leasedSubmit = submitOne(box, leased);
   // The board host reads this machine's settings, as the board API's jobs route does.
@@ -65,7 +65,7 @@ async t => {
   // The leased job: a runner holds it when the pilot is turned off.
   const { claim } = await call({ action: 'claim', runner: 'r-leased', capabilities: ['node22'], kinds: ['gate'] });
   assert.equal(claim.item, queued, 'the oldest job is leased first');
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller' } });
   assert.equal(boardQueueMode(board.db, jobQueueMode), 'pull', 'off, the queue still serves the jobs it holds');
   assert.equal((await call({ action: 'renew', job: claim.job, runner: 'r-leased', token: claim.token })).renewed, true, 'the lease renews');
   const red = await call({ action: 'receipt', job: claim.job, runner: 'r-leased', token: claim.token, receipt: { status: 1, gate: { green: false, error: 'fixture red' } } });
