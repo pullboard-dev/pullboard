@@ -1,4 +1,4 @@
-/** A land job's proof reads only the board ledger: an unrelated main move reruns nothing, a moved import reruns its test [P7]. */
+/** A land job's proof reads only the board ledger: an unrelated main move reruns nothing, a moved import reruns its test, main's red is a lookup [P7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -26,7 +26,9 @@ const RUNNER = `import { spawnSync } from 'node:child_process';
 import { planTestActions } from ${JSON.stringify(GATE)};
 const files = process.argv.slice(2);
 const plan = await planTestActions(process.cwd(), files, { fullSuite: false, landing: true, listFiles: () => files });
-if (!plan.done) process.exitCode = spawnSync(process.execPath, ['--test', ...plan.args], { stdio: 'inherit' }).status ?? 1;
+// A nested node --test that inherits NODE_TEST_CONTEXT reports to an absent parent and exits 0 on a red file.
+const { NODE_TEST_CONTEXT, ...env } = process.env;
+if (!plan.done) process.exitCode = spawnSync(process.execPath, ['--test', ...plan.args], { stdio: 'inherit', env }).status ?? 1;
 `;
 const INHERITED = /^PULLBOARD_(TEST_(ACTIONS|STAGE|REUSE|RESULT_\w+)|LEDGER_HITS)$/u;
 
@@ -52,8 +54,8 @@ function project(t) {
   return { root, dev, remote, seed, put, commit };
 }
 
-/** The item's gate run at its own commit, recorded as the board's ledger rows, as a posted gate receipt writes them. */
-async function proveItem(board, box, commit) {
+/** The item's gate run at its own commit, recorded as the board's ledger rows, as a posted gate receipt writes them; `red` files record as fail. */
+async function proveItem(board, box, commit, red = []) {
   git(box.dev, ['checkout', '-q', '--detach', commit]);
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !INHERITED.test(name))), PULLBOARD_TEST_REUSE: 'record',
     PULLBOARD_TEST_RESULT_STORE: join(box.root, 'gate-store') };
@@ -61,13 +63,13 @@ async function proveItem(board, box, commit) {
   await planTestActions(box.dev, files, { fullSuite: false, listFiles: () => files, env, write: text => written.push(text) });
   const ledger = phaseLedger(written.join(''), { status: 0 });
   assert.equal(ledger?.files.length, 2, `the gate run printed keyed frames: ${written.join('').slice(0, 2000)}`);
-  const rows = ledger.files.map(([file, inputKey, context, status]) => ({ file, inputKey, command: 'proof', context: ledger.contexts[context], status }));
+  const rows = ledger.files.map(([file, inputKey, context, status]) => ({ file, inputKey, command: 'proof', context: ledger.contexts[context], status: red.includes(file) ? 'fail' : status }));
   assert.equal(recordTestResults(board.db, { receipt: `gate:${commit.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit, rows }), 2);
 }
 
 /** Offer the land job on the board and let a runner with an empty store take it; return its receipt and wall time. */
-async function land(board, box, entry, name) {
-  offerLandingJob(board.db, { items: [entry], expect: box.seed, config: { trunk: { remote: box.remote }, affectedTests: 'node bin/proof.mjs' } });
+async function land(board, box, entry, name, expect = box.seed) {
+  offerLandingJob(board.db, { items: [entry], expect, config: { trunk: { remote: box.remote }, affectedTests: 'node bin/proof.mjs' } });
   const started = Date.now();
   const taken = await takeLandingJob({ call: body => jobQueueCall(board.db, body, { mode: 'pull' }), runner: name, workdir: join(box.root, 'runners', name) });
   return { receipt: taken.receipt, ms: Date.now() - started };
@@ -106,4 +108,40 @@ test('clause 1: a test whose import closure main changed misses the ledger and r
   const { receipt } = await land(board, box, { id: 2, commit: item, ref: 'refs/heads/item/2' }, 'r-near');
   assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
   assert.deepEqual(receipt.proof, { files: 2, reused: 1, ran: 1 }, 'only the test reaching main\'s change reran');
+});
+
+/** Main breaks test/b.test.js and its gate records the fail row at main's commit; returns main's commit. */
+async function redMain(board, box) {
+  git(box.dev, ['checkout', '-q', '--detach', box.seed]);
+  box.put('src/b.js', 'export const b = 3; // main red\n');
+  const main = box.commit('fix(core): main breaks b [P7]');
+  git(box.dev, ['push', '-q', 'origin', `${main}:refs/heads/main`]);
+  await proveItem(board, box, main, ['test/b.test.js']);
+  return main;
+}
+
+test('clause 1: a candidate whose only red file has a fail row at main\'s identical inputKey lands; that red is charged to main [P7]', { timeout: 120_000 }, async t => {
+  const box = project(t);
+  const board = cellBoard(t, ':memory:');
+  const main = await redMain(board, box);
+  box.put('src/a.js', 'export const a = 1; // item 3\n');
+  const item = box.commit('feat(core): item 3 [P7]');
+  git(box.dev, ['push', '-q', 'origin', `${item}:refs/heads/item/3`]);
+  await proveItem(board, box, item, ['test/b.test.js']);
+  const { receipt } = await land(board, box, { id: 3, commit: item, ref: 'refs/heads/item/3' }, 'r-main', main);
+  assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
+  assert.deepEqual(receipt.proof, { files: 2, reused: 1, ran: 0, mainRed: 1 }, 'b is main\'s red at its identical inputKey, so it never ran and held nothing');
+});
+
+test('clause 1: a red file whose inputKey differs from main\'s fail row is not charged to main and holds the landing [P7]', { timeout: 120_000 }, async t => {
+  const box = project(t);
+  const board = cellBoard(t, ':memory:');
+  const main = await redMain(board, box);
+  box.put('src/b.js', 'export const b = 4;\n');
+  const item = box.commit('feat(core): item 4 [P7]');
+  git(box.dev, ['push', '-q', 'origin', `${item}:refs/heads/item/4`]);
+  await proveItem(board, box, item, ['test/b.test.js']);
+  const { receipt } = await land(board, box, { id: 4, commit: item, ref: 'refs/heads/item/4' }, 'r-own', main);
+  assert.equal(receipt.outcome, 'red', `the item changed b's inputs, so its red is its own: ${JSON.stringify(receipt)}`);
+  assert.equal(receipt.proof?.mainRed, undefined, 'nothing was charged to main');
 });
