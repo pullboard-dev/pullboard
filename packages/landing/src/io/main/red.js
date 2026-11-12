@@ -88,7 +88,7 @@ function testPath(root, value) {
 }
 
 /** Unique failed files named by TAP/JUnit metadata or Node's native spec failure footer. */
-function failingFiles(root, profile, output) {
+export function failingFiles(root, profile, output) {
   const files = new Set();
   for (const test of profile?.tests ?? []) if (test.passed === false) {
     const path = testPath(root, test.file);

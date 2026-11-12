@@ -119,8 +119,16 @@ try {
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
   for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
+  // The change against main, read once: static and doctrine judge only its paths, and a green part is kept per head [5814].
+  const change = typeof gate.analysisChange === 'function' ? gate.analysisChange(root, input.main, input.source) : null;
+  const scope = change ? gate.analysisScope(change.changes) : { full: true };
+  const keyOf = (kind, definition, raw, mainPaths) => change ? gate.analysisKey(root, { kind, main: input.main, source: input.source, raw, definition, mainPaths }) : null;
+  if (scope.full && scope.reason) result.notes.push('analysis: whole tree, since ' + scope.reason);
+  // Only a narrowed doctrine hold is kept: a whole-tree rule's answer also reads the rest of main, which moves.
+  const doctrineKey = input.doctrine?.options?.fast ? keyOf('doctrine', { ...input.doctrine.options, mainCommit: null, commit: null }, change?.mainRaw, [input.doctrine.options.practice ?? 'DOCTRINE.md']) : null, doctrineKept = doctrineKey ? gate.readAnalysisMemo(doctrineKey) : null;
+  if (doctrineKept) result.notes.push('doctrine: reused the green hold kept for this head');
   // The doctrine hold runs beside the other parts in its own child: it may load the candidate's check scripts, never into this process.
-  const doctrineRun = selected('doctrine') && input.doctrine ? step('doctrine', () => new Promise((resolve, reject) => {
+  const doctrineRun = selected('doctrine') && input.doctrine && doctrineKept ? Promise.resolve({ rules: doctrineKept.result }) : selected('doctrine') && input.doctrine ? step('doctrine', () => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', input.doctrine.entry], { cwd: root, stdio: ['pipe', 'pipe', 'inherit'] });
     const chunks = [];
     child.stdout.on('data', chunk => chunks.push(chunk));
@@ -150,11 +158,16 @@ try {
   }));
   if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
   // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
-  const staticRun = selected('static') && input.staticChecks ? part('static', () => step('static', () => new Promise(resolve => {
-    const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
+  // They are handed the changed paths when no whole-repo input changed, and a green run is kept for this head [5814].
+  const staticKey = input.staticChecks ? keyOf('static', input.staticChecks, change?.raw) : null, staticKept = staticKey ? gate.readAnalysisMemo(staticKey) : null;
+  if (staticKept) result.notes.push('static checks: reused the green run kept for this head');
+  const staticEnv = scope.full ? process.env : { ...process.env, [gate.STATIC_SCOPE_ENV]: JSON.stringify(scope.files) };
+  const staticRun = selected('static') && input.staticChecks && !staticKept ? part('static', () => step('static', () => new Promise(resolve => {
+    const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, env: staticEnv, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
     child.stdout.on('data', chunk => chunks.push(chunk)); child.stderr.on('data', chunk => chunks.push(chunk));
     child.on('error', error => resolve({ error })); child.on('close', status => resolve({ status, output: Buffer.concat(chunks).toString('utf8') }));
-  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed')); }))) : null;
+  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed'));
+    if (staticKey) gate.writeAnalysisMemo(staticKey, { green: true }); }))) : null;
   if (!input.perPart) await staticRun; else staticRun?.catch(() => {});
   if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main)));
   let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
@@ -194,6 +207,7 @@ try {
     if (held.refused) throw Object.assign(refuse(held.refused.code, held.refused.message), held.refused.next ? { next: held.refused.next } : {},
       typeof held.refused.machineryRule === 'string' ? { machineryRule: held.refused.machineryRule } : {});
     if (!Array.isArray(held.rules)) throw new Error('the doctrine hold failed on the runner: ' + String(held.error ?? 'no rules').slice(0, 4000));
+    if (doctrineKey && !doctrineKept) gate.writeAnalysisMemo(doctrineKey, held.rules);
     return held.rules;
   });
   await staticRun;
