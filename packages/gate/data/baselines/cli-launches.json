@@ -962,9 +962,6 @@
   "apps/cli/journeys/check-baseline/warn.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/resume/presence/hooks.test.js": {
-    "launch": 10
-  },
   "apps/cli/journeys/sentinel/needs/draft.test.js": {
     "launch": 1
   },
