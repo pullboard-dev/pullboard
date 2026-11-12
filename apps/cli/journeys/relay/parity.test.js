@@ -40,6 +40,8 @@ test('local relay health and its Needs stay outside sealed state without hiding 
   assertReaderParity(native, relay);
   assert.throws(() => assertReaderParity(native, { ...relay, needs: [...relay.needs, { kind: 'undeclared-difference' }] }),
     /reader parity needs/u, 'other Needs differences remain refused');
+  assert.throws(() => assertReaderParity(native, { ...relay, relayHealthAlerts: native.relayHealthAlerts }), /relayHealthAlerts: machine-only field leaked/u, 'a leaked alert field is refused on the relay side');
+  assert.throws(() => assertReaderParity(native, { ...relay, needs: [...relay.needs, ...native.needs.filter(entry => entry.kind === 'relay-health')] }), /machine-only entry leaked/u, 'a leaked relay-health Need is refused on the relay side');
 });
 
 
