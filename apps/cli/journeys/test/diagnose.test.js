@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
-test('clause 1: diagnose runs one file and prints its full failure and repository frame [C7]', { timeout: 180_000 }, t => { // budget: one real test run on a runner.
+test('clause 1: diagnose runs one file and prints its full failure and repository frame [C7]', { timeout: 180_000 }, async t => { // budget: one real test run on a runner.
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -21,12 +21,12 @@ test('clause 1: diagnose runs one file and prints its full failure and repositor
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: diagnostic fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const result = box.run(box.web, 'test', 'test/fail.test.js', '--diagnose', '--json');
+  const result = await box.runLocal(box.web, 'test', 'test/fail.test.js', '--diagnose', '--json');
   assert.equal(result.code, 1, result.out + result.err);
   const output = JSON.parse(result.out).output;
   assert.ok(output.includes(long), 'failure is not truncated');
   assert.match(output, /test\/fail\.test\.js:\d+:\d+/u, 'the repository frame is retained');
-  const ambiguous = box.run(box.web, 'test', 'test/fail.test.js', 'test/fail.test.js', '--diagnose', '--json');
+  const ambiguous = await box.runLocal(box.web, 'test', 'test/fail.test.js', 'test/fail.test.js', '--diagnose', '--json');
   assert.equal(ambiguous.code, 1);
   assert.equal(JSON.parse(ambiguous.out).error.code, 'USAGE');
 });
