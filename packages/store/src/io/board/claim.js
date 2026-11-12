@@ -90,7 +90,7 @@ function claimsPerSeat(board, perSeat = null) {
   if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
   const runners = runnerSlots(board);
   const slots = runners ?? availableParallelism();
-  const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent').all()).filter(seat => seat.presence === 'live').length);
+  const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent WHERE agent_lane != ?').all(COORDINATOR)).filter(seat => seat.presence === 'live').length);
   const n = Math.min(5, Math.max(1, Math.floor(slots / seats)));
   return { n, how: `N = clamp(1, 5, floor(${slots} free ${runners === null ? 'local cores' : 'runner slots'} / ${seats} live seats)) = ${n}; claims.perSeat overrides it` };
 }

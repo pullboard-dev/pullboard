@@ -51,7 +51,7 @@ test('claims.perSeat sets N: a seat holds N live claims and the next refuses ONE
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
   }
   const refused = await box.inProcess(box.web, 'claim', ids[2]);
-  assert.notEqual(refused.code, 0, 'the third claim is refused');
+  assert.notEqual(refused.code, 0, `the third claim is refused: ${refused.out}\n${refused.err}\n${(await box.inProcess(box.web, 'whoami')).out}`);
   const text = refused.err + refused.out;
   assert.match(text, /ONE_CLAIM/u);
   assert.match(text, /a seat holds up to 2 \(claims\.perSeat sets 2\)/u, 'the refusal names N and says where it came from');
