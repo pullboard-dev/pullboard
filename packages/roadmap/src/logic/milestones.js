@@ -1,7 +1,7 @@
 import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../state/light.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../state/light.js";
-import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../state/light.js";
+import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../state/index.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../state/light.js";
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
