@@ -24,7 +24,7 @@ async function install(t) {
   const saved = { PATH: process.env.PATH, HOME: process.env.HOME }, stdin = Object.getOwnPropertyDescriptor(process, 'stdin'), write = process.stdout.write;
   t.after(() => { Object.assign(process.env, saved); Object.defineProperty(process, 'stdin', stdin); process.stdout.write = write; });
   Object.assign(process.env, { PATH: `${bin}:${saved.PATH}`, HOME: home });
-  Object.defineProperty(process, 'stdin', { value: Readable.from([JSON.stringify(plan)]), configurable: true });
+  Object.defineProperty(process, 'stdin', { value: Readable.from([Buffer.from(JSON.stringify(plan))]), configurable: true });
   process.stdout.write = () => true;
   await runnerServiceInstaller();
   const plist = readFileSync(join(home, 'Library', 'LaunchAgents', `${SERVICE_LABEL}.plist`), 'utf8');
