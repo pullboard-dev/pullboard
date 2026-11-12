@@ -82,12 +82,14 @@ const EVIDENCE_BYTES = 4096;
 function failureEvidence(all, root) {
   const { stack = '', expected, actual } = diagnosticFields(all);
   const strip = text => String(text).replaceAll('file://', '').replaceAll(`${String(root).replace(/\/+$/u, '')}/`, '');
+  // Run-specific job directories and ids are normalized as signatures do, so one failure reads the same on every runner; timings are dropped.
+  const plain = lines => normalizedFailureDiagnostics(lines.filter(line => !/^duration_ms:/u.test(line)), root).join('\n');
   const frame = stack.split('\n').map(line => /\(?([^\s()]+\.[cm]?js):(\d+):\d+\)?\s*$/u.exec(line.trim())).find(match => match && !match[1].startsWith('node:'));
-  const stderr = strip(all.join('\n')).slice(0, EVIDENCE_BYTES);
+  const stderr = plain(all).slice(0, EVIDENCE_BYTES);
   const evidence = {
     ...(frame ? { location: `${strip(frame[1])}:${frame[2]}` } : {}),
-    ...(expected === undefined ? {} : { expected: strip(expected).slice(0, 512) }),
-    ...(actual === undefined ? {} : { actual: strip(actual).slice(0, 512) }),
+    ...(expected === undefined ? {} : { expected: plain([expected]).slice(0, 512) }),
+    ...(actual === undefined ? {} : { actual: plain([actual]).slice(0, 512) }),
     stderr,
   };
   return secretsIn([{ path: 'main failure output', line: 1, text: JSON.stringify(evidence) }]).length ? { stderr: '[redacted evidence]' } : evidence;
