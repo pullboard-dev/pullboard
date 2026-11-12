@@ -930,7 +930,7 @@
     "launch": 4
   },
   "apps/cli/journeys/relay/agent.test.js": {
-    "launch": 8
+    "launch": 2
   },
   "apps/cli/journeys/relay/approval.test.js": {
     "launch": 1
@@ -945,7 +945,7 @@
     "launch": 9
   },
   "apps/cli/journeys/relay/deploy.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/relay/heartbeat.test.js": {
     "launch": 3
