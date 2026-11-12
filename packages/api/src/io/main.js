@@ -103,7 +103,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { missingBoard } from './unreadable.js';
+import { registeredBoard } from './registered.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -796,13 +796,7 @@ function projectDecisionListing(selected, projects, isMain, boardOpeners) {
 
 /** Resolve only registered boards, opened read-only up to the match (#1040), so a request cannot open an arbitrary path. */
 function findBoard(id, projects, isMain, boardOpeners) {
-  const failures = [];
-  const board = projects().find((project) => {
-    try { return withReadBoard(project.root, (current) => store.boardId(current), isMain, boardOpeners) === id; }
-    catch (error) { failures.push({ root: project.root, error }); return false; } // Logged and named if none matches (#6158).
-  });
-  if (!board) throw missingBoard(id, failures);
-  return { ...board, id };
+  return registeredBoard(id, projects, (root) => withReadBoard(root, (current) => store.boardId(current), isMain, boardOpeners));
 }
 
 /** Restrict a local API to exactly one registered repository by its canonical Git common directory.
