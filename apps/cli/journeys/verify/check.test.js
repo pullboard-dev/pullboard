@@ -28,6 +28,7 @@ import * as store from "../../../../packages/store/src/io/board.js";
 import { openCellBoard as openBoard } from "../../../../packages/store/tests/fixtures/cell.js";
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
 
@@ -62,22 +63,22 @@ function sandbox() {
   /** Run isolated Git commands for this fixture. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   /** Run the checked-out CLI without invoking any shared board. */
-  const run = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const run = async (cwd, ...args) => {
+    const result = await runCliInProcess(args, { cwd, env });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
   return { dir, env, git, run };
 }
 
 /** Initialize a real board repository and one joined builder worktree. */
-function project(box) {
+async function project(box) {
   const repo = join(box.dir, 'repo');
   const web = join(box.dir, 'web-1');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   // The spec is in place before init, so the board's approval baseline holds its approved rows as the person's (#960).
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await box.run(repo, 'init')).code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     gate: 'test ! -f RED', spec: 'SPEC.md', verify: { policy: 'any', family: 'off' },
     lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [],
@@ -87,30 +88,30 @@ function project(box) {
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   box.env.PULLBOARD_MODEL ||= 'Fixture builder';
-  assert.match(fixtureJoin(box.run, web, 'web').out, /joined as web-1/);
+  assert.match((await fixtureJoin(box.run, web, 'web')).out, /joined as web-1/);
   return { repo, web };
 }
 
 /** Run a fixture command and fail with its captured diagnostics if it refuses. */
-function succeeds(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function succeeds(box, cwd, ...args) {
+  const result = await box.run(cwd, ...args);
   assert.equal(result.code, 0, result.failure ? `${result.failure}\nstdout:\n${safeFixtureDiagnostic(result.out, box.env)}` : `${result.out}\n${result.err}`);
   return result.out;
 }
 
 /** Add, claim, commit and submit one real worktree item with its optional frozen check. */
-function submitted(box, repo, web, title, check) {
+async function submitted(box, repo, web, title, check) {
   const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check'];
   if (check) args.push('--check', check);
-  const added = succeeds(box, repo, ...args);
+  const added = await succeeds(box, repo, ...args);
   const id = Number(/#(\d+)/.exec(added)?.[1]);
   assert.ok(id > 0, added);
-  succeeds(box, web, 'claim', String(id));
+  await succeeds(box, web, 'claim', String(id));
   mkdirSync(join(web, 'web'), { recursive: true });
   writeFileSync(join(web, 'web', `item-${id}.js`), 'export const complete = true;\n');
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', `feat(web): complete fixture ${id} [G1]`);
-  succeeds(box, web, 'submit', String(id));
+  await succeeds(box, web, 'submit', String(id));
   box.git(repo, 'switch', '--detach', 'web/one');
   return { id, commit: box.git(web, 'rev-parse', 'HEAD') };
 }
@@ -120,82 +121,83 @@ function clean(box) {
   rmSync(box.dir, { recursive: true, force: true });
 }
 
-test('accept records none or green in its event and JSON, and says when unchecked [V19,V8]', () => {
+test('accept records none or green in its event and JSON, and says when unchecked [V19,V8]', async () => {
   const box = sandbox();
   try {
-    const { repo, web } = project(box);
-    const unchecked = submitted(box, repo, web, 'Unchecked accept');
-    const noCheck = succeeds(box, repo, 'verify', String(unchecked.id), 'accept', '--as', 'coordinator', '--note', 'checked the submitted work');
+    const { repo, web } = await project(box);
+    const unchecked = await submitted(box, repo, web, 'Unchecked accept');
+    const noCheck = await succeeds(box, repo, 'verify', String(unchecked.id), 'accept', '--as', 'coordinator', '--note', 'checked the submitted work');
     assert.match(noCheck, /no frozen check ran/);
-    const uncheckedEvent = JSON.parse(succeeds(box, repo, 'log', String(unchecked.id), '--json')).events.find((event) => event.event_kind === 'accept');
+    const uncheckedEvent = JSON.parse(await succeeds(box, repo, 'log', String(unchecked.id), '--json')).events.find((event) => event.event_kind === 'accept');
     assert.equal(JSON.parse(uncheckedEvent.event_detail).check, 'none');
-    const uncheckedShow = JSON.parse(succeeds(box, repo, 'show', String(unchecked.id), '--json'));
+    const uncheckedShow = JSON.parse(await succeeds(box, repo, 'show', String(unchecked.id), '--json'));
     assert.equal(uncheckedShow.verdicts.at(-1).check, 'none');
-    assert.match(succeeds(box, repo, 'show', String(unchecked.id)), /check: none/);
+    assert.match(await succeeds(box, repo, 'show', String(unchecked.id)), /check: none/);
     box.git(repo, 'switch', 'main');
 
-    const uncheckedJson = JSON.parse(succeeds(box, repo, 'verify', String((submitted(box, repo, web, 'Unchecked JSON accept')).id), 'accept', '--as', 'coordinator', '--note', 'checked the submitted work', '--json'));
+    const uncheckedJson = JSON.parse(await succeeds(box, repo, 'verify', String((await submitted(box, repo, web, 'Unchecked JSON accept')).id), 'accept', '--as', 'coordinator', '--note', 'checked the submitted work', '--json'));
     assert.equal(uncheckedJson.check, 'none');
     box.git(repo, 'switch', 'main');
 
-    const checked = submitted(box, repo, web, 'Checked accept', 'node --check web/item-3.js');
-    succeeds(box, repo, 'check', String(checked.id), '--yes'); // Diagnostics must not block an existing frozen check while main is detached for review.
+    const checked = await submitted(box, repo, web, 'Checked accept', 'node --check web/item-3.js');
+    await succeeds(box, repo, 'check', String(checked.id), '--yes'); // Diagnostics must not block an existing frozen check while main is detached for review.
     const checkedSource = join(repo, 'web', `item-${checked.id}.js`);
     const originalSource = readFileSync(checkedSource, 'utf8');
     writeFileSync(checkedSource, 'const = ;\n'); // Keep the negative compiler case unambiguous; Node22 can silently accept invalid detected-ESM .js (#65202).
+    // Process-level by nature: this is the Node compiler itself, not the CLI, so no in-process form exists.
     const reference = runFixtureChild(process.execPath, ['--check', checkedSource], { cwd: repo, env: box.env, encoding: 'utf8' });
     assert.equal(reference.status, 1, safeFixtureDiagnostic(JSON.stringify({ phase: 'direct compiler reference', status: reference.status,
       stdout: reference.stdout, stderr: reference.stderr, source: readFileSync(checkedSource, 'utf8'), inheritedTestContext: Boolean(box.env.NODE_TEST_CONTEXT) }), box.env));
-    const redCheck = box.run(repo, 'check', String(checked.id), '--yes', '--json');
+    const redCheck = await box.run(repo, 'check', String(checked.id), '--yes', '--json');
     assert.equal(redCheck.code, 1, safeFixtureDiagnostic(JSON.stringify({ phase: 'real check after direct compiler red', redCheck, source: readFileSync(checkedSource, 'utf8') }), box.env));
     assert.equal(JSON.parse(redCheck.out).green, false);
     assert.match(redCheck.err, /failure diagnostics could not finish \(NO_POLICY\).*original result stays red/u);
     writeFileSync(checkedSource, originalSource);
-    const checkedJson = JSON.parse(succeeds(box, repo, 'verify', String(checked.id), 'accept', '--as', 'coordinator', '--note', 'the frozen check passed', '--json'));
+    const checkedJson = JSON.parse(await succeeds(box, repo, 'verify', String(checked.id), 'accept', '--as', 'coordinator', '--note', 'the frozen check passed', '--json'));
     assert.equal(checkedJson.check, 'green');
-    const checkedEvent = JSON.parse(succeeds(box, repo, 'log', String(checked.id), '--json')).events.find((event) => event.event_kind === 'accept');
+    const checkedEvent = JSON.parse(await succeeds(box, repo, 'log', String(checked.id), '--json')).events.find((event) => event.event_kind === 'accept');
     assert.equal(JSON.parse(checkedEvent.event_detail).check, 'green');
-    const checkedShow = JSON.parse(succeeds(box, repo, 'show', String(checked.id), '--json'));
+    const checkedShow = JSON.parse(await succeeds(box, repo, 'show', String(checked.id), '--json'));
     assert.equal(checkedShow.verdicts.at(-1).check, 'green');
-    assert.match(succeeds(box, repo, 'show', String(checked.id)), /check: green/);
+    assert.match(await succeeds(box, repo, 'show', String(checked.id)), /check: green/);
   } finally { clean(box); }
 });
 
-test('rework keeps historical rejection unknown and shows the latest accept check [V19,V8]', () => {
+test('rework keeps historical rejection unknown and shows the latest accept check [V19,V8]', async () => {
   const box = sandbox();
   try {
-    const { repo, web } = project(box);
-    const item = submitted(box, repo, web, 'Reworked accept');
-    succeeds(box, repo, 'verify', String(item.id), 'reject', '--as', 'coordinator', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The fixture item is complete.', '--note', 'the first version missed an edge');
+    const { repo, web } = await project(box);
+    const item = await submitted(box, repo, web, 'Reworked accept');
+    await succeeds(box, repo, 'verify', String(item.id), 'reject', '--as', 'coordinator', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The fixture item is complete.', '--note', 'the first version missed an edge');
     box.git(repo, 'switch', 'main');
-    succeeds(box, web, 'claim', String(item.id));
+    await succeeds(box, web, 'claim', String(item.id));
     writeFileSync(join(web, 'web', `item-${item.id}.js`), 'export const complete = true; // revised\n');
     box.git(web, 'add', '-A');
     box.git(web, 'commit', '-q', '-m', `fix(web): correct fixture ${item.id} [G1]`);
-    succeeds(box, web, 'submit', String(item.id));
+    await succeeds(box, web, 'submit', String(item.id));
     box.git(repo, 'switch', '--detach', 'web/one');
-    const accepted = succeeds(box, repo, 'verify', String(item.id), 'accept', '--as', 'coordinator', '--note', 'the rework fixed the missed edge');
+    const accepted = await succeeds(box, repo, 'verify', String(item.id), 'accept', '--as', 'coordinator', '--note', 'the rework fixed the missed edge');
     assert.match(accepted, /no frozen check ran/);
-    const shownJson = JSON.parse(succeeds(box, repo, 'show', String(item.id), '--json'));
+    const shownJson = JSON.parse(await succeeds(box, repo, 'show', String(item.id), '--json'));
     assert.deepEqual(shownJson.verdicts.map((verdict) => verdict.check), ['unknown', 'none']);
-    const shown = succeeds(box, repo, 'show', String(item.id)).split('\n');
+    const shown = (await succeeds(box, repo, 'show', String(item.id))).split('\n');
     const rejectLine = shown.findIndex((line) => line.startsWith('REJECT BEHAVIOR_MISMATCH'));
     const acceptLine = shown.findIndex((line) => line.startsWith('ACCEPT CRITERION_MET'));
     assert.ok(rejectLine >= 0 && acceptLine > rejectLine);
     assert.equal(shown[rejectLine + 1], '  check: unknown');
     assert.equal(shown[acceptLine + 1], '  check: none');
-    const rows = succeeds(box, repo, 'ledger').split('\n').filter((line) => line.startsWith(`| ${item.id} |`));
+    const rows = (await succeeds(box, repo, 'ledger')).split('\n').filter((line) => line.startsWith(`| ${item.id} |`));
     assert.equal(rows.length, 1);
     assert.match(rows[0], /\| unchecked \|/);
     assert.equal(rows[0].split('|')[7].trim(), 'unchecked', 'the check column describes the latest accept');
   } finally { clean(box); }
 });
 
-test('historical accepts read unknown in show and unchecked accepts are marked in ledger [V19,V8]', () => {
+test('historical accepts read unknown in show and unchecked accepts are marked in ledger [V19,V8]', async () => {
   const box = sandbox();
   try {
-    const { repo, web } = project(box);
-    const historical = submitted(box, repo, web, 'Historical accept');
+    const { repo, web } = await project(box);
+    const historical = await submitted(box, repo, web, 'Historical accept');
     const common = box.git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
     // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
@@ -206,12 +208,12 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
         head: historical.commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off',
       });
     } finally { store.closeBoard(board); }
-    const shown = succeeds(box, repo, 'show', String(historical.id));
+    const shown = await succeeds(box, repo, 'show', String(historical.id));
     assert.match(shown, /check: unknown/);
     box.git(repo, 'switch', 'main');
-    const unchecked = submitted(box, repo, web, 'Unchecked ledger row');
-    succeeds(box, repo, 'verify', String(unchecked.id), 'accept', '--as', 'coordinator', '--note', 'fixture accept without a frozen check');
-    assert.match(succeeds(box, repo, 'ledger'), new RegExp(`\\| ${unchecked.id} \\|[^\\n]*\\| unchecked \\|`));
+    const unchecked = await submitted(box, repo, web, 'Unchecked ledger row');
+    await succeeds(box, repo, 'verify', String(unchecked.id), 'accept', '--as', 'coordinator', '--note', 'fixture accept without a frozen check');
+    assert.match(await succeeds(box, repo, 'ledger'), new RegExp(`\\| ${unchecked.id} \\|[^\\n]*\\| unchecked \\|`));
   } finally { clean(box); }
 });
 
@@ -237,28 +239,30 @@ test('a landing while a review waits for its gate slot leaves the verdict standi
   // while the review waits in the queue must not void it; the verdict records the main it judged.
   const box = sandbox();
   t.after(() => clean(box));
-  const { repo, web } = project(box);
+  const { repo, web } = await project(box);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...config.verify, composeAtAdmission: true } }, null, 2) + '\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
-  succeeds(box, repo, 'settings', 'gateSlots', '1');
-  const { id, commit } = submitted(box, repo, web, 'Queued review', 'true');
+  await succeeds(box, repo, 'settings', 'gateSlots', '1');
+  const { id, commit } = await submitted(box, repo, web, 'Queued review', 'true');
   const reviewer = join(box.dir, 'queued-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
-  succeeds(box, reviewer, 'join', 'web');
+  await succeeds(box, reviewer, 'join', 'web');
   // A second repo holds the machine's only gate slot until its flag file says it has started.
   const holder = join(box.dir, 'holder');
   mkdirSync(holder);
   box.git(holder, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(holder, 'init').code, 0);
+  assert.equal((await box.run(holder, 'init')).code, 0);
   const flag = join(box.dir, 'holder-started');
   writeFileSync(join(holder, 'hold.js'), `require('fs').writeFileSync(${JSON.stringify(flag)}, '1'); setTimeout(() => {}, 4000);\n`);
   const holderConfig = JSON.parse(readFileSync(join(holder, 'pullboard.json'), 'utf8'));
   writeFileSync(join(holder, 'pullboard.json'), JSON.stringify({ ...holderConfig, gate: 'node hold.js' }, null, 2) + '\n');
   box.git(holder, 'add', '-A');
   box.git(holder, 'commit', '-q', '-m', 'chore: holder');
+  // Process-level by nature (2 launches below): the holder and the queued review must run concurrently as other processes
+  // contending for the one gate slot, which serialized in-process dispatch cannot do.
   const holding = runFixtureChildAsync(process.execPath, [BIN, 'gate'], { cwd: holder, env: box.env, encoding: 'utf8' });
   await until(() => existsSync(flag), 'the holder to own the only gate slot');
   const verifying = runFixtureChildAsync(process.execPath, [BIN, 'verify', String(id), 'accept', '--note', 'Verified while queued'], {
@@ -282,11 +286,11 @@ test('a landing while a review waits for its gate slot leaves the verdict standi
   assert.equal(verdicts[0].verdict_decision, 'ACCEPT');
 });
 
-test('a landing during the check itself still refuses the verdict [V8]', (t) => {
+test('a landing during the check itself still refuses the verdict [V8]', async (t) => {
   // With verify.composeAtAdmission on, a main that moves while the frozen check runs still voids the verdict (#929).
   const box = sandbox();
   t.after(() => clean(box));
-  const { repo, web } = project(box);
+  const { repo, web } = await project(box);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...config.verify, composeAtAdmission: true } }, null, 2) + '\n');
   mkdirSync(join(repo, 'web'), { recursive: true });
@@ -297,14 +301,14 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   // The landing changes the item's own file with the bytes it reviewed (so the composition merges cleanly), and only once the review checkout exists (an earlier empty landing keeps the submit proof from being reused): an empty or unrelated landing no longer voids a verdict (61b93a7c77).
   const reviewer = join(box.dir, 'moving-check-reviewer');
   const landing = `test -f web/review-input.txt && { [ -d '${reviewer}' ] || { git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land before the review [G1]'; exit 0; }; mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'; }`;
-  const { id, commit } = submitted(box, repo, web, 'Moving check', landing);
+  const { id, commit } = await submitted(box, repo, web, 'Moving check', landing);
   box.git(repo, 'switch', '-q', 'main');
   writeFileSync(join(repo, 'web', 'review-input.txt'), 'after submit\n');
   box.git(repo, 'add', 'web/review-input.txt');
   box.git(repo, 'commit', '-q', '-m', 'chore: change the checked review input');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
-  succeeds(box, reviewer, 'join', 'web');
-  const refused = box.run(reviewer, 'verify', String(id), 'accept', '--note', 'Verified while main moves during the check');
+  await succeeds(box, reviewer, 'join', 'web');
+  const refused = await box.run(reviewer, 'verify', String(id), 'accept', '--note', 'Verified while main moves during the check');
   assert.equal(refused.code, 1, refused.out + refused.err);
   assert.match(refused.err, /VERDICT_TRUNK_MOVED/u);
   assert.deepEqual(verdictsOf(repo, id), [], 'a verdict is not recorded for a check that saw a moved main');
