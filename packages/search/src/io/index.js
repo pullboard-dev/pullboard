@@ -12,6 +12,8 @@ import { indexFromJson } from '../logic/tfidf.js';
 import { indexToJson } from '../logic/tfidf.js';
 import { itemText } from '../logic/tfidf.js';
 import { rank } from '../logic/tfidf.js';
+import { tokens } from '../logic/tfidf.js';
+import { vectorize } from '../logic/tfidf.js';
 
 /** The sidecar format; a sidecar of another version is rebuilt, never read. */
 export const SEARCH_SIDECAR_VERSION = 1;
@@ -134,5 +136,18 @@ export function nearestOpenItems(board, text, { sidecar, limit = 3, exclude = []
   const total = board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
   const index = stored && total - stored.ids.length <= STALE_ITEMS ? stored : buildSearchIndex(board, { sidecar });
   const open = new Set(board.db.prepare(`SELECT item_id AS id FROM item WHERE item_status NOT IN (${CLOSED.map(() => '?').join(',')})`).all(...CLOSED).map(row => row.id));
-  return describe(board, rank(index, text, { limit: Infinity, exclude }).filter(hit => open.has(hit.id)).slice(0, limit));
+  const skip = new Set(exclude);
+  const hits = rank(index, text, { limit: Infinity, exclude });
+  // Items filed since the sidecar was built are scored here against its vocabulary, so a duplicate of last minute's item is still found.
+  const newest = index.ids.reduce((most, id) => Math.max(most, id), 0);
+  const query = vectorize(tokens(text), index.idf);
+  for (const row of board.db.prepare('SELECT item_id AS id, item_title AS title, item_criterion AS criterion, item_brief AS brief FROM item WHERE item_id > ?').all(newest)) {
+    if (skip.has(row.id)) continue;
+    const vector = vectorize(tokens(itemText(row)), index.idf);
+    let score = 0;
+    for (const [term, weight] of query) score += weight * (vector.get(term) ?? 0);
+    if (score > 0) hits.push({ id: row.id, score });
+  }
+  hits.sort((a, b) => b.score - a.score || a.id - b.id);
+  return describe(board, hits.filter(hit => open.has(hit.id)).slice(0, limit));
 }
