@@ -19,7 +19,16 @@ import {
   unseal,
 } from '../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
-import { legacyRelayClientFixture as relayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { legacyRelayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+
+/** Start the private relay fixture with controller dispatch: a pull-dispatch submit only queues a gate job, and these journeys read the submitted row at once (#6182-#6185). */
+async function relayClientFixture(t, options) {
+  const box = await legacyRelayClientFixture(t, options);
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true, mode: 0o700 });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  return box;
+}
 
 // The subtests each start their own private relay fixture, so they run side by side: back to back they outlast the file's wall limit on a loaded runner.
 test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, async (t) => {
