@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { addItem } from '../../../../../store/index.js';
 import { claim } from '../../../../../store/index.js';
 import { logEvent } from '../../../../../store/index.js';
@@ -14,6 +15,8 @@ import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js
 import { policyRepository } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
 import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { queueTestRun } from '../../../../../drive/index.js';
+import { testRunItem } from '../../../../../drive/index.js';
 import { captureLapsedClaims } from '../../../../index.js';
 
 const MINUTE = 60_000;
@@ -102,4 +105,23 @@ test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a q
   f.job({ kind: 'test-run', item: quiet.id, step: 'queued', agent: alive.holder });
   f.job({ kind: 'gate', item: quiet.id, step: 'red' });
   assert.deepEqual(f.seatGone(), [quiet.id]);
+});
+
+test('clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
+  const f = fixture(t);
+  const [quiet] = f.holders;
+  const second = addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Second claim', criterion: 'Work' });
+  claim(f.board, second, { agentId: quiet.holder, lane: 'core', leaseMs: 7_200_000, freeze: () => ({ text: 'Work', digest: 'bar' }) });
+  const claims = [quiet.id, second];
+  // The seat holds two claims, so its sole-claim rule names no item; the item folder it runs from names the first.
+  assert.equal(testRunItem({ claims }), undefined);
+  const item = testRunItem({ folder: quiet.id, claims });
+  assert.equal(item, quiet.id);
+  assert.equal(testRunItem({ named: second, folder: quiet.id, claims }), second, '--item wins');
+  assert.equal(testRunItem({ folder: 999, claims: [quiet.id] }), quiet.id, 'a folder the seat does not hold is ignored');
+  const ctx = { info: { root: join(tmpdir(), 'pullboard-capture-inflight-never-run') } };
+  const queued = queueTestRun(ctx, work => work(f.board), { agent: quiet.holder, item, items: claims, files: ['a.test.js'], head: null, now: f.now() - 5 * MINUTE },
+    { launch: () => ({ unref() {} }), now: f.now() - 5 * MINUTE });
+  assert.equal(f.board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(queued.id).job_item, quiet.id, 'the job row carries the item');
+  assert.deepEqual(f.seatGone(), [], 'the queued run is seen in flight');
 });

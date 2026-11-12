@@ -116,6 +116,20 @@ function workerLog(ctx, id) {
 }
 
 /**
+ * The item a test run records on its job: the one `--item` names, else the item folder the command runs in when the
+ * seat holds that claim, else the seat's sole claim. Why: a seat with several claims running from one item folder
+ * left the job with no item, so the stale sweep could not see its run in flight (#6130).
+ *
+ * @param {{ named?: number, folder?: number | null, claims?: number[] }} from
+ * @returns {number | undefined}
+ */
+export function testRunItem({ named, folder = null, claims = [] }) {
+  if (named !== undefined) return named;
+  if (folder !== null && claims.includes(folder)) return folder;
+  return claims.length === 1 ? claims[0] : undefined;
+}
+
+/**
  * Record a queued run on the board and start its detached worker. Returns at once with the run id.
  *
  * @param {any} ctx
