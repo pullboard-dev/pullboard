@@ -25,8 +25,8 @@ import { inventoryCommits } from './remote.js';
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 /** Budget: the most failing cases a red phase names in its receipt, so a receipt stays under the queue's size cap. */
 const PHASE_CASES = 100;
-/** The capabilities a runner needs to take a gate job. */
-const GATE_NEEDS = ['node22'];
+/** The capabilities a runner needs to take a gate job, or a pulled test job, which runs through the same bootstrap. */
+export const GATE_NEEDS = ['node22'];
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
