@@ -16,7 +16,7 @@ import {
 import { temporaryRepository } from '../../tests/fixtures/board/submit.js';
 
 test('post-commit is installed with the other hooks and reported when it stops delegating to pullboard [C7]', (t) => {
-  const { root } = temporaryRepository(t, 'pullboard-post-commit-');
+  const root = temporaryRepository(t, 'pullboard-post-commit-');
   installHooks(root);
   const file = join(root, '.githooks/post-commit');
   assert.ok(existsSync(file), 'installHooks writes .githooks/post-commit');
