@@ -29,11 +29,12 @@ export function copyFixtureRunner(source, destination) {
   const sourceRoot = realpathSync(source);
   const parser = createRunnerModuleParser();
   const files = new Set(['package.json', ...Object.keys(runnerPackage(source).files),
-    ...['apps/cli/src/io/commands'].filter(folder => existsSync(join(source, folder)))
-      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['apps/cli/src/io/command-docs', 'apps/cli/src/io/documentation', 'apps/cli/src/io/documentation/events'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.json')).map(file => `${folder}/${file}`))]);
+  // Command modules are seeded here, not into `files`, so their own imports (such as board/read.js) are followed and copied too.
   let pending = ['apps/cli/src/io/run/tests.js',
+    ...['apps/cli/src/io/commands'].filter(folder => existsSync(join(source, folder)))
+      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['src/moves', 'packages/moves/src/logic/moves', 'packages/moves/src/io/moves'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['packages/state/src/logic/engines'].filter(folder => existsSync(join(source, folder)))
