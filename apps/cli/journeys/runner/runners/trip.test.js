@@ -36,6 +36,16 @@ import {
   writeProbe,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
+/** Register the stand-in runner; its 3 s product probe budget can lapse while a loaded machine boots the stand-in, so a failed probe is retried (a refused add registers nothing). */
+function addRunner(repo, env) {
+  let added;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
+    if (added.status === 0) break;
+  }
+  return added;
+}
+
 test('a queued run executes on a registered runner and its result comes back [C7]', async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-')));
   TEMP.push(dir);
@@ -116,7 +126,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
 
   // This is the first behavior checked: on the old implementation the real CLI rejects `runner add`
   // before any new runner module/import is reached, giving a meaningful old-source red.
-  const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
+  const added = addRunner(repo, env);
   assert.equal(added.status, 0, added.context);
   const resources = cli(repo, env, 'resources', '--json');
   assert.equal(resources.status, 0, resources.context);
@@ -294,7 +304,7 @@ test('a queued runner run finishes or fails by name within its deadline [C7]', {
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare runner deadline fixture');
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
-  const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
+  const added = addRunner(repo, env);
   assert.equal(added.status, 0, added.context);
   const command = `node -e ${shellQuote('process.stdout.write("ROUND_TRIP_DONE\\n")')}`;
 

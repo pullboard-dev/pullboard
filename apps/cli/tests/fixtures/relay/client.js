@@ -166,7 +166,7 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
  * Why: `export --json` streams the board, then a paused relay adds a second `{version, diagnostics}` envelope; the fixture folds the
  * diagnostics into the first document so callers see exactly one, as they would if that notice went to stderr (#6231).
  */
-function parseCommandDocument(text) {
+export function parseCommandDocument(text) {
   try { return JSON.parse(text); }
   catch (error) {
     // Top-level documents are pretty-printed, so each ends at a line holding only a closing brace.

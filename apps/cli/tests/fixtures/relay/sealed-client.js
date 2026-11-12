@@ -30,6 +30,7 @@ import { decodeBoardKey } from '../../../../../packages/kernel/index.js';
 import { readSealedDescriptor } from '../../../../../packages/pages/index.js';
 import { relaySnapshot } from '../../../../../packages/pages/index.js';
 import { relayClientFixture } from './client.js';
+import { parseCommandDocument } from './client.js';
 
 /** Open actual sealed checkpoints, accepting compressed and released legacy JSON snapshots. */
 export async function openCheckpoint(box, snapshot) {
@@ -44,7 +45,7 @@ export function replayClient(root, env, ...args) {
   return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: root, env })
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
-      try { return JSON.parse(result.stdout); }
+      try { return parseCommandDocument(result.stdout); } // a paused relay appends a second diagnostics envelope (#6231)
       catch { throw new Error(result.failure ?? result.context); }
     });
 }
