@@ -13,7 +13,6 @@ import { git } from '../../../git/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
-import { gitSpawnSync } from '../../../git/index.js';
 import { composeItemPatches } from '../../../items/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { loadKeyedResult } from '../../../pin/index.js';
