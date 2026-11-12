@@ -200,6 +200,7 @@ Harness results below are from 8 November 2026. Live receipts are this board's `
 | <a id="hop-landing-reopen"></a>reject or reopen during landing | An item reopened between selection and merge drops out of the landing batch: main never takes its commit and it records no merge. | `packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js` (12 Nov): reopen while the landing gate holds | none | PASS |
 | <a id="hop-command-latency"></a>board command latency | Seat commands answer in under 200 ms, and none loads more modules than its ratcheted ceiling. | `packages/gate/tests/fixtures/pipeline/board/commands.js` (9 Nov), the check the main audit runs, `node packages/gate/src/io/matrix.js --only board-commands`: warm medians show 109 ms, whoami 175 ms, inbox 186 ms, status 221 ms, claim 313 ms, next 410 ms; 1,415-1,674 modules each in a fresh process | `pullboard status` 6 min on this board before its disk walk left the command | FAIL: status, claim and next over 200 ms |
 | <a id="hop-board-write"></a>board write never queues | A write in a busy checkout answers, and holds the board lock under 1 s, past a slow same-session command, a long reader, a gate worker and dead holders. | `packages/gate/tests/fixtures/pipeline/board/write.js` (9 Nov), repro, fails on `58f204a4af^` (the add waits behind the slow command): see the commit for timings | none | PASS |
+| <a id="hop-import-undeclared"></a>board restored from an export with an undeclared status | An import whose item row carries an undeclared status is refused UNDECLARED_STATE before anything is inserted. | `packages/gate/tests/fixtures/pipeline/board-restored-from-an-export-with-an-un.js` (12 Nov): a forged status refused, the unchanged export restored | none | PASS |
 
 What the matrix says today:
 
@@ -609,7 +610,7 @@ Every build claim and every review reservation is checked in one write transacti
 | next resumes a claim that changed in the same moment | you hold #N prints from the read snapshot | re-read in the transaction that prints | NONE |
 | a shout names an item this seat cannot act on | next --wait returns a shout asks you to act on #N for any item not verified or withdrawn | only an item this seat may claim, holds, or may review | NONE |
 | pullboard merged run twice | the second overwrites item_merged_commit and logs a second merged event | refused ALREADY_MERGED unless it names the same commit | NONE |
-| board restored from an export with an undeclared status | the import inserts it with the triggers dropped | refused UNDECLARED_STATE before insert | NONE |
+| board restored from an export with an undeclared status | the import refuses it UNDECLARED_STATE before it inserts any row | same | `packages/gate/tests/fixtures/pipeline/board-restored-from-an-export-with-an-un.js` |
 | queued main-test job never driven | stays queued with no end | driven or ended within its lease | NONE |
 | landing run fails or its proof is not green | the job is lease-freed but never done; nothing lists it again | it ends failed and done | NONE |
 | machine sleeps past every lease | every lease lapses at once; the next command's fallback and the dispatcher retake them | same, with no job driven for an item that moved on meanwhile | NONE |
