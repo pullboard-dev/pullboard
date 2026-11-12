@@ -57,8 +57,8 @@ function otherScratch(t) {
 
 test('a scratch root on another volume never fails on EXDEV: the rigor proof folder sits under scratch [C7]', async t => {
   const box = await fixture(t);
-  const root = box.repo;
-  const commit = box.git('rev-parse', 'HEAD').trim();
+  const root = box.root;
+  const commit = box.git(root, 'rev-parse', 'HEAD').trim();
   const scratch = otherScratch(t);
   const { parseProcessCensus } = await import('../../../../packages/kernel/src/logic/census.js');
   const run = await runCheckAt(root, commit, 'unused', { executable: process.execPath, args: ['-e', 'process.stdout.write(process.cwd())'] }, { parseProcessCensus });
@@ -68,7 +68,7 @@ test('a scratch root on another volume never fails on EXDEV: the rigor proof fol
 
 test('a scratch root on another volume never fails on EXDEV: the sentinel trunk folder sits under scratch [C7]', async t => {
   const box = await fixture(t);
-  const root = box.repo;
+  const root = box.root;
   const scratch = otherScratch(t);
   const { withSentinelTrunk } = await import('../../../../packages/sentinels/src/io/runner.js');
   let seen;
