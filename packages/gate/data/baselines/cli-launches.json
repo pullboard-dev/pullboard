@@ -1694,6 +1694,21 @@
   "apps/cli/journeys/shout/layout.test.js": {
     "launch": 25
   },
+  "apps/cli/journeys/shout/layout/corner.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/shout/layout/glance.test.js": {
+    "launch": 10
+  },
+  "apps/cli/journeys/shout/layout/sideways.test.js": {
+    "launch": 3
+  },
+  "apps/cli/journeys/shout/layout/status.test.js": {
+    "launch": 4
+  },
+  "apps/cli/journeys/shout/layout/targets.test.js": {
+    "launch": 5
+  },
   "packages/gate/tests/io/edges/history.test.js": {
     "launch": 2
   },
