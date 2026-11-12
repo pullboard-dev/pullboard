@@ -49,13 +49,13 @@ test('edit --check on a board with a registered runner dispatches the baseline t
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
   box.env.PATH = bin + ':' + box.env.PATH;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
-  document(await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json'));
-  document(await box.runLocal(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
+  document(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json'));
+  document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
   const log = join(box.dir, 'baseline-runs.log');
 
   const id = document(fixtureAdd(box.run, box.repo, 'web', 'Runner baseline', '--criterion', 'the page is ready',
     '--check', loggingCheck(log, 'added', 0), '--specs', 'G1', '--wait', '--json')).item.item_id;
-  const edited = document(await box.runLocal(box.repo, 'edit', String(id), '--check', loggingCheck(log, 'edited', 1), '--wait', '--json'));
+  const edited = document(box.run(box.repo, 'edit', String(id), '--check', loggingCheck(log, 'edited', 1), '--wait', '--json'));
 
   const main = box.git(box.repo, 'rev-parse', 'main');
   assert.equal(edited.item.item_check_baseline.main, main);

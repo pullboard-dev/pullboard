@@ -21,7 +21,7 @@
     "launch": 3
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 2
+    "launch": 16
   },
   "apps/cli/journeys/baseline/delivery.test.js": {
     "launch": 1
@@ -46,6 +46,9 @@
   },
   "apps/cli/journeys/check-baseline/replay.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/check-baseline/runner.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
     "launch": 10

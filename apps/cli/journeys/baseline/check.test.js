@@ -6,7 +6,6 @@ import { startFixtureChild as spawn } from '../../tests/fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { chmodSync } from 'node:fs';
@@ -87,18 +86,20 @@ function sandbox() {
   };
   /** Run Git with private fixture identity and config. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
-  /** Run the production CLI in this process, optionally with piped stdin. */
-  const run = (cwd, args, input) => runCliInProcess(args, { cwd, env, ...(input === undefined ? {} : { input }) });
-  return { dir, env, git, local: run };
+  /** Run the production CLI in a separate process, optionally with piped stdin. */
+  const run = (cwd, args, input) => runFixtureChild(process.execPath, [BIN, ...args], {
+    cwd, env, encoding: 'utf8', ...(input === undefined ? {} : { input }),
+  });
+  return { dir, env, git, run };
 }
 
 /** Initialize the board and register a real worktree joined to the web lane. */
-async function project() {
+function project() {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = await box.local(repo, ['init']);
+  const initialized = box.run(repo, ['init']);
   assert.equal(initialized.status, 0, initialized.stderr);
   // Baseline --wait needs a registered runner; the isolated machine home starts without one.
   const worker = join(box.dir, 'worker');
@@ -107,7 +108,7 @@ async function project() {
   for (const folder of [worker, remoteHome, remoteMachineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: remoteHome, machineHome: remoteMachineHome,
     requests: join(box.dir, 'ssh-requests.jsonl') });
-  const registered = await box.local(repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json']);
+  const registered = box.run(repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json']);
   assert.equal(registered.status, 0, registered.stderr);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -123,7 +124,7 @@ async function project() {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up check ownership fixture');
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = await box.local(web, ['join', 'web']);
+  const joined = box.run(web, ['join', 'web']);
   assert.equal(joined.status, 0, joined.stderr);
   return { ...box, repo, web };
 }
@@ -145,8 +146,8 @@ function markerCheck(filename) {
 }
 
 /** Add a check-bearing item as the coordinator and return its persisted id. */
-async function addCheckedItem(box, title, command) {
-  const result = await box.local(box.repo, ['add', 'coordinator', title, '--check', command, '--wait', '--json']);
+function addCheckedItem(box, title, command) {
+  const result = box.run(box.repo, ['add', 'coordinator', title, '--check', command, '--wait', '--json']);
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
@@ -201,21 +202,21 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
 }
 
 test('[V2,N23] only the coordinator sets checks and agents confirm them before execution', async () => {
-  const box = await project();
+  const box = project();
   const itemCountBefore = queryBoard(box, 'SELECT COUNT(*) AS count FROM item').count;
   const eventCountBefore = queryBoard(box, 'SELECT COUNT(*) AS count FROM event').count;
-  const forbiddenCreate = await box.local(box.web, ['add', 'web', 'Agent supplied check', '--check', 'true', '--json']);
+  const forbiddenCreate = box.run(box.web, ['add', 'web', 'Agent supplied check', '--check', 'true', '--json']);
   assert.equal(forbiddenCreate.status, 1, forbiddenCreate.stderr);
   assert.equal(JSON.parse(forbiddenCreate.stdout).error.code, 'COORDINATOR_CHECK');
   assert.equal(queryBoard(box, 'SELECT COUNT(*) AS count FROM item').count, itemCountBefore, 'refusal adds no item');
   assert.equal(queryBoard(box, 'SELECT COUNT(*) AS count FROM event').count, eventCountBefore, 'refusal adds no event');
 
-  const ordinary = await box.local(box.web, ['add', 'web', 'Agent ordinary item', '--json']);
+  const ordinary = box.run(box.web, ['add', 'web', 'Agent ordinary item', '--json']);
   assert.equal(ordinary.status, 0, ordinary.stderr);
   const ordinaryId = JSON.parse(ordinary.stdout).item.item_id;
   const rowBefore = queryBoard(box, 'SELECT item_title, item_check, item_updated_at FROM item WHERE item_id = ?', ordinaryId);
   const eventsBeforeEdit = queryBoard(box, 'SELECT COUNT(*) AS count FROM event').count;
-  const forbiddenEdit = await box.local(box.web, ['edit', String(ordinaryId), '--check', 'true', '--json']);
+  const forbiddenEdit = box.run(box.web, ['edit', String(ordinaryId), '--check', 'true', '--json']);
   assert.equal(forbiddenEdit.status, 1, forbiddenEdit.stderr);
   assert.equal(JSON.parse(forbiddenEdit.stdout).error.code, 'COORDINATOR_CHECK');
   assert.deepEqual(queryBoard(box, 'SELECT item_title, item_check, item_updated_at FROM item WHERE item_id = ?', ordinaryId), rowBefore);
@@ -225,14 +226,14 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
     ['add', 'web', 'Empty agent check', '--check', '', '--json'],
     ['edit', String(ordinaryId), '--check', '', '--json'],
   ]) {
-    const refused = await box.local(box.web, args);
+    const refused = box.run(box.web, args);
     assert.equal(refused.status, 1, 'explicitly setting or clearing an empty check also belongs to the coordinator');
     assert.equal(JSON.parse(refused.stdout).error.code, 'COORDINATOR_CHECK');
   }
 
   const coordinatorCommand = markerCheck('check-ran-coordinator.txt');
-  const coordinatorId = await addCheckedItem(box, 'Coordinator check', coordinatorCommand);
-  const coordinatorResult = await box.local(box.repo, ['check', String(coordinatorId)]);
+  const coordinatorId = addCheckedItem(box, 'Coordinator check', coordinatorCommand);
+  const coordinatorResult = box.run(box.repo, ['check', String(coordinatorId)]);
   assert.equal(coordinatorResult.status, 0, coordinatorResult.stderr);
   assert.match(coordinatorResult.stdout, /set by coordinator/iu, 'even the setter sees the command attribution');
   assert.ok(coordinatorResult.stdout.includes(coordinatorCommand), 'the exact command is printed before execution');
@@ -241,11 +242,11 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
 
   const interactiveCommand = markerCheck('check-ran-interactive.txt');
   const interactiveId = ordinaryId;
-  const authored = await box.local(box.repo, ['edit', String(interactiveId), '--check', interactiveCommand, '--wait', '--json']);
+  const authored = box.run(box.repo, ['edit', String(interactiveId), '--check', interactiveCommand, '--wait', '--json']);
   assert.equal(authored.status, 0, authored.stdout + authored.stderr);
   assert.equal(queryBoard(box, 'SELECT item_created_by FROM item WHERE item_id = ?', interactiveId).item_created_by, 'web-1',
     'the check setter is derived from the edit, independently of the item creator');
-  const eofRefusal = await box.local(box.web, ['check', String(interactiveId), '--json'], '');
+  const eofRefusal = box.run(box.web, ['check', String(interactiveId), '--json'], '');
   assert.equal(eofRefusal.status, 1, eofRefusal.stderr);
   assert.equal(JSON.parse(eofRefusal.stdout).error.code, 'CHECK_CONFIRM');
   assert.ok(eofRefusal.stderr.includes(interactiveCommand), 'JSON mode prints the exact command before requesting consent');
@@ -253,7 +254,7 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
   const interactiveMarker = join(box.web, 'check-ran-interactive.txt');
   assert.equal(existsSync(interactiveMarker), false,
     'EOF refusal runs no check command');
-  const declined = await box.local(box.web, ['check', String(interactiveId), '--json'], 'no\n');
+  const declined = box.run(box.web, ['check', String(interactiveId), '--json'], 'no\n');
   assert.equal(declined.status, 1);
   assert.equal(JSON.parse(declined.stdout).error.code, 'CHECK_CONFIRM');
   assert.equal(existsSync(interactiveMarker), false, 'declining the prompt also executes no command');
@@ -271,8 +272,8 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
   assert.equal(readFileSync(interactiveMarker, 'utf8'), 'ran');
 
   const yesCommand = markerCheck('check-ran-yes.txt');
-  const yesId = await addCheckedItem(box, 'Confirmed by flag', yesCommand);
-  const yesResult = await box.local(box.web, ['check', String(yesId), '--yes', '--json']);
+  const yesId = addCheckedItem(box, 'Confirmed by flag', yesCommand);
+  const yesResult = box.run(box.web, ['check', String(yesId), '--yes', '--json']);
   assert.equal(yesResult.status, 0, yesResult.stderr);
   assert.equal(JSON.parse(yesResult.stdout).by, 'coordinator', 'JSON retains check attribution');
   assert.equal(JSON.parse(yesResult.stdout).check, yesCommand);
@@ -289,7 +290,7 @@ async function waitForFile(filename, child, description) {
 }
 
 test('check cleanup waits for every background writer [C7]', async () => {
-  const box = await project();
+  const box = project();
   const startedFile = join(box.dir, 'baseline-started');
   const releaseFile = join(box.dir, 'baseline-release');
   const completedFile = join(box.dir, 'baseline-completed');
