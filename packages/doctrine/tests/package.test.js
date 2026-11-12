@@ -315,13 +315,14 @@ test('the import scan finds a package however it is imported, and nothing that i
  * Every deliberate computed loader is declared here, by file and by its exact expression; an
  * undeclared computed import, or a declared file with a second one, still fails the scan. Two are
  * source-directory loaders that import a discovered file beneath their local URL; the rest load a
- * caller-selected module (a reporter, a tool, a worker port, a checker) or a guard at a runtime
+ * caller-selected module (a reporter, a tool, a worker port, a checker, a hook's staged check) or a guard at a runtime
  * path. Each declared expression is normalized to a relative import; recursively scanning their
  * leaves below keeps a package import in any discovered module visible to P3.
  */
 const LOADERS = {
   'packages/moves/src/io/registry.js': ['loadMove(fileURLToPath(new URL(file, directory)))'],
   'apps/cli/src/io/commands/index.js': ['import(new URL(file, FOLDER).href)'],
+  'apps/cli/src/io/hook/static.js': ['import(pathToFileURL(file).href)'],
   'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
   'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
   'apps/view/src/io/page/actions.js': ['import(configuredTransportModule)'],
