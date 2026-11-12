@@ -1,20 +1,25 @@
 /** @pullboard-test-input packages/store/src/io/home.js */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { syncMayAct } from '../../src/io/home.js';
 import { cellRepo } from '../fixtures/cell.js';
 
-/** A fresh repository with no relay link (cellRepo), and a home whose files the test chooses; PULLBOARD_HOME points there until the test ends. */
+/** A fresh repository with no relay link (cellRepo), and a pullboard home inside it whose files the test chooses; PULLBOARD_HOME points there until the test ends. */
 function machine(t, homeFiles) {
   const repo = cellRepo(t).root;
-  const box = privateFixtureFiles('sync-may-act-');
-  box.write('home/.keep', '');
-  for (const [file, bytes] of Object.entries(homeFiles)) box.write(`home/${file}`, bytes);
+  // The home sits inside the private fixture folder that cellRepo removes after the test.
+  const home = join(repo, 'pullboard-home');
+  mkdirSync(home);
+  for (const [file, bytes] of Object.entries(homeFiles)) {
+    mkdirSync(dirname(join(home, file)), { recursive: true });
+    writeFileSync(join(home, file), bytes);
+  }
   const saved = { home: process.env.PULLBOARD_HOME, token: process.env.PULLBOARD_RELAY_TOKEN, key: process.env.PULLBOARD_RELAY_KEY };
-  process.env.PULLBOARD_HOME = `${box.root}/home`;
+  process.env.PULLBOARD_HOME = home;
   delete process.env.PULLBOARD_RELAY_TOKEN;
   delete process.env.PULLBOARD_RELAY_KEY;
   t.after(() => {
