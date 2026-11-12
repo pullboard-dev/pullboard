@@ -37,8 +37,11 @@ const GATE_JOB_ENTRY = `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
@@ -59,7 +62,20 @@ const failingCases = (status, text, run) => {
       : light?.tapFailures ? light.tapFailures(text, root) : null;
   } catch { rows = null; }
   if (!Array.isArray(rows) || !rows.length || rows.length > ${PHASE_CASES} || rows.some(row => !row?.file || !row.name)) return null;
-  return rows.map(({ file, name }) => ({ file, name: String(name).slice(0, 500) }));
+  // A file Node killed (a timeout) is named by its path in this job's own checkout; the project path names it on any runner.
+  return rows.map(({ file, name }) => ({ file, name: (String(name).startsWith(root + '/') ? String(name).slice(root.length + 1) : String(name)).slice(0, 500) }));
+};
+/**
+ * PATH for the check and the proof: main's trusted CLI first as \`pullboard\`, then this Node. Why: an item check calls
+ * pullboard by name, as on the controller, where the seat's CLI is on PATH; a runner job's PATH has none, and the check exited 127.
+ */
+const cliPath = () => {
+  const cli = join(tools, 'apps', 'cli', 'pullboard.js'), bin = join(tools, '.pullboard-bin');
+  if (!existsSync(cli)) return [dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  mkdirSync(bin, { recursive: true, mode: 0o700 });
+  // The archive keeps the CLI's mode and its env-node line, which finds this Node next on PATH.
+  if (!existsSync(join(bin, 'pullboard'))) symlinkSync(cli, join(bin, 'pullboard'));
+  return [bin, dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
 };
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const receipt = { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment: { node: process.versions.node, platform: process.platform, arch: process.arch } };
@@ -82,13 +98,14 @@ else {
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   if (!refusals.length && !receipt.analysis.infra) {
     // Only the proof's test runner comes from accepted main; the test files and the frozen check are the candidate's own.
+    const PATH = cliPath();
     const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
     for (const [role, command] of [['check', input.check], ['proof', analysis.plan?.proofCommand]]) {
       if (!command) continue;
       // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
       const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
       const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
-        env: { ...process.env, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
+        env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
       const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
       receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
         ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
