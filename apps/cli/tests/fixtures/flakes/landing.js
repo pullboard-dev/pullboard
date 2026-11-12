@@ -17,7 +17,9 @@ import {
 
 /** Run one public command in this process in the fixture's private environment; same receipt shape as the fixture's cliAt [C7]. */
 export async function cliLocal(box, cwd, ...args) {
+  appendFileSync('/tmp/rf2-trace.log', `${new Date().toISOString()} start ${args.join(' ')}\n`);
   const result = await runCliInProcess([...args, '--json'], { cwd, env: box.env });
+  appendFileSync('/tmp/rf2-trace.log', `${new Date().toISOString()} end ${args.join(' ')} ${result.status}\n`);
   return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: null, stderr: result.stderr };
 }
 
