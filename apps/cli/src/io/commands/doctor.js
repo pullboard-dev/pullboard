@@ -25,6 +25,7 @@ import {
   context,
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
+import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
 
 // A malformed bare checkout must be diagnosed before trying to open its board.
 export const nativeBoardRequired = false;
@@ -42,7 +43,7 @@ export async function run(io) {
   io.nativeBoard ??= await io.loadNativeBoard();
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
-  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
   // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
   const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
   const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }

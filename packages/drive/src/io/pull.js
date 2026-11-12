@@ -40,8 +40,10 @@ class Refused extends Error {
 
 /** A board call that never reached a board answer: the network, a proxy or a board restart. It is a wait, not a refusal. */
 class BoardUnreachable extends Error {
-  constructor(cause) { super(`board unreachable: ${cause?.message ?? cause}`); this.code = 'BOARD_UNREACHABLE'; }
+  constructor(cause) { super(`board unreachable: ${cause?.message ?? cause}`); this.code = 'BOARD_UNREACHABLE'; this.network = cause instanceof Error; }
 }
+/** Network failures in a row before the runner logs its unreachable hint; one blip stays quiet. */
+const HINT_AFTER = 3;
 
 /**
  * Split a board URL into its jobs endpoint and key. The URL is the board's API address,
@@ -243,6 +245,8 @@ function gateReceipt(result, commit, durationMs) {
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
+ * @param {string} [options.unreachableHint] - Logged once a streak of network failures reaches HINT_AFTER: the likely
+ *   cause on this host and its fix, so an installed service never retries silently.
  * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number }} [options.timing]
  * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
@@ -250,19 +254,26 @@ function gateReceipt(result, commit, durationMs) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[] }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {} }) {
+  once = false, signal, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, unreachableHint }) {
   const endpoint = boardEndpoint(board, key);
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS } = timing;
   const jobs = [], waits = [];
   let delay = firstMs;
   /** Wait out an unreachable board, longer each time in a row, and note the wait. */
-  const backoff = async error => { say(`${error.message}; retrying in ${delay} ms`); waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs); };
+  let failures = 0;
+  const backoff = async error => {
+    say(`${error.message}; retrying in ${delay} ms`);
+    // A board no request reaches, again and again, is likely blocked on this host: say once per streak what to fix.
+    failures = error.network ? failures + 1 : 0;
+    if (unreachableHint && failures === HINT_AFTER) say(`board still unreachable after ${failures} tries; likely cause: ${unreachableHint}`);
+    waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs);
+  };
   /** Call the board until it answers; only the board's own refusal ends the call. */
   const reliably = async body => {
     for (;;) {
       if (signal?.aborted) throw new Refused('RUNNER_STOPPED', 'the runner was stopped');
-      try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; return answer; }
+      try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; failures = 0; return answer; }
       catch (error) { if (!(error instanceof BoardUnreachable)) throw error; await backoff(error); }
     }
   };
