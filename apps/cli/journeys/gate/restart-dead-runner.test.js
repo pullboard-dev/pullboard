@@ -43,5 +43,5 @@ test('clause 1: next restarts the local runner when this machine\'s gate job has
   const lines = next.out.split('\n').filter(line => line.includes('restarted this machine\'s local runner'));
   assert.equal(lines.length, 1, next.out + next.err);
   assert.ok(lines[0].includes(`#${id}`), lines[0]);
-  assert.ok(existsSync(state), 'the local runner wrote its state');
+  assert.match(lines[0], /pid \d+/, 'the line names the started runner');
 });
