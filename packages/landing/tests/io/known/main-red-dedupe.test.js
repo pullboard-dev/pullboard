@@ -1,14 +1,12 @@
 /** Every Main red filer shares one cause key; the same cause adds a fact to its open repair and never files twice [B3,C7,H16,V4]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../store/index.js';
+import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { auditFailureItem } from '../../../../items/index.js';
 import { splitMainReds } from '../../../../items/index.js';
 import { fileKnownMainReds } from '../../../src/io/known/main.js';
