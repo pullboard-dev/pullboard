@@ -3,19 +3,26 @@ import { addedPlacementProblems } from '../../../codemap/index.js';
 import { cellInventory } from '../../../codemap/index.js';
 import { readPlan } from '../../../codemap/index.js';
 import { unplanned } from '../../../codemap/index.js';
-import { updateCellInventory } from '../../../codemap/index.js';
+import { withCellSourceSnapshots } from '../../../codemap/index.js';
 import { addedLines } from '../../../commits/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { commonJsIn } from '../../../gate/index.js';
 import { importsIn } from '../../../gate/index.js';
+import { cleanGitEnvironment } from '../../../git/index.js';
 import { git } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { composeItemPatches } from '../../../items/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { loadKeyedResult } from '../../../pin/index.js';
+import { pruneKeyedResults } from '../../../pin/index.js';
+import { saveKeyedResult } from '../../../pin/index.js';
 import { getItem } from '../../../store/index.js';
 import { itemPatches } from '../../../store/index.js';
 import { withMainCheckout } from './main/red.js';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const graphs = new Map();
 /** Imports of each source; a source that does not compile imports nothing provable, as the seal graph also treats it (#2438). */
@@ -48,13 +55,82 @@ export function requireLandingCompanions(root, board, entries, tip) {
   }
 }
 
-/** Cache only immutable source trees, and update importer edges when an imported target disappears. */
-async function graphAt(root, commit, prior, changed) {
-  const key = `${repoInfo(root).commonDir}:${git(root, ['rev-parse', `${commit}^{tree}`])}`;
+const MODULE_GRAPHS = 32;
+const MODULE_SOURCE = /(?:^|\/)package\.json$|\.[cm]?js$/u;
+
+/** Read Git objects without hooks or replace refs, in the form the caller asks for. */
+function objects(root, args, input) {
+  const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
+    cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' }, ...(input === undefined ? { encoding: 'utf8' } : { input }), maxBuffer: 1024 * 1024 * 1024 });
+  if (result.status !== 0) throw new Refused('LAND_MODULE_SOURCE', `cannot inspect exact landing modules: git ${args[0]} failed; restore the source and retry`);
+  return result.stdout;
+}
+
+/**
+ * The module graph of one tree built from its Git objects: every path from one ls-tree and the bytes of each module and
+ * package.json from one cat-file --batch, parsed by the same inventory a checkout uses. Other files keep their path and
+ * no bytes, since only their existence is read. Why: a worktree per call cost a full checkout of the repository [C7,#3359].
+ */
+function treeGraph(root, tree) {
+  const entries = new Map(), wanted = new Map();
+  for (const row of objects(root, ['ls-tree', '-r', '-z', '--full-tree', tree]).split('\0').filter(Boolean)) {
+    const tab = row.indexOf('\t');
+    const [mode, , sha] = row.slice(0, tab).split(' ');
+    const path = row.slice(tab + 1);
+    entries.set(path, { mode, sha });
+    if ((mode === '100644' || mode === '100755') && MODULE_SOURCE.test(path)) wanted.set(path, sha);
+  }
+  const shas = [...new Set(wanted.values())], bytes = new Map();
+  if (shas.length) {
+    const out = objects(root, ['cat-file', '--batch'], shas.map(sha => `${sha}\n`).join(''));
+    let offset = 0;
+    for (const sha of shas) {
+      const end = out.indexOf(10, offset), [, type, size] = out.subarray(offset, end).toString('utf8').split(' ');
+      if (type !== 'blob') throw new Refused('LAND_MODULE_SOURCE', 'cannot inspect exact landing modules: a committed blob is unavailable; restore the source and retry');
+      bytes.set(sha, out.subarray(end + 1, end + 1 + Number(size)));
+      offset = end + 1 + Number(size) + 1;
+    }
+  }
+  const files = new Map([...entries].filter(([, entry]) => entry.mode === '100644' || entry.mode === '100755').map(([path, entry]) => [path, wanted.has(path) ? bytes.get(entry.sha) : Buffer.alloc(0)]));
+  // A virtual folder that is never created: every read of it is answered from the snapshot, none from a disk.
+  const snapshot = { root: join(tmpdir(), `pullboard-landing-graph-${tree}`), entries, files };
+  const { edges, unknown } = withCellSourceSnapshots(snapshot, () => cellInventory(snapshot.root, parsers));
+  return { edges, unknown };
+}
+
+/** The on-disk cache entry of a tree's graph, or null when it is missing, damaged or another tree's. */
+function cachedGraph(directory, tree) {
+  try {
+    const data = JSON.parse(loadKeyedResult(directory, tree)?.toString('utf8') ?? 'null');
+    if (data?.version !== 1 || data.tree !== tree || !Array.isArray(data.edges) || !Array.isArray(data.unknown)) return null;
+    return { edges: new Map(data.edges), unknown: data.unknown };
+  } catch { return null; }
+}
+
+/** Record a graph by its tree id and keep only the newest entries; the cache is optional, so a failed write costs a rebuild. */
+function storeGraph(directory, tree, graph) {
+  try {
+    saveKeyedResult(directory, tree, JSON.stringify({ version: 1, tree, edges: [...graph.edges], unknown: graph.unknown }));
+    pruneKeyedResults(directory, MODULE_GRAPHS);
+  } catch { /* The next process builds it again. */ }
+}
+
+/**
+ * The module graph at a commit, from its Git objects with no worktree or checkout, cached in memory and on disk by tree id.
+ * The disk entry lives under the git dir's pullboard folder, so a second lander process for the same tree runs no ls-tree.
+ *
+ * @param {string} root any checkout of the repository
+ * @param {string} commit the exact commit to read
+ * @returns {{ edges: Map<string, any[]>, unknown: any[] }}
+ */
+export function graphAt(root, commit) {
+  const common = repoInfo(root).commonDir;
+  const tree = git(root, ['rev-parse', `${commit}^{tree}`]);
+  const key = `${common}:${tree}`;
   if (graphs.has(key)) return graphs.get(key);
-  const graph = await withMainCheckout(root, commit, checkout => prior
-    ? updateCellInventory(checkout, parsers, prior, changed) : cellInventory(checkout, parsers));
-  if (graph?.unavailable) throw new Refused('LAND_MODULE_SOURCE', `cannot inspect exact landing modules: ${graph.unavailable}; restore the source and retry`);
+  const directory = join(common, 'pullboard', 'module-graphs');
+  let graph = cachedGraph(directory, tree);
+  if (!graph) { graph = treeGraph(root, tree); storeGraph(directory, tree, graph); }
   graphs.set(key, graph);
   if (graphs.size > 8) graphs.delete(graphs.keys().next().value);
   return graph;
@@ -108,12 +184,12 @@ export function requireLandingSecretFree(root, base, tip) {
 /** Inspect source only: no candidate module is imported or evaluated before main moves; secrets are refused first [#5968]. */
 export async function requireLandingModuleResolution(root, base, tip) {
   requireLandingSecretFree(root, base, tip);
-  const before = await graphAt(root, base);
+  const before = graphAt(root, base);
   const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
   const broken = brokenModules(root, tip, changed);
   if (broken.length) throw parseRefusal(root, tip, changed, broken);
   let after;
-  try { after = await graphAt(root, tip, before, changed); }
+  try { after = graphAt(root, tip); }
   catch (error) {
     if (error.message !== 'source does not compile as an ES module') throw error;
     throw parseRefusal(root, tip, changed);

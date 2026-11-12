@@ -42,18 +42,18 @@ export function readTierSnapshot(commit, code) {
     const data = deserialize(gunzipSync(readFileSync(file), { maxOutputLength: 512 * 1024 ** 2 }));
     if (data?.version !== 1 || data.commit !== commit || data.code !== code || !Array.isArray(data.manifest?.files)
       || !(data.owners instanceof Map) || !(data.packageFiles instanceof Set) || !(data.helpers instanceof Map)) return null;
-    return { manifest: data.manifest, owners: data.owners, packageFiles: data.packageFiles, helpers: data.helpers };
+    return { manifest: data.manifest, owners: data.owners, packageFiles: data.packageFiles, helpers: data.helpers, ...(data.tooling instanceof Set ? { tooling: data.tooling } : {}) };
   } catch { return null; } // A missing or damaged entry only costs a rebuild.
 }
 
 /** Record a commit's freshly built tier snapshot; a failed write only costs the next process a rebuild. */
-export function writeTierSnapshot(commit, code, { manifest, owners, packageFiles, helpers }) {
+export function writeTierSnapshot(commit, code, { manifest, owners, packageFiles, helpers, tooling }) {
   const file = entryFile(commit, code);
   if (!file || !(owners instanceof Map) || !(packageFiles instanceof Set) || !(helpers instanceof Map)) return;
   try {
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, gzipSync(serialize({ version: 1, commit, code, manifest, owners, packageFiles, helpers })), { mode: 0o600 });
+    writeFileSync(temporary, gzipSync(serialize({ version: 1, commit, code, manifest, owners, packageFiles, helpers, ...(tooling instanceof Set ? { tooling } : {}) })), { mode: 0o600 });
     renameSync(temporary, file);
   } catch { /* The cache is optional. */ }
 }
