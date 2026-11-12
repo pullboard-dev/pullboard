@@ -56,8 +56,8 @@ function project(t) {
 async function landWith(t, runner) {
   const box = project(t);
   const board = cellBoard(t, ':memory:');
-  recordTestResults(board.db, { receipt: `gate:${box.item.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit: box.item,
-    rows: [{ file: 'test/b.test.js', inputKey: 'a'.repeat(64), command: 'proof', context: 'node', status: 'pass' }] });
+  assert.equal(recordTestResults(board.db, { receipt: `gate:${box.item.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit: box.item,
+    rows: [{ file: 'test/b.test.js', inputKey: 'a'.repeat(64), command: 'proof', context: 'c'.repeat(64), status: 'pass' }] }), 1);
   offerLandingJob(board.db, { items: [{ id: 1, commit: box.item, ref: 'refs/heads/item/1' }], expect: box.seed,
     config: { trunk: { remote: box.remote }, affectedTests: runner } });
   const taken = await takeLandingJob({ call: body => jobQueueCall(board.db, body, { mode: 'pull' }), runner: 'r-red', workdir: join(box.root, 'runners', 'r-red') });
