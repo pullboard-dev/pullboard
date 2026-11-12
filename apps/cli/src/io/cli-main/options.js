@@ -99,6 +99,7 @@ const OPTIONS = {
   'draft-quality': { type: 'boolean' },
   yes: { type: 'boolean' },
   diagnostics: { type: 'boolean' },
+  hosts: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
   due: { type: 'boolean' },
