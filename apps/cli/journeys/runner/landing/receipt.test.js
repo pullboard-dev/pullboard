@@ -11,6 +11,7 @@ import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { takeLandingJob } from '../../../../../packages/landing/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
+import { applyLandingReceipt } from '../../../../../packages/api/index.js';
 import { itemThread } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -62,9 +63,10 @@ async function landWith(t, runner, seen = {}) {
   seen.id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Item one', criterion: 'The item lands.' });
   assert.equal(recordTestResults(board.db, { receipt: `gate:${box.item.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit: box.item,
     rows: [{ file: 'test/b.test.js', inputKey: 'a'.repeat(64), command: 'proof', context: 'c'.repeat(64), status: 'pass' }] }), 1);
-  offerLandingJob(board.db, { items: [{ id: seen.id, commit: box.item, ref: 'refs/heads/item/1' }], expect: box.seed,
+  seen.job = offerLandingJob(board.db, { items: [{ id: seen.id, commit: box.item, ref: 'refs/heads/item/1' }], expect: box.seed,
     config: { trunk: { remote: box.remote }, affectedTests: runner } });
   const taken = await takeLandingJob({ call: body => jobQueueCall(board.db, body, { mode: 'pull' }), runner: 'r-red', workdir: join(box.root, 'runners', 'r-red') });
+  seen.posted = { job: seen.job?.id ?? seen.job, receipt: taken.receipt };
   return taken.receipt;
 }
 
@@ -90,6 +92,7 @@ test('clause 1: a red land receipt reaches the item thread, which show prints, w
   const seen = {};
   const receipt = await landWith(t, 'node bin/refuse.mjs', seen);
   assert.equal(receipt.outcome, 'red', JSON.stringify(receipt));
+  applyLandingReceipt(seen.board, seen.posted);
   const notes = itemThread(seen.board, seen.id).filter(entry => /^Land job .* red: /u.test(entry.text ?? ''));
   assert.equal(notes.length, 1, JSON.stringify(itemThread(seen.board, seen.id)));
   assert.match(notes[0].text, /run-tests: \[NO_POLICY\] no admitted trunk record/u);
