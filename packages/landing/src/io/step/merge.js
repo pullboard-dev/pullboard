@@ -1,6 +1,7 @@
 import { requireLandingCompanions } from '../guards.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { requireLandingSecretFree } from '../guards.js';
+import { requireRecordedMoves } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { resolveMechanicalIndex } from '../../../../merge/index.js';
@@ -102,6 +103,7 @@ export async function mergeGroup(state, items) {
     const checked = landedCommit(item);
     if (!proven && checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
     requireLandingCompanions(batch.root, state.board, [item], checked);
+    requireRecordedMoves(batch.root, headCommit(batch.root), checked);
     const stale = proven ? null : baseVerdicts(state, batch.base).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     if (composed) {
