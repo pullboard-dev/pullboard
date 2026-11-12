@@ -43,10 +43,14 @@ test('clause 1: a thrown TypeError behind the real HTTP service is logged with i
 /** The board openers the higher composition root hands the API, over the store's own fixture board. */
 const OPENERS = Object.freeze({ openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] });
 
+/** View projections the handler requires at construction; an events read never calls them. */
+const VIEW_PORTS = Object.freeze(Object.fromEntries(['projectState', 'activeViewAgents', 'viewProofSummary', 'compactItemSummaries', 'viewFlowSummary']
+  .map((name) => [name, () => { throw new Error(`an events read does not project ${name}`); }])));
+
 /** Serve the board API over the given registered projects and read one board's events by id. */
 async function readEvents(t, projects, id) {
   const secret = 'fixture-secret';
-  const api = await serveApi({ projects: () => projects, secret, runCommand: async () => 0, isMain: false, refusalDocument, boardOpeners: OPENERS });
+  const api = await serveApi({ projects: () => projects, secret, runCommand: async () => 0, isMain: false, refusalDocument, boardOpeners: OPENERS, viewPorts: VIEW_PORTS });
   t.after(() => api.close());
   const response = await fetchFresh(`http://127.0.0.1:${api.port}/api/v1/boards/${id}/events?k=${secret}`);
   return { status: response.status, body: await response.json() };
