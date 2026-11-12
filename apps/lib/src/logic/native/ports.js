@@ -1,3 +1,4 @@
+/** @pullboard-module-loads apps/view/index.js */
 import { createRequire } from 'node:module';
 import { sealOwnershipWait } from '../../io/seal.js';
 import { claimHealthSnapshot } from '../../../../../packages/health/index.js';
