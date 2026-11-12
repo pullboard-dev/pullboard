@@ -60,12 +60,14 @@ export function costWindowStart(window, now = new Date(), timeZone = Intl.DateTi
 }
 
 /** Project a selected landing cohort; model presentation is supplied by the shared native naming provider. */
-export function costAnalytics({ items, agents, events, window = '30d', now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, modelPresentation }) {
+function* projectCost({ items, agents, events, window = '30d', now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, modelPresentation }) {
   if (!['today', '7d', '30d'].includes(window)) throw new Refused('BAD_REQUEST', 'window must be today, 7d or 30d');
   if (typeof modelPresentation !== 'function') throw new TypeError('cost analytics requires the native model presentation provider');
   const to = new Date(now), from = costWindowStart(window, to, timeZone);
   const ordered = [...events].sort((a, b) => a.event_id - b.event_id), histories = new Map(), latest = new Map(), latestByItem = new Map(), modelChanges = new Map(), shared = new Set();
+  let seen = 0;
   for (const event of ordered) {
+    if (++seen % 2000 === 0) yield;
     const info = detail(event), id = event.item_id ?? info.item;
     if (id) { if (!histories.has(id)) histories.set(id, []); histories.get(id).push(event); }
     if (event.event_kind === 'usage') {
@@ -93,7 +95,9 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     return model && model.toLowerCase() !== 'unknown' ? modelPresentation(model, seat?.family ?? seat?.agent_family) : null;
   };
   const projected = [];
+  let rows = 0;
   for (const item of items) {
+    if (++rows % 200 === 0) yield;
     const id = item.item_id ?? item.id, history = histories.get(id) ?? [];
     const landing = [...history].reverse().find(event => event.event_kind === 'merged');
     const at = Date.parse(landing?.event_at);
@@ -133,4 +137,20 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
   const verifierRows = [...verifiers.values()].map(row => ({ ...row, rate: row.accepts ? (row.accepts - row.reopenedLater) / row.accepts : null, ...(row.accepts < 5 ? { low: null, high: null } : wilson(row.accepts - row.reopenedLater, row.accepts)), judged: row.accepts >= 30, tooFew: row.accepts < 5 }));
   const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 5).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
   return { version: 1, window, from: from.toISOString(), to: to.toISOString(), totals: { agentMs: totalMs, itemCount: projected.length, medianItemMs: median(projected.map(row => row.agentMs)), sentBack: { items: sent.length, itemShare: projected.length ? sent.length / projected.length : 0, agentMs: sentMs, agentMsShare: totalMs > 0 && sentMs !== null ? sentMs / totalMs : totalMs === 0 ? 0 : null } }, days, builders: comparison(builderRows), verifiers: comparison(verifierRows), unknownBuilderModelShare: projected.length ? projected.filter(row => !row.builder).length / projected.length : 0, longest, allItems: projected.length };
+}
+
+/** Project a selected landing cohort in one go. */
+export function costAnalytics(input) {
+  const run = projectCost(input);
+  for (let step = run.next(); ; step = run.next()) if (step.done) return step.value;
+}
+
+/** The same projection, giving the event loop a turn every few milliseconds so other requests keep answering [6663]. */
+export async function costAnalyticsSliced(input, turn, sliceMs = 15) {
+  const run = projectCost(input);
+  let started = performance.now();
+  for (let step = run.next(); ; step = run.next()) {
+    if (step.done) return step.value;
+    if (performance.now() - started >= sliceMs) { await turn(); started = performance.now(); }
+  }
 }

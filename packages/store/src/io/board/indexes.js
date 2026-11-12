@@ -96,6 +96,33 @@ export function eventsOfKinds(board, kinds) {
   return board.db.prepare(`SELECT * FROM event WHERE event_kind IN (${kinds.map(() => '?').join(', ')}) ORDER BY event_id`).all(...kinds);
 }
 
+/** Ids of the items merged since `fromAt`, from the kind index. */
+export function costLandedIds(board, fromAt) {
+  return board.db.prepare("SELECT DISTINCT item_id FROM event WHERE event_kind = 'merged' AND event_at >= ? AND item_id IS NOT NULL").all(fromAt).map(row => row.item_id);
+}
+
+/** One page of the usage, shared-usage and model events after `afterId`, oldest first. */
+export function costKindEvents(board, afterId, limit) {
+  return board.db.prepare("SELECT * FROM event WHERE event_kind IN ('usage', 'shared-usage', 'model') AND event_id > ? ORDER BY event_id LIMIT ?").all(afterId, limit);
+}
+
+/** The landing and review moves of these items. */
+export function costItemEvents(board, ids) {
+  if (!ids.length) return [];
+  return board.db.prepare(`SELECT * FROM event WHERE item_id IN (${ids.map(() => '?').join(', ')}) AND event_kind IN ('merged', 'submit', 'accept', 'reject', 'reopen')`).all(...ids);
+}
+
+/** The id and title of these items. */
+export function costItems(board, ids) {
+  if (!ids.length) return [];
+  return board.db.prepare(`SELECT item_id, item_title FROM item WHERE item_id IN (${ids.map(() => '?').join(', ')})`).all(...ids);
+}
+
+/** The newest event id, so an unchanged board can reuse an answer. */
+export function costRevision(board) {
+  return board.db.prepare('SELECT MAX(event_id) AS id FROM event').get().id ?? 0;
+}
+
 /**
  * The events cost analytics reads for a window opening at `fromAt`: every usage, shared-usage and model event, plus the
  * landing and review moves of items that landed since then. Indexed by kind and item, never the whole log.
@@ -105,9 +132,11 @@ export function eventsOfKinds(board, kinds) {
  * @returns {any[]}
  */
 export function costEvents(board, fromAt) {
-  return board.db.prepare(`SELECT * FROM event WHERE event_kind IN ('usage', 'shared-usage', 'model')
-    OR (event_kind IN ('merged', 'submit', 'accept', 'reject', 'reopen')
-      AND item_id IN (SELECT item_id FROM event WHERE event_kind = 'merged' AND event_at >= ?)) ORDER BY event_id`).all(fromAt);
+  const events = [];
+  for (let after = 0, page = costKindEvents(board, 0, 5000); page.length; page = costKindEvents(board, after, 5000)) { events.push(...page); after = page.at(-1).event_id; }
+  const ids = costLandedIds(board, fromAt);
+  for (let at = 0; at < ids.length; at += 400) events.push(...costItemEvents(board, ids.slice(at, at + 400)));
+  return events.sort((a, b) => a.event_id - b.event_id);
 }
 
 /**
