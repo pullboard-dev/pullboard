@@ -1,5 +1,5 @@
 /**
- * The proof ledger: one test_result row per test file a recorded run ran [P7,CD2].
+ * The proof ledger: one test_result row per test file a recorded run ran [P7].
  *
  * Key: the file, its inputKey (the per-file content key, packages/gate/src/io/test/action/cache.js), the command
  * class and the context class (a digest of node, platform, arch and declared environment). Value: pass or fail, the
@@ -91,7 +91,7 @@ export function testResults(db, { inputKey, receipt } = {}) {
  * The hit list a pulled gate or shard job carries: for each named file, its newest proof rows that passed under the
  * proof command with no fail at the same key, as `[file, inputKey, context index]` over a shared context list. The
  * runner reuses a file only when its own inputKey and context class match a row, so a stale or foreign row just
- * misses. Why by file: the job's runner computes the keys; the board only knows which files it will run [P7,CD2].
+ * misses. Why by file: the job's runner computes the keys; the board only knows which files it will run [P7].
  * The rows fit `budget` bytes so the job request stays under the queue's cap; the rest are left out, so they run.
  *
  * @param {import('node:sqlite').DatabaseSync} db
@@ -117,4 +117,20 @@ export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget =
     }
   }
   return rows.length ? { contexts, files: rows } : null;
+}
+
+/**
+ * The test files the ledger holds proof rows for at any of `commits`, sorted: the plan a landing proves, read from the
+ * board instead of a submit receipt or a live import graph. Why: one source of truth for what an item proved [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} commits
+ * @param {{ command?: string }} [options]
+ * @returns {string[]}
+ */
+export function ledgerFiles(db, commits, { command = 'proof' } = {}) {
+  const wanted = [...new Set((commits ?? []).filter(commit => /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(commit))))];
+  if (missingLedgerTable(db) || !wanted.length) return [];
+  const select = db.prepare('SELECT DISTINCT test_result_file AS file FROM test_result WHERE test_result_commit = ? AND test_result_command = ?');
+  return [...new Set(wanted.flatMap(commit => select.all(commit, command).map(row => row.file)))].sort();
 }
