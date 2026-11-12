@@ -28,18 +28,18 @@ test("the static export's Pause keeps its box through a press [A10,N26,C7]", { t
     assert.ok(executable, 'Chrome is required for the static Pause press proof');
     const box = machine();
     const alpha = project(box, 'snapshot replay');
-    box.run(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
     build(box, alpha, 1, 'greeting.html');
     sendBack(box, alpha, 1, 'the first greeting needs a correction');
     build(box, alpha, 1, 'greeting-fix.html');
     box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
-    try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
+    try { await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
     finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
-    box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
-    box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
-    box.run(alpha.repo, 'shout', 'all', '<script>window.__snapshotShoutRan = true</script>');
+    await box.inProcess(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
+    await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
+    await box.inProcess(alpha.repo, 'shout', 'all', '<script>window.__snapshotShoutRan = true</script>');
     const folder = join(box.dir, 'pause-export');
-    box.run(alpha.repo, 'view', '--export', folder);
+    await box.inProcess(alpha.repo, 'view', '--export', folder);
     const host = await serveFolder(folder, '/demo/');
     let chrome;
     try {
@@ -88,10 +88,10 @@ test('replay speed is judged by its scheduled delay [A10,C7]', { timeout: 90_000
   const box = machine();
   const alpha = project(box, 'throttled-snapshot');
   for (let id = 1; id <= 6; id++) {
-    box.run(alpha.repo, 'add', 'web', `Throttled replay item ${id}`, '--specs', 'G1', '--criterion', 'replays');
+    await box.inProcess(alpha.repo, 'add', 'web', `Throttled replay item ${id}`, '--specs', 'G1', '--criterion', 'replays');
   }
   const folder = join(box.dir, 'throttled-export');
-  box.run(alpha.repo, 'view', '--export', folder);
+  await box.inProcess(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
   const profile = join(box.dir, 'throttled-chrome');
   let chrome;
@@ -164,10 +164,10 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
   const box = machine();
   const alpha = project(box, 'stable-replay-controls');
   for (let id = 1; id <= 6; id++) {
-    box.run(alpha.repo, 'add', 'web', `Replay geometry item ${id}`, '--specs', 'G1', '--criterion', 'replay controls stay put');
+    await box.inProcess(alpha.repo, 'add', 'web', `Replay geometry item ${id}`, '--specs', 'G1', '--criterion', 'replay controls stay put');
   }
   const folder = join(box.dir, 'stable-replay-controls-export');
-  box.run(alpha.repo, 'view', '--export', folder);
+  await box.inProcess(alpha.repo, 'view', '--export', folder);
   if (classicScrollbar) {
     const stylesheet = join(folder, 'view.css');
     writeFileSync(stylesheet, readFileSync(stylesheet, 'utf8') + '\n::-webkit-scrollbar { width: 15px; }\n');
