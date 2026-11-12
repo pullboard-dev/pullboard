@@ -566,9 +566,6 @@
   "apps/cli/journeys/land/takeover.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/lane/add.test.js": {
-    "launch": 13
-  },
   "apps/cli/journeys/lane/bypass.test.js": {
     "launch": 7
   },
