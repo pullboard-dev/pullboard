@@ -54,6 +54,32 @@ import { measureBoardWritePhase } from './write/lock.js';
 import { endReviewLease } from './review/lease.js';
 
 /**
+ * The evidence a verdict names: known-main failures and a quarantine proof. With `enforce` false the slow reads (every item,
+ * the proof's runs) are skipped and only the pure parse runs; the command already ran them with no lock held [#5576].
+ *
+ * @returns {object | undefined} The parsed known-main failures, for the verdict's record.
+ */
+export function verdictEvidence(board, id, { agentId, isAccept, engine, review, knownMainFailures, quarantineProofId, enforce = true }) {
+  let proofKnown;
+  if (knownMainFailures !== undefined) {
+    if (!isAccept || !review || knownMainFailures.main !== review.trunk) throw new Refused('SUBMISSION_PROOF', 'known main failures must match the accepting review trunk');
+    const proof = submissionProof({ version: 1, files: [], full: false, deferred: false, reason: '', knownMainFailures }, engine);
+    proofKnown = proof.knownMainFailures;
+    if (enforce) measureBoardWritePhase(board.db, 'verify-known-main', () => requireKnownMainReworks(proofKnown, listItems(board, { all: true }), id,
+      engine >= KNOWN_MAIN_OWNER_PATTERN_ENGINE, engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE));
+  }
+  if (quarantineProofId !== undefined) {
+    if (!isAccept) throw new Refused('PROOF_RUN_UNBOUND', 'quarantine proof authority only accompanies an accepting verdict');
+    if (enforce) {
+      const found = getItem(board, id);
+      board.nativePorts.quarantine.validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
+        commit: review?.head ?? found.item_commit, requireGreen: true });
+    }
+  }
+  return proofKnown;
+}
+
+/**
  * Record a verdict on submitted work, or a sealed re-review of unlanded work (E8,V1,V3,V8).
  * An accept verifies it; a reject
  * reopens it for rework.
@@ -70,7 +96,7 @@ import { endReviewLease } from './review/lease.js';
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -91,20 +117,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
     const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null);
     if (relaxation) note += `\nreview family relaxed at reservation: ${relaxation.queueLength} waiting, threshold ${relaxation.threshold}; active seats: ${relaxation.activeSeats.join(', ') || 'none'}`;
-    let proofKnown;
-    if (knownMainFailures !== undefined) {
-      if (!isAccept || !review || knownMainFailures.main !== review.trunk) throw new Refused('SUBMISSION_PROOF', 'known main failures must match the accepting review trunk');
-      const proof = submissionProof({ version: 1, files: [], full: false, deferred: false, reason: '', knownMainFailures }, engine);
-      proofKnown = proof.knownMainFailures;
-      measureBoardWritePhase(board.db, 'verify-known-main', () => requireKnownMainReworks(proofKnown, listItems(board, { all: true }), id,
-        engine >= KNOWN_MAIN_OWNER_PATTERN_ENGINE, engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE));
-    }
-    if (quarantineProofId !== undefined) {
-      if (!isAccept) throw new Refused('PROOF_RUN_UNBOUND', 'quarantine proof authority only accompanies an accepting verdict');
-      const found = getItem(board, id);
-      board.nativePorts.quarantine.validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
-        commit: review?.head ?? found.item_commit, requireGreen: true });
-    }
+    const proofKnown = verdictEvidence(board, id, { agentId, isAccept, engine, review, knownMainFailures, quarantineProofId, enforce: !prechecked });
     // A verdict with no gate receipt would be recorded as INSUFFICIENT_EVIDENCE and count toward the send-back hold (#3737).
     const pendingGate = engine >= REVIEW_GATE_RECEIPT_ENGINE ? measureBoardWritePhase(board.db, 'verify-gate-receipt', () => gateReceiptProblem(board, getItem(board, id) ?? {})) : null;
     if (pendingGate) throw pendingGate;

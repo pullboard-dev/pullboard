@@ -160,6 +160,7 @@ import {
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { retryReviewCommit } from '../../../../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
+import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
@@ -311,11 +312,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
-    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
-    if (!commit || !contains(root, commit, head)) {
-      throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
-    }
+    if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+    // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
+    if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
+    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     let digest = 'missing';
     let check;
     let review;
