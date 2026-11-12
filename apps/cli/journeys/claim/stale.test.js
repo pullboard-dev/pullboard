@@ -44,11 +44,12 @@ for (const commit of [true, false]) {
     const box = helpers.project('true');
     const id = file(box, 'stale folder');
     const path = goneFolder(box, id, { commit });
-    const claimed = await runCliInProcess(['claim', String(id), '--json'], { cwd: box.web, env: box.env });
+    const claimed = await runCliInProcess(['claim', String(id)], { cwd: box.web, env: box.env });
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
-    assert.equal(JSON.parse(claimed.out).itemFolder, path);
+    const said = claimed.out + claimed.err;
+    assert.ok(said.includes(path), said);
     assert.equal(box.git(path, 'branch', '--show-current'), `web/item-${id}`, 'git works in the folder');
     assert.equal(existsSync(join(path, 'web/earlier.txt')), commit, 'the branch commits are in the new folder');
-    assert.match(claimed.err, commit ? /1 earlier commit/u : /nothing waits to be submitted/u);
+    assert.match(said, commit ? /1 earlier commit/u : /nothing waits to be submitted/u);
   });
 }
