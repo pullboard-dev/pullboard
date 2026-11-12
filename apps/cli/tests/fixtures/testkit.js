@@ -66,7 +66,8 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
 
 /** Create and join a fixture worktree with all current admission identity flags. */
 export function createFixtureWorktree(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(run(root, 'worktree', lane, '--model', model, '--route', route, '--json'));
+  const result = run(root, 'worktree', lane, '--model', model, '--route', route, '--json');
+  return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
 /**

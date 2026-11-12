@@ -257,10 +257,7 @@
   "packages/gate/tests/slots.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/check-baseline/runner.test.js": {
-    "launch": 3
-  },
-  "packages/landing/tests/logic/hold/spec.test.js": {
+    "packages/landing/tests/logic/hold/spec.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/test/timeout.test.js": {
@@ -357,7 +354,7 @@
     "launch": 1
   },
   "apps/cli/journeys/fact/tests/cpu.test.js": {
-    "launch": 10
+    "launch": 1
   },
   "apps/cli/journeys/milestone/order.test.js": {
     "launch": 9
@@ -489,12 +486,9 @@
     "launch": 2
   },
   "apps/cli/journeys/submit/move.test.js": {
-    "launch": 4
+    "launch": 1
   },
-  "apps/cli/journeys/trace/why.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/shout/shouts.test.js": {
+    "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
   "apps/runner/tests/recovery/self.test.js": {
@@ -584,6 +578,15 @@
   "apps/cli/journeys/init/origin.test.js": {
     "launch": 8
   },
+  "apps/cli/journeys/init/origin/behind.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/init/origin/reads.test.js": {
+    "launch": 3
+  },
+  "apps/cli/journeys/init/origin/states.test.js": {
+    "launch": 2
+  },
   "apps/cli/journeys/fact/board/busy.test.js": {
     "launch": 9
   },
@@ -649,9 +652,6 @@
   },
   "apps/lib/tests/schema.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/quarantine/pair.test.js": {
-    "launch": 2
   },
   "packages/gate/tests/parser.test.js": {
     "launch": 4
@@ -749,9 +749,6 @@
   "apps/cli/journeys/export/addresses.test.js": {
     "launch": 8
   },
-  "apps/cli/journeys/relay/sync.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/verify/packet.test.js": {
     "launch": 2
   },
@@ -804,7 +801,7 @@
     "launch": 7
   },
   "apps/cli/journeys/digest/main.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/runner/runners/isolation.test.js": {
     "launch": 1
@@ -842,10 +839,7 @@
   "apps/cli/journeys/submit/gate/merge-base.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/companion/companions/applies.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/shout/journeys.test.js": {
+    "apps/cli/journeys/shout/journeys.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/run/tests/enotempty.test.js": {
@@ -961,9 +955,6 @@
   },
   "apps/cli/journeys/companion/companions/known.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/submit/pin.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/next/checkout.test.js": {
     "launch": 1
@@ -1142,9 +1133,6 @@
   "apps/cli/journeys/fact/e2e/tour.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/branch.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/resume/flow/setup.test.js": {
     "launch": 3
   },
@@ -1319,10 +1307,7 @@
   "packages/sync/tests/io/local.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/landing/retry.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
+    "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
@@ -1350,13 +1335,10 @@
     "launch": 1
   },
   "packages/gate/tests/io/main/admission.test.js": {
-    "launch": 15
+    "launch": 17
   },
   "packages/store/tests/io/board/write.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/submit/builder.test.js": {
-    "launch": 12
   },
   "apps/cli/journeys/tool-build/pinned.test.js": {
     "launch": 6
@@ -1474,9 +1456,6 @@
   },
   "apps/cli/journeys/land/landing/smoke.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/check.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/baseline/check.test.js": {
     "launch": 2
@@ -1617,7 +1596,7 @@
     "launch": 2
   },
   "apps/cli/journeys/verify/landing/interrupted.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/lib/tests/no/cli.test.js": {
     "launch": 1
@@ -1802,9 +1781,6 @@
   "apps/cli/journeys/engine/grants.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/show/quarantine/lift.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/show/provenance.test.js": {
     "launch": 5
   },
@@ -1891,5 +1867,8 @@
   },
   "packages/gate/tests/io/requeue/valid.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/relay/sync.test.js": {
+    "launch": 2
   }
 }
