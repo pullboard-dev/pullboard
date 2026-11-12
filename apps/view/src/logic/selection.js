@@ -8,6 +8,7 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   const observations = stateById;
   const stateOf = item => observations.get(item.id)?.state;
   const gatedOf = item => observations.get(item.id)?.gated === true;
+  const mergedOf = item => observations.get(item.id)?.merged === true;
   const matching = (query ? items : items.filter(item => item.status !== 'withdrawn'))
     .filter(item => !query || matched.has(item.id));
 
@@ -15,12 +16,18 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   if (state === 'verify') names.verify = 'In review';
   if (state === 'gated') names.gated = 'Gated';
   if (state === 'ready') names.ready = 'Ready, in rank order';
+  // The Dashboard's step cards open these three steps; like Gated, each shows only while chosen.
+  if (state === 'building') names.building = 'Building';
+  if (state === 'passed') names.passed = 'Passed, landing next';
+  if (state === 'landed') names.landed = 'Landed';
 
   const selectedLane = lane && !matching.some(item => item.lane === lane) ? null : lane;
   const inLane = item => !selectedLane || item.lane === selectedLane;
   const inState = value => item => value === 'ready' ? ready.has(item.id)
     : value === 'all' || (value === 'active' ? !['verified', 'withdrawn'].includes(stateOf(item))
-      : value === 'gated' ? gatedOf(item) : stateOf(item) === value);
+      : value === 'gated' ? gatedOf(item)
+        : value === 'passed' ? stateOf(item) === 'verified' && !mergedOf(item)
+          : value === 'landed' ? mergedOf(item) : stateOf(item) === value);
   const stateOptions = Object.entries(names).map(([value, label]) => ({
     value, label, count: matching.filter(inLane).filter(inState(value)).length,
   }));

@@ -82,6 +82,29 @@
   .dash-list li { flex-wrap: wrap; gap: 0; padding-bottom: var(--space-2); }
   .dash-list small { margin-left: auto; }
 }
-.dash-stage-strip .dash-chips { margin-top: 0; }
-.dash-stage-link { display: inline-flex; gap: var(--space-2); align-items: baseline; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-card); padding: var(--space-0) var(--space-3); font-size: var(--text-2xs); color: var(--ink-muted); text-decoration: none; }
-.dash-stage-link b { color: var(--ink); }
+/* Where the work is: five step cards, arrows between them, and the sent-back loop from In review to Building (mockup). */
+.dash-flow { padding-bottom: var(--space-4); }
+.dash-flow-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); margin-bottom: var(--space-4); }
+.dash-flow-head h2 { margin: 0; }
+.dash-flow-head span { font-size: var(--text-2xs); color: var(--ink-faint); }
+.dash-steps, .dash-loop { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); column-gap: 20px; }
+.dash-step { position: relative; display: grid; gap: 2px; padding: 9px 12px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--ink); transition: border-color .15s, background .15s; }
+.dash-step:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.dash-step:not(:last-child)::after { content: ""; position: absolute; right: -16px; top: 50%; width: 12px; height: 12px; transform: translateY(-50%); background: var(--ink-faint);
+  -webkit-mask: no-repeat center/12px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 2l5 4-5 4' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask: no-repeat center/12px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 2l5 4-5 4' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.dash-step-name { display: flex; align-items: center; gap: 6px; font-size: var(--text-2xs); font-weight: 600; color: var(--ink-muted); }
+.dash-step b { font-size: 22px; line-height: 1.2; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.dash-step small { font-size: 11.5px; color: var(--ink-faint); }
+.dash-step.ready .dash-step-name, .dash-step.ready b { color: var(--stage-ready); }
+.dash-step.building .dash-step-name, .dash-step.building b { color: var(--stage-building); }
+.dash-step.review .dash-step-name, .dash-step.review b { color: var(--stage-review); }
+.dash-step.passed .dash-step-name, .dash-step.passed b, .dash-step.landed .dash-step-name, .dash-step.landed b { color: var(--stage-merged); }
+.dash-step.landed { background: color-mix(in oklab, var(--stage-merged) 12%, var(--surface)); border-color: color-mix(in oklab, var(--stage-merged) 30%, var(--line)); }
+.dash-loop { position: relative; height: 42px; margin-top: 2px; }
+/* The loop runs from the centre of In review back up to the centre of Building: columns two to three, inset half a column each side. */
+.dash-loop-line { grid-column: 2 / 4; grid-row: 1; height: 14px; margin-inline: calc((100% - 20px) / 4); border: 1.5px dashed var(--mark-back); border-top: 0; border-radius: 0 0 6px 6px; position: relative; }
+.dash-loop-line::before { content: ""; position: absolute; left: -5.5px; top: -3px; border: 4.5px solid transparent; border-bottom: 6px solid var(--mark-back); border-top: 0; }
+.dash-loop-label { grid-column: 2 / 4; grid-row: 1; justify-self: center; align-self: end; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-2xs); color: var(--mark-back); white-space: nowrap; }
+.dash-loop-note { color: var(--ink-faint); }
+@media (max-width: 1050px) { .dash-steps { grid-template-columns: repeat(5, minmax(128px, 1fr)); overflow-x: auto; padding-bottom: 6px; } .dash-loop { display: none; } }

@@ -257,7 +257,7 @@ function render() {
   // Gated is shared by the rows, filter and status bar. Capture all clocks/derived state here;
   // the pure selector receives observations and ids, never the page's data/view globals.
   const readyIds = dashboardModel(p, [], { complete: false, now: Date.now() }).next.map(item => item.id);
-  const stateById = new Map(p.items.map(item => [item.id, { state: stateOf(item), gated: gatedOf(item) }]));
+  const stateById = new Map(p.items.map(item => [item.id, { state: stateOf(item), gated: gatedOf(item), merged: Boolean(item.merged) }]));
   const itemsSelection = selectItemsView({ items: p.items, query: q, matchedIds: found, readyIds, stateById, state: view.state,
     lane: view.lane, pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
     currentBoard: data.root === view.root, adding: view.adding,

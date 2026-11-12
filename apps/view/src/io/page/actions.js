@@ -860,7 +860,9 @@ document.addEventListener('click', (event) => {
   if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
-    view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
+    // Review and Next keep their own order; the step cards open Building, Passed and Landed by name.
+    view.dashboardList = dashboardList.dataset.dashboardList;
+    view.state = { review: 'verify', next: 'ready', building: 'building', passed: 'passed', landed: 'landed' }[view.dashboardList] ?? 'ready';
     view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
   }
   const timelineMore = event.target.closest('[data-timeline-more]');
