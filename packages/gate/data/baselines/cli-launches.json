@@ -653,9 +653,6 @@
   "apps/lib/tests/schema.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/show/quarantine/pair.test.js": {
-    "launch": 2
-  },
   "packages/gate/tests/parser.test.js": {
     "launch": 4
   },
@@ -962,9 +959,6 @@
   "apps/cli/journeys/companion/companions/known.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/pin.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/next/checkout.test.js": {
     "launch": 1
   },
@@ -1140,9 +1134,6 @@
     "launch": 3
   },
   "apps/cli/journeys/fact/e2e/tour.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/submit/branch.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/resume/flow/setup.test.js": {
@@ -1352,9 +1343,6 @@
   "packages/store/tests/io/board/write.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/builder.test.js": {
-    "launch": 12
-  },
   "apps/cli/journeys/tool-build/pinned.test.js": {
     "launch": 6
   },
@@ -1471,9 +1459,6 @@
   },
   "apps/cli/journeys/land/landing/smoke.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/check.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/baseline/check.test.js": {
     "launch": 2
@@ -1798,9 +1783,6 @@
   },
   "apps/cli/journeys/engine/grants.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/quarantine/lift.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/show/provenance.test.js": {
     "launch": 5
