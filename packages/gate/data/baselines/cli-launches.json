@@ -1007,11 +1007,17 @@
   "apps/cli/journeys/relay/snapshot/size/phone.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/relay/sync.test.js": {
+    "launch": 5
+  },
   "apps/cli/journeys/relay/team/access.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/relay/transport.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/relay/upload.test.js": {
+    "launch": 22
   },
   "apps/cli/journeys/release/binding.test.js": {
     "launch": 3
