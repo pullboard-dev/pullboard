@@ -694,7 +694,7 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
     || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
-  return reads ? JSON.stringify([listing ? `wt-${kind}` : kind, cwd, args, maxBuffer ?? null, listing && env !== process.env ? env ?? null : null]) : null;
+  return reads ? JSON.stringify(listing ? ['wt-raw', cwd, args] : [kind, cwd, args, maxBuffer ?? null]) : null;
 }
 
 /** Forget every remembered answer when a call that is not a known read is about to run. */
@@ -775,6 +775,11 @@ function rememberObjectRead(key, value, size) {
  * @returns {string}
  */
 export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
+  // A worktree list is one memoized answer for every caller, trimmed here as this function does [C7].
+  if (commandMemo !== null && memoKey('git', cwd, args, maxBuffer, env)?.startsWith('["wt-')) {
+    const listed = rawGit(cwd, args, env);
+    if (listed.status === 0) return listed.stdout.trim();
+  }
   const key = memoKey('git', cwd, args, maxBuffer, env);
   if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
   noteMemoCall(key, args);
