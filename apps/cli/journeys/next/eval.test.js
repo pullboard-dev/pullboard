@@ -12,7 +12,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 const CLI = new URL('../../tests/fixtures/native.js', import.meta.url).href;
 
 /** Prepare an ordinary private joined seat and record the actual parent and Worker argument vectors. */
-function evalProject(t, { failWorker = false } = {}) {
+async function evalProject(t, { failWorker = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }));
@@ -20,7 +20,7 @@ function evalProject(t, { failWorker = false } = {}) {
     '--criterion', 'The real joined seat claims this item.', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const inbox = box.run(box.web, 'inbox', '--json');
+  const inbox = (await box.runLocal(box.web, 'inbox', '--json'));
   assert.equal(inbox.code, 0, inbox.err);
   const observation = join(box.dir, 'monitor-arguments.jsonl');
   const preload = join(box.dir, 'monitor-preload.cjs');
@@ -38,6 +38,7 @@ function nextFromEval(box, inputType) {
 process.exitCode = await main(process.argv.slice(1), {
   cwd: process.cwd(), stdin: process.stdin, stdout: process.stdout, stderr: process.stderr,
 });`;
+  // Process-level case, kept: the progress Worker needs the real process streams and a --require preload.
   return runFixtureChildAsync(process.execPath,
     ['--no-warnings', '--require', box.preload, ...inputType, '-e', code, 'next', '--build', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
@@ -45,7 +46,7 @@ process.exitCode = await main(process.argv.slice(1), {
 
 for (const [label, inputType] of [['joined', ['--input-type=module']], ['separate', ['--input-type', 'module']]]) {
   test(`an ${label} eval input type starts the real next Worker without dropping other flags [C7]`, async t => {
-    const box = evalProject(t);
+    const box = await evalProject(t);
     const result = await nextFromEval(box, inputType);
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     const selected = JSON.parse(result.stdout);
@@ -67,11 +68,11 @@ for (const [label, inputType] of [['joined', ['--input-type=module']], ['separat
 }
 
 test('an actual next Worker preload failure remains loud and cannot claim the pending item [C7]', async t => {
-  const box = evalProject(t, { failWorker: true });
+  const box = await evalProject(t, { failWorker: true });
   const result = await nextFromEval(box, ['--input-type=module']);
   assert.equal(result.status, 1, result.failure ?? result.stderr);
   assert.match(result.stdout + result.stderr, /owned monitor preload failure/u);
-  const shown = box.run(box.web, 'show', String(box.id), '--json');
+  const shown = (await box.runLocal(box.web, 'show', String(box.id), '--json'));
   assert.equal(shown.code, 0, shown.err);
   const item = JSON.parse(shown.out);
   assert.equal(item.item_status, 'open');
