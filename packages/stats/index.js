@@ -180,3 +180,5 @@ export { LEDGER_HOPS, LEDGER_VERSION, itemLedger, ledgerLines, pipelineLedger, t
 export { foldText, newFold } from './src/logic/activity.js';
 export { readSessions } from './src/io/logs.js';
 export { readPipelineLedger } from './src/io/ledger.js';
+export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
+export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
