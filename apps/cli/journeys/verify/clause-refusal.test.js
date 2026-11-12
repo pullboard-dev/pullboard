@@ -6,7 +6,7 @@ import * as store from '../../../../packages/store/index.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { fixtureOpenBoard } from '../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
 const CRITERION = '1. The page renders its title [test]. 2. The page renders its footer [test].';
@@ -24,7 +24,7 @@ test('clause 1: the BAR_CLAUSE_REQUIRED refusal lists each frozen clause as a pa
   const committed = helpers.commitFile(box, box.web, 'web/page.html', '<main>Missing the title</main>', 'feat(web): render a page [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   // @pullboard-board-file persistence: separate CLI reviewer commands read and append this exact private board file.
-  board = fixtureOpenBoard(box);
+  board = openKitBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   submitFixture(board, id, { agentId: 'web-1', commit: head, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
   const reviewer = join(box.dir, 'clause-reviewer');
