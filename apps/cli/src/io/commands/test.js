@@ -33,7 +33,8 @@ async function seatClaims(ctx, agent) {
 export async function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   if (values.status !== undefined) return sayTestRunStatus(io, ctx, values.status);
-  const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
+  const { expandTestFolders } = await import('../../../../../packages/runners/index.js');
+  const files = expandTestFolders(ctx.info.root, [first, second, ...rest].filter((file) => file !== undefined && file !== ''));
   if (values.diagnose === true && (files.length !== 1 || values.affected === true)) throw new Refused('USAGE', '--diagnose requires exactly one named test file');
   const seat = (await import('../board/access.js')).resourceAgent(ctx);
   const agent = seat ?? `pid-${process.pid}`;

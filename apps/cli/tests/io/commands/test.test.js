@@ -369,3 +369,15 @@ test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   assert.match(absent.stderr, /NO_TESTS_MATCHED/u, `${absent.stdout}${absent.stderr}`);
   assert.equal(readFileSync(box.marker, 'utf8'), 'x', 'a discarded filter must not run the tracked case again');
 });
+
+
+test('pullboard test given a folder expands it to the test files under it, never ERR_UNSUPPORTED_DIR_IMPORT [C7,S13]', async (t) => {
+  const { expandTestFolders } = await import('../../../../../packages/runners/index.js');
+  const { privateFixtureFiles } = await import('../../../../../packages/gate/tests/fixtures/child.js');
+  const box = privateFixtureFiles();
+  t.after(() => box.cleanup?.());
+  for (const file of ['dir/b.test.js', 'dir/sub/a.test.js', 'dir/helper.js']) box.write(file, 'export {};\n');
+  box.write('empty/readme.txt', 'x');
+  assert.deepEqual(expandTestFolders(box.root, ['dir/', 'x.test.js']), ['dir/b.test.js', 'dir/sub/a.test.js', 'x.test.js']);
+  assert.throws(() => expandTestFolders(box.root, ['empty']), (error) => error.code === 'NO_TEST_FILE' && /empty/u.test(error.message));
+});
