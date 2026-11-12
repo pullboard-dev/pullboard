@@ -98,7 +98,7 @@ test('clause 1: the strip is plain text: active ink, bold and a green dot; hover
 
 test('clause 1: the notch holds agents, per hour and rulings, in that order, with steady figures and click hooks [N26]', () => {
   const html = notchHtml({ agents: 62, perHour: 34.4, rulings: 5 });
-  assert.deepEqual([...html.matchAll(/<button class="notch-it"[^>]*data-peek="([a-z]+)"[^>]*>(.*?)<\/button>/gu)].map(match => [match[1], match[2].replace(/<[^>]+>/gu, '')]),
+  assert.deepEqual([...html.matchAll(/<button class="notch-it"[^>]*data-peek="([A-Za-z]+)"[^>]*>(.*?)<\/button>/gu)].map(match => [match[1], match[2].replace(/<[^>]+>/gu, '')]),
     [['agents', '62 agents'], ['perHour', '34/h'], ['rulings', '5 rulings']]);
   assert.match(html, /<b class="g" data-notch="perHour">34\/h<\/b>/u, 'pace is green');
   assert.match(html, /<b class="a" data-notch="rulings">5<\/b> rulings/u, 'rulings are amber: they need the person');
