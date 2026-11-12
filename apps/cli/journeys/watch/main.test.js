@@ -346,7 +346,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(watch.out.lines.length, 0, 'work already claimable when watch starts is its baseline, so it prints nothing');
 
   // A newly opened item in the lane is claimable.
-  const added = (await box.local(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+  const added = (await box.local(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--accept-green', 'the watch fixture never builds this item', '--route', 'strong',
     '--brief', 'Files: app/work.txt\nChange: exercise fresh work in the watch fixture.\nTest: observe the claimable and review-wait notices.\nOut of scope: product behavior.', '--wait')).item;
   const notice = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable', 5_000, 'claimable notice')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(notice.item, added.item_id);
