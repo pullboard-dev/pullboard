@@ -397,17 +397,16 @@ test('clause 1: test --status prints the run state without spawning the resident
   assert.deepEqual(started, [], 'test --status with no resident process reads in-process and starts none');
   assert.equal(await runResident(['show', '1'], { cwd: box.repo, env, stdout: quiet, stderr: quiet, start }), null);
   assert.equal(started.length, 1, 'control: another resident command with no process does start one');
-  box.env.PULLBOARD_RESIDENT = '1';
-  const status = box.run(box.repo, 'test', '--status', run.id);
+  const status = await box.inProcess(box.repo, 'test', '--status', run.id);
   assert.equal(status.code, 0, `${status.out}${status.err}`);
   assert.match(status.out, new RegExp(`test run ${run.id} queued: test/a\\.test\\.js`, 'u'));
   const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => name.startsWith('resident-'));
   assert.deepEqual(residents, [], 'no resident board process recorded itself');
 });
 
-test('clause 2: test --status of an unknown run id still refuses with a next step [C7,#5888]', () => {
+test('clause 2: test --status of an unknown run id still refuses with a next step [C7,#5888]', async () => {
   const { box } = queuedRunBoard();
-  const refused = box.run(box.repo, 'test', '--status', '00000000-0000-4000-8000-000000000000');
+  const refused = await box.inProcess(box.repo, 'test', '--status', '00000000-0000-4000-8000-000000000000');
   assert.equal(refused.code, 1, `${refused.out}${refused.err}`);
   assert.match(refused.err, /\[NO_TEST_RUN\]/u);
   assert.match(refused.err, /^next: /mu);
