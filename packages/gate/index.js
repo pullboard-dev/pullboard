@@ -95,6 +95,7 @@ export {
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
 export { changedStaticFailures, stagedHookFailures } from './src/io/changed/static.js';
 export { STATIC_CHECKS, runStaticRegistry } from './src/io/static/check/registry.js';
+export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
 export { freeRunnerSlots } from "./src/io/shards/proof.js";

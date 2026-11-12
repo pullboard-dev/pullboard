@@ -64013,7 +64013,6 @@
         "packages/jobs",
         "packages/kernel",
         "packages/keys",
-        "packages/landing",
         "packages/link",
         "packages/merge",
         "packages/outbox",
@@ -64021,10 +64020,8 @@
         "packages/person",
         "packages/pin",
         "packages/queue",
-        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
-        "packages/runners",
         "packages/sandbox",
         "packages/seats",
         "packages/spec",
@@ -64036,9 +64033,138 @@
       ],
       "reasons": [
         "board: packages/codemap/src/io/main-facts-cache.js",
-        "browser: packages/landing/src/io/smoke.js",
+        "browser: packages/transport/src/io/ssh.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/tests/fixtures/child.js",
+        "process: apps/cli/tests/fixtures/chrome.js",
+        "runner: packages/gate/src/io/test/run.js",
+        "unresolved: packages/doctrine/src/io/fast.js"
+      ]
+    },
+    {
+      "file": "packages/gate/tests/io/clone/devtools.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/gate",
+        "packages/git",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/link",
+        "packages/merge",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/codemap/src/io/main-facts-cache.js",
+        "browser: packages/transport/src/io/ssh.js",
+        "cross-package: imports more than one package",
+        "process: apps/cli/tests/fixtures/chrome.js",
+        "runner: packages/gate/src/io/test/run.js",
+        "unresolved: packages/doctrine/src/io/fast.js"
+      ]
+    },
+    {
+      "file": "packages/gate/tests/io/clone/startup.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/gate",
+        "packages/git",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/link",
+        "packages/merge",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/codemap/src/io/main-facts-cache.js",
+        "browser: packages/transport/src/io/ssh.js",
+        "cross-package: imports more than one package",
+        "process: apps/cli/tests/fixtures/chrome.js",
+        "runner: packages/gate/src/io/test/run.js",
+        "unresolved: packages/doctrine/src/io/fast.js"
+      ]
+    },
+    {
+      "file": "packages/gate/tests/io/clone/wait.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/gate",
+        "packages/git",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/link",
+        "packages/merge",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/codemap/src/io/main-facts-cache.js",
+        "browser: packages/transport/src/io/ssh.js",
+        "cross-package: imports more than one package",
+        "process: apps/cli/tests/fixtures/chrome.js",
         "runner: packages/gate/src/io/test/run.js",
         "unresolved: packages/doctrine/src/io/fast.js"
       ]
@@ -67215,7 +67341,25 @@
         "packages/gate"
       ],
       "reasons": [
-        "process: packages/gate/tests/io/watchdog.test.js"
+        "process: packages/gate/tests/fixtures/watchdog/legacy.js"
+      ]
+    },
+    {
+      "file": "packages/gate/tests/io/watchdog/outlast.test.js",
+      "tier": "T3",
+      "packages": [],
+      "reasons": [
+        "no package: no implementation import",
+        "process: packages/gate/tests/fixtures/watchdog/legacy.js"
+      ]
+    },
+    {
+      "file": "packages/gate/tests/io/watchdog/watch.test.js",
+      "tier": "T3",
+      "packages": [],
+      "reasons": [
+        "no package: no implementation import",
+        "process: packages/gate/tests/fixtures/watchdog/legacy.js"
       ]
     },
     {
