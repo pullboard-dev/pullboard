@@ -36,7 +36,8 @@ async t => {
   const [id] = box.ids;
   const { folder, commit } = submitOne(box, id);
   // A session stays alive on the submitting host, in the seat's folder, as a dev box's agent would; it names the folder so the sweep finds it.
-  const waiter = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', folder], { cwd: folder, env: box.env, stdio: 'ignore' });
+  // A shell loop, not a node child: the folder is its $0, and the one-second sleeps it leaves when killed end on their own.
+  const waiter = spawn('/bin/sh', ['-c', 'while :; do sleep 1; done', folder], { cwd: folder, env: box.env, stdio: 'ignore' });
   const waiterGone = new Promise(done => waiter.once('exit', (code, signal) => done(signal)));
   t.after(() => { if (waiter.exitCode === null && waiter.signalCode === null) waiter.kill('SIGKILL'); });
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
