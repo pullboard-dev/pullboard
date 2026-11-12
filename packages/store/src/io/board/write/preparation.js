@@ -46,36 +46,38 @@ export function requireBoardWriteSnapshot(board, snapshot, operation) {
 }
 
 /**
- * The BOARD_BUSY refusal for a preparation another write overtook, naming what wrote since the snapshot.
- * Why: on 12 Nov claims refused for 20 minutes and nobody could tell which command kept changing the board.
+ * The BOARD_BUSY refusal for a preparation another write overtook, naming the board events written since the snapshot.
+ * Why: on 12 Nov claims refused for 20 minutes and nobody could tell which command kept changing the board. It reads
+ * board rows only, so it is safe under the writer lock; observedWriterRecords adds the pid once the lock is released.
  * @param {any} board
  * @param {{eventId?:number|null, at?:number}} snapshot
  * @param {string} operation
  * @returns {Refused}
  */
 export function staleBoardRefusal(board, snapshot, operation) {
-  return new Refused('BOARD_BUSY', `the board changed while preparing ${operation}; retry from the current board snapshot${observedWriterText(board, snapshot)}`);
+  let events = [];
+  if (Number.isSafeInteger(snapshot?.eventId)) {
+    try {
+      events = board.db.prepare('SELECT event_kind AS kind, event_by AS by, item_id AS item FROM event WHERE event_id > ? ORDER BY event_id DESC LIMIT 3')
+        .all(snapshot.eventId).map(row => ({ kind: row.kind, by: row.by, item: row.item ?? null }));
+    } catch { /* Naming the writer is advisory; the refusal stands without it. */ }
+  }
+  const error = new Refused('BOARD_BUSY', `the board changed while preparing ${operation}; retry from the current board snapshot${events.length ? '; events since preparation: ' + JSON.stringify(events) : ''}`);
+  Object.defineProperty(error, 'preparedAt', { value: snapshot?.at, enumerable: false });
+  return error;
 }
 
 /**
- * Name the writers since a snapshot: the board's own events (kind, seat, item) and the machine write log's
- * completed writes (command, seat, pid). Advisory and bounded; a failed read names nothing rather than refusing.
- * @param {any} board
- * @param {{eventId?:number|null, at?:number}} snapshot
- * @returns {string}
+ * Add the machine write log's committed writes (command, seat, pid) since a stale refusal's preparation to its message.
+ * Call it only after the writer lock is released: it reads a file. Advisory and bounded; a failed read adds nothing.
+ * @param {Refused} error
+ * @returns {Refused}
  */
-export function observedWriterText(board, snapshot) {
-  const parts = [];
-  if (Number.isSafeInteger(snapshot?.eventId)) {
-    try {
-      const events = board.db.prepare('SELECT event_kind AS kind, event_by AS by, item_id AS item FROM event WHERE event_id > ? ORDER BY event_id DESC LIMIT 3')
-        .all(snapshot.eventId).map(row => ({ kind: row.kind, by: row.by, item: row.item ?? null }));
-      if (events.length) parts.push('events since preparation: ' + JSON.stringify(events));
-    } catch { /* Naming the writer is advisory; the refusal stands without it. */ }
-  }
-  const writes = Number.isFinite(snapshot?.at) ? loggedWritesSince(snapshot.at) : [];
-  if (writes.length) parts.push('observed writer records: ' + JSON.stringify(writes));
-  return parts.length ? '; ' + parts.join('; ') : '';
+export function observedWriterRecords(error) {
+  if (!(error instanceof Refused) || error.code !== 'BOARD_BUSY' || !Number.isFinite(error.preparedAt) || /observed writer records/u.test(error.message)) return error;
+  const writes = loggedWritesSince(error.preparedAt);
+  if (writes.length) error.message += '; observed writer records: ' + JSON.stringify(writes);
+  return error;
 }
 
 /** Read the last committed writes at or after an instant from the machine's write log, newest first, at most three. */

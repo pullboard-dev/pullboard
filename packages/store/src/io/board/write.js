@@ -2,6 +2,7 @@ import { requireExitActive } from "../../logic/exit/rules/claim.js";
 /** The native command prepares external work before its final ordered writer [B2,C7]. */
 import * as store from "../board.js";
 import { measureBoardWritePhase } from './write/lock.js';
+import { observedWriterRecords } from './write/preparation.js';
 import { prepareReserveNextReview } from "./reserve/next.js";
 import { prepareReserveReview } from "./reserve/review.js";
 import { requireHandoffActive } from "../../../../state/light.js";
@@ -83,8 +84,9 @@ export function writeBoardCommand(board, operation, args, actor, { prepareInWrit
     } catch (error) {
       rollbackPrepared?.();
       // Claim preparation already owns its bounded retries; only queue sealing needs this outer retry.
-      if (preparing && operation !== 'queueSubmitHandoff') throw error;
-      if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw error;
+      if (preparing && operation !== 'queueSubmitHandoff') throw observedWriterRecords(error);
+      // The lock is released here, so a final refusal can read the machine write log to name its writer (#6016).
+      if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw observedWriterRecords(error);
       // Jitter outside the rolled-back transaction, so contending preparations stop retrying in step (#6016).
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.floor(Math.random() * 25 * (attempt + 1)));
     }
