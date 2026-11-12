@@ -1,10 +1,4 @@
 {
-  "apps/cli/journeys/add/check.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/add/lanes.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/agents/independence.test.js": {
     "launch": 4
   },
@@ -160,9 +154,6 @@
   },
   "apps/cli/journeys/digest/main.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/doctor/frozen.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/doctor/main.test.js": {
     "launch": 42
@@ -433,9 +424,6 @@
   },
   "apps/cli/journeys/handoff/dispatcher/relaunch.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/handoff/main.test.js": {
-    "launch": 13
   },
   "apps/cli/journeys/handoff/snapshot.test.js": {
     "launch": 1
@@ -1270,6 +1258,12 @@
   },
   "apps/cli/journeys/runner/tooling/lazy.test.js": {
     "launch": 4
+  },
+  "apps/cli/journeys/sentinel/needs/draft.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/sentinel/needs/panel.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/sentinels/main.test.js": {
     "launch": 30
