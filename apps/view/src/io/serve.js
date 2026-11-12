@@ -3,6 +3,9 @@ import { viewProofSummary } from "../logic/summary/state.js";
 import { compactItemSummaries } from "../logic/summary/state.js";
 import { viewFlowSummary } from "../logic/summary/state.js";
 import { modelPresentation } from "./cost/tab.js";
+import { noLinkPage } from "./no-link.js";
+import { NO_LINK_CSS } from "./no-link.js";
+import { NO_LINK_STYLESHEET } from "./no-link.js";
 import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
@@ -843,6 +846,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       return apiHandler(req, res);
     }
     if (hosted) return json(res, 403, { error: 'open the printed view link for local pages; the hosted page uses the API' });
+    // The no-link page's stylesheet: the view's tokens and that page's rules only, so it opens before the link does.
+    if (req.method === 'GET' && url.pathname === NO_LINK_STYLESHEET) return reply(res, 200, 'text/css; charset=utf-8', NO_LINK_CSS);
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? url.searchParams.get('k') ?? ''));
     const validKey = credentialMatches(given, key);
     if (!validKey && !cookieMatches(req)) {
@@ -850,7 +855,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       const browserPage = req.method === 'GET' && url.pathname === '/' && !url.searchParams.has('k') && req.headers['x-pullboard-key'] === undefined
         && /(?:^|,)\s*text\/html(?:\s*;|\s*,|\s*$)/iu.test(String(req.headers.accept ?? ''))
         && (destination === undefined || destination === 'document');
-      if (browserPage) return reply(res, 401, 'text/html; charset=utf-8', '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Open your board</title><h1>Open your board</h1><p>The board opens at <a href="' + HOSTED_ORIGIN + '">app.pullboard.dev</a>.</p></html>');
+      if (browserPage) return reply(res, 401, 'text/html; charset=utf-8', noLinkPage(HOSTED_ORIGIN));
       return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     }
     if (req.method === 'GET' && url.searchParams.has('k')) {
