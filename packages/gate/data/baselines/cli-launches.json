@@ -1410,7 +1410,7 @@
     "launch": 5
   },
   "apps/cli/journeys/test/knownred.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/test/placement.test.js": {
     "launch": 6
