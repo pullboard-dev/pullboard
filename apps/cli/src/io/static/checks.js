@@ -7,6 +7,17 @@ import { changedStaticFailures } from '../../../../../packages/gate/index.js';
 import { staticScopeFromEnv } from '../../../../../packages/gate/index.js';
 import { viewPureGate } from './view.js';
 
+/**
+ * The first real error line of a crashed child's stderr, with its first `at` location.
+ * Why: the last line of a Node crash is the "Node.js vX" banner, which names no cause.
+ */
+export function crashLine(stderr) {
+  const lines = stderr.split('\n').map(line => line.trim()).filter(Boolean);
+  const error = lines.find(line => /^\w*Error\b/.test(line)) ?? lines.find(line => !/^Node\.js v/.test(line)) ?? 'no output';
+  const at = lines.find(line => line.startsWith('at '));
+  return at ? `${error} (${at})` : error;
+}
+
 // Only the executable composes higher CLI services; importing this module does not run the preflight.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const root = process.cwd();
@@ -21,7 +32,7 @@ const registry = fileURLToPath(new URL('../../../../../packages/gate/src/io/stat
 // A gate that found no whole-repo input in the change hands over the changed paths; the registry then judges only those [5814].
 const program = `const { runStaticTreeRegistry } = await import(${JSON.stringify(pathToFileURL(registry).href)});\nprocess.stdout.write(JSON.stringify(runStaticTreeRegistry(process.argv[1], { changed: JSON.parse(process.argv[2]) })));`;
 const tree = spawnSync(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv())], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-const failures = [...(tree.status === 0 ? JSON.parse(tree.stdout) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${tree.stderr.trim().split('\n').at(-1)}`]), ...viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`)];
+const failures = [...(tree.status === 0 ? JSON.parse(tree.stdout) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(tree.stderr)}`]), ...viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`)];
 for (const row of failures) console.error(row);
 const failed = failures.length > 0;
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');

@@ -30,6 +30,7 @@ import {
   runFixtureGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
@@ -171,6 +172,9 @@ function fixture(t, count, slots = 2) {
   ].join('\n') + '\n');
   box.main = commit(box, root);
   assert.equal(cli(box, root, 'settings', 'gateSlots', String(slots)).status, 0);
+  // These submits hold their gate and its main comparisons in the submitting process, so the fixture pins controller dispatch [P7].
+  const machine = JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { ...machine, gate: { ...machine.gate, runnerDispatch: 'controller' } });
   const added = cli(box, root, 'add', 'core', 'Retain the native red verdict', '--specs', 'G1', '--route', 'mid',
     '--criterion', 'A red test is refused', '--check', 'true', '--brief', 'Files: test/\nTest: native comparison');
   assert.equal(added.status, 0, added.stderr);
