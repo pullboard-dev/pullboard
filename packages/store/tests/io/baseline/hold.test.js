@@ -42,3 +42,17 @@ test('clause 3: a green baseline that lands after the person accepted that exact
     baseline: { command: expected.command, main: MAIN, result: 'green' }, holdProvesNothing: true });
   assert.equal(store.getItem(board, id).item_hold_reason ?? null, null, 'the person already read and accepted this check');
 });
+
+test('clause 1: a red baseline lifts a proves-nothing hold left by an earlier green check, so next offers the item again [P7]', t => {
+  const { board, id, expected } = pendingItem(t, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  store.completeCheckBaseline(board, id, { agentId: 'coordinator', expected,
+    baseline: { command: expected.command, main: MAIN, result: 'green' }, holdProvesNothing: true });
+  assert.equal(store.getItem(board, id).item_hold_reason, 'check passes on main; edit the bar');
+  const request = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const pending = { command: expected.command, main: MAIN, result: 'pending', request };
+  store.saveCheckBaseline(board, id, pending);
+  assert.equal(store.completeCheckBaseline(board, id, { agentId: 'coordinator', expected: pending,
+    baseline: { command: expected.command, main: MAIN, result: 'red' }, holdProvesNothing: true }), true);
+  assert.equal(store.getItem(board, id).item_hold_reason ?? null, null, 'the red baseline lifts the hold');
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item?.item_id, id, 'next offers the item again');
+});

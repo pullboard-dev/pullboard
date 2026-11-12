@@ -180,9 +180,15 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const reset = box.run(box.repo, ['edit', String(second.item_id), '--check', fileCheck('done', 'second-red-marker.txt'), '--wait', '--json'], undefined, { env });
   assert.equal(reset.status, 0, `${reset.stdout}${reset.stderr}`);
   assert.equal(JSON.parse(reset.stdout).item.item_check_baseline.result, 'red');
-  // Since 4657576b18 next no longer tries held items, so the stale hold lifts on an explicit claim once the baseline is red.
-  const nextClaimed = box.run(box.web, ['claim', String(second.item_id), '--json']);
-  assert.equal(nextClaimed.status, 0, `a changed check with a red baseline lifts the hold for claim: ${nextClaimed.stdout}${nextClaimed.stderr}`);
+  // The red baseline itself lifts the proves-nothing hold, so next and claim both hand the item out (P7, #6187).
+  assert.equal(showItem(box, second.item_id).item.item_hold_reason ?? null, null, 'a red baseline on main lifts the check hold');
+  const nextClaimed = box.run(box.web, ['next', '--json']);
+  assert.equal(nextClaimed.status, 0, `a red baseline lifts the hold for next: ${nextClaimed.stdout}${nextClaimed.stderr}`);
+  assert.equal(JSON.parse(nextClaimed.stdout).item?.item_id, second.item_id, `next hands out the item once its check is red on main: ${nextClaimed.stdout}`);
+  const released = box.run(box.web, ['release', String(second.item_id), '--reason', 'OTHER', '--note', 'the fixture claims it again', '--json']);
+  assert.equal(released.status, 0, `${released.stdout}${released.stderr}`);
+  const claimedAgain = box.run(box.web, ['claim', String(second.item_id), '--json']);
+  assert.equal(claimedAgain.status, 0, `a red baseline lifts the hold for claim, with no ITEM_HELD: ${claimedAgain.stdout}${claimedAgain.stderr}`);
   assert.equal(showItem(box, second.item_id).item.item_status, 'claimed', 'claim took the item once its check was red on main');
 
   const plain = project({ content: 'green', worktrees: true });

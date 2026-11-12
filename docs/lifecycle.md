@@ -152,7 +152,7 @@ Each move checks its guards in this order and refuses with the first that fails;
 | REOPEN_HELD_FOR_BUILDER | a returned item waits for its original builder until its recorded deadline or builder release | wait until the named deadline, or ask its builder to run pullboard release <id> |
 | HELD | no other agent holds it under a live lease | pullboard next |
 | LANE_HELD | nobody holds its lane, unless the caller is renewing its own live claim | pullboard next --wait 9 (minutes) |
-| ITEM_HELD | the coordinator has not put this item on hold, unless the caller is renewing its own live claim | the coordinator lifts it with pullboard hold <id> --off |
+| ITEM_HELD | the coordinator has not put this item on hold, unless the caller is renewing its own live claim | the coordinator lifts it with pullboard hold <id> --off; a hold for a check that passes on main lifts itself once that check is red on main |
 | PENDING_REFREEZE | no coordinator correction to a claimed criterion or check is waiting to be frozen | pullboard refreeze <id> |
 | LINE_WIP_LIMIT | a new claim stays within recorded WIP per active reviewer, only for new claims while wipPerReviewer is on | review the oldest eligible waiting submission: pullboard next --verify |
 | LINE_SETTING_RANGE | a new claim stays within recorded WIP per active reviewer, only for new claims while wipPerReviewer is on | restore the malformed recorded line setting before claiming |
