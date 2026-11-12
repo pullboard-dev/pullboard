@@ -1,33 +1,25 @@
 /** Stage the shared test registries a landing derives from what the item merge moved, so no lane hand-edits them [C7,V24]. */
+import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { git } from '../../../git/index.js';
 
-/**
- * What the item merge changed in test files: each rename (old path to new) and every path added, copied, modified or renamed to.
- * Why: the test registries follow these so a move needs no hand edit; a checkout with no merge parent has no changes to follow.
- * @returns {{ renamed: Map<string, string>, touched: string[] }}
- */
-export function mergeTestChanges(root, base = 'HEAD^1') {
-  const renamed = new Map(), touched = [];
-  let out = '';
-  try { out = git(root, ['diff', '--name-status', '-M', base, 'HEAD']); } catch { return { renamed, touched }; }
-  for (const line of out.split('\n').filter(Boolean)) {
-    const [status, from, to] = line.split('\t');
-    if (status.startsWith('R')) { renamed.set(from, to); touched.push(to); }
-    else if (status !== 'D') touched.push(from);
-  }
-  return { renamed, touched };
-}
+const SCRIPT = 'packages/gate/src/io/test/scripts/registries.js';
 
 /**
  * Rebuild the test registries in the merged tree and stage the ones that changed.
- * Why: the gate door is loaded only here, when a landing derives, so the landing's other modules never reach the CLI through it.
+ * Why: the deriver runs as the gate's own script in a child process, so no landing module imports the gate door and reaches the CLI through it.
+ * A tree whose gate has no such script has nothing to derive.
  * @param {string} root A checkout of the merged tree.
  * @param {string} [base] The commit the merge started from.
+ * @param {string} [script] The deriver to run; the tree's own gate script by default.
  * @returns {Promise<string[]>} The staged registry files.
  */
-export async function stageTestRegistries(root, base = 'HEAD^1') {
-  const { deriveTestRegistries } = await import('../../../gate/index.js');
-  const registries = deriveTestRegistries(root, mergeTestChanges(root, base));
+export async function stageTestRegistries(root, base = 'HEAD^1', script = join(root, SCRIPT)) {
+  if (!existsSync(script)) return [];
+  const { stdout } = await promisify(execFile)(process.execPath, [script, '--base', base], { cwd: root, maxBuffer: 16 * 1024 * 1024 });
+  const registries = JSON.parse(stdout.trim().split('\n').at(-1));
   if (registries.length) git(root, ['add', '--', ...registries]);
   return registries;
 }

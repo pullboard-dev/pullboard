@@ -9,13 +9,15 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import {
   privateFixtureFiles,
   runFixtureGit,
 } from '../../../apps/cli/tests/fixtures/child.js';
-import { stageLandingDerived } from '../src/io/derive.js';
+import { stageTestRegistries } from '../src/io/registries.js';
 
+const SCRIPT = fileURLToPath(new URL('../../gate/src/io/test/scripts/registries.js', import.meta.url));
 const CELLS = 'packages/gate/data/tests/test-cells.json';
 const JOURNEYS = 'packages/gate/data/tests/test-journeys.json';
 const TIERS = 'packages/gate/data/tests/tiers.json';
@@ -54,14 +56,14 @@ function land(box, work) {
   box.sh('merge', '-q', '--no-ff', '-m', 'merge item', 'item');
 }
 
-test('a fixture view-lane test move lands with no hand edit: every registry row follows the rename and the counts fall [C7,V24]', t => {
+test('a fixture view-lane test move lands with no hand edit: every registry row follows the rename and the counts fall [C7,V24]', async t => {
   const box = repo(t);
   land(box, () => {
     mkdirSync(join(box.root, 'apps/view/tests'), { recursive: true });
     box.sh('mv', 'test/moves.test.js', 'apps/view/tests/moves.test.js');
   });
-  const staged = stageLandingDerived(box.root);
-  assert.deepEqual([...staged.registries].sort(), [CELLS, JOURNEYS, TIERS]);
+  const staged = await stageTestRegistries(box.root, 'HEAD^1', SCRIPT);
+  assert.deepEqual([...staged].sort(), [CELLS, JOURNEYS, TIERS]);
   const cells = box.read(CELLS);
   assert.deepEqual(Object.keys(cells.journeys), ['apps/view/tests/moves.test.js', 'test/gone.test.js'], 'the listing row followed the rename');
   assert.equal(cells.rootTests, 1, 'the root count fell by the move');
@@ -71,20 +73,20 @@ test('a fixture view-lane test move lands with no hand edit: every registry row 
   assert.equal(box.sh('diff', '--cached', '--name-only').trim().split('\n').length, 3, 'the three rows are staged for the merge');
 });
 
-test('a removed test loses its rows and the derived counts only fall [C7,V24]', t => {
+test('a removed test loses its rows and the derived counts only fall [C7,V24]', async t => {
   const box = repo(t);
   land(box, () => box.sh('rm', '-q', 'test/gone.test.js'));
-  stageLandingDerived(box.root);
+  await stageTestRegistries(box.root, 'HEAD^1', SCRIPT);
   assert.deepEqual(Object.keys(box.read(CELLS).journeys), ['test/moves.test.js']);
   assert.equal(box.read(CELLS).rootTests, 1);
   assert.deepEqual(Object.keys(box.read(JOURNEYS).files), ['test/moves.test.js']);
   assert.deepEqual(box.read(TIERS).files.map(row => row.file), ['apps/view/tests/keep.test.js', 'test/moves.test.js']);
 });
 
-test('a landing that would raise the root count is refused and leaves the registries as they were [C7,V24]', t => {
+test('a landing that would raise the root count is refused and leaves the registries as they were [C7,V24]', async t => {
   const box = repo(t);
   land(box, () => box.put('test/extra.test.js', 'import assert from "node:assert/strict";\nassert.ok(true);\n'));
   const before = readFileSync(join(box.root, CELLS), 'utf8');
-  assert.throws(() => stageLandingDerived(box.root), /ratchet would rise/u);
+  await assert.rejects(stageTestRegistries(box.root, 'HEAD^1', SCRIPT), /ratchet would rise/u);
   assert.equal(readFileSync(join(box.root, CELLS), 'utf8'), before);
 });
