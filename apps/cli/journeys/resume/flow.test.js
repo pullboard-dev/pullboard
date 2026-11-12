@@ -430,17 +430,19 @@ test('resume shows the coordinator its unread shouts [I1,A9]', async t => {
 });
 
 /** Prove the SessionStart hook prints the same inbox count, since it runs pullboard resume. */
-test('resume shows the coordinator its unread shouts through the SessionStart hook [I1,A9]', t => {
+test('resume shows the coordinator its unread shouts through the SessionStart hook [I1,A9]', async t => {
   const box = releaseFixture(t);
   const other = join(box.root, 'other-checkout');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize hook inbox fixture [N19]');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'other', other);
   const lane = Object.keys(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes)[0];
-  const joined = fixtureJoin(box.run, other, lane, '--model', 'Fixture');
-  assert.equal(joined.status, 0, joined.failure || joined.stderr || joined.stdout);
-  const shouted = box.run(other, 'shout', 'coordinator', 'Can the hook show this shout?', '--kind', 'question');
+  const joined = fixtureJoin(box.runLocal, other, lane, '--model', 'Fixture');
+  const joinedResult = await joined;
+  assert.equal(joinedResult.status, 0, joinedResult.failure || joinedResult.stderr || joinedResult.stdout);
+  const shouted = await box.runLocal(other, 'shout', 'coordinator', 'Can the hook show this shout?', '--kind', 'question');
   assert.equal(shouted.status, 0, shouted.failure || shouted.stderr || shouted.stdout);
+  // Process-level: the real SessionStart shell hook runs `sh -c` and reaches the copied CLI through PATH.
   const hook = runFixtureChild('sh', ['-c', RESUME_HOOK], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(hook.status, 0, hook.failure || hook.stderr || hook.stdout);
   assert.match(hook.stdout, /^inbox: 1 unread shout, 0 open decisions for you; read them with pullboard inbox$/mu, hook.stdout);
