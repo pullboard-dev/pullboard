@@ -48,6 +48,7 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+import { normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
@@ -88,12 +89,27 @@ const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: i
   : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
-const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
-/** Run one phase and record it; only the proof's test runner comes from accepted main, the files and the frozen check are the candidate's own. */
+/** The checkout-relative script a proof command runs first (\`node bin/run-tests.js …\`), or null when it names none. */
+const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
+/** The modules a script imports by name, sorted: its static and dynamic import specifiers; null when the file is missing. */
+const importsOf = file => {
+  let text;
+  try { text = readFileSync(file, 'utf8'); } catch { return null; }
+  return [...new Set([...text.matchAll(/(?:\\bfrom\\s*|\\bimport\\s*\\(\\s*|\\bimport\\s+)(['"])([^'"\\n]+)\\1/gu)].map(found => found[2]))].sort();
+};
+/**
+ * The proof runner, when the candidate changed what it imports against accepted main, else null. Why: the proof runs
+ * as written inside the checkout, as on the controller; a runner that loads other modules than main's is refused.
+ */
+const changedRunner = command => {
+  const script = proofScript(command), trusted = script ? importsOf(join(tools, script)) : null;
+  return trusted && JSON.stringify(importsOf(join(root, script))) !== JSON.stringify(trusted) ? script : null;
+};
+/** Run one phase as written, inside the candidate checkout, as the controller does; the files and the frozen check are the candidate's own. */
 const runPhase = (role, command, PATH) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
-  const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
+  const ran = timed(role, () => spawnSync('(' + command + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
     env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
@@ -116,6 +132,10 @@ else {
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+  // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
+  const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
+  if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
+    message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
   if (!refusals.length && !receipt.analysis.infra) {
     const PATH = cliPath();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
