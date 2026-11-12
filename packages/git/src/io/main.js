@@ -1192,6 +1192,17 @@ export function isClean(root) {
 }
 
 /**
+ * True when nothing differs from HEAD, staged, unstaged or untracked: what isClean and an empty untracked list say together,
+ * from one Git process, remembered until this command next writes or drops its facts (#6153).
+ *
+ * @param {string} root
+ * @returns {boolean}
+ */
+export function treeUntouched(root) {
+  return fact(`treeUntouched:${resolve(root)}`, () => git(root, ['status', '--porcelain', '--untracked-files=all']) === '');
+}
+
+/**
  * How each file under `paths` in the work tree differs from HEAD, whatever is staged: not
  * committed, changed or deleted. A file git ignores counts too, marked, since no commit holds it.
  * With no commits yet, every file there is not committed. Read-only: git takes no index lock.
