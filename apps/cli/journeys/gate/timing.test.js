@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { FIXTURE_GATE_DISPATCH } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { copyFixtureRunner } from '../../../../packages/gate/tests/fixtures/copy.js';
 
@@ -34,7 +35,7 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   box.git(box.repo, 'commit', '-q', '-m', 'test: add a browser-free named check');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { browserFreeChecks: true, runnersFirst: false, runnersOnly: false } }));
+  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { ...FIXTURE_GATE_DISPATCH, browserFreeChecks: true, runnersFirst: false, runnersOnly: false } }));
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Timed check', '--criterion', 'the check runs', '--check', 'node apps/cli/src/io/run/tests.js test/quick.test.js', '--route', 'strong').code, 0);
   const claimedOne = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimedOne.code, 0, `${claimedOne.out}${claimedOne.err}`);
