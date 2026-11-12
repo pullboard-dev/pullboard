@@ -1,12 +1,12 @@
 /** `pullboard stats runners`: measurement of the runner fleet, read-only over the job tables [C7]. */
 import {
-  HEALTH_PAYLOAD_STEPS,
-  HEALTH_STEP_NAMES,
-  flowWindowMinutes,
+  WAIT_STEP_NAMES,
   readRunnerJobs,
-  runnerHealth,
-  runnerHealthLines,
+  runnerWaitLines,
+  runnerWaits,
+  waitRows,
 } from '../../../../../../packages/stats/index.js';
+import { flowWindowMinutes } from '../../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
 import { withBoard } from '../../entry.js';
 
@@ -18,19 +18,19 @@ function instant(value, flag) {
 }
 
 /**
- * Run `pullboard stats runners` and return its exit code: with --health, run time per runner and job kind plus runner health.
+ * Run `pullboard stats runners` and return its exit code: slot wait and queue depth per job kind and hour.
  *
- * Why: slow or flaky hosts show in the board's own job steps, so capacity is measured, not assumed.
+ * Why: runner capacity drives speed, so the numbers come from the board's own job steps, never an assumption.
  */
 export function runRunners(io, ctx, { second, rest, values }) {
-  if (second !== undefined || rest?.length || values.since !== undefined || values.compare || !values.health) {
-    throw new Refused('USAGE', 'show run time per runner and runner health with pullboard stats runners --health [--window 24h] [--until <ISO time>] [--json]');
+  if (second !== undefined || rest?.length || values.since !== undefined || values.compare) {
+    throw new Refused('USAGE', 'show runner slot waits and queue depth with pullboard stats runners [--window 24h] [--until <ISO time>] [--json]');
   }
   const until = values.until === undefined ? ctx.clock.now().getTime() : instant(values.until, '--until');
   const from = until - flowWindowMinutes(values.window ?? '24h') * 60_000;
-  const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: HEALTH_STEP_NAMES, payloads: HEALTH_PAYLOAD_STEPS }));
-  const health = runnerHealth(jobs);
-  io.result?.({ runners: { health } });
-  for (const line of runnerHealthLines(health)) io.say(line);
+  const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: WAIT_STEP_NAMES }));
+  const waits = runnerWaits(waitRows(jobs), { from, until });
+  io.result?.({ runners: { waits } });
+  for (const line of runnerWaitLines(waits)) io.say(line);
   return 0;
 }
