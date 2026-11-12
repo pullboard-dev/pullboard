@@ -65,7 +65,7 @@ test('an item whose check fails only a case an open Main red item fails the same
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const facts = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='fact'", box.item).map(row => row.event_detail).join('\n');
-  assert.match(facts, new RegExp(`test/affected\\.test\\.js \\(x case \\[G1\\]\\), repair #${owner}`, 'u'));
+  assert.match(facts, new RegExp(`test/affected\\.test\\.js \\(x case \\[G1\\]\\), open repair #${owner}`, 'u'));
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
