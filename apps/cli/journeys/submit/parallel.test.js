@@ -16,7 +16,7 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
   assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), 'the real child intervals overlap');
   const slower = Math.max(...runs.map(run => run.end - run.start));
-  const where = `before the checks ${Math.min(...runs.map(run => run.start)) - started}ms, after them ${started + wallMs - Math.max(...runs.map(run => run.end))}ms; ${((result.err + result.out).match(/submit [a-z -]+: [0-9.]+s/gu) ?? []).join(', ')}`;
+  const where = `before the checks ${Math.min(...runs.map(run => run.start)) - started}ms, after them ${started + wallMs - Math.max(...runs.map(run => run.end))}ms; ${((result.err + result.out).match(/submit [a-z -]+: [0-9.]+s at [0-9]+/gu) ?? []).join(', ')}`;
   t.diagnostic(`submit ${wallMs}ms; check receipts ${receipts.map(receipt => receipt.durationMs).join(',')}ms; ${where}`);
   assert.ok(wallMs <= slower * 1.2, `submit ${wallMs}ms, slower check ${slower}ms; receipts ${receipts.map(receipt => receipt.durationMs).join(',')}ms; ${where}`);
   assert.equal(receipts.length, 2, 'each command retains its own native proof receipt');

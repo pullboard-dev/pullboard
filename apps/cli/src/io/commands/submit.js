@@ -262,6 +262,7 @@ import { reportPreflight } from '../submit/preflight.js';
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
   ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
+  process.stderr.write(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s at ${Math.round(performance.now())}\n`);
   const end = Date.now();
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
