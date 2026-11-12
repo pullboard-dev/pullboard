@@ -316,8 +316,8 @@ function guardLabel(machine, move, id) {
 /**
  * The lifecycle as a markdown page: a Mermaid state diagram, every move with its guards in the
  * order they are checked (transition guards included), each guarded target's required guards, and every refusal
- * with the rule behind it and the next step (M1, P4). docs/lifecycle.md is this page, written by
- * `pullboard lifecycle`, and a test fails when the two differ, so the page cannot drift from the code.
+ * with the rule behind it and the next step (M1, P4). `pullboard lifecycle` prints this page on demand,
+ * so it cannot drift from the code.
  *
  * @param {Machine} [machine]
  * @returns {string}

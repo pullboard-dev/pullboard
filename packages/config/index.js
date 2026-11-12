@@ -21,6 +21,8 @@ export {
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
+export { scratchRoot } from './src/logic/scratch.js';
+export { scratchFolder, moveAcross } from './src/logic/scratch/folder.js';
 export {
   JSON_SHAPES,
 } from './src/logic/json.js';
@@ -31,6 +33,7 @@ export {
   loadMachineSettings,
   declaredMachineSlots,
   validateRunner,
+  parseToolchains,
   relayCanaryConfig,
   DEFAULT_RUNNER_WAIT_MS,
   validateRunnerWaitMs,

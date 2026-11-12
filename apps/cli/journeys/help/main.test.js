@@ -209,6 +209,14 @@ test('clause 1: help lists every edit option [C7]', async t => {
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
 });
 
+test('clause 1: help says merge conflicts never count, scopes handoff to agent worktrees and names what resume --diagnostics adds [V32]', () => {
+  const text = HELP_SECTIONS.map(section => section.text).join('');
+  const entry = (usage, next) => text.slice(text.indexOf(usage), text.indexOf(next, text.indexOf(usage)));
+  assert.ok(entry('  pullboard rigor  ', '  pullboard rigor --draft-splits').includes('merge conflicts never count'));
+  assert.ok(entry('  pullboard handoff', '  pullboard resume').includes("agent worktrees only; a coordinator's hand-off is its resume card"));
+  assert.ok(entry('  pullboard resume', '  pullboard badge').includes('--diagnostics adds git checks and verified-not-merged work (merges cleanly, conflicts, claimed for integration)'));
+});
+
 test('every flag in pullboard help has a one-line meaning [I11]', () => {
   const bare = [];
   for (const [command, declaration] of Object.entries(HELP.commands)) {
