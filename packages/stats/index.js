@@ -190,3 +190,5 @@ export { MAIN_TEST_KIND, mainLag, mainLagLines } from './src/logic/runners/lag.j
 export { readMainLandings } from './src/io/runners/lag.js';
 export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
+export { AGENT_FLOW_KINDS, agentFlow, agentFlowLines } from './src/logic/agents.js';
+export { readAgentFlowEvents } from './src/io/agents.js';

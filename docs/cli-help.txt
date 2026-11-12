@@ -394,6 +394,7 @@ Role guides
 Gate and hooks
   pullboard push-receipts               additive check of Git pre-push stdin, native receipts and accepted-policy smoke; does not replace the active hook
   pullboard gate [--landing [--receipt]]  run the configured gate; --receipt produces fresh native landing evidence
+  pullboard gate --withdraw <id>         stop the item's queued or running gate; its holder or the coordinator; submit again to start a new one
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
@@ -410,6 +411,7 @@ Additional commands
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
   pullboard seats                     current seat states and local 24-hour timing ledger
+  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, and the most items held at once
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items

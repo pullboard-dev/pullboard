@@ -1,0 +1,5 @@
+{
+  "name": "stats agents",
+  "help": "  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, and the most items held at once\n",
+  "required": { "agents": "object" }
+}
