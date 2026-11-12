@@ -1,4 +1,5 @@
 import { spawnCaptured } from '../../../../sandbox/light.js';
+import { scratchFolder } from '../../../../config/index.js';
 /**
  * Run one shell command in a checkout and keep its output, apart from the gate's queue, runners and receipts. A
  * board read that replays a check baseline needs only this, so it never loads the gate [C7].
@@ -10,11 +11,9 @@ import {
 } from '../../../../sandbox/light.js';
 import { randomUUID } from 'node:crypto';
 import {
-  mkdtempSync,
   readFileSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -67,12 +66,12 @@ function* shellExecution(root, command, { pipefail = false, env = {}, stages = f
   try {
     const split = stages ? gateStages(command) : null;
     const marker = `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}`;
-    const pipes = split?.some((stage) => stage.pipeline.length > 1) ? mkdtempSync(join(tmpdir(), 'pullboard-pipes-')) : null;
+    const pipes = split?.some((stage) => stage.pipeline.length > 1) ? scratchFolder('pullboard-pipes-') : null;
     // A landing's guardian finds its gate by this token in the shell's command line [Q1,Q3,B3].
     const custody = process.env.PULLBOARD_LANDING_CUSTODY ? `: --landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}\n` : '';
     // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
     const script = `${custody}${prefix}(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`;
-    const timedDirectory = timeoutMs ? mkdtempSync(join(tmpdir(), 'pullboard-timed-output-')) : null;
+    const timedDirectory = timeoutMs ? scratchFolder('pullboard-timed-output-') : null;
     const outputFile = timedDirectory ? join(timedDirectory, 'output.log') : null;
     const timed = timeoutMs ? yield { command: process.execPath, args: [fileURLToPath(new URL('../../../../../apps/runner/src/io/shell.js', import.meta.url)), ...(process.env.PULLBOARD_LANDING_CUSTODY ? [`--landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}`] : [])], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
     if (timed && (timed.status !== 0 || timed.error)) throw new Refused('LAND_TIMEOUT_CUSTODY', 'the timed gate worker did not prove cleanup; inspect its owned processes before landing again');
