@@ -26,7 +26,9 @@ const RUNNER = `import { spawnSync } from 'node:child_process';
 import { planTestActions } from ${JSON.stringify(GATE)};
 const files = process.argv.slice(2);
 const plan = await planTestActions(process.cwd(), files, { fullSuite: false, landing: true, listFiles: () => files });
-if (!plan.done) process.exitCode = spawnSync(process.execPath, ['--test', ...plan.args], { stdio: 'inherit' }).status ?? 1;
+// A nested node --test that inherits NODE_TEST_CONTEXT reports to an absent parent and exits 0 on a red file.
+const { NODE_TEST_CONTEXT, ...env } = process.env;
+if (!plan.done) process.exitCode = spawnSync(process.execPath, ['--test', ...plan.args], { stdio: 'inherit', env }).status ?? 1;
 `;
 const INHERITED = /^PULLBOARD_(TEST_(ACTIONS|STAGE|REUSE|RESULT_\w+)|LEDGER_HITS)$/u;
 
