@@ -47,6 +47,29 @@ export function readTrunkEntry(root, base, file) {
     { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
 }
 
+/**
+ * Fetch each named commit a job checkout lacks from the trunk remote, by id first, then by the remote's branches, and
+ * return the ones still missing. Why: a job checkout holds only main and the candidate, while an item claimed on another
+ * item's commit has its claim base only on that item's branch, so its lane policy was unreadable there (#5808). It lives
+ * beside readTrunkEntry so a runner job fetches a missing trunk commit in one place [C7].
+ *
+ * @param {string} root The job checkout.
+ * @param {string[]} commits Commit ids the read needs.
+ * @param {string} remote The job's trunk remote; none, or one that looks like an option, fetches nothing.
+ * @returns {string[]} The commits still absent after fetching.
+ */
+export function fetchMissingCommits(root, commits, remote) {
+  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_TERMINAL_PROMPT: '0' };
+  const quiet = ['-q', '--no-tags', '--no-write-fetch-head', '--', remote];
+  const absent = list => list.filter(commit => tryGit(root, ['cat-file', '-e', `${commit}^{commit}`], { env }).status !== 0);
+  let missing = absent(commits);
+  if (!missing.length || !remote || remote.startsWith('-')) return missing;
+  for (const commit of missing) tryGit(root, ['-c', 'protocol.version=2', 'fetch', ...quiet, commit], { env });
+  missing = absent(missing);
+  if (missing.length) tryGit(root, ['fetch', ...quiet, '+refs/heads/*:refs/pullboard/trunk-heads/*'], { env });
+  return absent(missing);
+}
+
 /** Where a missing trunk commit can be fetched from: the recorded job source first, then each named remote. */
 function trunkSources(root, env) {
   const recorded = tryGit(root, ['config', '--get', 'pullboard.fetchSource'], { env });
