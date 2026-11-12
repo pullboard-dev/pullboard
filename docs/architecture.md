@@ -611,7 +611,7 @@ Every build claim and every review reservation is checked in one write transacti
 | pullboard merged run twice | the second overwrites item_merged_commit and logs a second merged event | refused ALREADY_MERGED unless it names the same commit | NONE |
 | board restored from an export with an undeclared status | the import inserts it with the triggers dropped | refused UNDECLARED_STATE before insert | NONE |
 | queued main-test job never driven | stays queued with no end | driven or ended within its lease | NONE |
-| landing run fails or its proof is not green | the job is lease-freed but never done; nothing lists it again | it ends failed and done | NONE |
+| landing run fails or its proof is not green | the job is lease-freed but never done; nothing lists it again | it ends failed and done | `packages/gate/tests/fixtures/pipeline/landing-run-fails-or-its-proof-is-not-gr.js` |
 | machine sleeps past every lease | every lease lapses at once; the next command's fallback and the dispatcher retake them | same, with no job driven for an item that moved on meanwhile | NONE |
 | board write contention | a write holds the board lock under 1 s past slow commands, readers, gate workers and dead holders | same | `packages/gate/tests/fixtures/pipeline/board/write.js` |
 | the P7 chaos test | SPEC P7 names test/durable-chaos-26.test.js as its gate; the file does not exist | the chaos test kills drivers at random and asserts each job finishes once | NONE |
