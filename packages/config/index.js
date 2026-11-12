@@ -140,3 +140,4 @@ export {
 
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
+export { boardRemote, setBoardRemote } from './src/io/settings.js';
