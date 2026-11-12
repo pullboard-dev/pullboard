@@ -71,7 +71,7 @@ test('a computed true CPU-load option is not mistaken for a literal false option
   const box = cpuLoadFixture(e2e, { declaration: '{ cpuLoad: false || true }' });
   const remote = await gate(box);
   assert.equal(remote.result.status, 0, remote.result.context);
-  assert.equal(box.requestsMade().length, 1);
+  assert.equal(box.requestsMade().length, 1, `a computed true option dispatches to the registered runner ${remote.result.context}`);
   assert.equal(remote.executor?.runnerExecution, true);
   assert.notEqual(remote.executor?.cwd, box.repo);
 });
