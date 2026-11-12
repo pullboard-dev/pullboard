@@ -41,6 +41,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_NO_RUNNER: 'set trunk.remote in pullboard.json to the trunk\'s git URL, then retry the forced landing',
   UNDECLARED_STATE: 'export again from a board whose items all hold declared statuses, then import: nothing was inserted',
   GATE_NOT_WAITING: 'nothing to withdraw: pullboard show <id> prints its gate state',
+  ITEM_FORCE_SIZE_PERSON: 'split the item with --after into pieces of 30 minutes or less, or ask the person',
+  SPEC_NOT_WRITABLE: 'make the spec file writable in the main checkout, then run the draft again',
   REVIEW_EARLIER_HOLDER: 'ask a seat that never claimed, built or released this item: pullboard next --verify',
   TRUNK_PACK_NOT_AVAILABLE: 'this board serves no trunk packs; fetch the commit from the trunk remote',
   DRIVE_OWNER: 'pass a driver id as { owner } to the drive call so the lease has a holder',
