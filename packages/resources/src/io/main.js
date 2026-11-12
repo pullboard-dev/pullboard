@@ -432,9 +432,9 @@ function sweepLeases(db) {
   const cutoff = Date.now() - LEASE_MS;
   const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity });
   for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
-    // A live but hung gate process cannot retain a queue place indefinitely.
-    const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
-    if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+    // A live but hung or orphaned waiter (any resource, e.g. a repo source-cache pin) cannot retain a queue place indefinitely.
+    const staleBeat = row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
+    if (staleBeat || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
   }
   return relaunches;
 }
@@ -636,7 +636,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     for (const runner of runners) {
       if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !runnerCompatible(db, runner, waiter, unavailable)) continue;
       const used = usage.get(runner.host);
-      if (used.timing || drain?.host === runner.host || reserved === runner.host) continue;
+      if (runner.drain === true || used.timing || drain?.host === runner.host || reserved === runner.host) continue;
       free += Math.max(0, waiter.browser === 1 ? Math.min(runner.slots - used.slots, runner.browser - used.browsers) : runner.slots - used.slots);
     }
     return free - competing >= headroom;
@@ -656,6 +656,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
         if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (runner.drain === true) return false; // `pullboard runner drain`: no new job while it finishes the running ones
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -1363,9 +1364,17 @@ export async function takeResource(options) {
         runner: error.infrastructureAttempt?.runners?.[0]?.host ?? null, runners: error.infrastructureAttempt?.runners ?? [],
         at: new Date().toISOString(), message: error.message }];
     }
-    try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); } catch { /* Preserve the original error. */ }
+    dropWaiterRow(db, token);
     db.close();
     throw error;
+  }
+}
+
+/** Delete this attempt's waiter row, retrying while the pool is locked so a retry's new token never leaves an orphan ahead of it; the sweep covers what remains. */
+function dropWaiterRow(db, token) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); return; }
+    catch (error) { if (error?.code !== 'SLOT_DB_LOCKED') return; /* Preserve the original error. */ }
   }
 }
 

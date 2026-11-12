@@ -33,6 +33,9 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 
+// Process-level by nature, so every box.run below stays a real process (10 launches, no in-process form exists):
+// each one starts a copied CLI entry (or its pre-commit hook launcher) to prove that entry's own start-up,
+// stale-worktree handover and PULLBOARD_OWN_CLI behaviour, which runCliInProcess and box.runLocal skip by calling main() directly.
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const MAIN_MARK = 'fixture-main-cli-ran';
 const OWN_MARK = 'fixture-worktree-cli-ran';
@@ -102,6 +105,7 @@ async function project(t, { predates = false } = {}) {
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize current-cli fixture');
   const worktree = join(dir, 'web');
   git(root, 'worktree', 'add', '-q', worktree, '-b', 'web/one');
+  // @pullboard-board-file journey: seed the board file the current CLI opens
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock, { gitRoot: root });
   const seat = register(board, { lane: 'web', path: worktree, family: 'Fixture Vendor' });
   closeBoard(board);

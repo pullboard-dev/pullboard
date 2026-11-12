@@ -88,7 +88,7 @@ function testPath(root, value) {
 }
 
 /** Unique failed files named by TAP/JUnit metadata or Node's native spec failure footer. */
-function failingFiles(root, profile, output) {
+export function failingFiles(root, profile, output) {
   const files = new Set();
   for (const test of profile?.tests ?? []) if (test.passed === false) {
     const path = testPath(root, test.file);
@@ -138,7 +138,9 @@ export function readCache(file) {
           const failures = cachedFailureSignatures(outcome, path);
           entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
             ...(outcome.fileIsolation === true && outcome.result === 'red' ? { fileIsolation: true } : {}),
-            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}) };
+            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}),
+            ...(/^[0-9a-f]{40,64}$/u.test(outcome.main ?? '') ? { main: outcome.main } : {}),
+            ...(typeof outcome.at === 'string' && Number.isFinite(Date.parse(outcome.at)) ? { at: outcome.at } : {}) };
         }
       }
     }
@@ -172,7 +174,7 @@ function gitCall(cwd, args, env) {
 /**
  * Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it.
  * Detached by default; `onMainBranch` puts the commit on main's branch name instead. Why: a detached clone has no
- * accepted main, so packages/gate/src/io/run/tests.js refused a main comparison before any test and it came back a red that proved
+ * accepted main, so apps/cli/src/io/run/tests.js refused a main comparison before any test and it came back a red that proved
  * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
  * Only a run on this machine needs it: a runner comparison reads main from the object store in place [C7,#3323].
  */
@@ -310,7 +312,7 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
     if (diff.status !== 0) return false;
     const changed = new Set(diff.stdout.split('\0').filter(Boolean));
     // These inputs select execution itself; no source-import closure can prove them irrelevant.
-    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'packages/gate/src/io/run/tests.js'].includes(path))) return false;
+    if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'apps/cli/src/io/run/tests.js'].includes(path))) return false;
     const selection = selectAffectedTests(root, { base: source, commit: composed, changed: [...changed] });
     if (selection.full || failures.some(failure => selection.files.includes(failure.file))) return false;
     for (const commit of new Set([base, source, composed])) {
@@ -414,11 +416,12 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
   // main, focused command and runtime before using them as comparison evidence.
   if (pinned && detailed) for (const path of files) {
     const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
-    const command = createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${word}`).digest('hex');
+    // Receipts taken before the record-only prefix name the old `=0` command; both bind the same focused run.
+    const commands = ['record', '0'].map(mode => createHash('sha256').update(`PULLBOARD_TEST_REUSE=${mode} ${policy.config.affectedTests.trimEnd()} ${word}`).digest('hex'));
     for (const run of [...recordedRuns].reverse()) {
       const receipt = readGateReceipt(receiptStore(root), run.id);
       if (!receipt || receiptBody(receipt) !== receiptBody(run) || receipt.kind !== 'main-red'
-        || receipt.head !== main.commit || receipt.main !== main.commit || receipt.command !== command
+        || receipt.head !== main.commit || receipt.main !== main.commit || !commands.includes(receipt.command)
         || !sameEnvironment(receipt.environment, execution.environment)) continue;
       const failures = receipt.green ? [] : receipt.failureSignatures?.version === MAIN_FAILURE_SIGNATURE_VERSION
         ? receipt.failureSignatures.failures.map(row => row.file === path ? row : { ...row, ran: path }) : null;
@@ -502,8 +505,9 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
         const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
         const fileIsolation = detailed && !run.isGreen && !failures && completeGate(run, { allowCancelled });
         if (detailed && !run.isGreen && !failures && !fileIsolation) throw new Error('focused main output has no complete named failure account');
+        // Main's commit and the time ride with each result, so the first red after a green names its landing [#5809].
         return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
-          ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}) };
+          ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
       const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
@@ -602,6 +606,27 @@ export function cachedMainComparison(root, commit, files) {
     const entries = readCache(cacheFile(root)).entries[commit] ?? {};
     return { main: commit, files: [...new Set(files)].filter(path => entries[path]).map(path => ({ file: path, ...entries[path] })) };
   } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
+}
+
+/**
+ * Record one finished main-test job's verdict in the local comparison cache, so submit, landing and serve find the
+ * receipt at that main commit [C7,P7]. A green is a complete row with no failing cases; a red names the whole file
+ * (fileIsolation), since the job carries case names but no signatures. An existing row for the file is kept.
+ *
+ * @param {string} root - The board host's repository.
+ * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number }} receipt
+ * @returns {boolean} whether a row was written
+ */
+export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now() }) {
+  if (!/^[0-9a-f]{40,64}$/u.test(main ?? '') || !file || !['green', 'red'].includes(verdict)) return false;
+  // Synchronous on purpose: the receipt applier is; a racing writer only costs a re-measure of one file.
+  const path = cacheFile(root);
+  const cache = readCache(path);
+  if (cache.entries[main]?.[file]) return false;
+  const outcome = verdict === 'green' ? { result: 'green', failures: [], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : { result: 'red', fileIsolation: true };
+  cache.entries[main] = { ...cache.entries[main], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  writeCache(path, cache);
+  return true;
 }
 
 /** The newest commit-keyed generations of the cache, newest first; content-keyed records are not generations. */
@@ -785,9 +810,9 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     const entry = entries[0];
     const receipt = readGateReceipt(store, entry.receiptId);
     const word = "'" + ('./' + failure.file).replaceAll("'", "'\\''") + "'";
-    const command = `PULLBOARD_TEST_REUSE=0 ${runner.trimEnd()} ${word}`;
+    const commands = ['record', '0'].map(mode => createHash('sha256').update(`PULLBOARD_TEST_REUSE=${mode} ${runner.trimEnd()} ${word}`).digest('hex'));
     if (!['red', 'green'].includes(entry.result) || !receipt || receipt.kind !== 'main-red' || receipt.head !== comparison.main || receipt.main !== comparison.main
-      || receipt.command !== createHash('sha256').update(command).digest('hex')
+      || !commands.includes(receipt.command)
       || receipt.green !== (entry.result === 'green') || !cachedFailureSignatures(entry, failure.file)) return [];
     const mainCases = entry.failures.filter(row => row.name === failure.name);
     // The raw signature changes between identical runs; the stable one (error type plus deepest repository frame) does not, so

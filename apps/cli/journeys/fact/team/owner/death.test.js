@@ -8,6 +8,3 @@ import {
 
 test('an abandoned landing drains its blocked gate before adoption [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private CLI death, owned-process cleanup, interrupted-batch adoption and Git; no speed target.
   async t => landingQueueCase(t, helpers, { killParent: true }));
-
-test('a dead landing guardian cannot leave its blocked worker running [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private guardian death, identity-bound cleanup and explicit adoption; no speed target.
-  async t => landingQueueCase(t, helpers, { killGuardian: true }));

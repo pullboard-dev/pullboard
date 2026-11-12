@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/state/index.js packages/state/light.js */
 /** @pullboard-test-loads packages/state/src/io/engine/numbers.js */
 /** A package move preserves the engine folder, identities and landing placeholders [C7]. */
 import assert from 'node:assert/strict';

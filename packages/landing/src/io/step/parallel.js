@@ -19,12 +19,15 @@ import { validateLandingRevision } from '../../../../items/index.js';
 import { save } from './merge.js';
 import { coveredFailures } from './failures.js';
 import { liveWaiverProjection } from './failures.js';
-import { diagnose } from './diagnose.js';
 import { waivedProof } from './failures.js';
 import { bisect } from './diagnose.js';
 import { returnCulprits } from './diagnose.js';
-import { fileFlakes } from './diagnose.js';
-import { fileTestDefects } from './diagnose.js';
+import { returnCulprit } from './diagnose.js';
+import { judgeRed } from './judge.js';
+import { testHash } from './selection.js';
+import { splitBaseRed } from './diagnose.js';
+import { diagnose } from './diagnose.js';
+import { fileRepairItems } from './diagnose.js';
 import { publish } from './publish.js';
 import { landsOnTrunk } from './publish.js';
 import { inlineDeferredGuards } from './trunk.js';
@@ -202,6 +205,36 @@ function parallelGreenBase(state, gate) {
     && observation.classification === 'possible-regression' && observation.mainReceipt?.green === true));
 }
 
+/** The landing steps judge.js uses, passed in so it reaches no CLI code itself [C7,#5862]. */
+export const JUDGE_PORTS = Object.freeze({ split: splitBaseRed, rerun: diagnose, repair: fileRepairItems, save, testHash, completeGate });
+
+/** Judge a red gate with the live landing steps. */
+function judgeLive(state, gate) {
+  return judgeRed(state, gate, JUDGE_PORTS);
+}
+
+/**
+ * The index of the last prefix proven green: green, waived, or judged red-free (main's cases charged, flakes
+ * quarantined after one green rerun). A judged prefix carries its proof; one left red carries its twice-red cases.
+ * Why: a red that main shares or that passes its rerun never becomes a trunk-holding test defect [C7,#5838,#5862].
+ */
+export async function provenThrough(state, results, { judge = judgeLive, promote = promoteCandidate } = {}) {
+  let green = results.findLastIndex(result => result.gate?.isGreen || result.gate && waivedProof(state, result.gate));
+  while (green < results.length - 1 && results[green + 1].gate) {
+    // The rerun reads the batch worktree, so it must hold the judged composition first.
+    await promote(state, results[green + 1]);
+    const judged = await judge(state, results[green + 1].gate);
+    if (!judged?.gate) {
+      if (judged) results[green + 1] = { ...results[green + 1], red: judged.red };
+      break;
+    }
+    state.gates.set(judged.gate.tree, judged.gate);
+    results[green + 1] = { ...results[green + 1], gate: judged.gate };
+    green += 1;
+  }
+  return green;
+}
+
 /** Test prefixes together, remove only diagnosed blockers, and publish one exact green composition. */
 export async function parallelLanding(state, initialItems) {
   let remaining = initialItems;
@@ -232,7 +265,7 @@ export async function parallelLanding(state, initialItems) {
       await save(state, { parallelRemaining: remaining });
       continue;
     }
-    const green = results.findLastIndex(result => result.gate?.isGreen || result.gate && waivedProof(state, result.gate));
+    const green = await provenThrough(state, results);
     if (green === results.length - 1) {
       const candidate = results[green];
       await promoteCandidate(state, candidate);
@@ -260,36 +293,31 @@ export async function parallelLanding(state, initialItems) {
     }
     await promoteCandidate(state, boundary);
     const gate = boundary.gate;
-    const flakyFiles = await diagnose(state, gate.failures, gate);
-    if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
+    // The judge already charged main's cases and reran the rest once: what is left failed twice and is an item's [C7,#5862].
+    const failures = boundary.red ?? gate.failures;
     const culprit = remaining[green + 1];
     const greenBase = green >= 0 && results[green].gate.isGreen && completeGate(results[green].gate)
       || parallelGreenBase(state, gate);
-    if (!greenBase && green === -1 && !gate.knownMainProof && gate.failures?.length) {
-      // The first item ran alone on main's tip, and its gate already set main's own reds apart: the rest are its own, so
+    if (green >= 0 && !greenBase || green === -1 && !gate.knownMainProof && failures?.length) {
+      // The prefix before this item is proven, or this item ran alone on main's tip: its reds twice over are its own, so
       // it returns alone and the others land. Why: #3768's red rerun held the whole trunk as a test defect (9 Nov) [C7].
-      await bisect(state, [culprit], gate.failures);
-      // A red that could not be compared with main holds as before; otherwise the item is out of this batch either way.
+      await bisect(state, [culprit], failures);
+      // A red that could not be compared with main stops this batch blocked; it holds no trunk [C7,#5862].
       if (state.flaky) return;
       remaining = withoutParallelBlocker(state, remaining, culprit);
       await save(state, { parallelRemaining: remaining });
       continue;
     }
-    if (!greenBase) { await fileTestDefects(state, gate); state.flaky = true; return; }
     // A red A+B with green A can still be an interaction: B alone must reproduce those failures.
     // This is a distinct composition, not a retry of A+B or any other already tested tree.
     const [alone] = await parallelPrefixes(state, [culprit]);
     const signatures = new Set((alone.gate?.failures ?? []).map(failure => JSON.stringify([failure.file, failure.name])));
-    if (!alone.gate || alone.gate.isGreen || !gate.failures.every(failure => signatures.has(JSON.stringify([failure.file, failure.name])))) {
-      await promoteCandidate(state, boundary);
-      await fileTestDefects(state, gate);
-      state.flaky = true;
-      return;
-    }
-    await promoteCandidate(state, alone);
-    const aloneFlakes = await diagnose(state, alone.gate.failures, alone.gate);
-    if (aloneFlakes.length) { await fileFlakes(state, alone.gate, aloneFlakes); state.flaky = true; return; }
-    await bisect(state, [culprit], gate.failures);
+    const interaction = !alone.gate || alone.gate.isGreen || !failures.every(failure => signatures.has(JSON.stringify([failure.file, failure.name])));
+    // Green alone but red together: the later item is dropped with the failing cases, never a trunk hold [C7,#5862].
+    await promoteCandidate(state, interaction ? boundary : alone);
+    if (interaction) await returnCulprit(state, culprit, failures, { isolated: true });
+    else await bisect(state, [culprit], failures);
+    if (state.flaky) return;
     remaining = withoutParallelBlocker(state, remaining, culprit);
     await save(state, { parallelRemaining: remaining });
   }

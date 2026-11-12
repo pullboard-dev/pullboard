@@ -52,14 +52,16 @@ export function sourceGit(root, args, options = {}) {
 }
 
 /** The tooling export manifest a controller runs from; its tree names the scanner rules that made a verdict. */
-const TOOLING_MANIFEST = fileURLToPath(new URL('../../../../../.pullboard-runner-source.json', import.meta.url));
+/** The file name of that manifest; a runtime-written file, never part of the shipped closure. */
+export const TOOLING_MANIFEST_NAME = '.pullboard-runner-source.json';
+const TOOLING_MANIFEST = fileURLToPath(new URL(`../../../../../${TOOLING_MANIFEST_NAME}`, import.meta.url));
 let toolingTree;
 
 /**
  * The tree of the committed tooling this process runs, or null when it runs from no export. Why: a cached scan verdict
  * holds only for the rules that made it, and an export's tree names those rules exactly.
  */
-function scannerTree() {
+export function scannerTree() {
   if (toolingTree === undefined) {
     try { toolingTree = JSON.parse(readFileSync(TOOLING_MANIFEST, 'utf8')).tree; } catch { toolingTree = null; }
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(toolingTree ?? '')) toolingTree = null;
@@ -304,7 +306,13 @@ export function protectHistory(root, source, policies) {
       try { record(blocked, ''); } catch { /* Waiters then scan and refuse for themselves. */ }
       throw refuse();
     }
-    try { record(file, JSON.stringify([source.commit, ...cleanHistory(file).filter(commit => commit !== source.commit)].slice(0, CLEAN_HISTORY_KEEP))); }
+    // A clean history makes each parent's history clean too. Proof commits are siblings on one main tip that no one
+    // dispatched itself, so keeping the parents lets the next sibling scan only its own commit, not all history (#5550).
+    let parents = [];
+    try { parents = sourceGit(root, ['rev-parse', `${source.commit}^@`]).split('\n').filter(commit => /^[a-f0-9]{40,64}$/u.test(commit)); }
+    catch { /* Without the parents only the commit itself is kept. */ }
+    const fresh = [source.commit, ...parents];
+    try { record(file, JSON.stringify([...fresh, ...cleanHistory(file).filter(commit => !fresh.includes(commit))].slice(0, CLEAN_HISTORY_KEEP))); }
     catch { /* An unwritable cache only costs the next scan its shortcut. */ }
   } finally { release?.(); }
 }

@@ -28,6 +28,7 @@ import {
   headTree,
   invalidateGitFacts,
   isClean,
+  treeUntouched,
   tryGit,
   untracked,
 } from "../../../git/index.js";
@@ -68,14 +69,14 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
   let trunk = main ?? null;
   if (!trunk) { try { trunk = mainPolicy(root).commit; } catch { /* Missing main prevents classification. */ } }
   return { head, tree: tree?.status === 0 ? tree.stdout.trim() : null, main: trunk, privateCheck,
-    clean: privateCheck || isClean(root) && untracked(root).length === 0,
+    clean: privateCheck || treeUntouched(root),
     load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) } };
 }
 
 /** Use only a known structured Node runner; arbitrary shell, Jest and Vitest commands are never replaced. */
 function nodePrefix(command, config, root, pin) {
   const executable = '(?:node|/[^\\s\'";|&`$]+/node)';
-  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?packages/gate/src/io/run/tests\\.js)(?:\\s|$)', 'u');
+  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:packages/gate|apps/cli)/src/io/run/tests\\.js)(?:\\s|$)', 'u');
   const builtin = new RegExp('^(' + executable + ')\\s+--test(?:\\s|$)', 'u');
   const match = own.exec(command);
   if (match) return knownRunner(root, pin) ? match[1] + ' ' + match[2] : null;
@@ -94,11 +95,11 @@ function nodePrefix(command, config, root, pin) {
 /** Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo. */
 function knownRunner(root, pin) {
   try {
-    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../gate/src/io/run/tests.js", import.meta.url))]);
+    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../../apps/cli/src/io/run/tests.js", import.meta.url))]);
     if (bundled.status !== 0) return false;
     return [...new Set([pin.head, pin.main].filter(Boolean))].every(commit => {
-      if (!committedTest(root, commit, 'packages/gate/src/io/run/tests.js')) return false;
-      const source = tryGit(root, ['rev-parse', '--verify', commit + ':packages/gate/src/io/run/tests.js']);
+      if (!committedTest(root, commit, 'apps/cli/src/io/run/tests.js')) return false;
+      const source = tryGit(root, ['rev-parse', '--verify', commit + ':apps/cli/src/io/run/tests.js']);
       return source.status === 0 && source.stdout === bundled.stdout;
     });
   } catch { return false; }
@@ -186,13 +187,13 @@ function diagnosticCode(error) {
  * persist one typed result per case without changing its verdict. Batching keeps a 33-case red file to two probes
  * instead of 66 [#1899]; each case still keeps its own evidence directory, receipts and classification.
  */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
+async function observeFailure({ root, outputRoot = root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
   const load = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
   const prefix = nodePrefix(command, config, root, pin);
-  const parsed = tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
+  const parsed = tapTests(run.output ?? '', run.executionRoot ?? outputRoot).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
   const failures = parsed.length ? parsed : [{ file: null, name: null, indent: null }];
   const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   if (common.status !== 0) throw new Error('Cannot retain flake evidence without the board Git directory.');
@@ -217,6 +218,11 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
       const group = groups.get(entry.failure.file) ?? [];
       if (!group.some(other => other.failure.name === entry.failure.name)) group.push(entry);
       groups.set(entry.failure.file, group);
+    } else if (config.flakes?.rerun === true && prefix) {
+      // Name the missing fact, so a red that was never paired says which condition kept it unpaired.
+      entry.reason = !entry.failure.file || !entry.failure.name ? 'The red names no test file and case in its output; no paired rerun is possible.'
+        : !entry.named ? `${entry.failure.file} is not a committed test file at the pinned head ${pin.head.slice(0, 12)}; no paired rerun is possible.`
+          : 'A nested failing case has no structured selector; no paired rerun is possible.';
     }
   }
   const pairedReceipts = [];

@@ -28,8 +28,8 @@ import { readDigest } from '../../../../packages/items/index.js';
 import { healthReport } from '../../../../packages/health/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { planAutomaticRigorApply } from '../../../../packages/rigor/index.js';
@@ -71,7 +71,7 @@ function fixture() {
   /** Run Git only inside this private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   /** Invoke only this checkout's CLI against the private fixture board. */
-  const run = (...args) => runFixtureChild(process.execPath, [join(import.meta.dirname, '../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ name: 'Rigor fixture', gate: 'true', spec: 'SPEC.md',
     lanes: { app: { owns: ['src/'] } }, landing: { cadence: '1h' } }));
@@ -111,7 +111,7 @@ function fixture() {
   const reject = (id, options = {}) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT',
     reason: 'TEST_FAILURE', note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
     digest: store.getItem(board, id).item_frozen_digest, policy: 'any', ...options });
-  return { root, file, board, git, run, submit, failure, reject,
+  return { root, file, board, git, runLocal: run, submit, failure, reject,
     advance: ms => { now = new Date(now.getTime() + ms); }, close: () => store.closeBoard(board) };
 }
 
@@ -212,9 +212,24 @@ test('materialized Rigor advice uses the existing person decision and a decline 
     store.recordRowDecisions(box.board, { agentId: store.PERSON, channel: 'terminal', decisions: records });
     assert.equal(personNeedsState(box.root, { board: box.board }).rigorDrafts.some(entry => entry.id === ref), false);
     const fourth = box.submit('New item after decline'); box.reject(fourth);
-    assert.equal(store.rowDrafts(box.board).length, 2, 'a genuinely new item after the decision can reopen the question');
-    const newNeed = personNeedsState(box.root, { board: box.board }).rigorDrafts.find(entry => entry.kind === 'rigor-draft');
-    assert.ok(newNeed.evidence.items.some(item => item.id === fourth));
+    assert.equal(store.rowDrafts(box.board).length, 1, 'a declined key is not drafted again for a new item (GitHub #26)');
+  } finally { box.close(); }
+});
+
+test('rigor.autoDraft false stops unproved auto-drafts and a bad value is refused (GH #26) [D1,S1]', () => {
+  const box = fixture();
+  try {
+    const file = join(box.root, 'pullboard.json');
+    const config = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: false } }));
+    for (const title of ['First', 'Second', 'Third']) { const id = box.submit(title); box.failure(id); box.reject(id); }
+    assert.equal(store.rowDrafts(box.board).length, 0, 'repeated failures draft nothing while autoDraft is false');
+    assert.equal(store.events(box.board).some(event => event.event_kind === 'rigor-draft'), false);
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: true } }));
+    const again = box.submit('Fourth'); box.failure(again); box.reject(again);
+    assert.ok(store.rowDrafts(box.board).length > 0, 'turning it back on drafts again');
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: 'no' } }));
+    assert.throws(() => loadConfig(box.root), error => error.code === 'BAD_CONFIG' && /autoDraft/u.test(error.message));
   } finally { box.close(); }
 });
 
@@ -277,7 +292,7 @@ test('spec show prints a readable Rigor source line, never the encoded JSON, and
   } finally { box.close(); }
 });
 
-test('a stale person decision refuses spec apply before any unrelated automatic draft is written [D1,B26,S1]', () => {
+test('a stale person decision refuses spec apply before any unrelated automatic draft is written [D1,B26,S1]', async () => {
   const box = fixture();
   try {
     const config = loadConfig(box.root);
@@ -287,7 +302,7 @@ test('a stale person decision refuses spec apply before any unrelated automatic 
     writeFileSync(spec, readFileSync(spec, 'utf8').replace('Keep the product coherent.', 'Changed after the decision.'));
     for (const title of ['First', 'Second']) { const id = box.submit(title); box.reject(id); }
     const before = ['SPEC.md', 'DOCTRINE.md'].map(file => readFileSync(join(box.root, file), 'utf8'));
-    const applied = box.run('spec', 'apply', '--json');
+    const applied = await box.runLocal('spec', 'apply', '--json');
     assert.equal(applied.status, 1, applied.stdout + applied.stderr);
     assert.equal(JSON.parse(applied.stdout).error.code, 'STALE_ROW_DECISION');
     assert.deepEqual(['SPEC.md', 'DOCTRINE.md'].map(file => readFileSync(join(box.root, file), 'utf8')), before);

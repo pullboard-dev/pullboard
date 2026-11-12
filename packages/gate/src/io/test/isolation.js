@@ -3,7 +3,7 @@
  *
  * A test's verdict must not depend on where it runs: the person's ~/.pullboard settings (gateSlots, browserSlots,
  * gate.shortSlots, registered runners), the account's resources.sqlite, a CI marker a runner sets, or the
- * instrumentation an SSH runner loads into every Node process. packages/gate/src/io/run/tests.js applies this to each test run.
+ * instrumentation an SSH runner loads into every Node process. apps/cli/src/io/run/tests.js applies this to each test run.
  */
 import {
   mkdirSync,
@@ -19,6 +19,8 @@ import { declareKnownNodeOption } from '../../../../kernel/index.js';
 import { declareNodeOptionProofs } from '../../../../kernel/index.js';
 import { foreignNodeOptions as classifyNodeOptions } from '../../../../kernel/index.js';
 import { gateRuntimeCaptureSource } from '../../logic/preload.js';
+import { PULLED_JOB_ENV } from './concurrency.js';
+import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 import { childJournalPreloadSource } from '../journal/source.js';
 
 /** Stands in for the OS account home when machine state falls back to it (packages/resources/src/io/home.js). */
@@ -75,6 +77,9 @@ export function isolateTestMachine(env, sandbox) {
   // A runner sets CI=1 and a person may pin their view port; tests that care set either explicitly.
   delete env.CI;
   delete env.PULLBOARD_VIEW_PORT;
+  // A pulled job's marker widens only the run that holds the runner, never a run a test starts.
+  delete env[PULLED_JOB_ENV];
+  delete env[JOB_WORKERS_ENV];
   return env;
 }
 

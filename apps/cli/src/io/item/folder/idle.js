@@ -6,7 +6,8 @@ import { spawnSync } from 'node:child_process';
 /**
  * Whether any process has `folder` or a directory under it as its working directory.
  * Why: a shell or editor left inside a folder means a person is still using it, so no claim may move it.
- * A machine that cannot list working directories counts every folder as in use.
+ * A machine that cannot run lsof, or whose lsof prints nothing, does not know either way, so it never blocks the claim
+ * (runners ship without lsof); any other failure to list counts the folder as in use.
  *
  * @param {string} folder
  * @returns {boolean}
@@ -15,7 +16,9 @@ export function processInside(folder) {
   let real;
   try { real = realpathSync(folder); } catch { return true; }
   const listed = spawnSync('lsof', ['-w', '-d', 'cwd', '-Fn'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 16 * 1024 * 1024 });
-  if (listed.error || typeof listed.stdout !== 'string' || !listed.stdout) return true;
+  // Unknown is not busy: a missing lsof (ENOENT) or empty output says nothing about the folder, and a real listing is never empty.
+  if (listed.error?.code === 'ENOENT' || (!listed.error && !listed.stdout)) return false;
+  if (listed.error || typeof listed.stdout !== 'string') return true;
   return listed.stdout.split('\n').some(line => line.startsWith('n') && (line.slice(1) === real || line.startsWith(`n${real}${sep}`)));
 }
 

@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Exercise native test-file sharding through the production test runner [C7]. */
 import { copyPackageFiles } from '../../../index.js';
+import { awaitNestedPhase } from '../../../../gate/index.js';
 import assert from 'node:assert/strict';
 import {
   execFileSync,
@@ -42,7 +43,7 @@ import {
 import { focusedPoolSnapshot } from '../../fixtures/pool.js';
 import { stageFixtureTests } from '../../fixtures/tests.js';
 
-const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const shardFileCount = 9;
 
 /** Treat a reaped or zombie fixture PID as drained while waiting for it to stop executing. */
@@ -159,7 +160,7 @@ test('record ${name} [C7]', recordSelectedFile);
     rmSync(root, { recursive: true, force: true });
   }
   t.after(cleanupFixture);
-  return { root, capture, expected, runner: join(bin, 'run-tests.js') };
+  return { root, capture, expected, runner: join(root, 'apps/cli/src/io/run/tests.js') };
 }
 
 /** Build a fixture with one held sibling, one failure, and queued sentinels beyond worker capacity. */
@@ -222,9 +223,11 @@ test('queued sentinel ${number} releases ordinary sibling', () => {
 });
 `);
   }
+  // Without a commit, native discovery would also run every copied gate source file under a test/ folder.
+  stageFixtureTests(root, ['test/01-sibling.test.js', 'test/02-failing.test.js', ...queuedFiles]);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
-    root, runner: join(bin, 'run-tests.js'),
+    root, runner: join(root, 'apps/cli/src/io/run/tests.js'),
     siblingStarted: join(root, 'sibling-started'), siblingFinished: join(root, 'sibling-finished'),
     failure: join(root, 'failure'), queued: join(root, 'queued'), queuedFiles, workerMarker: join(root, 'worker-marker'),
     release: join(root, 'release'),
@@ -450,7 +453,7 @@ test('a landing worker runs after persistent identity snapshot errors [C7,V4]', 
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
-  const fixtureRunner = join(bin, 'run-tests.js');
+  const fixtureRunner = join(root, 'apps/cli/src/io/run/tests.js');
   const workerTest = join(tests, 'worker-start.test.js');
   const preload = join(root, 'worker-snapshot-unavailable.mjs');
   const injected = join(root, 'worker-snapshot-unavailable');
@@ -531,54 +534,56 @@ if (process.argv[1]?.endsWith('/worker-start.test.js')) {
   runnerChild.stderr?.setEncoding('utf8').on('data', part => { output += part; });
   runnerClosed = new Promise(resolve => runnerChild.once('close', (code, signal) => resolve({ code, signal })));
 
-  const bodyStarted = await Promise.race([
-    waitForFixtureMarker(ran, 'the worker test body ran after its local identity census failed', 25000).then(() => true),
-    runnerClosed.then(() => false),
-  ]);
-  assert.ok(bodyStarted, `the runner exited before evaluating the worker test body\n${output}`);
-  const worker = JSON.parse(readFileSync(ran, 'utf8'));
-  await waitForFixtureMarker(childReady, 'the detached child started', 5000); // budget: hang ceiling for the child-ready handshake; the marker proves readiness.
-  childIdentity = fixtureProcessIdentity(worker.childPid);
-  assert.ok(childIdentity, 'the detached child has a capturable identity before release');
-  assert.ok(existsSync(injected), 'the preload injected persistent ps timeouts only in the worker');
+  await awaitNestedPhase(runnerChild, async () => {
+    const bodyStarted = await Promise.race([
+      waitForFixtureMarker(ran, 'the worker test body ran after its local identity census failed', 25000).then(() => true),
+      runnerClosed.then(() => false),
+    ]);
+    assert.ok(bodyStarted, `the runner exited before evaluating the worker test body\n${output}`);
+    const worker = JSON.parse(readFileSync(ran, 'utf8'));
+    await waitForFixtureMarker(childReady, 'the detached child started', 5000); // budget: hang ceiling for the child-ready handshake; the marker proves readiness.
+    childIdentity = fixtureProcessIdentity(worker.childPid);
+    assert.ok(childIdentity, 'the detached child has a capturable identity before release');
+    assert.ok(existsSync(injected), 'the preload injected persistent ps timeouts only in the worker');
 
-  const deadline = Date.now() + 5000; // Hang ceiling only; readiness is the per-child acknowledgement below.
-  let receipts = [];
-  let childReceipt = null;
-  let childAcknowledgement = null;
-  while (Date.now() < deadline) {
-    if (existsSync(worker.startsPath)) {
-      receipts = readFixtureJournalTail(worker.startsPath);
-      const prefix = `${basename(worker.startsPath)}.child.${worker.attempt}.${worker.pid}.`;
-      const path = readdirSync(dirname(worker.startsPath)).filter(name => name.startsWith(prefix) && name.endsWith('.json'))
-        .map(name => join(dirname(worker.startsPath), name)).find(name => {
-          try { return JSON.parse(readFileSync(name, 'utf8')).pid === worker.childPid; } catch { return false; }
-        });
-      if (path && existsSync(`${path}.acked`)) {
-        childReceipt = JSON.parse(readFileSync(path, 'utf8'));
-        childAcknowledgement = JSON.parse(readFileSync(`${path}.acked`, 'utf8'));
-        break;
+    const deadline = Date.now() + 5000; // Hang ceiling only; readiness is the per-child acknowledgement below.
+    let receipts = [];
+    let childReceipt = null;
+    let childAcknowledgement = null;
+    while (Date.now() < deadline) {
+      if (existsSync(worker.startsPath)) {
+        receipts = readFixtureJournalTail(worker.startsPath);
+        const prefix = `${basename(worker.startsPath)}.child.${worker.attempt}.${worker.pid}.`;
+        const path = readdirSync(dirname(worker.startsPath)).filter(name => name.startsWith(prefix) && name.endsWith('.json'))
+          .map(name => join(dirname(worker.startsPath), name)).find(name => {
+            try { return JSON.parse(readFileSync(name, 'utf8')).pid === worker.childPid; } catch { return false; }
+          });
+        if (path && existsSync(`${path}.acked`)) {
+          childReceipt = JSON.parse(readFileSync(path, 'utf8'));
+          childAcknowledgement = JSON.parse(readFileSync(`${path}.acked`, 'utf8'));
+          break;
+        }
       }
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-  const pending = receipts.find(row => row.type === 'worker-pending' && row.pid === worker.pid);
-  const bound = receipts.find(row => row.type === 'worker-bound' && row.pid === worker.pid);
-  const unavailable = receipts.find(row => row.type === 'worker-identity-unavailable' && row.pid === worker.pid);
-  assert.ok(pending && pending.attempt === worker.attempt && pending.file.endsWith('/test/worker-start.test.js'),
-    'the worker announced its selected file before retrying its local census');
-  assert.ok(bound && bound.parentPid === pending.parentPid && bound.pgid && bound.started,
-    'the parent bound the live direct worker using its own fresh identity census');
-  assert.ok(childReceipt && childReceipt.parentPid === worker.pid && childReceipt.spawnFile,
-    'the worker published a spawn announcement while its test body was still active');
-  assert.equal(childAcknowledgement?.status, 'bound', 'the parent confirmed custody before the worker could exit');
-  assert.ok(childAcknowledgement?.identity?.pid === worker.childPid && childAcknowledgement.identity.pgid
-    && childAcknowledgement.identity.started, 'the parent acknowledged its fresh child identity');
-  assert.ok(unavailable && unavailable.code === 'ETIMEDOUT', 'the worker recorded its exhausted local snapshot retries');
-  assert.ok(JSON.parse(readFileSync(injected, 'utf8')).injections > 1, 'the worker-local ps failure persisted across retries');
+    const pending = receipts.find(row => row.type === 'worker-pending' && row.pid === worker.pid);
+    const bound = receipts.find(row => row.type === 'worker-bound' && row.pid === worker.pid);
+    const unavailable = receipts.find(row => row.type === 'worker-identity-unavailable' && row.pid === worker.pid);
+    assert.ok(pending && pending.attempt === worker.attempt && pending.file.endsWith('/test/worker-start.test.js'),
+      'the worker announced its selected file before retrying its local census');
+    assert.ok(bound && bound.parentPid === pending.parentPid && bound.pgid && bound.started,
+      'the parent bound the live direct worker using its own fresh identity census');
+    assert.ok(childReceipt && childReceipt.parentPid === worker.pid && childReceipt.spawnFile,
+      'the worker published a spawn announcement while its test body was still active');
+    assert.equal(childAcknowledgement?.status, 'bound', 'the parent confirmed custody before the worker could exit');
+    assert.ok(childAcknowledgement?.identity?.pid === worker.childPid && childAcknowledgement.identity.pgid
+      && childAcknowledgement.identity.started, 'the parent acknowledged its fresh child identity');
+    assert.ok(unavailable && unavailable.code === 'ETIMEDOUT', 'the worker recorded its exhausted local snapshot retries');
+    assert.ok(JSON.parse(readFileSync(injected, 'utf8')).injections > 1, 'the worker-local ps failure persisted across retries');
 
-  await waitForFixtureMarker(childTermStarted, 'the child received cleanup only after its identity was bound', 10000); // budget: hang ceiling for the owned-child TERM handshake; the marker proves delivery.
-  writeFileSync(release, 'release');
+    await waitForFixtureMarker(childTermStarted, 'the child received cleanup only after its identity was bound', 10000); // budget: hang ceiling for the owned-child TERM handshake; the marker proves delivery.
+    writeFileSync(release, 'release');
+  });
   const result = await runnerClosed;
   assert.deepEqual(result, { code: 0, signal: null }, output);
   assert.equal((output.match(/run-tests: worker identity unavailable \(/gu) ?? []).length, 1,
@@ -910,18 +915,24 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
     PULLBOARD_C7_FAIL_CHILD_PID: ordinary.failChildPid,
     PULLBOARD_C7_FAIL_CHILD_DRAINED: ordinary.failChildDrained,
   };
-  const normal = runFixtureChild(process.execPath, [ordinary.runner, '--test-concurrency=2',
+  // The failing worker drains its own child before it exits, so its slot stays held until that child ends; end it once it is up.
+  const normalChild = startFixtureChild(process.execPath, [ordinary.runner, '--test-concurrency=2',
     'test/01-sibling.test.js', 'test/02-failing.test.js', ...ordinary.queuedFiles], {
-    cwd: ordinary.root, env: ordinaryEnv, encoding: 'utf8', timeout: 20000,
+    cwd: ordinary.root, env: ordinaryEnv, stdio: ['ignore', 'pipe', 'pipe'],
   });
-  assert.equal(normal.status, 1, normal.context);
+  const normal = { stdout: '', stderr: '', context: 'ordinary run' };
+  normalChild.stdout?.setEncoding('utf8').on('data', part => { normal.stdout += part; });
+  normalChild.stderr?.setEncoding('utf8').on('data', part => { normal.stderr += part; });
+  const normalClosed = new Promise(resolve => normalChild.once('close', (code, signal) => resolve({ code, signal })));
+  await waitForFixtureMarker(ordinary.failChildReady, 'the failing file launched its detached child');
+  process.kill(Number(readFileSync(ordinary.failChildPid, 'utf8').trim()), 'SIGTERM');
+  normal.status = (await normalClosed).code;
+  assert.equal(normal.status, 1, `${normal.context}\n${normal.stdout}\n${normal.stderr}`);
   assert.ok(existsSync(ordinary.siblingFinished), `ordinary runs wait for active sibling files\n${normal.context}\nstdout: ${normal.stdout ?? ''}`);
   assert.ok(existsSync(ordinary.queued), 'ordinary runs continue scheduling queued files');
   assert.ok(existsSync(ordinary.childDrained), 'ordinary test cleanup also drains its detached child');
   assert.ok(await waitForFixtureProcessDrain(readFileSync(ordinary.childPid, 'utf8').trim()), 'ordinary test cleanup waited for its child to stop');
   assert.ok(existsSync(ordinary.failChildReady), 'the failing worker launched its detached child during an ordinary run');
-  try { process.kill(Number(readFileSync(ordinary.failChildPid, 'utf8').trim()), 'SIGTERM'); }
-  catch (error) { if (error.code !== 'ESRCH') throw error; }
   assert.ok(await waitForFixtureProcessDrain(readFileSync(ordinary.failChildPid, 'utf8').trim()), 'ordinary fixture child was drained');
   assert.ok(existsSync(ordinary.failChildDrained), 'the regression cleaned up the ordinary failing-worker child');
   assert.doesNotMatch(`${normal.stdout ?? ''}\n${normal.stderr ?? ''}`, /stopped early/u);
@@ -1023,44 +1034,47 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
     let waiter;
     let waiterClosed;
     let waiterStarted = false;
+    let waiterReadyFile = null;
     let failChildIdentity = null;
     let lateChildIdentity = null;
     try {
-      await waitForFixtureMarker(held.failChildReady, 'the failing file launched its held child');
-      failChildIdentity = fixtureProcessIdentity(readFileSync(held.failChildPid, 'utf8').trim());
-      assert.ok(failChildIdentity, 'the owned child has a capturable cleanup identity');
-      const waiterReadyFile = join(held.root, 'competing-gate-started');
-      const resourceModule = fileURLToPath(new URL('../../../../resources/index.js', import.meta.url));
-      const waiterSource = `import { takeResource } from ${JSON.stringify(resourceModule)}; import { writeFileSync } from 'node:fs'; const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(held.root)}, agent: 'cleanup-drain-waiter' }); writeFileSync(${JSON.stringify(waiterReadyFile)}, 'started'); lease.release();`;
-      waiter = startFixtureChild(process.execPath, ['--input-type=module', '-e', waiterSource], {
-        cwd: held.root, env: baseEnv, stdio: ['ignore', 'pipe', 'pipe'],
+      await awaitNestedPhase(landing, async () => {
+        await waitForFixtureMarker(held.failChildReady, 'the failing file launched its held child');
+        failChildIdentity = fixtureProcessIdentity(readFileSync(held.failChildPid, 'utf8').trim());
+        assert.ok(failChildIdentity, 'the owned child has a capturable cleanup identity');
+        waiterReadyFile = join(held.root, 'competing-gate-started');
+        const resourceModule = fileURLToPath(new URL('../../../../resources/index.js', import.meta.url));
+        const waiterSource = `import { takeResource } from ${JSON.stringify(resourceModule)}; import { writeFileSync } from 'node:fs'; const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(held.root)}, agent: 'cleanup-drain-waiter' }); writeFileSync(${JSON.stringify(waiterReadyFile)}, 'started'); lease.release();`;
+        waiter = startFixtureChild(process.execPath, ['--input-type=module', '-e', waiterSource], {
+          cwd: held.root, env: baseEnv, stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        waiterClosed = new Promise(resolve => waiter.once('close', (code, signal) => resolve({ code, signal })));
+
+        let queued = false;
+        const handshakeDeadline = Date.now() + 10000;
+        while (!existsSync(held.lateChildDrained) && !existsSync(waiterReadyFile) && Date.now() < handshakeDeadline) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        assert.ok(existsSync(signalFailure), 'the first owned SIGTERM failed as injected');
+        assert.ok(existsSync(held.failChildDrained), 'the original owned child handled TERM and spawned a late detached child');
+        assert.ok(existsSync(held.lateChildReady), 'the late detached child reached its ready handshake');
+        assert.ok(existsSync(held.lateChildDrained), 'the live receipt set grew and cleanup reached the late child');
+        lateChildIdentity = fixtureProcessIdentity(readFileSync(held.lateChildPid, 'utf8').trim());
+        assert.ok(lateChildIdentity, 'the late child has a capturable cleanup identity');
+        assert.equal(existsSync(waiterReadyFile), false, 'no competing gate action started while descendant drain was unresolved');
+        const queueDeadline = Date.now() + 10000;
+        while (!queued && !existsSync(waiterReadyFile) && Date.now() < queueDeadline) {
+          queued = focusedPoolSnapshot(machine)?.line.some(row => row.agent === 'cleanup-drain-waiter') ?? false;
+          if (!queued) await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        assert.ok(queued, 'the competing gate action appeared in the queue while the late child remained held');
+        assert.equal(existsSync(waiterReadyFile), false, 'the queued gate action has not entered before the child release');
+
+        writeFileSync(held.lateChildRelease, 'allow exit');
+        writeFileSync(held.failChildRelease, 'allow exit');
       });
-      waiterClosed = new Promise(resolve => waiter.once('close', (code, signal) => resolve({ code, signal })));
-
-      let queued = false;
-      const handshakeDeadline = Date.now() + 10000;
-      while (!existsSync(held.lateChildDrained) && !existsSync(waiterReadyFile) && Date.now() < handshakeDeadline) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      assert.ok(existsSync(signalFailure), 'the first owned SIGTERM failed as injected');
-      assert.ok(existsSync(held.failChildDrained), 'the original owned child handled TERM and spawned a late detached child');
-      assert.ok(existsSync(held.lateChildReady), 'the late detached child reached its ready handshake');
-      assert.ok(existsSync(held.lateChildDrained), 'the live receipt set grew and cleanup reached the late child');
-      lateChildIdentity = fixtureProcessIdentity(readFileSync(held.lateChildPid, 'utf8').trim());
-      assert.ok(lateChildIdentity, 'the late child has a capturable cleanup identity');
-      assert.equal(existsSync(waiterReadyFile), false, 'no competing gate action started while descendant drain was unresolved');
-      const queueDeadline = Date.now() + 10000;
-      while (!queued && !existsSync(waiterReadyFile) && Date.now() < queueDeadline) {
-        queued = focusedPoolSnapshot(machine)?.line.some(row => row.agent === 'cleanup-drain-waiter') ?? false;
-        if (!queued) await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      assert.ok(queued, 'the competing gate action appeared in the queue while the late child remained held');
-      assert.equal(existsSync(waiterReadyFile), false, 'the queued gate action has not entered before the child release');
-
-      writeFileSync(held.lateChildRelease, 'allow exit');
-      writeFileSync(held.failChildRelease, 'allow exit');
       const [landingResult, waiterResult] = await Promise.all([landingClosed, waiterClosed]);
-      waiterStarted = existsSync(waiterReadyFile);
+      waiterStarted = Boolean(waiterReadyFile) && existsSync(waiterReadyFile);
       assert.equal(landingResult.code, 1, `${landingOutput}\n${landingResult.signal ?? ''}`);
       assert.equal(landingResult.signal, null);
       assert.ok(landingOutput.includes('owned descendants drained after cleanup error: injected one-shot signal failure'), landingOutput);
@@ -1145,7 +1159,7 @@ test('ignored test must not run [C7]', failIfIgnoredRuns);
 `);
   stageFixtureTests(root, ['.gitignore', ...trackedSources.keys(), 'tracked.spec.js']);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, runner: join(bin, 'run-tests.js'), capture, expected };
+  return { root, runner: join(root, 'apps/cli/src/io/run/tests.js'), capture, expected };
 }
 
 /** Create a small ESM or CommonJS test that records its discovery-pattern label. */
@@ -1174,7 +1188,8 @@ function trackedSelectionTest(t) {
   const tracked = execFileSync('git', ['ls-files'], { cwd: fixture.root, encoding: 'utf8' }).trim().split(/\r?\n/u);
   assert.ok(tracked.includes('.gitignore') && tracked.includes('tracked.spec.js'), 'the non-default and ignore control files are tracked');
   assert.equal(tracked.length, 9, 'all pattern cases and non-default controls are tracked');
-  const result = runFixtureChild(process.execPath, [fixture.runner], {
+  // A runner call naming no file says --all, since only a stage-marked caller may run the whole suite bare (#5913).
+  const result = runFixtureChild(process.execPath, [fixture.runner, '--all'], {
     cwd: fixture.root,
     encoding: 'utf8',
     env: { ...process.env, PULLBOARD_TRACKED_CAPTURE: fixture.capture },
@@ -1188,7 +1203,7 @@ function trackedSelectionTest(t) {
     'only repository test entry names run exactly once');
 
   writeFileSync(fixture.capture, '');
-  const filtered = runFixtureChild(process.execPath, [fixture.runner, '--test-name-pattern', 'docs-esm'], {
+  const filtered = runFixtureChild(process.execPath, [fixture.runner, '--all', '--test-name-pattern', 'docs-esm'], {
     cwd: fixture.root,
     encoding: 'utf8',
     env: { ...process.env, PULLBOARD_TRACKED_CAPTURE: fixture.capture },
@@ -1237,10 +1252,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) throw new Error('standal
   put('apps/cli/journeys/init/perf.test.js', `import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { value as run } from './perf/run.mjs';
-import { value as generate } from './perf/generate.mjs';
-import { value as fixture } from './fixture.js';
-import { value as link } from '../view-link-fixture.js';
+import { value as run } from '../../tests/fixtures/cockpit/perf/run.mjs';
+import { value as generate } from '../../tests/fixtures/cockpit/perf/generate.mjs';
+import { value as fixture } from '../../tests/fixtures/cockpit/harness.js';
+import { value as link } from '../../tests/fixtures/view/link.js';
 /** Exercise every imported helper without its standalone workload. */
 function importedHelpersWork() { assert.deepEqual([run, generate, fixture, link], [42,42,42,42]); appendFileSync(process.env.PULLBOARD_SHARD_CAPTURE, 'cockpit/perf.test.js\\n'); }
 test('perf helpers remain importable [C7]', importedHelpersWork);
@@ -1249,7 +1264,7 @@ test('perf helpers remain importable [C7]', importedHelpersWork);
   put('test/tree-reader.test.js', "/** @pullboard-test-input test-tree */\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.PULLBOARD_SHARD_CAPTURE, 'tree-reader.test.js\\n');\n");
   put('apps/cli/tests/fixtures/cockpit/perf/README.md', '# Perf harness\n');
   commit();
-  const discovered = runFixtureChild(process.execPath, [fixture.runner], {
+  const discovered = runFixtureChild(process.execPath, [fixture.runner, '--all'], {
     cwd: fixture.root, encoding: 'utf8', env,
   });
   assert.equal(discovered.status, 0, `${discovered.context}\n${discovered.stdout}`);
@@ -1285,7 +1300,7 @@ test('the suite runs only test files, not helpers or the perf harness [C7]', onl
 /** Run the copied production runner and return the test filenames it actually executed. */
 function runShardFixture(fixture, shard) {
   writeFileSync(fixture.capture, '');
-  const args = [fixture.runner, ...(shard ? ['--shard', shard] : [])];
+  const args = [fixture.runner, '--all', ...(shard ? ['--shard', shard] : [])];
   const env = { ...process.env, PULLBOARD_SHARD_CAPTURE: fixture.capture };
   delete env.NODE_TEST_CONTEXT;
   delete env.PULLBOARD_GATE_SLOT_HELD;
@@ -1327,7 +1342,7 @@ function outsideGitDiscoveryTest(t) {
 
   writeFileSync(fixture.capture, '');
   writeFileSync(join(fixture.root, '.git'), 'gitdir: missing-git-directory\n');
-  const broken = runFixtureChild(process.execPath, [fixture.runner], {
+  const broken = runFixtureChild(process.execPath, [fixture.runner, '--all'], {
     cwd: fixture.root,
     encoding: 'utf8',
     env: { ...process.env, PULLBOARD_SHARD_CAPTURE: fixture.capture },
@@ -1344,7 +1359,7 @@ test('the runner keeps native discovery outside a Git work tree [C7]', outsideGi
 function badShardTest() {
   const badValues = ['0/3', '4/3', '2', 'a/b'];
   for (const value of badValues) {
-    const result = runFixtureChild(process.execPath, [runner, '--shard', value], { encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [runner, '--all', '--shard', value], { encoding: 'utf8' });
     assert.equal(result.status, 1, result.context);
     assert.match(result.stderr, new RegExp(`invalid --shard value "${value}"`));
     assert.match(result.stderr, /expected <i>\/<n> with 1 <= i <= n/u);

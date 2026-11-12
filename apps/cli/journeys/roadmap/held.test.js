@@ -26,14 +26,14 @@ test('a held item shows held with its reason in the roadmap list, matching the h
   const box = machine();
   // Two lanes, so one item can be held on its own and another through its lane.
   const alpha = project(box, 'held-rows', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
-  box.run(alpha.repo, 'add', 'web', 'Held on its own', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Free to take', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'docs', 'Held with its lane', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'hold', '1', 'waits on the vendor reply');
-  box.run(alpha.repo, 'hold', 'docs', '--reason', 'docs frozen for the release');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Held on its own', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Free to take', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'docs', 'Held with its lane', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'hold', '1', 'waits on the vendor reply');
+  await box.inProcess(alpha.repo, 'hold', 'docs', '--reason', 'docs frozen for the release');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3');
   // The board orders the release by its placement rule, so the held rows follow the real roadmap API's order.
-  const heldOrder = JSON.parse(box.run(alpha.repo, 'roadmap', '--json')).milestones.find((m) => m.name === 'Next').items
+  const heldOrder = JSON.parse(await box.inProcess(alpha.repo, 'roadmap', '--json')).milestones.find((m) => m.name === 'Next').items
     .map((item) => `#${item.id}`).filter((id) => ['#1', '#3'].includes(id));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-held-rows-chrome-'));

@@ -103,10 +103,10 @@ export function judgeWaits(rows, budgets) {
 
 /** The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item. */
 export function waitKey(row) {
-  return `${row.surface}:${row.key ?? row.holder}`.replace(/\s+/gu, ' ').slice(0, 200);
+  return `${row.surface}:${row.key ?? row.holder}`.replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
 }
 
-/** The code behind each surface: where a Sonnet starts reading when the holder's own source is not known. */
+/** The code behind each surface: where a builder starts reading when the holder's own source is not known. */
 const SURFACE_FILE = Object.freeze({
   pool: 'packages/resources/src/io/main.js',
   'checkout-lease': 'packages/seats/src/io/agent/session.js',
@@ -149,7 +149,7 @@ export function waitItemFields(draft, by) {
 }
 
 /**
- * The item a Sonnet fixes the cause from: who held, who waited, how long, and where the evidence lies. It is routed
+ * The item a builder fixes the cause from: who held, who waited, how long, and where the evidence lies. It is routed
  * mid, so it carries what add requires of a cold build: a Files: section, a Test: line, and a check, which is the
  * wait audit itself for this one key, red while the wait is over budget. At most three numbered clauses.
  */
@@ -159,7 +159,7 @@ export function waitItemDraft(row) {
     ? row.waiters.slice(0, 12).map(waiter => `- ${waiter.label}${waiter.pid ? ` (pid ${waiter.pid})` : ''}: waited ${sayAge(waiter.ageMs)}`).join('\n')
     : '- none recorded';
   const files = [...new Set([...holderSourceFiles(row.context), SURFACE_FILE[row.surface]].filter(Boolean))];
-  const title = `waits: ${row.surface} ${row.holder} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
+  const title = `waits: ${row.surface} ${String(row.holder).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid')} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
   const brief = [
     `The wait audit (\`pullboard waits\`) found ${row.surface} over its ${row.budgetName} budget of ${sayAge(row.budgetMs)}.`,
     '',

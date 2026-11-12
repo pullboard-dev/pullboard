@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /**
  * Landing applies the main-owned rule (#3534): a submit recorded green with its only reds owned by main is reused at
  * landing, and a landing gate red only in cases red at its main lands while a case green on main still fails it [C7,#3685].
@@ -91,12 +91,12 @@ function boardRecord(box, id) {
 
 /** Claim, commit and submit the item through the real queued worker; returns its submitted commit. */
 async function submitQueued(helpers, box, id) {
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const source = JSON.parse(claimed.out).itemFolder ?? box.web;
   const committed = helpers.commitFile(box, source, 'web/snapshot.txt', 'candidate\n', 'feat(web): change beside a main red [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
+  const submitted = await box.runLocal(source, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   await helpers.waitFor(() => ['green', 'infrastructure', 'red', 'incomplete'].includes(boardRecord(box, id).job?.state), // budget: real queued worker hang ceiling
     'queued worker terminal result', 100_000); // budget: hang ceiling for one real queued gate; no elapsed-time assertion
@@ -104,10 +104,10 @@ async function submitQueued(helpers, box, id) {
 }
 
 /** Accept the item at its submitted commit as the coordinator, from the main checkout. */
-function accept(box, id, commit) {
+async function accept(box, id, commit) {
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
-    const verdict = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = await box.runLocal(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
     assert.equal(verdict.code, 0, verdict.err + verdict.out);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
@@ -163,7 +163,7 @@ test('clause 1: a submit recorded green by the main-owned rule is reused at the 
   assert.deepEqual(record.submit.submissionProof.knownMainFailures?.failures.map(row => [row.file, row.name, row.item]), [[MAIN_RED, MAIN_RED_CASE, repair]],
     `the receipt still lists main's red against its repair: ${JSON.stringify(record.submit)}`);
   assert.match(record.submit.tooling ?? '', /^[a-f0-9]{40,64}$/u, 'the submit records the tooling tree that judged it');
-  accept(box, id, commit);
+  await accept(box, id, commit);
   const result = landBatch(box, id);
   assert.equal(result.error, null, JSON.stringify(result.lines));
   assert.ok(result.lines.some(line => line.includes(`reused #${id}'s submit receipt`)), `landing reuses the main-owned green receipt: ${result.lines.join('\n')}`);

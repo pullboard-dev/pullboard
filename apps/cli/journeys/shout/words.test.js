@@ -2,6 +2,7 @@
 /** @pullboard-test-gui */
 /** Plain presentation over real native events, preserving quoted words and action identities [N26]. */
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
   mkdtempSync,
@@ -56,15 +57,15 @@ async function tab(chrome, name) {
 
 /** Exercise real bookkeeping writers, retaining their source/receipt identities outside Activity. */
 async function seedBookkeeping(box, alpha) {
-  box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
-  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2', '--reason', 'Arrange fixture release');
-  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1', '--reason', 'Arrange fixture release');
-  box.run(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Plain launch', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.web, 'claim', '3');
   const source = box.git(alpha.web, 'rev-parse', 'HEAD');
   const patch = join(box.dir, 'plain-native.patch');
   writeFileSync(patch, ['diff --git a/docs/plain-native.txt b/docs/plain-native.txt', 'new file mode 100644', '--- /dev/null', '+++ b/docs/plain-native.txt', '@@ -0,0 +1 @@', '+Native companion provenance.', ''].join('\n'));
-  box.run(alpha.repo, 'patch', 'attach', '3', patch, '--key', 'plain-native', '--author', 'coordinator', '--source', source);
+  await box.inProcess(alpha.repo, 'patch', 'attach', '3', patch, '--key', 'plain-native', '--author', 'coordinator', '--source', source);
   mkdirSync(join(alpha.web, 'web'), { recursive: true });
   writeFileSync(join(alpha.web, 'web', 'bookkeeping.js'), 'export const bookkeeping = true;\n');
   box.git(alpha.web, 'add', 'web/bookkeeping.js');
@@ -96,11 +97,15 @@ async function seedBookkeeping(box, alpha) {
     } finally { board.clock = originalClock; }
     assert.equal(JSON.parse(store.events(board).findLast(event => event.event_kind === 'gate-run').event_detail).run.id, receipt.id, 'the gate event retains its actual receipt identity');
   } finally { store.closeBoard(board); }
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
-  box.run(alpha.repo, 'show', '3'); // Deliver any completed native background baseline receipt before observing history.
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
+    // The fixture has no registered runner, so no background baseline ever lands; record a request and complete it through the real store calls.
+    const pending = { command: store.getItem(held, 3).item_check, main: box.git(alpha.repo, 'rev-parse', 'HEAD'), result: 'pending', request: randomUUID() };
+    store.saveCheckBaseline(held, 3, pending);
+    assert.equal(store.completeCheckBaseline(held, 3, { agentId: 'coordinator', expected: pending,
+      baseline: { command: pending.command, main: pending.main, result: 'green', seconds: 1 } }), true, 'the request is still current');
     store.board_recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
     const kinds = new Set(store.events(held).map(event => event.event_kind));
     for (const kind of ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item']) {
@@ -121,13 +126,13 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the visible plain-words scanner.');
   const box = machine(), alpha = project(box, 'plain-words');
-  box.run(alpha.repo, 'add', 'web', 'Visible subject for native evidence', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Visible subject for native evidence', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'plain.txt'); // Actual native frozen check and proof receipt, not synthetic assurance.
   sendBack(box, alpha, 1, 'Keep [MY_CODE] in this quoted review note.');
   for (const [kind, text] of [['measurement', 'Measured the native example.'], ['note', 'Keep [MY_CODE] in the native note.']]) {
-    box.run(alpha.repo, 'fact', '1', kind, text);
+    await box.inProcess(alpha.repo, 'fact', '1', kind, text);
   }
-  box.run(alpha.repo, 'add', 'web', 'Legacy holder has a subject', '--specs', 'G1', '--criterion', 'visible');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Legacy holder has a subject', '--specs', 'G1', '--criterion', 'visible');
   const unknown = join(box.dir, 'legacy-unknown');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'web/plain-legacy', unknown, 'main');
   // Historical stored registrations can have no model even though modern CLI joins require it.
@@ -135,7 +140,7 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.register(board, { lane: 'web', path: unknown });
-    box.run(unknown, 'claim', '2');
+    await box.inProcess(unknown, 'claim', '2');
     const since = new Date(Date.now() - 60_000).toISOString();
     const finding = { key: 'RANK_INVERSION:item:2', cause: 'RANK_INVERSION', item: 2, subject: '#2', title: 'a free item ranks ahead', since,
       owner: { who: 'web-2', role: 'agent' }, why: 'web-2 claimed #2 while #1 ranks ahead in the web lane and sits free', next: 'release #2, then claim #1' };
@@ -147,8 +152,8 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
     }
   } finally { store.closeBoard(board); }
   await seedBookkeeping(box, alpha);
-  box.run(alpha.repo, 'shout', 'person', 'Which plain greeting?', '--decision');
-  box.run(unknown, 'shout', 'all', 'Keep [MY_CODE] and these words. Appointment 2026-10-28T04:12:00Z');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Which plain greeting?', '--decision');
+  await box.inProcess(unknown, 'shout', 'all', 'Keep [MY_CODE] and these words. Appointment 2026-10-28T04:12:00Z');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-plain-words-'));
   let chrome;
   const forbidden = /\(unknown\)|\b(?:health-failure|health-resolved|health-scan|proof-run|rehomeImport|submit-merge|TEST_FAILURE|BEHAVIOR_MISMATCH)\b|\[RANK_INVERSION\]|\d{4}-\d\d-\d\dT\d\d:/u;

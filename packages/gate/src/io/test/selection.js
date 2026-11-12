@@ -8,6 +8,7 @@ import {
 import {
   globSync,
   readFileSync,
+  readdirSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -131,9 +132,13 @@ export function isGitWorkTree(cwd, env) {
   throw new Error(result.stderr.trim() || `git rev-parse failed (status ${result.status})`);
 }
 
-/** List tracked repository test entry files, excluding helpers and worktree-only copies. */
+/**
+ * List repository test entry files, excluding helpers and worktree-only copies: tracked ones in a Git work tree, else the folder's own.
+ * Why: Node's native discovery also runs every file under any `test/` folder, which now holds gate's own source.
+ */
 export function trackedDefaultTestFiles(cwd, env) {
-  const output = gitExecFileSync(['ls-files', '-z'], { cwd, env, encoding: 'utf8' });
+  const output = isGitWorkTree(cwd, env) ? gitExecFileSync(['ls-files', '-z'], { cwd, env, encoding: 'utf8' })
+    : readdirSync(cwd, { recursive: true }).join('\0');
   return output.split('\0').filter(path => path && isDefaultTestFile(path)).sort()
     .map(path => `./${path}`);
 }
@@ -162,9 +167,9 @@ export function shardArguments(args, takesValue, env = process.env) {
   }
   // A call that names no file would run the whole suite and hold runner slots for a quarter of an hour; the suite is
   // the gate's, the landing's and the audit's job (S10), and those runs carry a stage marker. Why: on 6 Nov a seat's
-  // bare `node packages/gate/src/io/run/tests.js` starved every other seat's test run behind the gate queue. `--all` says it on purpose.
+  // bare `node apps/cli/src/io/run/tests.js` starved every other seat's test run behind the gate queue. `--all` says it on purpose.
   if (!all && !hasTestFiles(forwarded, takesValue) && !env.PULLBOARD_TEST_STAGE && env.PULLBOARD_LANDING_RUN !== '1') {
-    return { error: '[TEST_SELECTION_EMPTY] name the test files to run: node packages/gate/src/io/run/tests.js <file>...; the full suite runs at the gate, the landing and the audit, or by hand with --all' };
+    return { error: '[TEST_SELECTION_EMPTY] name the test files to run: node apps/cli/src/io/run/tests.js <file>...; the full suite runs at the gate, the landing and the audit, or by hand with --all' };
   }
   if (shard === undefined) return { args: forwarded };
   const match = shard.match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);

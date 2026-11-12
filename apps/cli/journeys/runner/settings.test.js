@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/config/index.js packages/gate/index.js packages/landing/index.js packages/runners/index.js */
 /** Registration preserves remote configuration and setup failures move to another runner [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -35,13 +35,13 @@ import {landingExecutionServices} from ${JSON.stringify(landing)};
 import {addRunner,setGateSlots,setBrowserSlots} from ${JSON.stringify(config)};
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 addRunner({host:'first',slots:1,browser:0,node:'/missing/node'});
-addRunner({host:'second',slots:1,browser:0,node:process.execPath});
 setBrowserSlots(0);
 setGateSlots(0);
 const seen=[];
 const value=await withGateSlot(process.cwd(), async lease=>{
   seen.push(lease.runner.host);
   if(seen.length===1) {
+    addRunner({host:'second',slots:1,browser:0,node:process.execPath});
     try { resultFrom({runner:lease.runner,spec:{id:'fixture'},phase:'connect'},
       {status:127,stderr:'/bin/sh: /missing/node: not found',stdout:Buffer.alloc(0)},{}); }
     catch(error) { if(error.code!=='RUNNER_SETUP' || !error.message.includes('/missing/node')) throw error; throw error; }
@@ -49,7 +49,8 @@ const value=await withGateSlot(process.cwd(), async lease=>{
   return lease.runner.host;
 }, {executionServices,remote:true,runnerOnly:true,kind:'runner-setup-test'});
 console.log(JSON.stringify({seen,value}));`;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 30000 });
+  const env = { ...box.env, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0' };
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30000 });
   assert.equal(result.status, 0, result.context);
   const record = JSON.parse(result.stdout.trim());
   assert.deepEqual(record.seen, ['first', 'second']);

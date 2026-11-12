@@ -9,7 +9,7 @@ import { STALE_STATE_ENGINE } from "../../../../state/light.js";
 import { GONE_CLAIM_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by release, discovered without a shared registry edit [C7,V4,H16]. */
-import { firstRefusal } from "../../../../store/light.js";
+import { firstRefusal } from "../../../../store/browser.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";

@@ -2,6 +2,10 @@ import { pipelineCauseType } from '../../../kernel/index.js';
 /** Recorded lifecycle intervals and attempts for a bounded window of landed items [R1,R2,C7]. */
 import { Refused } from '../../../kernel/light.js';
 import { proofEventDetail } from '../../../kernel/browser.js';
+import models from './models.json' with { type: 'json' };
+
+/** Which maker a model label belongs to, from models.json so the core names no vendor itself [P5]. */
+const MODEL_FAMILIES = models.families.map(({ match, family }) => ({ match: new RegExp(match, 'u'), family }));
 
 const STAGES = ['claim', 'submit', 'reviewWait', 'review', 'landing'];
 const CAUSES = ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'host-busy', 'other', 'unknown'];
@@ -168,8 +172,7 @@ function familyName(declared, event, detail) {
   const named = typeof detail.family === 'string' && detail.family.trim() ? detail.family : declared.get(event.event_by);
   if (named) return named.toLowerCase();
   const model = typeof detail.model === 'string' ? detail.model.toLowerCase() : '';
-  if (/^(claude|anthropic)/u.test(model)) return 'anthropic';
-  if (/^(gpt|codex|o\d|openai)/u.test(model)) return 'openai';
+  for (const { match, family } of MODEL_FAMILIES) if (match.test(model)) return family;
   return model ? model.split('-')[0] : 'unknown';
 }
 

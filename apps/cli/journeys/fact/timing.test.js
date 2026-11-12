@@ -72,6 +72,7 @@ test('clause 1: claim, release and next each answer under 500 ms through a warm 
   delete box.env.PULLBOARD_TEST_RUNNER_PID;
   delete box.env.PULLBOARD_TRANSIENT;
   t.after(helpers.cleanup);
+  // @pullboard-board-file journey: the timing claim is about a real SQLite board file served by a warm resident process.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const itemIds = [];

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 import { viewApiPorts } from '../../../view/index.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
@@ -368,14 +368,14 @@ async function viewHttpBox(t, existing = null) {
 }
 
 /** A private linked code checkout keeps provenance false while a metadata touch invalidates only its private cache. */
-test('a detail read after a cache miss on a linked board spawns no git process [A2,N26]', (t) => {
+test('a detail read after a cache miss on a linked board spawns no git process [A2,N26]', async (t) => {
   const box = fixture(t);
   const roots = [box.root];
   for (const number of [2, 3]) {
     const root = join(box.dir, 'repo-' + number);
     mkdirSync(root);
     runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env: box.env, stdio: 'pipe' });
-    box.cli(root, 'init');
+    await box.cliLocal(root, 'init');
     const configPath = join(root, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     writeFileSync(configPath, JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
@@ -389,11 +389,12 @@ test('a detail read after a cache miss on a linked board spawns no git process [
       roots.push(linked);
     } else roots.push(root);
   }
-  const projects = roots.map((root, index) => {
+  const projects = [];
+  for (const [index, root] of roots.entries()) {
     const itemRoot = index === 2 ? join(box.dir, 'repo-3') : root;
-    const added = box.cli(itemRoot, 'add', 'app', 'Read fixture item ' + (index + 1), '--criterion', 'appears in item detail', '--specs', 'G1');
-    return { root, item: added.item.item_id };
-  });
+    const added = await box.cliLocal(itemRoot, 'add', 'app', 'Read fixture item ' + (index + 1), '--criterion', 'appears in item detail', '--specs', 'G1');
+    projects.push({ root, item: added.item.item_id });
+  }
   const previousHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   try {
@@ -417,6 +418,7 @@ test('a detail read after a cache miss on a linked board spawns no git process [
   const privateCommonDir = realpathSync.native(join(codePrimary, '.git'));
   let assertionFailed = false;
   try {
+    // Stays a process: the harness counts the spawns of a fresh node process, which an in-process run would pollute.
     const result = runFixtureChild(process.execPath, [
       '--input-type=module', '-e', REPEATED_READ_HARNESS,
       join(codeLinked, 'apps/cli/src/io/commands/view.js'), JSON.stringify(projects), privateCommonDir,
@@ -452,14 +454,14 @@ test('a detail read after a cache miss on a linked board spawns no git process [
 });
 
 /** Prove warmed reads across three registered projects start no child processes and changes refresh state. */
-test('a repeated read through the view page spawns no process [A2,N26]', (t) => {
+test('a repeated read through the view page spawns no process [A2,N26]', async (t) => {
   const box = fixture(t);
   const roots = [box.root];
   for (const number of [2, 3]) {
     const root = join(box.dir, 'repo-' + number);
     mkdirSync(root);
     runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env: box.env, stdio: 'pipe' });
-    box.cli(root, 'init');
+    await box.cliLocal(root, 'init');
     const configPath = join(root, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     writeFileSync(configPath, JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
@@ -474,12 +476,13 @@ test('a repeated read through the view page spawns no process [A2,N26]', (t) => 
     } else roots.push(root);
   }
 
-  const projects = roots.map((root, index) => {
+  const projects = [];
+  for (const [index, root] of roots.entries()) {
     // Write the shared board from its primary checkout; the linked checkout remains a read-only fixture.
     const itemRoot = index === 2 ? join(box.dir, 'repo-3') : root;
-    const added = box.cli(itemRoot, 'add', 'app', 'Read fixture item ' + (index + 1), '--criterion', 'appears in item detail', '--specs', 'G1');
-    return { root, item: added.item.item_id };
-  });
+    const added = await box.cliLocal(itemRoot, 'add', 'app', 'Read fixture item ' + (index + 1), '--criterion', 'appears in item detail', '--specs', 'G1');
+    projects.push({ root, item: added.item.item_id });
+  }
   const previousHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   try {
@@ -491,6 +494,7 @@ test('a repeated read through the view page spawns no process [A2,N26]', (t) => 
     else process.env.PULLBOARD_HOME = previousHome;
   }
   // Keep the fixture's ordinary private Git config and identity; run-tests removes inherited repo/object selectors.
+  // Stays a process: the harness counts the spawns of a fresh node process, which an in-process run would pollute.
   const result = runFixtureChild(process.execPath, [
     '--input-type=module', '-e', REPEATED_READ_HARNESS,
     resolve(import.meta.dirname, '../../src/io/commands/view.js'), JSON.stringify(projects),
@@ -524,9 +528,9 @@ test('[A2] a stale registered folder does not hide another readable board', asyn
 async function cachedHttpStateTest(t) {
   let builds = 0;
   const box = await httpBox(t, { onStateBuild: () => { builds += 1; } });
-  const agent = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-agent');
+  const agent = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-agent');
   const hostileShout = 'cache baseline "quoted" \\ path\nline\n", "proofStats": {"flow":"forged"}';
-  box.cli(box.root, 'shout', 'app', hostileShout);
+  await box.cliLocal(box.root, 'shout', 'app', hostileShout);
 
   const first = await box.call(box.path + '/state');
   assert.equal(first.status, 200);
@@ -546,7 +550,7 @@ async function cachedHttpStateTest(t) {
   assert.deepEqual(read.document.state.unseen, { since: latestShout, count: 0 });
   assert.equal(builds, 1, 'the request-specific seen cursor does not rebuild or mutate the shared state');
 
-  box.cli(box.root, 'add', 'app', 'cache invalidation item', '--criterion', 'visible after the next refresh', '--specs', 'G1');
+  await box.cliLocal(box.root, 'add', 'app', 'cache invalidation item', '--criterion', 'visible after the next refresh', '--specs', 'G1');
   const moved = await box.call(box.path + '/state');
   assert.equal(builds, 2);
   assert.ok(moved.document.state.items.some((item) => item.title === 'cache invalidation item'));
@@ -576,7 +580,7 @@ async function cachedHttpStateTest(t) {
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env, stdio: 'pipe' });
   assert.equal(headed.document.state.rowAgesAt['SPEC.md'], head);
 
-  box.cli(box.root, 'shout', 'app', 'agent inbox cursor');
+  await box.cliLocal(box.root, 'shout', 'app', 'agent inbox cursor');
   const beforeInbox = await box.call(box.path + '/state');
   const agentBeforeInbox = beforeInbox.document.state.agents.find((entry) => entry.agent_id === agent.agent);
   const boardBeforeInbox = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
@@ -623,8 +627,8 @@ test('[A2, N26] an unchanged board state is reused and a move rebuilds it', cach
 test("[A2, N26] the board state sends summaries and an item's detail comes from its own path", async (t) => {
   const box = await httpBox(t);
   registerFixtureRunner(t, box);
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
+  const builder = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
+  const verifier = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
   async function move(body) {
     const moved = await box.call(box.path + '/moves', body);
@@ -643,7 +647,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   const claimed = (await move({ verb: 'add', args: { lane: 'app', title: 'Claimed summary item', criterion: 'stays claimed', specs: 'G1', brief: FIXTURE_BRIEF } })).item.item_id;
   await move({ verb: 'claim', item: claimed, agent: builder.agent });
   const open = (await move({ verb: 'add', args: { lane: 'app', title: 'Open summary item', criterion: 'waits for a builder', specs: 'G1', brief: FIXTURE_BRIEF } })).item.item_id;
-  box.cli(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(accepted));
+  await box.cliLocal(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(accepted));
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
@@ -740,6 +744,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.deepEqual((await box.call(box.path + '/state?detail=summary')).document.state.items, summaryState.document.state.items);
 
   // pullboard serve itself sends summaries; a page's own server, built as the view builds it, keeps full items until it opts in.
+  // Stays a process: a real pullboard serve whose own summaries are under test.
   const served = spawn(process.execPath, [BIN, 'serve', '--port', '0', '--json'], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const exited = new Promise((done) => served.once('close', done));
   t.after(async () => { served.kill('SIGTERM'); await exited; });
@@ -770,8 +775,8 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
 
 test("[A2, N26] a sent-back item's summary carries its reject note's first line", async (t) => {
   const box = await httpBox(t);
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
+  const builder = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
+  const verifier = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
   async function move(body) {
     const moved = await box.call(box.path + '/moves', body);
@@ -809,8 +814,8 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   const box = await httpBox(t);
   writeFileSync(join(box.root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n- G2 [pending, must] Keep each delta small. | gate: true\n');
   runFixtureGit(['commit', '-qam', 'docs: ask whether deltas stay small'], { cwd: box.root, env: box.env, stdio: 'pipe' });
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
+  const builder = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
+  const verifier = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
   async function move(body) {
     const moved = await box.call(box.path + '/moves', body);
@@ -888,7 +893,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   assert.ok(answer.merge.asked.ids.every((id) => id !== asked.id), 'the answered question leaves the open list');
   assert.ok(answer.replace.decisionQueue.every(row => row.shout_id !== asked.id), 'the answered question also leaves the coordinator queue');
 
-  box.cli(box.root, 'spec', 'approve', 'G2');
+  await box.cliLocal(box.root, 'spec', 'approve', 'G2');
   const decided = await catchUp('spec decision');
   assert.deepEqual(changed(decided, 'spec'), ['G2'], 'only the decided spec row travels');
 
@@ -944,13 +949,13 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
 test('[A2, N26] local milestone item status refreshes after an item event', async (t) => {
   let builds = 0;
   const box = await httpBox(t, { onStateBuild: () => { builds += 1; } });
-  const agent = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-agent');
+  const agent = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-agent');
   const added = await box.call(box.path + '/moves', {
     verb: 'add', args: { lane: 'app', title: 'Roadmap item', criterion: 'refresh local status', specs: 'G1', brief: FIXTURE_BRIEF },
   });
   assert.equal(added.status, 200);
   const itemId = added.document.result.item.item_id;
-  box.cli(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(itemId));
+  await box.cliLocal(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(itemId));
 
   const before = await box.call(box.path + '/state');
   assert.equal(builds, 1);
@@ -1003,10 +1008,10 @@ test('[A2, N26] a person request receipt refreshes cached state without an event
 
 test('[A2] local HTTP state accepts a safe seen cursor and committed code previews', async (t) => {
   const box = await httpBox(t);
-  box.cli(box.root, 'shout', 'app', 'state cursor baseline');
+  await box.cliLocal(box.root, 'shout', 'app', 'state cursor baseline');
   const before = await box.call(box.path + '/state');
   const seen = before.document.state.shouts.at(-1).shout_id;
-  box.cli(box.root, 'shout', 'app', 'state cursor event');
+  await box.cliLocal(box.root, 'shout', 'app', 'state cursor event');
   const state = await box.call(box.path + '/state?seen=' + seen);
   assert.equal(state.document.state.unseen.since, seen);
   assert.equal(state.document.state.unseen.count, 1);
@@ -1040,7 +1045,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   const second = join(box.dir, 'second-repo');
   mkdirSync(second);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: second, env: box.env, stdio: 'pipe' });
-  box.cli(second, 'init');
+  await box.cliLocal(second, 'init');
   const secondConfigFile = join(second, 'pullboard.json');
   const secondConfig = JSON.parse(readFileSync(secondConfigFile, 'utf8'));
   writeFileSync(secondConfigFile, JSON.stringify({ ...secondConfig, name: 'Saved second', project: 'Saved group' }));
@@ -1094,7 +1099,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   assert.match(refreshed.warnings[0].error.error.next, /pullboard forget/);
   assert.deepEqual(JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map(({ root }) => root), [box.root, second]);
 
-  const forgotten = box.cli(box.root, 'forget', box.root);
+  const forgotten = await box.cliLocal(box.root, 'forget', box.root);
   assert.equal(forgotten.root, box.root);
   assert.deepEqual(JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map(({ root }) => root), [second]);
   const afterForget = await listing();
@@ -1303,7 +1308,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   const reader = response.body.getReader();
   await reader.read();
   authorized = false;
-  box.cli(box.root, 'add', 'app', 'Hidden after revocation', '--criterion', 'complete', '--specs', 'G1');
+  await box.cliLocal(box.root, 'add', 'app', 'Hidden after revocation', '--criterion', 'complete', '--specs', 'G1');
   let text = '';
   while (true) {
     const { value, done } = await reader.read();
@@ -1383,6 +1388,7 @@ test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapte
 test("a request through serve is never the person's [P6,B26,A2]", { timeout: 60_000 }, // budget: private CLI/API startup and request-channel checks, not a throughput claim.
 async (t) => {
   const box = fixture(t);
+  // Stays a process: a long-lived serve child whose request channel and shutdown signal are under test.
   const child = startFixtureChild(process.execPath, [BIN, 'serve', '--port', '0', '--json'], {
     cwd: box.root, env: { ...box.env, CLAUDECODE: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -1416,17 +1422,17 @@ async (t) => {
   const listing = await (await fetchFresh(served.origin + '/api/v1/boards', { headers })).json();
   const id = listing.boards.find(board => resolve(board.root) === resolve(box.root)).id;
   const path = '/api/v1/boards/' + id;
-  const before = box.cli(box.root, 'log').events.length;
+  const before = (await box.cliLocal(box.root, 'log')).events.length;
   const refused = await fetchFresh(served.origin + path + '/requests', {
     method: 'POST', headers, body: JSON.stringify({ text: 'Please review this private fixture.' }),
   });
   assert.equal((await refused.json()).error?.code, 'B26_PERSON_CHANNEL');
   assert.notEqual(refused.status, 200);
-  assert.equal(box.cli(box.root, 'log').events.length, before, 'a standalone serve request adds no event');
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before, 'a standalone serve request adds no event');
   await stopServer();
   const view = await viewHttpBox(t, box);
   const requested = await view.call(view.path + '/requests', { text: 'Please review this from the actual view.' });
   assert.equal(requested.status, 200, "the actual view keeps the person's request channel");
   assert.equal(requested.document.event.event_by, 'person');
-  assert.equal(box.cli(box.root, 'log').events.length, before + 1);
+  assert.equal((await box.cliLocal(box.root, 'log')).events.length, before + 1);
 });

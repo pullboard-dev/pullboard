@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input docs/formats.md packages/config/src/logic/json.js packages/spec/src/logic/grammar.js packages/store/src/io/board/schema/source.js */
 /** @pullboard-test-input packages/state/src/io/formats/*.json */
 /** Real train merges retain additive registry changes and refuse edits [B3,R3,C7]. */
 import assert from 'node:assert/strict';

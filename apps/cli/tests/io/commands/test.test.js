@@ -1,9 +1,11 @@
 /** @pullboard-test-input source-tree */
 /** Test the CI-like test runner against real Git and PATH behavior [C7, S13]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
+import { expandTestFolders } from '../../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import {
   runFixtureExecFile as execFileSync,
+  privateFixtureFiles,
   runFixtureChild as spawnSync,
 } from '../../fixtures/child.js';
 import {
@@ -29,10 +31,15 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { commandDocs } from '../../../src/io/docs.js';
 import { readTestOutcomes } from '../../../../../packages/gate/index.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
+import { runResident } from '../../../src/io/resident/client.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { withFixtureBoard } from '../../fixtures/testkit.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
@@ -96,7 +103,7 @@ test('runner removes its private home after test workers exit [C7, S13]', (t) =>
 import { writeFileSync } from 'node:fs';
 test('reports its sandbox and person-terminal markers', () => writeFileSync(${JSON.stringify(report)}, JSON.stringify({ sandbox: process.env.TMPDIR, ssh: [process.env.SSH_CONNECTION, process.env.SSH_CLIENT, process.env.SSH_TTY] })));
 `);
-  const runner = fileURLToPath(new URL('../../../../../packages/gate/src/io/run/tests.js', import.meta.url));
+  const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
   const launchEnv = { ...process.env };
   Object.assign(launchEnv, {
     SSH_CONNECTION: '192.0.2.1 1234 192.0.2.2 22',
@@ -123,7 +130,7 @@ test('reports its sandbox and person-terminal markers', () => writeFileSync(${JS
 function copyRunnerImports(sourceRoot, root) {
   const copied = new Set();
   // The source-owned catalog validates its actual command files without importing them.
-  let pending = ['packages/gate/src/io/run/tests.js', ...commandDocs(sourceRoot).map(entry => `apps/cli/src/io/commands/${entry.name.split(' ')[0]}.js`)];
+  let pending = ['apps/cli/src/io/run/tests.js', ...commandDocs(sourceRoot).map(entry => `apps/cli/src/io/commands/${entry.name.split(' ')[0]}.js`)];
   while (pending.length) {
     const files = [...new Set(pending)].filter((file) => !copied.has(file));
     pending = [];
@@ -238,7 +245,7 @@ test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x')
 function runDiscovery({ root, bin, marker }) {
   const launchEnv = { ...process.env };
   delete launchEnv.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, ['--test', '--import', join(root, 'packages/gate/src/io/run/tests.js')], {
+  const result = spawnSync(process.execPath, ['--test', '--import', join(root, 'apps/cli/src/io/run/tests.js')], {
     cwd: root,
     encoding: 'utf8',
     env: launchEnv,
@@ -256,11 +263,11 @@ test('discovery follows a new runner src import and its transitive dependency [C
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), source);
-  const runner = readFileSync(join(source, 'packages/gate/src/io/run/tests.js'), 'utf8');
-  writeFileSync(join(source, 'packages/gate/src/io/run/tests.js'), runner.replace('\n', "\nimport './discovery-extra.js';\n"));
-  writeFileSync(join(source, 'packages/gate/src/io/run/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
-  writeFileSync(join(source, 'packages/gate/src/io/run/discovery-nested.js'), "export const value = 'closure';\n");
-  writeFileSync(join(source, 'packages/gate/src/io/run/unreferenced.test.js'),
+  const runner = readFileSync(join(source, 'apps/cli/src/io/run/tests.js'), 'utf8');
+  writeFileSync(join(source, 'apps/cli/src/io/run/tests.js'), runner.replace('\n', "\nimport './discovery-extra.js';\n"));
+  writeFileSync(join(source, 'apps/cli/src/io/run/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");
+  writeFileSync(join(source, 'apps/cli/src/io/run/discovery-nested.js'), "export const value = 'closure';\n");
+  writeFileSync(join(source, 'apps/cli/src/io/run/unreferenced.test.js'),
     "throw new Error('an unreferenced shipped test must stay outside the discovery fixture');\n");
   runDiscovery(discoveryFixture(t, source));
 });
@@ -268,7 +275,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
 
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
+  const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
   const id = '12345678-1234-1234-1234-123456789abc';
   const env = { ...process.env };
@@ -313,7 +320,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
 
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
+  const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
@@ -340,7 +347,7 @@ test('runner option values that resemble a name pattern remain values [C7,S13]',
   writeFileSync(empty, 'export {};\n');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, [realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js')),
+  const result = spawnSync(process.execPath, [realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js')),
     '--test-skip-pattern', '--test-name-pattern=absent option value 1018', empty],
   { cwd: box.root, env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -359,7 +366,7 @@ test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
   /** Exercise configured discovery without explicit files, so the landing-shard branch is reached. */
-  const execute = (pattern) => spawnSync(process.execPath, [realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js')),
+  const execute = (pattern) => spawnSync(process.execPath, [realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js')),
     '--test-name-pattern', pattern], { cwd: box.root, env, encoding: 'utf8' });
   const present = execute('one discovered test');
   assert.equal(present.status, 0, `${present.stdout}${present.stderr}`);
@@ -368,4 +375,50 @@ test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   assert.notEqual(absent.status, 0, `${absent.stdout}${absent.stderr}`);
   assert.match(absent.stderr, /NO_TESTS_MATCHED/u, `${absent.stdout}${absent.stderr}`);
   assert.equal(readFileSync(box.marker, 'utf8'), 'x', 'a discarded filter must not run the tracked case again');
+});
+
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
+
+/** A board with one queued test run whose detached worker is a stand-in that never starts. */
+function queuedRunBoard() {
+  const box = e2e.project(undefined, undefined, { withWorktree: false });
+  const commonDir = join(box.repo, '.git');
+  const run = withFixtureBoard(join(commonDir, 'pullboard', 'board.sqlite'), board => queueTestRun({ info: { commonDir, root: box.repo } },
+    work => work(board), { agent: 'seat', files: ['test/a.test.js'] }, { launch: () => ({ unref() {} }) }));
+  return { box, run, commonDir };
+}
+
+test('clause 1: test --status prints the run state without spawning the resident board [C7,#5888]', async () => {
+  const { box, run, commonDir } = queuedRunBoard();
+  const env = { ...box.env, PULLBOARD_RESIDENT: '1' };
+  const quiet = { write() { return true; }, isTTY: false };
+  const started = [];
+  const start = place => started.push(place);
+  assert.equal(await runResident(['test', '--status', run.id], { cwd: box.repo, env, stdout: quiet, stderr: quiet, start }), null);
+  assert.deepEqual(started, [], 'test --status with no resident process reads in-process and starts none');
+  assert.equal(await runResident(['show', '1'], { cwd: box.repo, env, stdout: quiet, stderr: quiet, start }), null);
+  assert.equal(started.length, 1, 'control: another resident command with no process does start one');
+  const status = await box.inProcess(box.repo, 'test', '--status', run.id);
+  assert.equal(status.code, 0, `${status.out}${status.err}`);
+  assert.match(status.out, new RegExp(`test run ${run.id} queued: test/a\\.test\\.js`, 'u'));
+  const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => name.startsWith('resident-'));
+  assert.deepEqual(residents, [], 'no resident board process recorded itself');
+});
+
+test('clause 2: test --status of an unknown run id still refuses with a next step [C7,#5888]', async () => {
+  const { box } = queuedRunBoard();
+  const refused = await box.inProcess(box.repo, 'test', '--status', '00000000-0000-4000-8000-000000000000');
+  assert.equal(refused.code, 1, `${refused.out}${refused.err}`);
+  assert.match(refused.err, /\[NO_TEST_RUN\]/u);
+  assert.match(refused.err, /^next: /mu);
+});
+
+test('pullboard test given a folder expands it to the test files under it, never ERR_UNSUPPORTED_DIR_IMPORT [C7,S13]', (t) => {
+  const box = privateFixtureFiles('pullboard-test-folders-');
+  const root = box.root;
+  t.after(() => box.cleanup?.());
+  for (const file of ['dir/b.test.js', 'dir/sub/a.test.js', 'dir/helper.js', 'empty/readme.txt']) box.write(file, 'export {};\n');
+  assert.deepEqual(expandTestFolders(root, ['dir/', 'x.test.js']), ['dir/b.test.js', 'dir/sub/a.test.js', 'x.test.js']);
+  assert.throws(() => expandTestFolders(root, ['empty']), (error) => error.code === 'NO_TEST_FILE' && /empty/u.test(error.message));
 });

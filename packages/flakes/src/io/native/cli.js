@@ -72,7 +72,9 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
   };
   return Object.assign(async (run, { root = ctx.info.root, command, lease }) => {
     if (kind === 'submit' && run.proofReceiptId) await recordRun(run.proofReceiptId);
-    await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
+    // A composed Submit phase runs in a private copy removed when the gate returns, while detached diagnostics still run; its commit lives in the board's repository.
+    // The red output names its tests by absolute path under the root the run used, so it is read against that root, not the board's.
+    await observeNativeFailure({ root: pin.privateCheck ? ctx.info.root : root, outputRoot: root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
       record: observation => recordAll([observation]),
       // One board session records every case after all probes finish, rather than one open per case [#1899].
       recordBatch: observations => recordAll(observations), recordRun });

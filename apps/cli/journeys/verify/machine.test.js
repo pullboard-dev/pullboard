@@ -68,6 +68,7 @@ import {
 } from '../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA_BEHIND BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE SHIM_IMPORT_PARSER UNKNOWN_SPEC'.split(' ');
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
@@ -104,6 +105,8 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // The rigor auto-draft switch reads pullboard.json to honor rigor.autoDraft; a missing or bad config keeps the default and never refuses release or reopen.
+  '../packages/store/src/io/board/shout.js#rigorAutoDraftOn': ['../packages/config/index.js#loadConfig'],
   // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
   '../apps/cli/src/io/claim.js#refreshesLanePolicy': ['../apps/cli/src/io/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
@@ -566,9 +569,10 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by submit but not declared there',
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
-  for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('../packages/store/src/logic/board/rigor/auto.js',
-      new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
+  // Since #5404 a decline is final for its key, so recordAutomaticRigorDrafts no longer reads decisions and the two decision-source
+  // readers left the move paths; the drafting entry itself is the one place the audit still reaches release, reopen and submit through.
+  for (const [file, head] of [['../packages/rigor/src/io/auto.js', /^export function recordAutomaticRigorDrafts\(board, trigger, shout\) \{$/m]]) {
+    const inHistoricalCaller = editedSource(file, head,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
@@ -1166,6 +1170,9 @@ test('next --verify reserves the review for the reviewLease and says until when;
       PULLBOARD_HOME: join(dir, 'home'),
       PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     };
+    // This journey submits through a real machine home and holds the gate in the submitting process, so it pins controller dispatch (#6182-#6185).
+    fs.mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
     const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
     // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
     // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.

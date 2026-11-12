@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js */
 /** A landing worker that dies mid-batch is replaced by the health sweep and the adoption is recorded [C7]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';

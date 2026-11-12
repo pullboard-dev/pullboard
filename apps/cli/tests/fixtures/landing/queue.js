@@ -334,6 +334,11 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   const entries = acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst);
+  // Advance a real gate input after submission so the merged batch needs a fresh gate.
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/queue-3.txt'), 'works\n');
+  box.git(box.repo, 'add', 'web/queue-3.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: advance queue fixture main');
   // Main moves after the submits, so landing cannot reuse a submit receipt proven on the older base (BASE_MOVED) and must run its real gate.
   const moved = helpers.commitFile(box, box.repo, 'web/moved.txt', 'moved\n', 'chore: move main after the submit receipts');
   assert.equal(moved.status, 0, moved.stderr);
@@ -348,6 +353,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
       await child.closed;
     }
   });
+  // The stopped holder keeps its gate slot until its own lease runs out, so the adopting landing needs a second slot of its own.
+  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2 });
   writeFileSync(arm, 'armed');
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
@@ -356,6 +363,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   assert.ok(existsSync(entered), first.failure ?? first.stderrText);
   const firstBatch = readBoard(box, board => store.landingBatches(board).at(-1));
   assert.equal(firstBatch.state, 'gating');
+  assert.equal(readFileSync(entered, 'utf8'), firstBatch.root, 'the held gate belongs to the foreground batch');
   assert.deepEqual(firstBatch.items.map(entry => entry.id), [entries[1].id], 'verdict order precedes numeric item order');
   if (suspendParent) rmSync(arm); // Only later gates become unblocked; the current one still requires its unreleased marker.
   const second = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', ...(suspendParent ? ['--adopt'] : ['--max', '1'])]);
@@ -381,6 +389,20 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     } else if (killGuardian) {
       process.kill(holder.guardianPid, 'SIGKILL'); // This exact PID came from this private command's bound guardian.
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
+    if (suspendParent) {
+      // A stopped holder cannot renew, so its lease runs out; age both of its deadlines for the queue, so the adopter need not wait out the real 120 s [C7].
+      readBoard(box, board => {
+        const past = new Date(Date.now() - 1000).toISOString();
+        const lease = store.landingLeaseState(board).holder;
+        const marks = board.db.prepare('SELECT meta_key, meta_value FROM board_meta WHERE meta_key IN (?, ?)').all('landing_lease', `local:landing-lease:${lease.token}`);
+        assert.equal(marks.length, 2, 'the stopped holder has its shared lease and its local heartbeat');
+        for (const { meta_key: key, meta_value: value } of marks) {
+          const record = JSON.parse(value);
+          if (key === 'landing_lease') record.holder.until = past; else record.until = past;
+          board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(record), key);
+        }
+      });
+    }
     try {
       await helpers.waitFor(() => !running(holder.guardianPid) && !running(blockedGatePid), 'the guardian and blocked gate stop without releasing their marker',
         suspendParent ? LANDING_LEASE_MS + 60_000 : 8_000); // Budget: actual lease expiry (LANDING_LEASE_MS) plus owned-process drain, stretched for a loaded runner; not a speed threshold.
@@ -425,8 +447,10 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   const results = await Promise.all(children.map(child => child.closed));
   if (staleAfterFirst) {
     assert.equal(results[0].code, 0, results[0].failure);
-    assert.equal(results[1].code, 1, 'the queued command refuses the now-stale acceptance');
-    assert.match(second.stderrText, /STALE_VERDICT/u);
+    // A plain main change withdraws the stale verdict and returns the item to its lane, so the waiter exits 0 [B3,C7].
+    assert.equal(results[1].code, 0, `the queued command returns the now-stale acceptance to its lane: ${results[1].failure ?? ''}`);
+    assert.match(second.stdoutText + second.stderrText, /STALE_VERDICT #\d+ reopened to its lane/u);
+    assert.equal(readBoard(box, board => store.getItem(board, entries[0].id).item_status), 'open', 'the stale item left verified for its lane');
     assert.equal(readBoard(box, board => store.landingBatches(board).length), 1, 'a stale waiter starts no batch');
     assert.equal(readBoard(box, board => store.getItem(board, entries[0].id).item_merged_commit), null);
     return;
@@ -496,6 +520,10 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   const entries = acceptedPair(helpers, box, false, true);
+  // Main moves after the submits, so landing cannot reuse a submit receipt proven on the older base (BASE_MOVED) and runs its real gate.
+  const moved = helpers.commitFile(box, box.repo, 'web/moved.txt', 'moved\n', 'chore: move main after the submit receipts');
+  assert.equal(moved.status, 0, moved.stderr);
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   writeFileSync(callsFile, '');
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   const wakeFile = join(directory, 'wake.json');

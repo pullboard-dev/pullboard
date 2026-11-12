@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/memo.js packages/codemap/src/io/cells/scripts/cache.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
 /** Runners share one cells fixture-analysis memo through the controller; a bad memo never replaces good entries [C7]. */
 /** @pullboard-world-pin: the runner fixture carries the shipped memo-share module, the code a pinned main's archive holds. */
 import { test } from 'node:test';
@@ -156,7 +156,7 @@ test('clause 1: one runner\'s memo reaches the controller store, and no request 
   mkdirSync(join(first.cache, 'fixtures'), { recursive: true });
   writeFileSync(join(first.cache, 'fixtures', NAME), memoBytes(['built-on-first']));
   const request = { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'c',
-    staticChecks: '', config: { affectedTests: 'node packages/gate/src/io/run/tests.js' }, browserFreeChecks: true, readCutItems: () => [], perPart: true };
+    staticChecks: '', config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, browserFreeChecks: true, readCutItems: () => [], perPart: true };
   const one = await remoteSubmitAnalysis(box.controller, request, lease(box, first), join(box.dir, 'one'));
   assert.equal('fixtureMemo' in one, false);
   assert.deepEqual(stored(join(home, 'cells-cache', 'fixtures-shared')), { 'built-on-first': 'result' });
