@@ -17,6 +17,9 @@ export const AWAITING_MAIN_STEP = 'awaiting-main';
 /** The step name a main-test job writes its receipt under when it returns. */
 export const MAIN_TEST_RECEIPT_STEP = 'receipt';
 
+/** The step a waiting verdict ends in when its item is no longer submitted at the verdict's candidate; no verdict is written. */
+const WITHDRAWN_STEP = 'withdrawn';
+
 /**
  * The verdict job's id for one item's candidate. Why: a resumed driver and a second judge of the same gate reuse one row.
  *
@@ -141,9 +144,12 @@ export function returnMainTest(jobs, db, job, receipt, { now = Date.now() } = {}
 
 /**
  * Finish every gate verdict waiting on main whose main-test jobs have returned: judge again with the returned receipts
- * and write the verdict step. A verdict whose receipts are still missing keeps waiting; none is bounced.
+ * and write the verdict step. A verdict whose receipts are still missing keeps waiting; none is bounced. A verdict whose
+ * item is no longer submitted at its candidate (withdrawn, released or resubmitted at another head) ends in a
+ * `withdrawn` step and writes no verdict (SM16); with no `itemSubmittedAt` port, no item is checked.
  *
- * @param {{ jobs: { writeStep: Function, jobsOf: Function }, mainTestKind: string }} ports
+ * @param {{ jobs: { writeStep: Function, jobsOf: Function }, mainTestKind: string,
+ *   itemSubmittedAt?: (db: import('node:sqlite').DatabaseSync, item: number, candidate: string) => boolean }} ports
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ now?: number }} [options]
  * @returns {{ id: string, verdict: 'green' | 'red', mainOwned: object[], own: object[] }[]} the verdicts finished now
@@ -153,6 +159,10 @@ export function finishAwaitingVerdicts(ports, db, { now = Date.now() } = {}) {
   const finished = [];
   for (const job of ports.jobs.jobsOf(db, { kind: GATE_VERDICT_KIND })) {
     if (job.step !== AWAITING_MAIN_STEP) continue;
+    if (ports.itemSubmittedAt && !ports.itemSubmittedAt(db, job.item, job.candidate)) {
+      ports.jobs.writeStep(db, job.id, WITHDRAWN_STEP, { item: job.item, candidate: job.candidate }, { now });
+      continue;
+    }
     const waiting = job.steps.find(step => step.name === AWAITING_MAIN_STEP).payload;
     const judged = judgeMainOwnedReds({ base: waiting.base, command: waiting.command, reds: waiting.reds, receipts });
     if (judged.verdict === 'pending') continue;

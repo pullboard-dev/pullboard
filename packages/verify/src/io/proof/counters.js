@@ -40,15 +40,27 @@ function decode(text) {
   return data;
 }
 
+/** Prepared statements by connection and text. Why: a counter catch-up reads and writes a shard several times per event, and preparing each statement afresh was most of a 230,000-event replay (#6357). */
+const STATEMENTS = new WeakMap();
+
+/** The connection's prepared statement for this SQL, prepared once. */
+function statement(db, sql) {
+  let known = STATEMENTS.get(db);
+  if (!known) { known = new Map(); STATEMENTS.set(db, known); }
+  let prepared = known.get(sql);
+  if (!prepared) { prepared = db.prepare(sql); known.set(sql, prepared); }
+  return prepared;
+}
+
 /** Read a single small derived record; none of these keys is exported native state. */
 export function proofCounter(board, key) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
+  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
   return row ? decode(row.meta_value) : null;
 }
 
 /** Replace one affected shard without rewriting the board's accumulated history. */
 function put(board, key, value) {
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+  statement(board.db, 'INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(PREFIX + key, encode(value));
 }
 
