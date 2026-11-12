@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { computePlan } from '../../../../../packages/codemap/index.js';
+import { importCuts } from '../../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../../packages/codemap/index.js';
 import { fixture } from '../../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
@@ -13,7 +14,10 @@ import { runFixtureChild } from '../../../tests/fixtures/child.js';
 const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
 /** Run one plan command in the fixture checkout. */
-const plan = (root, mode) => runFixtureChild(process.execPath, [BIN, mode], { cwd: root, encoding: 'utf8' });
+const plan = (root, mode) => {
+  const cell = mode === '--cuts' ? [importCuts(computePlan(root))[0].cell] : [];
+  return runFixtureChild(process.execPath, [BIN, mode, ...cell], { cwd: root, encoding: 'utf8' });
+};
 
 /** A fixture with its plan committed, so --cuts and --check start green. */
 function committed(t) {
