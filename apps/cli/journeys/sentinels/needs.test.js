@@ -3,7 +3,6 @@
 /** @pullboard-test-gui */
 /** Cockpit needs checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import {
   mkdtempSync,
   readFileSync,
@@ -15,7 +14,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  BIN,
   SPEC,
   machine,
   project,
@@ -39,7 +37,6 @@ import {
   serveFolder,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
   approvalAgentApi,
   approvalReadGate,
@@ -269,9 +266,7 @@ test('a person-only block shows in Needs you with its one step [N26]', async () 
   const box = machine();
   const alpha = project(box, 'person block');
   box.env.CLAUDECODE = '1';
-  const refused = spawnSync(process.execPath, [BIN, 'answer', '1', 'yes', '--as', 'person'], {
-    cwd: alpha.repo, env: box.env, encoding: 'utf8',
-  });
+  const refused = await box.runLocal(alpha.repo, 'answer', '1', 'yes', '--as', 'person');
   delete box.env.CLAUDECODE;
   assert.equal(refused.status, 1, refused.stderr);
   assert.match(refused.stderr, /only the person can clear this/u);
@@ -692,9 +687,9 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     const copyButtons = await chrome.stable(`Array.from(document.querySelectorAll('#needs button'), button => ({ type: button.type, className: button.className, title: button.title, copy: button.dataset.copy, text: button.textContent }))`);
     assert.deepEqual(copyButtons, flagged.map(row => ({ type: 'button', className: 'hash-copy', title: row.commit, copy: row.commit, text: row.commit.slice(0, 12) })), 'the only read-only buttons copy the full attributed hashes and display twelve characters');
     await closeSnapshotChrome(chrome); chrome = null;
-    const refused = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../pullboard.js'), 'spec', 'approve', 'G1', '--json'], {
-      cwd: alpha.web, env: { ...box.env, CLAUDECODE: '1' }, encoding: 'utf8',
-    });
+    box.env.CLAUDECODE = '1';
+    const refused = await box.runLocal(alpha.web, 'spec', 'approve', 'G1', '--json');
+    delete box.env.CLAUDECODE;
     assert.equal(refused.status, 1);
     assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL');
     chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'agent-approval-person-chrome'));
