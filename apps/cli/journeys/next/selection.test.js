@@ -1,10 +1,10 @@
 /** A build seat's `next --take` on the real-size board selects in under 2 s and picks the board's own next item [N2,C7]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as store from '../../../../store/index.js';
-import { fixture } from '../../../../../apps/cli/tests/fixtures/next/take.js';
-import { cli } from '../../../../../apps/cli/tests/fixtures/next/take.js';
-import { seedRealSize } from '../../../../../apps/cli/tests/fixtures/next/real-size.js';
+import * as store from '../../../../packages/store/index.js';
+import { fixture } from '../../tests/fixtures/next/take.js';
+import { cli } from '../../tests/fixtures/next/take.js';
+import { seedRealSize } from '../../tests/fixtures/next/real-size.js';
 
 /** Milliseconds the profile printed for one phase, or null when it printed none. */
 function phaseMs(err, phase) {
