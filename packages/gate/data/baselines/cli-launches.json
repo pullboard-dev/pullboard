@@ -1305,25 +1305,7 @@
     "launch": 11
   },
   "apps/cli/journeys/submit/gate.test.js": {
-    "launch": 39
-  },
-  "apps/cli/journeys/submit/gate/receipt.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/submit/gate/selection.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
-    "launch": 11
-  },
-  "apps/cli/journeys/submit/gate/selection/invariants.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/submit/gate/selection/jest.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/submit/gate/selection/landing.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/submit/handoff/move.test.js": {
     "launch": 1
