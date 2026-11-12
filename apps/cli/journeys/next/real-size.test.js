@@ -12,7 +12,7 @@ function shape(box) {
     events: one("SELECT COUNT(*) AS n FROM event WHERE event_by LIKE 'real-%'").n,
     agents: one("SELECT COUNT(*) AS n FROM agent WHERE agent_id LIKE 'real-%'").n,
     build: one("SELECT COUNT(*) AS n FROM item WHERE item_title LIKE 'Real build %' AND item_status = 'open'").n,
-    review: one("SELECT COUNT(*) AS n FROM item WHERE item_title LIKE 'Real review %' AND item_status = 'submitted'").n,
+    review: one("SELECT COUNT(*) AS n FROM item WHERE item_title LIKE 'Real review %' AND item_status = 'open' AND item_lane = 'review'").n,
     digest: one("SELECT group_concat(item_title || item_route || item_lane, '|') AS d FROM (SELECT * FROM item WHERE item_title LIKE 'Real %' ORDER BY item_title)").d,
     byAgent: one("SELECT group_concat(c, ',') AS d FROM (SELECT COUNT(*) AS c FROM event WHERE event_by LIKE 'real-%' GROUP BY event_by ORDER BY event_by)").d,
   };
