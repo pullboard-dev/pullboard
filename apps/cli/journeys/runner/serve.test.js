@@ -121,3 +121,53 @@ async (t) => {
   assert.equal(view.steps.some(step => step.name === 'receipt'), false);
   assert.equal(view.leaseOwner, null, 'the job is open for the next runner');
 });
+
+test('#5805 clause 3: one runner serve claims two offered jobs within a second and runs them at once, each in its own checkout [P7]', { timeout: 90_000 }, // budget: as clause 1.
+async (t) => {
+  const { commit, db, board, cache } = await pullBoard(t);
+  // Each job holds its slot for 1.5 s and names its own checkout, so overlap and separate folders both show in the receipts.
+  const slow = [process.execPath, '-e', "console.log('folder ' + process.cwd()); setTimeout(() => console.log('slow done'), 1500);"];
+  offerJob(db, { id: 'gate:slot-a', kind: 'gate', needs: [], candidate: commit, run: slow });
+  offerJob(db, { id: 'gate:slot-b', kind: 'gate', needs: [], candidate: commit, run: slow });
+  const claimed = [], stop = new AbortController();
+  let posted = 0;
+  const fetchImpl = async (url, init) => {
+    const response = await fetch(url, init);
+    const answer = await response.clone().json();
+    if (answer.claim) claimed.push({ job: answer.claim.job, at: Date.now() });
+    return response;
+  };
+  const served = await serveRunner({ board, runner: 'r-slots', capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, timing: { idleMs: 10 },
+    say: line => { if (line.startsWith('posted ') && ++posted === 2) stop.abort(); } });
+  assert.equal(served.slots, 2);
+  assert.deepEqual(claimed.map(row => row.job).sort(), ['gate:slot-a', 'gate:slot-b'], 'one serve claimed both jobs');
+  assert.ok(Math.abs(claimed[1].at - claimed[0].at) < 1000, `both claims landed within a second (${claimed[1].at - claimed[0].at} ms)`);
+  assert.deepEqual(served.jobs.map(job => [job.job, job.outcome, job.receipt.status]).sort(), [['gate:slot-a', 'posted', 0], ['gate:slot-b', 'posted', 0]]);
+  const folders = served.jobs.map(job => /folder (\S+)/u.exec(job.receipt.tail)[1]);
+  assert.notEqual(folders[0], folders[1], 'each concurrent job ran in its own checkout');
+  assert.ok(served.jobs.every(job => /slow done/u.test(job.receipt.tail)), 'both ran to the end, the second claimed while the first held its slot');
+});
+
+test('#5805 clauses 1 and 2: a pulled job\'s detached child carries PULLBOARD_RUNNER_JOB and is gone before the job\'s receipt posts [P7]', { timeout: 90_000 }, // budget: as clause 1.
+async (t) => {
+  const { box, commit, db, board, cache } = await pullBoard(t);
+  const seen = join(box.dir, 'child.json');
+  // The job starts a child in its own session, as a test's pullboard view does, writes what the child sees, and exits.
+  const child = `require('node:fs').writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ pid: process.pid, job: process.env.PULLBOARD_RUNNER_JOB ?? null })); setInterval(() => {}, 1000);`;
+  const job = `const { spawn } = require('node:child_process'); const fs = require('node:fs');
+spawn(process.execPath, ['-e', ${JSON.stringify(child)}], { detached: true, stdio: 'ignore' }).unref();
+const wait = () => fs.existsSync(${JSON.stringify(seen)}) ? console.log('child started') : setTimeout(wait, 20); wait();`;
+  offerJob(db, { id: 'gate:leftover', kind: 'gate', needs: [], candidate: commit, run: [process.execPath, '-e', job] });
+  const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  let atReceipt = null;
+  const fetchImpl = async (url, init) => {
+    if (JSON.parse(init.body).action === 'receipt') { const { pid } = JSON.parse(readFileSync(seen, 'utf8')); atReceipt = alive(pid); }
+    return fetch(url, init);
+  };
+  t.after(() => { try { process.kill(JSON.parse(readFileSync(seen, 'utf8')).pid, 'SIGKILL'); } catch { /* already gone */ } });
+  const served = await serveRunner({ board, runner: 'r-reap', capabilities: [], cache, once: true, fetchImpl, timing: { idleMs: 10 } });
+  assert.deepEqual(served.jobs.map(row => [row.job, row.outcome, row.receipt.status]), [['gate:leftover', 'posted', 0]]);
+  assert.match(served.jobs[0].receipt.tail, /child started/u);
+  assert.equal(JSON.parse(readFileSync(seen, 'utf8')).job, 'gate:leftover', 'clause 2: the job\'s child carries PULLBOARD_RUNNER_JOB');
+  assert.equal(atReceipt, false, 'clause 1: the detached child had ended when the receipt posted');
+});
