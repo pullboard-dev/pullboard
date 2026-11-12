@@ -341,8 +341,16 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         lost = true; running.stop();
       });
     }, renewMs);
-    const result = await running.done.finally(() => clearInterval(renewer));
+    // A stopped runner stops its job and hands it back at once, so the next puller need not wait out the lease.
+    const stopping = () => running.stop();
+    signal?.addEventListener('abort', stopping, { once: true });
+    const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
     await dropCheckout(cache, checkout);
+    if (signal?.aborted && !lost) {
+      await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      jobs.push({ job: claim.job, outcome: 'released' });
+      break;
+    }
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); jobs.push({ job: claim.job, outcome: 'lost' }); if (once) break; continue; }
     const receipt = gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
