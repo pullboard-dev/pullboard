@@ -22,7 +22,7 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/init/performance.test.js": 2,
   "apps/cli/journeys/agents/main.test.js": 4,
   "apps/cli/journeys/shout/fixture.test.js": 1,
-  "apps/cli/journeys/withdraw/items.test.js": 2,
+  "apps/cli/journeys/withdraw/items/pipeline.test.js": 2,
   "apps/cli/journeys/withdraw/projector.test.js": 1,
   "apps/cli/journeys/fact/plan/state.test.js": 1,
   "apps/cli/journeys/stats/cockpit.test.js": 1,

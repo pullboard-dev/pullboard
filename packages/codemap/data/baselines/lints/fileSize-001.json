@@ -71,7 +71,6 @@
     "apps/cli/journeys/hold/demo.test.js": 1228,
     "apps/cli/tests/fixtures/cockpit/harness.js": 786,
     "apps/cli/journeys/shout/fixture.test.js": 174,
-    "apps/cli/journeys/withdraw/items.test.js": 913,
     "apps/cli/journeys/shout/layout.test.js": 261,
     "apps/cli/journeys/init/origin.test.js": 922,
     "apps/cli/journeys/sentinels/needs.test.js": 290,
