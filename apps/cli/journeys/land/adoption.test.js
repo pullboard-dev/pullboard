@@ -45,17 +45,20 @@ test('land stops again with an expired waiver, and a changed test on main releas
   onBoard(box, (board) => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-example', test: FILES[0], until: '2000-01-02', reason: 'expired fixture approval' }), past);
   const start = calls(box).length;
   const refused = box.run(box.repo, 'land', '--json');
-  // The held batch stays flaky and lands nothing: land answers with the batch rather than an error.
+  // Lander v2 (#5862) retires a held flaky batch instead of refusing LAND_FLAKE, so the expired waiver lets
+  // nothing through: land gates the composition afresh, the flake holds it again and nothing lands.
   const again = JSON.parse(refused.out);
   assert.equal(again.batch.state, 'flaky', `${refused.out}${refused.err}`);
   assert.deepEqual(again.landed, []);
-  assert.equal(calls(box).length, start, 'expired waiver authorizes no retry');
+  assert.notEqual(again.batch.id, held.batch.id, 'the retired batch is replaced by a fresh one');
+  const regated = calls(box).length;
+  assert.equal(regated - start, 1, 'the expired waiver excuses nothing: one fresh gate ran');
   assert.equal(commitFile(box, box.repo, FILES[0], 'PASS\n', 'chore: correct the flaky test').status, 0);
   const landed = json(box, box.repo, 'land');
   assert.deepEqual(landed.landed, [entry.item]);
   assert.notEqual(landed.batch.id, held.batch.id);
   assert.equal(landed.batch.proof.failures.length, 0);
-  assert.deepEqual(calls(box).slice(start), [[]], 'corrected test is gated afresh');
+  assert.deepEqual(calls(box).slice(regated), [[]], 'corrected test is gated afresh');
 });
 
 test('land adoption recovers an interrupted gate and keeps one receipt under a new coordinator [B3,R3]', async (t) => {
