@@ -1043,9 +1043,6 @@
   "apps/cli/journeys/fact/tests/cpu-registration.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
-    "launch": 9
-  },
   "packages/gate/tests/ci.test.js": {
     "launch": 2
   },
@@ -1630,5 +1627,8 @@
   },
   "apps/cli/journeys/init/refresh.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
+    "launch": 1
   }
 }

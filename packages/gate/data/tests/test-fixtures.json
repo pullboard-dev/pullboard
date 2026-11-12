@@ -1299,7 +1299,6 @@
     "tempdir": 4
   },
   "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
-    "raw-cli": 1,
     "tempdir": 1
   },
   "apps/cli/journeys/milestone/component.test.js": {
@@ -4154,5 +4153,11 @@
   },
   "apps/cli/journeys/roadmap/cockpit/items-blocked.test.js": {
     "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/roadmap-stages.js": {
+    "raw-cli": 1
   }
 }
