@@ -80,9 +80,6 @@
   "apps/cli/journeys/claim/latency.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/claim/live.test.js": {
-    "launch": 14
-  },
   "apps/cli/journeys/claim/race.test.js": {
     "launch": 1
   },
@@ -288,7 +285,13 @@
     "launch": 1
   },
   "apps/cli/journeys/fact/snapshot.test.js": {
-    "launch": 27
+    "launch": 9
+  },
+  "apps/cli/journeys/fact/snapshot/replay.test.js": {
+    "launch": 10
+  },
+  "apps/cli/journeys/fact/snapshot/roadmap.test.js": {
+    "launch": 8
   },
   "apps/cli/journeys/fact/tests/affected.test.js": {
     "launch": 1
@@ -1712,9 +1715,6 @@
   "apps/cli/journeys/view/cost/tab/redesign.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/view/detail.test.js": {
-    "launch": 9
-  },
   "apps/cli/journeys/view/e2e.test.js": {
     "launch": 4
   },
@@ -1741,12 +1741,6 @@
   },
   "apps/cli/journeys/withdraw/hold.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "launch": 65
-  },
-  "apps/cli/journeys/withdraw/projector.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/worktree/current.test.js": {
     "launch": 10
@@ -1779,6 +1773,9 @@
     "launch": 5
   },
   "apps/cli/tests/io/submit/gate/authorization.test.js": {
+    "launch": 1
+  },
+  "apps/cli/tests/io/submit/gate/claim-fetch.test.js": {
     "launch": 1
   },
   "apps/cli/tests/io/submit/gate/job.test.js": {
