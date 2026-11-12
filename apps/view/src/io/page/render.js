@@ -4,6 +4,9 @@ import { needsPanelHtml } from "../../logic/needs/panel.js";
 import { agentsPanelModel } from "../../logic/panel/model.js";
 import { agentsPanelHtml } from "../../logic/panel/render.js";
 import { needsPanelModel } from "../../logic/needs/panel.js";
+import { LEAKS } from "../../logic/needs/list.js";
+import { PLAIN_FALLBACK } from "../../logic/needs/list.js";
+import { plainNeedWords } from "../../logic/needs/list.js";
 import { ruleListModel } from "../../logic/rules.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
@@ -16,6 +19,9 @@ const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
 const overlapHtml = (${overlapHtml.toString()});
+const PLAIN_FALLBACK = (${JSON.stringify(PLAIN_FALLBACK)});
+const LEAKS = [${LEAKS.map(String).join(",")}];
+const plainNeedWords = (${plainNeedWords.toString()});
 const needsPanelModel = (${needsPanelModel.toString()});
 const needsActionsHtml = (${needsActionsHtml.toString()});
 
@@ -501,9 +507,8 @@ function render() {
   const modelLabel = value => {
     const model = String(value || 'unknown').trim();
     if (privateCost) return modelPresentation(model).name;
-    if (/^gpt[- ]6[.]1[- ]sol$/i.test(model)) return 'GPT-6.1 Sol';
-    if (/^(?:claude[- ]?)?opus[- ]5[.]5$/i.test(model)) return 'Claude Opus 5.5';
-    if (/^codex$/i.test(model)) return 'Codex';
+    const rule = modelLabelRules.find(entry => new RegExp(entry.match, 'iu').test(model));
+    if (rule) return rule.label;
     return model;
   };
   const modelOf = id => modelLabel(p.agents.find(agent => agent.agent_id === id)?.model);

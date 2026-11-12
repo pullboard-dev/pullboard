@@ -25,6 +25,7 @@ import {
 import { openBoard } from '../../../../../lib/index.js';
 import { closeBoard } from '../../../../../../packages/store/index.js';
 import { submitFixture } from '../../../../tests/fixtures/board/submit.js';
+import { fixtureSettledMachine } from '../../../../tests/fixtures/testkit.js';
 
 const BIN = join(import.meta.dirname, '../../../../pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -70,6 +71,8 @@ function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'known-main-frozen-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
+  // A fixture's submit settles the same way whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);

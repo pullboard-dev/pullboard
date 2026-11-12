@@ -7,6 +7,7 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
 import { smokeCommit } from '../../../../../packages/landing/index.js';
 import { landingPlanCheck } from '../../../../../packages/landing/index.js';
+import { recordLandingAudit } from '../../../../../packages/landing/index.js';
 import { refreshEnvironment } from '../../../../../packages/landing/index.js';
 import { startDetachedCheck } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
@@ -204,6 +205,7 @@ export async function run(io, { first, second, values }) {
   /** Publish: today's output, then the derived map refresh. */
   const publish = async ({ written }) => {
     announce(written.record);
+    if (!written.record?.already) for (const itemId of ids) recordLandingAudit(board, itemId, commit, me.id);
     if (deferred && !written.record?.already) {
       // Detached, with no checkout lease token or agent session id, so the follow-up never holds or waits on the checkout.
       const started = startDetachedCheck(fileURLToPath(new URL('../../../../../packages/landing/src/io/merged/scripts/followup.js', import.meta.url)),
