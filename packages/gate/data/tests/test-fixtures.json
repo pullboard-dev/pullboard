@@ -3422,9 +3422,14 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/runner/runners/trip.test.js": {
-    "tempdir": 2,
-    "hand-policy": 4,
-    "env-spread": 2
+    "tempdir": 1,
+    "hand-policy": 2,
+    "env-spread": 1
+  },
+  "apps/cli/journeys/runner/runners/trip.deadline.test.js": {
+    "tempdir": 1,
+    "hand-policy": 2,
+    "env-spread": 1
   },
   "apps/cli/journeys/runner/runners/refusals.test.js": {
     "tempdir": 2,
