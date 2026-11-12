@@ -202,7 +202,7 @@ export const SETTING_DESCRIPTIONS = settingDescriptions(ROWS);
 function compatibilityRows(source) {
   return (source ?? '').split('\n').flatMap((line, index) => {
     // Any line marked compat: true is a row, whichever order its properties come in; one with no key fails closed (key null).
-    if (!/\bcompat:\s*true\b/u.test(line) || /^\s*\/\//u.test(line)) return [];
+    if (!/^\s*(\.\.\.)?\[/u.test(line) || !/\bcompat:\s*true\b/u.test(line)) return []; // only inventory-row lines, never this function's own code
     return [{ key: /^\s*\['([^']+)',/u.exec(line)?.[1] ?? null, removeBy: /\bremoveBy:\s*'([^']*)'/u.exec(line)?.[1] ?? null, line: index + 1 }];
   });
 }
