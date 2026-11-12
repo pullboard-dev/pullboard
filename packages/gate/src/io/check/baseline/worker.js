@@ -152,7 +152,11 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   if (expected?.result !== 'pending' || expected.request !== request) return;
   let baseline;
   try { baseline = await measureBaseline(root, id, expected, services); }
-  catch { baseline = { command: expected.command, main: expected.main, result: 'unavailable', reason: 'background check could not run; set --check again from the coordinator' }; }
+  catch (error) {
+    // Keep the cause: the bare reason hid why every flakes baseline read "unavailable".
+    const cause = String(error?.stack ?? error?.message ?? error).split('\n').slice(0, 3).join(' | ').slice(0, 300);
+    baseline = { command: expected.command, main: expected.main, result: 'unavailable', reason: `background check could not run (${cause}); set --check again from the coordinator` };
+  }
   // No runner took it: the baseline stays pending on the item; it is never run on this machine.
   if (baseline === null) return;
   const receipt = { id, expected, baseline };
