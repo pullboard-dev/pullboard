@@ -129,7 +129,7 @@
     "launch": 7
   },
   "apps/cli/journeys/relay/local/first.test.js": {
-    "launch": 6
+    "launch": 3
   },
   "apps/cli/journeys/relay/person/scroll.test.js": {
     "launch": 1
@@ -1347,9 +1347,6 @@
     "launch": 4
   },
   "apps/cli/journeys/show/review/worker.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/seats/timing.test.js": {
     "launch": 4
   },
   "apps/cli/journeys/init/boundary.test.js": {
