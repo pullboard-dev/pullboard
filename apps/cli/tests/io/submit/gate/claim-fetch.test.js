@@ -61,7 +61,12 @@ function fixture(t, { claim = 'branch' } = {}) {
   git(trunk, 'update-ref', 'refs/pullboard/gate/5660', source);
   let base = branchHead;
   // A commit made in a repository the trunk remote never heard of.
-  if (claim === 'absent') base = git(temporaryRepository(t, 'submit-claim-fetch-elsewhere-'), 'rev-parse', 'HEAD');
+  // Its own content, since a second policy repository made in the same second has the trunk's root commit id.
+  if (claim === 'absent') {
+    const elsewhere = temporaryRepository(t, 'submit-claim-fetch-elsewhere-');
+    put(elsewhere, 'src/elsewhere.js', 'export const elsewhere = 1;\n');
+    base = commit(elsewhere, 'elsewhere');
+  }
   // --no-local copies only what main reaches, never the trunk's whole object store.
   git(dir, 'clone', '--quiet', '--no-local', '--no-checkout', '--single-branch', '--branch', 'main', '--no-tags', trunk, runner);
   git(runner, 'fetch', '--quiet', '--no-tags', trunk, 'refs/pullboard/gate/5660:refs/pullboard/gate/5660');
