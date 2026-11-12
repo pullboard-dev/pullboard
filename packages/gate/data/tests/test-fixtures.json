@@ -1349,6 +1349,21 @@
     "raw-board": 7,
     "model": 1
   },
+  "apps/cli/journeys/stats/cockpit/counts.test.js": {
+    "raw-cli": 6,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/stats/cockpit/crowd.test.js": {
+    "tempdir": 1,
+    "raw-board": 2,
+    "model": 1
+  },
+  "apps/cli/journeys/stats/cockpit/flow.test.js": {
+    "tempdir": 3
+  },
+  "apps/cli/journeys/stats/cockpit/toggle.test.js": {
+    "tempdir": 1
+  },
   "apps/cli/journeys/milestone/title.test.js": {
     "repo-read": 1,
     "raw-cli": 1

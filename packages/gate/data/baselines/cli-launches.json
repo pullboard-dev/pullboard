@@ -1535,6 +1535,15 @@
   "apps/cli/journeys/stats/cockpit.test.js": {
     "launch": 15
   },
+  "apps/cli/journeys/stats/cockpit/counts.test.js": {
+    "launch": 11
+  },
+  "apps/cli/journeys/stats/cockpit/crowd.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/stats/cockpit/flow.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/fact/landing/moves.test.js": {
     "launch": 1
   },
