@@ -9,13 +9,50 @@ import { outOfLane } from '../../../../packages/seats/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { briefFiles } from '../../../../packages/items/index.js';
 import { startCheckBaseline } from '../../../../packages/gate/index.js';
+import { runnerBaselineCommand } from '../../../../packages/gate/index.js';
+import { offerCheckBaseline } from '../../../../packages/api/index.js';
+import { loadMachineSettings } from '../../../../packages/config/index.js';
+import { localRunnerEnabled } from '../../../../packages/config/index.js';
+import { getItem } from '../../../../packages/store/index.js';
+import { relayLinked } from '../../../../packages/link/index.js';
+import { ensureLocalRunner } from './runner/local.js';
+import { primaryCheckoutRoot } from './worktree.js';
 import { ordered } from './claim.js';
 
 /**
+ * Offer the baseline as a pull job for this machine's local runner, which runs the check at main and posts its result.
+ * With no registered runners the machine is its own runner, as for a gate [P7]; the check never runs on this host (#2520, #3851).
+ * Why not the detached worker: it has no runner of its own to run the check on, so the baseline stayed pending forever (#6560).
+ *
+ * @returns {Promise<boolean>} True when the job is offered and the local runner runs; false leaves the baseline to the worker.
+ */
+async function offerLocalBaseline(ctx, board, id, baseline) {
+  const root = ctx.info.root;
+  if (!localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
+  const host = primaryCheckoutRoot(ctx.info);
+  if (!host) return false;
+  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline) });
+  return (await ensureLocalRunner(host)).running;
+}
+
+// Budget: a waited add holds for its pulled baseline this long, then returns it pending for a later `show` to read.
+const BASELINE_WAIT_MS = 120_000;
+
+/** Resolve once the item's baseline is no longer pending, or after BASELINE_WAIT_MS. */
+async function settled(board, id) {
+  for (const until = Date.now() + BASELINE_WAIT_MS; Date.now() < until;) {
+    if (getItem(board, id)?.item_check_baseline?.result !== 'pending') return;
+    await new Promise(done => setTimeout(done, 250));
+  }
+}
+
+/**
  * Start an already-recorded request, recording an unavailable result if its child cannot start.
- * With `wait`, resolves to a promise that settles when the worker process has exited.
+ * With no registered runner the baseline is a pulled job on the local runner and `wait` has nothing to wait for;
+ * otherwise, with `wait`, resolves to a promise that settles when the worker process has exited.
  */
 export async function launchBaseline(ctx, board, id, baseline, options = {}) {
+  try { if (await offerLocalBaseline(ctx, board, id, baseline)) return options.wait ? settled(board, id) : undefined; } catch { /* the worker below leaves it pending */ }
   try { return await startCheckBaseline(ctx.info.root, id, baseline, options); }
   catch {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,

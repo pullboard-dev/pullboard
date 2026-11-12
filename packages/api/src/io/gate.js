@@ -14,6 +14,8 @@ import { offeredRequest } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
+import { applyCheckBaselineReceipt } from './baseline.js';
+import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
@@ -463,6 +465,7 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
