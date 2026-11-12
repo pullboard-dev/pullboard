@@ -5,7 +5,7 @@ import { primaryCheckoutRoot } from '../worktree.js';
 import { ensureLocalRunner } from './local.js';
 
 /**
- * Restart the local runner when an item's gate job has no live runner, and return the one line saying so, or null.
+ * Restart the local runner when an item sits in the gate and none is live, and return the one line saying so, or null.
  *
  * Why: submit starts the local runner once; a reboot or a kill leaves the job in the gate forever, and only a
  * resubmit healed it, which nothing said (#6556). It never throws: the command it rides on keeps its own answer.
@@ -16,7 +16,7 @@ import { ensureLocalRunner } from './local.js';
  */
 export async function restartDeadRunner(ctx, local = ensureLocalRunner) {
   try {
-    const waiting = await withBoardRead(ctx, board => listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id));
+    const waiting = await withBoardRead(ctx, board => listItems(board).filter(item => item.item_stage === 'in the gate').map(item => item.item_id));
     const host = waiting.length ? primaryCheckoutRoot(ctx.info) : null;
     if (!host) return null;
     const runner = await local(host);
