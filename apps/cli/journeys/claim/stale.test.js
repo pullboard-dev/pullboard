@@ -44,9 +44,13 @@ for (const commit of [true, false]) {
     const box = helpers.project('true');
     const id = file(box, 'stale folder');
     const path = goneFolder(box, id, { commit });
+    // The note is written to the real stderr, which an in-process run does not capture.
+    const notes = [];
+    const write = process.stderr.write.bind(process.stderr);
+    t.mock.method(process.stderr, 'write', (text, ...rest) => { notes.push(String(text)); return write(text, ...rest); });
     const claimed = await runCliInProcess(['claim', String(id)], { cwd: box.web, env: box.env });
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
-    const said = claimed.out + claimed.err;
+    const said = claimed.out + claimed.err + notes.join('');
     assert.ok(said.includes(path), said);
     assert.equal(box.git(path, 'branch', '--show-current'), `web/item-${id}`, 'git works in the folder');
     assert.equal(existsSync(join(path, 'web/earlier.txt')), commit, 'the branch commits are in the new folder');
