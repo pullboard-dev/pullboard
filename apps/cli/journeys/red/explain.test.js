@@ -33,7 +33,7 @@ test('red explain finds only closure commits between recorded green and red [C7]
   assert.throws(() => explainObservations(root, '../secret', [], closure), /repository-relative/u);
 });
 
-test('red explain reads receipt history through the real CLI [C7]', () => {
+test('red explain reads receipt history through the real CLI [C7]', async () => {
   const box = emptyRepo();
   box.git = (...args) => runFixtureGit(args, { cwd: box.repo, env: box.env });
   fixtureProjectPolicy(box.repo);
@@ -59,10 +59,10 @@ test('red explain reads receipt history through the real CLI [C7]', () => {
     testOutcomes: [{ file, name: 'case', passed, skipped: false }],
     ...(passed ? {} : { failureSignatures: { version: 5, failures: [{ file, name: 'case', signature: 'b'.repeat(64), stable }] } }) });
   // Synthetic canonical receipts live only in this private fixture, never on a live board.
-  for (const row of [make('11111111-1111-4111-8111-111111111111', green, greenTree, true), make('22222222-2222-4222-8222-222222222222', red, redTree, false)]) {
+  for (const row of [(await make('11111111-1111-4111-8111-111111111111', green, greenTree, true)), (await make('22222222-2222-4222-8222-222222222222', red, redTree, false))]) {
     const body = receiptBody(row); assert.ok(body); writeFileSync(join(folder, `${row.id}.json`), body);
   }
-  const result = box.run('red', 'explain', file);
+  const result = (await box.runLocal('red', 'explain', file));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, new RegExp(`Last green: ${green}`, 'u'));
   assert.match(result.stdout, new RegExp(`First observed red: ${red}`, 'u'));
@@ -70,10 +70,10 @@ test('red explain reads receipt history through the real CLI [C7]', () => {
   assert.match(result.stdout, /Cluster: TypeError @ src\/logic\.js#execute/u);
   assert.match(result.stdout, new RegExp(`Suspect: ${red} #123`, 'u'));
   assert.match(result.stdout, /\+export const n = 2/u);
-  const structured = box.run('red', 'explain', file, '--json');
+  const structured = (await box.runLocal('red', 'explain', file, '--json'));
   assert.equal(structured.status, 0, structured.stdout + structured.stderr);
   assert.equal(JSON.parse(structured.stdout).file, file);
-  const missing = box.run('red', 'explain', 'test/missing.test.js');
+  const missing = (await box.runLocal('red', 'explain', 'test/missing.test.js'));
   assert.equal(missing.status, 0, missing.stdout + missing.stderr);
   assert.match(missing.stdout, /Last green: unknown/u);
   assert.match(missing.stdout, /Suspects: unknown/u);

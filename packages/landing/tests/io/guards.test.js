@@ -18,9 +18,13 @@ import { runLandingCandidate } from '../../index.js';
 import { shardProcesses } from '../../index.js';
 import { runLandingShards } from '../../index.js';
 import { landingWaivers } from '../../index.js';
+import { requireLandingModuleResolution } from '../../index.js';
+import { requireLandingSecretFree } from '../../index.js';
+import { scanLanding } from '../../src/io/scan.js';
 import { landingPorts } from '../../../../apps/cli/tests/fixtures/landing/ports.js';
 import { runShell } from '../../../gate/index.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 /** Build two genuine shell children with distinct TAP accounts and observable working directories. */
 function fixture(t) {
@@ -131,4 +135,54 @@ test('an unavailable shard census stays unavailable without another process read
   let reads = 0;
   assert.equal(shardProcesses(process.pid, null, () => { reads += 1; return new Map(); }), null);
   assert.equal(reads, 0);
+});
+
+/** A fake AWS key built at run time, so this file's own source never matches the pre-commit scanner. */
+const FAKE_KEY = ['AK', 'IA'].join('') + 'Q7'.repeat(8);
+
+/** A real repo on main whose base holds `baseFiles`; `candidate` commits files on top and leaves that tip checked out. */
+function secretRepo(t, baseFiles = { 'a.js': 'export const a = 1;\n' }) {
+  const { root } = privateFixtureFiles('landing-secret-');
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sh = (...args) => runFixtureGit(args, { cwd: root });
+  const commit = files => {
+    for (const [file, source] of Object.entries(files)) writeFileSync(join(root, file), source);
+    sh('add', '-A');
+    sh('commit', '-q', '--no-verify', '-m', 'commit');
+    return sh('rev-parse', 'HEAD');
+  };
+  sh('init', '-q', '-b', 'main');
+  sh('config', 'user.email', 't@example.com');
+  sh('config', 'user.name', 't');
+  return { root, sh, base: commit(baseFiles), candidate: commit };
+}
+
+test('every landing guard refuses a candidate that adds a secret over main, naming file:line and never the value [C7,#5968]', async t => {
+  const { root, base, candidate } = secretRepo(t);
+  const tip = candidate({ 'config.js': `export const region = 'us-east-1';\nexport const key = '${FAKE_KEY}';\n` });
+  const refused = error => {
+    assert.equal(error.code, 'LANDING_SECRET');
+    assert.match(error.message, /AWS access key at config\.js:2/u);
+    assert.equal(JSON.stringify({ message: error.message, stack: error.stack, found: error.found, next: error.next }).includes(FAKE_KEY), false, 'the value is never printed');
+    return true;
+  };
+  // Merge's runner branch calls the scan alone; merge, publish, trunk, followup and `merged` reach it through module resolution.
+  assert.throws(() => requireLandingSecretFree(root, base, tip), refused);
+  await assert.rejects(requireLandingModuleResolution(root, base, tip), refused);
+  // A named batch's runner-side scan reports it as a static row the coordinator attributes to the item.
+  const rows = await scanLanding(root, base, tip);
+  assert.deepEqual(rows, ['config.js:2: LANDING_SECRET AWS access key']);
+  assert.equal(rows.join('\n').includes(FAKE_KEY), false);
+});
+
+test('a clean candidate passes every landing guard unchanged, even over a main that already held a secret [C7,#5968]', async t => {
+  const { root, sh, base, candidate } = secretRepo(t, { 'a.js': 'export const a = 1;\n', 'old.js': `export const key = '${FAKE_KEY}';\n` });
+  const tip = candidate({ 'b.js': "import { a } from './a.js';\nexport const b = a;\n" });
+  const tree = sh('rev-parse', 'HEAD^{tree}');
+  assert.doesNotThrow(() => requireLandingSecretFree(root, base, tip));
+  await requireLandingModuleResolution(root, base, tip);
+  assert.deepEqual(await scanLanding(root, base, tip), []);
+  assert.equal(sh('rev-parse', 'HEAD'), tip, 'the guards add no commit');
+  assert.equal(sh('rev-parse', 'HEAD^{tree}'), tree, 'the candidate tree is unchanged');
+  assert.equal(sh('status', '--porcelain'), '', 'the guards write nothing');
 });

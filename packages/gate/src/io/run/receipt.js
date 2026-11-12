@@ -10,7 +10,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { tryGit } from '../../../../git/index.js';
+import { checkoutCommonDir } from '../../../../git/index.js';
 import { receiptFields } from '../../../../verify/light.js';
 export { receiptFields };
 
@@ -26,8 +26,9 @@ const ID = /^[a-f0-9-]{36}$/u;
  * @returns {string | null}
  */
 export function receiptStore(root) {
-  const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-  return common.status === 0 ? join(common.stdout.trim(), 'pullboard', RECEIPT_FOLDER) : null;
+  // Git's own files name the shared directory without a process; Git answers when only it can (#5900).
+  const common = checkoutCommonDir(root);
+  return common ? join(common, 'pullboard', RECEIPT_FOLDER) : null;
 }
 
 /**

@@ -1,5 +1,6 @@
 /** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb, 5b1543f9, 8540102d, a9b48855 and 785d4f8d [N26]. */
 import { Refused } from "../../../../packages/kernel/browser.js";
+import { publicRunners } from "./live/runners.js";
 
 /** The complete public export block list; internal messages are omitted before prose is checked. */
 export const PUBLIC_EXPORT_BLOCKS = Object.freeze({
@@ -58,7 +59,7 @@ const EVENT_IDENTITIES = Object.freeze({
 const DIAGNOSTIC_FIELDS = new Set(('listing boards state events board root id rowAgesAt items agents shouts asked requests decisions decisionQueue needs personRequests '
   + 'personBars personRows personProposals event_detail detail thread history title criterion brief text note reason check commit tree digest policyCommit '
   + 'criterionDigest receipt frozenDigest submissionProof submissionSize base head review trunk checkBaseline main verdict verdicts verdictState spec practice products releaseNotes '
-  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model dashboardLanded batch base tip sha merge reviewedCommit candidates invariantEvidence gates submissions diagnostics gateResults proof affectedGate').split(' '));
+  + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model dashboardLanded batch base tip sha merge reviewedCommit candidates invariantEvidence gates submissions diagnostics gateResults proof affectedGate live runners runs jobs files latest file').split(' '));
 
 /** Name a projection location without echoing arbitrary object keys, identifiers or filesystem names. */
 function diagnosticPath(path) {
@@ -157,6 +158,8 @@ function structuredIdentity(path, value, eventKind) {
 
 /** Return an independent public document or refuse with categories only, without echoing sensitive values.
  * `privateBoard` comes from the native private_repo_board_id marker, not an item's review sensitivity.
+ * A `live` member holds the machine's raw runner records (readLiveRunners); it leaves only as numbered, anonymous
+ * runner progress, and that projection is checked by the same text blocks as everything else.
  * @param {any} document
  * @param {{ privateBoard?: boolean }} [options]
  * @returns {any}
@@ -196,7 +199,8 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
     if (typeof value === 'string') inspect(value, path, eventKind);
     return value;
   }
-  const result = visit(document);
+  const { live, ...board } = document ?? {};
+  const result = visit(live ? { ...board, live: publicRunners(live) } : document);
   if (blocked.size) throw new Refused('PUBLIC_EXPORT_BLOCKED', `public export blocked: ${[...blocked].join(', ')}`,
     `${fields.size ? `inspect public fields ${[...fields].slice(0, 8).join(', ')}; ` : ''}remove blocked public text or use a normal local export; do not publish the refused snapshot`);
   return result;

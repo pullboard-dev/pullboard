@@ -58,6 +58,8 @@ import {
 } from '../store.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
+/** The ledger hit file a pulled proof phase names (apps/cli/src/io/submit/pull.js); read once by planTestActions. */
+export const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
 // PULLBOARD_TEST_REUSE=record: run every file, never consult a stored green, but record each green (a census or main
 // comparison is a fresh sample that still feeds the store). =0 neither consults nor records.
@@ -345,6 +347,19 @@ export function suiteProven(files, results) {
   return { proven: files.length > 0 && !missing.length && !failed.length && !stale.length, missing, failed, stale };
 }
 
+/**
+ * The board ledger's hits a pulled job named for this run, and a landing's main reds (fail rows at main), as `file\0inputKey\0context` keys
+ * mapped to 'reused' or 'main red'; empty when none or unreadable, so every file runs. Why a file: the hits ride in the job [P7,CD2].
+ */
+function ledgerHitKeys(env) {
+  const keys = new Map();
+  try {
+    const { contexts, files, mainRed = [] } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    for (const [list, kind] of [[mainRed, 'main red'], [files, 'reused']]) for (const [file, inputKey, context] of list) if (typeof contexts[context] === 'string') keys.set(`${file}\0${inputKey}\0${contexts[context]}`, kind);
+  } catch { /* No hit list: nothing is reused from the ledger. */ }
+  return keys;
+}
+
 /** The repository path of a file selector, or null when it is not a path inside the root. */
 function repoPath(root, selector) {
   try {
@@ -399,7 +414,15 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const account = [];
   const reusedTestOutcomes = [];
   const run = [];
+  const hits = recordOnly ? new Map() : ledgerHitKeys(env);
   for (const file of selectors) {
+    // The ledger proved this file at this inputKey and context class, or main fails it at that identical key: a landing charges that red to main, never runs it [P7,CD2].
+    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit) {
+      account.push(reusedAccount(store, file));
+      results.set(file.path, { status: 'pass', source: 'ledger' });
+      write(`# ${hit} ${file.inputKey} from ledger (${file.path})\n`);
+      continue;
+    }
     const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
@@ -492,13 +515,16 @@ function closureBlobs(files, blobs) { return files.map(path => [path, blobs.get(
 function ranAccount(store, file) {
   const missed = file.key ? firstChangedInput(store, latestKey(store, file.path), file) : `no key: ${file.reason}`;
   if (file.key) rememberLatest(store, file.path, { key: file.key, inputKey: file.inputKey, context: file.context });
-  return { file: file.path, outcome: 'ran', key: file.key ?? null, missed };
+  return { file: file.path, outcome: 'ran', key: file.key ?? null, missed, ...ledgerKey(file) };
 }
+
+/** A keyed file's proof-ledger key parts: its inputKey and its context class, the digest of its execution context [P7]. */
+function ledgerKey(file) { return file.key ? { inputKey: file.inputKey, context: digest(file.context) } : {}; }
 
 /** A file's row when its cached green is reused; the key becomes its latest. */
 function reusedAccount(store, file) {
   rememberLatest(store, file.path, { key: file.key, inputKey: file.inputKey, context: file.context });
-  return { file: file.path, outcome: 'reused', key: file.key, missed: null };
+  return { file: file.path, outcome: 'reused', key: file.key, missed: null, ...ledgerKey(file) };
 }
 
 /**
@@ -553,6 +579,7 @@ export function recordTestAction(file) {
   delete process.env[TEST_RESULT_ORIGIN_ENV];
   delete process.env[TEST_RESULT_REQUEST_ENV];
   delete process.env.PULLBOARD_TEST_CACHE_TOOLING;
+  delete process.env[LEDGER_HITS_ENV];
   if (!runDir || process.env.NODE_TEST_CONTEXT !== 'child-v8') return;
   let plan, path;
   try {

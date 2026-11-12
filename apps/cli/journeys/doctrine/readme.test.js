@@ -537,3 +537,10 @@ test('every command has its usage in pullboard help, the one reference [I11]', (
   const missing = [...phrases].filter((phrase) => !usages.some((usage) => usage.replace(/^pullboard\s+/u, '').startsWith(phrase)));
   assert.deepEqual(missing, [], `give each command a usage line in pullboard help:\n${missing.join('\n')}`);
 });
+
+test('DOCTRINE.md carries F1, approved and gated by review, in an F section after G [F1]', () => {
+  const doctrine = readFileSync(join(ROOT, 'DOCTRINE.md'), 'utf8');
+  const heads = [...doctrine.matchAll(/^## (\S+) · /gmu)].map((match) => match[1]);
+  assert.equal(heads[heads.indexOf('G') + 1], 'F', 'the F section follows G');
+  assert.match(doctrine, /^- F1 \[approved, must\] No bottlenecks except the person's intent\. .* \| gate: review$/mu);
+});

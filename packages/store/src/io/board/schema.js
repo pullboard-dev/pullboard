@@ -65,6 +65,14 @@ export function sharedSchemaDiagnostic(db, expected) {
   return differences.length ? `[SHARED_SCHEMA_DIFFERENCE] ${differences.join('; ')}. Continuing with the shared board's trunk schema and triggers; merge schema changes into the main checkout before installing them.` : null;
 }
 
+/**
+ * List the shared board's columns this code does not declare: code older than trunk. Why: an old writer that carries
+ * on resets and replays newer derived caches under the write lock, which held every seat for minutes (#5899).
+ */
+export function sharedColumnsAhead(db, expected) {
+  return [...boardSchema(db).columns.keys()].filter(name => !expected.columns.has(name));
+}
+
 /** Send a fallback notice once per shared board and declaration in a long-lived non-CLI process. */
 export function reportSharedSchema(file, diagnostic, onDiagnostic) {
   if (!diagnostic) return;
