@@ -11,7 +11,7 @@ export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/lo
 export { reclaimPass, lapsedGateJobs, endDeadGateJobs, FALLBACK_BUDGET_MS, GATE_JOB_NO_PROGRESS_MS } from './src/io/reclaim.js';
 export { keyedResult, cellsInventoryJob } from './src/io/keyed.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/logic/keyed.js';
-export { driveLanding } from './src/io/landing.js';
+export { driveLanding, LANDING_STALL_MS } from './src/io/landing.js';
 export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/logic/landing.js';
 export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/logic/gate.js';

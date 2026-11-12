@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   driveLanding,
   LANDING_STALL_MS,
-} from '../../../../../../packages/drive/src/io/landing.js';
+} from '../../../../../../packages/drive/index.js';
 import {
   jobView,
   takeJob,
