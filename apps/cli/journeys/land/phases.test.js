@@ -1,6 +1,9 @@
 /** A one-item landing batch times its merge, static checks and CLI smoke as landing phases [C7,B3]. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import {
   after,
@@ -17,6 +20,11 @@ const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, accept
 test('clause 1, clause 2: a one-item batch lands with merge, static checks and CLI smoke each said and recorded as a landing phase [C7,B3]', { timeout: 300_000 }, // budget: one real submit, accept and landing; hang ceiling only, no speed threshold.
 async () => {
   const box = landProject();
+  // The project's own landing publishes to the trunk; that is the path that runs the static checks beside the gate.
+  const config = join(box.repo, 'pullboard.json');
+  writeFileSync(config, JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: land on the trunk');
   const started = Date.now() - 1000;
   const entry = await itemWorktreeLocal(box, 1, 'web/land-1.test.js');
   await commitItemLocal(box, entry, 'PASS\n');
