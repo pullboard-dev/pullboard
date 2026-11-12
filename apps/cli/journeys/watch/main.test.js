@@ -23,7 +23,6 @@ import { test } from 'node:test';
 import { reserveReview } from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { followBoard } from '../../../../packages/shouts/index.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
@@ -54,7 +53,7 @@ function fixtureEnv(home, bin) {
 }
 
 /** A private Git repo with an initialized board, two lanes and a gate that passes. */
-function project() {
+async function project() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-watch-')));
   folders.push(dir);
   const root = join(dir, 'repo');
@@ -65,17 +64,18 @@ function project() {
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = fixtureEnv(home, bin);
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).toString().trim();
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** Run one CLI command through the production dispatch in this process; a watch stays a child process. */
+  const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
   /** Run one CLI command with --json and return its document. */
-  const cli = (cwd, ...args) => {
+  const local = async (cwd, ...args) => {
     args = fixtureJoinRoute(args, env.PULLBOARD_MODEL);
     if (args[0] === 'submit') args.push('--wait');
-    const result = run(cwd, ...args, '--json');
+    const result = await runLocal(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return JSON.parse(result.stdout);
   };
   git('init', '-q', '-b', 'main');
-  cli(root, 'init');
+  await local(root, 'init');
   const configFile = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', practice: 'DOCTRINE.md',
@@ -85,7 +85,7 @@ function project() {
   writeFileSync(join(root, 'DOCTRINE.md'), '');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: watch fixture');
-  return { dir, root, home, env, git, run, cli };
+  return { dir, root, home, env, git, runLocal, local };
 }
 
 /** Read the fixture board's events straight from its SQLite file, read-only. */
@@ -201,7 +201,7 @@ test('watch uses its explicit view provider in global then scoped order before o
 
 test('watch --work keeps the changed notices its work check needs, and every other watch drops them [A2,N26,C7]', async () => {
   const requested = [];
-  const box = project();
+  const box = await project();
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   for (const work of ['app', null]) {
     const controller = new AbortController();
@@ -230,14 +230,14 @@ test('watch --work keeps the changed notices its work check needs, and every oth
 });
 
 test('pullboard watch prints a move as it happens [A2,N26]', async (t) => {
-  const box = project();
+  const box = await project();
   assert.equal(readdirSync(box.home).some((name) => /^view(?:-\d+)?\.json$/u.test(name)), false, 'no view runs for this board');
   const before = events(box).length;
   const watch = startWatch(box, []);
   t.after(() => watch.stop('SIGKILL'));
   await watch.note((line) => /following the board directly/u.test(line), 10_000, 'note that it follows the board directly'); // budget: hang ceiling for CLI startup, not a latency claim.
 
-  const added = box.cli(box.root, 'add', 'app', 'Live watch item', '--criterion', 'arrives on the live stream', '--specs', 'G1').item;
+  const added = (await box.local(box.root, 'add', 'app', 'Live watch item', '--criterion', 'arrives on the live stream', '--specs', 'G1')).item;
   const moved = Date.now();
   // Adding an item also records where the roadmap placed it, so the add is followed by its placement event [N26].
   const fresh = events(box).slice(before);
@@ -258,7 +258,7 @@ test('pullboard watch prints a move as it happens [A2,N26]', async (t) => {
 });
 
 test('a dropped watch resumes from its last event [A2,N26]', async (t) => {
-  const box = project();
+  const box = await project();
   const view = startFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'],
     { cwd: box.root, env: { ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const viewClosed = once(view, 'close');
@@ -279,17 +279,17 @@ test('a dropped watch resumes from its last event [A2,N26]', async (t) => {
   t.after(() => watch.stop('SIGKILL'));
   await watch.note((line) => line.includes(`following the view on port ${port}`), 10_000, 'note that it follows the view'); // budget: hang ceiling for CLI startup, not a latency claim.
 
-  box.cli(box.root, 'shout', 'app', 'first, through the view');
+  await box.local(box.root, 'shout', 'app', 'first, through the view');
   const first = events(box).at(-1);
   await watch.line((line) => JSON.parse(line).sequence === first.event_id, 5_000, 'first shout'); // budget: hang ceiling for one line, not a latency claim.
 
   // Stop the view by its own pid: its stream ends, and watch must carry on from its last event.
   view.kill('SIGTERM');
   await viewClosed;
-  box.cli(box.root, 'shout', 'app', 'second, while the stream was down');
+  await box.local(box.root, 'shout', 'app', 'second, while the stream was down');
   const second = events(box).at(-1);
   await watch.note((line) => /following the board directly/u.test(line), 10_000, 'note that it follows the board directly'); // budget: hang ceiling for reconnecting, not a latency claim.
-  box.cli(box.root, 'shout', 'all', 'third, after the stream came back');
+  await box.local(box.root, 'shout', 'all', 'third, after the stream came back');
   const third = events(box).at(-1);
   await watch.line((line) => JSON.parse(line).sequence === third.event_id, 5_000, 'third shout'); // budget: hang ceiling for one line, not a latency claim.
 
@@ -320,7 +320,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     sampleLoad();
     t.diagnostic(JSON.stringify({ host: hostname(), node: process.version, loadSamples: samples }));
   });
-  const box = project();
+  const box = await project();
   // The baseline worker needs a registered runner in this isolated machine home.
   const runnerBin = join(box.dir, 'runner-bin'), worker = join(box.dir, 'runner-worker');
   const runnerHome = join(box.dir, 'runner-home'), runnerMachine = join(runnerHome, '.pullboard');
@@ -332,10 +332,10 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const runnerAdd = ['runner', 'add', HOST, '--slots', '1', '--browser', '0'];
   const registered = await runCliInProcess(runnerAdd, { cwd: box.root, env: box.env });
   assert.equal(registered.status, 0, `runner add: ${registered.stderr}${registered.stdout}`);
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'watch-builder');
-  const waiting = box.cli(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
-    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait').item;
-  box.cli(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
+  const builder = await box.local(box.root, 'worktree', 'app', '--model', 'watch-builder');
+  const waiting = (await box.local(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait')).item;
+  await box.local(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
   const before = events(box).length;
   const watch = startWatch(box, ['--json', '--work', 'app', '--review-wait', '0.02']);
   t.after(() => watch.stop('SIGKILL'));
@@ -343,8 +343,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(watch.out.lines.length, 0, 'work already claimable when watch starts is its baseline, so it prints nothing');
 
   // A newly opened item in the lane is claimable.
-  const added = box.cli(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--route', 'strong',
-    '--brief', 'Files: app/work.txt\nChange: exercise fresh work in the watch fixture.\nTest: observe the claimable and review-wait notices.\nOut of scope: product behavior.', '--wait').item;
+  const added = (await box.local(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+    '--brief', 'Files: app/work.txt\nChange: exercise fresh work in the watch fixture.\nTest: observe the claimable and review-wait notices.\nOut of scope: product behavior.', '--wait')).item;
   const notice = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable', 5_000, 'claimable notice')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(notice.item, added.item_id);
   assert.equal(notice.notice, true);
@@ -353,17 +353,17 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(noticed.item_id, added.item_id, 'the notice follows its new item');
   assert.ok(['add', 'check-baseline'].includes(noticed.event_kind), 'the notice follows the add or its actual baseline observation');
   assert.equal(added.item_check_baseline.result, 'green', 'the baseline is finished before later move assertions');
-  const blocked = box.cli(box.root, 'add', 'app', 'Waits for the fresh work', '--criterion', 'after', '--specs', 'G1', '--after', String(added.item_id), '--route', 'strong',
-    '--brief', 'Files: app/after.txt\nChange: exercise a dependency-blocked item in the watch fixture.\nTest: observe the item becoming claimable after acceptance.\nOut of scope: product behavior.').item;
+  const blocked = (await box.local(box.root, 'add', 'app', 'Waits for the fresh work', '--criterion', 'after', '--specs', 'G1', '--after', String(added.item_id), '--route', 'strong',
+    '--brief', 'Files: app/after.txt\nChange: exercise a dependency-blocked item in the watch fixture.\nTest: observe the item becoming claimable after acceptance.\nOut of scope: product behavior.')).item;
 
   // A released claim makes the item claimable again.
-  box.cli(builder.path, 'claim', String(waiting.item_id));
+  await box.local(builder.path, 'claim', String(waiting.item_id));
   // A later existing event acknowledges the preceding claim's work check, not merely its printed raw line.
-  box.cli(box.root, 'check', 'accept', String(added.item_id)); // #728's person acceptance also supplies the ordered barrier.
+  await box.local(box.root, 'check', 'accept', String(added.item_id)); // #728's person acceptance also supplies the ordered barrier.
   const claimObserved = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === claimObserved && JSON.parse(line).kind === 'check_accept',
     5_000, 'event after the claim work check'); // budget: hang ceiling for an exact event, not a latency claim.
-  box.cli(builder.path, 'release', String(waiting.item_id), '--reason', 'BLOCKED', '--no-next');
+  await box.local(builder.path, 'release', String(waiting.item_id), '--reason', 'BLOCKED', '--no-next');
   // The release's usage checkpoint follows it as a separate event [N2]; watch still names the release itself.
   const releaseSequence = events(box).findLast(event => event.event_kind === 'release' && event.item_id === waiting.item_id).event_id;
   await watch.line((line) => JSON.parse(line).kind === 'release' && JSON.parse(line).sequence === releaseSequence,
@@ -375,12 +375,12 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(released.detail, 'app: Waits on another item');
 
   // A submission nobody reserves is announced once it has waited past --review-wait (1.2 s here).
-  box.cli(builder.path, 'claim', String(added.item_id));
+  await box.local(builder.path, 'claim', String(added.item_id));
   mkdirSync(join(builder.path, 'app'), { recursive: true });
   writeFileSync(join(builder.path, 'app', 'work.txt'), 'built\n');
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): fresh work [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
-  const firstSubmission = box.cli(builder.path, 'submit', String(added.item_id), '--no-next');
+  const firstSubmission = await box.local(builder.path, 'submit', String(added.item_id), '--no-next');
   await drainComparisons(box, t);
   const firstCommit = firstSubmission.commit;
   const submitted = lastSequence(box);
@@ -392,27 +392,27 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   // Accepting the work an item waits on makes that item claimable.
   const reviewer = join(box.dir, 'reviewer');
   box.git('worktree', 'add', '-q', '--detach', reviewer, firstCommit);
-  box.cli(reviewer, 'join', 'docs', '--route', 'strong', '--model', 'watch-reviewer');
-  box.cli(reviewer, 'next', '--verify', String(added.item_id));
-  box.cli(reviewer, 'verify', String(added.item_id), 'accept', '--no-next', '--note', 'read the fixture file');
+  await box.local(reviewer, 'join', 'docs', '--model', 'watch-reviewer');
+  await box.local(reviewer, 'next', '--verify', String(added.item_id));
+  await box.local(reviewer, 'verify', String(added.item_id), 'accept', '--no-next', '--note', 'read the fixture file');
   const unblocked = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === blocked.item_id, 5_000, 'claimable notice after its wait was verified')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(unblocked.detail, 'app: Waits for the fresh work');
 
   // A rejected submission is claimable again.
-  box.cli(builder.path, 'claim', String(waiting.item_id));
+  await box.local(builder.path, 'claim', String(waiting.item_id));
   writeFileSync(join(builder.path, 'app', 'waiting.txt'), 'built\n');
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): waiting work [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
-  const secondSubmission = box.cli(builder.path, 'submit', String(waiting.item_id), '--no-next');
+  const secondSubmission = await box.local(builder.path, 'submit', String(waiting.item_id), '--no-next');
   await drainComparisons(box, t);
   const secondCommit = secondSubmission.commit;
   runFixtureGit(['switch', '-q', '--detach', secondCommit], { cwd: reviewer, env: box.env, stdio: 'pipe' });
-  box.cli(reviewer, 'next', '--verify', String(waiting.item_id));
+  await box.local(reviewer, 'next', '--verify', String(waiting.item_id));
   // The reserve line follows the submit work check while the item is still submitted, before reject reopens it.
   const submissionObserved = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === submissionObserved && JSON.parse(line).kind === 'reserve',
     5_000, 'event after the submit work check'); // budget: hang ceiling for an exact event, not a latency claim.
-  box.cli(reviewer, 'verify', String(waiting.item_id), 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', 'waits', '--note', 'the fixture sends it back');
+  await box.local(reviewer, 'verify', String(waiting.item_id), 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', 'waits', '--note', 'the fixture sends it back');
   // Rejection can immediately create a later escalation, so match the reject's own event id.
   const rejectEvent = events(box).findLast((event) => event.event_kind === 'reject' && event.item_id === waiting.item_id);
   assert.ok(rejectEvent, 'the reviewer rejection was recorded');
@@ -499,8 +499,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
 });
 
 test('watch filters by kind, item and addressee, and refuses a flag it cannot follow [A2]', async (t) => {
-  const box = project();
-  const other = box.cli(box.root, 'add', 'docs', 'Docs item', '--criterion', 'docs', '--specs', 'G1').item;
+  const box = await project();
+  const other = (await box.local(box.root, 'add', 'docs', 'Docs item', '--criterion', 'docs', '--specs', 'G1')).item;
   const watch = startWatch(box, ['--json', '--to', 'app']);
   t.after(() => watch.stop('SIGKILL'));
   const items = startWatch(box, ['--kinds', 'edit', '--item', String(other.item_id)]);
@@ -508,13 +508,13 @@ test('watch filters by kind, item and addressee, and refuses a flag it cannot fo
   await watch.note((line) => /following/u.test(line), 10_000, 'start note'); // budget: hang ceiling for CLI startup, not a latency claim.
   await items.note((line) => /following/u.test(line), 10_000, 'start note'); // budget: hang ceiling for CLI startup, not a latency claim.
 
-  box.cli(box.root, 'shout', 'docs', 'for docs only');
-  const app = box.cli(box.root, 'add', 'app', 'App item', '--criterion', 'app', '--specs', 'G1').item;
-  box.cli(box.root, 'shout', 'app', 'for app');
-  box.cli(box.root, 'edit', String(app.item_id), '--brief', 'App brief');
-  box.cli(box.root, 'fact', String(other.item_id), 'note', 'a fact on the docs item');
-  box.cli(box.root, 'edit', String(other.item_id), '--brief', 'Docs brief');
-  box.cli(box.root, 'shout', 'all', 'for everyone');
+  await box.local(box.root, 'shout', 'docs', 'for docs only');
+  const app = (await box.local(box.root, 'add', 'app', 'App item', '--criterion', 'app', '--specs', 'G1')).item;
+  await box.local(box.root, 'shout', 'app', 'for app');
+  await box.local(box.root, 'edit', String(app.item_id), '--brief', 'App brief');
+  await box.local(box.root, 'fact', String(other.item_id), 'note', 'a fact on the docs item');
+  await box.local(box.root, 'edit', String(other.item_id), '--brief', 'Docs brief');
+  await box.local(box.root, 'shout', 'all', 'for everyone');
   const last = lastSequence(box);
   await watch.line((line) => JSON.parse(line).sequence === last, 5_000, 'shout to all'); // budget: hang ceiling for one line, not a latency claim.
   const edit = events(box).filter((event) => event.event_kind === 'edit').at(-1);
@@ -530,7 +530,7 @@ test('watch filters by kind, item and addressee, and refuses a flag it cannot fo
 
   for (const [args, pattern] of [[['--to', 'nobody'], /--to needs an agent id, a lane or all/u], [['--work', 'nowhere'], /--work needs a lane/u],
     [['--review-wait', '5'], /--review-wait goes with --work/u], [['--since', 'later'], /--since needs the last sequence/u], [['extra'], /takes flags only/u]]) {
-    const refused = box.run(box.root, 'watch', ...args, '--json');
+    const refused = await box.runLocal(box.root, 'watch', ...args, '--json');
     assert.equal(refused.status, 1, `${args.join(' ')}: ${refused.stdout}${refused.stderr}`);
     const { error } = JSON.parse(refused.stdout);
     assert.equal(error.code, 'USAGE');
@@ -540,8 +540,8 @@ test('watch filters by kind, item and addressee, and refuses a flag it cannot fo
 });
 
 test('help watch and the generated agent instructions teach seats to listen with watch [A2,I11]', async () => {
-  const box = project();
-  const help = box.run(box.root, 'help', 'watch');
+  const box = await project();
+  const help = await box.runLocal(box.root, 'help', 'watch');
   assert.equal(help.status, 0, help.stderr);
   const lines = help.stdout.trimEnd().split('\n');
   const example = lines.indexOf('Example:');
@@ -561,34 +561,34 @@ test('help watch and the generated agent instructions teach seats to listen with
 
 
 test('a shout about an item reaches only the people on it [B7,A2,N19]', async (t) => {
-  const box = project();
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'item-message-builder');
-  const reviewer = box.cli(box.root, 'worktree', 'docs', '--model', 'item-message-reviewer');
-  const outsider = box.cli(box.root, 'worktree', 'app', '--model', 'item-message-outsider');
-  const item = box.cli(box.root, 'add', 'app', 'Directed item message', '--criterion', 'a private item thread', '--specs', 'G1').item;
-  box.cli(builder.path, 'claim', String(item.item_id));
+  const box = await project();
+  const builder = await box.local(box.root, 'worktree', 'app', '--model', 'item-message-builder');
+  const reviewer = await box.local(box.root, 'worktree', 'docs', '--model', 'item-message-reviewer');
+  const outsider = await box.local(box.root, 'worktree', 'app', '--model', 'item-message-outsider');
+  const item = (await box.local(box.root, 'add', 'app', 'Directed item message', '--criterion', 'a private item thread', '--specs', 'G1')).item;
+  await box.local(builder.path, 'claim', String(item.item_id));
   mkdirSync(join(builder.path, 'app'), { recursive: true });
   writeFileSync(join(builder.path, 'app', 'message.txt'), 'built\n');
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): directed message fixture [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
-  box.cli(builder.path, 'submit', String(item.item_id));
+  await box.local(builder.path, 'submit', String(item.item_id));
   // Fixture setup uses the public board API: routing needs a reviewer role, not a second runtime session's verdict.
   // @pullboard-board-file journey: seed the persisted reservation read by later independent CLI watch processes.
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try { reserveReview(board, item.item_id, { agentId: reviewer.agent, leaseMs: 30 * 60_000, policy: 'any' }); }
   finally { board.db.close(); }
-  for (const seat of [builder, reviewer, outsider]) box.cli(seat.path, 'inbox');
+  for (const seat of [builder, reviewer, outsider]) await box.local(seat.path, 'inbox');
   const watches = [builder, reviewer, outsider].map((seat, index) => startWatch(box,
     ['--json', '--kinds', 'shout', ...(index < 2 ? ['--to', seat.agent] : [])], { cwd: seat.path }));
   t.after(async () => { for (const watch of watches) await watch.stop(); });
   for (const watch of watches) await watch.note((line) => /following/u.test(line), 10_000, 'directed watch startup'); // budget: startup hang ceiling, not a latency claim.
-  box.cli(box.root, 'shout', 'app', 'only this item needs the message', '--item', String(item.item_id));
+  await box.local(box.root, 'shout', 'app', 'only this item needs the message', '--item', String(item.item_id));
   const directed = lastSequence(box);
   assert.equal(events(box).find((event) => event.event_id === directed).item_id, item.item_id,
     'the message is an event in the item thread, rather than an unbound lane broadcast');
-  assert.ok(box.cli(box.root, 'show', String(item.item_id)).thread.some((entry) => entry.kind === 'shout'
+  assert.ok((await box.local(box.root, 'show', String(item.item_id))).thread.some((entry) => entry.kind === 'shout'
     && entry.detail.text === 'only this item needs the message'), 'show exposes the item message in its append-only thread');
-  box.cli(box.root, 'shout', 'all', 'ordered delivery barrier');
+  await box.local(box.root, 'shout', 'all', 'ordered delivery barrier');
   const barrier = lastSequence(box);
   for (const watch of watches) await watch.line((line) => JSON.parse(line).sequence === barrier, 5_000, 'ordered barrier after directed message'); // budget: stream hang ceiling, not a latency claim.
   for (const [index, watch] of watches.entries()) {
@@ -597,9 +597,9 @@ test('a shout about an item reaches only the people on it [B7,A2,N19]', async (t
       'the builder and cross-lane reviewer receive the item message; the same-lane outsider does not');
   }
   for (const [index, seat] of [builder, reviewer, outsider].entries()) {
-    const card = box.cli(seat.path, 'resume');
+    const card = await box.local(seat.path, 'resume');
     assert.equal(card.unread, index < 2 ? 2 : 1, 'resume counts only the item participants plus the public barrier');
-    const inbox = box.cli(seat.path, 'inbox').shouts;
+    const inbox = (await box.local(seat.path, 'inbox')).shouts;
     assert.equal(inbox.some((shout) => shout.shout_text === 'only this item needs the message'), index < 2,
       'inbox uses the same item audience as watch and resume');
   }
@@ -607,10 +607,10 @@ test('a shout about an item reaches only the people on it [B7,A2,N19]', async (t
   const personWatch = startWatch(box, ['--json', '--kinds', 'shout', '--to', 'person']);
   t.after(async () => { await coordinatorWatch.stop(); await personWatch.stop(); });
   for (const watch of [coordinatorWatch, personWatch]) await watch.note((line) => /following/u.test(line), 10_000, 'coordination audience startup'); // budget: startup hang ceiling, not a latency claim.
-  const sent = box.run(outsider.path, 'shout', 'all', 'a seat reports only to coordination', '--json');
+  const sent = await box.runLocal(outsider.path, 'shout', 'all', 'a seat reports only to coordination', '--json');
   assert.equal(sent.status, 0, 'a seat shout to all is accepted under the corrected bar');
   const privateSequence = lastSequence(box);
-  box.cli(box.root, 'shout', 'all', 'coordinator global delivery barrier');
+  await box.local(box.root, 'shout', 'all', 'coordinator global delivery barrier');
   const publicSequence = lastSequence(box);
   for (const watch of [...watches, coordinatorWatch, personWatch]) await watch.line((line) => JSON.parse(line).sequence === publicSequence, 5_000, 'global barrier after coordination-only shout'); // budget: stream hang ceiling, not a latency claim.
   for (const watch of watches) assert.equal(watch.out.lines.some(({ line }) => JSON.parse(line).sequence === privateSequence), false,
@@ -618,29 +618,29 @@ test('a shout about an item reaches only the people on it [B7,A2,N19]', async (t
   for (const watch of [coordinatorWatch, personWatch]) assert.equal(watch.out.lines.some(({ line }) => JSON.parse(line).sequence === privateSequence), true,
     'the coordinator and person both receive the accepted seat report');
   for (const seat of [builder, reviewer, outsider]) {
-    assert.equal(box.cli(seat.path, 'resume').unread, 1, 'only the coordinator global barrier is unread');
-    const inbox = box.cli(seat.path, 'inbox').shouts;
+    assert.equal((await box.local(seat.path, 'resume')).unread, 1, 'only the coordinator global barrier is unread');
+    const inbox = (await box.local(seat.path, 'inbox')).shouts;
     assert.equal(inbox.some((shout) => shout.shout_text === 'a seat reports only to coordination'), false);
     assert.equal(inbox.some((shout) => shout.shout_text === 'coordinator global delivery barrier'), true);
   }
-  assert.equal(box.cli(box.root, 'inbox').shouts.some((shout) => shout.shout_text === 'a seat reports only to coordination'), true);
+  assert.equal((await box.local(box.root, 'inbox')).shouts.some((shout) => shout.shout_text === 'a seat reports only to coordination'), true);
 });
 
 
 test('watch follows typed news by native kind and canonical addressee [A2,N26,H16]', async (t) => {
-  const box = project();
+  const box = await project();
   const before = events(box).length;
   const watch = startWatch(box, ['--json', '--kinds', 'shout_news', '--to', 'app']);
   t.after(() => watch.stop('SIGKILL'));
   await watch.note(line => /following the board directly/u.test(line), 10_000, 'typed-news watch startup'); // budget: startup hang ceiling, not a latency claim.
-  box.cli(box.root, 'shout', 'all', 'The first private release is ready', '--news');
+  await box.local(box.root, 'shout', 'all', 'The first private release is ready', '--news');
   const first = events(box).at(-1);
   assert.equal(first.event_kind, 'shout_news');
   await watch.line(line => JSON.parse(line).sequence === first.event_id, 5_000, 'first typed news'); // budget: stream hang ceiling, not a latency claim.
-  box.cli(box.root, 'shout', 'all', 'An ordinary governing message keeps its original kind');
+  await box.local(box.root, 'shout', 'all', 'An ordinary governing message keeps its original kind');
   const ordinary = events(box).at(-1);
   assert.equal(ordinary.event_kind, 'shout');
-  box.cli(box.root, 'shout', 'all', 'The second private release is ready', '--news');
+  await box.local(box.root, 'shout', 'all', 'The second private release is ready', '--news');
   const second = events(box).at(-1);
   await watch.line(line => JSON.parse(line).sequence === second.event_id, 5_000, 'second typed news'); // budget: ordered-stream hang ceiling, not a latency claim.
   assert.deepEqual(await watch.stop('SIGTERM'), { code: 0, signal: null });

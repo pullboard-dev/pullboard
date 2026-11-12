@@ -65,6 +65,7 @@ test('next offers new work while the gate is queued or running, and the red item
   box.git(seat.path, 'add', 'web/first.js');
   box.git(seat.path, 'commit', '-q', '-m', 'feat(web): build first item [G1]');
   store.appendFact(box.board, first, { agentId: seat.id, kind: 'diagnosis', text: 'Files: web/first.js\nChange: build the first item\nTest case: a running gate leaves the seat free for the next item.' });
+  // Process-level case, kept: a real submit holds its gate open while the parent runs next.
   const submitted = runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), 'submit', String(first), '--no-next', '--json'], { cwd: seat.path, env: { ...process.env }, encoding: 'utf8' });
   try {
     await waitForCondition(() => existsSync(gate.entered), 'the real submit gate enters', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for a real runner gate to start.
