@@ -2,7 +2,7 @@ import { sharedRowHtml } from "../component.js";
 import { plainNeedWords } from "./list.js";
 
 /** Project the person's calls into grouped presentation rows without browser state [N26,B26]. */
-export function needsPanelModel(calls, project, { compact = false, person = false, expanded = [] } = {}) {
+export function needsPanelModel(calls, project, { compact = false, person = false, expanded = [], quiet = false } = {}) {
   const drafts = calls.find(row => row.kind === 'draft')?.count ?? 0;
   const sorted = calls.filter(row => row.kind !== 'draft').map(plainNeedWords).map(row => row.kind === 'hold'
     ? { ...row, at: row.at ?? project.holds?.find(hold => hold.hold_lane === row.id)?.hold_at } : row)
@@ -49,10 +49,12 @@ export function needsPanelModel(calls, project, { compact = false, person = fals
   });
   const approvals = rows.filter(row => row.source.kind === 'agent-approved');
   const questions = rows.filter(row => row.source.kind !== 'agent-approved');
-  return { questions, approvals, sortedCount: rows.length, drafts, compact, person, expanded };
+  return { questions, approvals, sortedCount: rows.length, drafts, compact, person, expanded, quiet };
 }
 
-/** Render a needsPanelModel and explicit trusted, escaped or localized presentation values [N26,C7]. */
+/** Render a needsPanelModel and explicit trusted, escaped or localized presentation values [N26,C7].
+ * Every row starts closed; only the keys in model.expanded, the rows the person opened, render open.
+ * With model.quiet and nothing for the person, it is the one quiet line instead. */
 export function needsPanelHtml(model, presentation = new Map()) {
   function escape(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
   const icon = kind => '<span class="needs-kind needs-kind-' + kind + '" aria-hidden="true">' + ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[kind] + '</span>';
@@ -81,12 +83,14 @@ export function needsPanelHtml(model, presentation = new Map()) {
       iconHtml: ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[row.kind], timeHtml: row.ageAt ? shown.ageHtml || '' : '',
       className: row.source.kind === 'agent-approved' ? 'agent-approval' : row.batch ? 'focus-approval' : revision ? 'spec-revision' : '', attributes,
       detailsAttributes: { 'data-needs-key': row.key, 'data-dashboard-disclosure': 'needs:' + row.key },
-      open: model.expanded.includes(row.key) || Boolean(row.batch), detailHtml });
+      open: model.expanded.includes(row.key), detailHtml });
   };
   const draftCopy = icon('draft') + '<span class="needs-copy"><b>' + model.drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span>';
   const draftRow = model.drafts ? '<li class="needs-call needs-drafts">' + (model.person
     ? '<button type="button" data-go="tab:spec">' + draftCopy + '</button>'
     : '<span>' + draftCopy + '</span>') + '</li>' : '';
+  if (model.quiet && !model.sortedCount && !model.drafts) return '<li class="needs-quiet"><span class="needs-quiet-badge" aria-hidden="true"><svg class="dash-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span>'
+    + '<p><b>Nothing needs you.</b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone.</span></p></li>';
   if (model.compact) {
     const shown = [...model.questions, ...model.approvals].slice(0, 3), more = model.sortedCount - shown.length;
     const text = more + ' more' + (model.drafts ? ' and ' + model.drafts + ' draft rows' : '');

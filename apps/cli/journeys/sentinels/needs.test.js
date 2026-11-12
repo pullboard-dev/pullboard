@@ -110,7 +110,8 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
     await page.run('builderCalls = []; refresh();');
     assert.deepEqual(JSON.parse(page.run('JSON.stringify(projectNeeds(data.project))')), []);
     assert.deepEqual(needEntries(page.show('needs')), [], 'the panel clears when the shared builder returns no calls');
-    assert.equal(page.element('needs').hidden, true);
+    assert.match(page.show('needs'), /<li class="needs-quiet">[^]*<b>Nothing needs you\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span>/u, '#6608: the top of Items is one quiet line');
+    assert.equal(page.element('needs').hidden, false);
     assert.deepEqual(JSON.parse(page.run('JSON.stringify((({decisions,pending,holds,drafts}) => ({decisions,pending,holds,drafts}))(boardSummary({},data.project)))')),
       { decisions: 0, pending: 0, holds: 0, drafts: 0 });
     assert.equal(projectRows(page.show('proj-list')).find(row => row.root === alpha.repo)?.needs, '');
