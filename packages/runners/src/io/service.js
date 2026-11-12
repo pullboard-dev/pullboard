@@ -52,6 +52,7 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   const files = {};
   const pending = [entry];
   const generated = new Set();
+  const present = new Set();
   let bytes = 0;
   while (pending.length) {
     const path = pending.pop();
@@ -76,7 +77,13 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
         const names = readdirSync(posix.join(root, string.text), { recursive: true }).filter(name => name.endsWith('.json'));
         // Budget: a declaration folder is small data; a folder of megabytes (engine history) is read on demand, never at load.
         const size = names.reduce((sum, name) => sum + statSync(posix.join(root, string.text, name)).size, 0);
-        if (size <= DATA_DIRECTORY_BYTES) for (const name of names) pending.push(posix.join(string.text, name));
+        if (size <= DATA_DIRECTORY_BYTES) for (const name of names) {
+          pending.push(posix.join(string.text, name));
+          // A command declaration is checked at load against its implementation file's existence, which is copied as text and never run.
+          const command = (() => { try { return JSON.parse(readFileSync(posix.join(root, string.text, name), 'utf8')).name; } catch { return null; } })();
+          const implementation = typeof command === 'string' ? `apps/cli/src/io/commands/${command.split(' ')[0]}.js` : null;
+          if (implementation && statSync(posix.join(root, implementation), { throwIfNoEntry: false })?.isFile()) present.add(implementation);
+        }
         continue;
       }
       const before = code.slice(Math.max(0, string.start - 24), string.start);
@@ -95,6 +102,7 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
       pending.push(target);
     }
   }
+  for (const path of present) files[path] ??= readFileSync(posix.join(root, path), 'utf8');
   return files;
 }
 
