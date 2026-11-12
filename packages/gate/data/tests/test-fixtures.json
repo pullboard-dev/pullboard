@@ -2441,9 +2441,10 @@
     "raw-board": 1
   },
   "apps/cli/journeys/inbox/budget.test.js": {
-    "model": 1,
-    "repo-read": 1,
-    "raw-board": 3
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/budget-measure.js": {
+    "raw-board": 2
   },
   "packages/runners/tests/io/package/files.test.js": {
     "tempdir": 1
