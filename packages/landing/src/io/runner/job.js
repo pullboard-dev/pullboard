@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tryGit } from '../../../../git/index.js';
+import { permitPushOptions } from '../../../../git/index.js';
 
 /** The board's landing job kind, as packages/api offers it. */
 export const LANDING_JOB_KIND = 'land';
@@ -13,6 +14,17 @@ const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
 export const INTO_CHECKOUT = '--receive-pack=git -c receive.denyCurrentBranch=updateInstead receive-pack';
+const NO_PUSH_OPTIONS = /does not support push options/u;
+
+/**
+ * Push the landed tip with compare-and-swap, carrying the job's landing permit as push options for the trunk guard
+ * (#5848). A remote with no guard may not take push options at all; the push then goes again without them.
+ */
+export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [] }) {
+  const push = extra => tryGit(root, ['push', '--porcelain', '--quiet', ...(payload.checkout ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
+  const pushed = push(options.flatMap(option => ['-o', option]));
+  return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? push([]) : pushed;
+}
 
 /** Run git in the runner's landing checkout; throw with git's own words when it fails. */
 export function must(root, args) {
@@ -69,11 +81,11 @@ export function commandCheck(argv) {
  * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean }} payload - checkout:
  *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
- *   renew?: () => boolean | Promise<boolean>, attempts?: number }} options
+ *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[] }} options - pushOptions: the current lease's landing permit as git push options.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null }>}
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [] }) {
   const { remote, trunk, expect, items } = payload;
   const check = checks ?? (payload.check ? commandCheck(payload.check) : () => ({ ok: true, detail: null }));
   const root = landingCheckout(workdir);
@@ -108,7 +120,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!result?.ok) return done('red', { detail: result?.detail ?? 'the landing check failed' });
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
-    const pushed = tryGit(root, ['push', '--porcelain', '--quiet', ...(payload.checkout ? [INTO_CHECKOUT] : []), `--force-with-lease=${trunk}:${base}`, remote, `HEAD:${trunk}`]);
+    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: (pushed.stderr || pushed.stdout).slice(0, 300) });
@@ -129,11 +141,16 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
   const { claim } = await call({ action: 'claim', runner, capabilities, kinds: [LANDING_JOB_KIND] });
   if (!claim) return null;
   const { job, token } = claim;
+  // The board's landing permit for the current lease; each renewal returns the next one (#5848).
+  let permit = claim.permit ?? null;
   const renew = async () => {
-    try { return Boolean((await call({ action: 'renew', job, runner, token })).renewed); }
-    catch { return false; }
+    try {
+      const renewed = await call({ action: 'renew', job, runner, token });
+      if (renewed.permit) permit = renewed.permit;
+      return Boolean(renewed.renewed);
+    } catch { return false; }
   };
-  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew });
+  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {
     const posted = await call({ action: 'receipt', job, runner, token, receipt });
     return { job, receipt, recorded: Boolean(posted.recorded) };

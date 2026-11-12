@@ -37,7 +37,7 @@ test('verify skips a registered repository whose Git never returns and still rec
   assert.equal(existsSync(box.marker), true, 'verify used the registered-project fallback');
   assert.match(child.stderr, /unreachable.*timed out/u);
   assert.ok(child.stderr.includes(box.bad));
-  const after = box.run(box.repo, 'show', String(box.item), '--json');
+  const after = (await box.runLocal(box.repo, 'show', String(box.item), '--json'));
   assert.equal(after.code, 0, after.out + after.err);
   assert.equal(JSON.parse(after.out).item_status, 'verified');
 });

@@ -44,7 +44,7 @@ import { recordNativeProof } from '../../../../packages/verify/index.js';
 import { proofRunReceipt } from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
-test('a real failed native check records its exit without invented runtime or counters [C7,H16]', (t) => {
+test('a real failed native check records its exit without invented runtime or counters [C7,H16]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-failed-runtime-'));
@@ -57,13 +57,13 @@ test('a real failed native check records its exit without invented runtime or co
   t.after(() => store.closeBoard(board));
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A real red proof',
     criterion: 'The process exits successfully.', specIds: ['G1'], check: command });
-  const claim = box.run(box.web, 'claim', String(id), '--json');
+  const claim = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claim.code, 0, claim.err || claim.out);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/uncommitted.txt'), 'not in a commit\n');
-  const check = box.run(box.web, 'check', String(id), '--yes', '--json');
+  const check = (await box.runLocal(box.web, 'check', String(id), '--yes', '--json'));
   assert.equal(check.code, 1, check.out);
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+  const shown = (await box.runLocal(box.repo, 'show', String(id), '--json'));
   assert.equal(shown.code, 0, shown.err || shown.out);
   const [receipt] = JSON.parse(shown.out).proofReceipts;
   assert.equal(receipt.kind, 'check');
@@ -82,7 +82,7 @@ test('a real failed native check records its exit without invented runtime or co
   }
 });
 
-test('native receipts carry each child reported runtime instead of borrowing the launcher [C7,H16]', t => {
+test('native receipts carry each child reported runtime instead of borrowing the launcher [C7,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -105,10 +105,10 @@ test('native receipts carry each child reported runtime instead of borrowing the
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Two actual check runtimes',
     criterion: 'Both child processes report their runtimes.', check: command, specIds: ['G1'] });
   for (const args of [['claim', String(id), '--json'], ['check', String(id), '--yes', '--json']]) {
-    const result = box.run(box.web, ...args);
+    const result = (await box.runLocal(box.web, ...args));
     assert.equal(result.code, 0, result.err + result.out);
   }
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+  const shown = (await box.runLocal(box.repo, 'show', String(id), '--json'));
   assert.equal(shown.code, 0, shown.err + shown.out);
   const [receipt] = JSON.parse(shown.out).proofReceipts;
   assert.ok(Array.isArray(receipt.testRuntimes), 'the receipt lists child reports, not only one worker environment');
@@ -129,7 +129,7 @@ test('native receipts carry each child reported runtime instead of borrowing the
   if (versions.size > 1) assert.equal(receipt.environment, null, 'a mixed actual run has no invented common Node version');
 });
 
-test('a receipted native node test preserves caller output and records its actual worker [C7,H16]', t => {
+test('a receipted native node test preserves caller output and records its actual worker [C7,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -145,19 +145,19 @@ test('a receipted native node test preserves caller output and records its actua
   const item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Native selected runtime',
     criterion: 'Actual native worker retains caller behavior.', check: `${JSON.stringify(process.execPath)} --test ${JSON.stringify(file)}`, specIds: ['G1'] });
   for (const args of [['claim', String(item), '--json'], ['check', String(item), '--yes', '--json']]) {
-    const result = box.run(box.web, ...args);
+    const result = (await box.runLocal(box.web, ...args));
     assert.equal(result.code, 0, result.err + result.out);
   }
   const actual = JSON.parse(readFileSync(trace, 'utf8'));
   for (const field of ['argv', 'execArgv', 'nodeOptions', 'hasNodeOptions']) assert.deepEqual(actual[field], expected[field], field);
-  const shown = box.run(box.repo, 'show', String(item), '--json');
+  const shown = (await box.runLocal(box.repo, 'show', String(item), '--json'));
   assert.equal(shown.code, 0, shown.err + shown.out);
   const [receipt] = JSON.parse(shown.out).proofReceipts;
   assert.ok(receipt.testRuntimes?.some(row => row.pid === actual.pid && row.environment.node === actual.node),
     'the actual native worker self-reports rather than borrowing its node --test launcher');
 });
 
-test('an unobserved custom nested Node child never borrows its launcher runtime [C7,H16]', t => {
+test('an unobserved custom nested Node child never borrows its launcher runtime [C7,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-nested-runtime-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const actualPath = join(directory, 'child.json');
@@ -174,7 +174,7 @@ test('an unobserved custom nested Node child never borrows its launcher runtime 
   assert.equal(capture.finish(), null, 'unknown custom execution cannot inherit the launcher runtime');
 });
 
-test('runtime capture binds the admitted file to its closed actual worker [C7,H16]', t => {
+test('runtime capture binds the admitted file to its closed actual worker [C7,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -206,7 +206,7 @@ test('runtime capture binds the admitted file to its closed actual worker [C7,H1
   assert.deepEqual(external[0].environment, { platform: process.platform, arch: process.arch, node: process.versions.node });
 });
 
-test('timed shell proof records the actual command child rather than the timeout worker [C7,H16]', t => {
+test('timed shell proof records the actual command child rather than the timeout worker [C7,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-timed-runtime-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const trace = join(directory, 'actual.json');
@@ -229,7 +229,7 @@ test('timed shell proof records the actual command child rather than the timeout
   assert.equal(admitted.testRuntimes[0].environment.node, actual.node);
 });
 
-test('child boot reports remain read only and a writable replacement stays unknown [C7,H16]', t => {
+test('child boot reports remain read only and a writable replacement stays unknown [C7,H16]', async t => {
   const capture = captureTestRuntimes(process.env);
   t.after(() => capture.finish());
   const result = runFixtureChild(process.execPath, ['-e', 'void 0'], { env: capture.env, encoding: 'utf8' });
@@ -246,7 +246,7 @@ test('child boot reports remain read only and a writable replacement stays unkno
   assert.equal(capture.finish(), null, 'a writable report is not accepted as native runtime evidence');
 });
 
-test('proof counters retain explicit totals and do not invent success from missing output [C7,H16]', () => {
+test('proof counters retain explicit totals and do not invent success from missing output [C7,H16]', async () => {
   const unknown = { passed: null, failed: null, skipped: null };
   assert.deepEqual(proofCounts('no test reporter\n'), unknown);
   assert.deepEqual(proofCounts('# pass 1\n# fail 0\n'), unknown);
@@ -266,7 +266,7 @@ test('an executed run without its receipt cannot publish an outcome [C7,H16]', a
   assert.equal(moves, 0, 'a zero-execution refusal creates no proof receipt');
 });
 
-test('proof receipts bind the native actor and replay without the origin filesystem [C7,H16]', (t) => {
+test('proof receipts bind the native actor and replay without the origin filesystem [C7,H16]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-proof-receipts-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const board = openBoard(join(directory, 'board.sqlite'));
@@ -310,7 +310,7 @@ test('proof receipts bind the native actor and replay without the origin filesys
 });
 
 
-test('an offline proof receipt follows the item its queued add actually creates [B26,H16,C7]', t => {
+test('an offline proof receipt follows the item its queued add actually creates [B26,H16,C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-proof-renumber-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const origin = openBoard(join(directory, 'origin.sqlite'));
@@ -358,7 +358,7 @@ test('an offline proof receipt follows the item its queued add actually creates 
 });
 
 // Synthetic schema/replay controls; these rows do not claim an actual child was executed.
-test('child runtime fields preserve legacy bytes and replay mixed environments without a common runtime [C7,H16]', t => {
+test('child runtime fields preserve legacy bytes and replay mixed environments without a common runtime [C7,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-child-runtime-replay-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const board = openBoard(join(directory, 'board.sqlite'));
