@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
 import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import {
   dirname,
@@ -10,14 +11,17 @@ import {
   resolve,
 } from 'node:path';
 import { packageFiles } from './package/files.js';
+import { requireEdges } from '../logic/urls.js';
 import { runtimeUrls } from '../logic/urls.js';
+import { TOOLING_MANIFEST_NAME } from './source/scan.js';
 import { createRunnerModuleParser } from './module/parser.js';
 import { parseWithPaths } from './module/parser.js';
-import {
-  commonJsWithCompiler as commonJsIn,
-  importsWithCompiler as importsIn,
-  Refused,
-} from '../../../kernel/index.js';
+import { commonJsWithCompiler as commonJsIn } from '../../../kernel/index.js';
+import { importsWithCompiler as importsIn } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/index.js';
+
+/** Files an export writes at run time; a URL to one names no shipped source. */
+const RUNTIME_ONLY = new Set([TOOLING_MANIFEST_NAME]);
 
 /** Name the exact path that cannot safely enter the trusted runtime; never expand transfer limits. */
 function unavailable(file, reason) {
@@ -38,6 +42,7 @@ function importTarget(value) {
 /** Resolve only builtins, explicit relative paths and the current package's declared imports. */
 function dependency(file, specifier, manifest) {
   if (isBuiltin(specifier)) return null;
+  if (specifier === '(computed)') return null; // A computed dynamic import resolves at run time, not at capture.
   let target = specifier;
   if (target.startsWith('#')) {
     const entries = Object.entries(manifest.imports ?? {});
@@ -59,7 +64,14 @@ function dependency(file, specifier, manifest) {
     target = posix.normalize(posix.join(dirname(file), target));
   }
   if (target.startsWith('../') || target.startsWith('/') || /[\\\u0000-\u001f\u007f?#]/u.test(target)) unavailable(file, `unsafe import ${specifier}`);
+  // A directory URL (new URL('../..', import.meta.url)) names a folder, not a file to ship or read.
+  if (target === '.' || target.endsWith('/')) return null;
   return target;
+}
+
+/** True for a path under root that is a folder; such a runtime URL is a location, not a module in the closure. */
+function isFolder(root, target) {
+  try { return statSync(join(root, target)).isDirectory(); } catch { return false; }
 }
 
 /** The worker entry a 0.9.3 tree holds; accepted only while that file exists, one release back. */
@@ -129,16 +141,17 @@ function derivePackage(root, entry, previous, parse, step) {
     const common = new Set(suspects.filter((_file, index) => findings[index]));
     const imports = sources.length ? importsIn(sources, parseWithPaths(parse, changed.map(file => join(root, file)))) : [];
     for (const [index, file] of changed.entries()) {
-      if (common.has(file)) unavailable(file, 'an opaque CommonJS loader prevents a complete import closure');
-      const runtime = runtimeUrls(sources[index], parseWithPaths(parse, [join(root, file)]));
+      const loaded = common.has(file) ? requireEdges(sources[index]) : [];
+      if (loaded === null) unavailable(file, 'an opaque CommonJS loader prevents a complete import closure');
+      const runtime = runtimeUrls(sources[index], parseWithPaths(parse, [join(root, file)]), RUNTIME_ONLY);
       if (runtime === null) unavailable(file, 'an opaque runtime URL prevents a complete import closure');
-      analyses.set(file, Object.freeze({ source: files[file], edges: Object.freeze([...imports[index], ...runtime]) }));
+      analyses.set(file, Object.freeze({ source: files[file], edges: Object.freeze([...imports[index], ...runtime, ...loaded]) }));
     }
     for (const file of modules) {
       if (!analyses.has(file)) analyses.set(file, previous.get(file));
       for (const specifier of analyses.get(file).edges) {
         const target = dependency(file, specifier, manifest);
-        if (target !== null) pending.push(target);
+        if (target !== null && !isFolder(root, target)) pending.push(target);
       }
     }
   }

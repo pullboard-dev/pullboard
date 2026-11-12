@@ -27,6 +27,7 @@ import { disableFixtureBackgroundView } from './view.js';
 import {
   fixtureAddRoute,
   fixtureJoinRoute,
+  fixtureMachineSettings,
   joinFixtureSeat,
 } from '../testkit.js';
 import { withoutPullboardEnv } from '../e2e.js';
@@ -71,6 +72,9 @@ function machine() {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   disableFixtureBackgroundView(env, dir);
+  // Cockpit journeys hold their gate in the submitting process, so they pin controller dispatch like e2e.js does [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const invocations = [];
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
