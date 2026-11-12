@@ -24,51 +24,6 @@ import {
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 
-/** Record target identity, geometry and native events without changing the Roadmap's input path. */
-async function watchRoadmapPress(chrome, key) {
-  await chrome.stable(`(() => {
-    const selector = '#roadmap-panel [data-roadmap-jump=' + CSS.escape(${JSON.stringify(key)}) + ']';
-    let original = document.querySelector(selector);
-    const originalRender = window.render;
-    const nodeIds = new WeakMap(); let nextNodeId = 0;
-    const nodeId = node => { if (!node) return null; if (!nodeIds.has(node)) nodeIds.set(node, ++nextNodeId); return nodeIds.get(node); };
-    const trace = window.__roadmapPress = { original, originalRender, samples:[], events:[] };
-    /** Keep bounded observations of the live target and its original node. */
-    const record = phase => {
-      const current = document.querySelector(selector), box = current?.getBoundingClientRect();
-      const panel = document.querySelector('#roadmap-panel'), list = document.querySelector('#roadmap-list');
-      trace.samples.push({ phase, at:performance.now(), connected:original.isConnected, same:current === original,
-        box:box ? [box.x,box.y,box.width,box.height] : null, scroll:[scrollX,scrollY],
-        panelId:nodeId(panel), panelCount:panel?.querySelectorAll('[data-roadmap-jump]').length,
-        listId:nodeId(list), listCount:list?.querySelectorAll(':scope > [data-key]').length,
-        panelScroll:panel?.scrollTop, count:current?.querySelector('b')?.textContent, deferred:deferredClickRender });
-      if (trace.samples.length > 8) trace.samples.shift();
-    };
-    trace.record = record;
-    window.render = function(...args) { record('before render'); const result = originalRender.apply(this,args); record('after render'); return result; };
-    trace.listeners = ['pointermove','pointerdown','pointerup','click'].map(type => {
-      const listener = event => {
-        const button = event.target.closest?.('[data-roadmap-jump]');
-        if (type === 'pointerdown' && button?.dataset.roadmapJump === ${JSON.stringify(key)}) { original = button; trace.original = button; }
-        record(type); trace.events.push({ type, key:button?.dataset.roadmapJump || null });
-        if(trace.events.length > 8) trace.events.shift();
-      };
-      document.addEventListener(type, listener, true); return [type,listener];
-    });
-    record('watch');
-  })()`);
-  return {
-    /** Read only bounded samples and event keys, never retain DOM objects in the host. */
-    async snapshot() {
-      return JSON.parse(await chrome.stable(`JSON.stringify((() => { const t=window.__roadmapPress; t.record('snapshot'); return {samples:t.samples,events:t.events}; })())`));
-    },
-    /** Restore the actual renderer and remove only this observer's event listeners. */
-    async dispose() {
-      await chrome.stable(`(() => { const t=window.__roadmapPress; if(!t)return; window.render=t.originalRender; for(const [type,listener] of t.listeners)document.removeEventListener(type,listener,true); delete window.__roadmapPress; })()`);
-    },
-  };
-}
-
 test('the roadmap panel jumps to each release [N26]', {
   timeout: 150_000, //budget: hang ceiling for real Chrome startup, fourteen jumps at two widths, and panel scrolling.
 }, async (t) => {

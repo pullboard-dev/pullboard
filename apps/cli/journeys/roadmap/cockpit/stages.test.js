@@ -155,14 +155,15 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
     }
 
     // Another repo's item opens on its own board, and Back and Forward move between the two boards.
+    // Since b94d43bd4a the Items list draws its state dot as a soft tint behind an icon, so the dot is matched by its state class.
+    const beaconDot = await chrome.stable(`${roadmapRow('beacon#1')}.querySelector('.dot').className`);
     await openRoadmapItem(chrome, 'beacon#1');
     await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries') && !!document.querySelector('#detail .item-panel-status .item-stage')`);
     const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .item-panel-status .item-stage'); return {
       id: document.querySelector('#detail h2 span').innerText, label: chip.querySelector('.stage-word').innerText, chip: getComputedStyle(chip.querySelector('.stage-word')).color + ' on ' + getComputedStyle(chip.querySelector('.stage-word')).backgroundColor,
-      dot: getComputedStyle(document.querySelector('#chain [data-item="1"] .dot')).backgroundColor, dotHtml: document.querySelector('#chain [data-item="1"]').outerHTML.slice(0, 500) }; })())`));
-    t.diagnostic('items row ' + there.dotHtml); delete there.dotHtml;
+      dot: document.querySelector('#chain [data-item="1"] .dot').className }; })())`));
     const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
-    assert.deepEqual(there, { id: '#1', label: crossed.label, chip: crossed.chip, dot: crossed.dot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
+    assert.deepEqual(there, { id: '#1', label: crossed.label, chip: crossed.chip, dot: beaconDot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
     await travel(chrome, -1);
     await settled(chrome, `document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', roadmapPath)} && !!${roadmapRow('beacon#1')}`);
     await travel(chrome, 1);
@@ -173,13 +174,14 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
     // Each of this board's rows opens its item on the Items tab, which gives it the same word and
     // colours, its list dot included; a withdrawn item is left out of the list while browsing.
     for (const row of seen.cards.flatMap((card) => card.rows).filter((each) => each.id.startsWith('#'))) {
+      const roadmapDot = await chrome.stable(`${roadmapRow(row.id)}.querySelector('.dot').className`);
       await openRoadmapItem(chrome, row.id);
       await chrome.waitFor(`${showing('items', '/roadmap-demo/items/' + row.id.slice(1))} && document.querySelector('#detail h2 span')?.innerText === ${JSON.stringify(row.id)} && !!document.querySelector('#detail .item-panel-status .item-stage')`);
       const here = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const chip = document.querySelector('#detail .item-panel-status .item-stage'), word = chip.querySelector('.stage-word'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
-        return { label: word.innerText, chip: getComputedStyle(word).color + ' on ' + getComputedStyle(word).backgroundColor, dot: dot ? getComputedStyle(dot).backgroundColor : 'not listed' };
+        return { label: word.innerText, chip: getComputedStyle(word).color + ' on ' + getComputedStyle(word).backgroundColor, dot: dot ? dot.className : 'not listed' };
       })())`));
-      assert.deepEqual(here, { label: row.label, chip: row.chip, dot: row.label === 'Withdrawn' ? 'not listed' : row.dot }, `${row.id}: the Items detail keeps the Roadmap stage and its state dot`);
+      assert.deepEqual(here, { label: row.label, chip: row.chip, dot: row.label === 'Withdrawn' ? 'not listed' : roadmapDot }, `${row.id}: the Items detail keeps the Roadmap stage and its state dot`);
       await travel(chrome, -1);
       await settled(chrome, `${showing('roadmap', roadmapPath)} && !!${roadmapRow(row.id)}`);
     }

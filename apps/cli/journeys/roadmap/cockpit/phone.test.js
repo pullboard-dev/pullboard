@@ -20,7 +20,10 @@ import {
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
-import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
+import {
+  openRoadmapChrome,
+  watchRoadmapPress,
+} from '../../../tests/fixtures/cockpit/roadmap.js';
 
 test('a refresh between pointer down and up preserves a roadmap release click [N26,C7]', {
   timeout: 90_000, // budget: hang ceiling for real board setup, Chrome and two pointer-held board refreshes.
