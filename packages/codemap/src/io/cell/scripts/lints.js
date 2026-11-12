@@ -12,12 +12,9 @@ import { planCellLintBaseline } from '../../../../index.js';
 import { cellLintReport } from '../../../../index.js';
 import { cellLintBaseline } from '../../../../index.js';
 import { cellLintGrowth } from '../../../../index.js';
-import { strayNextStep } from '../../../../light.js';
-import { mainCommit } from '../../../../index.js';
-import { mainCellLintReport } from '../../../../index.js';
+import { checkCellLints } from '../../../../index.js';
 import { lowerCellLintBaseline } from '../../../../index.js';
 import { withCellLintParser } from '../../../../index.js';
-import { cachedCellsRun } from '../../../../index.js';
 import { cellLintParsers } from '../../../../index.js';
 
 withCellLintParser(compile => {
@@ -45,15 +42,6 @@ withCellLintParser(compile => {
     writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
   } else {
     // --check holds this checkout to main's committed baseline, never to debt main merely carries now [C7,CD23].
-    const main = mainCommit(root);
-    process.exitCode = cachedCellsRun(root, ['cell-lints', mode, main ?? 'no-main'], () => {
-      const current = build(), base = mainCellLintReport(root, parsers, main);
-      if (!base) { console.error('no main branch to compare with; nothing can rise'); return 0; }
-      // Advisory transition authority comes only from main, as in the submit check.
-      current.transition = base.report.transition;
-      const problems = cellLintGrowth(current, base.baseline);
-      for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
-      return problems.some(row => !row.advisory) ? 1 : 0;
-    }, { code: [fileURLToPath(import.meta.url), fileURLToPath(new URL('../../main/lints.js', import.meta.url))] });
+    process.exitCode = checkCellLints(root, parsers, line => console.error(line), { code: [fileURLToPath(import.meta.url)] });
   }
 });

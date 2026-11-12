@@ -7,6 +7,10 @@ import { readCellLintBaseline } from '../cell/lint/store.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../cell/lint/store.js';
 import { cellLintReport } from '../cell/lints.js';
 import { cellLintBaseline } from '../cell/lint/ratchet.js';
+import { cellLintGrowth } from '../cell/lint/ratchet.js';
+import { cachedCellsRun } from '../cells/cache.js';
+import { strayNextStep } from '../../logic/allowlist.js';
+import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 
@@ -47,4 +51,21 @@ export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/**
+ * Check root against main's committed cell baseline and report each rise through emit; returns the exit code [C7,CD23].
+ * It lives here so the script and its test share one body; code names the files whose change voids the cached answer.
+ */
+export function checkCellLints(root, parsers, emit, { code = [], build = () => cellLintReport(root, parsers) } = {}) {
+  const main = mainCommit(root);
+  return cachedCellsRun(root, ['cell-lints', '--check', main ?? 'no-main'], () => {
+    const current = build(), base = mainCellLintReport(root, parsers, main);
+    if (!base) { emit('no main branch to compare with; nothing can rise'); return 0; }
+    // Advisory transition authority comes only from main, as in the submit check.
+    current.transition = base.report.transition;
+    const problems = cellLintGrowth(current, base.baseline);
+    for (const row of problems) emit(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
+    return problems.some(row => !row.advisory) ? 1 : 0;
+  }, { code: [fileURLToPath(import.meta.url), ...code] });
 }
