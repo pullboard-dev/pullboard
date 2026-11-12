@@ -132,7 +132,7 @@ export async function main(rawArgv, streams) {
 }
 
 // The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
-const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify']);
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify', 'test']);
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
@@ -217,6 +217,8 @@ async function runMain(argv, streams) {
     const remote = await import('../remote/board.js');
     const target = remote.remoteBoard();
     if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
+    // A seat's test runs here and posts only its receipt, so the board host never runs a test on its request path.
+    if (target && parsed.positionals[0] === 'test') return (await import('../test/remote.js')).runRemoteTest(io, parsed.positionals.slice(1), parsed.values, target);
     if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
