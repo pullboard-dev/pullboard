@@ -209,7 +209,37 @@ test('Dashboard has no Pipeline section and prints no raw milliseconds; The last
       idleReasons:{'nothing-eligible':0,held:0,'review-family':0,'main-red':0,unknown:0},stageShares:{build:0,rework:0,reviewWait:0,review:0,land:0} } };
   model.pipeline = { count: 1, limit: 20, items: [], totals: {}, causes: {}, unmeasuredGaps: [], evidence: 'raw' };
   const html = dashboardHtml(model);
-  assert.ok(!/aria-label="Pipeline"|dash-pipeline|data-pipeline|>Pipeline</u.test(html), 'no Pipeline section, even when the API supplies the data');
+  // The compact stage strip (N38) is the one Pipeline element; the API's pipeline detail still never renders.
+  assert.ok(!/dash-pipeline|data-pipeline/u.test(html), 'no Pipeline detail section, even when the API supplies the data');
+  assert.equal([...html.matchAll(/aria-label="Pipeline"/gu)].length, 1, 'the compact stage strip is the only Pipeline section');
   assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
   assert.match(html, /<h2>The last two hours<\/h2>/u, 'the approved window card remains');
+});
+
+test('Dashboard shows a compact pipeline strip of seven stages that link to Items > Pipeline [N38]', () => {
+  const input = dashboardData({ populated: true });
+  const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
+  const html = dashboardHtml(model);
+  const strip = section(html, 'Pipeline');
+  const keys = ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged'];
+  assert.deepEqual([...strip.matchAll(/data-dashboard-stage="([^"]+)"/gu)].map(match => match[1]), keys, 'all seven stages show, in pipeline order');
+  assert.equal([...strip.matchAll(/href="#items\/pipeline"/gu)].length, 7, 'each stage links to Items > Pipeline');
+  for (const key of keys) assert.match(strip, new RegExp(`data-dashboard-stage="${key}"><span>[^<]+</span> <b>\\d+</b>`, 'u'), `${key} shows a count`);
+  assert.equal(itemRows(strip), 0, 'the strip lists no item rows');
+  assert.doesNotMatch(strip, /\d\s?ms\b/u, 'the strip shows no millisecond durations');
+  const empty = dashboardHtml({ ...model, stageCounts: Object.fromEntries(keys.map(key => [key, 0])) });
+  assert.equal([...section(empty, 'Pipeline').matchAll(/<b>0<\/b>/gu)].length, 7, 'a stage with no items still shows 0');
+});
+
+test('Dashboard strip counts a verified item in a live landing batch as Landing, like Items Pipeline [N38]', () => {
+  const input = dashboardData({ populated: true });
+  const open = input.project.items.find(item => item.status === 'open');
+  const verified = { ...open, status: 'verified', merged: false };
+  const items = [verified, ...input.project.items.filter(item => item.id !== open.id)];
+  const before = dashboardModel({ ...input.project, items, landingBatches: [] }, input.events, { now: input.clockBase, complete: true }).stageCounts;
+  const batch = { id: 'live', state: 'running', startedAt: input.clockBase - 60_000, items: [{ id: verified.id }] };
+  const after = dashboardModel({ ...input.project, items, landingBatches: [batch] }, input.events, { now: input.clockBase, complete: true }).stageCounts;
+  assert.equal(after.landing, before.landing + 1, 'the batched item counts as Landing');
+  assert.equal(after.verified, before.verified - 1, 'and no longer as Verified');
+  assert.equal(Object.values(after).reduce((sum, count) => sum + count, 0), Object.values(before).reduce((sum, count) => sum + count, 0), 'no item is lost or counted twice');
 });

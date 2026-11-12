@@ -821,8 +821,8 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/isolation.js": {
-      "cells": 1,
-      "deep": 0
+      "cells": 3,
+      "deep": 3
     },
     "apps/cli/tests/fixtures/land/batch.js": {
       "cells": 1,
@@ -953,8 +953,8 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/regression.js": {
-      "cells": 1,
-      "deep": 0
+      "cells": 3,
+      "deep": 2
     },
     "apps/cli/tests/fixtures/relay/client-harness.js": {
       "cells": 4,
@@ -1093,8 +1093,8 @@
       "deep": 0
     },
     "apps/lib/src/io/main/audit.js": {
-      "cells": 4,
-      "deep": 0
+      "cells": 5,
+      "deep": 1
     },
     "apps/lib/src/io/seal.js": {
       "cells": 5,
@@ -1169,7 +1169,7 @@
       "deep": 0
     },
     "apps/relay/src/io/deploy/smoke.mjs": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "apps/relay/src/io/github.js": {
@@ -1702,7 +1702,7 @@
     },
     "packages/doctrine/src/io/fast.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 1
     },
     "packages/doctrine/src/io/main-criterion-facts.js": {
       "cells": 4,
@@ -1938,7 +1938,7 @@
     },
     "packages/gate/src/io/static/registry.js": {
       "cells": 6,
-      "deep": 0
+      "deep": 1
     },
     "packages/gate/src/io/submit.js": {
       "cells": 5,
@@ -2485,8 +2485,8 @@
       "deep": 0
     },
     "packages/landing/src/io/history.js": {
-      "cells": 1,
-      "deep": 0
+      "cells": 2,
+      "deep": 1
     },
     "packages/landing/src/io/host.js": {
       "cells": 3,
@@ -2820,10 +2820,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/link/tests/fixtures/relay/reset.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/mcp/src/logic/main.js": {
       "cells": 2,
       "deep": 0
@@ -3149,8 +3145,8 @@
       "deep": 0
     },
     "packages/resources/src/io/handoff/worker/cap.js": {
-      "cells": 1,
-      "deep": 0
+      "cells": 2,
+      "deep": 1
     },
     "packages/resources/src/io/home.js": {
       "cells": 1,
@@ -4333,7 +4329,7 @@
       "deep": 0
     },
     "packages/store/tests/fixtures/dispatch.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/tests/fixtures/stats/compare.js": {
@@ -4341,7 +4337,7 @@
       "deep": 0
     },
     "packages/store/tests/fixtures/stats/time.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/sync/src/io/git/lock.js": {
@@ -5164,10 +5160,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/landing/receipts.js": {
-      "cells": 3,
-      "deep": 0
-    },
     "apps/cli/src/io/run/tests.js": {
       "cells": 3,
       "deep": 1
@@ -5181,6 +5173,70 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/init/shards.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/codemap/src/io/freeze.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "packages/gate/src/io/matrix.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/run-tests.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/run/tests.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/gate/tests/fixtures/pipeline/board/write.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/pipeline/kit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/pipeline/spec.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/gate/tests/fixtures/pipeline/sweep.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/gate/tests/fixtures/pipeline/worker.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "apps/lib/index.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/runner/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/light.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/collision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/relay/parity/reland.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/relay/parity/seeds.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/timeout.js": {
       "cells": 1,
       "deep": 0
     }
@@ -5405,7 +5461,7 @@
     },
     "<-apps/cli": {
       "imports": [],
-      "deepImporters": 3
+      "deepImporters": 4
     },
     "<-verify": {
       "imports": [],
@@ -5491,6 +5547,7 @@
     "doctrine": {
       "imports": [
         "config",
+        "gate",
         "git",
         "kernel",
         "resources",
@@ -5532,6 +5589,7 @@
       "imports": [
         "apps/cli",
         "apps/lib",
+        "apps/runner",
         "apps/view",
         "codemap",
         "commits",
@@ -6008,11 +6066,15 @@
     },
     "<-apps/runner": {
       "imports": [],
-      "deepImporters": 1
+      "deepImporters": 2
     },
     "<-apps/lib": {
       "imports": [],
-      "deepImporters": 1
+      "deepImporters": 2
+    },
+    "<-store": {
+      "imports": [],
+      "deepImporters": 2
     }
   },
   "lightDoors": {

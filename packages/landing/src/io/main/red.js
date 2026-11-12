@@ -608,6 +608,27 @@ export function cachedMainComparison(root, commit, files) {
   } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
 }
 
+/**
+ * Record one finished main-test job's verdict in the local comparison cache, so submit, landing and serve find the
+ * receipt at that main commit [C7,P7]. A green is a complete row with no failing cases; a red names the whole file
+ * (fileIsolation), since the job carries case names but no signatures. An existing row for the file is kept.
+ *
+ * @param {string} root - The board host's repository.
+ * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number }} receipt
+ * @returns {boolean} whether a row was written
+ */
+export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now() }) {
+  if (!/^[0-9a-f]{40,64}$/u.test(main ?? '') || !file || !['green', 'red'].includes(verdict)) return false;
+  // Synchronous on purpose: the receipt applier is; a racing writer only costs a re-measure of one file.
+  const path = cacheFile(root);
+  const cache = readCache(path);
+  if (cache.entries[main]?.[file]) return false;
+  const outcome = verdict === 'green' ? { result: 'green', failures: [], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : { result: 'red', fileIsolation: true };
+  cache.entries[main] = { ...cache.entries[main], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  writeCache(path, cache);
+  return true;
+}
+
 /** The newest commit-keyed generations of the cache, newest first; content-keyed records are not generations. */
 function recentGenerations(cache, count, except = []) {
   return Object.keys(cache.entries).filter(key => /^[0-9a-f]{40}$/u.test(key) && !except.includes(key)).slice(-count).reverse();

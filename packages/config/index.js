@@ -72,6 +72,8 @@ export {
   addRunner,
   recordRunnerMeasurement,
   removeRunner,
+  setRunnerDrain,
+  drainedRunnerHosts,
   machineSettingsFile,
 } from './src/io/settings.js';
 export {
@@ -81,6 +83,8 @@ export {
   specTemplate,
   practiceTemplate,
   renderAgentsBlock,
+  renderCoordinatorGuide,
+  COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
   plainGateWords,
   claudeLoopRules,
