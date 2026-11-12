@@ -264,6 +264,7 @@ async function intakeFixture(t) {
 
 test('patch attach accepts real format-patch headers and trailer without changing hunk bytes [V4,H16]', async t => {
   const box = await intakeFixture(t);
+  const { run } = box;
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/mail.txt'), 'mail body\n-- \n2.50.0\n');
   box.git(box.web, 'add', 'web/mail.txt');
@@ -275,7 +276,7 @@ test('patch attach accepts real format-patch headers and trailer without changin
     tree: box.git(box.web, 'rev-parse', box.source + '^{tree}') });
   const file = join(box.dir, 'mail.patch');
   writeFileSync(file, mail);
-  const attached = await box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mail', '--author', box.author, '--source', box.source);
+  const attached = await run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mail', '--author', box.author, '--source', box.source);
   assert.equal(attached.changed, true);
   const [record] = itemPatches(box.board, box.item);
   assert.equal(record.patch, expected);
@@ -283,7 +284,7 @@ test('patch attach accepts real format-patch headers and trailer without changin
   assert.equal(record.commit, box.source);
   const composed = composeItemPatches(box.repo, { item_commit: box.source }, [record]);
   assert.equal(box.git(box.repo, 'show', composed.commit + ':web/mail.txt'), 'mail body\n-- \n2.50.0');
-  const retry = await box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mail', '--author', box.author, '--source', box.source);
+  const retry = await run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mail', '--author', box.author, '--source', box.source);
   assert.equal(retry.changed, false);
   assert.throws(() => normalizeItemPatch(mail.replace('Subject:', 'Not-Subject:')), { code: 'ITEM_PATCH_FORMAT' });
   assert.throws(() => normalizeItemPatch(mail.replace('@@ -0,0 +1,3 @@', '@@ -0,0 +1,4 @@')), { code: 'ITEM_PATCH_FORMAT' });
@@ -291,9 +292,10 @@ test('patch attach accepts real format-patch headers and trailer without changin
 
 test('mixed-lane attach reports three owners and writes only unconfirmed per-lane drafts [V4,H16]', async t => {
   const box = await intakeFixture(t), api = join(box.dir, 'api-owner');
+  const { run } = box;
   box.git(box.repo, 'worktree', 'add', '--detach', api, 'main');
   await fixtureJoin(box.runLocal, api, 'api');
-  const apiOwner = (await box.run(api, 'whoami')).id;
+  const apiOwner = (await run(api, 'whoami')).id;
   submitFixture(box.board, box.item, { agentId: box.author, commit: box.source,
     tree: box.git(box.web, 'rev-parse', box.source + '^{tree}') });
   const changes = ['web/mail.txt', 'api/mail.txt', 'owner.txt'].map(path =>
@@ -301,7 +303,7 @@ test('mixed-lane attach reports three owners and writes only unconfirmed per-lan
   const file = join(box.dir, 'mixed.patch'), directory = join(box.dir, 'parts');
   writeFileSync(file, changes.join(''));
   const before = exportBoard(box.board);
-  const result = await box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory);
+  const result = await run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory);
   assert.equal(result.attached, false);
   assert.equal(result.needsConfirmation, true);
   assert.deepEqual(result.parts.map(part => part.lane), ['web', 'api', 'coordinator']);
@@ -313,7 +315,7 @@ test('mixed-lane attach reports three owners and writes only unconfirmed per-lan
   }
   assert.deepEqual(itemPatches(box.board, box.item), []);
   assert.deepEqual(exportBoard(box.board), before, 'draft planning never attaches, confirms or mutates the board');
-  const text = await box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source);
+  const text = await run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source);
   assert.equal(text.needsConfirmation, true);
   const collision = await box.runLocal(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory, '--json');
   assert.equal(collision.code, 1);
