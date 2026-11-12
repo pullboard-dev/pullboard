@@ -5,6 +5,7 @@ import {
   whyLine,
 } from '../../../../../packages/state/index.js';
 import { whyFile } from '../../../../../packages/commits/index.js';
+import { releaseFlow } from '../../../../../packages/health/index.js';
 import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
@@ -12,18 +13,41 @@ import {
   context,
   idArg,
   withBoard,
+  withBoardRead,
 } from '../entry.js';
 
 /** Run `pullboard why` and return its exit code. */
 export function run(io, { first, second, rest }) {
-  if (!first || second || rest.length) throw new Refused('USAGE', 'pullboard why <id> | <file>[:<line>]: the decisions that imply an item, or sit behind a file, newest first');
+  if (second || rest.length) throw new Refused('USAGE', 'pullboard why [<release>] | <id> | <file>[:<line>]: the release flow, the decisions that imply an item, or those behind a file');
   const ctx = context(io);
-  if (!/^#?[1-9]\d*$/u.test(first)) return runFile(io, ctx, first);
+  if (!first) return runFlow(io, ctx, undefined);
+  if (!/^#?[1-9]\d*$/u.test(first)) {
+    const release = withBoardRead(ctx, (board) => store.milestones(board).some((entry) => entry.name === first));
+    return release ? runFlow(io, ctx, first) : runFile(io, ctx, first);
+  }
   const id = idArg(first);
   const decisions = withBoard(ctx, (board) => decisionsImplying(store.itemThread(board, id)));
   io.result?.({ id, decisions });
   if (!decisions.length) io.say(`no decision implies #${id}`);
   for (const entry of decisions) io.say(whyLine(entry));
+  return 0;
+}
+
+/** Print the release flow on one screen: a line per unlanded item, per idle seat, and the landings [N26,C7]. */
+function runFlow(io, ctx, release) {
+  const refuse = (code, message) => new Refused(code, message, 'pullboard roadmap');
+  const flow = withBoardRead(ctx, (board) => releaseFlow(board, { config: ctx.config, release, now: () => ctx.clock.now().getTime(), refuse }));
+  io.result?.(flow);
+  io.say(`release ${flow.release ?? 'none'} as of ${flow.asOf}`);
+  if (!flow.items.length) io.say('nothing unlanded');
+  for (const row of flow.items) {
+    const who = row.seat ? ` ${row.seat}` : '';
+    const detail = row.reason ?? row.waits?.join(' ') ?? (row.batch ? `batch ${row.batch}` : row.eligible?.join(' ') ?? '');
+    const minutes = typeof row.minutes === 'number' ? ` ${row.minutes}m` : '';
+    io.say(`#${row.id}  ${row.cause}${who}${minutes}${detail ? `  ${detail}` : ''}  ${row.title}`);
+  }
+  for (const seat of flow.idle) io.say(`idle ${seat.seat}  ${seat.reason}${seat.item ? ` #${seat.item}` : ''}`);
+  io.say(`landed: ${flow.landings.lastHour} in the last hour, ${flow.landings.lastTwoHours} in two hours`);
   return 0;
 }
 
