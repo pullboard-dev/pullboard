@@ -88,6 +88,13 @@ function eventCursor(value) {
   return Number(value);
 }
 
+/** The most events one read returns: absent means all, otherwise a positive integer. */
+function eventLimit(value) {
+  if (value === null || value === undefined) return undefined;
+  if (!/^[1-9]\d*$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Refused('BAD_REQUEST', 'limit needs a positive integer; read the next page with after=<last event id>');
+  return Number(value);
+}
+
 /** A supplied state cursor is an integer, so unlike an omitted events cursor, blank is invalid. */
 function seenCursor(value) {
   if (value === '') throw new Refused('BAD_CURSOR', 'seen needs a nonnegative integer; use the last shout id you have seen');
@@ -423,7 +430,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
             throw error;
           }
         }
-        const initial = await adapter.events(board, after, who);
+        const initial = await adapter.events(board, after, who, eventLimit(url.searchParams.get('limit')));
         const warnings = await warningsFor(board, who);
         const eventLogVersion = await adapter.eventLogVersion?.(board, who);
         return json(res, 200, { events: initial, ...(eventLogVersion === undefined ? {} : { eventLogVersion }),
