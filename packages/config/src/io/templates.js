@@ -141,7 +141,7 @@ Never wait: submit and move on.
 - **Judge:** the diff against the bar and the gate's receipts.
 - **Rerun:** only if no recorded run covers a clause, or you doubt the gate.
 - **Accept:** \`pullboard verify <id> accept\`.
-- **Reject:** \`pullboard verify <id> reject --reason <CODE> --note "…"\`.
+- **Reject:** \`pullboard verify <id> reject --reason <CODE> --clause "<clause>" --note "..."\`.
 
 ## Troubleshoot
 
