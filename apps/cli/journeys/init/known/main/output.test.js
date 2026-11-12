@@ -42,7 +42,7 @@ test('identical main case is first in text and structured in test and submit, wi
   notice(report.mainFailures[0], box);
   const plain = await text(box, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
-  assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${box.main}:`));
+  assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${box.main}:`), 'DIAG ' + plain.stdout.slice(0, 1200));
   assert.ok(plain.stdout.split('\n')[0].includes('[main receipt '));
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
