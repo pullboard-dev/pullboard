@@ -2,7 +2,7 @@
 export { Refused } from './src/logic/refused.js';
 export { literalShellWords } from './src/logic/words.js';
 export { createRelayAdapter, createFakeRelayAdapter } from './src/logic/adapter.js';
-export { machineHome } from './src/logic/machine.js';
+export { machineHome, processMachineHome } from './src/logic/machine.js';
 export { repoPath } from './src/logic/repo-paths.js';
 export { lex, lineAt } from './src/logic/lex.js';
 export { registryGuardsProblem, shoutItemId } from './src/logic/registry.js';
