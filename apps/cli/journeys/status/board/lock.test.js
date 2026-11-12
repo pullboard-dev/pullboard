@@ -37,7 +37,8 @@ import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-/** Hold the board's write lock from another process for `ms`; resolves once it is held, with the holder's exit. */
+/** Process-level: a lock held by another process (the holder child below, and its `spawn`) is the case under test, so it cannot run in-process.
+ * Hold the board's write lock from another process for `ms`; resolves once it is held, with the holder's exit. */
 async function holdWriteLock(file, ms) {
   const script = [
     "const { DatabaseSync } = require('node:sqlite');",
@@ -137,6 +138,7 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'Create the read fallback fixture');
   box.release = released(box);
+  // Process-level: the released copy's own entry file must run as a separate process, since its code differs from this tree's.
   const cli = () => runFixtureChild(process.execPath, [join(box.release, 'apps/cli/pullboard.js'), 'status', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   const first = cli();
@@ -203,6 +205,7 @@ test('a read answers while a writer holds the lock [C7]', async (t) => {
   const db = new DatabaseSync(file);
   db.exec(`${HOT_INDEXES.map((name) => `DROP INDEX ${name};`).join(' ')} PRAGMA user_version = 2`);
   db.close();
+  // Process-level: the released copy migrates the older board, so it runs as its own process (not this tree's in-process dispatcher).
   const cli = (...argv) => runFixtureChild(process.execPath, [join(box.release, 'apps/cli/pullboard.js'), ...argv], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   /** The hot-path indexes the board has, read without touching it. */
   const hotIndexes = () => {

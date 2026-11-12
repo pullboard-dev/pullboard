@@ -4,6 +4,8 @@ import { cellInventory } from '../../../codemap/index.js';
 import { readPlan } from '../../../codemap/index.js';
 import { unplanned } from '../../../codemap/index.js';
 import { updateCellInventory } from '../../../codemap/index.js';
+import { addedLines } from '../../../commits/index.js';
+import { secretsIn } from '../../../commits/index.js';
 import { commonJsIn } from '../../../gate/index.js';
 import { importsIn } from '../../../gate/index.js';
 import { git } from '../../../git/index.js';
@@ -90,8 +92,22 @@ function parseRefusal(root, tip, changed, broken = brokenModules(root, tip, chan
   return refusal;
 }
 
-/** Inspect source only: no candidate module is imported or evaluated before main moves. */
+/**
+ * Refuse a composed landing whose lines added over `base` hold a possible secret, naming each file:line and never the value.
+ * Why: the pre-commit scan is skipped by a --no-verify commit, so landing reruns the same scanner before main moves [#5968].
+ */
+export function requireLandingSecretFree(root, base, tip) {
+  const diff = git(root, ['diff', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', base, tip], { maxBuffer: 1 << 28 });
+  const found = secretsIn(addedLines(diff));
+  if (!found.length) return;
+  const refusal = new Refused('LANDING_SECRET', `the composed landing adds a possible secret: ${found.join('; ')}`, 'remove the value from the item\'s commits (rewrite them, never add a revert) and resubmit');
+  refusal.found = found;
+  throw refusal;
+}
+
+/** Inspect source only: no candidate module is imported or evaluated before main moves; secrets are refused first [#5968]. */
 export async function requireLandingModuleResolution(root, base, tip) {
+  requireLandingSecretFree(root, base, tip);
   const before = await graphAt(root, base);
   const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
   const broken = brokenModules(root, tip, changed);

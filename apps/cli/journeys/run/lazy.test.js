@@ -56,6 +56,7 @@ test('clause 1: a real named-file run meets its declared ten-second import-check
   assert.ok(elapsed < declaredBudget, `named-file import check took ${elapsed.toFixed(1)}ms`); // budget: declared #2425 ten-second named-file import-check limit.
   const box = fixture();
   assert.equal(testsNeedCpuRunner(box.repo, ['web/plain.test.js']), false, 'ordinary tests do not acquire CPU authority');
+  // Process-level: the run-tests launcher itself is the subject, and its phase line comes from a real start.
   const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', 'web/plain.test.js'], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -69,6 +70,7 @@ test('clause 1: a real named-file run meets its declared ten-second import-check
 test('clause 2: every named run prints one per-phase timing line, successful or refused [C7,V4]', () => {
   const box = fixture();
   for (const [extra, status] of [[[], 0], [['--test-name-pattern=no-such-case'], 1]]) {
+    // Process-level: each actual launcher start prints its own phase line, successful or refused.
     const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', ...extra, 'web/plain.test.js'], {
       cwd: box.repo, env: box.env, encoding: 'utf8',
     });
@@ -92,7 +94,7 @@ test('clause 3: apps/cli/src/io/run/tests.js adds no static front-door import th
 test('clause 1: apps/cli/src/io/run/tests.js is a launcher whose only static import of the repository is the gate entry [C7,V4]', () => {
   const source = readFileSync(RUNNER, 'utf8');
   const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+['"]([^'"]+)['"]/gmu)].map(match => match[1]).filter(name => !name.startsWith('node:'));
-  assert.deepEqual(specifiers, ['../../../bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
+  assert.deepEqual(specifiers, ['../../../../../packages/gate/bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
   assert.ok(source.split('\n').length < 30, 'the engine lives in gate, not in the launcher');
 });
 
@@ -133,6 +135,7 @@ function fixture({ currentReleaseFirst = false } = {}) {
 
 /** Require a successful actual child before interpreting its append-only module list. */
 function observed(box, args) {
+  // Process-level: the module-load observer preloads into the real child, so the runner must be its own process.
   const child = runFixtureChild(process.execPath, ['--import', box.probe, ...args], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -295,6 +298,7 @@ assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the f
 appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/io/dispatch.js'))}, '\\n// changed after the first dispatch\\n');
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
 `;
+  // Process-level: the spawn counter wraps the builtins of a fresh child that imports the runners package.
   const result = runFixtureChild(process.execPath, ['--import', pathToFileURL(counter).href, '--input-type=module', '-e', script], { cwd: installed, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context ?? result.stderr);
 });
@@ -309,6 +313,7 @@ test('clause 1: importing the runners package spawns nothing and pins no tooling
     `const runners = await import(${JSON.stringify(pathToFileURL(join(ROOT, 'packages/runners/index.js')).href)});`,
     'console.log(JSON.stringify({ spawned, pinned: runners.runnerToolingPinned() }));',
   ].join('\n');
+  // Process-level: a fresh child proves the import alone starts no process and pins no tooling.
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);
   assert.deepEqual(JSON.parse(child.stdout.trim().split('\n').at(-1)), { spawned: 0, pinned: false });

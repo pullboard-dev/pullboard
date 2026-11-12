@@ -34,6 +34,7 @@ import {
   baselineReceiptDirectory,
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
+import { mainPolicy } from '../../../../../sandbox/index.js';
 
 const WORKER = resolve(import.meta.dirname, '../../../../../../apps/lib/src/io/check/baseline.js');
 
@@ -51,9 +52,15 @@ function withBoard(root, work, services) {
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
+/** Whether accepted main sets checks.provesNothing to "hold"; an unreadable policy holds nothing. */
+function holdsProvesNothing(root) {
+  try { return mainPolicy(root).config?.checks?.provesNothing === 'hold'; } catch { return false; }
+}
+
 /** Apply captured data through the same local or linked engine as the original add/edit. */
 async function complete(root, receipt, io, services) {
-  const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline }];
+  const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline,
+    ...(receipt.baseline?.result === 'green' && holdsProvesNothing(root) ? { holdProvesNothing: true } : {}) }];
   return relayLinked(root) ? relayOperation(root, 'completeCheckBaseline', args, io)
     : withBoard(root, (board) => store.completeCheckBaseline(board, ...args), services);
 }

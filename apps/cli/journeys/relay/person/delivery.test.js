@@ -59,10 +59,10 @@ test('a native key holder verifies a pinned person root before delivering each g
     const pending = await call(base, { machine: true });
     assert.equal(pending.status, 200, 'the actual board publisher can discover its pending enrollment');
     assert.equal(pending.enrollments.some(row => row.nonce === signed.nonce), true);
-    assert.equal((await box.cli('relay', 'status')).code, 0);
+    assert.equal((await box.cliLocal('relay', 'status')).code, 0);
     assert.deepEqual((await call(base + '/' + signed.nonce)).wraps, [], 'no local pin means no key release');
     await pin((await createPersonRoot()).publicKey);
-    assert.equal((await box.cli('relay', 'status')).code, 0);
+    assert.equal((await box.cliLocal('relay', 'status')).code, 0);
     assert.deepEqual((await call(base + '/' + signed.nonce)).wraps, [], 'a different pinned root cannot verify the request');
     await pin(root.publicKey);
     const raced = await box.script(`
@@ -87,7 +87,7 @@ test('a native key holder verifies a pinned person root before delivering each g
     assert.equal(raced.document.errors.some(message => message.includes('PERSON_ENROLL_AUTH')), true);
     assert.deepEqual((await call(base + '/' + signed.nonce)).wraps, [], 'a pin revoked during wrapping releases no board key');
     await pin(root.publicKey);
-    assert.equal((await box.cli('relay', 'status')).code, 0);
+    assert.equal((await box.cliLocal('relay', 'status')).code, 0);
     const first = await call(base + '/' + signed.nonce);
     assert.deepEqual(first.wraps.map(row => row.board), [link.board], 'the first machine token releases only its board');
     const crossBoard = await call(base + '/' + signed.nonce, { method: 'PUT', machine: true,
@@ -122,7 +122,7 @@ test('a native key holder verifies a pinned person root before delivering each g
       { grants: [link.board, second.id, third.id] }]) {
       const invalid = { ...await challenge(), ...mutation };
       assert.equal((await call(base + '/' + invalid.nonce, { method: 'POST', body: invalid })).status, 200);
-      assert.equal((await box.cli('relay', 'status')).code, 0, 'an invalid public enrollment cannot block ordinary sync');
+      assert.equal((await box.cliLocal('relay', 'status')).code, 0, 'an invalid public enrollment cannot block ordinary sync');
       assert.deepEqual((await call(base + '/' + invalid.nonce)).wraps, [], 'tampered signed context releases no wrap');
     }
     const wrongAccount = await challenge({ account: '8' });

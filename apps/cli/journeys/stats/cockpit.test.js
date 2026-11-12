@@ -2,6 +2,7 @@
 /** @pullboard-test-gui */
 /** Cockpit stats checks, using the shared real-board fixtures [N26]. */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { MACHINE_MODEL } from '../../tests/fixtures/cockpit/machine.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -95,6 +96,8 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats [data-stat=\"submissions\"]')");
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats [data-stat="submissions"]')`);
@@ -130,7 +133,9 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
     await chrome.waitFor("data?.group?.name === 'Proof project' && document.querySelector('#group-view:not([hidden])') && document.querySelector('#proof-stats').hidden");
     assert.equal(await chrome.stable("document.querySelector('#proof-stats').innerHTML"), '', 'a grouped view cannot retain a prior repo\'s stats');
     const { flow: currentFlow, ...currentTotals } = (await boardOf(view, alpha.repo)).proofStats;
-    const { flow: expectedFlow, ...expectedTotals } = expected;
+    const { flow: expectedFlow, agents, bars, caught, ...expectedTotals } = expected;
+    for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(currentTotals, key), false, `native state omits historical ${key}`);
+    assert.ok(agents && bars && caught, 'the full CLI stats retain historical proof detail');
     assert.deepEqual(currentTotals, expectedTotals, 'the comparison reads the same live API stats source; queue ages may advance');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -145,16 +150,16 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
 
   const box = machine();
   const alpha = project(box, 'stats-count-words');
-  box.run(alpha.web, 'join', 'web', '--family', 'solo');
+  box.run(alpha.web, 'join', 'web', '--model', MACHINE_MODEL, '--family', 'solo');
   const crewOne = joinedAgent(box, alpha, 'stats-crew-one');
   const crewTwo = joinedAgent(box, alpha, 'stats-crew-two');
   const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
   const untouched = joinedAgent(box, alpha, 'stats-untouched');
+  // Record real moves on both sides of the one permitted family declaration.
+  const crewMove = text => box.run(crewOne, 'shout', 'web-1', text);
+  for (let move = 0; move < 11; move += 1) crewMove(`Before family ${move}`);
   box.run(crewOne, 'join', 'web', '--family', 'crew');
-  for (let move = 0; move < 11; move += 1) {
-    box.run(crewOne, 'join', 'web', '--family', 'other');
-    box.run(crewOne, 'join', 'web', '--family', 'crew');
-  }
+  for (let move = 0; move < 11; move += 1) crewMove(`After family ${move}`);
   box.run(crewTwo, 'join', 'web', '--family', 'crew');
   box.run(crewThree, 'join', 'web', '--family', 'crew');
   const expected = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
@@ -169,6 +174,8 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')");
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats-summary')`);
@@ -197,7 +204,8 @@ async function saveStatsToggleShot(chrome, width, scheme, state) {
 }
 
 /** Exercise every real input path that opens and folds the proof card, then check its responsive targets. */
-test('the stats card folds from its summary line [N26]', {
+// One colour scheme per test keeps each real Chrome flow inside its hang ceiling: the file's cases run apart, not shorter.
+for (const scheme of ['light', 'dark']) test(`the stats card folds from its summary line in ${scheme} [N26]`, {
   timeout: 30_000, // budget: stop a hung local Chrome flow, not a rendering-speed assertion.
 }, async () => {
   const executable = chromeExecutable();
@@ -210,6 +218,8 @@ test('the stats card folds from its summary line [N26]', {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')");
     await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("view.tab === 'items'");
@@ -221,7 +231,7 @@ test('the stats card folds from its summary line [N26]', {
       return true;
     })()`);
 
-    for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
+    for (const width of [375, 1280]) {
       await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: false });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
@@ -303,7 +313,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
   stageAcceptedQueue(box, alpha);
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    for (let index = 5; index <= 299; index += 1) {
+    for (let index = 4; index <= 299; index += 1) {
       store.register(board, {
         lane: 'web',
         path: join(box.dir, `private-agent-${index}`),
@@ -322,6 +332,8 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary') && document.querySelector('#chain > li')");
     const api = JSON.parse(await chrome.stable('JSON.stringify(data.project.proofStats)'));
     assert.equal(api.flow.bottleneck.stage, 'mergeWait', 'the real measured board has an accepted queue bottleneck');
@@ -344,7 +356,8 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
         const first=document.querySelector('#chain > li');
         return {summary:text.textContent, summaryLines:Math.ceil(text.getBoundingClientRect().height/lineHeight), summaryClipped:text.scrollHeight > text.clientHeight + 1, naturalHeight, lineHeight, clamp:getComputedStyle(text).webkitLineClamp, summaryBox:rect(summary),
           expanded:summary.getAttribute('aria-expanded'), first:first?.dataset.item ?? null, firstBox:first&&rect(first), itemListHidden:document.querySelector('#item-list').hidden,
-          viewportWidth:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, viewportHeight:innerHeight};
+          viewportWidth:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, viewportHeight:innerHeight,
+          itemOrder:data.project.items.filter(item => [3,4].includes(item.id)).map(item => ({id:item.id,status:item.status,updatedAt:item.updatedAt,holder:item.holder}))};
       })())`));
       assert.equal(before.summary, expectedSummary, `${width}px ${scheme}: the line selects the API merged, sent-back and bottleneck values`);
       assert.equal(before.expanded, 'false', `${width}px ${scheme}: the compact summary starts closed`);
@@ -353,7 +366,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
       if (before.naturalHeight > before.lineHeight * (width < 900 ? 2 : 1) + 1) assert.equal(before.summaryClipped, true, `${width}px ${scheme}: a recommendation that would exceed the line limit is clipped`);
       assert.ok(before.summaryBox.height >= tapTarget(width), `${width}px ${scheme}: the summary meets the #371 target size`);
       assert.equal(before.itemListHidden, false, `${width}px ${scheme}: the item list remains the visible default`);
-      assert.equal(before.first, '4', `${width}px ${scheme}: the first real item row is present`);
+      assert.equal(before.first, '4', `${width}px ${scheme}: the first real item row is present: ${JSON.stringify(before.itemOrder)}`);
       assert.ok(before.firstBox.bottom <= height, `${width}px ${scheme}: the first item appears without scrolling: ${JSON.stringify(before)}`);
       assert.ok(before.pageWidth <= before.viewportWidth, `${width}px ${scheme}: no horizontal page overflow`);
       layouts.push({ scheme, width, firstBottom: before.firstBox.bottom, summaryHeight: before.summaryBox.height });
@@ -370,7 +383,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
       const details = JSON.parse(await chrome.stable(`JSON.stringify({agentCount:document.querySelector('[data-stat="agentCount"]')?.textContent,
         familyTile:!!document.querySelector('[data-stat="familyCount"]'), hasFirstAgent:document.querySelector('#proof-stats-full').textContent.includes('web-1'),
         hasPrivateName:document.querySelector('#proof-stats-full').textContent.includes('Private model'), hasFamilyName:document.querySelector('#proof-stats-full').textContent.includes('private-family-')})`));
-      for (const agent of api.agents) assert.equal(card.includes(agent.id), false, `${width}px ${scheme}: the card does not name ${agent.id}`);
+      for (const agent of stats.agents) assert.equal(card.includes(agent.id), false, `${width}px ${scheme}: the card does not name ${agent.id}`);
       for (const family of api.families) assert.equal(card.includes(family.name), false, `${width}px ${scheme}: the card does not name family ${family.name}`);
       assert.equal(await chrome.stable("document.querySelector('[data-flow=bottleneck]').textContent"), api.flow.bottleneck.message, 'the full API message stays unchanged in the expanded card');
       assert.equal(await chrome.stable("document.querySelector('[data-flow=recommendation]').textContent"), api.flow.bottleneck.recommendation, 'the full API recommendation stays unchanged in the expanded card');
@@ -415,6 +428,8 @@ test('stats times read in human units [N26,V2]', { timeout: 90_000 }, async (t) 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats?.flow && document.querySelector('#proof-stats-summary')");
     const actual = JSON.parse(await chrome.stable('JSON.stringify([42,213.9,5707.5,null,59.6,1439.6].map(flowMinutes))'));
     assert.deepEqual(actual, ['42 min', '3 h 34 min', '3 d 23 h', 'unmeasured', '1 h 0 min', '1 d 0 h'], 'the actual production formatter rounds fixed inputs, including unit boundaries, without altering the API');
@@ -449,6 +464,7 @@ function stageFlowBoard(box, alpha) {
   const digest = 'a'.repeat(64);
   /** Apply one native move at a known minute offset in this fixture's private board. */
   const at = (minute, write) => earlier(alpha.repo, base + minute * 60_000, write);
+  for (const n of [2, 3]) box.git(alpha.repo, 'worktree', 'add', '-q', join(box.dir, 'flow-builder-' + n), '-b', 'web/flow-builder-' + n);
   at(0, board => store.register(board, { lane: 'tests', path: join(box.dir, 'flow-reviewer') }));
   for (const n of [2, 3]) at(0, board => store.register(board, { lane: 'web', path: join(box.dir, 'flow-builder-' + n) }));
   at(0, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item 1', specIds: ['G1'], criterion: 'Known flow' }));
@@ -468,6 +484,9 @@ function stageFlowBoard(box, alpha) {
   for (const id of [2, 3, 4, 5]) at(100, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item ' + id, specIds: ['G1'], criterion: 'Known flow' }));
   claim(3, 110); claim(4, 110); claim(5, 110);
   submit(4, 115); submit(5, 115); review(5, 117, 119);
+  // One recent shout gives the Shouts feed a run of rows to name Today, which the unchanged-refresh criterion renames at midnight.
+  at(119, board => store.shout(board, { from: 'web-1', to: 'all', text: 'Flow fixture is live.', lanes: ['web'] }));
+  for (const n of [2, 3]) box.run(join(box.dir, 'flow-builder-' + n), 'heartbeat');
 }
 
 test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { timeout: 90_000 }, async t => {
@@ -488,6 +507,8 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
     assert.equal(api.bottleneck.stage, 'reviewWait');
     assert.equal(api.bottleneck.recommendation, 'review the oldest submission first (#4)');
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor('!!data?.project?.proofStats');
     await pickProject(chrome, 'document.querySelector(' + JSON.stringify('[data-root="' + alpha.repo + '"]') + ')');
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo) + ' && !!document.querySelector("[data-stage=build]")');
@@ -536,7 +557,7 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
     assert.notEqual(backgrounds.light, backgrounds.dark, 'both color themes were rendered');
     await pickProject(chrome, 'document.querySelector(' + JSON.stringify('[data-root="' + empty.repo + '"]') + ')');
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(empty.repo));
-    const blank = JSON.parse(await chrome.stable(`JSON.stringify({ stages:[...document.querySelectorAll('[data-stage]')].map(node => node.textContent), oldest:[...document.querySelectorAll('[data-oldest]')].map(node => node.textContent), action:document.querySelector('[data-flow=recommendation]')?.textContent ?? null, message:document.querySelector('[data-flow=bottleneck]')?.textContent, api:data.project.proofStats.flow })`));
+    const blank = JSON.parse(await chrome.stable(`JSON.stringify({ stages:[...document.querySelectorAll('#proof-stats [data-stage]')].map(node => node.textContent), oldest:[...document.querySelectorAll('#proof-stats [data-oldest]')].map(node => node.textContent), action:document.querySelector('#proof-stats [data-flow=recommendation]')?.textContent ?? null, message:document.querySelector('#proof-stats [data-flow=bottleneck]')?.textContent, api:data.project.proofStats.flow })`));
     assert.deepEqual(blank.stages, Array(4).fill('unmeasured'), 'missing measurements are not invented zeroes');
     assert.deepEqual(blank.oldest, Array(4).fill('Oldest: none'));
     assert.equal(blank.action, null, 'no action is invented without an API recommendation');
@@ -563,6 +584,8 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo) + ' && !!document.querySelector("[data-oldest=open]")');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('#proof-stats-summary')");
@@ -583,7 +606,7 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
       const oldest = document.querySelector('[data-oldest=open]');
       return JSON.stringify({ redraws: window.__redraws, newer: data.project.proofStats.flow.asOf > before,
         kept: window.__kept.every((node) => node.isConnected), scroll: [scrollX, scrollY], start: window.__scroll,
-        shown: { value: oldest.dataset.value, text: oldest.textContent }, api: data.project.proofStats.flow.queues.open.oldest });
+        shown: oldest ? { value: oldest.dataset.value, text: oldest.textContent } : null, api: data.project.proofStats.flow.queues.open.oldest });
     })()`));
     for (let read = 1; read <= 3; read += 1) {
       await chrome.stable('new Promise((resolve) => setTimeout(() => resolve(true), 5))');
@@ -596,13 +619,23 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
       // What reads relative to now still follows the newest observation, without a redraw.
       assert.deepEqual(after.shown, { value: String(after.api.ageMinutes), text: 'Oldest: #' + after.api.id + ' · ' + displayDuration(after.api.ageMinutes) }, `read ${read}: the oldest age is the newest observation's`);
     }
+    // The Shouts feed draws only on its own tab, so open it for the day names below and count redraws from there.
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await chrome.waitFor("!!document.querySelector('#feed .conversation-row')");
+    await chrome.stable(`(() => {
+      window.__redraws = 0;
+      window.__kept = [...document.querySelectorAll('#tabs .tab, #feed .conversation-row')];
+      window.__scroll = [scrollX, scrollY];
+      return true;
+    })()`);
     // Past midnight, an unchanged read still draws nothing, and the day the page named Today is renamed Yesterday in
     // place, the shouts gaining the rule above it they leave off for today: the page's clock moves a day on, alone.
     const days = `JSON.stringify({ headings: [...document.querySelectorAll('.feed .day')].map((node) => node.textContent),
       rules: [...document.querySelectorAll('#feed > .day-rule span')].map((node) => node.textContent),
-      untopped: (() => { const first = document.querySelector('#feed .shout'); return Boolean(first) && !first.previousElementSibling?.classList.contains('day-rule'); })() })`;
+      untopped: (() => { const first = document.querySelector('#feed .shout, #feed .conversation-row'); return Boolean(first) && !first.previousElementSibling?.classList.contains('day-rule'); })() })`;
     const today = JSON.parse(await chrome.stable(days));
-    assert.ok(today.headings.includes('Today'), `the page names today's run of rows Today: ${JSON.stringify(today)}`);
+    // Today's run of shouts carries no label at its top (dayRules in connect.js), so it is the run that midnight must label.
+    assert.deepEqual([today.headings, today.rules, today.untopped], [[], [], true], `today's run of rows is unlabelled at the top of the feed: ${JSON.stringify(today)}`);
     await chrome.stable(`(() => {
       const Real = Date;
       window.Date = class extends Real {
@@ -624,6 +657,15 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
       'the shouts gain one rule, Yesterday, above what is no longer today');
     assert.equal(renamed.untopped, false, 'no shout run is left without its day');
     await chrome.stable('(() => { window.Date = Object.getPrototypeOf(window.Date); return true; })()');
+    // Back on Items, where the control was written, count again from a quiet page.
+    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("!!document.querySelector('[data-oldest=open]')");
+    await chrome.stable(`(() => {
+      window.__redraws = 0;
+      window.__kept = [...document.querySelectorAll('#tabs .tab, #proof-stats-summary, #chain > li, [data-oldest]')];
+      window.__scroll = [scrollX, scrollY];
+      return true;
+    })()`);
     // A changed board still redraws, once: the page's own stream catch-up and a further read together draw it once.
     box.run(alpha.repo, 'shout', 'person', 'refresh redraw control');
     await chrome.waitFor("data.project.shouts.some((shout) => shout.shout_text === 'refresh redraw control')");

@@ -50,23 +50,28 @@ const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../apps/c
 
 /**
  * True when this `pullboard test` call belongs to an agent seat and so queues instead of blocking: a joined seat
- * (not the main checkout) inside an agent shell, with no `--wait`, and not itself a queued run's worker.
+ * (not the main checkout), not machine work, and not itself a queued run's worker. A seat holding a claim always
+ * queues, whatever `--wait`, PULLBOARD_TEST_WAIT or its shell says; a seat holding none queues only inside an agent
+ * shell without either.
  *
- * Why the agent-shell check: a person or a script in a seat worktree keeps the blocking answer it always had, and
- * PULLBOARD_TEST_WAIT lets any wrapper (an item check that runs pullboard test) keep it too.
+ * Why the claim decides: about 80 `pullboard test --wait` processes, each an agent waiting on runner results, ran the
+ * coordinator Mac out of memory on 11 Nov, and ssh-launched seats carry no agent marker. A claim is board state no
+ * shell can lose; a person or a script with no claim keeps the blocking answer it always had [P7].
  *
  * @param {any} ctx
  * @param {string|undefined} agent - The seat's agent id, or undefined when the checkout has no seat.
  * @param {Record<string, any>} values - The parsed switches.
  * @param {NodeJS.ProcessEnv} [environment]
- * @param {{ alive?: (pid: number) => boolean, pid?: number }} [options]
+ * @param {{ alive?: (pid: number) => boolean, pid?: number, claimed?: boolean }} [options] - `claimed`: the seat holds
+ *   at least one live build claim.
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid } = {}) {
-  if (values.wait === true || values['test-run'] !== undefined || environment.PULLBOARD_TEST_WAIT === '1') return false;
-  if (ctx.info.isMain || agent === undefined) return false;
-  if (!AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]))) return false;
-  return machineContext(environment, { alive, pid }) === null;
+export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
+  if (values['test-run'] !== undefined || ctx.info.isMain || agent === undefined) return false;
+  if (machineContext(environment, { alive, pid }) !== null) return false;
+  if (claimed) return true;
+  if (values.wait === true || environment.PULLBOARD_TEST_WAIT === '1') return false;
+  return AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]));
 }
 
 /**
@@ -111,11 +116,25 @@ function workerLog(ctx, id) {
 }
 
 /**
+ * The item a test run records on its job: the one `--item` names, else the item folder the command runs in when the
+ * seat holds that claim, else the seat's sole claim. Why: a seat with several claims running from one item folder
+ * left the job with no item, so the stale sweep could not see its run in flight (#6130).
+ *
+ * @param {{ named?: number, folder?: number | null, claims?: number[] }} from
+ * @returns {number | undefined}
+ */
+export function testRunItem({ named, folder = null, claims = [] }) {
+  if (named !== undefined) return named;
+  if (folder !== null && claims.includes(folder)) return folder;
+  return claims.length === 1 ? claims[0] : undefined;
+}
+
+/**
  * Record a queued run on the board and start its detached worker. Returns at once with the run id.
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, files: string[], affected?: boolean, compareMain?: boolean }} run
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number }} [options]
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
@@ -124,13 +143,13 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   const log = workerLog(ctx, id);
   withBoard(board => {
     createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
-    writeStep(board.db, id, 'queued', { agent: run.agent, files: run.files, affected: run.affected === true,
+    writeStep(board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
   });
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
-    const args = [BIN, 'test', '--test-run', id, ...run.files,
+    const args = [BIN, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.

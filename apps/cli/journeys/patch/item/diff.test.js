@@ -23,18 +23,18 @@ const PLAIN = '--- a/web/value.txt\n+++ b/web/value.txt\n@@ -1 +1 @@\n-before\n+
 const CANONICAL = 'diff --git a/web/value.txt b/web/value.txt\n' + PLAIN;
 
 /** Capture a real successful CLI command rather than substituting a patch writer. */
-function run(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+async function run(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args, '--json');
   assert.equal(result.code, 0, result.err + result.out);
   return JSON.parse(result.out);
 }
 
 /** A real submitted fixture with an existing regular file owned by its native web author. */
-function fixture(t) {
+async function fixture(t) {
   const box = helpers.project('true');
-  const item = run(box, box.repo, 'add', 'web', 'Plain companion', '--specs', 'G1').item.item_id;
-  const author = run(box, box.web, 'whoami').id;
-  run(box, box.web, 'claim', String(item));
+  const item = (await run(box, box.repo, 'add', 'web', 'Plain companion', '--specs', 'G1')).item.item_id;
+  const author = (await run(box, box.web, 'whoami')).id;
+  await run(box, box.web, 'claim', String(item));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/value.txt'), 'before\n');
   box.git(box.web, 'add', 'web/value.txt');
@@ -47,10 +47,10 @@ function fixture(t) {
   return { ...box, item, author, source, board };
 }
 
-test('plain diffs attach with canonical bytes and compose identically to Git headers [V4,H16]', t => {
-  const box = fixture(t), file = join(box.dir, 'plain.patch');
+test('plain diffs attach with canonical bytes and compose identically to Git headers [V4,H16]', async t => {
+  const box = await fixture(t), file = join(box.dir, 'plain.patch');
   writeFileSync(file, PLAIN);
-  const attached = run(box, box.repo, 'patch', 'attach', String(box.item), file, '--key', 'plain', '--author', box.author, '--source', box.source);
+  const attached = await run(box, box.repo, 'patch', 'attach', String(box.item), file, '--key', 'plain', '--author', box.author, '--source', box.source);
   assert.equal(attached.changed, true);
   const [record] = store.itemPatches(box.board, box.item);
   assert.equal(record.patch, CANONICAL);
@@ -64,15 +64,15 @@ test('plain diffs attach with canonical bytes and compose identically to Git hea
   assert.equal(box.git(box.repo, 'show', `${actual.commit}:web/value.txt`).trim(), 'after');
   assert.equal(box.git(box.web, 'status', '--porcelain=v1'), before, 'composition does not mutate the builder checkout');
   writeFileSync(file, CANONICAL);
-  const retry = run(box, box.repo, 'patch', 'attach', String(box.item), file, '--key', 'plain', '--author', box.author, '--source', box.source);
+  const retry = await run(box, box.repo, 'patch', 'attach', String(box.item), file, '--key', 'plain', '--author', box.author, '--source', box.source);
   assert.equal(retry.changed, false, 'canonical retry binds the same immutable key and bytes');
   assert.equal(store.itemPatches(box.board, box.item).length, 1);
 });
 
-test('plain mismatched paths refuse without attaching or changing the native source [V4,H16]', t => {
-  const box = fixture(t), file = join(box.dir, 'mismatch.patch');
+test('plain mismatched paths refuse without attaching or changing the native source [V4,H16]', async t => {
+  const box = await fixture(t), file = join(box.dir, 'mismatch.patch');
   writeFileSync(file, PLAIN.replace('+++ b/web/value.txt', '+++ b/web/other.txt'));
-  const result = box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mismatch', '--author', box.author, '--source', box.source, '--json');
+  const result = await box.runLocal(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mismatch', '--author', box.author, '--source', box.source, '--json');
   assert.equal(result.code, 1);
   assert.equal(JSON.parse(result.out).error.code, 'ITEM_PATCH_FORMAT');
   assert.deepEqual(store.itemPatches(box.board, box.item), []);

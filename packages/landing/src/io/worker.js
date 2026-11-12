@@ -74,6 +74,8 @@ export function assertWorkerFence(board, fence, root) {
 }
 import { assertLandingLease } from '../../../store/index.js';
 import { landingLeaseState } from '../../../store/index.js';
+import { LANDING_LEASE_MS } from '../../../store/index.js';
+import { LANDING_LOCAL_PREFIX } from '../../../store/index.js';
 import { DatabaseSync } from 'node:sqlite';
 
 /** The environment name of the token a landing's timed gate workers carry on their command line, for its guardian to find them by. */
@@ -145,17 +147,79 @@ export function leaseLapsed(boardFile, leaseToken, now = Date.now()) {
   finally { try { db?.close(); } catch { /* Already closed. */ } }
 }
 
-/** The guardian process body: stop the landing's gate workers when the command's channel closes, the deadline lapses, or the board's lease has. */
+/** How long the guardian keeps renewing for a lander that sends it nothing: the landing's default stall limit [C7,#5770]. */
+export const GUARDIAN_RENEW_MS = 600_000;
+
+/**
+ * Extend one landing's local heartbeat from its guardian, off the lander's event loop, and return the new deadline in ms;
+ * null when nothing changed. Only a lease the board still names, with a heartbeat that has not lapsed, is extended, so a
+ * lapsed or released lease is never revived; a busy or unreadable board is tried again on the next tick.
+ * Why: the lander's synchronous Git and board work under load starved its 5 s heartbeat past the 2-minute lease, and
+ * the lost lease crashed the lander mid-batch (#5770).
+ */
+export function renewGuardedHeartbeat(boardFile, leaseToken, now = Date.now()) {
+  let db;
+  try {
+    db = new DatabaseSync(boardFile);
+    db.exec('PRAGMA busy_timeout = 1000');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const key = LANDING_LOCAL_PREFIX + leaseToken;
+      const row = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
+      const local = row && JSON.parse(row.meta_value);
+      const holder = landingLeaseState({ db }).holder;
+      if (holder?.token !== leaseToken || !local || !(Date.parse(local.until) > now)) { db.exec('ROLLBACK'); return null; }
+      const until = Math.max(Date.parse(local.until), now + LANDING_LEASE_MS);
+      db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify({ ...local, until: new Date(until).toISOString() }), key);
+      db.exec('COMMIT');
+      return until;
+    } catch (error) { try { db.exec('ROLLBACK'); } catch { /* Not in a transaction. */ } throw error; }
+  } catch { return null; }
+  finally { try { db?.close(); } catch { /* Already closed. */ } }
+}
+
+/** The board's own deadline for a landing's lease in ms, or null when the board names another holder or cannot be read. */
+function boardDeadline(boardFile, leaseToken) {
+  let db;
+  try {
+    db = new DatabaseSync(boardFile, { readOnly: true });
+    const holder = landingLeaseState({ db }).holder;
+    return holder?.token === leaseToken ? Date.parse(holder.until) : null;
+  } catch { return null; }
+  finally { try { db?.close(); } catch { /* Already closed. */ } }
+}
+
+/**
+ * The guardian process body: stop the landing's gate workers when the command's channel closes, the deadline lapses, or the
+ * board's lease has. Every 5 s it also renews the lease's heartbeat while the command has spoken within GUARDIAN_RENEW_MS, and
+ * a passed IPC deadline defers to the board's own while the board still names the lease, so a lander whose event loop is
+ * blocked by synchronous work keeps its lease; a dead command still ends it at once through the closed channel [C7,#5770].
+ */
 export function guardianMain(token, { boardFile = null, leaseToken = null } = {}) {
   let deadline = Infinity;
   let finishing = false;
+  let heard = Date.now();
   /** Stop the gates once, then leave. */
   const act = () => { if (finishing) return; finishing = true; void stopRegisteredGates(token).finally(() => process.exit(0)); };
   process.on('message', message => {
+    heard = Date.now();
     if (message?.end) { finishing = true; process.exit(0); }
     if (Number.isFinite(message?.deadline)) deadline = message.deadline;
   });
   process.on('disconnect', act);
-  setInterval(() => { if (Date.now() >= deadline) act(); }, 250);
-  if (boardFile && leaseToken) setInterval(() => { if (!finishing && leaseLapsed(boardFile, leaseToken)) act(); }, 1000);
+  // A command killed while this guardian was still importing closed the channel before the listener above existed; without
+  // this check the guardian outlived it until the lease expired, and the next landing waited the whole 2 minutes (#5738).
+  if (!process.connected) act();
+  setInterval(() => {
+    if (finishing || Date.now() < deadline) return;
+    const board = boardFile && leaseToken ? boardDeadline(boardFile, leaseToken) : null;
+    if (board > Date.now()) deadline = board; else act();
+  }, 250);
+  if (!boardFile || !leaseToken) return;
+  let tick = 0;
+  setInterval(() => {
+    if (finishing) return;
+    if (leaseLapsed(boardFile, leaseToken)) { act(); return; }
+    if (++tick % 5 === 0 && Date.now() - heard <= GUARDIAN_RENEW_MS) renewGuardedHeartbeat(boardFile, leaseToken);
+  }, 1000);
 }
