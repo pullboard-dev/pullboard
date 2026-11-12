@@ -538,7 +538,7 @@ test('gate source changes still select the static failure regression [C7]', () =
   const root = join(import.meta.dirname, '../../../../..');
   const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['packages/gate/src/io/main.js'] });
   assert.equal(selection.full, false, selection.reason);
-  assert.ok(selection.files.includes('apps/cli/journeys/submit/gate.test.js'),
+  assert.ok(selection.files.includes('apps/cli/journeys/submit/gate/sandbox.test.js'),
     'the test that imports refuseSandboxBlocked stays selected for gate changes');
 });
 
