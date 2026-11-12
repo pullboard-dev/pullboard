@@ -182,7 +182,7 @@ import { writeFileSync } from 'node:fs';
 const db = new DatabaseSync(${JSON.stringify(file)});
 db.exec('BEGIN IMMEDIATE');
 writeFileSync(${JSON.stringify(locked)}, 'x');
-Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 16000); // budget: outlast SQLite's 10 s timeout plus the 2 s queue bound.
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 45000); // budget: outlast SQLite's 10 s timeout plus the 2 s queue bound.
 db.exec('ROLLBACK');
 `);
   const hooks = join(box.repo, '.git', 'hooks');
