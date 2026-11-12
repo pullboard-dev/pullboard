@@ -26,7 +26,7 @@ import {
 } from '../../../tests/fixtures/runner/ssh.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -53,7 +53,7 @@ function runnerProject({ healthDown = false } = {}) {
   for (const path of [worker, sshBin, remoteHome, remoteMachine]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, starts, healthDown, workerHealthDown: healthDown });
   box.env.PATH = `${sshBin}:${box.env.PATH}`;
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
     runners: healthDown ? [] : [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 1000 } : {}) } });
   return { box, marker, remoteHome, starts, main: box.git(box.repo, 'rev-parse', 'HEAD') };
 }
