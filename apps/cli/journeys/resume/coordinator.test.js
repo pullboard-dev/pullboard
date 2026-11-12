@@ -112,7 +112,7 @@ function addBuilder(box, name) {
 async function addAndClaim(box, cwd, title, row) {
   const brief = `Files:\n- web/fixture.txt\nTest:\n- inspect the committed fixture history`;
   const added = fixtureAdd(box.run, box.repo, 'web', title, '--route', 'strong', '--specs', row,
-    '--criterion', 'the cited row holds', '--check', 'true', '--brief', brief);
+    '--criterion', 'the cited row holds', '--check', 'true', '--accept-green', 'fixture row; the check is a guard', '--brief', brief);
   assert.equal(added.code, 0, added.err || added.out);
   const id = Number(/#(\d+)/u.exec(added.out)?.[1]);
   assert.ok(id > 0, added.out);
