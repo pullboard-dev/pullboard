@@ -51,7 +51,8 @@ process.exitCode = ran.status;
 
 test('clause 1: a pulled gate receipt red only in a test the person waived submits waived, not green; an expired waiver leaves it red [B3,R3,P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, two submits and two whole gates in runner processes.
 async t => {
-  const box = await pullProject(t, 1, { tooling: { 'bin/proof.js': PROOF,
+  // The proof sits in a tests folder, where naming its test runner is a test's own business, not core code's [C7].
+  const box = await pullProject(t, 1, { tooling: { 'bin/proof.js': "import './tests/proof.js';\n", 'bin/tests/proof.js': PROOF,
     [WAIVED]: "import { test } from 'node:test';\ntest('waived case', () => { throw new Error('waived'); });\n",
     'packages/gate/index.js': `${TOOLING['packages/gate/index.js']}export { accountedFailures, timingAccountingStages, timingSource, TIMING_RUN_ID_ENV } from ${JSON.stringify(GATE)};\n` } });
   const [id] = box.ids;
