@@ -39,13 +39,13 @@ after(e2e.cleanup);
  * @param {any} box
  * @param {string} session the session id
  * @param {() => T} work
- * @returns {T}
+ * @returns {Promise<T>}
  */
-function as(box, session, work) {
+async function as(box, session, work) {
   const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
   box.env.CLAUDECODE = '1';
   box.env.CLAUDE_CODE_SESSION_ID = session;
-  try { return work(); }
+  try { return await work(); }
   finally {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete box.env[name];
@@ -62,10 +62,10 @@ function as(box, session, work) {
  * @param {string} session
  * @returns {{ root: string, id: string }}
  */
-function seat(box, name, session) {
+async function seat(box, name, session) {
   const root = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', root, '-b', `web/${name}`);
-  const joined = as(box, session, () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL }));
+  const joined = await as(box, session, () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL, run: box.runLocal }));
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { root, id: JSON.parse(joined.out).agent };
 }
@@ -81,19 +81,19 @@ function binding(box, root) {
  *
  * @returns {{ box: any, id: string, first: { root: string, id: string }, folder: string }}
  */
-function priorFolder() {
+async function priorFolder() {
   const box = e2e.project();
-  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Adopted folder', check: 'true', args: ['--specs', 'G1'] });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Adopted folder', check: 'true', args: ['--specs', 'G1'], run: box.runLocal });
   const id = String(item.item_id);
-  const first = seat(box, 'web-a', 'session-a');
-  const folder = as(box, 'session-a', () => {
-    const claimed = box.run(first.root, 'claim', id);
+  const first = await seat(box, 'web-a', 'session-a');
+  const folder = await as(box, 'session-a', async () => {
+    const claimed = await box.runLocal(first.root, 'claim', id);
     assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     const path = /item folder: (.+)/u.exec(claimed.out)?.[1];
     assert.ok(path, claimed.out);
     const committed = e2e.commitFile(box, path, 'web/kept.txt', 'kept work\n', 'feat(web): kept prior work [G1]');
     assert.equal(committed.status, 0, committed.stderr);
-    const released = box.run(first.root, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
+    const released = await box.runLocal(first.root, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
     assert.equal(released.code, 0, `${released.out}\n${released.err}`);
     return path;
   });
@@ -102,15 +102,27 @@ function priorFolder() {
   return { box, id, first, folder };
 }
 
+test('clause 1: a claim moves a clean idle item folder from a seat that still has a live session and holds no claim, through the real claim [B3,C7]', async () => {
+  const { box, id, folder } = await priorFolder();
+  const second = await seat(box, 'web-b', 'session-b');
+  const claimed = await as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
+  assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
+  const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
+  assert.ok(adopted && adopted !== folder, claimed.out);
+  assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
+  assert.equal(box.git(adopted, 'branch', '--show-current'), `web/item-${id}`, 'the branch is kept');
+  assert.equal(binding(box, adopted).agent, second.id);
+});
+
 /**
  * Run `work` on a PATH that has every tool the box's PATH has except lsof, as a runner without it does.
  *
  * @template T
  * @param {any} box
- * @param {() => T} work
- * @returns {T}
+ * @param {() => Promise<T>} work
+ * @returns {Promise<T>}
  */
-function withoutLsof(box, work) {
+async function withoutLsof(box, work) {
   const [shims, ...rest] = box.env.PATH.split(delimiter);
   const bin = join(box.dir, 'bin-without-lsof');
   mkdirSync(bin, { recursive: true });
@@ -124,43 +136,28 @@ function withoutLsof(box, work) {
   }
   const previous = box.env.PATH;
   box.env.PATH = [shims, bin].join(delimiter);
-  try { return work(); } finally { box.env.PATH = previous; }
+  try { return await work(); } finally { box.env.PATH = previous; }
 }
 
-/**
- * A second seat claims the released item and must adopt its clean idle folder, with lsof present or absent from the PATH.
- *
- * @param {boolean} noLsof
- */
-function adoptsIdleFolder(noLsof) {
-  const { box, id, folder } = priorFolder();
-  const second = seat(box, 'web-b', 'session-b');
-  const claim = () => {
-    if (noLsof) assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
+test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', async () => {
+  const { box, id, folder } = await priorFolder();
+  const second = await seat(box, 'web-b', 'session-b');
+  const claimed = await withoutLsof(box, async () => {
+    assert.equal(box.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof'))), false, 'lsof is absent from the PATH');
     return as(box, 'session-b', () => box.run(second.root, 'claim', id));
-  };
-  const claimed = noLsof ? withoutLsof(box, claim) : claim();
+  });
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
   assert.ok(adopted && adopted !== folder, claimed.out);
   assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
-  assert.equal(box.git(adopted, 'branch', '--show-current'), `web/item-${id}`, 'the branch is kept');
   assert.equal(binding(box, adopted).agent, second.id);
-}
-
-test('clause 1: a claim moves a clean idle item folder from a seat that still has a live session and holds no claim, through the real claim [B3,C7]', () => {
-  adoptsIdleFolder(false);
 });
 
-test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', () => {
-  adoptsIdleFolder(true);
-});
-
-test('clause 2: a dirty folder of a live seat is never touched and the refusal names that seat [B3,C7]', () => {
-  const { box, id, first, folder } = priorFolder();
+test('clause 2: a dirty folder of a live seat is never touched and the refusal names that seat [B3,C7]', async () => {
+  const { box, id, first, folder } = await priorFolder();
   writeFileSync(join(folder, 'scratch.txt'), 'unsaved\n');
-  const second = seat(box, 'web-b', 'session-b');
-  const claimed = as(box, 'session-b', () => box.run(second.root, 'claim', id));
+  const second = await seat(box, 'web-b', 'session-b');
+  const claimed = await as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
   const all = `${claimed.out}\n${claimed.err}`;
   assert.notEqual(claimed.code, 0, all);
   assert.match(all, new RegExp(`${first.id}'s live session`, 'u'));
@@ -171,12 +168,13 @@ test('clause 2: a dirty folder of a live seat is never touched and the refusal n
 const lsofOnPath = process.env.PATH.split(delimiter).some((dir) => existsSync(join(dir, 'lsof')));
 
 test('clause 2: a folder with a process inside it is never touched and the refusal names its seat [B3,C7]', { skip: !lsofOnPath && 'lsof is not installed here, so a process inside a folder is unknown' }, async () => {
-  const { box, id, first, folder } = priorFolder();
-  const holder = spawn(process.execPath, ['-e', "console.log('ready'); setInterval(() => {}, 1000)"], { cwd: folder, stdio: ['ignore', 'pipe', 'ignore'] });
+  const { box, id, first, folder } = await priorFolder();
+  // Process-level case: a real child process must sit inside the folder; `sleep` is not a CLI or node launch.
+  const holder = spawn('/bin/sh', ['-c', 'echo ready; exec sleep 300'], { cwd: folder, stdio: ['ignore', 'pipe', 'ignore'] });
   try {
     await once(holder.stdout, 'data');
-    const second = seat(box, 'web-b', 'session-b');
-    const claimed = as(box, 'session-b', () => box.run(second.root, 'claim', id));
+    const second = await seat(box, 'web-b', 'session-b');
+    const claimed = await as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
     const all = `${claimed.out}\n${claimed.err}`;
     assert.notEqual(claimed.code, 0, all);
     assert.match(all, new RegExp(`${first.id}'s live session`, 'u'));

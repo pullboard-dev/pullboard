@@ -182,5 +182,9 @@ export { LEDGER_HOPS, LEDGER_VERSION, itemLedger, ledgerLines, pipelineLedger, t
 export { foldText, newFold } from './src/logic/activity.js';
 export { readSessions } from './src/io/logs.js';
 export { readPipelineLedger } from './src/io/ledger.js';
+export { nearestRank } from './src/logic/runners/rank.js';
+export { HEALTH_PAYLOAD_STEPS, HEALTH_STEP_NAMES, UP_GAP_MS, runnerHealth, runnerHealthLines } from './src/logic/runners/health.js';
+export { ABANDONED_AFTER_MS, WAIT_STEP_NAMES, runnerWaitLines, runnerWaits, waitRows } from './src/logic/runners/wait.js';
+export { readRunnerJobs } from './src/io/runners.js';
 export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
