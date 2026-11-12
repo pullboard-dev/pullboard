@@ -266,6 +266,14 @@ async function nextWithProgress(io, values, progress) {
         for (const reason of found.reasons ?? []) io.say(reason);
         sayReviewOffer(ctx, found); return 0;
       }
+      // "you hold" is printed only after this read finds the item claimed by this seat under a live lease; otherwise selection runs again [C7,#4056].
+      if (found.held && !found.review && !values.verify && !found.waitingOffer) {
+        const stillHeld = withBoardRead(ctx, board => {
+          const fresh = store.getItem(board, found.item.item_id);
+          return fresh?.item_status === 'claimed' && fresh.item_owner === whoAmI(ctx, board).id && fresh.item_lease_until > board.clock.now().toISOString();
+        });
+        if (!stillHeld) { values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.item.item_id])] }; continue; }
+      }
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
@@ -321,7 +329,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
-        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
+        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
