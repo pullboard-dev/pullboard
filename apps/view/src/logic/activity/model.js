@@ -110,7 +110,17 @@ export function activityModel(project, { words } = {}) {
   }
   if (pending.length) run(null);
   // A release may precede its matching claim; remove the earlier standalone row after pairing.
-  const ordered = rows.filter(row => !consumed.has(row.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const sorted = rows.filter(row => !consumed.has(row.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  // A landing is one row: a main move whose items each landed within a few minutes folds into those landed rows.
+  const folded = new Set();
+  for (const moved of sorted.filter(row => row.kind === 'main-moved' && Array.isArray(row.detail?.items) && row.detail.items.length)) {
+    const landed = moved.detail.items.map(id => sorted.find(row => row.kind === 'merged' && row.item?.id === id && !row.mainSha
+      && Math.abs(Date.parse(row.at) - Date.parse(moved.at)) <= 5 * 60_000));
+    if (!landed.every(Boolean)) continue;
+    for (const row of landed) row.mainSha = typeof moved.detail.sha === 'string' ? moved.detail.sha : null;
+    folded.add(moved.id);
+  }
+  const ordered = sorted.filter(row => !folded.has(row.id));
   // Consecutive "continued building" rows by one seat for one item read as one row: the latest time, and how many updates.
   const result = [];
   for (const row of ordered) {

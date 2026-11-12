@@ -441,7 +441,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         assert.doesNotMatch(collapsed.outsideDetail, /web-[12]|coordinator/, `${at}: collapsed Roadmap names agents only in the approved stage detail`);
         for (const row of collapsed.rows) {
           assert.doesNotMatch(row.outsideDetail, /web-[12]|coordinator/, `${at}: collapsed row headers add no names outside their stage detail`);
-          assert.deepEqual(row.stageDetails, [({ 'i:#1': 'by ' + expected.builder, 'i:#3': 'by ' + expected.unknown, 'i:#2': 'queued for the train' })[row.key]], `${at}: each row has exactly its one truthful stage detail`);
+          assert.deepEqual(row.stageDetails, [], `${at}: a Roadmap row shows only its stage chip; holders and routes stay in the opened detail`);
           assert.deepEqual([row.expanded, row.hidden, row.rendered], ['false', true, false], `${at}: collapsed details are hidden and unrendered`);
         }
         const roadmapRow = "document.querySelector('#roadmap .milestone-item[data-roadmap-key=\"i:#1\"]')";

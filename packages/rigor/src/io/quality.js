@@ -15,7 +15,8 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { loadMachineSettings } from '../../../config/index.js';
+import { scratchRoot } from '../../../config/index.js';
 import {
   dirname,
   join,
@@ -346,7 +347,7 @@ export function nodeTests(cwd, files) {
 
 /** A private shared clone, checked out at `commit` with hooks off; `move` checks out another. */
 function scratchClone(root, commit) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-rigor-quality-'));
+  const directory = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-quality-'));
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
   /** Check out a commit exactly, dropping anything a run wrote. */
