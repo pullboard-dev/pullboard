@@ -64,13 +64,13 @@ test('add accepts one cell, refuses three cells and records an explicit size ove
   const error = JSON.parse(refusal.out).error;
   assert.equal(error.code, 'ITEM_TOO_LARGE');
   assert.match(error.next, /one item per named cell.*alpha, beta, gamma/u);
-  const forced = (await json(box, 'add', 'web', 'Explicit scope', '--specs', 'G1', '--criterion', criterion, '--force-size', 'one compatibility transaction')).item;
+  const forced = (await json(box, 'add', 'web', 'Explicit scope', '--specs', 'G1', '--criterion', criterion, '--force-size', 'one compatibility transaction', '--as', 'person')).item;
   const shown = await json(box, 'show', String(forced.item_id));
   const note = shown.thread.find(entry => entry.type === 'fact' && entry.text?.startsWith('Criterion size override:'));
   assert.ok(note, 'override must be a native item fact');
   assert.match(note.text, /one compatibility transaction/u);
   assert.match(note.text, /"cells":\["alpha","beta","gamma"\]/u);
-  const blank = await fixtureAdd(box.runLocal, box.repo, 'web', 'Blank override', '--specs', 'G1', '--criterion', criterion, '--force-size', ' ', '--json');
+  const blank = await fixtureAdd(box.runLocal, box.repo, 'web', 'Blank override', '--specs', 'G1', '--criterion', criterion, '--force-size', ' ', '--as', 'person', '--json');
   assert.equal(JSON.parse(blank.out).error.code, 'ITEM_SIZE_REASON');
 });
 
