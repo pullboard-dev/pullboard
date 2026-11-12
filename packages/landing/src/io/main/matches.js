@@ -117,8 +117,12 @@ export function cachedFailureSignatures(outcome, file) {
     ? failures : undefined;
 }
 
-/** Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance. */
-export function failureSignatures(run, root, { raw = false, allowCancelled = false } = {}) {
+/**
+ * Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance.
+ * With `evidence`, each row also carries its assertion line, expected and actual values and stderr, for the filer of a Main red (#3090);
+ * rows compared for proof leave it off, because run-specific text must never take part in an equality.
+ */
+export function failureSignatures(run, root, { raw = false, allowCancelled = false, evidence = false } = {}) {
   let executionRoot = run.executionRoot ?? root;
   if (!run.executionRunner) {
     try { executionRoot = realpathSync(executionRoot); }
@@ -134,7 +138,7 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => {
       const error = firstError(details[index].lines, executionRoot);
-      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable, stableData: details[index].stableData } : {}), evidence: failureEvidence(details[index].all, executionRoot) };
+      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable, stableData: details[index].stableData } : {}), ...(evidence ? { evidence: failureEvidence(details[index].all, executionRoot) } : {}) };
     }) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }

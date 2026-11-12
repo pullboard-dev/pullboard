@@ -43,7 +43,7 @@ ${Array.from({ length: padding }, (_, line) => `    padding line ${line} ${'x'.r
 }
 
 /** The failure rows a red run of `output` accounts for. */
-const rowsOf = output => failureSignatures({ isGreen: false, executionRoot: '/repo', stages: [{ status: 1, output }] }, '/repo');
+const rowsOf = output => failureSignatures({ isGreen: false, executionRoot: '/repo', stages: [{ status: 1, output }] }, '/repo', { evidence: true });
 
 /** A real in-memory board with the coordinator seat and one lane that owns the file. */
 function fixture(t) {
