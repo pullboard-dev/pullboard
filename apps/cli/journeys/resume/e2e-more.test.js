@@ -32,12 +32,12 @@ const {
 } = e2e;
 
 /** File light work at mid, then route it light through the coordinator's diagnosis, as the board now requires. */
-function addDiagnosedLight(box, title, ...flags) {
-  const added = fixtureAdd(box.run, box.repo, 'web', title, ...flags);
+async function addDiagnosedLight(box, title, ...flags) {
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', title, ...flags);
   assert.equal(added.code, 0, added.err || added.out);
   const id = added.out.match(/^#(\d+)/m)?.[1];
   assert.ok(id, added.out);
-  const diagnosis = box.run(box.repo, 'fact', id, 'diagnosis', LIGHT_BRIEF);
+  const diagnosis = (await box.runLocal(box.repo, 'fact', id, 'diagnosis', LIGHT_BRIEF));
   assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
   return added;
 }
@@ -47,49 +47,49 @@ function fixtureCommand(box, cwd, ...args) {
   return runCliInProcess(fixtureAddRoute(fixtureJoinRoute([...args], box.env.PULLBOARD_MODEL)), { cwd, env: box.env });
 }
 
-test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', () => {
+test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Dependency', '--specs', 'G1');
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--after', '1');
-  const second = box.run(box.repo, 'worktree', 'web').out.match(/^made (\S+) /)[1];
-  box.run(box.web, 'claim', '1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Dependency', '--specs', 'G1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--after', '1');
+  const second = (await box.runLocal(box.repo, 'worktree', 'web')).out.match(/^made (\S+) /)[1];
+  (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed dep.html; the page broke').out, /verified #1/);
+  assert.match((await box.runLocal(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed dep.html; the page broke')).out, /verified #1/);
   box.git(box.repo, 'switch', '-q', 'main');
-  box.run(second, 'claim', '2');
+  (await box.runLocal(second, 'claim', '2'));
   box.git(second, 'merge', '-q', '--ff-only', 'web/one');
   commitFile(box, second, 'web/page.html', 'page', 'feat(web): the page [G1]');
-  assert.equal(box.run(second, 'submit', '2').code, 0);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', '2', '--json').out).item_files, 'web/page.html');
+  assert.equal((await box.runLocal(second, 'submit', '2')).code, 0);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_files, 'web/page.html');
 });
 
-test('verify and escalate take a note from a file, exactly as written [V12]', () => {
+test('verify and escalate take a note from a file, exactly as written [V12]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
-  box.run(box.web, 'claim', '1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
+  (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
-  box.run(box.web, 'submit', '1');
+  (await box.runLocal(box.web, 'submit', '1'));
   const note = 'ran `npm test` with $HOME unset: "it failed"\nthen restored it';
   writeFileSync(join(box.dir, 'note.txt'), `${note}\n`);
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'x', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').err, /USAGE\] give the note once/);
-  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note-file', join(box.dir, 'nope.txt'), '--as', 'coordinator').err, /NO_FILE/);
-  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page renders.', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').out, /rejected #1/);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).verdicts[0].verdict_note, note);
+  assert.match((await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'x', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator')).err, /USAGE\] give the note once/);
+  assert.match((await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note-file', join(box.dir, 'nope.txt'), '--as', 'coordinator')).err, /NO_FILE/);
+  assert.match((await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page renders.', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator')).out, /rejected #1/);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).verdicts[0].verdict_note, note);
   box.git(box.repo, 'switch', '-q', 'main');
-  addDiagnosedLight(box, 'Light', '--route', 'mid', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
-  const light = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
-  box.run(light, 'claim', '2');
-  assert.match(box.run(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt')).out, /#2 escalated light -> mid/);
-  assert.match(box.run(box.repo, 'show', '2').out, /ran `npm test` with \$HOME unset: "it failed"/);
-  assert.match(box.run(box.repo, 'help', '--all').out, /--note-file <file>/);
+  await addDiagnosedLight(box, 'Light', '--route', 'mid', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
+  const light = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
+  (await box.runLocal(light, 'claim', '2'));
+  assert.match((await box.runLocal(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt'))).out, /#2 escalated light -> mid/);
+  assert.match((await box.runLocal(box.repo, 'show', '2')).out, /ran `npm test` with \$HOME unset: "it failed"/);
+  assert.match((await box.runLocal(box.repo, 'help', '--all')).out, /--note-file <file>/);
 });
 
-test('the help keeps every command description apart from its usage [N37]', () => {
+test('the help keeps every command description apart from its usage [N37]', async () => {
   const box = sandbox();
-  const help = box.run(box.dir, 'help', '--all').out;
+  const help = (await box.runLocal(box.dir, 'help', '--all')).out;
   const commandLines = help.split('\n').filter((line) => line.startsWith('  pullboard '));
   for (const line of commandLines) {
     const hasDescriptionGap = / {2,}\S/.test(line.slice('  pullboard '.length));
@@ -117,7 +117,7 @@ test('output into a reader that stops early ends quietly [N24]', async () => {
   child.stdout.destroy();
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk; });
-  const [code] = await awaitNestedRun(closed);
+  const [code] = awaitNestedRun(closed);
   assert.equal(stderr, '');
   assert.equal(code, 0);
 });
@@ -127,17 +127,17 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
   await view.stop();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
-  fixtureAdd(box.run, box.repo, 'web', 'Second', '--specs', 'G1', '--after', '1');
-  box.run(box.web, 'claim', '1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Second', '--specs', 'G1', '--after', '1');
+  (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
-  box.run(box.web, 'submit', '1');
-  const idle = box.run(box.web, 'next');
+  (await box.runLocal(box.web, 'submit', '1'));
+  const idle = (await box.runLocal(box.web, 'next'));
   assert.match(idle.out, /nothing for this seat: end your turn/, JSON.stringify(idle));
   assert.doesNotMatch(idle.out + idle.err, /--wait/);
-  assert.match(box.run(box.web, 'resume').out, /next: pullboard next; take another eligible review or other offered work, or end your turn if none is offered/);
-  box.run(box.repo, 'hold', 'web', '--reason', 'G1 is changing');
-  assert.match(box.run(box.web, 'resume').out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
+  assert.match((await box.runLocal(box.web, 'resume')).out, /next: pullboard next; take another eligible review or other offered work, or end your turn if none is offered/);
+  (await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is changing'));
+  assert.match((await box.runLocal(box.web, 'resume')).out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
   const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
   assert.match(agents, /If it prints "nothing for this seat: end your turn", end your turn/);
   assert.doesNotMatch(agents, /--wait 9/);
