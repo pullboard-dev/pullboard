@@ -832,7 +832,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         recordedRuns: withBoard(ctx, board => gateRuns(board)), execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
-      process.stderr.write(`DBGS proof compare ok ${comparison?.main}\n`);
+      { const it = withBoard(ctx, board => store.listItems(board, { all: true })); process.stderr.write(`DBGS id=${id} ${typeof id} items=${JSON.stringify(it.map(i => [i.item_id, i.item_title, i.item_status, i.item_check, Boolean(i.item_frozen), i.item_merged_commit]))} fail=${JSON.stringify(failures.map(f => [f.file, f.ran, f.name]))}\n`); }
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
       const matched = proofMainFailures(failures, comparison, mainFailureBase, { criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? held.item_criterion ?? '', check: frozenCheck(held) });
