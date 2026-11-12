@@ -386,9 +386,6 @@
   "apps/cli/journeys/verify/landing/reuse.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/check/self.test.js": {
-    "launch": 11
-  },
   "packages/runners/tests/logic/diagnostics/recovery.test.js": {
     "launch": 1
   },
