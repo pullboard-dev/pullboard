@@ -821,7 +821,7 @@ test('a board over the size limit is named with its size and the limit, beside a
   assert.match(mixed.words, /fixture\/repository[^.]*too (?:big|large)/iu, 'keep the size blocker beside the healthy board');
   assert.ok(mixed.words.includes(refusal.sealedBytes + ' bytes') && mixed.words.includes(refusal.limit + ' bytes'));
   box.legacySnapshotApi(false);
-  assert.equal((await box.cli('status')).code, 0, 'the offered bounded-snapshot upgrade actually resumes publication');
+  assert.equal((await box.cliLocal('status')).code, 0, 'the offered bounded-snapshot upgrade actually resumes publication');
   const recovered = await visit(paired, { route: front.route(session, null), phone: true }, true);
   assert.equal(recovered.board, true);
   assert.doesNotMatch(recovered.words, /too (?:big|large)|128 bytes/iu, 'a successful snapshot clears its stale size notice');
