@@ -5,6 +5,9 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { idProblems } from '../../../../../packages/spec/index.js';
 import { loadSpec } from '../../../../../packages/spec/index.js';
 import { checkBaseline } from '../../../../../packages/gate/index.js';
+import { prepareCheckBaseline } from '../../../../../packages/gate/index.js';
+import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
+import { launchBaseline } from '../add.js';
 import { refuseCheckSyntax } from '../../../../../packages/gate/index.js';
 import { sayCheckBaseline } from '../../../../../packages/gate/index.js';
 import { relayCommandReceipt } from '../../../../../packages/link/index.js';
@@ -24,7 +27,7 @@ import { defaultItemRoute } from '../../../../../packages/items/index.js';
 export async function run(io, { first, second, rest, values }) {
   return actOn(io, async (ctx, board, me) => {
     const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand, io);
-    let result;
+    let result, pending = null;
     if (recovered) {
       io.recordedMove = true;
       for (const event of recovered.events) io.onEvent?.(event);
@@ -42,10 +45,16 @@ export async function run(io, { first, second, rest, values }) {
       const plan = store.planCompanion(board, request);
       if (!plan.existing && plan.validated.command) {
         refuseCheckSyntax(plan.validated.command);
-        request.checkBaseline = checkBaseline(ctx.info.root, plan.validated.command);
+        // Under gate.runnersOnly the Mac never clones and runs the check: capture the request only and let the baseline
+        // worker measure it on a runner (or record it unavailable), as add and edit do [C7,E28,#5889].
+        request.checkBaseline = gateRunnerAdmission().runnerOnly === true
+          ? prepareCheckBaseline(ctx.info.root, plan.validated.command)
+          : checkBaseline(ctx.info.root, plan.validated.command);
       }
       result = await ordered(ctx, board, 'requestCompanion', [request]);
+      if (result.created && request.checkBaseline?.result === 'pending') pending = request.checkBaseline;
     }
+    if (pending) await launchBaseline(ctx, board, result.item, pending);
     const item = store.getItem(board, result.item);
     io.result?.({ item, created: result.created });
     io.say(`${result.created ? 'created' : 'existing'} companion #${item.item_id} in ${item.item_lane}; claim that item before building it`);

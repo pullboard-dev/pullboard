@@ -1,17 +1,17 @@
 /** Time one named phase of a landing batch and say its elapsed milliseconds, so a slow landing names its phase [C7,B3]. */
 import { recordLandingSpan } from '../../../resources/index.js';
 
-/** The landing step span each said phase records: the merge composes, the gate proves, the push publishes [C7]. */
-const SPAN_PHASE = { merge: 'compose', gate: 'prove', 'lease check': 'lease check', push: 'publish' };
+/** The landing step span each said phase records: the merge composes, the gate proves, the push publishes; static checks and CLI smoke keep their span names [C7]. */
+const SPAN_PHASE = { merge: 'compose', gate: 'prove', 'lease check': 'lease check', push: 'publish', 'static checks': 'static', 'cli smoke': 'smoke' };
 
 /** The line a timed phase says, and the test reads: the phase name and its milliseconds. */
-export const PHASE_LINE = /^landing phase (merge|gate|lease check|push): (\d+) ms$/u;
+export const PHASE_LINE = /^landing phase (merge|static checks|cli smoke|gate|lease check|push): (\d+) ms$/u;
 
 /**
  * Run a phase and say how long it took, even when it throws, and record it as a landing step span.
  * Why: one 300 s hang ceiling hid which of merge, gate, guardian lease check and push ate the time.
  * @param {(line: string) => void} say
- * @param {'merge'|'gate'|'lease check'|'push'} name
+ * @param {'merge'|'static checks'|'cli smoke'|'gate'|'lease check'|'push'} name
  * @param {() => any} work
  * @returns {Promise<any>} whatever the work returns
  */

@@ -44,7 +44,7 @@ test('the additional-browser flag preserves string options and refuses unrelated
   const before = existsSync(file) ? readFileSync(file, 'utf8') : null;
   const calls = box.calls.length;
   for (const args of [['relay', 'recover', '--skip', '1'], ['relay', 'on', '--all'], ['relay', 'devices']]) {
-    const result = await box.cli(...args, '--new-browser');
+    const result = await box.cliLocal(...args, '--new-browser');
     assert.equal(result.code, 1);
     assert.equal(result.document.error.code, 'USAGE');
   }
@@ -65,7 +65,7 @@ test('repeat setup retains its device and cancelling another browser names the f
   const before = JSON.parse(readFileSync(file, 'utf8')).devices;
   const enrollments = box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length;
   assert.ok(enrollments > 0, 'the initial real enrollment was observed before testing idempotence');
-  const repeated = await box.cli('relay', 'on', '--all');
+  const repeated = await box.cliLocal('relay', 'on', '--all');
   assert.equal(repeated.code, 0);
   assert.equal(box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length, enrollments);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).devices, before);
@@ -80,5 +80,5 @@ test('repeat setup retains its device and cancelling another browser names the f
   assert.equal(after.pending, null);
   assert.deepEqual(after.devices, before, 'cancellation retains the first device exactly');
   assert.equal(after.devices[0].deviceId, device);
-  assert.equal((await box.cli('relay', 'pair')).code, 0, 'bare pairing still creates a computer-clone bundle');
+  assert.equal((await box.cliLocal('relay', 'pair')).code, 0, 'bare pairing still creates a computer-clone bundle');
 });

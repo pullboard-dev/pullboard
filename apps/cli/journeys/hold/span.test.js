@@ -1,5 +1,5 @@
 /** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/git/index.js packages/landing/index.js packages/landing/src/io/step/selection.js packages/store/index.js */
-/** A landing refused by a held test defect, or with nothing to select, holds the board for under a second [C7,#3333]. */
+/** A landing beside a recorded test defect, or with nothing to select, holds the board for under a second [C7,#3333]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -74,11 +74,11 @@ test('clause 1: a landing with nothing to select writes nothing and holds the bo
   assert.deepEqual(result.writes.filter(row => row.heldMs >= SECOND_MS), [], 'no recorded hold reaches a second');
 });
 
-test('clause 2: a landing refused by LAND_TEST_DEFECT writes nothing and holds the board for no second [C7,#3333]', () => {
+test('clause 2: a recorded test defect no longer refuses a landing, which writes nothing and holds the board for no second [C7,#3333,#5862]', () => {
   const result = landOnce(emptyProject(), { defect: true });
-  assert.equal(result.error?.code, 'LAND_TEST_DEFECT', JSON.stringify(result));
+  assert.equal(result.error, null, `a defect is a repair item, never a trunk hold: ${JSON.stringify(result)}`);
   assert.deepEqual(result.spans.filter(span => span.ms >= SECOND_MS), [], 'no write span reaches a second');
-  assert.deepEqual(result.spans, [], 'the refusal is decided before any board write');
+  assert.deepEqual(result.spans, [], 'with nothing to select, the landing opens no board write');
   assert.deepEqual(result.writes.filter(row => row.heldMs >= SECOND_MS), [], 'no recorded hold reaches a second');
 });
 

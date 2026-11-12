@@ -18,6 +18,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../child.js';
+import { runCliInProcess } from '../process.js';
 
 export const PRIVATE_CHANGELOG = `# Changelog\n\n## [0.8.7] - 2026-10-12\n\n### A new session\n\nThe latest headline paragraph.\n\n### Added\n\n- The detailed release list is not part of the resume.\n\n## [0.8.6] - 2026-10-11\n\n### See the flow\n\nThe middle headline paragraph.\n\n### Fixed\n\n- A detailed fix.\n\n## [0.8.5] - 2026-10-10\n\n### A prettier board\n\nThe previous release.\n`;
 export const LONG_CHANGELOG = `# Changelog\n\n## [0.8.9] - 2026-10-14\n\n### Nine\n\nNine paragraph.\n\n## [0.8.8] - 2026-10-13\n\n### Eight\n\nEight paragraph.\n\n## [0.8.7] - 2026-10-12\n\n### Seven\n\nSeven paragraph.\n\n## [0.8.6] - 2026-10-11\n\n### Six\n\nSix paragraph.\n\n## [0.8.5] - 2026-10-10\n\n### Five\n\nFive paragraph.\n\n## [0.8.4] - 2026-10-09\n\n### Added\n\nThis category heading is not a release headline.\n`;
@@ -63,6 +64,8 @@ export function releaseFixture(t, { previous = null, version = '0.8.7', changelo
   }
   /** Run the copied production CLI in the selected real checkout. */
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [join(cli, 'apps/cli/pullboard.js'), ...args], { cwd, env, encoding: 'utf8' });
+  /** The same call answered by the production dispatcher in this process, for cases that do not read the copied CLI's version or changelog. */
+  const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
   /** Run Git with this fixture's private identity and configuration. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const initialized = run(repo, 'init');
@@ -72,6 +75,6 @@ export function releaseFixture(t, { previous = null, version = '0.8.7', changelo
     mkdirSync(join(repo, '.git', 'pullboard-checkout'), { recursive: true });
     writeFileSync(record, `${previous}\n`);
   }
-  return { root, repo, run, git, env };
+  return { root, repo, run, runLocal, git, env };
 }
 

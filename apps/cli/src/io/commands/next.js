@@ -283,8 +283,15 @@ async function nextWithProgress(io, values, progress) {
           return 0;
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
-        io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        // An infrastructure stop is not the candidate's red: next gives the same instruction show does, and nothing to build (#4989).
+        const infraStop = returned?.gate?.code === 'GATE_INFRA_EXHAUSTED';
+        if (!infraStop) io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
         if (returned) {
+          if (infraStop) {
+            io.say(`infrastructure stop at ${String(returned.gate.commit).slice(0, 12)}, not a red on the candidate: GATE_INFRA_EXHAUSTED${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            io.say(`next: ${returned.gate.next ?? 'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'}`);
+            return 0;
+          }
           if (returned.gate) {
             io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
             for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
@@ -347,7 +354,7 @@ async function nextWithProgress(io, values, progress) {
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
-    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
+    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
     if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else {
