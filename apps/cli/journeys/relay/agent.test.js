@@ -219,9 +219,9 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   writeFileSync(shim, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
   chmodSync(shim, 0o700);
   const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
-  const oneItem = await box.cli('add', box.lane, 'agent one private review', '--criterion', 'the first verifier records its own decision');
-  const twoItem = await box.cli('add', box.lane, 'agent two private review', '--criterion', 'the second verifier records its own decision');
-  const workItem = await box.cli('add', box.lane, 'token-only agent work');
+  const oneItem = await box.cliLocal('add', box.lane, 'agent one private review', '--criterion', 'the first verifier records its own decision');
+  const twoItem = await box.cliLocal('add', box.lane, 'agent two private review', '--criterion', 'the second verifier records its own decision');
+  const workItem = await box.cliLocal('add', box.lane, 'token-only agent work');
   assert.equal(oneItem.code, 0, oneItem.failure ?? oneItem.stderr);
   assert.equal(twoItem.code, 0, twoItem.failure ?? twoItem.stderr);
   assert.equal(workItem.code, 0, workItem.failure ?? workItem.stderr);
@@ -293,7 +293,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const firstToken = scopedToken(box.linkFile, firstAgent);
   const secondToken = scopedToken(box.linkFile, secondAgent);
-  const list = await box.cli('relay', 'tokens');
+  const list = await box.cliLocal('relay', 'tokens');
   assert.equal(list.code, 0, list.failure ?? list.stderr);
   assert.deepEqual(list.document.tokens.map((row) => row.agent).sort(), ['coordinator', firstAgent, secondAgent].sort());
   const personState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -456,7 +456,7 @@ test('a token mint failure after registration preserves the agent for one clean 
   writeFileSync(shim, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
   chmodSync(shim, 0o700);
   const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
-  const item = await box.cli('add', box.lane, 'retry registered agent token fixture');
+  const item = await box.cliLocal('add', box.lane, 'retry registered agent token fixture');
   assert.equal(item.code, 0, item.failure ?? item.stderr);
   git(box.root, box.env, ['add', '-A']);
   git(box.root, box.env, ['commit', '-q', '-m', 'test: prepare token retry fixture']);
@@ -487,7 +487,7 @@ test('a token mint failure after registration preserves the agent for one clean 
   const linkState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.deepEqual(Object.keys(linkState.agentTokens).sort(), ['coordinator', agent].sort(), 'the private link cache holds one usable token for the registered agent beside the coordinator');
   const token = scopedToken(box.linkFile, agent);
-  const listed = await box.cli('relay', 'tokens');
+  const listed = await box.cliLocal('relay', 'tokens');
   assert.equal(listed.code, 0, listed.failure ?? listed.stderr);
   assert.deepEqual(listed.document.tokens.map((row) => row.agent).sort(), ['coordinator', agent].sort());
   assertMetadataOnly(listed.document, [token, linkState.token], 'retry inventory exposes metadata only');

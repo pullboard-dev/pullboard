@@ -22,7 +22,9 @@ import { selectAffectedTests } from '../../index.js';
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 /** Test files whose subject is the raw Chrome client itself, each with the written reason its raw calls are allowed [C7]. */
 const RAW_CLIENT_TESTS = new Map([
-  ['packages/gate/tests/io/clone.test.js', "tests the raw CDP client's own evaluate formats, labels and navigation errors"],
+  ['packages/gate/tests/io/clone/devtools.test.js', "tests the raw CDP client's own evaluate formats, labels and command errors"],
+  ['packages/gate/tests/io/clone/startup.test.js', "tests the raw Chrome client's own startup budget and diagnostics"],
+  ['packages/gate/tests/io/clone/wait.test.js', "tests the raw CDP client's own waits through navigation errors"],
 ]);
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 
