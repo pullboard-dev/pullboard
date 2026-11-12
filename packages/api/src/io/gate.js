@@ -11,7 +11,7 @@ import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
-import { withLandingPermit } from './landing.js';
+import { withLandingPermit } from './permit.js';
 import { landingGuardKey } from '../../../git/index.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
