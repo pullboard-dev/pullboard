@@ -18,5 +18,9 @@
     { "match": "^claude-([a-z][a-z-]*)-(\\d+)-(\\d+)$", "vendor": "Anthropic", "style": "versioned" },
     { "match": "^(?:gpt-|o\\d|codex)", "vendor": "OpenAI", "style": "acronym" },
     { "match": "^gemini", "vendor": "Google", "style": "title" }
+  ],
+  "vendorClasses": [
+    { "match": "anthropic|claude|opus|sonnet|haiku", "class": "anthropic" },
+    { "match": "openai|gpt|codex|^o\\d", "class": "openai" }
   ]
 }
