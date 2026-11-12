@@ -45,9 +45,9 @@ function staticProject(accepted = {}) {
 }
 
 /** Run the canonical staged checker itself; hook installation belongs to the coordinator's later change. */
-function runChecker(box) {
+function runChecker(box, checker = join(box.repo, 'packages/gate/src/io/changed/scripts/static.js')) {
   return spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
-    join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), '--staged-hook'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+    checker, '--staged-hook'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
 }
 
 /** Stage one source file and judge its exact index bytes. */
@@ -78,7 +78,7 @@ test('clause 1, clause 2: the repository pre-commit step splits a fixable bindin
   mkdirSync(join(box.repo, 'packages/gate'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/gate/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
   box.git(box.repo, 'add', 'packages/gate/two.js');
-  const step = () => runChecker(box);
+  const step = () => runChecker(box, CHECKER);
   const first = step();
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stderr, /pullboard pre-commit: fixed: split multi-binding import lines in packages\/gate\/two\.js and staged them/u);
