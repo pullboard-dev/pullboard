@@ -433,7 +433,10 @@ async function claimMore(ctx, values) {
   for (let tries = 0; tries < 10; tries += 1) {
     withBoardRead(ctx, board => {
       const me = whoAmI(ctx, board).id, items = store.listItems(board);
-      const held = new Set(items.filter(item => item.item_status === 'claimed' && item.item_owner === me).flatMap(item => store.itemFiles(item)));
+      const mine = items.filter(item => item.item_status === 'claimed' && item.item_owner === me);
+      const held = new Set(mine.flatMap(item => store.itemFiles(item)));
+      // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
+      for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
     });
     const found = await nextOnce(ctx, { ...values, build: true, omitIds: [...omit] });
