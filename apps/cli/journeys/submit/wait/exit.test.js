@@ -93,11 +93,12 @@ test('a claim-holding seat gets the queued acknowledgment at once and still reac
   assertUnreviewed(box);
 });
 
-test('a queued wait names an actually lost worker before any gate admission [V4,B3]', async t => {
+test('a lost queued worker is recovered by the follow-up submit, never fabricated into an outcome [V4,B3,P7]', async t => {
   let child;
   let barrier;
   let worker;
   let release;
+  let resubmitted = false;
   t.after(async () => {
     if (release) writeFileSync(release, 'release\n');
     if (worker?.started && exactStart(worker.pid) === worker.started) process.kill(worker.pid, 'SIGKILL');
@@ -107,6 +108,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
     }
     if (barrier) await helpers.waitFor(() => exactStart(barrier.git) !== barrier.gitStart, // budget: hang ceiling for the owned Git child cleanup.
       'the owned checkout Git child to actually exit', 30_000); // budget: owned-child cleanup ceiling before fixture removal.
+    if (resubmitted) await helpers.waitFor(() => handoffFinished(box), 'the recovered queued worker cleanup', 120_000); // budget: hang ceiling for the recovered owned worker before fixture removal.
   });
   const box = fixture(t, { handoff: true });
   release = join(box.directory, 'checkout-release');
@@ -143,11 +145,13 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');
+  // A claim-holding seat's wait no longer blocks; the follow-up command recovers the lost job instead of fabricating a result.
+  const lost = `refs/pullboard/submit-handoffs/${job.id}`;
   const again = cli(box, box.builder, 'submit', String(box.item), '--wait', '--no-next', '--json');
-  const shown = cli(box, box.builder, 'show', String(box.item));
-  const nxt = cli(box, box.builder, 'next');
-  const diag = { status: again.status, stdout: again.stdout.slice(0, 1500), stderr: again.stderr.slice(0, 500) };
-  const sh = shown.stdout.split('\n').filter(l => /refus|lost|worker|gate|queued/iu.test(l)).join('\n');
-  assert.fail(`DEBUG resubmit ${diag.status}\n${diag.stdout}${diag.stderr}\nSHOW\n${sh}\nNEXT ${nxt.status}\n${nxt.stdout.slice(0, 800)}${nxt.stderr}`);
+  resubmitted = again.status === 0;
+  assert.equal(again.status, 0, again.stdout + again.stderr);
+  const acknowledgment = JSON.parse(again.stdout);
+  assert.equal(acknowledgment.queued, true, 'the recovered submit queues a fresh gate');
+  assert.notEqual(acknowledgment.pin, lost, 'the lost worker\'s job is replaced, not resumed');
   assert.equal(submittedProof(box), null, 'a lost worker cannot fabricate a gate outcome');
 });
