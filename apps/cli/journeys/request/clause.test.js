@@ -13,6 +13,20 @@ import {
   prepareEngineMove,
 } from '../../../../packages/state/index.js';
 
+/** Run one command in this process as the invoking agent session, then restore the fixture environment [C7]. */
+async function runAsLocal(box, identity, cwd, ...args) {
+  const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
+  box.env.CLAUDECODE = '1';
+  box.env.CLAUDE_CODE_SESSION_ID = identity;
+  try { return await box.runLocal(cwd, ...args); }
+  finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete box.env[name];
+      else box.env[name] = value;
+    }
+  }
+}
+
 const criterion = 'The page renders its title. The page renders its footer.';
 const clause = 'The page renders its title.';
 
@@ -62,7 +76,7 @@ test('review request arguments preserve the literal bar quote [V6,A2,H16]', () =
   assert.ok(args.includes(`--clause=${clause}`));
 });
 
-test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H16]', t => {
+test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H16]', async t => {
   const box = crossLaneFixture(t);
   const builder = box.seat('request-builder', 'web', 'request-builder-session');
   const reviewer = box.seat('request-reviewer', 'api', 'request-reviewer-session');
@@ -76,10 +90,10 @@ test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H
     submitFixture(board, id, { agentId: builder.agent, commit: box.git(box.repo, 'rev-parse', 'HEAD').trim(), tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim() });
     store.reserveReview(board, id, { agentId: reviewer.agent, lane: 'api', leaseMs: 3_600_000, policy: 'any' });
   } finally { store.closeBoard(board); }
-  const missing = box.runAs('request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--json');
+  const missing = await runAsLocal(box, 'request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--json');
   assert.equal(missing.code, 1, missing.err + missing.out);
   assert.equal(JSON.parse(missing.out).error.code, 'BAR_CLAUSE_REQUIRED');
-  const accepted = box.runAs('request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--clause', clause, '--json');
+  const accepted = await runAsLocal(box, 'request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--clause', clause, '--json');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
