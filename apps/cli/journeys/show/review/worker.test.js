@@ -86,7 +86,8 @@ test('clause 1: next --verify starts a new worker for a killed comparison and sh
   writeFileSync(join(box.web, 'web', 'greet.txt'), 'hello\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): greet [G1]');
-  const submitted = (await box.runLocal(box.web, 'submit', '1'));
+  // Process-level: the submit starts the detached comparison worker whose pid and life this case reads; in-process it is not a separate process.
+  const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
 
   // Control the worker instead of racing it: let any real worker the submit started finish, then record the exact
@@ -115,7 +116,8 @@ test('clause 1: next --verify starts a new worker for a killed comparison and sh
   const firstPids = started().map(pidOf);
   assert.ok((await box.runLocal(box.repo, 'show', '1')).out.includes('comparison pending'), 'the killed comparison is pending: nothing restarted it yet');
 
-  const offered = (await box.runLocal(reviewer, 'next', '--verify'));
+  // Process-level: next --verify starts a detached comparison worker with its own pid.
+  const offered = box.run(reviewer, 'next', '--verify');
   assert.equal(offered.code, 0, offered.err);
   const fresh = started().map(pidOf).filter(pid => !firstPids.includes(pid));
   assert.ok(fresh.length >= 1, 'next --verify started a new comparison worker with its own pid');

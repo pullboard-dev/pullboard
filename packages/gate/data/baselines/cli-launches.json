@@ -1548,7 +1548,7 @@
     "launch": 4
   },
   "apps/cli/journeys/show/review/worker.test.js": {
-    "launch": 2
+    "launch": 4
   },
   "apps/cli/journeys/resume/flow/setup.test.js": {
     "launch": 3
