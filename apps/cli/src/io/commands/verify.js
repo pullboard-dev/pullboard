@@ -121,7 +121,6 @@ import {
   frozenCheck,
   itemPolicy,
   policyAt,
-  policyVersion,
   requireTrunkMerge,
   submissionPaths,
 } from '../../../../../packages/sandbox/index.js';
@@ -496,7 +495,6 @@ export async function verifyHere(ctx, id, { second, values }) {
       digest,
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
-      policyVersion: policyVersion(policy),
       sourceAdvanceHead: item.item_effective_head ?? null,
       review,
       ...(companionDigest ? { companionDigest } : {}),

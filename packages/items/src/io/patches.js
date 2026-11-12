@@ -151,10 +151,7 @@ export function applyItemPatchAttachment(board, id, options, ports) {
     const authorLane = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id=?').get(author.agentId)?.agent_lane;
     if (options.autoAttach) {
       if (!authorLane || authorLane === item.item_lane || !board.gitRoot) throw new Refused('ITEM_PATCH_AUTHOR', 'name a registered author from another lane and submit from the item worktree');
-      // Inside the move, so replay must read the same policy: a bar-only freeze reads its claim base, never live main [B4,R2].
-      const reads = board.enginePorts.sandboxPolicyReads;
-      const pinned = (() => { try { return Boolean(JSON.parse(item.item_frozen ?? 'null')?.policy?.commit); } catch { return true; } })();
-      const policy = pinned || !/^[0-9a-f]{40,64}$/u.test(item.item_claim_head ?? '') ? reads.itemPolicy(board.gitRoot, item) : reads.policyAt(board.gitRoot, item.item_claim_head);
+      const policy = board.enginePorts.sandboxPolicyReads.itemPolicy(board.gitRoot, item);
       const denied = outOfLane(policy.config, authorLane, [...itemPatchPaths(patch)]);
       if (denied.length) throw new Refused('OUTSIDE_LANE', `patch author ${author.agentId} cannot change ${denied.join(', ')} under frozen policy ${policy.commit}`);
     }

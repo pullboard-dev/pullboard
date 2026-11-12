@@ -97,6 +97,13 @@ export function loadMachineSettings() {
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
   }
+  const pilot = value.gate?.pullPilot;
+  if (pilot !== undefined && (!pilot || typeof pilot !== 'object' || Array.isArray(pilot) || Object.keys(pilot).some(key => !['items', 'share'].includes(key))
+    || (pilot.items !== undefined && (!Array.isArray(pilot.items) || pilot.items.some(id => !Number.isSafeInteger(id) || id < 1)))
+    || (pilot.share !== undefined && (!Number.isFinite(pilot.share) || pilot.share < 0 || pilot.share > 100)))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.pullPilot in ${file} must be { "items": [item numbers], "share": 0 through 100 }; remove it to send every submit through the controller path`);
+  }
+  if (value.gate?.localRunner !== undefined && typeof value.gate.localRunner !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.localRunner in ${file} must be true or false`);
   if (value.gate?.submitAuthorization !== undefined && !['runner', 'local'].includes(value.gate.submitAuthorization)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.submitAuthorization in ${file} must be "runner" or "local"`);
   }
