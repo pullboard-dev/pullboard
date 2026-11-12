@@ -1233,7 +1233,7 @@
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
-    "launch": 10
+    "launch": 4
   },
   "packages/link/tests/logic/relay/poll.test.js": {
     "launch": 1
