@@ -27,6 +27,7 @@ import {
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const CLI = resolve(import.meta.dirname, '../../pullboard.js');
 const QUESTION = RELAY_OFFER_QUESTION.trim();
