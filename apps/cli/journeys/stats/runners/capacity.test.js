@@ -5,15 +5,19 @@ import { totalmem } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { apiHttpFixture } from '../../../tests/fixtures/api.js';
+import { mkdirSync } from 'node:fs';
+import { apiHttpBox } from '../../../tests/fixtures/api.js';
 import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
 
 test('a serve claim carries jobs, cores and RAM in its claimed step and stats runners --json reports them per serve [C7,#6135]', { timeout: 60_000 }, // budget: one private init, one claim and one CLI call.
 async t => {
-  const box = apiHttpFixture(t);
+  const box = await apiHttpBox(t);
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' } });
   const db = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => db.close());
   offerJob(db, { id: 'gate:cap-a', kind: 'gate', needs: [], candidate: 'c'.repeat(40), run: ['node', 'check.js'] });
@@ -27,7 +31,7 @@ async t => {
     jobQueueCall(db, body, { mode: 'pull' });
     return new Response(JSON.stringify({ claim: null }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
-  await serveRunner({ board: `${box.origin}${box.path}?k=${box.key}`, runner: 'serve-a', capabilities: [], cache: join(box.dir ?? box.root, 'cache-a'), once: true, fetchImpl, timing: { idleMs: 10 }, trunkPack: async () => null });
+  await serveRunner({ board: `${box.origin}${box.path}?k=${box.key}`, runner: 'serve-a', capabilities: [], cache: join(box.dir, 'cache-a'), once: true, fetchImpl, timing: { idleMs: 10 }, trunkPack: async () => null });
   assert.equal(bodies.length, 1);
   assert.deepEqual([bodies[0].jobs, bodies[0].cores, bodies[0].ram], [1, availableParallelism(), totalmem()]);
   // A second serve on a smaller runner claims through the queue call with its own figures.
