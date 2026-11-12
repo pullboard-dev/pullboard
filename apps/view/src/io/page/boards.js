@@ -45,7 +45,7 @@ ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
   if (history.loading) return '<p class="empty" role="status">Loading cost history…</p>';
   if (history.error) return '<p class="empty" role="status">Cost history is unavailable.</p>';
-  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length) });
+  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses });
 }` : '';
 return `${privateCostSource}
 const modelLabelRules = ${JSON.stringify(modelLabelRules())};
