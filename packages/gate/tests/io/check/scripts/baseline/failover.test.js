@@ -18,6 +18,7 @@ const SOURCE = join(import.meta.dirname, '../../../../../../..');
 /** Exercise the real gate slot and SQLite retry queue with deterministic transport failure ports. */
 // Since 4c5e2ac38d (#2512) the gate keeps one of two runners for timed checks by default; these failover cases
 // declare no kept runner, so the first configured runner takes the first attempt, as they assert [C7].
+// The fake transport probe times out: a fast refusal would wait out the 21 s host-down window (#5683) per drop [C7].
 function failover(t, { review = false, dropped = false, timedOut = false, leaked = false, exhausted = false, first = true, timingRunner = false } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-check-failover-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -47,7 +48,7 @@ import { landingExecutionServices } from ${url('landing')};
 import { listResources } from ${url('resources')};
 import { writeFileSync } from 'node:fs';
 const executionServices = { runners: { ...runnerExecutionServices(),
-  probeRunnerTransport: async () => ({ healthy: false }),
+  probeRunnerTransport: async () => ({ healthy: false, timedOut: true }),
   probeRunnerHealth: async () => ({ healthy: false }),
   refreshRunnerMeasurements: async () => {} }, landing: landingExecutionServices() };
 const attempts = [], receipts = [];
