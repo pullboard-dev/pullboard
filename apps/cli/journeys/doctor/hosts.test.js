@@ -14,9 +14,9 @@ import { hostOf } from '../../../../packages/config/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
 
-/** Parse the `role: host host` lines doctor --hosts prints into { role: [hosts] }. */
+/** Parse the `role: host host` lines doctor --hosts prints (the trailing next: line is skipped) into { role: [hosts] }. */
 function parseHosts(stdout) {
-  return Object.fromEntries(stdout.trim().split('\n').map(line => {
+  return Object.fromEntries(stdout.trim().split('\n').filter(line => /^(agent|runner|lander): /u.test(line)).map(line => {
     const [role, rest] = line.split(': ');
     return [role, rest.split(' ')];
   }));
