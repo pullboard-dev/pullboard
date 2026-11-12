@@ -78,7 +78,8 @@ function cachedMissingPaths(root, context) {
       return { rows, probes };
     }, probesHold).rows;
   };
-  return missingPathGrowth(missingPathFindings(root, { findingsOf }), readMissingPathBaseline(root));
+  const files = context.changed ? context.changed.filter(path => SOURCE(path) && existsSync(resolve(root, path))).sort() : undefined;
+  return missingPathGrowth(missingPathFindings(root, { findingsOf, files }), readMissingPathBaseline(root));
 }
 
 /**
@@ -128,16 +129,16 @@ function workerBundleRows(root) {
  * `STATIC_CHECKS` this is the only place a static class is named (#3233).
  */
 export const STATIC_TREE_CHECKS = Object.freeze([
-  { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
+  { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
+  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
   { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
   // Test sources are scanned one file at a time, so each file's sites are kept by blob [5567].
   { name: 'test-fixtures', reads: TEST, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('test-fixtures', 1);
-    return fixtureProblems(root, join(root, 'packages/gate/data/tests/test-fixtures.json'), { sitesOf: (path, text) => cache.get(path, blobOid(text), () => fixtureSites(text, path)) })
+    return fixtureProblems(root, join(root, 'packages/gate/data/tests/test-fixtures.json'), { only: context.changed, sitesOf: (path, text) => cache.get(path, blobOid(text), () => fixtureSites(text, path)) })
       .map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   { name: 'relay-boundary', reads: SOURCE, run: (root, sources, context = MEMORY) => {
@@ -145,7 +146,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
       .map(entry => ({ file: `apps/relay/src/io/deploy/${entry.name}`, source: readFileSync(repoPath(root, `apps/relay/src/io/deploy/${entry.name}`), 'utf8') }));
     // The check judges each file alone, so its rows are kept by blob [5567].
     const cache = context.cache('relay-boundary', 1);
-    return [...treeSources(root, sources), ...relay].flatMap(row => cache.get(row.file, blobOid(row.source), () => relayBoundaryProblems([row]))).map(row => `${row.file}:${row.line}: ${row.text}`);
+    return [...treeSources(root, sources), ...relay].filter(row => !context.changed || context.changed.includes(row.file)).flatMap(row => cache.get(row.file, blobOid(row.source), () => relayBoundaryProblems([row]))).map(row => `${row.file}:${row.line}: ${row.text}`);
   } },
   // Package modules that newly reach the CLI front door; codemap's cell-lints ratchet sits below gate and cannot run this (#3808).
   // Cell-scoped: the answer reads the CLI's import closure on this tree and on main, so it is kept under the CLI cell's key plus main's commit [5567].
