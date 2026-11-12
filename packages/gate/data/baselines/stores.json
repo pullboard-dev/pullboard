@@ -964,6 +964,10 @@
       "kind": "json",
       "owner": "packages/commits/src/logic/change/row/tier.js"
     },
+    "test-journeys.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/split.js"
+    },
     "test-path-tables.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cells/placement.js"
