@@ -87,30 +87,30 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
   const specBox = e2e.project();
   const specInfo = repoInfo(specBox.repo);
   specBox.env.CLAUDECODE = '1';
-  const blockedSet = specBox.run(specBox.repo, 'spec', 'approve', 'G1,G2');
+  const blockedSet = await specBox.runLocal(specBox.repo, 'spec', 'approve', 'G1,G2');
   assert.equal(blockedSet.code, 1, blockedSet.err);
   delete specBox.env.CLAUDECODE;
   assert.equal(readBlocks(specInfo.commonDir).length, 1, 'the two-row approval is one stopped move');
-  const firstRow = specBox.run(specBox.repo, 'spec', 'approve', 'G1');
+  const firstRow = await specBox.runLocal(specBox.repo, 'spec', 'approve', 'G1');
   assert.equal(firstRow.code, 0, `${firstRow.err}\n${firstRow.out}`);
   assert.equal(readBlocks(specInfo.commonDir).length, 1, 'one completed target leaves the other pending');
-  const secondRow = specBox.run(specBox.repo, 'spec', 'approve', 'G2');
+  const secondRow = await specBox.runLocal(specBox.repo, 'spec', 'approve', 'G2');
   assert.equal(secondRow.code, 0, `${secondRow.err}\n${secondRow.out}`);
   assert.deepEqual(readBlocks(specInfo.commonDir), [], 'separate later successes complete the blocked set');
 
   const milestones = e2e.project();
   const milestoneInfo = repoInfo(milestones.repo);
   for (const name of ['First release', 'Second release']) {
-    const added = milestones.run(milestones.repo, 'milestone', 'add', name);
+    const added = await milestones.runLocal(milestones.repo, 'milestone', 'add', name);
     assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   }
-  const stopped = milestones.run(milestones.repo, 'milestone', 'edit', 'First release', '--target', 'not-a-date');
+  const stopped = await milestones.runLocal(milestones.repo, 'milestone', 'edit', 'First release', '--target', 'not-a-date');
   assert.equal(stopped.code, 1, stopped.err);
   assert.equal(readBlocks(milestoneInfo.commonDir).length, 1, 'the named milestone edit is blocked');
-  const different = milestones.run(milestones.repo, 'milestone', 'edit', 'Second release', '--note', 'Updated');
+  const different = await milestones.runLocal(milestones.repo, 'milestone', 'edit', 'Second release', '--note', 'Updated');
   assert.equal(different.code, 0, `${different.err}\n${different.out}`);
   assert.equal(readBlocks(milestoneInfo.commonDir).length, 1, 'editing a different named milestone leaves the block');
-  const same = milestones.run(milestones.repo, 'milestone', 'edit', 'First release', '--note', 'Updated');
+  const same = await milestones.runLocal(milestones.repo, 'milestone', 'edit', 'First release', '--note', 'Updated');
   assert.equal(same.code, 0, `${same.err}\n${same.out}`);
   assert.deepEqual(readBlocks(milestoneInfo.commonDir), [], 'the matching named milestone success clears it');
 });

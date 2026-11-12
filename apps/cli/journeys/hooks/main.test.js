@@ -47,6 +47,7 @@ import {
 } from '../../../../packages/commits/index.js';
 import { parseSpec } from '../../../../packages/spec/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
@@ -58,12 +59,11 @@ const RULES = defaults().commits;
 
 test("a hook nudges and never blocks, fails open on error or timeout, and init merges with the user's hooks [I6]", async () => {
   const box = e2e.project('true');
-  const result = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'SessionStart'], {
+  const result = await runCliInProcess(['hook', 'SessionStart'], {
     cwd: box.web, env: box.env, input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: box.web }),
-    encoding: 'utf8',
   });
-  assert.equal(result.status, 0, `a native session-start hook must nudge without refusing: ${result.stdout}${result.stderr}`);
-  const response = JSON.parse(result.stdout);
+  assert.equal(result.code, 0, `a native session-start hook must nudge without refusing: ${result.out}${result.err}`);
+  const response = JSON.parse(result.out);
   assert.equal(response.continue === false || response.decision === 'block', false);
   assert.equal(response.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.match(response.hookSpecificOutput.additionalContext, /pullboard|work|claim/i);
@@ -107,22 +107,23 @@ test("a hook nudges and never blocks, fails open on error or timeout, and init m
   for (const vendor of ['codex', 'claude']) {
     const payload = { session_id: `private-${vendor}-fixture`, cwd: box.web, hook_event_name: 'Stop', stop_hook_active: false,
       ...(vendor === 'codex' ? { turn_id: 'private-turn', last_assistant_message: null } : { transcript_path: join(box.dir, 'private-unused.jsonl') }) };
-    const stop = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'Stop'], { cwd: box.web, env: box.env, input: JSON.stringify(payload), encoding: 'utf8' });
-    assert.equal(stop.status, 0, stop.stderr);
-    const notice = JSON.parse(stop.stdout);
+    const stop = await runCliInProcess(['hook', 'Stop'], { cwd: box.web, env: box.env, input: JSON.stringify(payload) });
+    assert.equal(stop.code, 0, stop.err);
+    const notice = JSON.parse(stop.out);
     assert.equal(notice.continue === false || notice.decision === 'block', false);
     assert.match(notice.systemMessage, new RegExp(`#${id}\\b`));
   }
-  const broken = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'SessionStart'], { cwd: box.dir, env: box.env, encoding: 'utf8' });
-  assert.equal(broken.status, 0);
-  assert.match(JSON.parse(broken.stdout).systemMessage, /warning.*continuing/i);
-  const unknown = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'FutureVendorEvent'], { cwd: box.dir, env: box.env, encoding: 'utf8' });
-  assert.equal(unknown.status, 0);
-  assert.equal(unknown.stdout, '');
+  const broken = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.dir, env: box.env });
+  assert.equal(broken.code, 0);
+  assert.match(JSON.parse(broken.out).systemMessage, /warning.*continuing/i);
+  const unknown = await runCliInProcess(['hook', 'FutureVendorEvent'], { cwd: box.dir, env: box.env });
+  assert.equal(unknown.code, 0);
+  assert.equal(unknown.out, '');
   const slow = join(box.dir, 'slow-git');
   mkdirSync(slow);
   writeFileSync(join(slow, 'git'), '#!/bin/sh\nexec /bin/sleep 10\n');
   chmodSync(join(slow, 'git'), 0o755);
+  // Process-level: the hook's wall-clock timeout against a hung git needs a real child.
   const timeout = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'SessionStart'], {
     cwd: box.web, env: { ...box.env, PATH: `${slow}:${box.env.PATH}` }, encoding: 'utf8',
   });
@@ -456,6 +457,7 @@ test('a lane draft and a main-checkout draft started at the same moment keep dis
   const box = e2e.project('pullboard spec check');
   const cli = resolve(import.meta.dirname, '../../pullboard.js');
   /** Start one real spec draft without waiting for it. */
+  // Process-level: two separate processes contend for the board lock.
   const start = (cwd, text) => runFixtureChildAsync(process.execPath, [cli, 'spec', 'draft', text, '--json'], { cwd, env: box.env });
   const proposals = [];
   for (let pair = 1; pair <= 4; pair += 1) {
@@ -478,6 +480,7 @@ test('a lane draft and a main-checkout draft started at the same moment keep dis
 
   // The same headline with a different gate and tier is another proposal: each writer keeps its own definition.
   const headline = 'A row both writers name alike';
+  // Process-level: two separate processes contend for the board lock.
   const [lane, main] = await Promise.all([
     runFixtureChildAsync(process.execPath, [cli, 'spec', 'draft', headline, '--gate', 'true', '--aim', '--json'], { cwd: box.web, env: box.env }),
     runFixtureChildAsync(process.execPath, [cli, 'spec', 'draft', headline, '--gate', 'false', '--json'], { cwd: box.repo, env: box.env }),
