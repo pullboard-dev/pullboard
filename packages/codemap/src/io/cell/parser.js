@@ -11,11 +11,11 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scratchRoot } from '../../../../config/index.js';
 
 const parsers = new AsyncLocalStorage();
 const MAX_BYTES = 2 ** 26;
@@ -139,7 +139,7 @@ export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
     if (Buffer.byteLength(input) > MAX_BYTES) throw failure();
     if (!child) {
       if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
-      directory = mkdtempSync(join(cacheDirectory ?? tmpdir(), 'pullboard-cell-parser-'));
+      directory = mkdtempSync(join(cacheDirectory ?? scratchRoot(), 'pullboard-cell-parser-'));
       startSupervisor(id - 1);
     }
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);

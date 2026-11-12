@@ -9,11 +9,11 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
 import { commonJsWithCompiler } from '../../../../kernel/index.js';
+import { scratchRoot } from '../../../../config/index.js';
 
 /**
  * A child Node that compiles each source in its private input file as an ES module and reports, for each, whether
@@ -52,7 +52,7 @@ function compileFresh(sources) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const cacheDirectory = importParseScopes.getStore()?.directory;
   if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
-  const directory = mkdtempSync(join(cacheDirectory ?? tmpdir(), 'pullboard-imports-'));
+  const directory = mkdtempSync(join(cacheDirectory ?? scratchRoot(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');
   try {
     writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });

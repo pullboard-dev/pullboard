@@ -20,14 +20,12 @@ import { receiptLine } from '../../../git/index.js';
 import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import {
@@ -50,6 +48,7 @@ import {
   checkFieldFindings,
   parseSpec,
 } from '../../../spec/index.js';
+import { scratchFolder } from '../../../config/index.js';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -299,7 +298,7 @@ export function submitRulesNarrowable(root, mainCommit, practice) {
 
 /** Run a check at an exact commit in a private shared clone, leaving every live worktree alone. */
 function* checkAtCommitExecution(root, commit, command, timeoutMs) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-doctrine-base-'));
+  const directory = scratchFolder('pullboard-doctrine-base-');
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {
