@@ -429,7 +429,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-objected', 'patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-objected', 'patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'reland', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 

@@ -79,14 +79,14 @@ export function relandAccepted(board, id, { agentId, main, conflicts = [] }) {
       return { id, relanded: false, conflicts };
     }
     moveItem(board, id, 'reland', {
-      transition: { verb: 'reland', from: ['open'], to: 'verified', refuse: 'RELAND_NOT_ELIGIBLE',
-        guards: ['itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'criterionUnchanged', 'proofNoted'] },
       checks: {
+        coordinatorOnly: () => (agentId === COORDINATOR ? null : new Refused('COORDINATOR_ONLY', 'only the coordinator returns landed work to verified')),
         [IN_STATE]: () => new Refused('RELAND_NOT_ELIGIBLE', `item #${id} is no longer open`),
         atSubmittedCommit: found => found.item_commit === accept.verdict_commit ? null : new Refused('NOT_AT_COMMIT', 'the accept names another commit'),
         notBuilder: found => found.item_built_by !== accept.verdict_by ? null : new Refused('SELF_VERIFY', 'the accept is the builder\'s own'),
         criterionUnchanged: found => found.item_frozen_digest === accept.verdict_digest ? null : new Refused('CRITERIA_CHANGED', 'the bar changed since the accept'),
-        proofNoted: () => null,
+        // The accept being relanded must carry the note that proved it; an accept without one proves nothing.
+        proofNoted: () => String(accept.verdict_note ?? '').trim() ? null : new Refused('PROOF_REQUIRED', 'the accept being relanded records no proof note'),
       },
       set: () => ({ item_verdict: 'ACCEPT', item_verified_by: accept.verdict_by }),
     });

@@ -403,7 +403,7 @@ Gate and hooks
 Lifecycle, read from src/machine.js
   pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram
   agent         patch-objected, rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created), refreeze (when a live claim has a pending coordinator correction or a validated cited-spec correction)
-  coordinator   patch-claimed, patch, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze, withdraw, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created)
+  coordinator   patch-claimed, patch, intake, claim, release, submit, reserve, accept, reject, reopen, reland, escalate, refreeze, withdraw, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created)
   clock         lapse (when its lease runs out)
 
 

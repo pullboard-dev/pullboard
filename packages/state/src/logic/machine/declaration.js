@@ -14,6 +14,7 @@ import { MOVES as reserveMoves } from './move/reserve.js';
 import { MOVES as acceptMoves } from './move/accept.js';
 import { MOVES as rejectMoves } from './move/reject.js';
 import { MOVES as reopenMoves } from './move/reopen.js';
+import { MOVES as relandMoves } from './move/reland.js';
 import { MOVES as escalateMoves } from './move/escalate.js';
 import { MOVES as refreezeMoves } from './move/refreeze.js';
 import { MOVES as withdrawMoves } from './move/withdraw.js';
@@ -212,6 +213,7 @@ export const MOVES = [
   ...acceptMoves,
   ...rejectMoves,
   ...reopenMoves,
+  ...relandMoves,
   ...escalateMoves,
   ...refreezeMoves,
   ...withdrawMoves,
