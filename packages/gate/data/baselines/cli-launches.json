@@ -1251,10 +1251,10 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/coordinator.test.js": {
-    "launch": 21
+    "launch": 1
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
-    "launch": 27
+    "launch": 1
   },
   "apps/cli/journeys/resume/e2e.test.js": {
     "launch": 26
@@ -1270,9 +1270,6 @@
   },
   "apps/cli/journeys/resume/plans.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/resume/presence.test.js": {
-    "launch": 17
   },
   "apps/cli/journeys/resume/tour-demo.test.js": {
     "launch": 2
