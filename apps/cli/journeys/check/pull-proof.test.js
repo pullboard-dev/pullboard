@@ -20,7 +20,7 @@ function runs(box) {
 
 test('clause 1: a pull-dispatch check from the item folder records its proof, a lapsed claim names the renewal, and submit then queues [C7,P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, two checks and one queued submit.
 async t => {
-  const box = await pullProject(t, 1, { check: () => 'node bin/check.js', tooling: { 'bin/check.js': CHECK } });
+  const box = await pullProject(t, 1, { check: () => 'node web/check.js', tooling: { 'web/check.js': CHECK } });
   const [id] = box.ids;
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
