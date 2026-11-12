@@ -28,6 +28,7 @@ import { main } from '../../../tests/fixtures/native.js';
 import { openCheckpoint } from '../../../tests/fixtures/relay/sealed-client.js';
 import { replayClient } from '../../../tests/fixtures/relay/sealed-client.js';
 import { initializeReplica } from '../../../tests/fixtures/relay/sealed-client.js';
+import { registerProject } from '../../../../../packages/seats/index.js';
 
 after(cleanupFixtureChildren);
 
