@@ -19,6 +19,8 @@ function fixture() {
   const { root } = privateFixtureFiles('landing-recorded-moves-');
   const put = (path, text) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), text); };
   sh(root, 'init', '-q', '-b', 'main');
+  sh(root, 'config', 'user.email', 't@example.com');
+  sh(root, 'config', 'user.name', 't');
   put('src/old-name.js', BODY);
   sh(root, 'add', '.');
   sh(root, 'commit', '-qm', 'main');
