@@ -151,6 +151,7 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
   writeFileSync(join(target, 'initial'), 'force a real non-empty-directory error');
   const lateFile = join(target, 'late-write');
   const source = `const fs = require('node:fs'); let descriptor; process.stdin.setEncoding('utf8'); process.stdin.on('data', data => { if (data.includes('write')) { descriptor = fs.openSync(${JSON.stringify(lateFile + '.pending')}, 'w'); fs.writeSync(descriptor, 'written after the cleanup failure'); fs.renameSync(${JSON.stringify(lateFile + '.pending')}, ${JSON.stringify(lateFile)}); console.log('late-write-ready'); } if (data.includes('exit')) { if (descriptor !== undefined) fs.closeSync(descriptor); process.exit(0); } }); console.log('writer-ready');`;
+  // Process-level: a separate child holds an open file and writes late, so cleanup diagnostics can name its pid.
   const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH } });
   const writerClosed = once(writer, 'close').then(() => true, () => true);
   let output = '';
@@ -210,6 +211,7 @@ test('[C7] cleanup diagnostics name the owner when lsof is slow', async () => {
   writeFileSync(lsof, `#!/bin/sh\n/bin/sleep 4\nPATH=${shellWord(originalPath)}\nexport PATH\nexec lsof "$@"\n`);
   chmodSync(lsof, 0o755);
   const source = `const fs = require('node:fs'); const fd = fs.openSync(${JSON.stringify(heldFile)}, 'r'); console.log('writer-ready'); process.stdin.resume(); process.stdin.on('end', () => { fs.closeSync(fd); process.exit(0); });`;
+  // Process-level: a separate child holds a file open while a slow lsof shim runs, so the owner pid is a real one.
   const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: originalPath } });
   const writerClosed = once(writer, 'close').then(() => true, () => true);
   let output = '';
