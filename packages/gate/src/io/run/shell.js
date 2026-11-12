@@ -127,7 +127,7 @@ export async function runShellAsync(root, command, options) {
       try { result = await spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal, onSpawn: watch.spawned, onOutput: watch.output }); }
       catch (error) { if (!stalled) throw error; result = { status: null, stdout: '', stderr: '' }; } finally { watch.stop(); }
       if (stalled) {
-        result = { ...result, status: 1, stdout: `${result.stdout ?? ''}\n[PULLBOARD_RUN_STALLED] no output and no CPU or process change for ${Math.round(stalled.idleMs / 1000)}s; stopped: ${stalled.processes}\n` };
+        result = { ...result, status: 1, stdout: `${result.stdout ?? ''}\nPULLBOARD_RUN_STALLED: no output and no CPU or process change for ${Math.round(stalled.idleMs / 1000)}s; stopped: ${stalled.processes}\n` };
       }
       step = execution.next(result);
     }
