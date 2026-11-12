@@ -11,9 +11,12 @@
 import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
+  mkdtempSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { loadMachineSettings } from '../../../config/index.js';
+import { scratchRoot } from '../../../config/index.js';
 import {
   dirname,
   join,
@@ -27,7 +30,6 @@ import {
   mainCheckout,
 } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { scratchFolder } from '../../../config/index.js';
 
 /** The line cap a changed file is held to, as Doctrine C9 holds it. */
 export const LINE_CAP = 1500;
@@ -345,7 +347,7 @@ export function nodeTests(cwd, files) {
 
 /** A private shared clone, checked out at `commit` with hooks off; `move` checks out another. */
 function scratchClone(root, commit) {
-  const directory = scratchFolder('pullboard-rigor-quality-');
+  const directory = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-quality-'));
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
   /** Check out a commit exactly, dropping anything a run wrote. */

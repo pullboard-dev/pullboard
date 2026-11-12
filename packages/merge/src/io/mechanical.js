@@ -11,8 +11,8 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
-import { formatJson } from '../../../codemap/index.js';
 import { scratchFolder } from '../../../config/index.js';
+import { formatJson } from '../../../codemap/light.js';
 
 export { formatJson };
 

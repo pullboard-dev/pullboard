@@ -6,9 +6,12 @@ import {
   spawnSync,
 } from 'node:child_process';
 import {
+  mkdtempSync,
   realpathSync,
   rmSync,
 } from 'node:fs';
+import { loadMachineSettings } from '../../../config/index.js';
+import { scratchRoot } from '../../../config/index.js';
 import {
   isAbsolute,
   join,
@@ -32,7 +35,6 @@ import {
   mappedPath,
   pathAtCommit,
 } from '../../../codemap/index.js';
-import { scratchFolder } from '../../../config/index.js';
 
 const CHECK_TIMEOUT_MS = 10 * 60_000;
 const OUTPUT_LIMIT = 64 * 1024 * 1024;
@@ -201,7 +203,7 @@ async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, re
 /** Run an immutable commit's check, draining its child group before removing only this owned worktree. */
 export async function runCheckAt(root, commit, check, runner = null, { timeoutMs = CHECK_TIMEOUT_MS, gateEnvironment = {}, parseProcessCensus } = {}) {
   if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before preparing its worktree');
-  const dir = scratchFolder('pullboard-rigor-proof-');
+  const dir = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-proof-'));
   const tree = join(dir, 'tree');
   const added = tryGit(root, ['worktree', 'add', '--detach', '--quiet', tree, commit]);
   let drained = added.status !== 0;

@@ -1806,6 +1806,14 @@
         "packages/gate/tests/io/check/baseline.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-history-plan.js",
+        "packages/landing/src/io/history.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2240,6 +2248,7 @@
     "api->jobs",
     "api->kernel",
     "keys->store",
+    "landing->gate",
     "landing->git",
     "landing->pin",
     "landing->store",
@@ -2260,7 +2269,6 @@
     "apps/cli->config",
     "apps/cli->resources",
     "state->store",
-    "stats->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
@@ -2303,6 +2311,8 @@
     "blueprints->doctrine",
     "health->doctrine",
     "rigor->doctrine",
+    "rigor->config",
+    "sentinels->config",
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
