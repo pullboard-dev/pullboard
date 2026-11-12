@@ -1011,7 +1011,7 @@
     "launch": 2
   },
   "apps/cli/journeys/fact/receipts.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "apps/cli/journeys/export/public.test.js": {
     "launch": 8
