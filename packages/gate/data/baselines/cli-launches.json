@@ -897,7 +897,13 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/presence.test.js": {
-    "launch": 17
+    "launch": 1
+  },
+  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+    "launch": 6
+  },
+  "apps/cli/journeys/resume/presence/hooks.test.js": {
+    "launch": 10
   },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
