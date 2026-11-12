@@ -19,7 +19,7 @@ import {
 import {
   gitConfig,
   repoInfo,
-} from "../../../git/index.js";
+} from "../../../git/light.js";
 import { homedir } from 'node:os';
 
 /** The ledger of refusals that stopped someone's command, beside the board in Git's common folder. */
@@ -231,6 +231,16 @@ export function blockMoveKeys(io) {
 /** Agent blocks belong to that checkout's seat; person and coordinator blocks belong to this board. */
 export function blockOwner(audience, info) {
   return audience === 'agent' ? key({ audience, seat: info.root }) : audience;
+}
+
+/**
+ * Whether a completed command could clear a block: it names a move and this board has a block ledger. Lets the CLI skip
+ * loading the person channel check after every read when nothing can clear [C7,#6483].
+ */
+export function blocksMayClear(io) {
+  let info;
+  try { info = repoInfo(io.cwd); } catch { return false; }
+  return existsSync(join(info.commonDir, BLOCKS_FILE)) && blockMoveKeys(io).length > 0;
 }
 
 /** Record only the matching completed move's clear, leaving later or unrelated blocks intact. */

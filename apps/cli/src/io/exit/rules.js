@@ -18,18 +18,23 @@ import {
 } from '../../../../../packages/sandbox/light.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 
-// This module is itself imported only once exit rules are on, so a command on a board without them never pays for these cells [C7].
-const [statsCell, itemsCell, storeCell] = await Promise.all([
-  import('../../../../../packages/stats/light.js'),
-  import('../../../../../packages/items/index.js'),
-  import('../../../../../packages/store/index.js'),
-]);
-/** The stats cell's light door, loaded with this module. */
-function stats() { return statsCell; }
-/** The items cell's session digests, loaded with this module. */
-function items() { return itemsCell; }
-/** The store's exit claims, loaded with this module. */
-function store() { return storeCell; }
+// Every command imports this module for its policy check, so these cells load only once exit rules are on [C7,#6483].
+let cells = null;
+/** Load the stats, items and store cells the exit rules use, then return the synchronous rules that need them. */
+export async function loadExitRules() {
+  cells ??= await Promise.all([
+    import('../../../../../packages/stats/light.js'),
+    import('../../../../../packages/items/index.js'),
+    import('../../../../../packages/store/index.js'),
+  ]);
+  return { captureExitAnchor, contextCeilingRefusal };
+}
+/** The stats cell's light door, loaded by loadExitRules. */
+function stats() { return cells[0]; }
+/** The items cell's session digests, loaded by loadExitRules. */
+function items() { return cells[1]; }
+/** The store's exit claims, loaded by loadExitRules. */
+function store() { return cells[2]; }
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {
@@ -107,6 +112,7 @@ export async function enforceExitBoundary(io, command) {
     policy = policyAt(ctx.info.root, resolved.stdout.trim());
   }
   if (policy.config.exitRules?.enabled !== true) return;
+  await loadExitRules();
   const { withBoard } = await import('../context.js');
   await io.prepareProcessPorts?.();
   ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();

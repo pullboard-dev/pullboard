@@ -239,7 +239,7 @@ export async function claimOrdered(ctx, board, args) {
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);
   if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
-    const refusal = (await import('./exit/rules.js')).contextCeilingRefusal(exitRules);
+    const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
   const estimate = held.item_expected_build_minutes;
@@ -254,7 +254,7 @@ export async function claimOrdered(ctx, board, args) {
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
-  if (!result.renewed && exitRules?.enabled) (await import('./exit/rules.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;
 }
 

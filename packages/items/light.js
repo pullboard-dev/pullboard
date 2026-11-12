@@ -1,5 +1,6 @@
 import { VENDOR_FAMILY_ENGINE } from '../state/light.js';
 export { criterionSize } from './src/logic/size.js';
+export { blocksMayClear, clearCompletedBlocks } from './src/io/blocks.js';
 import { vendorFamilyAliases } from './src/logic/vendors.js';
 import { ENGINE_VERSION } from '../state/light.js';
 import { FAMILY_ALIAS_ENGINE } from '../state/light.js';

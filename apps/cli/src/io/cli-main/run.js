@@ -293,7 +293,11 @@ async function runMain(argv, streams) {
       automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../../../../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/index.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) {
+      // The person check loads only when a block could clear, so a read pays for neither [#6483].
+      const blocks = await import('../../../../../packages/items/light.js');
+      if (blocks.blocksMayClear(io)) blocks.clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/index.js')).requirePersonChannel });
+    }
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;
