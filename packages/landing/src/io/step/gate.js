@@ -158,8 +158,20 @@ function planKey(state, focus) {
   catch { return null; }
 }
 
+/**
+ * Whether the landing pushes the remote main itself: the default shape, every project without landing.publish
+ * "separate" (landsOnTrunk in publish.js, which imports this file). Why: 0.9.3's promise is that the remote main only
+ * gets a tree that passed the whole suite, so this shape lands only on whole-suite proof [C7,#6271].
+ */
+function pushesOnLanding(config) {
+  return config?.landing?.publish !== 'separate';
+}
+
 /** The plan batchGatePlan keeps: the selected plan, or the full gate for a per-item landing with no narrower plan. */
 function choosePlan(state, options) {
+  // The default shape pushes what it lands, so a landing that cannot reuse a whole-suite receipt runs the whole
+  // configured gate on the merged tree; a bisection round keeps its focus, its final tree still runs this plan [C7,#6271].
+  if (pushesOnLanding(state.config) && !options.focus?.length) return fullGatePlan(state);
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
@@ -378,7 +390,7 @@ async function runGateGroup(state, label, options) {
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
-  let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
+  let reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, wholeSuite: pushesOnLanding(state.config), files, treeOf,
     generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
   // T3 journeys are deferred to the landing batch by design: no submit ran them, so no submit receipt answers for the ones it did not run.
   // Why: a one-item bisect half reused its submit receipt, ran no journey and passed the item that broke it [C7,CS4,V4].
