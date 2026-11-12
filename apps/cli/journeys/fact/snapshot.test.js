@@ -97,7 +97,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   build(box, alpha, 1, 'greeting-fix.html');
   // Accept the submitted commit from a throwaway coordinator checkout, then always restore main.
   box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
-  try { await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
+  // A spawned accept finishes its landing kick before it exits, so the history compared below is settled.
+  try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
   finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
   // Exercise the person's decision button so snapshot mode must hide this real mutation control.
   await box.inProcess(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
