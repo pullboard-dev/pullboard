@@ -1073,11 +1073,6 @@
     "raw-cli": 9,
     "tempdir": 2
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "raw-cli": 7,
-    "tempdir": 12,
-    "repo-read": 1
-  },
   "apps/cli/journeys/init/origin/behind.test.js": {
     "raw-cli": 3,
     "tempdir": 2,
