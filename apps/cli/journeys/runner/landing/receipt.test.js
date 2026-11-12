@@ -12,11 +12,12 @@ import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { takeLandingJob } from '../../../../../packages/landing/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
 import { applyLandingReceipt } from '../../../../../packages/api/index.js';
-import { ensureCoordinator } from '../../../../../packages/store/index.js';
+import { register } from '../../../../../packages/store/index.js';
 import { itemThread } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { fixtureCommittedGraph } from '../../../tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 
 const AS = ['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', '-c', 'core.hooksPath=/dev/null'];
@@ -61,7 +62,7 @@ async function landWith(t, runner, seen = {}) {
   const box = project(t);
   const board = cellBoard(t, ':memory:');
   seen.board = board;
-  ensureCoordinator(board);
+  register(board, { lane: 'coordinator', path: box.root, route: 'strong', model: FIXTURE_MODEL });
   seen.id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Item one', criterion: 'The item lands.' });
   assert.equal(recordTestResults(board.db, { receipt: `gate:${box.item.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit: box.item,
     rows: [{ file: 'test/b.test.js', inputKey: 'a'.repeat(64), command: 'proof', context: 'c'.repeat(64), status: 'pass' }] }), 1);
