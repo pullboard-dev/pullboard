@@ -41,9 +41,6 @@
   "packages/gate/tests/io/affected/graph/cache.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/claim/adopts/session.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/init/calls.test.js": {
     "launch": 4
   },
