@@ -22,6 +22,11 @@ test('clause 1: a pull-dispatch check from the item folder records its proof, a 
 async t => {
   const box = await pullProject(t, 1, { check: () => 'node web/check.js', tooling: { 'web/check.js': CHECK } });
   const [id] = box.ids;
+  // The stand-in static check records its step here, since an item folder's .git is a file.
+  box.env.PULLBOARD_FIXTURE_STEPS = join(box.dir, 'gate-steps.jsonl');
+  const saved = process.env.PULLBOARD_FIXTURE_STEPS;
+  process.env.PULLBOARD_FIXTURE_STEPS = box.env.PULLBOARD_FIXTURE_STEPS;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_FIXTURE_STEPS; else process.env.PULLBOARD_FIXTURE_STEPS = saved; });
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
