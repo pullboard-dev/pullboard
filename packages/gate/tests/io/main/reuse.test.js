@@ -8,6 +8,8 @@ import { test } from 'node:test';
 import { BATCH_DROP_LIMIT } from '../../../src/io/shards/proof.js';
 import { proveBatches } from '../../../src/io/shards/proof.js';
 import { shardPassStore } from '../../../src/io/shards/proof.js';
+import { reusedShardFiles } from '../../../src/io/shards/proof.js';
+import { submitGateAdmission } from '../../../src/io/submit.js';
 import { readTestOutcomes } from '../../../src/io/test/outcomes.js';
 import { formatTestOutcomes } from '../../../src/io/test/outcomes.js';
 import { INFRASTRUCTURE_CODES } from '../../../src/io/requeue.js';
@@ -121,4 +123,19 @@ test('clause 1: a different tree, or a red shard, reuses nothing and runs those 
   await proveBatches('/controller', other.execution, { files: FILES, filesCommand, takeSlot: other.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1 });
   assert.equal(calls.filter(call => call.timingRunId === other.timingRunId).length, FILES.length, 'another tree runs every shard');
   assert.equal(shardPassStore(null, filesCommand([])), null, 'a run with no pinned tree keeps no passes');
+});
+
+test('clause 1: a proof whose every file is reused requests no browser slot, and a proof with a file left to run still does [C7]', async t => {
+  const root = machine(t);
+  const store = shardPassStore(TREE, filesCommand([]), { folder: join(root, 'passes') });
+  const timingRunId = randomUUID();
+  for (const file of FILES.slice(0, 3)) {
+    store.record({ files: [file], timingRunId, run: { isGreen: true, exitCode: 0, executionSource: { commit: COMMIT, tree: TREE }, output: `ok ${file}` } });
+  }
+  assert.deepEqual(reusedShardFiles(store, FILES), FILES.slice(0, 3), 'the recorded green shards cover three files');
+  const plan = files => ({ check: '', selection: { full: false, files }, deferFullFallback: false, deferSelection: false, proofFiles: files });
+  const options = { allowBrowserFreeChecks: false };
+  assert.equal((await submitGateAdmission(root, plan(FILES), options)).browser, true, 'without reuse the proof asks for a browser slot');
+  assert.equal((await submitGateAdmission(root, plan(FILES.slice(0, 3)), { ...options, reusedFiles: FILES.slice(0, 3) })).browser, false, 'a proof that reuses every file asks for none');
+  assert.equal((await submitGateAdmission(root, plan(FILES), { ...options, reusedFiles: FILES.slice(0, 3) })).browser, true, 'a file still to run keeps the request');
 });
