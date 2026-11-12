@@ -44,6 +44,7 @@ import { reserveReview as reserveReviewLease } from '../../../../../packages/job
 import { renewReview } from '../../../../../packages/jobs/index.js';
 import { reclaimLapsedReviews } from '../../../../../packages/jobs/index.js';
 import { releaseReview } from '../../../../../packages/jobs/index.js';
+import { endReview } from '../../../../../packages/jobs/index.js';
 import { submitHandoffBoardRoot } from '../../../../../packages/sandbox/index.js';
 import { sealSubmitHandoffQueue } from '../../../../../packages/sandbox/index.js';
 import {
@@ -292,7 +293,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
   });
   const enginePorts = boardEnginePorts({
     shadowJob: shadowSubmitHandoff,
-    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
+    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview, endReview }),
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),

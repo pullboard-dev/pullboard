@@ -4,8 +4,10 @@ import { LEASE_MS } from "../logic/rules.js";
 import { createJob } from "./store.js";
 import { writeStep } from "./store.js";
 import { jobView } from "./store.js";
+import { atomically } from "./store.js";
 import { takeJob } from "./lease.js";
 import { renewLease } from "./lease.js";
+import { finishJob } from "./lease.js";
 
 /**
  * The job id that carries an item's review reservation.
@@ -56,19 +58,21 @@ export function renewReview(db, item, reviewer, { now = Date.now(), leaseMs = LE
  * holder, so the item is offered again. A reservation renewed in the meantime is left alone.
  *
  * Why `seen`: a reviewer's heartbeat lives off the board, so the board reads it here. A reviewer seen within the lease
- * window is not silent: its lease is extended to that sighting plus the window instead of being reclaimed.
+ * window is not silent: its lease is extended to that sighting plus the window instead of being reclaimed, but only
+ * while `submitted` says its item still awaits review (SM5): a heartbeat never keeps a review whose item moved on.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{now?: number, leaseMs?: number, seen?: (reviewer: string) => number|null}} [options] - seen: the reviewer's
- *   last heartbeat in epoch milliseconds, or null when unknown.
+ * @param {{now?: number, leaseMs?: number, seen?: (reviewer: string) => number|null, submitted?: (item: number) => boolean}} [options] -
+ *   seen: the reviewer's last heartbeat in epoch milliseconds, or null when unknown; submitted: whether the item is
+ *   submitted now.
  * @returns {{item: number, reviewer: string, lapsedMs: number}[]} The reservations reclaimed by this pass.
  */
-export function reclaimLapsedReviews(db, { now = Date.now(), leaseMs = LEASE_MS, seen = () => null } = {}) {
+export function reclaimLapsedReviews(db, { now = Date.now(), leaseMs = LEASE_MS, seen = () => null, submitted = () => true } = {}) {
   const rows = db.prepare("SELECT job_id, job_item, job_attempt, job_lease_owner, job_lease_until FROM job WHERE job_kind = 'review' AND job_lease_owner IS NOT NULL AND job_lease_until < ? ORDER BY job_lease_until").all(now);
   const reclaimed = [];
   for (const row of rows) {
     const sighting = seen(row.job_lease_owner);
-    if (Number.isFinite(sighting) && sighting <= now && sighting + leaseMs >= now) {
+    if (Number.isFinite(sighting) && sighting <= now && sighting + leaseMs >= now && submitted(row.job_item) === true) {
       db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ? AND job_lease_owner = ?').run(sighting + leaseMs, row.job_id, row.job_lease_owner);
       continue;
     }
@@ -97,6 +101,29 @@ export function releaseReview(db, item, { now = Date.now() } = {}) {
   db.prepare('UPDATE job SET job_lease_owner = NULL, job_lease_until = 0, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ?').run(now, job.id);
   writeStep(db, job.id, 'released', { reviewer: job.leaseOwner }, { seq: job.attempt, now });
   return job.leaseOwner;
+}
+
+/**
+ * End an item's review job because its item left review (a verdict, a withdrawal or a reopen): release a live holder
+ * with a `released` step, then mark the job `done`. A job that is missing or already done is left alone.
+ *
+ * Why: the job used to outlive its item's review, so a heartbeating reviewer kept a lease on an item already verified,
+ * withdrawn or reopened (SM5). Run inside the board move's transaction so the item and its job move together.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} item
+ * @param {{now?: number}} [options]
+ * @returns {string|null} The reviewer whose lease ended, or null.
+ */
+export function endReview(db, item, { now = Date.now() } = {}) {
+  const id = reviewJobId(item);
+  return atomically(db, () => {
+    const job = jobView(db, id);
+    if (!job || job.step === 'done') return null;
+    const reviewer = releaseReview(db, item, { now });
+    finishJob(db, id, reviewer ?? 'review', { now });
+    return reviewer;
+  });
 }
 
 /**

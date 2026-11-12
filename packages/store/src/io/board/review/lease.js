@@ -23,7 +23,9 @@ export function sweepLapsedReviews(board, heartbeats) {
   /** A reviewer's last heartbeat in epoch milliseconds, or null when the snapshot has none. */
   const seen = reviewer => { const at = heartbeats?.get(reviewer); return at ? Date.parse(at) : null; };
   const cleared = [];
-  for (const lapse of leases.reclaimLapsedReviews(board.db, { now: nowMs, seen })) {
+  /** Only a submitted item's review may be kept alive by a heartbeat (SM5). */
+  const submitted = item => getItem(board, item)?.item_status === 'submitted';
+  for (const lapse of leases.reclaimLapsedReviews(board.db, { now: nowMs, seen, submitted })) {
     const item = getItem(board, lapse.item);
     if (item?.item_status !== 'submitted' || item.item_review_by !== lapse.reviewer || !(Date.parse(item.item_review_until ?? '') > nowMs)) continue;
     const reason = `Review silent for ${Math.round((nowMs - (seen(lapse.reviewer) ?? nowMs - lapse.lapsedMs)) / 60_000)} minutes; its reservation lease lapsed.`;
@@ -53,4 +55,20 @@ export function holdReviewLease(board, id, agentId) {
   if (leases.reserveReview(board.db, id, agentId, { now }).reserved) return;
   leases.releaseReview(board.db, id, { now });
   leases.reserveReview(board.db, id, agentId, { now });
+}
+
+/**
+ * End an item's review job as its item leaves review: a verdict, a withdrawal or a reopen. Call it inside that move's
+ * write so the item and its job change in one transaction.
+ *
+ * Why: a review job that outlived its item's review let a heartbeating reviewer keep a lease on an item that moved on (SM5).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {void}
+ */
+export function endReviewLease(board, id) {
+  const leases = board.enginePorts?.reviewLease;
+  if (!leases?.endReview) return;
+  leases.endReview(board.db, id, { now: board.clock.now().getTime() });
 }

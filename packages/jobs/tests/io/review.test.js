@@ -2,6 +2,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import * as store from '../../../store/index.js';
+import { fixture } from '../../../moves/tests/fixtures/next.js';
+import { next } from '../../../moves/tests/fixtures/next.js';
+import { endReview } from '../../index.js';
 import { jobView } from '../../index.js';
 import { LEASE_MS } from '../../index.js';
 import { reclaimLapsedReviews } from '../../index.js';
@@ -75,4 +79,75 @@ test('reviewOffer offers an item nobody holds and names the live holder otherwis
   reserveReview(db, 3, 'r1', { now: 1000, leaseMs: 100 });
   assert.deepEqual(reviewOffer(db, 3, { now: 1100 }), { offered: false, holder: 'r1', lapses: [] });
   assert.deepEqual(reviewOffer(db, 3, { now: 1101 }), { offered: true, holder: null, lapses: [] }, 'a lapsed lease offers the review even before it is reclaimed');
+});
+
+test('endReview releases a live holder, then marks the review job done; a lapsed or missing job ends without a released step [C7]', t => {
+  const db = database(t);
+  assert.equal(endReview(db, 4), null, 'no job at all');
+  reserveReview(db, 4, 'r1', { now: 1000 });
+  assert.equal(endReview(db, 4, { now: 1001 }), 'r1');
+  const ended = jobView(db, 'review:4');
+  assert.deepEqual([ended.step, ended.leaseOwner, ended.leaseUntil], ['done', null, 0]);
+  assert.deepEqual(ended.steps.map(step => step.name), ['reserved', 'released']);
+  assert.equal(endReview(db, 4, { now: 1002 }), null, 'a done job is left alone');
+  reserveReview(db, 6, 'r1', { now: 1, leaseMs: 10 });
+  reclaimLapsedReviews(db, { now: 100 });
+  assert.equal(endReview(db, 6, { now: 101 }), null);
+  assert.deepEqual([jobView(db, 'review:6').step, jobView(db, 'review:6').steps.map(step => step.name)], ['done', ['reserved', 'lapsed']]);
+  assert.deepEqual(reserveReview(db, 4, 'r2', { now: 2000 }), { reserved: true, holder: 'r2' }, 'a resubmitted item is reserved again');
+  assert.equal(jobView(db, 'review:4').step, 'reserved');
+});
+
+test('SM5: reclaimLapsedReviews never extends a lease whose item is not submitted, however fresh the heartbeat [C7]', t => {
+  const db = database(t);
+  reserveReview(db, 5, 'r1', { now: 1, leaseMs: 100 });
+  reserveReview(db, 6, 'r2', { now: 1, leaseMs: 100 });
+  const reclaimed = reclaimLapsedReviews(db, { now: 1000, leaseMs: 500, seen: () => 999, submitted: item => item === 6 });
+  assert.deepEqual(reclaimed, [{ item: 5, reviewer: 'r1', lapsedMs: 899 }], 'item 5 left review, so its heartbeating reviewer loses it');
+  assert.equal(jobView(db, 'review:5').leaseOwner, null);
+  assert.deepEqual([jobView(db, 'review:6').leaseOwner, jobView(db, 'review:6').leaseUntil], ['r2', 1499], 'item 6 is still submitted');
+});
+
+/** A submitted item reserved by the sibling reviewer through next --verify, with its live review job. */
+async function reservedOnBoard(t) {
+  const box = fixture(t, { reviewers: true });
+  const id = box.add('Review whose item moves on');
+  box.submit(id);
+  box.as('sibling');
+  await next(box, { verify: true, verifyId: String(id) });
+  assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id);
+  return { box, id };
+}
+
+/** Assert the item's review job was released by its reviewer and is done. */
+function assertEnded(box, id) {
+  const job = jobView(box.board.db, `review:${id}`);
+  assert.deepEqual([job.step, job.leaseOwner, job.leaseUntil], ['done', null, 0]);
+  assert.deepEqual(job.steps.map(step => [step.name, step.payload.reviewer]), [['reserved', box.seats.sibling.id], ['released', box.seats.sibling.id]]);
+}
+
+test('SM5: withdraw releases the item\'s review job in its own transaction [C7]', async t => {
+  const { box, id } = await reservedOnBoard(t);
+  assert.throws(() => store.withdraw(box.board, id, { agentId: 'coordinator', reason: ' ' }), error => error.code === 'NOTE_REQUIRED');
+  assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id, 'a refused withdrawal leaves the job alone');
+  store.withdraw(box.board, id, { agentId: 'coordinator', reason: 'duplicate' });
+  assertEnded(box, id);
+});
+
+test('SM5: reopen releases the item\'s review job in its own transaction [C7]', async t => {
+  const { box, id } = await reservedOnBoard(t);
+  assert.throws(() => store.reopen(box.board, id, { agentId: 'coordinator', note: '' }), error => error.code === 'NOTE_REQUIRED');
+  assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id, 'a refused reopen leaves the job alone');
+  store.reopen(box.board, id, { agentId: 'coordinator', note: 'the criterion needs correction' });
+  assertEnded(box, id);
+});
+
+test('SM5: a verdict releases the item\'s review job in its own transaction [C7]', async t => {
+  const { box, id } = await reservedOnBoard(t);
+  const item = store.getItem(box.board, id);
+  const verdict = { agentId: box.seats.sibling.id, decision: 'REJECT', reason: 'TEST_FAILURE', head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' };
+  assert.throws(() => store.verify(box.board, id, { ...verdict, note: '' }), error => error.code === 'NOTE_REQUIRED');
+  assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id, 'a refused verdict leaves the job alone');
+  store.verify(box.board, id, { ...verdict, note: 'the fixture fails' });
+  assertEnded(box, id);
 });
