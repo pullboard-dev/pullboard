@@ -325,7 +325,7 @@ A few commands keep every agent on track.
 
 Your whole board is one file inside `.git`, on your machine.
 
-Every move follows one declaration, published in [docs/lifecycle.md](docs/lifecycle.md).
+Every move follows one declaration, printed by `pullboard lifecycle`.
 
 ### Agentic Item Lifecycle (AILC)
 
@@ -404,7 +404,7 @@ The full plan lives in the Roadmap tab in Pullboard View and `pullboard roadmap`
 
 The reference docs, in reading order.
 
-- [Lifecycle](docs/lifecycle.md): how an item moves, state by state.
+- `pullboard lifecycle`: how an item moves, state by state.
 - [CLI JSON API](docs/api.md): every command's output, for scripts and tools.
 - [Unblock path](docs/unblock.md): when the pipeline cannot pass its own fix, the person's tested way out.
 - [Stored formats](docs/formats.md): the board's files, exports and their versions.
