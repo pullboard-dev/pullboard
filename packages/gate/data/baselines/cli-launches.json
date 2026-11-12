@@ -1869,6 +1869,6 @@
     "launch": 1
   },
   "apps/cli/journeys/relay/sync.test.js": {
-    "launch": 3
+    "launch": 2
   }
 }
