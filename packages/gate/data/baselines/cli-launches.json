@@ -578,9 +578,6 @@
   "apps/cli/journeys/companion/companions/composes.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/stats/cockpit/counts.test.js": {
-    "launch": 11
-  },
   "apps/cli/journeys/verify/landing.test.js": {
     "launch": 2
   },
@@ -1405,9 +1402,6 @@
   },
   "apps/cli/journeys/shout/toggle.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/roadmap/cockpit/phone.test.js": {
-    "launch": 11
   },
   "apps/cli/journeys/worktree/start.test.js": {
     "launch": 3
