@@ -145,7 +145,7 @@ test('SM5: reopen releases the item\'s review job in its own transaction [C7]', 
 test('SM5: a verdict releases the item\'s review job in its own transaction [C7]', async t => {
   const { box, id } = await reservedOnBoard(t);
   const item = store.getItem(box.board, id);
-  const verdict = { agentId: box.seats.sibling.id, decision: 'REJECT', reason: 'TEST_FAILURE', head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' };
+  const verdict = { agentId: box.seats.sibling.id, decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'The real fixture succeeds.', head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' };
   assert.throws(() => store.verify(box.board, id, { ...verdict, note: '' }), error => error.code === 'NOTE_REQUIRED');
   assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id, 'a refused verdict leaves the job alone');
   store.verify(box.board, id, { ...verdict, note: 'the fixture fails' });
