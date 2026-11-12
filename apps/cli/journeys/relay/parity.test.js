@@ -23,7 +23,7 @@ test('a field that differs between native and relay readers is refused, naming t
   assertReaderParity(native, relay);
 });
 
-test('every declared operation passes complete reader parity [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: the same real transport ceiling; its own test so the field refusal above keeps a full guard of its own.
+test('every declared operation passes complete reader parity [H5,H16,A2]', { timeout: 120_000 }, async t => { // budget: real transport over every declared operation, about 45 s on an idle runner and over 60 s at load x2; its own test so the field refusal above keeps a full guard of its own.
   const { exerciseOperations } = await parityRoundtrip(t);
   const inventory = await exerciseOperations();
   assert.deepEqual(inventory.covered, inventory.declared, 'every declared operation passes complete reader parity');
