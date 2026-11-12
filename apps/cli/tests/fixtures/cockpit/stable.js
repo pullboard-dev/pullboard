@@ -116,6 +116,18 @@ export async function waitForStableBoxes(chrome, find = 'document.documentElemen
 }
 
 /**
+ * A page in a closed navigation menu (Rules or Insights, #6614) is reached as a person reaches it: press the menu's
+ * button first. A target outside a menu, or not drawn yet, is left to the stable wait as before.
+ * @param {object} chrome
+ * @param {string} find
+ * @returns {Promise<void>}
+ */
+async function openNavMenuFor(chrome, find) {
+  const button = await rawChromeEvaluation(chrome, `(() => { try { const menu = (${find})?.closest?.('[data-nav-menu]'); return menu && menu.hidden ? '[aria-controls="' + menu.id + '"]' : null; } catch { return null; } })()`);
+  if (button) await press(chrome, `document.querySelector(${JSON.stringify(button)})`, { native: false });
+}
+
+/**
  * Press an uncovered, stable target through real Chrome input, optionally using a browser button or modifier.
  * A pointer move can change hover layout, so wait again after it and refuse a changed point rather than retrying.
  * Fixed dialog targets use viewport geometry; flowing targets retain the document-scroll guard as well.
@@ -125,6 +137,7 @@ export async function waitForStableBoxes(chrome, find = 'document.documentElemen
  * @returns {Promise<void>}
  */
 export async function press(chrome, find, { native = true, button = 'left', modifiers = 0, afterMouseDown = null } = {}) {
+  await openNavMenuFor(chrome, find);
   await waitForStableBoxes(chrome, find);
   if (!native) return rawChromeEvaluation(chrome, `(${find}).click()`);
   await rawChromeEvaluation(chrome, `(${find}).scrollIntoView({ block: 'center', behavior: 'instant' })`);

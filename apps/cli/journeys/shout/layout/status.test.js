@@ -196,7 +196,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         if (width === 1280) {
           assert.ok(Math.abs(r.barBox.bottom - 900) <= 1 && r.barBox.left === 0 && Math.abs(r.barBox.width - r.page.width) <= 1, `${at}: the bar runs along the foot: ${JSON.stringify(r.barBox)}`);
           assert.equal(r.barTint[3], 1, `${at}: the status bar uses the approved opaque surface: ${JSON.stringify(r.barTint)}`);
-          assert.deepEqual(r.bar.map((p) => p.to).filter((to) => !to.startsWith('item:') && to !== 'activity'), ['items', 'agents', 'verify', 'gated', 'release'], `${at}: items, agents, to verify, gated and the release, then the last event: ${JSON.stringify(r.bar)}`);
+          assert.deepEqual(r.bar.map((p) => p.to).filter((to) => !to.startsWith('item:') && to !== 'activity'), ['items', 'verify', 'gated', 'release'], `${at}: items, to verify, gated and the release, then the last event (agents at work are the notch's, #6614): ${JSON.stringify(r.bar)}`);
           assert.deepEqual([part(r, 'items').text, part(r, 'verify').text, part(r, 'gated').text, part(r, 'release').text], ['6 items', '1 to verify', '2 gated', '1.0: first cut 0/3'], `${at}: what the parts say`);
         }
         // Rows: two lines, the age at the top right, the lane and up to three spec ids below, or the verdict instead.
@@ -257,10 +257,9 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     }
     await click('[data-tab=items]');
     await filter('state', 'active');
-    await click('.status [data-status="agents"]');
+    await click('.notch [data-status="agents"]');
     await chrome.waitFor("view.tab === 'dashboard' && view.addressDetail === 'floor'");
-    r = await read();
-    assert.ok(number(part(r, 'agents')) > 0, 'the agents part opens the agent floor it counts');
+    assert.ok(Number(await chrome.stable("document.querySelector('.notch [data-notch=agents]').textContent")) > 0, 'the notch\'s agents open the agent floor they count');
     // The release part opens the Roadmap on that release alone: its rows are the ones it counts.
     await click('.status [data-status="release"]');
     await chrome.waitFor("view.tab === 'roadmap'");

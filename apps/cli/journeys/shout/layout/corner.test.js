@@ -42,7 +42,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
     const rgb = (css) => (css.match(/[\\d.]+/g) || []).map(Number);
     const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
-    const theme = document.querySelector('#theme'), bar = document.querySelector('header.top'), side = document.querySelector('#side');
+    const theme = document.querySelector('#theme'), bar = document.querySelector('.top-tier'), side = document.querySelector('.strip');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       mode: document.documentElement.dataset.side || 'docked', logo: box(document.querySelector('#side-toggle svg')), name: box(document.querySelector('#proj-name')),
@@ -73,11 +73,11 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
         assert.equal(r.wordmark, false, `${at}: the corner is the logo mark, never a wordmark`);
-        // The theme button sits centred in the top bar. On a wide screen that is the tab bar; on a phone it is the
-        // project bar, the page's first row (the logo, the project, the theme), with the tabs under it.
-        const top = width === 375 ? r.theme.side : r.theme.bar;
+        // The theme button sits centred in the top tier (the logo, the project, the theme), with the tab strip under it,
+        // on a wide screen and a phone alike (#6614).
+        const top = r.theme.bar;
         assert.ok(Math.abs(middle(r.theme.box) - middle(top)) <= 2 && r.theme.box.left >= top.left && r.theme.box.right <= top.right, `${at}: the theme button sits centred in the top bar: ${JSON.stringify(r.theme)}`);
-        if (width === 375) assert.ok(top.top <= 0.5 && r.theme.bar.top >= top.bottom - 1, `${at}: on a phone the top bar is the project bar, the tabs under it: ${JSON.stringify(r.theme)}`);
+        assert.ok(top.top <= 0.5 && r.theme.side.top >= top.bottom - 1, `${at}: the top tier first, the tabs under it: ${JSON.stringify(r.theme)}`);
         if (width === 375) continue;
         // In the project list: a project is its name and what it holds, what needs the person first in the warning
         // colour; no count pills; the project shown a quiet neutral tint, no coloured edge.
@@ -90,21 +90,14 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
       }
     }
 
-    // The corner is the same docked and collapsed: the logo, then the name, in the same place; collapsed, the name opens
-    // the list, so only then does it carry its arrow.
+    // The corner is the logo, then the name, which opens the project list, so it carries its arrow (#6614).
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
     await frame();
-    const docked = await read();
-    await click('#side-toggle');
-    await chrome.waitFor('document.documentElement.dataset.side === "collapsed"');
     const collapsed = await read();
-    for (const part of ['logo', 'name']) {
-      assert.ok(Math.abs(docked[part].left - collapsed[part].left) <= 1 && Math.abs(docked[part].top - collapsed[part].top) <= 1 && Math.abs(docked[part].height - collapsed[part].height) <= 1,
-        `the ${part} keeps its place and size: ${JSON.stringify([docked[part], collapsed[part]])}`);
-    }
-    assert.deepEqual([docked.mode, docked.arrow, collapsed.mode, collapsed.arrow], ['docked', false, 'collapsed', true], 'the arrow only where the name opens a list');
+    assert.ok(collapsed.logo.right <= collapsed.name.left && Math.abs(middle(collapsed.logo) - middle(collapsed.name)) <= 2, `the logo, then the name, in one row: ${JSON.stringify([collapsed.logo, collapsed.name])}`);
+    assert.deepEqual([collapsed.mode, collapsed.arrow], ['collapsed', true], 'the name opens a list, so it carries the arrow');
 
     /** Read whether the Settings and GitHub project tools are visible in their sidebar container. */
     const footer = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {

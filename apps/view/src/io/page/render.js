@@ -10,6 +10,11 @@ import { plainNeedWords } from "../../logic/needs/list.js";
 import { ruleListModel } from "../../logic/rules.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
+import { navPages } from "../../logic/nav.js";
+import { placeQuery } from "../../logic/nav.js";
+import { readPlaceQuery } from "../../logic/nav.js";
+import { withPlaceQuery } from "../../logic/nav.js";
+import { progressHtml } from "../../logic/nav.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -24,6 +29,12 @@ const LEAKS = [${LEAKS.map(String).join(",")}];
 const plainNeedWords = (${plainNeedWords.toString()});
 const needsPanelModel = (${needsPanelModel.toString()});
 const needsActionsHtml = (${needsActionsHtml.toString()});
+// The navigation's page list and each place's address, as declarations so every part of the page may call them [N26,N38].
+${navPages.toString()}
+${placeQuery.toString()}
+${readPlaceQuery.toString()}
+${withPlaceQuery.toString()}
+${progressHtml.toString()}
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -106,6 +117,29 @@ function itemStageMarks(item, project) {
   if (stale) marks.push(stale);
   if (item.status === 'withdrawn') marks.push(stageMark('Withdrawn', item.withdrawnReason || 'reason unavailable', 'no'));
   return marks;
+}
+
+/**
+ * The navigation's board numbers: the notch's three (agents at work, landed per hour, rulings), the switcher's amber
+ * rulings count, each menu page's fact, and the Progress page while it shows. Text only, so the shell never redraws.
+ */
+function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = {}) {
+  const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
+  const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
+  const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
+  text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
+  text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
+  const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
+  text(ruled, String(rulings));
+  ruled?.classList?.toggle('a', rulings > 0);
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the agent floor.' : 'No agent at work. Open the agent floor.');
+  text($('proj-rulings'), rulings ? String(rulings) : '');
+  const facts = { spec: (p.spec || []).length, doctrine: (p.practice || []).length };
+  for (const [page, value] of Object.entries(facts)) text(document.querySelector?.('[data-nav-fact="' + page + '"]'), value ? String(value) : '');
+  if (view.tab === 'progress') {
+    const html = progressHtml({ agents, perHour: pace, landedDay: p.dashboardPace?.last24h ?? null, rulings, building, review });
+    if ($('progress').innerHTML !== html) $('progress').innerHTML = html;
+  }
 }
 
 function render() {
@@ -611,12 +645,13 @@ function render() {
   // countUnseen fills the unread shouts once the tab is drawn.
   const release = nextMilestone(p), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
+  // Agents at work moved to the notch, which holds what matters now; the notch and this bar never repeat (#6614).
   $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
     + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(agentName(last.event_by)) + ' ' + esc(eventWords(last.event_kind)) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
+  drawNav(p, { agents: footerBusy.length, agentNames: footerBusy.map((a) => agentName(a.agent_id)), building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length });
   if (view.tab === 'spec') $('spec-fit').innerHTML = (p.fit || []).length ? '<h3>Blueprint fit: ' + p.fit.length + ' unverified ' + (p.fit.length === 1 ? 'proposal' : 'proposals') + ' waiting for you</h3>' + p.fit.map(fitRow).join('') : '';
   for (const kind of ['spec', 'doctrine'].filter(kind => kind === view.tab)) {
     const rows = kind === 'spec' ? p.spec : p.practice;
@@ -627,7 +662,7 @@ function render() {
     const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts, sectionReviewCounts, sectionKey } = selectedRows;
     if (kind === 'spec') {
       const tab = $('tabs').querySelector?.('[data-tab=spec]');
-      if (tab) { tab.title = selectedRows.decisionTitle; tab.innerHTML = 'Spec <b>' + n.decide + '</b>'; }
+      if (tab) tab.title = selectedRows.decisionTitle;
     }
     const undecidedIds = new Set(selectedRows.undecidedIds);
     const undecided = row => undecidedIds.has(row.id);

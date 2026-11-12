@@ -1,8 +1,11 @@
-/** Return the original markup section of the self-contained cockpit document. */
+import { navStripHtml } from "../nav.js";
+import { notchHtml } from "../nav.js";
+
+/** Return the original markup section of the self-contained cockpit document, its shell the top layout of the approved navigation [N26]. */
 export function cockpitMarkup(sections) {
   const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-nav="top" data-side="collapsed">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,11 +17,6 @@ export function cockpitMarkup(sections) {
 ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg></div>' : ''}
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
-  <div class="side-top">
-    <button class="brand" id="side-toggle" type="button" aria-pressed="false" aria-controls="side-body" aria-label="Collapse the project list" title="Collapse the project list"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></button>
-    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><small aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></small></button>
-    <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
-  </div>
   <div class="side-body" id="side-body">
     <div class="label">Projects</div>
     <nav id="proj-list" aria-label="Projects on this machine"></nav>
@@ -29,17 +27,23 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 </aside>
 <div class="body">
 <header class="top">
-  <nav class="tabs" id="tabs" aria-label="Board">
-    <button class="tab" data-tab="dashboard" type="button">Dashboard</button>
-    <button class="tab" data-tab="items" type="button">Items</button>
-    <button class="tab" data-tab="shouts" type="button">Shouts</button>
-    <button class="tab" data-tab="spec" type="button">Spec</button>
-    <button class="tab" data-tab="doctrine" type="button">Doctrine</button>
-    <button class="tab" data-tab="activity" type="button">Activity</button>
-    <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
-    ${privateCost ? '<button class="tab" data-tab="cost" type="button">Cost</button>' : ''}
-  </nav>
-  <div class="top-find"><input id="q" type="search" placeholder="Search" aria-label="Search items, Spec, Doctrine and shouts" autocomplete="off"><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
+  <div class="top-tier">
+    <div class="side-top">
+    <span class="brand" id="side-toggle" title="Pullboard"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></span>
+    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body" title="Switch project"><span id="proj-name">Projects</span><span class="badge" id="proj-rulings" title="Rulings on this board"></span><small aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></small></button>
+    </div>
+    <span class="pin" aria-hidden="true" title="Navigation at the top"><span class="pg">⇤</span></span>
+    <span class="crumb">/ <b id="crumb-page"></b></span>
+    <span class="notch" id="notch" aria-label="The board now">${notchHtml()}</span>
+    <div class="top-right">
+      <div class="top-find"><input id="q" type="search" placeholder="Search or jump to…" aria-label="Search items, Spec, Doctrine and shouts" aria-keyshortcuts="Meta+K Control+K" autocomplete="off"><kbd aria-hidden="true">⌘K</kbd><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
+      <span class="account-slot" id="account-slot"><button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button></span>
+    </div>
+  </div>
+  <div class="strip" id="nav-strip">
+    <nav class="tabs" id="tabs" aria-label="Board">${navStripHtml({ cost: privateCost })}</nav>
+    <span class="pagectl" id="page-controls"></span>
+  </div>
 </header>
 <main>
   <section class="card-panel first">
@@ -60,6 +64,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
+  <section data-pane="progress" id="progress" class="progress-pane" aria-label="Progress"></section>
   <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
   <section data-pane="items" class="two">
     <div class="primary">
