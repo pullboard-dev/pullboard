@@ -53,11 +53,13 @@ async function runnerProject() {
 }
 
 /** Run one CLI command from the web seat with every machine-work variable and agent-shell marker removed. */
-async function seatRun(box, ...args) {
+async function seatRun(box, extra, ...args) {
   const names = [...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID', 'PULLBOARD_TEST_WAIT', ...AGENT_SHELL_MARKERS];
   const saved = Object.fromEntries(names.map(name => [name, box.env[name]]));
   for (const name of names) delete box.env[name];
+  Object.assign(box.env, extra);
   try { return await box.inProcess(box.web, ...args); } finally {
+    for (const name of Object.keys(extra)) delete box.env[name];
     for (const [name, value] of Object.entries(saved)) if (value !== undefined) box.env[name] = value;
   }
 }
@@ -74,11 +76,9 @@ test('clause 1 and 2: a green run with --item N records a proof-run naming N and
   }
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
   // CI marks machine work, so the call blocks and records its proof here instead of queueing a detached worker.
-  box.env.CI = '1';
-  const ran = await seatRun(box, 'test', 'test/ok.test.js', '--item', '2');
-  delete box.env.CI;
+  const ran = await seatRun(box, { CI: '1' }, 'test', 'test/ok.test.js', '--item', '2');
   assert.equal(ran.code, 0, `the green run exits 0: ${ran.out}${ran.err}`);
-  const refused = await seatRun(box, 'test', 'test/ok.test.js', '--item', '9');
+  const refused = await seatRun(box, { CI: '1' }, 'test', 'test/ok.test.js', '--item', '9');
   assert.match(refused.err + refused.out, /NOT_YOURS/u, 'an item the seat does not hold is refused');
   const shown = await box.inProcess(box.web, 'show', '2');
   assert.match(shown.out, /receipt [0-9a-f-]{36}: check, item #2/u, `show 2 lists the receipt: ${ran.err}${ran.out} ${shown.out.slice(0, 300)}`);
