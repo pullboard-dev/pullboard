@@ -26,11 +26,12 @@ test('clause 1: with N=3 and four ready items where two share a file, one next c
   setN(box, 3);
   const result = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(result.code, 0, result.out + result.err);
+  const statuses = [one, two, three, four].map(id => `#${id} ${box.board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id).item_status}`).join(', ');
   const held = id => box.board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id);
   const shared = [one, two].filter(id => held(id).item_status === 'claimed');
   assert.equal(shared.length, 1, 'exactly one of the two items sharing a file is claimed');
-  assert.equal(held(three).item_status, 'claimed');
-  assert.equal(held(four).item_status, 'claimed');
+  assert.equal(held(three).item_status, 'claimed', `${statuses}\n${result.out}\n${result.err}`);
+  assert.equal(held(four).item_status, 'claimed', `${statuses}\n${result.out}\n${result.err}`);
   for (const id of [shared[0], three, four]) {
     const folder = `${box.seats.actor.path}-item-${id}`;
     assert.match(box.git(folder, 'rev-parse', '--show-toplevel').trim(), new RegExp(`item-${id}$`, 'u'), 'its own item folder is open');
