@@ -15,6 +15,10 @@ import { board as store } from '../../../lib/index.js';
 
 import { registerProject } from '../../../../packages/seats/index.js';
 
+import {
+  apiHttpFixture as fixture,
+  apiHttpBox as httpBox,
+} from '../../tests/fixtures/api.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 
