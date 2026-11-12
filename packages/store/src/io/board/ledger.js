@@ -1,5 +1,5 @@
 /**
- * The proof ledger: one test_result row per test file a recorded run ran [P7,CD2].
+ * The proof ledger: one test_result row per test file a recorded run ran [P7].
  *
  * Key: the file, its inputKey (the per-file content key, packages/gate/src/io/test/action/cache.js), the command
  * class and the context class (a digest of node, platform, arch and declared environment). Value: pass or fail, the
@@ -91,7 +91,7 @@ export function testResults(db, { inputKey, receipt } = {}) {
  * The hit list a pulled gate or shard job carries: for each named file, its newest proof rows that passed under the
  * proof command with no fail at the same key, as `[file, inputKey, context index]` over a shared context list. The
  * runner reuses a file only when its own inputKey and context class match a row, so a stale or foreign row just
- * misses. Why by file: the job's runner computes the keys; the board only knows which files it will run [P7,CD2].
+ * misses. Why by file: the job's runner computes the keys; the board only knows which files it will run [P7].
  * The rows fit `budget` bytes so the job request stays under the queue's cap; the rest are left out, so they run.
  *
  * @param {import('node:sqlite').DatabaseSync} db
@@ -133,4 +133,26 @@ export function ledgerFiles(db, commits, { command = 'proof' } = {}) {
   if (missingLedgerTable(db) || !wanted.length) return [];
   const select = db.prepare('SELECT DISTINCT test_result_file AS file FROM test_result WHERE test_result_commit = ? AND test_result_command = ?');
   return [...new Set(wanted.flatMap(commit => select.all(commit, command).map(row => row.file)))].sort();
+}
+
+/**
+ * Main's red rows for `files`: the fail rows recorded at main's commit, as `[file, inputKey, context index]` over
+ * `contexts` (extended in place, so they share a hit list's context list). A landing's runner charges a red file to
+ * main only when its inputKey and context class on the merged tree are identical to one of these rows; a file whose
+ * inputs differ from main's runs and is judged as the candidate's own. Why: main red is one ledger lookup, never a
+ * second store [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} files
+ * @param {string} main main's commit sha
+ * @param {string[]} contexts
+ * @param {{ command?: string }} [options]
+ * @returns {Array<[string, string, number]>}
+ */
+export function ledgerMainReds(db, files, main, contexts, { command = 'proof' } = {}) {
+  if (missingLedgerTable(db) || !Array.isArray(files) || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(main))) return [];
+  const select = db.prepare(`SELECT DISTINCT test_result_input_key AS inputKey, test_result_context AS context FROM test_result
+    WHERE test_result_file = ? AND test_result_commit = ? AND test_result_command = ? AND test_result_status = 'fail'`);
+  return [...new Set(files)].filter(file => FILE.test(String(file))).flatMap(file => select.all(file, main, command)
+    .map(({ inputKey, context }) => [file, inputKey, contexts.includes(context) ? contexts.indexOf(context) : contexts.push(context) - 1]));
 }
