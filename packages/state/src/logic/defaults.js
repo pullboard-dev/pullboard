@@ -236,6 +236,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "CANNOT_SIGN": "sign only approved rows: pullboard spec signoff <approved ids>",
   "CHECKOUT_SESSION": "run pullboard takeover from the agent session that owns this checkout",
   "CHECKOUT_BUSY": "let the named command finish, or stop it if it is stuck, then commit again",
+  "CHECK_RUNS_PULLBOARD_TEST": "run the files directly: node packages/gate/src/io/run/tests.js <files>",
   "CHECK_SYNTAX": "close the quote the shell names, then set the check again: inside single quotes write an apostrophe as '\\'' or match it with ., and test with sh -n -c \"<command>\"",
   "CHECK_CANNOT_FAIL": "write a check that exits nonzero on the problem, then add the item again",
   "CHECK_CONFIRM": "read the check command, then run pullboard check <id> --yes",

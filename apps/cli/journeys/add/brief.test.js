@@ -1,5 +1,8 @@
 /** An add with no route and no brief is strong unless its check names a test file, which fills a mid brief [V4]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -39,9 +42,20 @@ async function json(box, ...args) {
   return JSON.parse(result.out);
 }
 
+/** Commit empty files at `paths` on the fixture main, so a bar that names them is one a build can satisfy. */
+function seedPaths(box, paths) {
+  for (const path of paths) {
+    mkdirSync(join(box.repo, path, '..'), { recursive: true });
+    writeFileSync(join(box.repo, path), '');
+  }
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed bar paths');
+}
+
 test('add accepts one cell, refuses three cells and records an explicit size override [B35,C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
+  seedPaths(box, ['packages/alpha/a.js', 'packages/alpha/b.js', 'packages/beta/b.js', 'packages/gamma/c.js']);
   const one = (await json(box, 'add', 'web', 'Small', '--specs', 'G1', '--criterion', 'Update packages/alpha/a.js and packages/alpha/b.js.')).item;
   assert.equal(one.item_title, 'Small');
   const criterion = 'Update packages/alpha/a.js, packages/beta/b.js and packages/gamma/c.js.';
@@ -63,9 +77,35 @@ test('add accepts one cell, refuses three cells and records an explicit size ove
 test('add accepts three numbered clauses and refuses a fourth even inside one cell [B35,C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
+  seedPaths(box, ['packages/alpha/a.js']);
   const criterion = '(1) Read packages/alpha/a.js. (2) Change it. (3) Prove it.';
   await json(box, 'add', 'web', 'Three clauses', '--specs', 'G1', '--criterion', criterion);
   const refused = await fixtureAdd(box.runLocal, box.repo, 'web', 'Four clauses', '--specs', 'G1', '--criterion', criterion + ' (4) Also publish it.', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'ITEM_TOO_LARGE');
   assert.match(JSON.parse(refused.out).error.next, /at most three numbered clauses/u);
+});
+
+test('clause 1: add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
+  const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), '');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: run-tests launcher');
+  const bad = 'node apps/cli/pullboard.js test web/handler.test.js';
+  const good = 'node packages/gate/src/io/run/tests.js web/handler.test.js';
+  const criterion = 'the handler returns the canonical result [test]';
+  const refused = await fixtureAdd(box.runLocal, box.repo, 'web', 'Pull check', '--criterion', criterion, '--check', bad, '--json');
+  assert.notEqual(refused.code, 0);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RUNS_PULLBOARD_TEST');
+  assert.match(error.next, /node packages\/gate\/src\/io\/run\/tests\.js <files>/u);
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Run-tests check', '--criterion', criterion, '--check', good, '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const edited = await box.runLocal(box.repo, 'edit', id, '--check', bad, '--json');
+  assert.notEqual(edited.code, 0);
+  const editError = JSON.parse(edited.out).error;
+  assert.equal(editError.code, 'CHECK_RUNS_PULLBOARD_TEST');
+  assert.match(editError.next, /node packages\/gate\/src\/io\/run\/tests\.js <files>/u);
 });

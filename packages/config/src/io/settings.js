@@ -216,6 +216,15 @@ export function localRunnerEnabled() {
 }
 
 /**
+ * The load per core below which the local runner takes a job: gate.localLoadShare, default 1.0. Why: with no runners the
+ * machine runs its own gates, and taking one at any load thrashed a busy Mac; a job waits in the queue instead [P7].
+ */
+export function localLoadShare() {
+  const share = loadMachineSettings().gate?.localLoadShare;
+  return Number.isFinite(share) && share > 0 ? share : 1;
+}
+
+/**
  * The mode the board's runner job queue serves in: pull under gate.runnerDispatch pull or while a pull pilot is on, so
  * runners can take the pilot's gate jobs; controller otherwise [P7]. Landing and runner runs keep runnerDispatchMode.
  */
