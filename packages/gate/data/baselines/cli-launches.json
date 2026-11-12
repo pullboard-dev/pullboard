@@ -315,7 +315,7 @@
     "launch": 2
   },
   "apps/cli/journeys/mcp/main.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "packages/gate/tests/logic/cap.test.js": {
     "launch": 1
