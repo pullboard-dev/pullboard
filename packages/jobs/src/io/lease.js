@@ -84,3 +84,19 @@ export function finishJob(db, job, owner, { now = Date.now() } = {}) {
   return db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND (job_lease_owner = ? OR job_lease_owner IS NULL OR job_lease_until < ?)")
     .run(now, job, owner, now).changes === 1;
 }
+
+/**
+ * Point a queued job at the commit it runs at, as its candidate and base, before it is offered to runners.
+ *
+ * Why: a main-test job is queued by main's tree id, which a runner cannot check out; the board names the main commit
+ * holding that tree when it offers the job (#6063). Only a queued row moves, so a claimed job never changes commit.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} commit
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when the queued job now names the commit.
+ */
+export function pinQueuedJob(db, job, commit, { now = Date.now() } = {}) {
+  return db.prepare("UPDATE job SET job_candidate = ?, job_base = ?, job_updated = ? WHERE job_id = ? AND job_step = 'queued'").run(commit, commit, now, job).changes === 1;
+}
