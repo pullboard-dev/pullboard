@@ -1,4 +1,6 @@
 /** Runner job priority classes and the reserve each keeps of a runner's slots: which open job a claim takes first [C7]. */
+
+
 /** The classes, highest first: an agent's own run, then gates, then landings, then sweeps. */
 export const JOB_CLASSES = Object.freeze(['interactive', 'gate', 'landing', 'background']);
 
