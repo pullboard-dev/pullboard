@@ -16,7 +16,7 @@ return `function showFlow(shown) {
 function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
-  countUnseen();
+  writeChrome();
   if (view.tab === 'shouts') foldShouts();
   if (view.tab === 'settings') void showSettings();
 }
@@ -133,6 +133,33 @@ function openTab(tab, detail = null) {
   address();
 }
 
+/**
+ * Switch tabs from what the page already holds (#6613): the store's board, and the pane as it was last drawn when
+ * nothing it was drawn from has changed since. A switch asks the network for nothing; warmTabs reads ahead what the
+ * other tabs show. Each switch's time from click to drawn frame is kept as a 'pullboard tab' performance measure.
+ */
+function switchTab(tab, detail = null) {
+  const started = globalThis.performance?.now?.();
+  view.unread = null;
+  view.roadmapOnly = null;
+  openTab(tab, detail);
+  render({ tab: true });
+  if (started === undefined || typeof requestAnimationFrame !== 'function') return;
+  requestAnimationFrame(() => setTimeout(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } }, 0));
+}
+
+/**
+ * After a live update, read ahead in the background what the other tabs draw from beyond the board itself: the
+ * Dashboard's event history and the open item's detail. A tab switch then finds them on hand (#6613).
+ */
+function warmTabs() {
+  const p = data?.project;
+  if (!p || data.root !== view.root || snapshot) return;
+  if (view.tab !== 'dashboard') dashboardView.warm(p);
+  const item = view.tab !== 'items' && view.item !== null ? p.items.find((entry) => entry.id === view.item) : null;
+  if (item) detailOf(p, item, 'ahead');
+}
+
 /** Fetch one old shout through the same public read API used by local and relay views. */
 async function loadAddressedShout() {
   if (!data?.project || view.tab !== 'shouts' || view.shout === null || data.root !== view.root) return;
@@ -165,25 +192,20 @@ function revealPlace() {
 }
 
 /**
- * Count on the Shouts tab the shouts that came after the newest one the person has seen in this
+ * Count for the status bar the shouts that came after the newest one the person has seen in this
  * project. Seeing means having the Shouts tab open with the board drawn; a project shown for the
  * first time has seen everything so far. The mark is kept in this browser, so a reload counts
  * nothing old. The board counts the shouts since the mark the last refresh sent, so a burst larger
  * than the forty loaded still counts in full; until a moved mark reaches the board, the loaded
  * shouts count, which is exact then since the mark only ever moves to the newest.
  */
-function countUnseen() {
-  const p = data && data.project;
-  // While a switch loads, the board on hand is the last project's: it marks nothing for this one.
-  if (!p || data.root !== view.root) return;
+function unseenShouts(p) {
   const key = 'pb.seen.' + view.root;
   const kept = view.seen[key] ?? keep(key);
   const newest = p.shouts.length ? p.shouts[0].shout_id : 0;
   const seen = view.tab === 'shouts' || kept === null || kept === undefined ? newest : Number(kept);
   if (String(seen) !== String(kept)) { view.seen[key] = seen; keep(key, String(seen)); }
-  const unread = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
-  const slot = $('status-unread');
-  if (slot) { slot.innerHTML = '<b>' + unread + '</b> unread'; slot.hidden = !unread; }
+  return (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
 }
 
 /** A quiet line that opens what it counts: what it says, everything it holds on hover, and show or hide. */
@@ -964,7 +986,7 @@ document.addEventListener('click', (event) => {
   if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if ('roadmapHeld' in t.dataset) { view.roadmapHeld = view.roadmapHeld === t.dataset.roadmapHeld ? null : t.dataset.roadmapHeld; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
-  else if (t.dataset.tab) { view.unread = null; view.roadmapOnly = null; openTab(t.dataset.tab, t.dataset.detail ?? null); render(); }
+  else if (t.dataset.tab) switchTab(t.dataset.tab, t.dataset.detail ?? null);
   else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }

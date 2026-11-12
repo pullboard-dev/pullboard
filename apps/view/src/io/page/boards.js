@@ -3,16 +3,18 @@ import { modelLabelRules } from "../cost/tab.js";
  * Read the private board's cost event history once per board state sequence.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
+ * @param {boolean} [switching] - Whether a tab switch asks, which keeps analytics already read.
  * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
  */
-function readCostHistory(project) {
+function readCostHistory(project, switching = false) {
   if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
   project.costPrices = localCostPrices;
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
   const window = view.costWindow ?? '7d';
   const kept = costHistory.get(root);
-  if (kept?.sequence === sequence && kept.window === window) return kept;
+  // A tab switch shows the analytics on hand and reads nothing; the next live update on Cost reads them again (#6613).
+  if (kept?.window === window && (kept.sequence === sequence || switching && kept.model)) return kept;
   const entry = { sequence, window, loading: true, error: null, model: null };
   costHistory.set(root, entry);
   api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
@@ -249,7 +251,7 @@ async function boardState(root, mark, fresh = null) {
     const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
     projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
       warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
-    data = { root: null, project: null, group: null, projects, groups: projectGroups(projects) };
+    data = store.set({ root: null, project: null, group: null, projects, groups: projectGroups(projects) });
     renderSide();
     $('project-loading').hidden = projects.length === 0;
   }

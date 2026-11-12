@@ -108,16 +108,29 @@ function itemStageMarks(item, project) {
   return marks;
 }
 
-function render() {
+// The parts that scroll on their own: each keeps its place through any draw (#6613).
+const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'cost'];
+/**
+ * Draw the page from the store (#6613). The sidebar and the chrome are drawn on every call; the shown tab's pane is
+ * drawn unless this is a tab switch and the pane still shows what it was drawn from. Every part is written through
+ * store.paint, so a live update rewrites only the parts whose markup changed, and each scrolled part keeps its place.
+ *
+ * @param {{ tab?: boolean }} [options] - tab: this draw is a tab switch, which reuses a pane drawn from the same state.
+ */
+function render({ tab: switching = false } = {}) {
   renderIndexes = new WeakMap();
   // A refresh that moved the page to another board closes a confirmation opened on the last one.
   closeIfLeft();
   if (heldClickPointer !== null || pageDialogs.size) { deferredClickRender = true; return; }
   deferredClickRender = false;
+  // Anything but a tab switch may change what any pane shows, so a pane drawn before it is drawn again on its switch.
+  if (!switching) store.invalidate();
+  const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
   const statsFocus = document.activeElement?.id === 'proof-stats-summary' ? document.activeElement.id : null;
   const p = privateModelProject(data.project);
   const group = data.group;
   renderSide();
+  writeChrome();
   // A list that names a board no read has answered yet is still loading, never a machine without boards (#1035).
   const listing = !p && !group && data.projects.some((entry) => entry.ok);
   $('project-loading').hidden = data.root === view.root && !listing;
@@ -125,12 +138,10 @@ function render() {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
     for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
-    $('status-board').innerHTML = '';
     $('live').textContent = 'Loading project…';
     return;
   }
   $('proof-stats').hidden = true;
-  $('proof-stats').innerHTML = '';
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
@@ -148,27 +159,28 @@ function render() {
   if (view.tab === 'settings' && !p) { $('group-view').hidden = true; showTab(); return; }
   if (group) { renderGroup(group); return; }
   if (!p) return;
+  // A tab switch to a pane drawn from this same board and view shows it as it is, with nothing drawn again.
+  const draw = !(switching && store.paneFresh(view.tab, store.paneKey(view, $('q').value)));
   $('proof-stats').hidden = view.tab !== 'items';
-  if (view.tab === 'items') $('proof-stats').innerHTML = proofStatsCard(p.proofStats, view.statsOpen);
+  if (view.tab === 'items') store.paint($('proof-stats'), proofStatsCard(p.proofStats, view.statsOpen));
   // Polling replaces this card's controls; keep the person's keyboard position through that redraw.
   if (statsFocus && view.tab === 'items') $(statsFocus)?.focus({ preventScroll: true });
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
-  $('prod-list').innerHTML = p.products.map((x) => {
+  store.paint($('prod-list'), p.products.map((x) => {
     const states = [['open', '', x.items.open], ['building', 'building', x.items.claimed], ['to verify', 'verify', x.items.submitted], ['verified', 'verified', x.items.verified]].filter(([, , n]) => n);
     return '<div class="prod" title="' + x.rows + ' rows in force, ' + x.approved + ' approved, ' + x.proven + ' cited by accepted items"><p><b>' + esc(x.name) + '</b><span>' + x.proven + '/' + x.rows + ' rows met</span></p><svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="' + (x.rows ? Math.round((100 * x.proven) / x.rows) : 0) + '" height="1"/></svg>'
       + (states.length ? '<small>' + states.map(([label, dot, n]) => '<span><i class="dot ' + dot + '"></i>' + n + ' ' + label + '</span>').join('') + '</small>' : '') + '</div>';
-  }).join('');
+  }).join(''));
   const items = p.items.filter((i) => i.status !== 'withdrawn');
-  const active = items.filter((i) => stateOf(i) !== 'verified');
   const titles = renderIndex(p).titles;
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
-  if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
-    const history = readCostHistory(p);
-    $('cost').innerHTML = costPaneHtml(history, p);
+  if (draw && view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
+    const history = readCostHistory(p, switching);
+    store.paint($('cost'), costPaneHtml(history, p));
   }
-  if (view.tab === 'roadmap') {
+  if (draw && view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
@@ -191,9 +203,9 @@ function render() {
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
-  const needsTab = ['items', 'dashboard'].includes(view.tab);
+  const needsTab = draw && ['items', 'dashboard'].includes(view.tab);
   const needsProject = { ...p, agents: (p.agents || []).map(agent => ({ ...agent, displayName: agentName(agent.agent_id, p) })) };
-  const personalNeeds = needsTab || ['spec', 'doctrine'].includes(view.tab) ? personNeeds(needsProject) : [];
+  const personalNeeds = needsTab || draw && ['spec', 'doctrine'].includes(view.tab) ? personNeeds(needsProject) : [];
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
   if (needsTab) {
   const person = !snapshot && (!readOnly || requests);
@@ -231,12 +243,12 @@ function render() {
     if (view.tab === 'items') {
       $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
       $('needs').tabIndex = -1;
-      $('needs').innerHTML = needsHtml;
+      store.paint($('needs'), needsHtml);
     }
   }
   }
 
-  if (view.tab === 'items') {
+  if (draw && view.tab === 'items') {
   // New work goes first to a lane that owns folders, where builders work, then to the coordinator; a
   // lane that owns none, such as review, is for verifiers and comes last.
   const filing = [...working.filter((l) => p.owning.includes(l)), 'coordinator', ...working.filter((l) => !p.owning.includes(l))];
@@ -248,7 +260,7 @@ function render() {
   $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
   const q = $('q').value.trim().toLowerCase();
   const pipeline = view.itemsView === 'pipeline';
-  $('items-view-switch').innerHTML = segmentedToggle({ label: 'Items view', attribute: 'data-items-view', value: view.itemsView, options: [{ value: 'list', label: 'List' }, { value: 'pipeline', label: 'Pipeline' }] });
+  store.paint($('items-view-switch'), segmentedToggle({ label: 'Items view', attribute: 'data-items-view', value: view.itemsView, options: [{ value: 'list', label: 'List' }, { value: 'pipeline', label: 'Pipeline' }] }));
   $('item-list').hidden = pipeline;
   $('pipeline').hidden = !pipeline;
   // Each Show choice counts what it would show under the lane and the search. A search looks through every
@@ -268,8 +280,8 @@ function render() {
   const laneButtons = laneOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + ((view.lane || '') === value) + '" data-filter-choice="lane:' + esc(value) + '" data-filter-kind="lane" data-filter-value="' + esc(value) + '" aria-label="' + esc(label) + (count === null ? '' : ' · ' + count) + '" title="' + esc(label) + (count === null ? '' : ' · ' + count) + '" type="button"><span class="filter-option-label">' + esc(label) + '</span>' + (count === null ? '' : '<b>' + count + '</b>') + '</button>');
   const activeChoice = document.activeElement?.dataset?.filterChoice;
   const menu = $('filter-menu');
-  menu.innerHTML = (pipeline ? '' : '<section class="filter-group" role="group" aria-label="Show"><h3>Show</h3>' + stateButtons.join('') + '</section>')
-    + '<section class="filter-group" role="group" aria-label="Lane"><h3>Lane</h3>' + laneButtons.join('') + '</section>';
+  store.paint(menu, (pipeline ? '' : '<section class="filter-group" role="group" aria-label="Show"><h3>Show</h3>' + stateButtons.join('') + '</section>')
+    + '<section class="filter-group" role="group" aria-label="Lane"><h3>Lane</h3>' + laneButtons.join('') + '</section>');
   menu.hidden = !view.filterOpen;
   menu.style.left = '0px';
   menu.style.maxWidth = '';
@@ -288,13 +300,13 @@ function render() {
   $('filter-toggle').setAttribute('aria-label', filterLabel);
   $('filter-toggle').title = filterLabel;
   if (view.filterOpen && activeChoice) [...menu.querySelectorAll('[data-filter-choice]')].find((option) => option.dataset.filterChoice === activeChoice)?.focus({ preventScroll: true });
-  $('pipeline').innerHTML = pipeline ? pipelineCard(shown) : '';
+  store.paint($('pipeline'), pipeline ? pipelineCard(shown) : '');
   const { nextSelectedId } = itemsSelection;
   if (nextSelectedId !== view.item) view.item = nextSelectedId;
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
 
-  $('chain').innerHTML = shown.length ? shown.map((i) => {
+  store.paint($('chain'), shown.length ? shown.map((i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
@@ -314,7 +326,7 @@ function render() {
         : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills + overlapHtml(data.claimOverlaps, i.id) });
   }).join('') : '<li class="empty">' + (finishedUnderAll
     ? 'Finished work is under All. <button class="link" data-filter-choice="state:all" data-filter-kind="state" data-filter-value="all" type="button">Show all</button>'
-    : items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
+    : items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>');
 
   const selected = p.items.find((i) => i.id === view.item);
   // The form shows when asked for, or when the project has no item at all, withdrawn ones included.
@@ -322,13 +334,13 @@ function render() {
   $('add-form').hidden = !adding;
   $('add-cancel').hidden = !p.items.length;
   $('detail').hidden = adding;
-  if (!selected) $('detail').innerHTML = '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>';
+  if (!selected) store.paint($('detail'), '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>');
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
   /** An item's heading: its id, title, state, lane and route, all of which its summary holds. */
   const head = (item, s = stateOf(item)) => '<div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p)) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>';
-  if (opened?.error) $('detail').innerHTML = '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>';
+  if (opened?.error) store.paint($('detail'), '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>');
   // Until its omitted fields arrive, an opened item paints its heading from its summary and fills the rest in place (#1039).
-  else if (opened?.loading) $('detail').innerHTML = '<div class="stack" aria-busy="true">' + head(selected) + '</div>';
+  else if (opened?.loading) store.paint($('detail'), '<div class="stack" aria-busy="true">' + head(selected) + '</div>');
   const item = opened?.item;
   if (item) {
     const s = stateOf(item);
@@ -429,7 +441,7 @@ function render() {
     const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="' + historyOpen + '">' + (historyOpen ? 'Show less' : 'Show all ' + historyCount) + '</button>' : '';
     /** Render one accessible tab with the selected tab's native count. */
     const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>';
-    $('detail').innerHTML = '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
+    store.paint($('detail'), '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
       + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
       + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'
       + '<div class="item-panel-section-head"><p class="label">Latest verdict</p><span class="item-panel-count">Passed ' + passedCount + ' ' + (passedCount === 1 ? 'time' : 'times') + ' · sent back ' + backCount + '</span></div>' + latest
@@ -441,12 +453,12 @@ function render() {
       + (item.owner && s === 'building' || item.verifiedBy || item.merged || item.blockedBy.length ? '<section class="item-panel-block"><h3>Work details</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(agentName(item.owner)) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(agentName(item.verifiedBy)) + '</dd>' : '') + (item.merged ? '<dt>merged</dt><dd>' + hashButton(item.merged) + '</dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map(id => '<span class="wait-unit"><a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a></span>').join(', ') + '</dd>' : '') + '</dl></section>' : '')
       + '</section><section class="item-panel-section item-panel-verdicts" id="item-panel-panel-verdicts" role="tabpanel" aria-labelledby="item-panel-tab-verdicts"' + (panelChoice === 'verdicts' ? '' : ' hidden') + ' data-item-panel-panel="verdicts">' + (verdictRows || '<p class="muted">No verdicts yet.</p>') + '</section>'
       + '<section class="item-panel-section item-panel-history" id="item-panel-panel-history" role="tabpanel" aria-labelledby="item-panel-tab-history"' + (panelChoice === 'history' ? '' : ' hidden') + ' data-item-panel-panel="history">' + moreHistory + '<div class="item-panel-history-list' + (historyCount > 5 ? ' folded' : '') + (historyCount > 5 && historyOpen ? ' expanded' : '') + '">' + timeline(item, { newestFirst: true }) + '</div></section>'
-      + '<div class="links"><button class="ghost" data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button class="go" data-new type="button">New item</button></div></div>';
+      + '<div class="links"><button class="ghost" data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button class="go" data-new type="button">New item</button></div></div>');
   }
 
   }
 
-  if (view.tab === 'shouts') {
+  if (draw && view.tab === 'shouts') {
   if ($('hold-lane').dataset.lanes !== working.join()) {
     $('hold-lane').dataset.lanes = working.join();
     $('hold-lane').innerHTML = working.map(lane => '<option>' + esc(lane) + '</option>').join('');
@@ -545,9 +557,9 @@ function render() {
   const threads = [...conversations.values()].map(thread => ({ ...thread,
     messages: thread.messages.sort((a, b) => a.shout_id - b.shout_id) })).sort((a, b) => b.messages.at(-1).shout_id - a.messages.at(-1).shout_id);
   const filter = view.shoutFilter || 'all';
-  $('asks-slot').innerHTML = segmentedToggle({ label: 'Shouts filter', attribute: 'data-shout-filter', value: filter,
+  store.paint($('asks-slot'), segmentedToggle({ label: 'Shouts filter', attribute: 'data-shout-filter', value: filter,
     options: [{ value: 'all', label: 'All' }, { value: 'questions', label: 'Questions', count: open.size }, { value: 'you', label: 'To you' }] })
-    + (view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : '');
+    + (view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : ''));
   const selected = view.shout !== null ? threads.find(thread => thread.messages.some(message => message.shout_id === view.shout))
     : threads.find(thread => thread.key === view.shoutThread);
   /** Render one item conversation as a real button with bounded title and preview columns. */
@@ -558,9 +570,9 @@ function render() {
   };
   const rows = threads.filter(thread => filter === 'all' || (filter === 'questions' ? thread.open : thread.toYou));
   const missingAddress = view.shout !== null && !selected ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
-  $('feed').innerHTML = missingAddress + bar + (selected ? '<div class="conversation-heading"><button class="link" data-shout-thread="" type="button">All conversations</button><b>' + (selected.item ? '#' + esc(selected.item) + ' ' + esc(titles.get(String(selected.item)) || '') : 'No item') + '</b></div>'
+  store.paint($('feed'), missingAddress + bar + (selected ? '<div class="conversation-heading"><button class="link" data-shout-thread="" type="button">All conversations</button><b>' + (selected.item ? '#' + esc(selected.item) + ' ' + esc(titles.get(String(selected.item)) || '') : 'No item') + '</b></div>'
     + dayRules(selected.messages, message => message.shout_at, message => card(message, open.has(message.shout_id) && message.shout_to === 'person' && !readOnly ? '<button class="ghost answer" data-go="decide:' + message.shout_id + '" type="button">Answer</button>' : ''))
-    : rows.length ? dayRules(rows, thread => thread.messages.at(-1).shout_at, conversationRow) : '<div class="empty">' + (filter === 'questions' ? 'No open questions.' : filter === 'you' ? 'No shouts to you.' : 'No shouts yet.') + '</div>');
+    : rows.length ? dayRules(rows, thread => thread.messages.at(-1).shout_at, conversationRow) : '<div class="empty">' + (filter === 'questions' ? 'No open questions.' : filter === 'you' ? 'No shouts to you.' : 'No shouts yet.') + '</div>'));
   // Keep legacy DOM anchors for older pages and automation; the decisions wall has no visible content.
   $('coordinator-decisions').hidden = true; $('coordinator-decisions').innerHTML = '';
   $('decisions').hidden = true; $('decisions').innerHTML = '';
@@ -588,54 +600,27 @@ function render() {
   const panelSelection = agentsPanelModel({ agents: agentRows, items: agentItems, now: panelNow,
     activeAgent: view.agent, allAgents: view.allAgents, idleOpen: Boolean(view.open.idle) });
   if (panelSelection.idle.some((agent) => agent.agentId === view.agent)) view.open.idle = true;
-  $('agents').innerHTML = agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) });
+  store.paint($('agents'), agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) }));
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
-  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
+  store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
 
   }
 
-  const workingActors = new Set(), recentActors = new Set();
-  for (const item of items) {
-    if (item.status === 'claimed') {
-      const holder = holderOf(item); if (holder) { workingActors.add(holder); recentActors.add(holder); }
-    } else {
-      const reviewer = reviewerOf(item); if (reviewer) workingActors.add(reviewer);
-      if (item.status === 'submitted' && reviewer) recentActors.add(reviewer);
-      if (item.builtBy && (['back', 'verify'].includes(stateOf(item)) || staleChip(item))) workingActors.add(item.builtBy);
-    }
-  }
-  const footerBusy = p.agents.filter(agent => workingActors.has(agent.agent_id)
-    && (view.allAgents || recentActors.has(agent.agent_id) || agent.lastMoveAt && Date.now() - Date.parse(agent.lastMoveAt) < 36e5));
-  // The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
-  // click opens (the Active and To verify filters, the gated rows, the agents panel's rows), and a part with none hides.
-  // countUnseen fills the unread shouts once the tab is drawn.
-  const release = nextMilestone(p), last = p.events[0];
-  const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
-  $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
-    + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
-    + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
-    + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
-    + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(agentName(last.event_by)) + ' ' + esc(eventWords(last.event_kind)) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
-  if (view.tab === 'spec') $('spec-fit').innerHTML = (p.fit || []).length ? '<h3>Blueprint fit: ' + p.fit.length + ' unverified ' + (p.fit.length === 1 ? 'proposal' : 'proposals') + ' waiting for you</h3>' + p.fit.map(fitRow).join('') : '';
-  for (const kind of ['spec', 'doctrine'].filter(kind => kind === view.tab)) {
+  if (draw && view.tab === 'spec') store.paint($('spec-fit'), (p.fit || []).length ? '<h3>Blueprint fit: ' + p.fit.length + ' unverified ' + (p.fit.length === 1 ? 'proposal' : 'proposals') + ' waiting for you</h3>' + p.fit.map(fitRow).join('') : '');
+  for (const kind of ['spec', 'doctrine'].filter(kind => draw && kind === view.tab)) {
     const rows = kind === 'spec' ? p.spec : p.practice;
     const filter = view.rows[kind];
     const feedback = view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const selectedRows = ruleListModel(rows, { kind, filter, selectedId: view.row[kind],
       addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
     const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts, sectionReviewCounts, sectionKey } = selectedRows;
-    if (kind === 'spec') {
-      const tab = $('tabs').querySelector?.('[data-tab=spec]');
-      if (tab) { tab.title = selectedRows.decisionTitle; tab.innerHTML = 'Spec <b>' + n.decide + '</b>'; }
-    }
     const undecidedIds = new Set(selectedRows.undecidedIds);
     const undecided = row => undecidedIds.has(row.id);
-    $(kind + '-chips').innerHTML = segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key], title: kind === 'spec' && key === 'decide' ? selectedRows.decisionTitle : undefined })) });
+    store.paint($(kind + '-chips'), segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key], title: kind === 'spec' && key === 'decide' ? selectedRows.decisionTitle : undefined })) }));
     // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
     view.row[kind] = selectedRows.nextSelectedId;
     let section = null;
-    $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
+    let listHtml = shownRows.length ? shownRows.map((r) => {
       const currentSection = kind === 'spec' ? r.section : sectionKey(r);
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && currentSection !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
       const sectionCount = sectionCounts.get(currentSection);
@@ -664,7 +649,8 @@ function render() {
         state: reviewNeeded ? 'warn' : r.status === 'approved' ? 'verified' : r.status === 'wont' ? 'back' : 'open', primary: '<span class="row-id">' + esc(r.id) + '</span>' + text,
         secondary, rightTop: '', rightBottom: badge });
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
-    if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
+    if (feedback && !shownRows.length) listHtml += specFeedback(feedback);
+    store.paint($(kind + '-list'), listHtml);
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? renderIndex(p).citations.get(row.id) || [] : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
@@ -687,11 +673,11 @@ function render() {
       const change = !snapshot && (!readOnly || requests) ? '<button class="decline-row" type="button" data-row-change="' + esc(row.id) + '" title="Request a change through Shouts">Change</button>' : '';
       const actions = rowDecisionActions ? pendingQuestion ? rowDecisionActions + change : rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
       const draft = view.specDraft;
-      $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
+      store.paint($('spec-detail'), '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
         + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
         + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
-        + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
+        + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>');
       const restored = draft && document.getElementById(draft.id);
       if (restored && draft.value && !restored.value) { restored.value = draft.value; if (draft.focus) restored.focus(); }
       continue;
@@ -700,17 +686,17 @@ function render() {
       const hasFile = (row.gateFiles || []).some(gate => gate.exists === true);
       const facts = '<div class="spec-fact"><span>' + (hasFile ? 'Proved by' : 'Checked by') + '</span><div>' + doctrineCheck(row, true) + '</div></div>'
         + '<div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>';
-      $('doctrine-detail').innerHTML = '<div class="spec-detail-content doctrine-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + (reviewNeeded ? 'warn' : tone(row.status)) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + source + '</div>'
+      store.paint($('doctrine-detail'), '<div class="spec-detail-content doctrine-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + (reviewNeeded ? 'warn' : tone(row.status)) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + source + '</div>'
         + facts + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
-        + (home ? '<p class="doctrine-standard-note">' + esc(home) + '</p>' : '') + (rowDecisionActions ? '<div class="spec-detail-actions">' + rowDecisionActions + '</div>' : '') + '<p class="spec-authority">Only you can decide a row.</p></div>';
+        + (home ? '<p class="doctrine-standard-note">' + esc(home) + '</p>' : '') + (rowDecisionActions ? '<div class="spec-detail-actions">' + rowDecisionActions + '</div>' : '') + '<p class="spec-authority">Only you can decide a row.</p></div>');
       continue;
     }
-    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>';
+    store.paint($(kind + '-detail'), row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>');
   }
 
-  if (view.tab === 'activity') {
-  if (keep('pb.flow') === 'shown') $('flow').innerHTML = lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length);
-  $('activity-filters').innerHTML = activityFilters(activityModel(p, { words: activityWords }), view.activityFilter || 'all');
+  if (draw && view.tab === 'activity') {
+  if (keep('pb.flow') === 'shown') store.paint($('flow'), lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length));
+  store.paint($('activity-filters'), activityFilters(activityModel(p, { words: activityWords }), view.activityFilter || 'all'));
   const activity = $('activity');
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
@@ -739,13 +725,15 @@ function render() {
       findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
     };
   });
-  activity.innerHTML = activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen });
+  store.paint(activity, activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
   }
+  if (draw) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
   revealPlace();
   revealSegmentedChoices(document);
   updateRoadmapPanel();
   drawHistoryNotes();
+  store.scrollRestore(scrolled);
 }
 `;
 }

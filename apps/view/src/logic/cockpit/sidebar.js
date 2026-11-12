@@ -20,7 +20,7 @@ function renderSide() {
   const repoButton = (x) => {
     if (!x.ok) return '<p class="repo-error" role="status"><b>' + esc(x.name) + ':</b> ' + esc(x.error) + '</p>';
     const on = x.root === view.root;
-    const specHint = on && data.project ? ruleListModel(data.project.spec || [], { kind: 'spec', filter: 'decide', approvalIds: personNeeds(data.project).filter(row => row.kind === 'agent-approved').map(row => row.id) }).decisionTitle : '';
+    const specHint = on && data.project ? specDecisions(data.project).decisionTitle : '';
     const parts = doing(x).split(' · '), asks = [x.decisions, x.pending, x.drafts, x.holds].filter(Boolean).length;
     const line = x.loading ? 'Loading…' : (asks ? '<span class="asks">' + esc(parts.slice(0, asks).join(' · ')) + '</span>' + (parts.length > asks ? ' · ' : '') : '') + esc(parts.slice(asks).join(' · '));
     return '<button class="proj repo' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root + (specHint ? ' · Spec: ' + specHint : '')) + '" type="button"><span class="pname">' + (x.owner ? '<span class="owner">' + esc(x.owner) + '/</span>' : '') + esc(x.name) + '</span><small>' + (hosted.local && x.source ? '<span class="src">' + (x.source === 'relay' ? 'shared' : 'this computer') + '</span> · ' : '') + line + '</small></button>';
@@ -42,24 +42,81 @@ function renderSide() {
     + (canForget ? '<button type="button" class="ghost" data-forget-unreadable>Forget all</button>' : '') + '<ul>'
     + unreadableProjects.map((repo) => '<li><span class="unreadable-copy" title="' + esc(repo.root) + '"><b>' + esc(repo.name) + '</b> <code>' + esc(compactProjectPath(repo.root)) + '</code></span>'
       + (canForget ? '<button type="button" class="ghost" data-forget-unreadable="' + esc(repo.root) + '" aria-label="Forget ' + esc(repo.name) + '">Forget</button>' : '') + '</li>').join('') + '</ul></details>' : '';
-  $('proj-list').innerHTML = grouped || loose || otherErrors || unreadable ? grouped + loose + otherErrors + unreadable : '<div class="empty">None yet.</div>';
+  store.paint($('proj-list'), grouped || loose || otherErrors || unreadable ? grouped + loose + otherErrors + unreadable : '<div class="empty">None yet.</div>');
   const p = data.project;
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);
   $('proj-name').textContent = selectedGroup?.name || selectedRepo?.name || (p ? p.root.split('/').pop() : 'No project');
-  writeTabTitle(p, selectedGroup);
+}
+
+/** The Spec rows that need the person, read once per board from the store (#6613). */
+function specDecisions(p) {
+  return store.select('spec-decisions', [p], (project) => ruleListModel(project.spec || [], { kind: 'spec', filter: 'decide',
+    approvalIds: personNeeds(project).filter(row => row.kind === 'agent-approved').map(row => row.id) }));
 }
 
 /**
- * Build the tab title once for this draw and write it only when it differs, so a refresh that changes nothing
- * leaves the tab alone (#3200). Roadmap counts the releases it shows; other tabs keep the machine-wide call count.
+ * The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
+ * click opens (the Active and To verify filters, the gated rows, the agents panel's rows), and a part with none hides.
+ * The unread shouts fill their slot from writeChrome.
  */
-function writeTabTitle(p = data.project, selectedGroup = data.groups.find((group) => group.key === view.root)) {
+function statusBarHtml(p) {
+  const items = p.items.filter((i) => i.status !== 'withdrawn');
+  const active = items.filter((i) => stateOf(i) !== 'verified');
+  const heldLanes = new Set(p.holds.map((hold) => hold.hold_lane));
+  const gated = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
+  const workingActors = new Set(), recentActors = new Set();
+  for (const item of items) {
+    if (item.status === 'claimed') {
+      const holder = holderOf(item); if (holder) { workingActors.add(holder); recentActors.add(holder); }
+    } else {
+      const reviewer = reviewerOf(item); if (reviewer) workingActors.add(reviewer);
+      if (item.status === 'submitted' && reviewer) recentActors.add(reviewer);
+      if (item.builtBy && (['back', 'verify'].includes(stateOf(item)) || staleChip(item))) workingActors.add(item.builtBy);
+    }
+  }
+  const footerBusy = p.agents.filter(agent => workingActors.has(agent.agent_id)
+    && (view.allAgents || recentActors.has(agent.agent_id) || agent.lastMoveAt && Date.now() - Date.parse(agent.lastMoveAt) < 36e5));
+  const release = nextMilestone(p), last = p.events[0];
+  const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
+  return part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
+    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
+    + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
+    + part('gated', active.filter(gated).length, 'gated', 'Show the open items waiting on another item or a held lane')
+    + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
+    + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(agentName(last.event_by)) + ' ' + esc(eventWords(last.event_kind)) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
+}
+
+/**
+ * The page's chrome has one writer (#3200, #6613): the tab title, the Spec tab's count, the status bar and its unread
+ * shouts. Each is built from the store's board the same way on every tab and written only when it differs, so a
+ * refresh that changes nothing leaves all of them alone. Roadmap's title counts the releases it shows; other tabs
+ * keep the machine-wide call count.
+ */
+function writeChrome() {
+  if (!data) return;
+  const p = data.project, selectedGroup = data.groups.find((group) => group.key === view.root);
   const roadmap = view.tab === 'roadmap' && p && !selectedGroup;
   const next = tabTitle({ shown: Boolean(p || selectedGroup), name: $('proj-name').textContent, tab: view.tab, group: Boolean(selectedGroup),
     needs: data.projects.reduce((n, x) => n + needCount(x), 0), remaining: roadmap ? roadmapRemainingCount(roadmapReads(p)) : null,
     cost: privateCost && !snapshot && !hosted.local && !readOnly && !data.group });
   if (document.title !== next) document.title = next;
+  // While a switch loads, the board on hand is the last project's: its counts are never shown as the new one's.
+  const shown = p && data.root === view.root ? p : null;
+  store.paint($('status-board'), shown ? store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml) : '');
+  if (!shown) return;
+  const spec = $('tabs').querySelector?.('[data-tab=spec]');
+  if (spec) {
+    const rows = specDecisions(shown), label = 'Spec <b>' + rows.counts.decide + '</b>';
+    if (spec.title !== rows.decisionTitle) spec.title = rows.decisionTitle;
+    if (spec.innerHTML !== label) spec.innerHTML = label;
+  }
+  const slot = $('status-unread');
+  if (slot) {
+    const unread = unseenShouts(shown), html = '<b>' + unread + '</b> unread';
+    if (slot.innerHTML !== html) slot.innerHTML = html;
+    if (slot.hidden !== !unread) slot.hidden = !unread;
+  }
 }
 
   /** Escape plain text while preserving safe item and code-preview links.

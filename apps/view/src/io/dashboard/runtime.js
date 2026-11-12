@@ -104,5 +104,10 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     tour.index = (tour.index + by + stops) % stops;
     firstRun.kit.paint(document.getElementById('dashboard'), tour.index);
   }
-  return { draw, tourStep };
+  /** Read the board's missing history ahead of a switch to the Dashboard, drawing nothing (#6613). */
+  function warm(project) {
+    const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
+    read(project.root, prefix);
+  }
+  return { draw, tourStep, warm };
 }

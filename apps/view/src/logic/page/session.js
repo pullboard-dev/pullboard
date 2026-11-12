@@ -1,3 +1,4 @@
+import { pageStore } from "./store.js";
 /**
  * Part 1 of the hosted page's script, verbatim from apps/cli/src/io/cockpit.js lines 227-330 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
@@ -119,6 +120,9 @@ let switchGeneration = 0;
 let refreshStarted = 0;
 let refreshDrawn = { generation: 0, full: true };
 if (snapshot) view.state = 'all';
+// The one client store (#6613): the board the page shows, its selectors, and the only writer of a drawn part.
+const store = (${pageStore.toString()})();
+// The board on show; only store.set assigns it, so every reader sees the store's board.
 let data = null;
 let seen = '';
 let addressReady = false;
