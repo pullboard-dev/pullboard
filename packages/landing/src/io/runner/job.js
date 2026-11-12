@@ -87,7 +87,9 @@ export function commandCheck(argv) {
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [] }) {
   const { remote, trunk, expect, items } = payload;
-  const check = checks ?? (payload.check ? commandCheck(payload.check) : () => ({ ok: true, detail: null }));
+  // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
+  const check = checks ?? (payload.check ? commandCheck(payload.check)
+    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof) : () => ({ ok: true, detail: null }));
   const root = landingCheckout(workdir);
   const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
@@ -117,6 +119,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     // the push's compare-and-swap and the on-trunk skip keep a duplicate landing from losing or doubling a commit.
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before its check' });
     const result = await check({ root, base, items: pending.map(entry => entry.id), renew });
+    if (result?.proof) receipt.proof = result.proof;
     if (!result?.ok) return done('red', { detail: result?.detail ?? 'the landing check failed' });
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
