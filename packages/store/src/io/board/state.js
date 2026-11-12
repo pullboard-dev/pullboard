@@ -1,7 +1,7 @@
 import { currentProofCounters } from "../../../../verify/index.js";
 import { proofCounter } from "../../../../verify/index.js";
 import { workQueue } from "../../../../items/index.js";
-import { pipelineStats } from "../../../../stats/index.js";
+import { pipelineStats } from "../../../../stats/light.js";
 /** @pullboard-test-input packages/doctrine/src/io/standard.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from "../../../../verify/index.js";
@@ -21,9 +21,9 @@ import { listApiProjects } from "../../../../seats/index.js";
 import { nativeStateClockWindow } from "../../logic/clock.js";
 import { workProgress } from '../../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../../roadmap/index.js";
-import { proofStats } from "../../../../stats/index.js";
-import { readCapacity } from "../../../../stats/index.js";
-import { budgetState } from "../../../../stats/index.js";
+import { proofStats } from "../../../../stats/light.js";
+import { readCapacity } from "../../../../stats/light.js";
+import { budgetState } from "../../../../stats/light.js";
 import { loadMachineSettings } from "../../../../config/index.js";
 import { ruleProofCounts } from "../../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../../items/index.js";

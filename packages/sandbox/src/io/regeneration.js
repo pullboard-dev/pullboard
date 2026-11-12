@@ -11,7 +11,7 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { gitPath } from '../../../git/index.js';
 import { invalidateGitFacts } from '../../../git/index.js';
 import { recordedToolCommits } from '../../../git/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
 import { scratchFolder } from '../../../config/index.js';
 
