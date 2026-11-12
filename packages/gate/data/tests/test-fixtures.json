@@ -888,11 +888,16 @@
   "apps/view/tests/logic/activity/model/sentences.test.js": {
     "model": 3
   },
-  "apps/cli/journeys/shout/activity.test.js": {
-    "raw-cli": 10,
+  "apps/cli/journeys/shout/activity/evidence.test.js": {
     "raw-board": 1,
-    "tempdir": 3,
+    "tempdir": 1,
     "repo-read": 1
+  },
+  "apps/cli/journeys/shout/activity/loading.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/shout/activity/times.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/export/addresses.test.js": {
     "raw-cli": 3,
@@ -1364,12 +1369,6 @@
   },
   "apps/cli/journeys/fact/plan/state.test.js": {
     "raw-board": 1
-  },
-  "apps/cli/journeys/stats/cockpit.test.js": {
-    "raw-cli": 9,
-    "tempdir": 7,
-    "raw-board": 7,
-    "model": 1
   },
   "apps/cli/journeys/stats/cockpit/counts.test.js": {
     "raw-cli": 6,
@@ -1936,8 +1935,10 @@
   "apps/cli/journeys/join/idempotent.test.js": {
     "model": 7
   },
-  "apps/cli/journeys/shout/journeys.test.js": {
-    "tempdir": 2,
+  "apps/cli/journeys/shout/journeys/auth.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/tests/fixtures/cockpit/journey/every.js": {
     "raw-cli": 1
   },
   "apps/cli/journeys/shout/shouts/scenarios.test.js": {
