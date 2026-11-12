@@ -621,6 +621,7 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     // place, the shouts gaining the rule above it they leave off for today: the page's clock moves a day on, alone.
     const days = `JSON.stringify({ headings: [...document.querySelectorAll('.feed .day')].map((node) => node.textContent),
       rules: [...document.querySelectorAll('#feed > .day-rule span')].map((node) => node.textContent),
+      feed: document.querySelector('#feed')?.innerHTML.slice(0, 400), shouts: data.project.shouts.map((x) => x.shout_from + '>' + x.shout_to), tab: view.tab,
       untopped: (() => { const first = document.querySelector('#feed .shout, #feed .conversation-row'); return Boolean(first) && !first.previousElementSibling?.classList.contains('day-rule'); })() })`;
     const today = JSON.parse(await chrome.stable(days));
     // Today's run of shouts carries no label at its top (dayRules in connect.js), so it is the run that midnight must label.
