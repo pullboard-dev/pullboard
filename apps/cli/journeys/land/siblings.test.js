@@ -1,5 +1,7 @@
 /** Sibling items that collide on one file: the first lands by its runner land job and the second's job names the conflict, apart from main.test.js so each fits its file limit under pull [B3,R3,E8]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
@@ -17,6 +19,12 @@ const { FILES, landProject, itemWorktree, submitItem } = makeLandProjectFixtures
 
 test('land names sibling conflicts whose reviews share the unchanged main [B3,R3,E8]', async () => {
   const box = landProject();
+  // The fixture project lands by hand; this board lands its accepts, so each ACCEPT offers its own runner land job [P7].
+  const policyFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(policyFile, 'utf8'));
+  writeFileSync(policyFile, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false } }, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: the board lands accepted items');
   const file = FILES[0];
   const entries = [1, 2].map(number => itemWorktree(box, number, file));
   submitItem(box, entries[0], 'PASS\n// first sibling\n');
@@ -34,7 +42,7 @@ test('land names sibling conflicts whose reviews share the unchanged main [B3,R3
     assert.equal(accepted.code, 0, accepted.out + accepted.err);
     // budget: hang ceiling for one loopback runner land job inside the file limit, never a speed assertion.
     await waitForCondition(index === 0 ? () => Boolean(merged(entry.item)) : conflicted, `#${entry.item}'s land job posts its receipt`,
-      { signal: AbortSignal.timeout(60_000), state: () => ({ ...state(), accepted: (accepted.out + accepted.err).slice(-600) }) });
+      { signal: AbortSignal.timeout(60_000), state: () => ({ ...state(), accepted: (accepted.out + accepted.err).slice(-400) }) });
   }
   assert.match(merged(entries[0].item) ?? '', /^[0-9a-f]{40}$/u, 'the first sibling lands by its runner land job');
   assert.equal(box.git(box.repo, 'show', `main:${file}`), 'PASS\n// first sibling', 'trunk holds the first sibling');
