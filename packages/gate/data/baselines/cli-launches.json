@@ -1218,7 +1218,7 @@
     "launch": 1
   },
   "apps/cli/journeys/test/knownred.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/init/refresh.test.js": {
     "launch": 1
