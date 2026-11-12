@@ -53,6 +53,7 @@ export {
   pullGateFor,
   jobQueueMode,
   localRunnerEnabled,
+  localLoadShare,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,

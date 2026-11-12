@@ -1,7 +1,9 @@
 [
   { "contains": "haiku", "route": "light" },
   { "contains": "luna", "route": "light" },
-  { "contains": "sonnet", "route": "mid" },
-  { "contains": "sol", "route": "mid" },
+  { "contains": "sonnet", "route": "strong" },
+  { "contains": "sol", "route": "strong" },
+  { "contains": "terra", "route": "strong" },
+  { "contains": "codex", "route": "strong" },
   { "contains": "opus", "route": "strong" }
 ]
