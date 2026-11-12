@@ -1,4 +1,4 @@
-/** Commit messages, metadata, signoff, hooks, file history and contribution records. */
+/** Commit messages, metadata, signoff, hooks, file history, contribution records and their clause runner. */
 export * from "./src/logic/message.js";
 export * from "./src/logic/metadata.js";
 export * from "./light.js";
@@ -11,5 +11,7 @@ export * from "./src/logic/bindings.js";
 export * from "./src/logic/header.js";
 export * from "./src/io/import/fix.js";
 export * from "./src/logic/contribution.js";
+export * from "./src/logic/contribution-clauses.js";
+export * from "./src/io/contribution-clauses.js";
 export * from "./src/logic/landing.js";
 export * from "./src/logic/board.js";
