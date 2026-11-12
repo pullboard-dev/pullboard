@@ -10,7 +10,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import {
   mainPolicy,
@@ -19,13 +18,18 @@ import {
 } from '../../../../../packages/sandbox/light.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 
-const requireModule = createRequire(import.meta.url);
-/** The stats cell, loaded at the first anchor or counter: a command on a board without exit rules never pays for it [C7]. */
-function stats() { return requireModule('../../../../../packages/stats/index.js'); }
-/** The items cell's session digests, loaded only once exit rules are on. */
-function items() { return requireModule('../../../../../packages/items/index.js'); }
-/** The store's exit claims, loaded only once exit rules are on. */
-function store() { return requireModule('../../../../../packages/store/index.js'); }
+// This module is itself imported only once exit rules are on, so a command on a board without them never pays for these cells [C7].
+const [statsCell, itemsCell, storeCell] = await Promise.all([
+  import('../../../../../packages/stats/index.js'),
+  import('../../../../../packages/items/index.js'),
+  import('../../../../../packages/store/index.js'),
+]);
+/** The stats cell, loaded with this module. */
+function stats() { return statsCell; }
+/** The items cell's session digests, loaded with this module. */
+function items() { return itemsCell; }
+/** The store's exit claims, loaded with this module. */
+function store() { return storeCell; }
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {
