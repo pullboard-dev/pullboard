@@ -143,10 +143,10 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
-  if (command) refuseCheckPullboardTest(command);
   if (command) refuseCheckSyntax(command);
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });

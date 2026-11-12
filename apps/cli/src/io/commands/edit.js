@@ -97,6 +97,7 @@ export async function run(io, args) {
   // criterion and check alone never refuses on it (#5709).
   if (change.criterion !== undefined || change.check !== undefined) {
     const before = store.getItem(board, id);
+    if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
@@ -104,7 +105,6 @@ export async function run(io, args) {
     change.correction = true;
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
   }
-  if (command && command !== item.item_check) refuseCheckPullboardTest(command);
   if (command && command !== item.item_check) refuseCheckSyntax(command);
   if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
