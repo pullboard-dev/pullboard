@@ -8,6 +8,7 @@ export * from "./src/io/hooks.js";
 export * from "./src/io/note.js";
 export * from "./src/logic/why.js";
 export * from "./src/logic/bindings.js";
+export * from "./src/logic/header.js";
 export * from "./src/io/import/fix.js";
 export * from "./src/logic/contribution.js";
 export * from "./src/logic/landing.js";
