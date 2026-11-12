@@ -49,7 +49,6 @@ export {
   setGateRunnerWaitMs,
   browserByLaunchEnabled,
   runnerDispatchMode,
-  pinControllerDispatch,
   pullPilot,
   pullGateFor,
   jobQueueMode,

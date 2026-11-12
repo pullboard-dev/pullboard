@@ -22,7 +22,6 @@ import { fileURLToPath } from 'node:url';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
-import { pinControllerDispatch } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
 import {
@@ -131,7 +130,6 @@ export async function tour(io) {
   // stays out as well, so each seat is judged as its own session below (#952).
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT' && !CALLER_SESSION_NAMES.has(name)));
   Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(dir, '.pullboard'), PULLBOARD_MACHINE_HOME: join(dir, '.pullboard-machine') });
-  pinControllerDispatch(env.PULLBOARD_MACHINE_HOME);
   const repo = join(dir, 'greeter');
   const app = `${repo}-app-1`;
   const review = `${repo}-review-1`;
