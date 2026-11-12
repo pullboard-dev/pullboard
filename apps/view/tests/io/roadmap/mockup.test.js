@@ -25,11 +25,12 @@ test('clause 2: a Roadmap row names only its stage, with Landed for Merged, and 
   assert.match(source, /\(roadmap \? '' : '<small class="stage-detail"/u, 'a Roadmap row carries no stage detail text');
 });
 
-test('clause 3: no stylesheet is over 1500 lines; roadmap.css holds the new rules and is composed last [N26]', () => {
-  assert.ok(lines('roadmap.css') <= 1500 && lines('stage.css') <= 1500);
+test('clause 3: no stylesheet is over 1500 lines; the new rules live in stage.css, composed through its marker, and main.css is not grown [N26]', () => {
+  assert.ok(lines('stage.css') <= 1500);
   const css = composeViewStyles();
-  const roadmap = readFileSync(new URL('roadmap.css', IO), 'utf8').trimEnd();
-  assert.ok(css.endsWith(`${roadmap}\n`), 'the roadmap rules come last in the composed sheet so they win');
-  assert.match(roadmap, /\.milestone-item \.stage-word/u);
-  assert.match(roadmap, /\.activity-event > time \{[^}]*var\(--mono\)/u, 'faint mono times');
+  assert.doesNotMatch(css, /@pullboard-[\w-]+-styles/u, 'every marker is filled');
+  const stage = readFileSync(new URL('stage.css', IO), 'utf8');
+  assert.match(stage, /\.milestone-item \.stage-word/u);
+  assert.match(stage, /#activity \.activity-event > time \{[^}]*var\(--mono\)/u, 'faint mono times');
+  assert.ok(css.includes('.milestone-item .stage-word'), 'the rules reach the shared stylesheet');
 });
