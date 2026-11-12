@@ -19,13 +19,13 @@ function document(result) {
 }
 
 /** Set up one builder and a distinct owner seat for the API lane. */
-function companionFixture(t) {
+async function companionFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Use an API companion', '--specs', 'G1',
-    '--criterion', 'the companion file is present', '--check', 'test -f api/companion.txt', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Use an API companion', '--specs', 'G1',
+    '--criterion', 'the companion file is present', '--check', 'test -f api/companion.txt', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'builder\n');
   box.git(box.web, 'add', 'web/page.txt');
@@ -42,37 +42,37 @@ function companionFixture(t) {
   return { box, id, owner, ownerSeat, patchFile };
 }
 
-test('clause 1: submit automatically attaches the builder recorded companion and its owner objection reopens the item [C7]', t => {
-  const { box, id, owner, ownerSeat, patchFile } = companionFixture(t);
-  const submitted = document(box.run(box.web, 'submit', String(id), '--companion', patchFile, '--key', 'api-view', '--author', ownerSeat, '--wait', '--json'));
+test('clause 1: submit automatically attaches the builder recorded companion and its owner objection reopens the item [C7]', async t => {
+  const { box, id, owner, ownerSeat, patchFile } = (await companionFixture(t));
+  const submitted = document((await box.runLocal(box.web, 'submit', String(id), '--companion', patchFile, '--key', 'api-view', '--author', ownerSeat, '--wait', '--json')));
   assert.equal(submitted.id, id);
-  assert.equal(document(box.run(box.repo, 'show', String(id), '--json')).item_status, 'submitted');
-  const patches = document(box.run(box.web, 'patch', 'list', String(id), '--json')).patches;
+  assert.equal(document((await box.runLocal(box.repo, 'show', String(id), '--json'))).item_status, 'submitted');
+  const patches = document((await box.runLocal(box.web, 'patch', 'list', String(id), '--json'))).patches;
   assert.equal(patches.length, 1, 'the builder attached the companion during submit without a coordinator command');
   assert.equal(patches[0].author.agentId, ownerSeat);
-  const builderObjection = box.run(box.web, 'patch', 'object', String(id), 'api-view', '--note', 'builder cannot object', '--json');
+  const builderObjection = (await box.runLocal(box.web, 'patch', 'object', String(id), 'api-view', '--note', 'builder cannot object', '--json'));
   assert.equal(builderObjection.code, 1);
   assert.equal(JSON.parse(builderObjection.out).error.code, 'ITEM_PATCH_WINDOW');
-  const objection = document(box.run(owner, 'patch', 'object', String(id), 'api-view', '--note', 'the API owner needs a different interface', '--json'));
+  const objection = document((await box.runLocal(owner, 'patch', 'object', String(id), 'api-view', '--note', 'the API owner needs a different interface', '--json')));
   assert.equal(objection.reopened, true);
-  assert.equal(document(box.run(box.repo, 'show', String(id), '--json')).item_status, 'open');
-  assert.equal(document(box.run(box.repo, 'patch', 'list', String(id), '--json')).patches.length, 0);
+  assert.equal(document((await box.runLocal(box.repo, 'show', String(id), '--json'))).item_status, 'open');
+  assert.equal(document((await box.runLocal(box.repo, 'patch', 'list', String(id), '--json'))).patches.length, 0);
 });
 
-test('a submit without a recorded companion does not open an objection window [C7]', t => {
+test('a submit without a recorded companion does not open an objection window [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Web only', '--specs', 'G1', '--criterion', 'the web file exists',
-    '--check', 'test -f web/page.txt', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Web only', '--specs', 'G1', '--criterion', 'the web file exists',
+    '--check', 'test -f web/page.txt', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'web\n');
   box.git(box.web, 'add', 'web/page.txt');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add page [G1]');
-  document(box.run(box.web, 'submit', String(id), '--wait', '--json'));
-  assert.equal(document(box.run(box.web, 'patch', 'list', String(id), '--json')).patches.length, 0);
-  const noPatch = box.run(box.web, 'patch', 'object', String(id), 'missing', '--note', 'nothing to object', '--json');
+  document((await box.runLocal(box.web, 'submit', String(id), '--wait', '--json')));
+  assert.equal(document((await box.runLocal(box.web, 'patch', 'list', String(id), '--json'))).patches.length, 0);
+  const noPatch = (await box.runLocal(box.web, 'patch', 'object', String(id), 'missing', '--note', 'nothing to object', '--json'));
   assert.equal(noPatch.code, 1);
   assert.equal(JSON.parse(noPatch.out).error.code, 'ITEM_PATCH_WINDOW');
 });
