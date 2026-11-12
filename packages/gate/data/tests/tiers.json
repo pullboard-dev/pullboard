@@ -62522,14 +62522,6 @@
       ]
     },
     {
-      "file": "docs/design/mcp-connector.test.js",
-      "tier": "T3",
-      "packages": [],
-      "reasons": [
-        "no package: no implementation import"
-      ]
-    },
-    {
       "file": "docs/formats.test.js",
       "tier": "T3",
       "packages": [
@@ -62743,6 +62735,14 @@
         "browser: packages/transport/src/io/ssh.js",
         "cross-package: imports more than one package",
         "process: packages/codemap/src/io/module/imports.js"
+      ]
+    },
+    {
+      "file": "docs/rfcs/mcp-connector.test.js",
+      "tier": "T3",
+      "packages": [],
+      "reasons": [
+        "no package: no implementation import"
       ]
     },
     {
