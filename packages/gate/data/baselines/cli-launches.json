@@ -2089,5 +2089,8 @@
   },
   "packages/verify/tests/logic/advance.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/view/background.test.js": {
+    "launch": 10
   }
 }
