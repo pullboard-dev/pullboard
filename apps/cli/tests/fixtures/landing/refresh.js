@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/step/merge.js */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/derive.js */
 /** @pullboard-test-input docs-tree */
 /** Clean landing merges regenerate shared documentation before the real gate [B3,C7,V4]. */
 import assert from 'node:assert/strict';
@@ -88,7 +88,7 @@ function project(disableRefresh) {
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
-    const file = join(box.repo, 'packages/landing/src/io/step/merge.js');
+    const file = join(box.repo, 'packages/landing/src/io/derive.js');
     const source = readFileSync(file, 'utf8');
     const call = 'refreshLandingDocs(root);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
