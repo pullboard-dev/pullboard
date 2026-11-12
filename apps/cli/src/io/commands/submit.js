@@ -832,6 +832,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         recordedRuns: withBoard(ctx, board => gateRuns(board)), execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
+      process.stderr.write(`DBGS proof compare ok ${comparison?.main}\n`);
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
       const matched = proofMainFailures(failures, comparison, mainFailureBase, { criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? held.item_criterion ?? '', check: frozenCheck(held) });
@@ -864,6 +865,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       }
     } catch { /* An unavailable baseline never authorizes a red submission. */ }
   }
+  process.stderr.write(`DBGS crit=${criterionNotices.length} proof=${proofNotices.length} fails=${failures?.length} base=${mainFailureBase} cmp=${Boolean(comparison)} green=${gate.isGreen} accepted=${checkAccepted} waived=${waived}\n`);
   const mainFailures = [...new Map([...criterionNotices, ...proofNotices].map(row => [JSON.stringify([row.file, row.name, row.status]), row])).values()];
   const plainMainFailures = mainFailures.map(row => row.message).join('\n');
   const unowned = [...criterionUnowned, ...proofUnowned];
