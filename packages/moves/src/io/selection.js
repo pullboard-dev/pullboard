@@ -5,6 +5,8 @@
  */
 import { mainPolicy } from '../../../sandbox/index.js';
 import { trunkMerge } from '../../../sandbox/index.js';
+import { UNBUILDABLE } from '../../../sandbox/index.js';
+import { reportUnbuildableOnce } from '../../../sandbox/index.js';
 import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlapLines } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
@@ -104,12 +106,19 @@ export async function nextOnce(ctx, values, ports) {
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values, ports));
   if (looked.autoReview) {
-    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }, ports), review: true }; }
+    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id, unstartedReviewLapse: true }, ports), review: true }; }
     catch (error) {
       if (error instanceof Refused && ['REVIEW_HELD', 'NOT_SUBMITTED'].includes(error.code)) return { retry: true,
         retryDetail: { phase: 'first-review reservation', item: looked.autoReview.item_id, code: error.code } };
       throw error;
     }
+  }
+  if (looked.move) {
+    // This seat's lane has nothing it can take: the same seat, in the same worktree, re-joins the lane that has work and claims
+    // there, so the claim is its own and releases from this worktree. A seat made with --lock-lane never gets here (GH #27).
+    await withBoard(ctx, board => ordered(ctx, board, 'register', [{ lane: looked.move.lane, path: ctx.info.root, route: store.agentAt(board, ctx.info.root).agent_route, moveLane: true }]));
+    ctx.io.say(`moved from ${looked.move.from} to ${looked.move.lane}: ${looked.move.from} had nothing you can take`);
+    return { ...await nextOnce(ctx, { ...values, moved: true }, ports), moved: { from: looked.move.from, to: looked.move.lane } };
   }
   if (!looked.claim) return looked;
   // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
@@ -179,9 +188,6 @@ export async function nextOnce(ctx, values, ports) {
   });
 }
 
-/** Claim refusals of a bar no build can satisfy: next passes over the item instead of stopping (#5709). */
-const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
-
 /** The claim refusals that name one item's frozen policy as stale; any other NO_POLICY still stops next. */
 const STALE_POLICY = /accepted submit policy changed|no longer contains the frozen policy|is frozen against an older accepted policy/u;
 
@@ -198,26 +204,6 @@ async function reportStalePolicyOnce(ctx, board, item, holder, message, ordered)
     await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
     await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
       text: `next passes over #${item.item_id} until it is refrozen: ${message.replace(/^\[NO_POLICY\] /u, '')}; pullboard refreeze ${item.item_id}` }]);
-  } catch (error) {
-    // A refused report must never stop the seat it only reports on.
-    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
-  }
-}
-
-/**
- * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
- *
- * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
- * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
- */
-async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered) {
-  const text = JSON.stringify({ unbuildableBar: { code: refusal.code, message: refusal.message } });
-  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
-  try {
-    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
-    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
-      // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
-      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);
   } catch (error) {
     // A refused report must never stop the seat it only reports on.
     if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
@@ -333,7 +319,7 @@ function nextPick(ctx, board, values, ports) {
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' && !values.defaultLoop || familyOnly && item?.item_lane === me.lane ? null : found;
+  const offer = held && found?.urgent !== 'age' || familyOnly && item?.item_lane === me.lane ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
@@ -352,7 +338,8 @@ function nextPick(ctx, board, values, ports) {
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
+  if (item.item_lane !== me.lane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
+    : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };

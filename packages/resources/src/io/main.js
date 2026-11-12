@@ -78,6 +78,7 @@ export { ADMISSION_POLL_FRESH_MS } from './runner/placement.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
+  runnerDeadlineOutput,
   runnerWaitReasons,
   runnerWaitLine,
 } from './runner/reasons.js';
@@ -1025,6 +1026,7 @@ export async function takeResource(options) {
   let leaseUntil = '';
   let initialTicket = resume?.ticket;
   let lastRunnerWait = '';
+  const deadlineMemory = {};
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
     const result = await renewWithBeat(file, token, table === 'waiter', async () => { await options.beforeAdmission?.(); return options.onWait?.(state); });
@@ -1340,7 +1342,7 @@ export async function takeResource(options) {
         const line = runnerWaitLine(acquired.state.runnerWait);
         if (line !== lastRunnerWait) { process.stderr.write(line + '\n'); lastRunnerWait = line; }
       }
-      if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
+      if (acquired.state.runnerDeadline) for (const line of runnerDeadlineOutput(deadlineMemory, acquired.state.runnerDeadline, acquired.state.runnerWait, Date.now())) process.stderr.write(line + '\n');
       await keepItemLease(acquired.state, 'waiter');
       if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), beatingProbes(options, db, token)).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);
