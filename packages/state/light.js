@@ -95,6 +95,7 @@ export { MAIN_RED_WITHDRAW_ENGINE } from './src/logic/engines/main-red-withdraw-
 export { MECHANICAL_MERGE_ENGINE } from './src/logic/engines/mechanical-merge-engine.js';
 export { MERGE_ONLY_VERDICT_ENGINE } from './src/logic/engines/merge-only-verdict-engine.js';
 export { MILESTONE_LIMIT_ENGINE } from './src/logic/engines/milestone-limit-engine.js';
+export { MILESTONE_PERSON_LIMIT_ENGINE } from './src/logic/engines/milestone-person-limit-engine.js';
 export { MILESTONE_PLACEMENT_ENGINE } from './src/logic/engines/milestone-placement-engine.js';
 export { MILESTONE_QUEUE_ORDER_ENGINE } from './src/logic/engines/milestone-queue-order-engine.js';
 export { MILESTONE_RANK_ENGINE } from './src/logic/engines/milestone-rank-engine.js';
