@@ -14,11 +14,11 @@ import {
 import { getItem } from '../../../../packages/store/index.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { fixtureAddArgv } from '../../tests/fixtures/testkit.js';
-import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import {
   BIN,
   BOARD_FILE,
   project,
+  useLocalRunner,
   fileCheck,
   addChecked,
   showItem,
@@ -118,8 +118,7 @@ test('[B35,V2] manual check-baseline is refused because creation owns the observ
 test('[B35,V2,C7] #6560 with no registered runner the baseline is a pulled job on the local runner, never run inline on the host', { timeout: 150_000 }, async (t) => {
   const box = project({ content: 'committed' });
   // A real local runner process pulls the job over loopback; no push runner is registered, so it is the only place the check can run.
-  assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
-  assert.equal((await box.runLocal(box.repo, ['settings', 'gate.runnerDispatch', 'pull', '--json'])).status, 0, 'the board serves the pull queue');
+  await useLocalRunner(box);
   const observations = join(box.dir, 'pulled-baseline-locations');
   t.after(() => box.runLocal(box.repo, ['runner', 'local', '--off']));
   const added = await box.runLocal(box.repo, ['add', 'web', 'Pulled baseline', '--check', fileCheck('committed', 'pulled-marker', observations), '--wait', '--json']);

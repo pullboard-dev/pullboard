@@ -4,10 +4,10 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { getItem } from '../../../../packages/store/index.js';
-import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { BOARD_FILE } from '../../tests/fixtures/check-baseline.js';
 import { cleanupFixtures } from '../../tests/fixtures/check-baseline.js';
 import { fileCheck } from '../../tests/fixtures/check-baseline.js';
+import { useLocalRunner } from '../../tests/fixtures/check-baseline.js';
 import { project } from '../../tests/fixtures/check-baseline.js';
 import { withBoard } from '../../tests/fixtures/check-baseline.js';
 
@@ -16,8 +16,7 @@ after(cleanupFixtures);
 test('clauses 1 and 2: with the local runner live the baseline records within 60 s and claim refuses CRITERION_PROVES_NOTHING [V2,H16,#6560]', { timeout: 150_000 }, async t => {
   const box = project({ content: 'committed', hold: true, worktrees: true });
   // Process-level: a real local runner process pulls the job over loopback; with no registered runner it is the baseline's only host.
-  assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
-  assert.equal((await box.runLocal(box.repo, ['settings', 'gate.runnerDispatch', 'pull', '--json'])).status, 0, 'the board serves the pull queue');
+  await useLocalRunner(box);
   t.after(() => box.runLocal(box.repo, ['runner', 'local', '--off']));
   const added = await box.runLocal(box.repo, ['add', 'web', 'Fresh board baseline', '--specs', 'G1', '--criterion', 'the check is measured on main',
     '--check', fileCheck('committed'), '--wait', '--json']);
