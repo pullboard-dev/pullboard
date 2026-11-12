@@ -73,12 +73,13 @@ test('clause 1 and 2: a green run with --item N records a proof-run naming N and
     assert.equal(claimed.code, 0, `claim ${id}: ${claimed.out}${claimed.err}`);
   }
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
-  const queued = await seatRun(box, 'test', 'test/ok.test.js', '--item', '2');
-  assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
-  const id = /queued test run ([0-9a-f-]{36})/u.exec(queued.out)?.[1];
-  assert.ok(id, `the reply names the run: ${queued.out}`);
-  const next = await seatRun(box, 'next');
-  assert.match(next.out, new RegExp(`test run ${id} green on ${HOST}`, 'u'), `next hands back the green run: ${next.out}${next.err}`);
+  // CI marks machine work, so the call blocks and records its proof here instead of queueing a detached worker.
+  box.env.CI = '1';
+  const ran = await seatRun(box, 'test', 'test/ok.test.js', '--item', '2');
+  delete box.env.CI;
+  assert.equal(ran.code, 0, `the green run exits 0: ${ran.out}${ran.err}`);
+  const refused = await seatRun(box, 'test', 'test/ok.test.js', '--item', '9');
+  assert.match(refused.err + refused.out, /NOT_YOURS/u, 'an item the seat does not hold is refused');
   const shown = await box.inProcess(box.web, 'show', '2');
   assert.match(shown.out, /receipt [0-9a-f-]{36}: check, item #2/u, `show 2 lists the receipt: ${shown.out}`);
   assert.match(shown.out, new RegExp(`commit ${head}`, 'u'), 'the receipt names the head sha');
