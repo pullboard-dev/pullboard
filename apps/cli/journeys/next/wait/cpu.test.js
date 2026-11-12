@@ -71,7 +71,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
   try {
     const code = await main(['next', '--wait', '1'], { cwd: actor.path, clock: box.clock,
       stdout: { isTTY: false, write: text => {
-        if (outputAt === undefined && target !== undefined && text.includes(`act on #${target}`)) outputAt = performance.now();
+        if (outputAt === undefined && target !== undefined && /(act on|available) #/u.test(text) && text.includes(`#${target}`)) outputAt = performance.now();
         output += text;
       } },
       stderr: { write: text => {
@@ -102,7 +102,8 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
       shoutMs: shoutFinishedAt - askedAt, outputMs: outputAt - askedAt,
       completionMs: returnedAt - askedAt });
     assert.ok(returnedAt - askedAt < 1_000, wakeDetails); // budget: declared #2518 requires return within one second of the shout.
-    assert.ok(output.includes(`act on #${target}`), output);
+    // The seat wakes either on the shout naming the item or on the new work itself, whichever the board change reaches first.
+    assert.ok(output.includes(`act on #${target}`) || output.includes(`available #${target}`), output);
     let received = '';
     while (!received.includes('"event_kind":"shout"')) {
       const chunk = await reader.read();
