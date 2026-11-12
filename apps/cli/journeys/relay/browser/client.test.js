@@ -260,7 +260,7 @@ async function publishApi2Checkpoint(box, boardId, sequence) {
   // bin/run-tests uses foreground checkpointing; keep this private writer deterministic in direct node --test runs too.
   box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = '0';
   let published;
-  try { published = await box.cli('status'); }
+  try { published = await box.cliLocal('status'); }
   finally {
     if (previousCheckpointMode === undefined) delete box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND;
     else box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = previousCheckpointMode;

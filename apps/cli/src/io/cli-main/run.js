@@ -146,6 +146,8 @@ async function runMain(argv, streams) {
     io.refusal = (error, ...rest) => { streams.traceRecord.refusal = error; return report.call(io, error, ...rest); };
   }
   io.loadNativeBoard = streams.loadNativeBoard;
+  // Only the served API sets this, for a seat joined over it from another machine [P7].
+  io.remoteAgent = streams.remoteAgent;
   io.withOutboxGuard = streams.withOutboxGuard;
   io.replayConflictRecord = streams.replayConflictRecord;
   io.remoteBoardMissing = streams.remoteBoardMissing;
@@ -208,12 +210,13 @@ async function runMain(argv, streams) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
-  // A seat whose board lives on another host reads and moves it over HTTP and opens no board.sqlite [P7].
+  // A seat whose board lives on another host joins, reads and moves it over HTTP and opens no board.sqlite [P7].
   // A command the board host runs for a channel (api, view, mcp) is already on the board, so it never posts back to itself.
-  if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && REMOTE_COMMANDS.has(parsed.positionals[0])) {
+  const remoteJoin = parsed?.positionals[0] === 'join' && parsed.positionals[1] !== 'coordinator';
+  if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && (remoteJoin || REMOTE_COMMANDS.has(parsed.positionals[0]))) {
     const remote = await import('../remote/board.js');
     const target = remote.remoteBoard();
-    if (target && ['show', 'whoami'].includes(parsed.positionals[0])) return remote.runRemoteRead(io, parsed, target);
+    if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
     if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;

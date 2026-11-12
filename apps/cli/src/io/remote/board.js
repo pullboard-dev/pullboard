@@ -1,6 +1,6 @@
 /**
- * Board reads over HTTP for a seat whose board lives on another host: with board.url set, show and whoami ask the
- * board host's pullboard serve and open no board.sqlite [P7]. Writes reuse its transport from moves.js.
+ * Board calls over HTTP for a seat whose board lives on another host: with board.url set, join, show and whoami ask
+ * the board host's pullboard serve and open no board.sqlite [P7]. Writes reuse its transport from moves.js.
  */
 import { execFileSync } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
@@ -110,14 +110,17 @@ async function whoamiRemote(io, remote, cwd) {
 }
 
 /**
- * Run show or whoami against the board host and return the exit code; a refusal prints its code and next step.
+ * Run join, show or whoami against the board host and return the exit code; a refusal prints its code and next step.
  * @param {any} io
  * @param {{ positionals: string[] }} parsed
  * @param {{ url: string, token: string }} remote
  */
 export async function runRemoteRead(io, parsed, remote) {
   try {
-    if (parsed.positionals[0] === 'show') await showRemote(io, remote, parsed.positionals);
+    if (parsed.positionals[0] === 'join') {
+      const postMove = async (move) => requestJson(remote, `${await boardPath(remote)}/moves`, move);
+      await (await import('../commands/join.js')).joinRemote(io, parsed, new URL(remote.url).origin, postMove);
+    } else if (parsed.positionals[0] === 'show') await showRemote(io, remote, parsed.positionals);
     else await whoamiRemote(io, remote, io.cwd);
   } catch (error) {
     return reportRemoteRefusal(io, error);
