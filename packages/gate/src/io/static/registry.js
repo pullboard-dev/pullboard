@@ -129,7 +129,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/cli-launches.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
-  { name: 'operation-entries', run: root => operationEntryProblems(root) },
+  { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
   // Test sources are scanned one file at a time, so each file's sites are kept by blob [5567].
   { name: 'test-fixtures', reads: TEST, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('test-fixtures', 1);
@@ -152,7 +152,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     return context.cache('cli-reach', 1).get('cli-reach', `${scope}:${main}`, () => cliReachRows(root));
   } },
   // Modules a test closure reaches whose imports the graph newly cannot read; both graphs are kept per commit (#5840).
-  { name: 'keyless', run: root => keylessRows(root) },
+  { name: 'keyless', reads: SOURCE, run: root => keylessRows(root) },
   // Edges are read per file by blob; the ceilings and the plan are read fresh each run [5567].
   { name: 'cells-edges', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('file-edges', 1), text = new Map(treeSources(root, sources).map(row => [row.file, row.source]));
