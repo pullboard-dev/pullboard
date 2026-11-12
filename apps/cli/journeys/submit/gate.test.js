@@ -240,7 +240,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', as
   // Use committed repository sources so a real scanner cannot be replaced by a synthetic stand-in.
   const repository = resolve(import.meta.dirname, '../../../..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/', 'packages/gate/tests/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/', 'apps/', 'packages/gate/tests/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
@@ -298,7 +298,7 @@ test('a source change selects the tests that scan sources [C7,B3]', async (t) =>
 
   const repository = resolve(import.meta.dirname, '../../../..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'packages/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'apps/', 'packages/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
