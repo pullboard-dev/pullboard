@@ -8,6 +8,7 @@ import { landJobs } from '../../tests/fixtures/land/board.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
 import * as store from '../../../../packages/store/index.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 /** Exercise landing basics against real private Git worktrees [B3,R3]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -26,7 +27,7 @@ test('a repo with no remote lands into the local trunk and status reads as norma
 });
 /** Prepare four independent submitted items and accept them in a caller-selected verdict order. */
 
-test('land names sibling conflicts whose reviews share the unchanged main [B3,R3,E8]', () => {
+test('land names sibling conflicts whose reviews share the unchanged main [B3,R3,E8]', async () => {
   const box = landProject();
   const file = FILES[0];
   const entries = [1, 2].map(number => itemWorktree(box, number, file));
@@ -34,6 +35,11 @@ test('land names sibling conflicts whose reviews share the unchanged main [B3,R3
   submitItem(box, entries[1], 'PASS\n// second sibling\n');
   for (const entry of entries) acceptItem(box, entry);
   const merged = id => onBoard(box, board => store.getItem(board, id).item_merged_commit);
+  // An ACCEPT wakes the automatic lander, which offers the land job after verify returns; wait for both receipts [P7].
+  const conflicted = () => landJobs(box).some(job => job.items.includes(entries[1].item) && job.receipt?.outcome === 'conflict');
+  // budget: hang ceiling for two loopback runner land jobs, never a speed assertion.
+  await waitForCondition(() => Boolean(merged(entries[0].item)) && conflicted(), 'the first sibling lands and the second records its conflict',
+    { signal: AbortSignal.timeout(150_000), state: () => ({ jobs: landJobs(box) }) });
   assert.match(merged(entries[0].item) ?? '', /^[0-9a-f]{40}$/u, 'the first sibling lands by its runner land job');
   assert.equal(box.git(box.repo, 'show', `main:${file}`), 'PASS\n// first sibling', 'trunk holds the first sibling');
   assert.equal(merged(entries[1].item), null, 'the colliding sibling stays accepted and unmerged');

@@ -77,7 +77,7 @@ function settlePulledJobs(cwd, args, env) {
     try {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
-    } catch { return; }
+    } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return;
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
