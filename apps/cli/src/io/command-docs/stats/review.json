@@ -1,0 +1,5 @@
+{
+  "name": "stats review",
+  "help": "  pullboard stats review [--window <duration>] [--until <ISO time>]  review queue depth by hour, time from submit to verdict, and reject rate per reviewer family\n",
+  "required": { "review": "object" }
+}
