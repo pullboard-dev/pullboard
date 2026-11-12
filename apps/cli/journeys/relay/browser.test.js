@@ -178,6 +178,31 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
+/** Rethrow a stalled pairing wait with the page and relay-call state that explain it, masking every board key. */
+async function pairingFailure(chrome, box, error, { boards, keys, since }) {
+  const capture = { calls: box.calls.slice(since).map(call => `${call.method} ${call.path}`).slice(-40) };
+  try {
+    Object.assign(capture, await chrome.evaluate(`(() => {
+      let stored = [];
+      try { stored = Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') ?? '{}')); } catch { /* Report ids only. */ }
+      return {
+        relayNotice: document.querySelector('#relay-notice')?.textContent ?? null,
+        chainFirst200: (document.querySelector('#chain')?.textContent ?? '').slice(0, 200),
+        projects: [...document.querySelectorAll('#proj-list .proj')].map(node => node.dataset.root ?? node.textContent.slice(0, 40)),
+        hashPresent: location.hash !== '',
+        storedBoards: stored.map(id => ${JSON.stringify(boards)}.indexOf(id)),
+        pageErrors: window.__relayPageErrors ?? null,
+      };
+    })()`, 'capture pairing page state', 5000));
+  } catch (captureError) { capture.captureError = captureError.message; }
+  let text = JSON.stringify(capture);
+  for (const key of keys) text = text.replaceAll(key, '[MASKED]');
+  boards.forEach((id, index) => { text = text.replaceAll(id, `[board ${index}]`); });
+  const failure = new AssertionError({ message: `${error.message}\nPairing page capture: ${text}`, actual: false, expected: true, operator: 'waitFor' });
+  failure.cause = error;
+  throw failure;
+}
+
 test('real Chrome pairs, retains its device key, declares its engine on every relay request and shows inactivity [H5,H15,H18,H16,H3]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
@@ -199,7 +224,10 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: 'window.setInterval = () => 0;',
+    source: 'window.setInterval = () => 0;'
+      + ' window.__relayPageErrors = [];'
+      + " addEventListener('error', event => window.__relayPageErrors.push(String(event.error?.stack ?? event.message).slice(0, 400)));"
+      + " addEventListener('unhandledrejection', event => window.__relayPageErrors.push(String(event.reason?.stack ?? event.reason).slice(0, 400)));",
   });
   await signIn(chrome, box);
   const firstBrowserCall = box.calls.length;
@@ -210,8 +238,10 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   assert.equal(box.calls.slice(beforeUnpaired).some(call => /\/(state|events)(?:\?|$)/.test(call.path)), false,
     'a browser without the key sees only authorized board names and pairing guidance');
 
+  const beforePairing = box.calls.length;
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
-  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')')
+    .catch(error => pairingFailure(chrome, box, error, { boards: [link.board, second.id], keys: [encoded, second.encoded], since: beforePairing }));
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'the pairing key is removed from browser history');
   assert.equal(await chrome.evaluate("JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))[" + JSON.stringify(link.board) + '].length === 43'), true);
   assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display !== 'none' && readOnly && requests"), true, 'the relay page exposes person request controls while keeping direct moves read-only');
