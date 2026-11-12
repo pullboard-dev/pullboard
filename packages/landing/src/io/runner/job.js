@@ -98,15 +98,15 @@ export function commandCheck(argv) {
  * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean }} payload - checkout:
  *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
- *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[] }} options - pushOptions: the current lease's landing permit as git push options.
+ *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null }>}
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [] }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env }) {
   const { remote, trunk, expect, items } = payload;
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
   const check = checks ?? (payload.check ? commandCheck(payload.check)
-    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof) : () => ({ ok: true, detail: null }));
+    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof, { env }) : () => ({ ok: true, detail: null }));
   const root = landingCheckout(workdir);
   const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
@@ -155,10 +155,10 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
  * the board's database, and the board never runs a landing step.
  *
  * @param {{ call: (body: object) => object | Promise<object>, runner: string, capabilities?: string[], workdir: string,
- *   checks?: Parameters<typeof runLandingJob>[1]['checks'] }} options
+ *   checks?: Parameters<typeof runLandingJob>[1]['checks'], env?: NodeJS.ProcessEnv }} options
  * @returns {Promise<{ job: string, receipt: Awaited<ReturnType<typeof runLandingJob>>, recorded: boolean } | null>} null when no landing waits.
  */
-export async function takeLandingJob({ call, runner, capabilities = [], workdir, checks = null }) {
+export async function takeLandingJob({ call, runner, capabilities = [], workdir, checks = null, env = process.env }) {
   const { claim } = await call({ action: 'claim', runner, capabilities, kinds: [LANDING_JOB_KIND] });
   if (!claim) return null;
   const { job, token } = claim;
@@ -171,7 +171,7 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
       return Boolean(renewed.renewed);
     } catch { return false; }
   };
-  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew, pushOptions: () => permit ? permitPushOptions(permit) : [] });
+  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew, env, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {
     const posted = await call({ action: 'receipt', job, runner, token, receipt });
     return { job, receipt, recorded: Boolean(posted.recorded) };
