@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { sep } from 'node:path';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FINISHED_IDLE_MS = 2 * 60 * 60 * 1000;
 const DURATION = /^(\d+)(ms|s|m|h|d)$/u;
 const UNIT_MS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: DAY_MS };
 
@@ -74,6 +75,11 @@ function processInTree(processes, treePath) {
 /** A closed native item has either landed or been explicitly withdrawn. */
 function itemClosed(item) {
   return Boolean(item.item_merged_commit) || item.item_status === 'withdrawn' || Boolean(item.item_withdrawn_reason);
+}
+
+/** A hand-made worktree is provably finished when its head is the recorded commit of an item that has landed or been withdrawn and holds no obligation (#5733). */
+function provenFinished(head, items, now) {
+  return typeof head === 'string' && head.length > 0 && items.some(item => item.item_commit === head && itemClosed(item) && !itemObligation(item, now));
 }
 
 /** A live claim, review lease, or unmerged submitted/verified item keeps its owning tree protected. */
@@ -166,15 +172,17 @@ export function classifyMaintenanceTree(tree, {
     inactiveSince = Math.max(inactiveSince ?? activity, activity);
   }
 
-  const closedWork = linkedItems.length > 0 && linkedItems.every(itemClosed);
+  const finishedProof = matchingSeats.length === 0 && !itemSeat && !outsideRoot && provenFinished(tree?.head, items, now);
+  const closedWork = finishedProof || (linkedItems.length > 0 && linkedItems.every(itemClosed));
   const noSeatFirstSeen = matchingSeats.length === 0 ? timestamp(previous?.firstSeenAt) : null;
   if (inactiveSince === null) inactiveSince = noSeatFirstSeen ?? now;
   const elapsed = now - inactiveSince;
-  const oldEnough = elapsed >= grace;
+  const oldEnough = elapsed >= (finishedProof ? Math.min(grace, FINISHED_IDLE_MS) : grace);
   const kind = outsideRoot ? 'scratch' : closedWork ? 'finished' : 'orphaned';
   // Maintenance's own scratch area is a retired seat or a seat's item folder inside the configured worktree root;
   // a sibling checkout, a hand-made worktree or anything outside that root is someone else's and is never removed (#5969).
-  if (outsideRoot || (matchingSeats.length === 0 && !itemSeat)) {
+  // Only a hand-made tree provably finished (its head is a landed or withdrawn item's commit, #5733) leaves that protection.
+  if (outsideRoot || (matchingSeats.length === 0 && !itemSeat && !finishedProof)) {
     return result(kind, true, 'outside-maintenance-scratch', agentIds, itemIds, inactiveSince, oldEnough);
   }
   return result(kind, false, closedWork ? 'all-linked-work-closed' : 'no-live-seat-or-work-claim', agentIds, itemIds, inactiveSince, oldEnough);
