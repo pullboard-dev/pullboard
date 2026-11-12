@@ -63,7 +63,7 @@ test('a fixture view-lane test move lands with no hand edit: every registry row 
   const staged = stageLandingDerived(box.root);
   assert.deepEqual([...staged.registries].sort(), [CELLS, JOURNEYS, TIERS]);
   const cells = box.read(CELLS);
-  assert.deepEqual(Object.keys(cells.journeys), ['test/gone.test.js'], 'the moved test leaves the root journey list');
+  assert.deepEqual(Object.keys(cells.journeys), ['apps/view/tests/moves.test.js', 'test/gone.test.js'], 'the listing row followed the rename');
   assert.equal(cells.rootTests, 1, 'the root count fell by the move');
   assert.deepEqual(Object.keys(box.read(JOURNEYS).files), ['apps/view/tests/moves.test.js', 'test/gone.test.js'], 'the journey row followed the rename');
   const tiers = box.read(TIERS).files.map(row => row.file);
