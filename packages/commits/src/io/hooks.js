@@ -59,7 +59,7 @@ import {
 import { approvedRowProblems } from "../../../spec/index.js";
 import { specGateMoveOnly } from "../../../spec/index.js";
 
-export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
+export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit'];
 export const HOOKS_DIR = '.githooks';
 export const HOOK_MARK = 'Installed by pullboard';
 export const FIX_NOTE = 'Fix what each line names. Never work around a refusal with filler text.';

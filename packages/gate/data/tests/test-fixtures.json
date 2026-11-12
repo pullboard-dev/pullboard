@@ -1053,9 +1053,24 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/layout.test.js": {
-    "raw-cli": 9,
-    "tempdir": 6,
+    "raw-cli": 2,
     "repo-read": 7
+  },
+  "apps/cli/journeys/shout/layout/phone.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/shout/layout/status.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/shout/layout/corner.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/shout/layout/targets.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/lifecycle/chart.test.js": {
     "model": 1,
@@ -1998,7 +2013,7 @@
   "packages/landing/tests/logic/land/why.test.js": {
     "raw-board": 4
   },
-  "apps/cli/journeys/land/main.test.js": {
+  "apps/cli/journeys/land/replay.test.js": {
     "hand-policy": 1
   },
   "packages/landing/tests/logic/batch/history.test.js": {
