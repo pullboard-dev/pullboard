@@ -53,6 +53,7 @@ test('clause 2: a detached wake timer ends under an inherited frozen clock inste
   const source = `import { waitMainAudit } from ${JSON.stringify(scheduler)};
 const outcome = await waitMainAudit(process.argv[1], 'no-such-token', new Date(Date.now() + 1000).toISOString());
 console.log('ENDED ' + outcome);`;
+  // Stays a process: it freezes Date through a node --import loader, which only a fresh process can take.
   const run = runFixtureChild(process.execPath, ['--input-type=module', '--import', frozen, '-e', source, box.root],
     { cwd: box.root, env: { ...process.env }, encoding: 'utf8', timeout: 20_000 });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);

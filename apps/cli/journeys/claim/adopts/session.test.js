@@ -33,13 +33,13 @@ after(e2e.cleanup);
  * @param {any} box
  * @param {string} session the session id
  * @param {() => T} work
- * @returns {T}
+ * @returns {Promise<T>}
  */
-function as(box, session, work) {
+async function as(box, session, work) {
   const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
   box.env.CLAUDECODE = '1';
   box.env.CLAUDE_CODE_SESSION_ID = session;
-  try { return work(); }
+  try { return await work(); }
   finally {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete box.env[name];
@@ -56,10 +56,10 @@ function as(box, session, work) {
  * @param {string} session
  * @returns {{ root: string, id: string }}
  */
-function seat(box, name, session) {
+async function seat(box, name, session) {
   const root = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', root, '-b', `web/${name}`);
-  const joined = as(box, session, () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL }));
+  const joined = await as(box, session, () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL, run: box.runLocal }));
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { root, id: JSON.parse(joined.out).agent };
 }
@@ -75,19 +75,19 @@ function binding(box, root) {
  *
  * @returns {{ box: any, id: string, first: { root: string, id: string }, folder: string }}
  */
-function priorFolder() {
+async function priorFolder() {
   const box = e2e.project();
-  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Adopted folder', check: 'true', args: ['--specs', 'G1'] });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Adopted folder', check: 'true', args: ['--specs', 'G1'], run: box.runLocal });
   const id = String(item.item_id);
-  const first = seat(box, 'web-a', 'session-a');
-  const folder = as(box, 'session-a', () => {
-    const claimed = box.run(first.root, 'claim', id);
+  const first = await seat(box, 'web-a', 'session-a');
+  const folder = await as(box, 'session-a', async () => {
+    const claimed = await box.runLocal(first.root, 'claim', id);
     assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     const path = /item folder: (.+)/u.exec(claimed.out)?.[1];
     assert.ok(path, claimed.out);
     const committed = e2e.commitFile(box, path, 'web/kept.txt', 'kept work\n', 'feat(web): kept prior work [G1]');
     assert.equal(committed.status, 0, committed.stderr);
-    const released = box.run(first.root, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
+    const released = await box.runLocal(first.root, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
     assert.equal(released.code, 0, `${released.out}\n${released.err}`);
     return path;
   });
@@ -97,17 +97,17 @@ function priorFolder() {
 }
 
 /** End session-a: a new session takes seat A's checkout over, as a restarted agent does. */
-function endFirstSession(box, first) {
-  const taken = as(box, 'session-a2', () => box.run(first.root, 'takeover'));
+async function endFirstSession(box, first) {
+  const taken = await as(box, 'session-a2', () => box.runLocal(first.root, 'takeover'));
   assert.equal(taken.code, 0, `${taken.out}\n${taken.err}`);
 }
 
-test('clause 1: a seat claiming an item whose folder an ended session left adopts it through the real claim path and commits in it through the real commit hook with no takeover [B3,C7]', () => {
-  const { box, id, first, folder } = priorFolder();
-  endFirstSession(box, first);
-  const second = seat(box, 'web-b', 'session-b');
-  as(box, 'session-b', () => {
-    const claimed = box.run(second.root, 'claim', id);
+test('clause 1: a seat claiming an item whose folder an ended session left adopts it through the real claim path and commits in it through the real commit hook with no takeover [B3,C7]', async () => {
+  const { box, id, first, folder } = await priorFolder();
+  await endFirstSession(box, first);
+  const second = await seat(box, 'web-b', 'session-b');
+  await as(box, 'session-b', async () => {
+    const claimed = await box.runLocal(second.root, 'claim', id);
     assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
     assert.ok(adopted && adopted !== folder, claimed.out);
@@ -120,11 +120,11 @@ test('clause 1: a seat claiming an item whose folder an ended session left adopt
   });
 });
 
-test('clause 1: the same seat in a new session reclaims its own item folder bound to its ended session and commits there through the real hook [B3,C7]', () => {
-  const { box, id, first, folder } = priorFolder();
-  endFirstSession(box, first);
-  as(box, 'session-a2', () => {
-    const claimed = box.run(first.root, 'claim', id);
+test('clause 1: the same seat in a new session reclaims its own item folder bound to its ended session and commits there through the real hook [B3,C7]', async () => {
+  const { box, id, first, folder } = await priorFolder();
+  await endFirstSession(box, first);
+  await as(box, 'session-a2', async () => {
+    const claimed = await box.runLocal(first.root, 'claim', id);
     assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     assert.equal(/item folder: (.+)/u.exec(claimed.out)?.[1], folder, claimed.out);
     const committed = e2e.commitFile(box, folder, 'web/next.txt', 'next work\n', 'feat(web): continue in a new session [G1]');
@@ -132,13 +132,13 @@ test('clause 1: the same seat in a new session reclaims its own item folder boun
   });
 });
 
-test('clause 2: a folder whose previous session is still live is never adopted, and the claim refusal names that session [B3,C7]', () => {
-  const { box, id, first, folder } = priorFolder();
+test('clause 2: a folder whose previous session is still live is never adopted, and the claim refusal names that session [B3,C7]', async () => {
+  const { box, id, first, folder } = await priorFolder();
   // A clean idle folder is adopted since #3720; unsaved work keeps the live session's folder retained.
   writeFileSync(join(folder, 'scratch.txt'), 'unsaved\n');
   const before = binding(box, folder);
-  const second = seat(box, 'web-b', 'session-b');
-  const claimed = as(box, 'session-b', () => box.run(second.root, 'claim', id));
+  const second = await seat(box, 'web-b', 'session-b');
+  const claimed = await as(box, 'session-b', () => box.runLocal(second.root, 'claim', id));
   const all = `${claimed.out}\n${claimed.err}`;
   assert.notEqual(claimed.code, 0, all);
   assert.match(all, /ITEM_FOLDER_SESSION_LIVE/u);
