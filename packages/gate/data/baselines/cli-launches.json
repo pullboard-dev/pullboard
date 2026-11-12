@@ -1883,9 +1883,6 @@
   "apps/cli/journeys/relay/local/first/key.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/intake/main.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/submit/handoff/queued.test.js": {
     "launch": 2
   },
