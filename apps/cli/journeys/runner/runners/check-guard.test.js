@@ -5,4 +5,4 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
-test('private runner guard and long-check edges preserve public review behavior [C7,V4]', (t) => privateReviewRunnerEdges(t, e2e, 4));
+test('private runner guard and long-check edges preserve public review behavior [C7,V4]', (t) => privateReviewRunnerEdges(t, e2e, 4, 7));
