@@ -410,5 +410,8 @@
   },
   "trunk": {
     "remote": "coreyolson@100.109.124.33:pb-trunk"
+  },
+  "claims": {
+    "perSeat": 2
   }
 }
