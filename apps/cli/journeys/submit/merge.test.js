@@ -8,11 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
-import { resolve } from 'node:path';
-
-const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 import { mergeSubmissionMain } from '../../../../packages/merge/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
@@ -189,9 +185,11 @@ db.exec('ROLLBACK');
   mkdirSync(hooks, { recursive: true });
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
   writeFileSync(join(hooks, 'post-merge'), `#!/bin/sh\n${JSON.stringify(process.execPath)} ${JSON.stringify(holder)} >/dev/null 2>&1 </dev/null &\nwhile [ ! -f ${JSON.stringify(locked)} ]; do sleep 0.05; done\n`, { mode: 0o755 });
-  const refused = await runFixtureChildAsync(process.execPath, [BIN, 'submit', String(id), '--no-next', '--json'],
-    { cwd: box.web, env: { ...box.env, PULLBOARD_BOARD_QUEUE_MS: '1000' } });
-  const result = { code: refused.status, out: refused.stdout, err: refused.stderr };
+  const queue = process.env.PULLBOARD_BOARD_QUEUE_MS;
+  process.env.PULLBOARD_BOARD_QUEUE_MS = '1000';
+  let result;
+  try { result = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'); }
+  finally { if (queue === undefined) delete process.env.PULLBOARD_BOARD_QUEUE_MS; else process.env.PULLBOARD_BOARD_QUEUE_MS = queue; }
   assert.equal(result.code, 1, `${result.err}\n${result.out}`);
   assert.equal(JSON.parse(result.out).error.code, 'BOARD_BUSY', result.out);
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), source, 'the refused submit leaves the head where it was');
