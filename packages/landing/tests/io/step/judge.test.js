@@ -37,7 +37,7 @@ function replayPorts({ greenOnRerun = FLAKY, open = [] } = {}) {
   } };
 }
 
-test('replaying the 8:19 pm batch lands #5815 and #5763 with 4 main charges, 4 quarantine records and no LAND_TEST_DEFECT [C7,#5862]', async () => {
+test('clause 1: replaying the 8:19 pm batch lands #5815 and #5763 with 4 main charges, 4 quarantine records and no LAND_TEST_DEFECT [C7,#5862]', async () => {
   const { state, writes } = landingState();
   const { ports, reruns } = replayPorts();
   const results = [
