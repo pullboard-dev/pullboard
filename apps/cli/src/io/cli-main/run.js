@@ -111,7 +111,7 @@ async function timedMain(argv, streams) {
 /** Record local command wall time without sending timing data to the board. */
 export async function main(rawArgv, streams) {
   const { argv, why } = extractWhy(rawArgv);
-  (await import('../../../../../packages/config/light.js')).applyMachineScratch();
+  (await import('../../../../../packages/config/index.js')).applyMachineScratch();
   const { beginSeatTiming, timingSeat } = await import('../../../../../packages/seats/light.js');
   const cwd = streams.cwd ?? process.cwd();
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;

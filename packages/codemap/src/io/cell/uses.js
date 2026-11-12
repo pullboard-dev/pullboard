@@ -13,7 +13,8 @@ import { commonJsWithCompiler } from '../../../../kernel/index.js';
 import { currentCellLintParser } from './parser.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
-import { scratchBaseFolder } from '../../../../kernel/light.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs';
 const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
@@ -23,7 +24,7 @@ process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextMo
 function compiles(sources) {
   const parser = currentCellLintParser();
   if (parser) return parser(sources).map(row => row.compiles);
-  const directory = scratchBaseFolder('pullboard-cell-bindings-');
+  const directory = mkdtempSync(join(scratchBase(), 'pullboard-cell-bindings-'));
   try {
     const file = join(directory, 'sources.json');
     writeFileSync(file, JSON.stringify(sources));

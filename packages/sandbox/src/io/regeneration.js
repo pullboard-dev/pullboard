@@ -13,7 +13,8 @@ import { invalidateGitFacts } from '../../../git/index.js';
 import { recordedToolCommits } from '../../../git/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
-import { scratchFolder } from '../../../config/index.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../kernel/light.js';
 
 /** Execute a bounded fixed executable, keeping complete diagnostics in the caller's private log. */
 function execute(root, executable, args, log, { input, env = {} } = {}) {
@@ -37,7 +38,7 @@ function replay(root, command, custody, log) {
 export function regenerateToolChange(root, source, main, { item }) {
   const recipes = recordedToolCommits(root, main, source);
   if (!recipes) return null;
-  const directory = realpathSync(scratchFolder('pullboard-tool-regeneration-'));
+  const directory = realpathSync(mkdtempSync(join(scratchBase(), 'pullboard-tool-regeneration-')));
   const checkout = join(directory, 'checkout');
   const log = [];
   const git = (cwd, args, options) => execute(cwd, 'git', ['--no-replace-objects', ...args], log, options);
