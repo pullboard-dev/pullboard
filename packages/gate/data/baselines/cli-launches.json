@@ -171,7 +171,7 @@
     "launch": 3
   },
   "apps/cli/journeys/check/receipts.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/status/drive.test.js": {
     "launch": 2
@@ -352,9 +352,6 @@
   },
   "apps/cli/journeys/handoff/dead/running.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/exit/rules.test.js": {
-    "launch": 8
   },
   "apps/cli/journeys/ship/command.test.js": {
     "launch": 2
@@ -576,7 +573,7 @@
     "launch": 1
   },
   "apps/cli/journeys/decisions/row.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "packages/gate/tests/io/static/check/registry.test.js": {
     "launch": 1
@@ -889,9 +886,6 @@
   },
   "packages/gate/tests/io/edges/checks.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/trace/command.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/submit/infra.test.js": {
     "launch": 8
