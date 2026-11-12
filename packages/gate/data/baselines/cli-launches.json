@@ -1151,9 +1151,6 @@
   "apps/cli/journeys/watch/main.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/why/main.test.js": {
-    "launch": 22
-  },
   "apps/cli/journeys/withdraw/hold.test.js": {
     "launch": 1
   },
