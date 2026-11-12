@@ -49,7 +49,7 @@ async function fixture(t, state) {
   const box = helpers.project('true');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Dispatcher recovery fixture',
     criterion: 'The fixture remains held.', diagnose: false, args: ['--specs', 'G1'] }).item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   const tools = join(box.dir, 'captured-tools');
   marker = join(box.dir, 'dispatcher-starts');
   stop = join(box.dir, 'stop-dispatcher');
@@ -107,7 +107,7 @@ for (const command of ['next', 'claim']) {
   for (const state of ['dead', 'alive', 'empty']) {
     test(`clause ${state === "dead" ? 1 : 2}: ${command} recovers only a dead dispatcher with queued launches (${state}) [C7]`, async t => {
       const f = await fixture(t, state);
-      const result = f.box.run(f.box.web, command, ...(command === 'claim' ? [String(f.id)] : []));
+      const result = await f.box.runLocal(f.box.web, command, ...(command === 'claim' ? [String(f.id)] : []));
       assert.equal(result.code, 0, result.err + result.out);
       if (state === 'dead') {
         await waitForCondition(() => existsSync(f.marker), `${command} started the captured dispatcher`);
@@ -119,7 +119,7 @@ for (const command of ['next', 'claim']) {
         assert.equal(receipt.pid, starts[0]);
         assert.notEqual(receipt.pid, f.priorPid);
         assert.ok(receipt.started, 'the new process incarnation is recorded');
-        const repeated = f.box.run(f.box.web, command, ...(command === 'claim' ? [String(f.id)] : []));
+        const repeated = await f.box.runLocal(f.box.web, command, ...(command === 'claim' ? [String(f.id)] : []));
         assert.equal(repeated.code, 0, repeated.err + repeated.out);
         assert.equal(readFileSync(f.marker, 'utf8').trim().split('\n').length, 1, 'another command does not duplicate the live dispatcher');
       } else {
@@ -133,7 +133,7 @@ for (const command of ['next', 'claim']) {
 for (const command of ['status', 'show', 'whoami']) {
   test(`clause 2: the read ${command} never runs dispatcher recovery, even with a dead dispatcher and queued launches [C7]`, async t => {
     const f = await fixture(t, 'dead');
-    const result = f.box.run(f.box.web, command, ...(command === 'show' ? [String(f.id)] : []));
+    const result = await f.box.runLocal(f.box.web, command, ...(command === 'show' ? [String(f.id)] : []));
     assert.equal(result.code, 0, result.err + result.out);
     assert.equal(existsSync(join(f.queue, 'recovery-woken')), false, 'a read claims no recovery turn and starts no check');
     assert.equal(existsSync(f.marker), false, 'a read launches no dispatcher');

@@ -14,6 +14,9 @@ import {
 } from '../../../../../packages/resources/index.js';
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
+import { readPulledCapacity } from '../../../../../packages/runners/index.js';
+import { openBoardReadOnly } from '../../../../../packages/store/index.js';
+import { context } from '../read.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
@@ -56,15 +59,28 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
     return 0;
   }
+  if (first === 'status') {
+    // Pulled-job capacity from the board's job table: claimed jobs against each serve's declared jobs setting [#5993].
+    if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner status [--json]');
+    const ctx = context(io);
+    if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
+    const db = openBoardReadOnly(ctx.file);
+    let capacity;
+    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    io.result?.(capacity);
+    io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
+      `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');
+    return 0;
+  }
   if (first === 'serve') {
     // A pull runner: only outbound HTTPS to the board and git fetches from its trunk remote, no ssh in [P7].
-    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once'].includes(key))) {
-      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--once]');
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once', 'jobs'].includes(key))) {
+      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--jobs <n>] [--once]');
     }
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;

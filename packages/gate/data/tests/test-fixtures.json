@@ -1982,7 +1982,7 @@
     "hand-policy": 1,
     "repo-read": 2
   },
-  "apps/cli/journeys/verify/landing/drill.test.js": {
+  "apps/cli/tests/fixtures/landing/drill.js": {
     "hand-policy": 1
   },
   "apps/cli/tests/fixtures/landing/refresh.js": {
@@ -2319,8 +2319,20 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/next/order.test.js": {
-    "raw-board": 64,
-    "model": 6
+    "raw-board": 17,
+    "model": 2
+  },
+  "apps/cli/journeys/next/order/queue.test.js": {
+    "model": 1,
+    "raw-board": 7
+  },
+  "apps/cli/journeys/next/order/claims.test.js": {
+    "model": 2,
+    "raw-board": 19
+  },
+  "apps/cli/journeys/next/order/focus.test.js": {
+    "raw-board": 21,
+    "model": 1
   },
   "apps/cli/tests/fixtures/next/take.js": {
     "tempdir": 2,
@@ -3575,7 +3587,10 @@
     "env-spread": 1,
     "model": 1
   },
-  "apps/cli/journeys/submit/gate.test.js": {
+  "apps/cli/journeys/submit/gate/scanners.test.js": {
+    "repo-read": 1
+  },
+  "apps/cli/journeys/submit/gate/scanner-source.test.js": {
     "repo-read": 1
   },
   "apps/cli/journeys/submit/handoff/cells.test.js": {

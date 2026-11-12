@@ -8,6 +8,7 @@ import {
   atomic,
   getItem,
   logEvent,
+  appendFact,
 } from "../../../../io/board.js";
 import { COORDINATOR } from "../../../../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../../../state/index.js";
@@ -46,12 +47,17 @@ export function recordLandingTestDefect(board, { agentId, test, hash, blob, trun
       if (!target) throw new Refused('LAND_TEST_DEFECT', 'an audit must name native landings after its last green cursor');
       audit = auditFailureItem({ failures: names.map(name => ({ file: test, name })), landings, sinceEventId: auditSinceEventId, lane });
     }
-    const previous = landingTestDefects(board).find(defect => defect.branch === branch && defect.test === test && defect.hash === hash);
-    const usable = (!audited || previous?.batchId === batchId) && (!requireOpen || !previous || ['open', 'claimed', 'submitted'].includes(getItem(board, previous.item).item_status));
-    if (usable && previous?.batchId === batchId && names.every(name => previous.names.includes(name))) return previous;
-    const item = (usable ? previous?.item : null) ?? addItem(board, { by: agentId, lane, title: audit?.title ?? `Landing test defect: ${test}`,
+    // The cause key is lane plus test file: a changed hash is new evidence for the same item, never a new item [C7].
+    const previous = landingTestDefects(board).find(defect => defect.branch === branch && defect.test === test && (defect.lane ?? lane) === lane);
+    const live = previous && ['open', 'claimed', 'submitted'].includes(getItem(board, previous.item).item_status);
+    const reuse = previous && live && (!audited || previous.batchId === batchId) ? previous : null;
+    if (reuse && reuse.hash === hash && reuse.batchId === batchId && names.every(name => reuse.names.includes(name))) return reuse;
+    const item = reuse?.item ?? addItem(board, { by: agentId, lane, title: audit?.title ?? `Landing test defect: ${test}`,
       criterion: audit?.criterion ?? `${test} passes with the combined accepted work; the landing failed without an item culprit: ${names.join('; ')}`, route: 'strong' });
-    const defect = { test, hash, blob, trunkBlob, names: [...new Set([...(previous?.names ?? []), ...names])], item, batchId, branch, ...(audit ? { audit: audit.audit } : {}) };
+    if (reuse && (reuse.hash !== hash || names.some(name => !reuse.names.includes(name)))) {
+      appendFact(board, item, { agentId, kind: 'note', text: `Landing failed again in ${test} at hash ${hash}: ${names.join('; ')}` });
+    }
+    const defect = { test, hash, blob, trunkBlob, lane, names: [...new Set([...(reuse?.names ?? []), ...names])], item, batchId, branch, ...(audit ? { audit: audit.audit } : {}) };
     logEvent(board, agentId, 'landing-test-defect', item, { engine: audited ? TEST_ECONOMICS_ENGINE : requireOpen ? MAIN_AUDIT_ENGINE : LANDING_ENVIRONMENT_ENGINE, defect });
     return defect;
   });

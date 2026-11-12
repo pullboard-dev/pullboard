@@ -48,7 +48,7 @@ const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', '
  */
 export function writesBoard([command, first]) {
   return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
-    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first))
+    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first) && !['board.url', 'board.token'].includes(first))
     || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
 }
 
@@ -131,6 +131,9 @@ export async function main(rawArgv, streams) {
   }
 }
 
+// The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify']);
+
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
@@ -143,6 +146,8 @@ async function runMain(argv, streams) {
     io.refusal = (error, ...rest) => { streams.traceRecord.refusal = error; return report.call(io, error, ...rest); };
   }
   io.loadNativeBoard = streams.loadNativeBoard;
+  // Only the served API sets this, for a seat joined over it from another machine [P7].
+  io.remoteAgent = streams.remoteAgent;
   io.withOutboxGuard = streams.withOutboxGuard;
   io.replayConflictRecord = streams.replayConflictRecord;
   io.remoteBoardMissing = streams.remoteBoardMissing;
@@ -204,6 +209,15 @@ async function runMain(argv, streams) {
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
+  }
+  // A seat whose board lives on another host joins, reads and moves it over HTTP and opens no board.sqlite [P7].
+  // A command the board host runs for a channel (api, view, mcp) is already on the board, so it never posts back to itself.
+  const remoteJoin = parsed?.positionals[0] === 'join' && parsed.positionals[1] !== 'coordinator';
+  if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && (remoteJoin || REMOTE_COMMANDS.has(parsed.positionals[0]))) {
+    const remote = await import('../remote/board.js');
+    const target = remote.remoteBoard();
+    if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
+    if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');

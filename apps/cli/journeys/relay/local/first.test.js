@@ -290,7 +290,7 @@ test('a GitHub 403 never refuses or delays a move: it is recorded and queued, th
 
 test('one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
   const { box, env } = await linkedBoard(t);
-  const printed = await box.cli('relay', 'pair');
+  const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const permission = () => box.providerCalls.filter(call => call.path.endsWith('/permission')).length;
   const asked = permission();
@@ -352,7 +352,7 @@ test('one background sender per machine sends each new move once, asks GitHub on
 async function seat(box, name) {
   const path = join(dirname(box.root), name);
   runFixtureGit(['worktree', 'add', '-q', '-b', `agent/${name}`, path], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(path, 'join', box.lane, '--model', 'fixture-model', '--route', 'strong');
+  const joined = await box.cliAtLocal(path, 'join', box.lane, '--model', 'fixture-model', '--route', 'strong');
   assert.equal(joined.code, 0, joined.failure);
   return { path, id: joined.document.agent };
 }
@@ -361,8 +361,8 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const box = await relayClientFixture(t);
   enableOutbox(box);
   await box.link();
-  const contested = (await box.cli('add', box.lane, 'Claimed on two machines')).document.item.item_id;
-  const printed = await box.cli('relay', 'pair');
+  const contested = (await box.cliLocal('add', box.lane, 'Claimed on two machines')).document.item.item_id;
+  const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const here = await seat(box, 'here-agent');
   const otherPath = join(dirname(other.root), 'there-agent');
@@ -372,13 +372,13 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const winner = there.document.agent;
 
   await box.stopRelay();
-  const queued = await box.cliAt(here.path, 'claim', String(contested));
+  const queued = await box.cliAtLocal(here.path, 'claim', String(contested));
   assert.equal(queued.code, 0, `the claim succeeds here at once, with no up-front coordination: ${queued.failure}; ${JSON.stringify(queued.document?.error ?? queued.document?.refusal ?? null)}`);
   await box.restartRelay();
   const won = await other.cliAt(otherPath, 'claim', String(contested));
   assert.equal(won.code, 0, won.failure);
 
-  const synced = await box.cli('status');
+  const synced = await box.cliLocal('status');
   assert.equal(synced.code, 0, synced.failure);
   const [refused] = synced.document.relay.outboxRefusals ?? [];
   assert.ok(refused, 'the later claim is refused when it replays');

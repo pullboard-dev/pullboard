@@ -28,7 +28,7 @@ export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptB
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/io/slot.js";
 export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/io/requeue.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
-export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
+export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
 export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
@@ -47,7 +47,7 @@ export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest } from "./src/io/tap.js";
-export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
+export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
 export { prepareTestResultExchange } from "./src/io/test/action/transfer.js";
 export { testCapacityReport } from "./src/io/test/capacity.js";
 export { testConversionPlan } from "./src/logic/test/conversion.js";
@@ -104,7 +104,7 @@ export { keepClaimsAlive } from "./src/io/keepalive.js";
 export { gateHealthLines } from "./src/logic/health.js";
 export { gateHealthReport } from "./src/io/health.js";
 export { maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';
-export { firstChangedInput, recordInputParts, ledgerFromOutput } from './src/io/test/account.js';
+export { firstChangedInput, recordInputParts, ledgerFromOutput, phaseLedger } from './src/io/test/account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/io/test/shards.js";
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';

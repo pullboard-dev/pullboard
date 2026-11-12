@@ -23,7 +23,7 @@ export function gateWaitReporter(io) {
 
 /** Compose process-only capabilities after a command actually requests them. */
 export function loadProcessPorts() {
-  return Promise.all([import('node:url'), import('../../../../../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
+  return Promise.all([import('node:url'), import('../../../../../packages/outbox/light.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,
     /** Load the canonical guard only when a linked operation actually needs it. */
     withOutboxGuard: (...args) => import('../../../../../packages/outbox/index.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),
