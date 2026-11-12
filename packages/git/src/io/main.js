@@ -747,6 +747,27 @@ function rawGit(cwd, args, env) {
 }
 
 /**
+ * The working copy of a file whose Git blob identity this command already learned, when its bytes hash to that identity;
+ * null when nothing was pinned or the copy differs. Why: identical bytes are the committed text, and a Git child costs more [C7].
+ */
+export function pinnedWorkingText(cwd, revision, file) {
+  const blobs = mainSourceBlobs(cwd);
+  const oid = blobs && blobs.commit === revision ? (file.endsWith('.json') ? blobs.config : file === 'DOCTRINE.md' ? blobs.doctrine : null) : null;
+  if (!oid) return null;
+  try {
+    const bytes = readFileSync(join(cwd, file));
+    const hash = createHash(oid.length === 64 ? 'sha256' : 'sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    return hash === oid ? bytes.toString('utf8') : null;
+  } catch { return null; }
+}
+
+/** The pinned working copy of a `revision:file` spec, like `git show`'s argument, or null (see pinnedWorkingText) [C7]. */
+export function pinnedSpecText(cwd, spec) {
+  const cut = spec.indexOf(':');
+  return cut < 0 ? null : pinnedWorkingText(cwd, spec.slice(0, cut), spec.slice(cut + 1));
+}
+
+/**
  * The exact bytes of one committed or staged file (`HEAD:path`, `:path`), or null when Git has none there.
  * Untrimmed, so a caller parses the file as stored; remembered within a commit-hook run like any other read.
  *
@@ -756,6 +777,8 @@ function rawGit(cwd, args, env) {
  * @returns {string | null}
  */
 export function gitShowText(cwd, revision, file) {
+  const same = pinnedWorkingText(cwd, revision, file);
+  if (same !== null) return same;
   const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
   return raw.status === 0 ? raw.stdout : null;
 }
