@@ -30,9 +30,8 @@ function committed(t) {
 
 test('an ignored, non-module script leaves --cuts and --check green [C7,D3]', t => {
   const { root, put } = committed(t);
-  appendFileSync(join(root, '.git', 'info', 'exclude'), 'scratch/\n');
-  put('scratch/probe.js', "const fs = require('fs');\nmodule.exports = fs.readFileSync(__filename);\n");
-  put('src/untracked-note.js', "module.exports = require('./nowhere');\n");
+  appendFileSync(join(root, '.git', 'info', 'exclude'), 'src/scratch/\n');
+  put('src/scratch/probe.js', "const fs = require('fs');\nmodule.exports = fs.readFileSync(__filename);\n");
   for (const mode of ['--cuts', '--check']) {
     const run = plan(root, mode);
     assert.equal(run.status, 0, `${mode}: ${run.stderr}`);
@@ -41,8 +40,9 @@ test('an ignored, non-module script leaves --cuts and --check green [C7,D3]', t 
 
 test('a tracked file that does not parse as an ES module fails and names its path [C7,D3]', t => {
   const { root, put } = committed(t);
-  put('src/broken.js', "const fs = require('fs');\nmodule.exports = fs;\n");
-  git(root, 'add', 'src/broken.js');
+  put('src/broken.js', 'export const = ;\n');
+  put('src/cli.js', "import './broken.js';\nimport { stats } from './stats.js';\nimport { flow } from './stats-flow.js';\nconsole.log(stats, flow);\n");
+  git(root, 'add', '-A');
   for (const mode of ['--cuts', '--check']) {
     const run = plan(root, mode);
     assert.notEqual(run.status, 0, `${mode} must fail`);
