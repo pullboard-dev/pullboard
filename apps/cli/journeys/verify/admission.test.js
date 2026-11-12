@@ -56,16 +56,16 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     box.git(box.repo, 'commit', '-q', '-m', 'test: explicit desktop admission fixture [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const check = 'node apps/cli/src/io/run/tests.js test/desktop.test.js';
-    document(fixtureAdd(box.run, box.repo, 'web', 'Desktop admission', '--criterion', 'the selected check executes', '--check', check, '--specs', 'G1', '--json'));
-    document(box.run(box.web, 'claim', '1', '--json'));
+    document(await fixtureAdd(box.runIn, box.repo, 'web', 'Desktop admission', '--criterion', 'the selected check executes', '--check', check, '--specs', 'G1', '--json'));
+    document(await box.runIn(box.web, 'claim', '1', '--json'));
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     helpers.historicalCheckSubmission(box, head);
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    document(fixtureJoin(box.run, reviewer, 'api', '--json'));
+    document(await fixtureJoin(box.runIn, reviewer, 'api', '--json'));
     assert.equal(await checkNeedsGui(reviewer, check), liveGui, 'the live classifier reads only the original tracked annotation');
     if (companion) {
-      const coordinator = document(box.run(box.repo, 'whoami', '--json'));
+      const coordinator = document(await box.runIn(box.repo, 'whoami', '--json'));
       assert.equal(coordinator.id, 'coordinator', 'the native source author owns coordinator-only test paths');
       const patch = [
         'diff --git a/test/desktop.test.js b/test/desktop.test.js',
@@ -79,7 +79,7 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
       ].join('\n');
       const patchFile = join(box.dir, 'desktop-marker.patch');
       writeFileSync(patchFile, patch);
-      document(box.run(box.repo, 'patch', 'attach', '1', patchFile, '--key', 'desktop-marker',
+      document(await box.runIn(box.repo, 'patch', 'attach', '1', patchFile, '--key', 'desktop-marker',
         '--author', coordinator.id, '--source', head, '--json'));
       assert.equal(await checkNeedsGui(reviewer, check), false, 'attachment never mutates the unmarked live reviewer source');
     }
@@ -91,8 +91,8 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     if (companion) {
       verifier = join(box.dir, 'composed-reviewer');
       box.git(box.repo, 'worktree', 'add', '-q', '--detach', verifier, head);
-      document(fixtureJoin(box.run, verifier, 'api', '--json'));
-      document(box.run(verifier, 'next', '--verify', '1', '--json'));
+      document(await fixtureJoin(box.runIn, verifier, 'api', '--json'));
+      document(await box.runIn(verifier, 'next', '--verify', '1', '--json'));
       assert.equal(await checkNeedsGui(verifier, check), true, 'the reserved reviewer sees the composed GUI marker');
     }
     const ready = join(box.dir, 'holder-ready');
@@ -129,7 +129,7 @@ ${executionServicesSource(gate)}\nimport { existsSync, writeFileSync } from 'nod
     }
     assert.equal(queued.browser, 1, 'both verification requests preserve the default browser-slot requirement');
     assert.equal(queued.gui, Number(expectedGui), 'actual admission uses the exact checked source GUI requirement');
-    const accepted = document(box.run(box.repo, 'show', '1', '--json'));
+    const accepted = document(await box.runIn(box.repo, 'show', '1', '--json'));
     assert.equal(accepted.item_status, 'verified', 'the actual native frozen check completed successfully');
     assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), liveHead);
     assert.equal(box.git(reviewer, 'status', '--porcelain=v1'), liveStatus);
