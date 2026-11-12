@@ -1406,9 +1406,6 @@
   "apps/cli/journeys/sync/git/repair.test.js": {
     "launch": 10
   },
-  "apps/cli/journeys/test/command.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/test/knownred.test.js": {
     "launch": 5
   },
