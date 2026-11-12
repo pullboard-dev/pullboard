@@ -36,9 +36,9 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
+  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1').code, 0);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = await box.runLocal(box.repo, 'settings', key, value);
+    const set = box.run(box.repo, 'settings', key, value);
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
   // Main holds the focused runner, with its per-test timeout, and a test that hangs on main as well.
@@ -53,7 +53,7 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   writeFileSync(join(box.web, 'test/changed.test.js'), FAILS);
 
   const started = Date.now();
-  const ran = await box.runLocal(box.web, 'test', 'test/ok.test.js', 'test/hang.test.js', 'test/changed.test.js', '--json');
+  const ran = box.run(box.web, 'test', 'test/ok.test.js', 'test/hang.test.js', 'test/changed.test.js', '--json');
   const seconds = (Date.now() - started) / 1000;
   assert.equal(ran.code, 1, `a red file makes the run red: ${ran.err}`);
   const result = JSON.parse(ran.out);
@@ -70,14 +70,14 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   const calls = readFileSync(requests, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
   assert.ok(calls.length >= 2 && calls.every((call) => call.host === HOST), 'the run and its main comparisons all went to the runner');
 
-  const text = await box.runLocal(box.web, 'test', 'test/hang.test.js', '--compare-main');
+  const text = box.run(box.web, 'test', 'test/hang.test.js', '--compare-main');
   assert.equal(text.code, 1);
   assert.match(text.err, new RegExp(`red on ${HOST}`, 'u'), 'the text form names where it ran');
   assert.match(text.out.split('\n')[0], /file also fails on main at [a-f0-9]+: test\/hang\.test\.js \(case comparison unavailable\)/u, 'the first result line keeps the real file verdict without inventing a case match');
   assert.doesNotMatch(text.out, /not yours; accepted/u, 'a timeout is not an identical accepted case');
 });
 
-test('pullboard test names why it ran on this machine, and every installed hook points at it [C7]', { timeout: 120_000 }, async () => { // budget: hang ceiling for real init, join and one local run; not a speed target.
+test('pullboard test names why it ran on this machine, and every installed hook points at it [C7]', { timeout: 120_000 }, () => { // budget: hang ceiling for real init, join and one local run; not a speed target.
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }, null, 2));
@@ -85,7 +85,7 @@ test('pullboard test names why it ran on this machine, and every installed hook 
   writeFileSync(join(box.repo, 'test/ok.test.js'), PASSES);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner and one test file');
-  const ran = await box.runLocal(box.repo, 'test', 'test/ok.test.js', '--json');
+  const ran = box.run(box.repo, 'test', 'test/ok.test.js', '--json');
   assert.equal(ran.code, 0, ran.err);
   const result = JSON.parse(ran.out);
   assert.equal(result.runner, 'this machine');
