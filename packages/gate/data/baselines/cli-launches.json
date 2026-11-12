@@ -1016,11 +1016,11 @@
   "apps/cli/journeys/hook/slot.test.js": {
     "launch": 2
   },
-  "packages/gate/tests/io/changed/scripts/static.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/fact/plan/cells.test.js": {
     "launch": 5
+  },
+  "packages/gate/tests/io/changed/scripts/static.test.js": {
+    "launch": 2
   },
   "packages/gate/tests/io/run/tests/enotempty.test.js": {
     "launch": 1
@@ -1824,7 +1824,7 @@
     "launch": 2
   },
   "apps/cli/journeys/move/cells.test.js": {
-    "launch": 6
+    "launch": 3
   },
   "apps/cli/journeys/patch/item/journey.test.js": {
     "launch": 5
@@ -1984,6 +1984,9 @@
   },
   "packages/resources/tests/io/runner/heal/drain.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/health/blocks.test.js": {
+    "launch": 15
   },
   "apps/cli/journeys/shout/journeys.test.js": {
     "launch": 1
