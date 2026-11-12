@@ -1,4 +1,5 @@
 import { modelLabelRules } from "../cost/tab.js";
+import { projectSummary } from "../../logic/summary/project.js";
 /**
  * Read the private board's cost event history once per board state sequence.
  * This function is serialized into the private page script and uses its page-local state.
@@ -114,26 +115,15 @@ function renderPersonRequests(project) {
   }
 }
 
-/** A board's sidebar counts, derived from the same API state the page displays. */
+/**
+ * An opened board's sidebar row: the same counts a listed board's summary carries (U94), from the full state the
+ * page displays, plus what that state lets the opened project's pages read.
+ */
 function boardSummary(board, state) {
-  const needs = personNeeds(state);
-  /** Count the calls, with draft rows retaining their individual count in the sidebar. */
-  const calls = (kind) => needs.filter((row) => row.kind === kind).reduce((total, row) => total + (row.count ?? 1), 0);
-  /** Count one item state for the sidebar. */
-  const count = (test) => state.items.filter(test).length;
   return {
-    ...board, ok: true,
+    ...board, ok: true, ...projectSummary(state, personNeeds(state)),
     releaseNotes: state.releaseNotes,
-    building: count((item) => item.status === 'claimed'),
-    awaiting: count((item) => item.status === 'submitted'),
-    sentBack: count((item) => item.status === 'open' && item.verdict && item.verdict.decision === 'REJECT'),
-    open: count((item) => item.status === 'open'),
-    verified: count((item) => item.status === 'verified'),
-    pending: calls('pending'),
-    drafts: calls('draft') + calls('rigor-draft'),
-    holds: calls('hold'),
     laneHolds: state.holds,
-    decisions: calls('decision'),
     // What each item's state reads from, so another repo's roadmap can show it as this board's
     // Items tab does, sent back included, and open it here.
     items: state.items.map((item) => listFields(item)),
@@ -255,20 +245,30 @@ async function boardState(root, mark, fresh = null) {
   }
   const states = new Map();
   const cursor = mark !== null && mark !== undefined && /^\\d+$/.test(String(mark)) && Number.isSafeInteger(Number(mark)) ? Number(mark) : null;
-  const projects = await Promise.all(listed.boards.map(async (board) => {
+  /** Read one listed board: its state when the page shows its items, else only its summary (U94). */
+  const read = async (board, full) => {
     const kept = fresh && !fresh.has(board.root) ? lastRead(board, root) : null;
     if (kept) {
       if (kept.state) states.set(board.root, kept.state);
       return kept.row;
     }
     try {
+      if (!full) return { ...board, ok: true, ...await summaryRead(board) };
       const state = await boardRead(board, board.root === root ? cursor : null);
       states.set(board.root, state);
       return boardSummary(board, state);
     } catch (error) {
       return { ...board, ok: false, error: String(error.message || error) };
     }
-  }));
+  };
+  // The opened project, a board or each repo of a group, reads its state first. Then a board its milestones name
+  // reads its state too, since its Roadmap shows that board's items; every other listed board reads its summary.
+  const opened = (board) => board.root === root || Boolean(board.project && root === 'group:' + board.project);
+  const first = await Promise.all(listed.boards.map((board) => opened(board) ? read(board, true) : null));
+  const names = new Set([...states.values()].flatMap((state) => (state.milestones || []).flatMap((milestone) => milestone.items || []))
+    .map((entry) => /^(.+)#[1-9]\\d*$/.exec(String(entry.id))?.[1]).filter(Boolean));
+  const named = (board) => names.has(board.name) || names.has(String(board.root).split('/').pop());
+  const projects = await Promise.all(listed.boards.map((board, n) => first[n] ?? read(board, named(board))));
   projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
     warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
   const groups = projectGroups(projects);
@@ -307,6 +307,23 @@ async function boardRead(board, seen) {
   const state = expandItemSummaries(reply.state);
   if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
   return state;
+}
+
+// U94's sidebar summary, embedded as its own source so the page and a server that serves it count alike.
+const projectSummary = (${projectSummary.toString()});
+/**
+ * Read a listed board that is not opened as its summary: counts, needs-you and last change, under 2 KB (U94). A local
+ * board whose listing row offers summaryVersion 1 serves it at /summary; a relay board, a snapshot, or an API that
+ * offers none gives its state, which the page reduces to the same summary. Asking only when offered keeps an older
+ * API from answering a 404 the browser would log.
+ */
+async function summaryRead(board) {
+  if (!snapshot && localBoardIds.has(board.id) && board.summaryVersion === 1) {
+    const reply = await api('/api/v1/boards/' + encodeURIComponent(board.id) + '/summary');
+    if (reply?.summary?.version === 1) return reply.summary;
+  }
+  const state = await boardRead(board, null);
+  return projectSummary(state, personNeeds(state));
 }
 
 /** Whether a board state already carries every item's detail, as exports and event replays do. */
