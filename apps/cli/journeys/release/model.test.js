@@ -1,6 +1,5 @@
 /** CLI model labels, stable agent identities, and model-free scripted tours [O8,O3,N10]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -16,6 +15,7 @@ import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
@@ -248,6 +248,7 @@ function runTour(box, harness, variant = '') {
   const args = ['--import', activeHarness.timerGuard];
   if (variant) args.push('--experimental-loader', activeHarness.loader);
   args.push(BIN, 'tour');
+  // Process-level: the tour runs under node --import and --experimental-loader flags, so it stays a child process.
   return runFixtureChild(process.execPath, args, { cwd: box.dir, env, encoding: 'utf8', input: '' });
 }
 
@@ -341,9 +342,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(check.code, 0, check.err || check.out);
     assert.equal(JSON.parse(check.out).by, 'coordinator', 'the structured receipt keeps the stable actor ID');
     assert.ok(check.err.includes(`set by ${coordinatorName}: true`), check.err);
-    const declinedCheck = spawnSync(process.execPath, [BIN, 'check', String(id)], {
-      cwd: second.path, env: box.env, encoding: 'utf8', input: 'n\n',
-    });
+    const declinedCheck = await runCliInProcess(['check', String(id)], { cwd: second.path, env: box.env, input: 'n\n' });
     assert.equal(declinedCheck.status, 1);
     assert.ok(declinedCheck.stderr.includes(`the check set by ${coordinatorName} was not run`), declinedCheck.stderr);
 
@@ -375,14 +374,10 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(statsText.out.includes(`${builderName} (`), statsText.out);
     const statsJson = await box.inProcess(repo.web, 'stats', '--json');
     assert.ok(JSON.parse(statsJson.out).stats.agents.some((agent) => agent.id === 'web-1'));
-    const takeover = runFixtureChild(process.execPath, [BIN, 'takeover'], {
-      cwd: second.path, env: { ...box.env, CODEX_THREAD_ID: 'model-label-takeover-fixture' }, encoding: 'utf8',
-    });
+    const takeover = await runCliInProcess(['takeover'], { cwd: second.path, env: { ...box.env, CODEX_THREAD_ID: 'model-label-takeover-fixture' } });
     assert.equal(takeover.status, 0, `${takeover.stdout}${takeover.stderr}`);
     assert.ok(takeover.stdout.includes(`${otherName} took over`), takeover.stdout);
-    const displaced = runFixtureChild(process.execPath, [BIN, 'shout', 'coordinator', 'Refused session'], {
-      cwd: second.path, env: { ...box.env, CODEX_THREAD_ID: 'different-model-session-fixture' }, encoding: 'utf8',
-    });
+    const displaced = await runCliInProcess(['shout', 'coordinator', 'Refused session'], { cwd: second.path, env: { ...box.env, CODEX_THREAD_ID: 'different-model-session-fixture' } });
     assert.equal(displaced.status, 1);
     assert.ok(displaced.stderr.includes(`belongs to ${otherName} in another agent session`), displaced.stderr);
     const judgement = await box.inProcess(second.path, 'fact', String(id), 'decision', 'Wrong actor judgement');
