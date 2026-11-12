@@ -684,7 +684,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   while (!signal?.aborted && !failure) {
     if (active.size >= slots) { await Promise.race(active); continue; }
     let answer;
-    try { answer = await reliably({ action: 'claim', runner: id, capabilities }); }
+    try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
     if (!answer.claim) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
