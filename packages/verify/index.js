@@ -47,6 +47,7 @@ export { comparisonRestartPlan, COMPARISON_RESTART_LIMIT } from './src/io/compar
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/io/compare.js';
 
 export { launchComparisonWorker } from './src/io/comparison.js';
+export { prepareComparison } from './src/io/comparison.js';
 
 export { machineBarDigest, machineClauseCommands, machineProofProblem } from './src/logic/verdict/machine.js';
 export { machineVerification, validateMachineVerification, saveMachineVerification, machineVerificationEligible, acceptMachineSubmission } from './src/io/machine.js';
