@@ -1073,10 +1073,27 @@
     "raw-cli": 9,
     "tempdir": 2
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "raw-cli": 7,
-    "tempdir": 12,
+  "apps/cli/journeys/init/origin/behind.test.js": {
+    "raw-cli": 3,
+    "tempdir": 2,
     "repo-read": 1
+  },
+  "apps/cli/journeys/init/origin/local-view.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/init/origin/paint.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/init/origin/reads.test.js": {
+    "raw-cli": 2,
+    "tempdir": 4
+  },
+  "apps/cli/journeys/init/origin/startup.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/init/origin/states.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
   },
   "apps/cli/tests/fixtures/cockpit/machine.js": {
     "tempdir": 1,
