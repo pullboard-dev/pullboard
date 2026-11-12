@@ -714,7 +714,7 @@
     "launch": 7
   },
   "apps/cli/journeys/plan/write.test.js": {
-    "launch": 12
+    "launch": 7
   },
   "apps/cli/journeys/publish/agent.test.js": {
     "launch": 1
