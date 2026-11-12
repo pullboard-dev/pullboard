@@ -188,5 +188,7 @@ export { ABANDONED_AFTER_MS, WAIT_STEP_NAMES, runnerWaitLines, runnerWaits, wait
 export { readRunnerJobs } from './src/io/runners.js';
 export { MAIN_TEST_KIND, mainLag, mainLagLines } from './src/logic/runners/lag.js';
 export { readMainLandings } from './src/io/runners/lag.js';
+export { REVIEW_FLOW_KINDS, reviewFlow, reviewFlowLines } from './src/logic/review.js';
+export { readReviewFlow } from './src/io/review.js';
 export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
