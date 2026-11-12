@@ -93,7 +93,7 @@ console.log(JSON.stringify(result));`;
   return JSON.parse(child.stdout.trim().split('\n').at(-1));
 }
 
-test('next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]', t => {
+test('next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -112,12 +112,12 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
     store.claim(board, itemId, { agentId, lane: 'web', leaseMs: 3_600_000, head: base, freeze });
     others.push(path);
   }
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Next work', '--route', 'mid', '--specs', 'G1', '--criterion', 'Next work passes', '--check', 'true',
-    '--brief', 'Files: web/next-work.js\nTest: the native fixture item has a named web path and a test description.', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Next work', '--route', 'mid', '--specs', 'G1', '--criterion', 'Next work passes', '--check', 'true',
+    '--brief', 'Files: web/next-work.js\nTest: the native fixture item has a named web path and a test description.', '--json'));
   assert.equal(added.code, 0, added.err + added.out);
   const itemId = JSON.parse(added.out).item.item_id;
-  const diagnosis = box.run(box.repo, 'fact', String(itemId), 'diagnosis',
-    'Files: apps/cli/journeys/next/claims.test.js Change: add the open fixture item used by the timing check Test case: next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]');
+  const diagnosis = (await box.runLocal(box.repo, 'fact', String(itemId), 'diagnosis',
+    'Files: apps/cli/journeys/next/claims.test.js Change: add the open fixture item used by the timing check Test case: next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]'));
   assert.equal(diagnosis.code, 0, diagnosis.err + diagnosis.out);
   assert.equal(store.listItems(board).filter(item => item.item_status === 'claimed').length, CLAIMS);
   recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
