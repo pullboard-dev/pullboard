@@ -1,5 +1,8 @@
 import { TEST_ECONOMICS_ENGINE } from "../../../../../../state/light.js";
 import { auditFailureItem } from "../../../../../../items/index.js";
+import { splitMainReds } from "../../../../../../items/index.js";
+import { mainRedFact } from "../../../../../../items/index.js";
+import { appendFact } from "../../../../io/board/fact.js";
 import { landingTestDefects } from "./history.js";
 export { landingTestDefects };
 /** Durable test defects hold a trunk when bisection identifies no item culprit [E29]. */
@@ -49,8 +52,19 @@ export function recordLandingTestDefect(board, { agentId, test, hash, blob, trun
     const previous = landingTestDefects(board).find(defect => defect.branch === branch && defect.test === test && defect.hash === hash);
     const usable = (!audited || previous?.batchId === batchId) && (!requireOpen || !previous || ['open', 'claimed', 'submitted'].includes(getItem(board, previous.item).item_status));
     if (usable && previous?.batchId === batchId && names.every(name => previous.names.includes(name))) return previous;
-    const item = (usable ? previous?.item : null) ?? addItem(board, { by: agentId, lane, title: audit?.title ?? `Landing test defect: ${test}`,
-      criterion: audit?.criterion ?? `${test} passes with the combined accepted work; the landing failed without an item culprit: ${names.join('; ')}`, route: 'strong' });
+    // One cause key for every filer: an audit red an open Main red repair already owns adds a fact there, never a second item.
+    let owner = null;
+    if (audit && !(usable && previous?.item)) {
+      const open = board.db.prepare("SELECT * FROM item WHERE item_status IN ('open','claimed','submitted','verified')").all();
+      const { owned, fresh } = splitMainReds(open, names.map(name => ({ file: test, name })));
+      if (!fresh.length && owned.size) {
+        [owner] = owned.keys();
+        for (const [id, rows] of owned) appendFact(board, id, { agentId, kind: 'measurement', text: mainRedFact(rows, `scheduled audit after event ${auditSinceEventId}`) });
+      }
+    }
+    const item = owner ?? (usable ? previous?.item : null) ?? addItem(board, { by: agentId, lane, title: audit?.title ?? `Landing test defect: ${test}`,
+      criterion: audit?.criterion ?? `${test} passes with the combined accepted work; the landing failed without an item culprit: ${names.join('; ')}`, route: 'strong',
+      ...(audit ? { brief: audit.brief } : {}) });
     const defect = { test, hash, blob, trunkBlob, names: [...new Set([...(previous?.names ?? []), ...names])], item, batchId, branch, ...(audit ? { audit: audit.audit } : {}) };
     logEvent(board, agentId, 'landing-test-defect', item, { engine: audited ? TEST_ECONOMICS_ENGINE : requireOpen ? MAIN_AUDIT_ENGINE : LANDING_ENVIRONMENT_ENGINE, defect });
     return defect;
