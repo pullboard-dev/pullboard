@@ -58,6 +58,8 @@ import {
 } from '../store.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
+/** The ledger hit file a pulled proof phase names (apps/cli/src/io/submit/pull.js); read once by planTestActions. */
+export const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
 // PULLBOARD_TEST_REUSE=record: run every file, never consult a stored green, but record each green (a census or main
 // comparison is a fresh sample that still feeds the store). =0 neither consults nor records.
@@ -345,6 +347,19 @@ export function suiteProven(files, results) {
   return { proven: files.length > 0 && !missing.length && !failed.length && !stale.length, missing, failed, stale };
 }
 
+/**
+ * The board ledger's hits a pulled job named for this run, as `file\0inputKey\0context` keys; empty when none or
+ * unreadable, so every file runs as before. Why a file: the hits ride in the job, and a test's own runners never see them.
+ */
+function ledgerHitKeys(env) {
+  const keys = new Set();
+  try {
+    const { contexts, files } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    for (const [file, inputKey, context] of files) if (typeof contexts[context] === 'string') keys.add(`${file}\0${inputKey}\0${contexts[context]}`);
+  } catch { /* No hit list: nothing is reused from the ledger. */ }
+  return keys;
+}
+
 /** The repository path of a file selector, or null when it is not a path inside the root. */
 function repoPath(root, selector) {
   try {
@@ -399,7 +414,15 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const account = [];
   const reusedTestOutcomes = [];
   const run = [];
+  const hits = recordOnly ? new Set() : ledgerHitKeys(env);
   for (const file of selectors) {
+    // The board ledger proved this file at this inputKey and context class: a runner with an empty store reuses it too [P7,CD2].
+    if (file.key && hits.has(`${file.path}\0${file.inputKey}\0${digest(file.context)}`)) {
+      account.push(reusedAccount(store, file));
+      results.set(file.path, { status: 'pass', source: 'ledger' });
+      write(`# reused ${file.inputKey} from ledger (${file.path})\n`);
+      continue;
+    }
     const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
@@ -556,6 +579,7 @@ export function recordTestAction(file) {
   delete process.env[TEST_RESULT_ORIGIN_ENV];
   delete process.env[TEST_RESULT_REQUEST_ENV];
   delete process.env.PULLBOARD_TEST_CACHE_TOOLING;
+  delete process.env[LEDGER_HITS_ENV];
   if (!runDir || process.env.NODE_TEST_CONTEXT !== 'child-v8') return;
   let plan, path;
   try {
