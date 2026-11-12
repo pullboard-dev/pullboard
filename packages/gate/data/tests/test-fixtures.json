@@ -1657,7 +1657,7 @@
   "apps/cli/journeys/merged/ratchet.test.js": {
     "raw-board": 5
   },
-  "apps/cli/journeys/flakes/landing.test.js": {
+  "apps/cli/journeys/flakes/interrupted.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/flakes/main.test.js": {
@@ -2889,8 +2889,16 @@
     "raw-board": 12
   },
   "apps/cli/journeys/relay/sealed/recovery.test.js": {
-    "tempdir": 3,
-    "raw-board": 22
+    "raw-board": 1,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/relay/sealed/recovery-skip.test.js": {
+    "raw-board": 18,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/relay/sealed/recovery-collision.test.js": {
+    "tempdir": 1,
+    "raw-board": 3
   },
   "apps/cli/journeys/relay/sealed/checkpoint.test.js": {
     "raw-board": 11
