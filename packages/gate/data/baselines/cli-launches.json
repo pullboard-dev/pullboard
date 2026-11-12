@@ -818,8 +818,11 @@
   "packages/gate/tests/io/main/wait.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/verify/check.test.js": {
-    "launch": 5
+  "apps/cli/journeys/verify/check-checked.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/verify/check-landing.test.js": {
+    "launch": 4
   },
   "apps/cli/journeys/runner/overhead.test.js": {
     "launch": 1
