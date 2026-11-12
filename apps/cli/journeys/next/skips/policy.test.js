@@ -26,15 +26,15 @@ function commitConfig(box, change, message) {
 }
 
 /** #1 frozen, then its lane's specs change (a bar-changing policy move), then fresh #2 and #3. */
-function barChangedThenFresh(t) {
+async function barChangedThenFresh(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  success(box, box.repo, 'add', 'web', 'Stale item', '--specs', 'G1', '--criterion', 'The page renders.');
-  success(box, box.repo, 'refreeze', '1');
+  await success(box, box.repo, 'add', 'web', 'Stale item', '--specs', 'G1', '--criterion', 'The page renders.');
+  await success(box, box.repo, 'refreeze', '1');
   commitConfig(box, config => { config.lanes.web.specs = ['G1', 'G2']; }, 'chore: widen web specs');
   for (const title of ['Fresh item', 'Third item']) {
-    success(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} renders.`);
+    await success(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} renders.`);
   }
   return box;
 }
@@ -47,12 +47,12 @@ test('clause 1: next claims an item whose lane policy changed after its freeze, 
   assert.match(first.out, /claimed #1: Stale item/u);
 });
 
-test('clause 2: no stale-policy marker or coordinator shout is raised for a policy change [B4,B7]', t => {
+test('clause 2: no stale-policy marker or coordinator shout is raised for a policy change [B4,B7]', async t => {
   const box = barChangedThenFresh(t);
-  success(box, box.web, 'next');
-  const shown = success(box, box.repo, 'show', '1', '--json').out;
+  await success(box, box.web, 'next');
+  const shown = await success(box, box.repo, 'show', '1', '--json').out;
   assert.equal(shown.split('staleFrozenPolicy').length - 1, 0, 'no marker fact');
-  assert.doesNotMatch(success(box, box.repo, 'inbox').out, /next passes over #1/u, 'no shout to the coordinator');
+  assert.doesNotMatch(await success(box, box.repo, 'inbox').out, /next passes over #1/u, 'no shout to the coordinator');
 });
 
 test('clause 3: a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', async t => {
@@ -60,8 +60,8 @@ test('clause 3: a shrunk owns list that moves no path the bar names refreshes at
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   commitConfig(box, config => { config.lanes.web.owns = ['web/', 'assets/']; }, 'chore: grow web lane');
-  success(box, box.repo, 'add', 'web', 'Shrunk item', '--specs', 'G1', '--criterion', 'The page renders.');
-  success(box, box.repo, 'refreeze', '1');
+  await success(box, box.repo, 'add', 'web', 'Shrunk item', '--specs', 'G1', '--criterion', 'The page renders.');
+  await success(box, box.repo, 'refreeze', '1');
   commitConfig(box, config => { config.lanes.web.owns = ['web/']; }, 'chore: shrink web lane');
   const result = (await box.runLocal(box.web, 'next'));
   assert.equal(result.code, 0, result.err || result.out);

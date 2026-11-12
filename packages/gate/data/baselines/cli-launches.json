@@ -828,7 +828,7 @@
     "launch": 3
   },
   "apps/cli/journeys/next/order.test.js": {
-    "launch": 1
+    "launch": 88
   },
   "apps/cli/journeys/next/review.test.js": {
     "launch": 3

@@ -51,18 +51,18 @@ test('clause 1: claim refuses an item whose bar names a path main has since remo
   assert.match(`${claimed.out}\n${claimed.err}`, /BAR_PATH_MISSING[^]*tools\/old\.js/u);
 });
 
-test('clause 2: next skips the item naming a missing path, claims the next and tells the coordinator once [C7,B7]', () => {
+test('clause 2: next skips the item naming a missing path, claims the next and tells the coordinator once [C7,B7]', async () => {
   const box = retiredPathBoard();
-  const first = success(box, box.web, 'next');
+  const first = await success(box, box.web, 'next');
   assert.match(first.out, /skipped #1: \[BAR_PATH_MISSING\]/u, first.out);
   assert.match(first.out, /claimed #2: Fresh item/u, first.out);
-  success(box, box.web, 'release', '2', '--reason', 'OTHER', '--note', 'fixture');
-  success(box, box.web, 'next');
-  const inbox = success(box, box.repo, 'inbox').out;
+  await success(box, box.web, 'release', '2', '--reason', 'OTHER', '--note', 'fixture');
+  await success(box, box.web, 'next');
+  const inbox = await success(box, box.repo, 'inbox').out;
   assert.equal(inbox.split('next passes over #1 (BAR_PATH_MISSING)').length - 1, 1, inbox);
 });
 
-test('clause 3: with checks.provesNothing hold, next passes over an item whose check passes on main and reports it once [C7,B7]', () => {
+test('clause 3: with checks.provesNothing hold, next passes over an item whose check passes on main and reports it once [C7,B7]', async () => {
   const box = e2e.project('true');
   const file = join(box.repo, 'pullboard.json');
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), checks: { provesNothing: 'hold' } }, null, 2));
@@ -74,9 +74,9 @@ test('clause 3: with checks.provesNothing hold, next passes over an item whose c
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
       .run(`item_check_baseline_${green.item_id}`, JSON.stringify({ command: green.item_check, main, result: 'green' }));
   });
-  const next = success(box, box.web, 'next');
+  const next = await success(box, box.web, 'next');
   assert.match(next.out, new RegExp(`skipped #${green.item_id}: \\[CRITERION_PROVES_NOTHING\\]`, 'u'), next.out);
   assert.match(next.out, /claimed #2: Fresh item/u, next.out);
-  const inbox = success(box, box.repo, 'inbox').out;
+  const inbox = await success(box, box.repo, 'inbox').out;
   assert.equal(inbox.split(`next passes over #${green.item_id} (CRITERION_PROVES_NOTHING)`).length - 1, 1, inbox);
 });
