@@ -404,7 +404,12 @@ const INFRA_HELD = new Set(['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD']);
  */
 export function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
-  if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
+  if (!job) return null;
+  // An open, ownerless item has no submitted commit, but its frozen criterion still names the work the gate ran: an
+  // infrastructure stop on that digest is the same work waiting for the machine, never fresh builder work (#4989).
+  const frozenHead = !entry.item_commit && Boolean(entry.item_frozen_digest) && job.digest === entry.item_frozen_digest
+    && job.state === 'infrastructure' && job.error?.code === 'GATE_INFRA_EXHAUSTED';
+  if (!frozenHead && (!entry.item_commit || job.commit !== entry.item_commit)) return null;
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
@@ -471,7 +476,7 @@ export function returnedRecord(board, id) {
   const thread = itemThread(board, id), replaced = new Set(thread.map(row => row.supersedes).filter(Boolean));
   const facts = thread.filter(row => row.type === 'fact' && !replaced.has(row.id) && (!builder || row.by === builder)).slice(-3).map(row => `${row.kind}: ${row.text}`);
   return {
-    gate: redGate ? { job: job.id, state: job.state, commit: job.commit, code: job.error?.code ?? null, message: job.error?.message ?? null } : null,
+    gate: redGate ? { job: job.id, state: job.state, commit: job.commit, code: job.error?.code ?? null, message: job.error?.message ?? null, next: job.error?.next ?? null } : null,
     reject: verdict ? { reason: verdict.verdict_reason, note: verdict.verdict_note, by: verdict.verdict_by, commit: verdict.verdict_commit } : null,
     facts,
   };
