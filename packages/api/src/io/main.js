@@ -837,9 +837,25 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
     // A clone shares the coordinator identity, but resolves its main checkout locally.
-    if (name === COORDINATOR && relayLinked(root)) return root;
+    if (name === COORDINATOR && relayLinked(root)) return { cwd: root };
+    // A seat joined over the API has no checkout here: its move runs at the board root as that agent [P7].
+    if (store.isRemoteAgentPath(agent.agent_path)) return { cwd: root, remoteAgent: name };
     if (!sameCommonDir(repoInfo(agent.agent_path).commonDir, info.commonDir)) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
-    return agent.agent_path;
+    return { cwd: agent.agent_path };
+  }, isMain, boardOpeners);
+}
+
+/** Register a seat from another machine over the API, with a remote marker in place of a board-host path [P7]. */
+function remoteJoin(root, body, isMain, boardOpeners) {
+  const { lane, model, route = 'strong', family } = body.args ?? {};
+  if (body.agent !== undefined || body.item !== undefined || Object.keys(body.args ?? {}).some((key) => !['lane', 'model', 'route', 'family'].includes(key))) throw new Refused('BAD_REQUEST', 'a join takes only args lane, model, route and family; send no agent or item');
+  if (typeof model !== 'string' || !model.trim()) throw new Refused('MODEL_REQUIRED', 'a remote join needs args.model; run pullboard join <lane> --model "<model name>"');
+  const lanes = laneNames(loadConfig(root)).filter((name) => name !== COORDINATOR);
+  if (!lanes.includes(lane)) throw new Refused('NO_LANE', `no lane "${String(lane ?? '')}"; lanes: ${lanes.join(', ') || 'none yet, declare them in pullboard.json'}`);
+  if (relayLinked(root)) throw new Refused('WRONG_BOARD', 'this board is a relay clone; set board.url to the board host that owns it');
+  return withBoard(root, (board) => {
+    const agent = store.register(board, { lane, path: store.REMOTE_AGENT_PATH + randomBytes(16).toString('hex'), route, family, model });
+    return { version: VERSION, event: board.lastEvent ?? null, result: { agent, lane, route, model } };
   }, isMain, boardOpeners);
 }
 
@@ -847,9 +863,10 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
 export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
   if (typeof boardOpeners?.moveArgs !== 'function') throw new TypeError('executeMove needs moveArgs from the higher composition root');
+  if (body.verb === 'join') return { status: 200, body: remoteJoin(root, body, isMain, boardOpeners) };
   const argv = boardOpeners.moveArgs(body);
-  let cwd;
-  try { cwd = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
+  let seat;
+  try { seat = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
     if (!(error instanceof Refused) || error.code === 'BAD_REQUEST') throw error;
     if (typeof refusalDocument !== 'function') throw new TypeError(`executeMove needs the caller's refusalDocument renderer to answer ${error.code}`);
     return { status: error.code === 'WRONG_BOARD' ? 403 : 409, body: refusalDocument(error) };
@@ -858,7 +875,8 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   let diagnostics = '';
   const events = [];
   const status = await runCommand(argv, {
-    cwd,
+    cwd: seat.cwd,
+    ...(seat.remoteAgent ? { remoteAgent: seat.remoteAgent } : {}),
     personChannel,
     stdout: { isTTY: false, write: (text) => { output += text; } },
     stderr: { write: (text) => { diagnostics += text; } },
