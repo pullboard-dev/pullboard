@@ -63,7 +63,7 @@ export function defaults() {
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
-    review: { starveMinutes: 5, independence: 'off' },
+    review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
     // The route table is data, not code: packages/config/data/model-tiers.json (a fresh copy per call) [P5].
@@ -404,12 +404,15 @@ export function configProblems(config) {
     problems.push('"map.slice" is true or false');
   }
   if (!config.review || typeof config.review !== 'object' || Array.isArray(config.review)
-    || Object.keys(config.review).some(key => !['starveMinutes', 'independence'].includes(key))
+    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
     problems.push('"review.starveMinutes" is a positive number of minutes');
   }
   if (!['off', 'session'].includes(config.review?.independence)) {
     problems.push('"review.independence" is "off" (any other seat may verify, even under the builder\'s session) or "session" (only another agent session may verify)');
+  }
+  if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
+    problems.push('"review.excludeEarlierHolders" is true or false');
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');
