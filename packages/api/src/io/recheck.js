@@ -28,6 +28,19 @@ const CASES = 20;
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
 
+/** The main-comparison cache writer this process provides; null until a host provides one. */
+let recorder = null;
+
+/**
+ * Provide the writer that puts a finished main-test job's verdict in the main comparison cache submit, landing and
+ * serve read; null removes it. Why a provider: the landing cell owns that cache, and `pullboard serve` calls this once
+ * at start, so the board API stays free of that cell [P7].
+ * @param {((root: string, receipt: { main: string, file: string, verdict: 'green' | 'red', job: string, at: number }) => unknown) | null} write
+ */
+export function provideMainTestRecorder(write) {
+  recorder = typeof write === 'function' ? write : null;
+}
+
 /**
  * The job's entry, run with Node in the main checkout: the test command on the one file, then one line naming its
  * verdict and failing cases, read with main's own TAP reader when main has one. Why main's reader: the checkout is
@@ -126,5 +139,7 @@ export function applyMainTestReceipt(board, { job, receipt }, { now = Date.now()
     // The receipt step above moved the job's step; it stays finished.
     finishJob(db, job, null, { now });
   });
+  // The cache is a convenience copy of the receipt above: a writer that fails leaves the receipt recorded.
+  try { if (receipt.commit) recorder?.(board.gitRoot, { main: receipt.commit, file: at.file, verdict, job, at: now }); } catch { /* re-measured later */ }
   return { applied: true, outcome: 'recorded', verdict };
 }
