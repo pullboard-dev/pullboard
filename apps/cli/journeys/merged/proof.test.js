@@ -56,9 +56,14 @@ test('clause 1: a missing tip or a receipt with no exit code is not proof [C7,#4
   store.logEvent(board, builder, 'proof-run', id, { receipt: { id: 'unknown-exit', kind: 'submit', item: id, commit: TIP } });
   assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: LANDED, forced: 'landed by hand' }),
     error => error.code === 'FORCED_NO_PROOF', 'a receipt without an exit code does not count');
-  board.db.prepare('UPDATE item SET item_commit = NULL WHERE item_id = ?').run(id);
+});
+
+test('clause 1: an item that never recorded a tip is refused too, unless the proof is waived [C7,#4742]', t => {
+  const project = cellProject(t);
+  const board = cellBoard(t, project.boardFile, { now: () => new Date() }, { gitRoot: project.repo });
+  const id = cellItem(board, { lane: 'core', title: 'Forced no-tip fixture', route: 'strong', criterion: 'the fixture works' }).item_id;
   assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: LANDED, forced: 'landed by hand' }),
-    error => error.code === 'FORCED_NO_PROOF', 'an item with no recorded tip is refused too');
+    error => error.code === 'FORCED_NO_PROOF', 'an item with no recorded tip has no proof');
   store.merged(board, id, { agentId: 'coordinator', commit: LANDED, forced: 'landed by hand', waiveProof: 'no tip recorded' });
   assert.equal(merges(board, id)[0].waivedProof, 'no tip recorded');
 });
