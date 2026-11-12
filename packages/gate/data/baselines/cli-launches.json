@@ -1383,7 +1383,10 @@
     "launch": 1
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "launch": 12
+    "launch": 7
+  },
+  "apps/cli/journeys/hold/demo-widths.test.js": {
+    "launch": 5
   },
   "apps/cli/journeys/hold/demo-lanes.test.js": {
     "launch": 6
