@@ -82,7 +82,7 @@ function enforceCompositionRules(box) {
  * Build a claimed candidate whose frozen check commits to main once while it runs, the way a landing
  * does during a builder's long check (#2181, #2326). `handoff` queues the submit in the fixture's own policy.
  */
-function fixture(t, mode, handoff = false) {
+async function fixture(t, mode, handoff = false) {
   // The landing is another lane's module no test imports; the check builds its path from pieces so selection never sees a read.
   const helpers = createE2eHelpers();
   const sandbox = helpers.sandbox();
@@ -119,25 +119,26 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: foreground submit policy [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Foreground main move', '--specs', 'G1',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Foreground main move', '--specs', 'G1',
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(box.id));
+  const claimed = await box.runLocal(box.web, 'claim', String(box.id));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const built = helpers.commitFile(box, box.web, 'web/feature.js', "export const feature='item';\n", 'feat(web): foreground candidate [G1]');
   assert.equal(built.status, 0, built.stderr);
-  const ready = box.run(box.repo, 'bar', 'ready', 'on', '--json');
+  const ready = await box.runLocal(box.repo, 'bar', 'ready', 'on', '--json');
   assert.equal(ready.code, 0, ready.out + ready.err);
   if (mode === 'policy') enforceCompositionRules(box);
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
+  // Process-level: the submit under test is a real child process whose check moves main while it runs.
   const result = runFixtureChild(process.execPath, [helpers.BIN, 'submit', String(box.id), '--no-next'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   return { box, helpers, main, marker, result, output: result.stdout + result.stderr };
 }
 
-test('foreground submit lands green when unrelated main moves during its check [V4,H16,C7]', t => {
-  const { box, main, marker, result, output } = fixture(t, 'unrelated');
+test('foreground submit lands green when unrelated main moves during its check [V4,H16,C7]', async t => {
+  const { box, main, marker, result, output } = await fixture(t, 'unrelated');
   assert.ok(existsSync(marker), output);
   assert.notEqual(box.git(box.repo, 'rev-parse', 'HEAD'), main, 'main moved while the check ran');
   assert.doesNotMatch(output, /accepted main changed|NO_POLICY/u);
@@ -145,8 +146,8 @@ test('foreground submit lands green when unrelated main moves during its check [
   assert.equal(item(box).item_status, 'submitted', output);
 });
 
-test('foreground submit still refuses when pullboard.json policy changes during its check [V4,H16,C7]', t => {
-  const { box, marker, result, output } = fixture(t, 'policy');
+test('foreground submit still refuses when pullboard.json policy changes during its check [V4,H16,C7]', async t => {
+  const { box, marker, result, output } = await fixture(t, 'policy');
   assert.ok(existsSync(marker), output);
   assert.notEqual(result.status, 0, output);
   // Composition reaches the changed pullboard.json first; the sealed policy check refuses it behind that.
@@ -156,7 +157,7 @@ test('foreground submit still refuses when pullboard.json policy changes during 
 });
 
 test('queued submit survives an unrelated main move during its gate and is accepted for landing [V4,H16,C7]', async t => {
-  const { box, helpers, main, marker, result, output } = fixture(t, 'unrelated', true);
+  const { box, helpers, main, marker, result, output } = await fixture(t, 'unrelated', true);
   assert.equal(result.status, 0, output);
   assert.match(result.stdout, /queued gate/u);
   await helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.
@@ -170,8 +171,8 @@ test('queued submit survives an unrelated main move during its gate and is accep
   // A second fixture seat reviews the submitted commit; its accept is the landing-ready verdict.
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, completed.item.item_commit);
-  assert.equal(fixtureJoin(box.run, reviewer, 'api').code, 0);
-  const accepted = box.run(reviewer, 'verify', String(box.id), 'accept', '--note', 'Ran the frozen check at the queued submission.', '--no-next');
+  assert.equal((await fixtureJoin(box.runLocal, reviewer, 'api')).code, 0);
+  const accepted = await box.runLocal(reviewer, 'verify', String(box.id), 'accept', '--note', 'Ran the frozen check at the queued submission.', '--no-next');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   const landed = state(box).item;
   assert.ok(landed.item_verdict === 'ACCEPT' || ['accepted', 'merged'].includes(landed.item_status), JSON.stringify(landed));
@@ -180,7 +181,7 @@ test('queued submit survives an unrelated main move during its gate and is accep
 });
 
 test('queued submit refuses when a non-submit pullboard.json policy field changes during its gate [V4,H16,C7]', async t => {
-  const { box, helpers, marker, result, output } = fixture(t, 'shared', true);
+  const { box, helpers, marker, result, output } = await fixture(t, 'shared', true);
   assert.equal(result.status, 0, output);
   assert.match(result.stdout, /queued gate/u);
   await helpers.waitFor(() => ['green', 'red', 'incomplete', 'refused'].includes(state(box).job?.state) || existsSync(join(box.repo, '.git/pullboard/submit-handoffs', state(box).job?.id ?? 'none', 'refusal.json')), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.

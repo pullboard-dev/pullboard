@@ -21,7 +21,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('clause 1: an agent sees 200 passes and both failures in under 40 lines while the full output remains in its log [C7,V10]', () => {
+test('clause 1: an agent sees 200 passes and both failures in under 40 lines while the full output remains in its log [C7,V10]', async () => {
   const box = e2e.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -40,7 +40,7 @@ test('clause 1: an agent sees 200 passes and both failures in under 40 lines whi
   box.git(box.repo, 'commit', '-q', '-m', 'test: record real output-summary cases');
   // Only this private fixture child models an agent; no live identity or machine settings change.
   box.env.AI_AGENT = '1';
-  const ran = box.run(box.repo, 'test', 'test/output.test.js');
+  const ran = (await box.runLocal(box.repo, 'test', 'test/output.test.js'));
   assert.equal(ran.code, 1, 'the two real assertions keep the command red');
   const output = [ran.out, ran.err].join('\n');
   assert.ok(output.trim().split('\n').length < 40,
@@ -59,7 +59,7 @@ test('clause 1: an agent sees 200 passes and both failures in under 40 lines whi
   assert.match(full, /# tests 202/u);
   assert.match(full, /# pass 200/u);
   assert.match(full, /# fail 2/u);
-  const json = box.run(box.repo, 'test', 'test/output.test.js', '--json');
+  const json = (await box.runLocal(box.repo, 'test', 'test/output.test.js', '--json'));
   assert.equal(json.code, 1);
   const result = JSON.parse(json.out);
   assert.deepEqual(result.counts, { passed: 200, failed: 2, skipped: 0 });
@@ -70,7 +70,7 @@ test('clause 1: an agent sees 200 passes and both failures in under 40 lines whi
 });
 
 /** Build real private submit/verify inputs; the external flag changes runtime data, never frozen source. */
-function itemProject() {
+async function itemProject() {
   const box = e2e.project('true');
   const flag = join(box.dir, 'fail-tests');
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
@@ -96,7 +96,7 @@ function itemProject() {
   const added = fixtureAdd(box.run, box.repo, 'web', 'Output fixture', '--specs', 'G1',
     '--criterion', 'the recorded test file runs', '--check', command);
   assert.equal(added.code, 0, added.err);
-  const claimed = box.run(box.web, 'claim', '1');
+  const claimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.err);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'output-summary-candidate.js'), 'export const candidate = true;\n');
@@ -133,17 +133,17 @@ function assertFailureSummary(result, code) {
   assert.match(readFileSync(path, 'utf8'), /passing case 199/u);
 }
 
-test('a red native submit keeps its authority refusal and prints both cases instead of full TAP [C7,V4,V10]', () => {
-  const { box, flag } = itemProject();
+test('a red native submit keeps its authority refusal and prints both cases instead of full TAP [C7,V4,V10]', async () => {
+  const { box, flag } = (await itemProject());
   writeFileSync(flag, 'red');
-  assertFailureSummary(box.run(box.web, 'submit', '1', '--no-next'), 'GATE_RED');
-  const item = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  assertFailureSummary((await box.runLocal(box.web, 'submit', '1', '--no-next')), 'GATE_RED');
+  const item = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
   assert.equal(item.item_status, 'claimed', 'presentation never turns a red proof into a submission');
 });
 
-test('native submit JSON and a red frozen verification expose bounded cases and complete logs [C7,V4,V10]', () => {
-  const { box, flag, submittedHead } = itemProject();
-  const submitted = box.run(box.web, 'submit', '1', '--no-next', '--json');
+test('native submit JSON and a red frozen verification expose bounded cases and complete logs [C7,V4,V10]', async () => {
+  const { box, flag, submittedHead } = (await itemProject());
+  const submitted = (await box.runLocal(box.web, 'submit', '1', '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.err);
   const document = JSON.parse(submitted.out);
   assert.ok(document.gate.counts.passed >= 202);
@@ -159,16 +159,16 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   const joined = fixtureJoin(box.run, review, 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
   writeFileSync(flag, 'red');
-  const refused = box.run(review, 'verify', '1', 'accept', '--note', 'run the frozen assertions', '--no-next');
+  const refused = (await box.runLocal(review, 'verify', '1', 'accept', '--note', 'run the frozen assertions', '--no-next'));
   assertFailureSummary(refused, 'CHECK_RED');
-  const json = box.run(review, 'verify', '1', 'accept', '--note', 'run the same frozen assertions', '--no-next', '--json');
+  const json = (await box.runLocal(review, 'verify', '1', 'accept', '--note', 'run the same frozen assertions', '--no-next', '--json'));
   assert.equal(json.code, 1);
   const failure = JSON.parse(json.out);
   assert.equal(failure.error.code, 'CHECK_RED');
   assert.deepEqual(failure.counts, { passed: 200, failed: 2, skipped: 0 });
   assert.equal(failure.failures.length, 2);
   assert.match(readFileSync(failure.logPath, 'utf8'), /passing case 199/u);
-  const item = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  const item = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
   assert.equal(item.item_status, 'submitted', 'a failed frozen check still cannot accept the item');
   assert.equal(item.verdicts.length, 0);
 });

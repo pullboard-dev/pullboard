@@ -194,9 +194,11 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const pending = all.filter((item) => (proven ? proven.has(item.item_id) && item.item_status !== 'withdrawn' : item.item_status === 'verified') && !item.item_merged_commit)
     .map((item) => (proven ? { ...item, item_commit: proven.get(item.item_id) } : item));
   const order = new Map();
-  // Only accept rows set the order; reading every event (380,000 on 9 Nov) cost each selection about 2 s [C7].
-  const accepts = board.db ? board.db.prepare("SELECT item_id, event_id, event_kind FROM event WHERE event_kind = 'accept' ORDER BY event_id").all() : store.events(board);
-  for (const event of accepts) if (event.event_kind === 'accept') order.set(event.item_id, event.event_id);
+  // Only each item's newest accept sets the order: one grouped query on the kind index, never the whole log (380,000 events cost about 2 s on 9 Nov) [C7].
+  const accepts = board.db
+    ? board.db.prepare("SELECT item_id, MAX(event_id) AS event_id FROM event WHERE event_kind = 'accept' GROUP BY item_id").all()
+    : store.events(board).filter((event) => event.event_kind === 'accept');
+  for (const event of accepts) order.set(event.item_id, event.event_id);
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
@@ -362,30 +364,26 @@ export function landingTurns(batches, failed, pending) {
 }
 
 /**
- * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
- * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
+ * Whether landing runs in per-item mode: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
+ * A batch of one keeps per-item handling: a red goes back to its builder alone instead of a bisection.
  */
 export function landsPerItem(config) {
   return config?.landing?.perItem !== false && config?.landing?.parallel !== true;
 }
 
-/** With per-item landing, a landing takes one verified item; otherwise the caller's limit stands [C7,#2901]. */
-export function perItemMaximum(config, maximum = Infinity) {
-  return landsPerItem(config) ? 1 : maximum ?? Infinity;
-}
-
 /**
- * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
- * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
- * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ * The most items one landing batch takes. A set line.landingBatchSize applies to every real landing. Otherwise per-item
+ * landing and a hand landing take every verified item that composes cleanly; automatic batch landing (perItem false)
+ * sizes from the recorded batches. A limit the caller gave still holds [C7,H24].
+ * Why every item: with one item per batch, all 10 landings of 11 Nov waited behind each other's lease, and
+ * accept-to-batch-start was 54% of accepted-to-landed (982 s median). A red batch still bisects to its culprit and
+ * lands the rest in the same run [C7,#5815].
  */
 export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
-  // A runners-only machine batches like any other: a batch lands on its items' submit receipts and reruns only each
-  // item's own moved closures and their interactions, fanned out over runner slots [C7].
-  if (landsPerItem(config)) return 1;
   const override = store.lineSettings(board).landingBatchSize;
-  if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
-  return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));
+  if (typeof override === 'number') return Math.min(maximum ?? Infinity, landingBatchSize([], override));
+  if (landsPerItem(config) || !automatic) return maximum ?? Infinity;
+  return Math.min(maximum ?? Infinity, landingBatchSize(store.landingBatches(board), override));
 }
 
 /**
