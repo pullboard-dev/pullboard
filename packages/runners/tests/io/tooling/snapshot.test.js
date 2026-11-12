@@ -74,3 +74,14 @@ test('a directory URL in the controller closure is skipped, not refused as RUNNE
   assert.equal(loaded.controller, readFileSync(join(f.root, 'packages/runners/index.js'), 'utf8'));
   assert.ok(currentRunnerTooling(f.root, loaded));
 });
+
+test('the export source marker URL in the controller closure is skipped, not refused as RUNNER_TOOLING_FILES [C7,V32]', t => {
+  const f = tree(t, {
+    'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
+    'packages/runners/index.js': "export const marker = new URL('../../.pullboard-runner-source.json', import.meta.url);\n",
+    '.pullboard-runner-source.json': '{"tree":"x"}\n',
+  });
+  const loaded = captureRunnerTooling(f.root);
+  assert.equal(loaded.controller, readFileSync(join(f.root, 'packages/runners/index.js'), 'utf8'));
+  assert.ok(currentRunnerTooling(f.root, loaded));
+});
