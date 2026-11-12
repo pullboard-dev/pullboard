@@ -222,7 +222,7 @@ export function assertNoCulpritTrunkHold(helpers) {
   const callsBefore = boardRead(box, board => store.events(board).filter(event => event.event_kind === 'gate-run').length);
   const again = command(box, box.repo, 'land');
   assert.equal(again.document?.error?.code, 'LAND_TEST_DEFECT',
-    'a candidate-only test edit does not look like a committed trunk correction');
+    'a candidate-only test edit does not look like a committed trunk correction ' + JSON.stringify(again).slice(0, 3000));
   assert.equal(boardRead(box, board => store.events(board).filter(event => event.event_kind === 'gate-run').length), callsBefore,
     'the held trunk does not retry the unchanged gate');
   boardRead(box, board => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal',
