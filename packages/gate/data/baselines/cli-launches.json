@@ -339,7 +339,7 @@
     "launch": 1
   },
   "apps/cli/journeys/view/background.test.js": {
-    "launch": 10
+    "launch": 9
   },
   "packages/kernel/tests/logic/seal.test.js": {
     "launch": 1
@@ -390,7 +390,7 @@
     "launch": 1
   },
   "apps/cli/journeys/relay/setup.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/engine/merged.test.js": {
     "launch": 2
@@ -603,7 +603,7 @@
     "launch": 8
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
-    "launch": 12
+    "launch": 9
   },
   "apps/lib/tests/durable/daemons.test.js": {
     "launch": 2
@@ -963,7 +963,7 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/landing/accept.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
@@ -1359,7 +1359,7 @@
     "launch": 4
   },
   "apps/cli/journeys/show/review/worker.test.js": {
-    "launch": 10
+    "launch": 4
   },
   "apps/cli/journeys/seats/timing.test.js": {
     "launch": 4
@@ -1407,7 +1407,7 @@
     "launch": 2
   },
   "apps/cli/journeys/test/warning.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/lifecycle/merge.test.js": {
     "launch": 1
@@ -1561,9 +1561,6 @@
   },
   "apps/cli/journeys/next/eval.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/submit/landing/backoff.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/relay/agent.test.js": {
     "launch": 2
