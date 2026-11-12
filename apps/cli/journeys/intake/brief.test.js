@@ -19,7 +19,7 @@ test('intake --brief files a mid-route item [C7]', t => {
 
 test('intake without --brief refuses NO_BRIEF naming --brief [C7]', t => {
   const box = intakeFixture(t);
-  const result = box.run(box.repo, 'intake', box.pull.html_url, '--criterion', 'The contributed behavior works.', '--check', 'node --test test/contribution.test.js', '--route', 'mid', '--json');
+  const result = box.run(box.repo, 'intake', box.pull.html_url, '--criterion', 'The contributed behavior works.', '--check', 'npm test', '--route', 'mid', '--json');
   assert.notEqual(result.code, 0);
   const error = JSON.parse(result.out || result.err).error;
   assert.equal(error.code, 'NO_BRIEF');
