@@ -28,6 +28,7 @@ import * as store from "../../../../packages/store/src/io/board.js";
 import { openCellBoard as openBoard } from "../../../../packages/store/tests/fixtures/cell.js";
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
@@ -60,6 +61,9 @@ function sandbox() {
   // The fixture acts as the person's own terminal: an inherited agent or SSH session would make its verdicts self-verification.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   mkdirSync(env.HOME);
+  // This journey holds its gate in the submitting process, so it pins controller dispatch and the default may move to pull [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   /** Run isolated Git commands for this fixture. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   /** Run the checked-out CLI without invoking any shared board. */
