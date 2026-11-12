@@ -100,7 +100,7 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
 
 test('a green coordinator-owned path waits in its owner next with the exact diff and frees its builder [B3,L1,V4] [clause 1]', async t => {
   const box = fixture(t);
-  const acknowledgment = document(box.run(box.root, 'submit', String(box.id), '--no-next', '--json'));
+  const acknowledgment = document((await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json')));
   assert.equal(acknowledgment.queued, true, 'the ordinary captured gate must run');
   await box.helpers.waitFor(() => { // budget: actual native gate completion ceiling, no elapsed-time assertion.
     const current = observe(box);
@@ -120,19 +120,19 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   assert.equal(diff.status, 0, diff.failure || diff.stderr);
   assert.equal(wait.diff, diff.stdout, 'the preserved diff keeps its exact bytes, including its final newline');
   assert.equal(box.git(box.root, 'rev-parse', wait.sourceRef).trim(), wait.commit, 'the exact finished source remains pinned');
-  const owner = document(box.run(box.repo, 'next', '--build', '--json'));
+  const owner = document((await box.runLocal(box.repo, 'next', '--build', '--json')));
   assert.equal(owner.action, 'ownership');
   assert.equal(owner.ownershipWaiting[0].item, box.id);
   assert.deepEqual(owner.ownershipWaiting[0].paths, wait.paths);
   assert.equal(owner.ownershipWaiting[0].diff, wait.diff);
-  const inbox = document(box.run(box.repo, 'inbox', '--json'));
+  const inbox = document((await box.runLocal(box.repo, 'inbox', '--json')));
   const notices = inbox.shouts.filter(shout => shout.shout_text.includes(wait.sourceRef));
   assert.equal(notices.length, 1, 'the owner receives one source-bound notification');
   assert.ok(notices[0].shout_text.includes(wait.diff), 'the notice includes the exact diff');
-  const peer = document(fixtureAdd(box.run, box.repo, 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
+  const peer = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The next finished web file is present.', '--check', 'test -f web/done.txt',
-    '--brief', 'Files: web/next.txt.\nChange: the freed builder can take ordinary work.\nTest: the next fixture check.', '--wait', '--json'));
-  const next = document(box.run(box.builder, 'next', '--build', '--json'));
+    '--brief', 'Files: web/next.txt.\nChange: the freed builder can take ordinary work.\nTest: the next fixture check.', '--wait', '--json')));
+  const next = document((await box.runLocal(box.builder, 'next', '--build', '--json')));
   assert.equal(next.item.item_id, peer.item.item_id, 'the builder can claim its next ordinary item');
   assert.equal(next.item.item_owner, wait.agentId);
   // Repeating the same native source receipt cannot notify the owner or release another item again.
@@ -147,9 +147,9 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   } finally { closeBoard(board); }
 });
 
-test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4] [clause 1]', t => {
+test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4] [clause 1]', async t => {
   const box = fixture(t, { gate: 'false', handoff: false });
-  const failed = box.run(box.root, 'submit', String(box.id), '--no-next', '--json');
+  const failed = (await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json'));
   assert.notEqual(failed.status, 0);
   assert.equal(JSON.parse(failed.stdout).error.code, 'GATE_RED');
   const state = observe(box);

@@ -1751,9 +1751,6 @@
   "apps/cli/journeys/study/metrics.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/advisory.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/submit/branch.test.js": {
     "launch": 2
   },
@@ -1770,13 +1767,13 @@
     "launch": 2
   },
   "apps/cli/journeys/submit/empty.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/submit/fail.test.js": {
     "launch": 11
   },
   "apps/cli/journeys/submit/gate.test.js": {
-    "launch": 39
+    "launch": 3
   },
   "apps/cli/journeys/submit/gate/receipt.test.js": {
     "launch": 4
@@ -1784,29 +1781,11 @@
   "apps/cli/journeys/submit/gate/selection.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
-    "launch": 11
-  },
   "apps/cli/journeys/submit/gate/selection/invariants.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/gate/selection/jest.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/submit/gate/selection/landing.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/submit/guards.test.js": {
-    "launch": 7
-  },
-  "apps/cli/journeys/submit/handoff/barrier.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/submit/handoff/cells.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/submit/handoff/folders.test.js": {
-    "launch": 17
   },
   "apps/cli/journeys/submit/handoff/move.test.js": {
     "launch": 3
@@ -1836,10 +1815,10 @@
     "launch": 2
   },
   "apps/cli/journeys/submit/isolation.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/submit/landing/accept.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/submit/landing/backoff.test.js": {
     "launch": 5
@@ -1847,29 +1826,14 @@
   "apps/cli/journeys/submit/line.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/loop.test.js": {
-    "launch": 10
-  },
-  "apps/cli/journeys/submit/main/warning.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/submit/merge.test.js": {
-    "launch": 9
-  },
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/submit/noplan.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/submit/notes.test.js": {
     "launch": 5
   },
   "apps/cli/journeys/submit/ownership.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/submit/pilot.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/submit/pin.test.js": {
     "launch": 2
@@ -1879,9 +1843,6 @@
   },
   "apps/cli/journeys/submit/preflight.test.js": {
     "launch": 5
-  },
-  "apps/cli/journeys/submit/preflight/order.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/submit/proof.test.js": {
     "launch": 1
@@ -1895,35 +1856,20 @@
   "apps/cli/journeys/submit/rename.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/replaces.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/submit/retry.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/submit/reuse.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/review.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/submit/size.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/submit/stacked.test.js": {
-    "launch": 29
-  },
-  "apps/cli/journeys/submit/steps.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/submit/ticks.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/submit/wait.test.js": {
     "launch": 7
   },
   "apps/cli/journeys/submit/wire.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/sync/git/ack.test.js": {
     "launch": 3

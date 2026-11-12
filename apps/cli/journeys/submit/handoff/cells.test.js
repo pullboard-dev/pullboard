@@ -43,7 +43,7 @@ async function enforceCellTrial(box, kind, code) {
   document(joinFixtureSeat(box, probe, 'web'));
   // Cell checks apply only to an item titled as a Cells move, so the probe files its own.
   const probeId = fileFixtureItem(box, box.repo, { lane: 'web', title: `Cells move 1/1: trial probe ${kind}`, criterion: 'The probe source reaches the cell checks.', check: 'true', diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
-  document(box.run(probe, 'claim', String(probeId), '--json'));
+  document((await box.runLocal(probe, 'claim', String(probeId), '--json')));
   mkdirSync(join(probe, 'src'), { recursive: true });
   assert.equal(box.helpers.commitFile(box, probe, 'src/unplaced.js', 'export const unsafe = true;\n', 'feat(web): trial probe source [G1]').status, 0);
   if (kind === 'ownership') {
@@ -53,7 +53,7 @@ async function enforceCellTrial(box, kind, code) {
     box.git(probe, 'add', 'packages/codemap/data/plan/cells.json');
     box.git(probe, 'commit', '-qm', 'feat(web): trial probe ownership control [G1]');
   }
-  assert.equal(document(box.run(probe, 'submit', String(probeId), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(probe, 'submit', String(probeId), '--no-next', '--json'))).queued, true);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
   const rowsOf = ledger => Object.values(ledger.codes).filter(row => row.code === code);
   const recorded = () => { try { return rowsOf(JSON.parse(readFileSync(file, 'utf8')))[0]; } catch { return undefined; } };
@@ -78,9 +78,9 @@ for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happen
     box.git(box.web, 'commit', '-qm', 'feat(web): invalid process ownership control [G1]');
   }
 
-  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  const queued = document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')));
   assert.equal(queued.queued, true, 'foreground submission does not compile or refuse the new unplaced cell');
-  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  document((await box.runLocal(box.web, 'claim', String(box.second), '--json')));
   await waitJob(box, 'red');
   const completed = state(box, box.id);
   assert.equal(completed.job.error.code, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');

@@ -33,23 +33,23 @@ function project(t) {
   return { box: builder, markers };
 }
 
-test('clause 1: a static failure in preflight refuses before the static, doctrine, item-check and gate stages start [V4,C7]', { timeout: 180_000 }, t => {
+test('clause 1: a static failure in preflight refuses before the static, doctrine, item-check and gate stages start [V4,C7]', { timeout: 180_000 }, async t => {
   const { box, markers } = project(t);
   // A fixed wait in a test is a registered static failure, and test is the build lane's own folder.
   put(box.root, 'test/w.test.js', 'await new Promise(resolve => setTimeout(resolve, 500));\n');
   commitAll(box, 'feat(core): add a test with a fixed wait [G1]');
-  const refused = box.run('submit', '1', '--json', '--infra', 'preflight order fixture');
+  const refused = (await box.runLocal('submit', '1', '--json', '--infra', 'preflight order fixture'));
   assert.notEqual(refused.code, 0, refused.err + refused.out);
   assert.match(refused.err + refused.out, /preflight is red; no runner was queued[\s\S]*test-waits: /u);
   for (const [name, path] of Object.entries(markers)) assert.equal(existsSync(path), false, `${name} never started after a preflight red`);
-  assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed');
+  assert.equal(JSON.parse((await box.runLocal('show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('clause 2: a clean change passes preflight and proceeds to the item check and the doctrine rule [V4,C7]', { timeout: 180_000 }, t => {
+test('clause 2: a clean change passes preflight and proceeds to the item check and the doctrine rule [V4,C7]', { timeout: 180_000 }, async t => {
   const { box, markers } = project(t);
   put(box.root, 'src/a.js', 'export const a = 2;\n');
   commitAll(box, 'feat(core): change source cleanly [G1]');
-  const accepted = box.run('submit', '1', '--json', '--infra', 'preflight order fixture');
+  const accepted = (await box.runLocal('submit', '1', '--json', '--infra', 'preflight order fixture'));
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(existsSync(markers.staticCheck), true, 'the static stage ran after preflight');
   assert.equal(existsSync(markers.doctrine), true, 'the doctrine stage ran after preflight');
