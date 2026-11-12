@@ -368,9 +368,6 @@
   "apps/cli/journeys/gate/rotates.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/stall.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/gate/stalled.test.js": {
     "launch": 1
   },
@@ -1613,9 +1610,6 @@
   "apps/cli/journeys/test/command.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/test/diagnose.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/test/knownred.test.js": {
     "launch": 5
   },
@@ -1639,9 +1633,6 @@
   },
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/test/summary.test.js": {
-    "launch": 9
   },
   "apps/cli/journeys/test/tier-selection.test.js": {
     "launch": 1
