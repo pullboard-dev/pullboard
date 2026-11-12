@@ -720,7 +720,7 @@
     "launch": 1
   },
   "apps/cli/journeys/publish/catalog.test.js": {
-    "launch": 23
+    "launch": 1
   },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
@@ -733,9 +733,6 @@
   },
   "apps/cli/journeys/queue/order.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/queue/review-queue.test.js": {
-    "launch": 21
   },
   "apps/cli/journeys/red/content-cache.test.js": {
     "launch": 4
