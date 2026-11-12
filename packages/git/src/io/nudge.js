@@ -10,7 +10,8 @@ import { repoInfo } from "./main.js";
  * Never borrow the caller's test or checkout admission, and never wait for the actual gate. */
 export async function nudgeSourceAdvances(root, { workerUrl, eligible }) {
   const info = repoInfo(root);
-  if (!info.isMain || !codeIsFromMain()) return null;
+  // A runner job's work folder is a linked worktree, so its code is never "from main"; the job is the machine's own checkout of main's code [C7].
+  if (!info.isMain || !(process.env.PULLBOARD_RUNNER_JOB || codeIsFromMain())) return null;
   // The higher-layer caller owns the application eligibility probe; this Git cell only
   // accepts its explicit decision and leaves real work to the normal worker.
   if (eligible !== true) return null;
