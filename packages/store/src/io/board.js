@@ -90,6 +90,7 @@ import { reviewOffer } from "./board/review/offer.js";
 import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
+import { verdictEvidence } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -469,6 +470,7 @@ export {
   reserveReview,
   reserveNextReview,
   verify,
+  verdictEvidence,
   reopen,
   merged,
   withdraw,

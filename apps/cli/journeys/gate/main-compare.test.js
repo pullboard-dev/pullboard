@@ -74,3 +74,40 @@ async t => {
   assert.match(facts(board, broken), /new: check web\/mixed\.test\.js \(other case\)/u);
   assert.deepEqual(box.ids.map(id => jobsOf(board.db, { kind: 'gate', item: id }).length), gates, 'no resubmit: no new gate job was offered');
 });
+
+test('clause 1 and 2: a file unchanged on a later main answers from that main\'s receipt and queues no job; a case it passes is new; a changed file stays unknown [C7]', { timeout: 120_000 }, // budget: one project and one queue in this process, no runner.
+async t => {
+  const box = await pullProject(t, 1, { check: () => 'true' });
+  for (const [path, text] of Object.entries({ ...MAIN, 'web/third.test.js': MAIN['web/mixed.test.js'], 'other.txt': '1\n' })) {
+    mkdirSync(dirname(join(box.repo, path)), { recursive: true });
+    writeFileSync(join(box.repo, path), text);
+  }
+  const configFile = join(box.repo, 'pullboard.json');
+  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'node --test --test-reporter=tap' }, null, 2) + '\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: main red cases [G1]');
+  const first = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  // Main moves: an unrelated file changes, then main-mixed.test.js changes.
+  writeFileSync(join(box.repo, 'other.txt'), '2\n');
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: unrelated [G1]');
+  const later = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  writeFileSync(join(box.repo, 'web/mixed.test.js'), `${MAIN['web/mixed.test.js']}// edited\n`);
+  box.git(box.repo, 'commit', '-q', '-am', 'test: edit mixed [G1]');
+  const { board } = await pullQueue(t, box, {});
+  recordMainTestReceipt(box.repo, { main: later, file: 'web/main.test.js', verdict: 'red', job: 'job-later' });
+  recordMainTestReceipt(box.repo, { main: box.git(box.repo, 'rev-parse', 'HEAD').trim(), file: 'web/mixed.test.js', verdict: 'red', job: 'job-later-2' });
+  recordMainTestReceipt(box.repo, { main: later, file: 'web/third.test.js', verdict: 'green', job: 'job-later-3' });
+  const ask = cases => criterionMainReceipts({ root: box.repo, db: board.db, main: first, cases });
+  const same = ask([{ file: 'web/main.test.js', name: 'main case' }]);
+  assert.notEqual(same.classes[0].owner, 'unknown', JSON.stringify(same.classes));
+  assert.equal(same.classes[0].receipt, 'job-later');
+  assert.deepEqual(same.jobs, [], 'a nearby receipt queues no main-test job');
+  assert.equal(jobsOf(board.db, { kind: 'main-test' }).length, 0);
+  // A case that passes on that main stays new.
+  const passes = ask([{ file: 'web/third.test.js', name: 'main case' }]);
+  assert.deepEqual([passes.classes[0].owner, passes.classes[0].own], ['candidate', ['main case']], JSON.stringify(passes.classes));
+  // A file changed since this main has no receipt for this main's content, even where a later main holds one.
+  const changed = ask([{ file: 'web/mixed.test.js', name: 'main case' }]);
+  assert.equal(changed.classes[0].owner, 'unknown', JSON.stringify(changed.classes));
+  assert.equal(jobsOf(board.db, { kind: 'main-test' }).length, 1, 'the changed file queues its own main-test job');
+});
