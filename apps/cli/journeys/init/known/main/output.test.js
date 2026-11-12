@@ -40,9 +40,11 @@ test('identical main case is first in text and structured in test and submit, wi
   assert.equal(report.green, false, 'guidance does not turn a red test green');
   assert.equal(report.mainFailures.length, 1, JSON.stringify(report));
   notice(report.mainFailures[0], box);
-  const plain = await text(box, 'test', FILE, '--compare-main');
+  // The JSON run above filed main's red as an item, which makes the file a known red for this board; text mode is judged on a fresh one.
+  const fresh = fixture(t);
+  const plain = await text(fresh, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
-  assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${box.main}:`), 'DIAG ' + plain.stdout.slice(0, 300) + ' ERR ' + plain.stderr.slice(0, 1500));
+  assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${fresh.main}:`), plain.stdout + plain.stderr);
   assert.ok(plain.stdout.split('\n')[0].includes('[main receipt '));
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
