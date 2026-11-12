@@ -21,7 +21,7 @@ export const workHelp = `Work
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
-                     [--expected-minutes <minutes|unknown>]
+                     [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
@@ -112,6 +112,8 @@ export const workHelp = `Work
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
   pullboard test --cancel <run id>      stop your queued or running test run and free its slot
+  pullboard test --census [prefix..]    every tracked test file (or those under prefixes) in a few shards per runner
+                                        --out <jsonl> names the file that gets one row per test file
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill

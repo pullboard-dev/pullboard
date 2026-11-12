@@ -70,8 +70,10 @@ export const setupHelp = `Set up
   pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard relay recover --skip <sequence>  person-only recovery of one blocked next relay position
   pullboard handoff [--take <id>]        write or take an agent hand-off; keep questions on its item
+                                        agent worktrees only; a coordinator's hand-off is its resume card
   pullboard resume [--diagnostics]      where you are: your claim, branch, what came back,
                                         unread shouts, what to do next; run it to start any session
+                                        --diagnostics adds git checks and verified-not-merged work (merges cleanly, conflicts, claimed for integration)
   pullboard badge                       write board-derived Shields endpoint JSON to docs/badges/
   pullboard hooks [uninstall]           install Git hooks and agent nudges; uninstall removes only Pullboard's agent nudges
   pullboard hook SessionStart|Stop|SessionEnd     native agent nudges; errors/timeouts warn and never block

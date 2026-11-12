@@ -40,6 +40,11 @@ export function sanitizedUsage(rows, engine = ENGINE_VERSION) {
   });
 }
 
+/** The one write of a usage summary into board_meta, shared by seat and coordinator records. */
+function writeUsageMeta(board, key, value) {
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, JSON.stringify(value));
+}
+
 /** Record a caller's cumulative summary idempotently; delayed earlier revisions cannot erase newer totals. */
 export function recordUsage(board, { agentId, item, revision, records, observedAt, shared = false }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < COST_ENGINE) throw new Refused('ENGINE_VERSION', `usage recording requires engine ${COST_ENGINE}; upgrade Pullboard`);
@@ -57,9 +62,30 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
       return { duplicate: true };
     }
     const value = { agent: agentId, item, revision, observedAt, shared, records: rows };
-    board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, JSON.stringify(value));
+    writeUsageMeta(board, key, value);
     // A checkpoint is not a lifecycle move: it names its item in detail and stays out of item histories.
     board.nativePorts.logEvent(board, agentId, 'usage', null, { item, revision, observedAt, shared, records: rows, estimate: true });
+    return { recorded: true };
+  });
+}
+
+/**
+ * Record a coordinator session's cumulative usage under board_meta `coordinator:<session id>` with no claimed item.
+ * Why: the coordinator never claims an item, so item-keyed recordUsage cannot hold its tokens; repeating a payload is a no-op [C7].
+ */
+export function recordCoordinatorUsage(board, { session, records, observedAt }) {
+  if (typeof session !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/u.test(session)) throw new Refused('USAGE_RECORD', 'coordinator usage names its session id');
+  if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Refused('USAGE_RECORD', 'coordinator usage carries a nonnegative observedAt');
+  const rows = sanitizedUsage(records, board.executionEngineVersion ?? ENGINE_VERSION);
+  const key = `coordinator:${session}`;
+  return board.nativePorts.atomic(board, () => {
+    const old = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
+    const value = { agent: 'coordinator', session, observedAt, records: rows };
+    if (old) {
+      if (old.meta_value !== JSON.stringify(value)) throw new Refused('USAGE_CHANGED', 'this coordinator session already names different totals; use a new session id');
+      return { duplicate: true };
+    }
+    writeUsageMeta(board, key, value);
     return { recorded: true };
   });
 }
