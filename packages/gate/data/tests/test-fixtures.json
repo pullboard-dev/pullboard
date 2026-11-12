@@ -1250,12 +1250,12 @@
     "tempdir": 2
   },
   "apps/cli/journeys/roadmap/cockpit/releases.test.js": {
-    "raw-cli": 3,
-    "tempdir": 2
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/roadmap/cockpit/shipping.test.js": {
-    "raw-cli": 2,
-    "tempdir": 3
+    "raw-cli": 3,
+    "tempdir": 4
   },
   "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
     "raw-cli": 1,
