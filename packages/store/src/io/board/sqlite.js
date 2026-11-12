@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
+import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
 import { jobBlobsPending } from "./blobs.js";
 import { migrateJobBlobs } from "./blobs.js";
@@ -162,7 +163,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL, migrate, storeTriggers);
+      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL + LEDGER_SCHEMA_SQL, migrate, storeTriggers);
       // Code behind trunk refuses before any write: carrying on replayed newer caches under the lock for minutes (#5899).
       const ahead = sharedColumnsAhead(db, expected);
       if (ahead.length) {

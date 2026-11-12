@@ -41,12 +41,12 @@ function withoutAction(text, action = 'pullboard next') {
 }
 
 /** File light work at mid, then route it light through the coordinator's diagnosis, as the board now requires. */
-function addDiagnosedLight(box, title, ...flags) {
-  const added = fixtureAdd(box.run, box.repo, 'web', title, ...flags);
+async function addDiagnosedLight(box, title, ...flags) {
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', title, ...flags);
   assert.equal(added.code, 0, added.err || added.out);
   const id = added.out.match(/^#(\d+)/m)?.[1];
   assert.ok(id, added.out);
-  const diagnosis = box.run(box.repo, 'fact', id, 'diagnosis', LIGHT_BRIEF);
+  const diagnosis = (await box.runLocal(box.repo, 'fact', id, 'diagnosis', LIGHT_BRIEF));
   assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
   return added;
 }
@@ -56,15 +56,15 @@ function fixtureCommand(box, cwd, ...args) {
   return runCliInProcess(fixtureAddRoute(fixtureJoinRoute([...args], box.env.PULLBOARD_MODEL)), { cwd, env: box.env });
 }
 
-test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', () => {
+test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(join(repo, '.claude'), { recursive: true });
   box.git(repo, 'init', '-q', '-b', 'main');
   const mine = { permissions: { allow: ['Bash(npm test)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } };
   writeFileSync(join(repo, '.claude', 'settings.json'), JSON.stringify(mine));
-  assert.match(box.run(repo, 'init', '--verbose').out, /added a Claude Code session hook/);
-  assert.match(box.run(repo, 'init', '--verbose').out, /kept the Claude Code session hook/);
+  assert.match((await box.runLocal(repo, 'init', '--verbose')).out, /added a Claude Code session hook/);
+  assert.match((await box.runLocal(repo, 'init', '--verbose')).out, /kept the Claude Code session hook/);
   const settings = JSON.parse(readFileSync(join(repo, '.claude', 'settings.json'), 'utf8'));
   // Init also grants the loop's allow rules and machine-home write (#670): the person's own rule stays first and
   // nothing else in permissions changes. apps/cli/journeys/init/permissions.test.js owns the exact rule list.
@@ -84,7 +84,7 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   assert.equal(bare.stdout, '');
 });
 
-test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', () => {
+test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
   const box = project();
   const script = (name, lines) => {
     writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', ...lines, ''].join('\n'));
@@ -92,24 +92,24 @@ test('the run pack names verified items that touched the same files, so a cold a
   };
   const greet = script('greet.sh', ["echo \"export const title = 'Hi';\" > web/page.js"]);
   const follow = script('follow.sh', ['grep -q "^- #1 Greet: web/page.js$" "$PULLBOARD_PACK" && echo "export const bye = \'Bye\';" >> web/page.js']);
-  addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
-  const runner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
-  assert.match(box.run(runner, 'run', '--agent-light', greet, '--attempts', '1').out, /submitted #1/);
-  const firstCommit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
+  await addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
+  const runner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
+  assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /submitted #1/);
+  const firstCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', firstCommit);
-  assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed').out, /verified #1/);
+  assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed')).out, /verified #1/);
   // Accepted work still blocks colliding pulls until it actually lands (#1114).
   box.git(box.repo, 'merge', '-q', '--ff-only', firstCommit);
-  const landed = box.run(box.repo, 'merged', '1', firstCommit);
+  const landed = (await box.runLocal(box.repo, 'merged', '1', firstCommit));
   assert.equal(landed.code, 0, landed.err);
-  addDiagnosedLight(box, 'Say bye', '--route', 'mid', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
-  const ran = box.run(runner, 'run', '--agent-light', follow, '--attempts', '1');
+  await addDiagnosedLight(box, 'Say bye', '--route', 'mid', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
+  const ran = (await box.runLocal(runner, 'run', '--agent-light', follow, '--attempts', '1'));
   assert.match(ran.out, /submitted #2/, ran.out);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
   assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
 
-test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', () => {
+test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
   const box = project();
   const bare = { ...box.env, PATH: '/usr/bin:/bin' };
   const commit = () => spawnSync('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
@@ -184,58 +184,58 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.match(submissionLog, /^# note 99$/mu, 'the bounded refusal retains the complete noisy output');
 });
 
-test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', () => {
+test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(box.web, 'claim', '1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  (await box.runLocal(box.web, 'claim', '1'));
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('The page renders.', 'The page renders a heading.'));
-  assert.equal(box.run(box.repo, 'spec', 'approve', 'G1').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'spec', 'approve', 'G1')).code, 0);
   box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
-  const refused = box.run(box.web, 'submit', '1');
+  const refused = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(refused.code, 1);
   assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed, so no verifier could judge it; the coordinator runs pullboard refreeze 1, then you claim it and submit again/);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'claimed');
-  assert.match(box.run(box.repo, 'refreeze', '1').out, /refrozen/);
-  box.run(box.web, 'claim', '1');
-  assert.match(box.run(box.web, 'submit', '1').out, /submitted #1/);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
+  assert.match((await box.runLocal(box.repo, 'refreeze', '1')).out, /refrozen/);
+  (await box.runLocal(box.web, 'claim', '1'));
+  assert.match((await box.runLocal(box.web, 'submit', '1')).out, /submitted #1/);
 });
 
-test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', () => {
+test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {
   const box = project();
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n`);
   box.git(box.repo, 'commit', '-qam', 'docs(spec): a footer row');
-  fixtureAdd(box.run, box.repo, 'web', 'Footer', '--specs', 'G3');
-  const older = box.run(box.web, 'spec', 'check');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Footer', '--specs', 'G3');
+  const older = (await box.runLocal(box.web, 'spec', 'check'));
   assert.equal(older.code, 0, older.out);
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n- G4 [draft, must] Not committed.\n`);
-  fixtureAdd(box.run, box.repo, 'web', 'Ghost', '--specs', 'G4');
-  const ghost = box.run(box.web, 'spec', 'check');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Ghost', '--specs', 'G4');
+  const ghost = (await box.runLocal(box.web, 'spec', 'check'));
   assert.equal(ghost.code, 1);
   assert.match(ghost.out, /SPEC.md: G4 error: item #2 cites it, but it was never committed/);
   assert.doesNotMatch(ghost.out, /G3 error/);
 });
 
-test('check runs the item\'s own check command, yours by default, and prints a digest [N23]', () => {
+test('check runs the item\'s own check command, yours by default, and prints a digest [N23]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
-  fixtureAdd(box.run, box.repo, 'web', 'Loose', '--specs', 'G1');
-  assert.match(box.run(box.web, 'check').err, /NOT_HOLDING.*pullboard gate/);
-  box.run(box.web, 'claim', '1');
-  const red = box.run(box.web, 'check', '--yes');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Loose', '--specs', 'G1');
+  assert.match((await box.runLocal(box.web, 'check')).err, /NOT_HOLDING.*pullboard gate/);
+  (await box.runLocal(box.web, 'claim', '1'));
+  const red = (await box.runLocal(box.web, 'check', '--yes'));
   assert.equal(red.code, 1);
   assert.match(red.out, /^check red in \d+s: test -f web\/a.html/m);
   assert.match(red.out, /\n {2}not ok 1 - web\/a.html is missing\n/);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'a.html'), '<h1>Hi</h1>');
-  const green = box.run(box.web, 'check', '--yes');
+  const green = (await box.runLocal(box.web, 'check', '--yes'));
   assert.equal(green.code, 0, green.out);
   assert.match(green.out, /^check green in \d+s: test -f web\/a.html/m);
   assert.equal(withoutAction(green.out).split('\n').filter(Boolean).length, 2);
   assert.match(green.out, /timing \(test\): wall [0-9.]+s, slot wait [0-9.]+s; phases: wait [0-9.]+s, admission [0-9.]+s, setup [0-9.]+s, run [0-9.]+s, evidence [0-9.]+s; slot: .+?; per-test timing unavailable: output was not TAP or JUnit; timing profile: /);
   assert.match(green.out, /^check #1 set by coordinator \(unknown\):/);
-  assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
-  assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
-  assert.match(box.run(box.repo, 'help', '--all').out, /pullboard check \[id\]/);
+  assert.equal((await box.runLocal(box.repo, 'check', '1')).code, 1, 'named, from another checkout: there the file is missing');
+  assert.match((await box.runLocal(box.web, 'check', '2')).err, /NO_CHECK.*#2 has no check command/);
+  assert.match((await box.runLocal(box.repo, 'help', '--all')).out, /pullboard check \[id\]/);
 });
