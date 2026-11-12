@@ -469,10 +469,7 @@
     "raw-board": 2
   },
   "apps/cli/journeys/verify/check.test.js": {
-    "tempdir": 1,
-    "model": 2,
-    "hand-policy": 6,
-    "raw-board": 2
+    "raw-board": 1
   },
   "apps/cli/journeys/verify/store-bodies.test.js": {
     "hex64": 135
@@ -4150,6 +4147,15 @@
     "env-spread": 1
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
+    "hand-policy": 3
+  },
+  "apps/cli/journeys/verify/check-landing.test.js": {
+    "hand-policy": 3,
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/verdict-check.js": {
+    "tempdir": 1,
+    "model": 2,
     "hand-policy": 3
   }
 }
