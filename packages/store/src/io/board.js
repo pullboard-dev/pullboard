@@ -173,7 +173,7 @@ export { declareJob, recordJobRun } from "../logic/board/jobs.js";
 export { recordUsage } from "../../../stats/index.js";
 export { recordUsageBatch } from "../../../stats/index.js";
 export { recordSharedUsage } from "../../../stats/index.js";
-export { proofReceipts, recordProofRun } from "./receipts.js";
+export { proofReceipts, recordProofRun, storeTestReceipt } from "./receipts.js";
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../seats/index.js";
 export { agentAt, agentById, listAgents } from "./board/query.js";

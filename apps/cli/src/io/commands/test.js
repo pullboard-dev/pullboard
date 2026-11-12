@@ -2,10 +2,12 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { queuesTestRun } from '../../../../../packages/drive/index.js';
+import { testRunItem } from '../../../../../packages/drive/index.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { readTestRun } from '../../../../../packages/drive/index.js';
 import { testRunLines } from '../../../../../packages/drive/index.js';
 import { workTestRun } from '../../../../../packages/drive/index.js';
+import { headCommit } from '../../../../../packages/git/index.js';
 import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
@@ -16,9 +18,12 @@ import { withBoardRead } from '../context.js';
  */
 async function seatClaims(ctx, agent) {
   const { itemsInStatus } = await import('../../../../../packages/store/index.js');
+  const { itemFolderIdentity } = await import('../../../../../packages/items/index.js');
   return withBoardRead(ctx, board => {
     const claims = itemsInStatus(board, 'claimed', agent);
-    return { item: claims.length === 1 ? claims[0].item_id : undefined, held: claims.length > 0 };
+    const folder = itemFolderIdentity(board, ctx.info.root)?.item ?? null;
+    const ids = claims.map(claim => claim.item_id);
+    return { item: testRunItem({ folder, claims: ids }), held: claims.length > 0, claims: ids };
   });
 }
 
@@ -37,22 +42,28 @@ export async function run(io, { first, second, rest, values }) {
   if (values.diagnose === true && (files.length !== 1 || values.affected === true)) throw new Refused('USAGE', '--diagnose requires exactly one named test file');
   const seat = (await import('../board/access.js')).resourceAgent(ctx);
   const agent = seat ?? `pid-${process.pid}`;
-  const { item, held } = seat === undefined ? { item: undefined, held: false } : await seatClaims(ctx, agent);
-  if (values.diagnose !== true && queuesTestRun(ctx, seat, values, process.env, { claimed: held })) return queueSeatRun(io, ctx, { agent, item, files, values }, await import('../test/pull.js'));
+  const owned = seat === undefined ? { item: undefined, held: false, claims: [] } : await seatClaims(ctx, agent);
+  const { held } = owned;
+  // --item N proves that one claim; with none named, a green run proves every claim the seat holds [C7].
+  const named = values.item === undefined ? undefined : Number(values.item);
+  if (named !== undefined && !owned.claims.includes(named)) throw new Refused('NOT_YOURS', `--item ${values.item} is not a claim this seat holds; run pullboard whoami to see its claims`);
+  const item = testRunItem({ named, folder: owned.item, claims: owned.claims });
+  const items = named === undefined ? owned.claims : [named];
+  if (values.diagnose !== true && queuesTestRun(ctx, seat, values, process.env, { claimed: held })) return queueSeatRun(io, ctx, { agent, item, items, files, values }, await import('../test/pull.js'));
   if (values['test-run'] !== undefined) {
     const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
-    await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).payload,
+    await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, items, files, values })).payload,
       { beatSeat: board => heartbeatSeat(board, agent) });
     return 0;
   }
-  return (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).code;
+  return (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, items, files, values })).code;
 }
 
 /**
  * Queue a seat's run as a board-held job and print its one line. Refuses at once what the worker would refuse
  * later (no files, a missing file, no test runner), so a seat never learns of a typo through next.
  */
-async function queueSeatRun(io, ctx, { agent, item, files, values }, pulledRun = null) {
+async function queueSeatRun(io, ctx, { agent, item, items, files, values }, pulledRun = null) {
   const affected = values.affected === true;
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   if (!affected && !files.length) throw new Refused('USAGE', 'name the test files to run: pullboard test <file> [more files]');
@@ -63,7 +74,7 @@ async function queueSeatRun(io, ctx, { agent, item, files, values }, pulledRun =
   }
   // A pulled run fetches only the committed source, so its refusal of an uncommitted change comes now, not through next [P7].
   if (pulledRun?.pullTestWanted(item, values)) await pulledRun.refuseUncommitted(ctx.info.root);
-  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, files, affected, compareMain: values['compare-main'] === true });
+  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });
   if (values.wait === true || process.env.PULLBOARD_TEST_WAIT === '1') io.say('a seat holding a claim never blocks on its own test run; it queues');
   io.say(`queued test run ${queued.id}; the board runs it and pullboard next brings the result; read it any time with pullboard test --status ${queued.id}; take your next item now: pullboard next --take`);

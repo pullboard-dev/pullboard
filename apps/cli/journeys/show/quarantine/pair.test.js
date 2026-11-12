@@ -17,7 +17,7 @@ import { proofRunReceipt } from '../../../../../packages/store/index.js';
 import { readGateReceipt } from '../../../../../packages/gate/index.js';
 import { receiptStore } from '../../../../../packages/gate/index.js';
 
-test('clause 1: two actual Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', t => {
+test('clause 1: two actual Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', async t => {
   const companion = false;
   const box = fixture(t, false, companion);
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
@@ -74,7 +74,7 @@ test('clause 1: two actual Submit pairs quarantine once, retain raw receipts, an
     try { assert.throws(() => proofRunReceipt(board, { agentId: receipt.proof.seat, itemId: box.id, receiptId: receipt.id }), error => error.code === 'PROOF_RUN_STALE'); }
     finally { store.closeBoard(board); }
   }
-  const ledger = box.cli('flakes').document;
+  const ledger = (await box.call('flakes')).document;
   const row = ledger.regressions.find(value => value.file === 'test/alternating.test.mjs' && value.name === TITLE);
   assert.ok(row);
   assert.equal(row.classification, 'possible-regression');
@@ -88,5 +88,5 @@ test('clause 1: two actual Submit pairs quarantine once, retain raw receipts, an
     }
   }
   // f562d717d8: the Submit backfill files an ordinary nativeCore quarantine, not an autoSubmit one, so health lists none.
-  assert.deepEqual(box.cli('health').document.autoQuarantines, []);
+  assert.deepEqual((await box.call('health')).document.autoQuarantines, []);
 });
