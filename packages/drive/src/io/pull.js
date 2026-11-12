@@ -11,14 +11,19 @@ import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { childEnvironment } from '../../../kernel/light.js';
+import { PROGRESS_ENV } from './progress.js';
+import { watchProgress } from './progress.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -35,6 +40,11 @@ const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 // Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
 const RECEIPT_LINE_BYTES = 60 * 1024;
+/** The variable a job finds its kept-output folder in; apps/cli's gate entry writes each phase's full output there. */
+export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
+// Budget: the runner keeps the output of its newest 40 jobs, each job's own stream capped at 8 MiB, under <cache>/output.
+const KEPT_JOBS = 40;
+const KEPT_JOB_BYTES = 8 * 1024 ** 2;
 
 /** A refusal by code, as the CLI reports it: what failed and what to do next. Kept local so this runner-side file stays light. */
 class Refused extends Error {
@@ -232,20 +242,48 @@ export function jobEnvironment(cache, name, job, host = process.env) {
 }
 
 /**
+ * The folder a job's full output is kept in on this runner, by job id and attempt, so a red receipt's cause stays
+ * readable after its checkout is deleted. Why on the runner: a receipt is capped at 64 KiB, and a proof's output is not.
+ *
+ * @param {string} cache
+ * @param {string} job
+ * @param {number} attempt
+ * @returns {string}
+ */
+export function keptOutputFolder(cache, job, attempt) {
+  return join(cache, 'output', `${String(job).replace(/[^A-Za-z0-9._-]/gu, '-')}-${attempt}`);
+}
+
+/** Make a job's kept-output folder and drop all but the newest KEPT_JOBS; null when the disk refuses, which keeps nothing. */
+function keepFolder(cache, job, attempt) {
+  const folder = keptOutputFolder(cache, job, attempt), parent = join(cache, 'output');
+  try {
+    rmSync(folder, { recursive: true, force: true });
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    const old = readdirSync(parent).map(name => ({ name, at: statSync(join(parent, name)).mtimeMs })).sort((a, b) => b.at - a.at).slice(KEPT_JOBS);
+    for (const { name } of old) rmSync(join(parent, name), { recursive: true, force: true });
+    return folder;
+  } catch { return null; }
+}
+
+/**
  * Run a job's argv in its checkout, in its own process group so a lost lease or the ceiling stops all of it. `input`,
  * when given, is written to its stdin. The last stdout line starting with `receiptLine` is kept whole, apart from the
  * output tail, so a receipt longer than the tail still reaches the board.
  *
  * @param {string[]} argv
  * @param {string} cwd
- * @param {{ ceilingMs?: number, env?: NodeJS.ProcessEnv, input?: string | null, receiptLine?: string | null }} [options]
+ * @param {{ ceilingMs?: number, env?: NodeJS.ProcessEnv, input?: string | null, receiptLine?: string | null, keep?: string | null }} [options] - keep:
+ *   a file the stream's first 8 MiB is copied to.
  * @returns {{ done: Promise<{ status: number | null, signal: string | null, outputSha256: string, outputBytes: number, tail: string, line: string | null }>, stop: () => void }}
  */
-export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null } = {}) {
+export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null, keep = null } = {}) {
   const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const digest = createHash('sha256');
   let bytes = 0, tail = Buffer.alloc(0), partial = '', line = null;
   const take = chunk => {
+    // The kept copy is the stream's first KEPT_JOB_BYTES; the receipt's tail carries its end.
+    if (keep && bytes < KEPT_JOB_BYTES) { try { appendFileSync(keep, chunk.subarray(0, KEPT_JOB_BYTES - bytes), { mode: 0o600 }); } catch { keep = null; } }
     digest.update(chunk); bytes += chunk.length;
     tail = Buffer.concat([tail, chunk]); if (tail.length > TAIL_BYTES) tail = tail.subarray(tail.length - TAIL_BYTES);
   };
@@ -299,7 +337,7 @@ function gateReceipt(result, commit, durationMs) {
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
- * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number }} [options.timing]
+ * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
  * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job.
@@ -360,7 +398,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       continue;
     }
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [];
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null;
     if (!run.length) {
       let asked;
       try { asked = await reliably({ action: 'request', ...held }); }
@@ -369,6 +407,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       if (Array.isArray(request?.run) && request.run.length) {
         run = request.run;
         input = JSON.stringify(request.input ?? null);
+        named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
       }
     }
@@ -386,9 +425,17 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     const started = Date.now();
     const job = jobEnvironment(cache, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, claim.job);
+    // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
+    const kept = keepFolder(cache, claim.job, claim.attempt);
+    // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
+    const progressFile = join(cache, 'progress', `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}.jsonl`);
+    mkdirSync(join(cache, 'progress'), { recursive: true }); rmSync(progressFile, { force: true });
+    const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
+      post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
+    const env = { ...job.env, PULLBOARD_TRUNK_REMOTE: answer.trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
-      env: { ...job.env, PULLBOARD_TRUNK_REMOTE: answer.trunk } });
+      env, keep: kept ? join(kept, 'job.log') : null });
     let lost = false;
     // Renew while the job runs. An unreachable board only skips a renewal; a moved lease stops the job.
     const renewer = setInterval(() => {
@@ -403,6 +450,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const stopping = () => running.stop();
     signal?.addEventListener('abort', stopping, { once: true });
     const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
+    await progress.stop(); rmSync(progressFile, { force: true });
     rmSync(job.folder, { recursive: true, force: true });
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
@@ -410,9 +458,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       break;
     }
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); jobs.push({ job: claim.job, outcome: 'lost' }); if (once) break; continue; }
-    const receipt = gate ? gateReceipt(result, claim.candidate, Date.now() - started)
+    const receipt = { ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
-        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started };
+        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       await reliably({ action: 'receipt', ...held, receipt });
       say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}`);
