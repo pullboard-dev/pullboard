@@ -30,7 +30,6 @@ import { decodeBoardKey } from '../../../../../packages/kernel/index.js';
 import { readSealedDescriptor } from '../../../../../packages/pages/index.js';
 import { relaySnapshot } from '../../../../../packages/pages/index.js';
 import { relayClientFixture } from './client.js';
-import { parseCommandDocument } from './client.js';
 
 /** Open actual sealed checkpoints, accepting compressed and released legacy JSON snapshots. */
 export async function openCheckpoint(box, snapshot) {
@@ -45,9 +44,15 @@ export function replayClient(root, env, ...args) {
   return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: root, env })
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
-      try { return parseCommandDocument(result.stdout); } // a paused relay appends a second diagnostics envelope (#6231)
+      try { return JSON.parse(withoutDiagnostics(result.stdout)); }
       catch { throw new Error(result.failure ?? result.context); }
     });
+}
+
+/** Drop the trailing diagnostics envelope a --json command prints after its own document when the engine warned (a future-engine blocker). */
+function withoutDiagnostics(stdout) {
+  const at = stdout.lastIndexOf('\n{\n  "version": 1,\n  "messages"');
+  return at === -1 ? stdout : stdout.slice(0, at);
 }
 
 /** Initialize an import recipient without declaring a second coordinator; later commands retain their model. */
@@ -296,3 +301,15 @@ export function cpuStandIn(t) {
   return { stop, count: busy.length, load };
 }
 
+/** Cell doors the split sealed recovery journeys read through this fixture, so the journeys carry no cell imports [H16]. */
+export { exportBoard } from '../../../../../packages/store/index.js';
+export { semanticBoardDigest } from '../../../../../packages/store/index.js';
+export { appliedSequence } from '../../../../../packages/state/index.js';
+export { checkpointSequence } from '../../../../../packages/state/index.js';
+export { requireSupportedEngine } from '../../../../../packages/state/index.js';
+export { seal as sealMove } from '../../../../../packages/kernel/index.js';
+export { store, openBoard, ENGINE_VERSION };
+
+/** Relay doors of the link cell, re-exported for the split sealed recovery journeys [H16]. */
+export { relayRecover } from '../../../../../packages/link/index.js';
+export { syncRelay } from '../../../../../packages/link/index.js';
