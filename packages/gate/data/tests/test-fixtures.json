@@ -2122,9 +2122,6 @@
   "packages/landing/tests/io/main/red/refresh/detached.test.js": {
     "tempdir": 2
   },
-  "apps/cli/journeys/land/unplaced.test.js": {
-    "raw-board": 2
-  },
   "packages/landing/tests/io/docs.test.js": {
     "tempdir": 2
   },
@@ -2333,7 +2330,7 @@
     "raw-board": 1
   },
   "packages/landing/tests/io/plan/check/merged.test.js": {
-    "tempdir": 6
+    "tempdir": 2
   },
   "apps/cli/tests/fixtures/drill.js": {
     "model": 1
@@ -4095,10 +4092,6 @@
   },
   "packages/api/tests/claim.test.js": {
     "raw-board": 5
-  },
-  "packages/landing/tests/io/history.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2
   },
   "packages/store/tests/io/board/light.test.js": {
     "raw-board": 2
