@@ -2072,9 +2072,6 @@
   "packages/gate/tests/io/timing.test.js": {
     "launch": 1
   },
-  "packages/gate/tests/io/watchdog.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/logic/budgets.test.js": {
     "launch": 1
   },
