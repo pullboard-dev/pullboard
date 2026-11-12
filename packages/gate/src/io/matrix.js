@@ -34,7 +34,7 @@ const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
   'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'live-driver': 'driver', 'orphan-worker': 'worker', 'proof-lanes': 'lanes',
+  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes',
   'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
 });
 
@@ -91,6 +91,8 @@ export const HOPS = Object.freeze([
     invariant: 'An accept lands through a batch: main moves to the recorded merge and is pushed.' },
   { id: 'landing-reopen', stage: 'Land', hop: 'reject or reopen during landing', harness: 'landing-reopen',
     invariant: 'An item reopened between selection and merge drops out of the landing batch: main never takes its commit and it records no merge.' },
+  { id: 'merged-twice', stage: 'Land', hop: 'pullboard merged run twice', harness: 'merged-twice',
+    invariant: 'A second merged for a recorded item appends nothing and names the record; a different commit is refused MERGED_ALREADY.' },
   { id: 'command-latency', stage: 'All', hop: 'board command latency', harness: 'board-commands',
     invariant: `Seat commands answer in under ${COMMAND_TARGET_MS} ms, and none loads more modules than its ratcheted ceiling.`,
     live: (report, extra) => extra.statusMs === undefined ? null
