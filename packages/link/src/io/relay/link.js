@@ -1,8 +1,10 @@
 import { outboxFile } from './summary.js';
 import { readOutboxSummary } from './summary.js';
 import { readRelayLink } from './read.js';
+import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';

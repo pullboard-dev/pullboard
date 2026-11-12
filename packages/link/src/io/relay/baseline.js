@@ -8,11 +8,12 @@ import { localRecords } from '../relay.js';
 import { saveLink } from './link.js';
 
 const BASELINE_NOTICES = new WeakSet();
+const MOVE_FALLBACK_NOTICES = new WeakSet();
 const BASELINE_ATTEMPTS = new WeakMap();
 export const BASELINE_FAILURES = new WeakMap();
 
 /** Name the safe next step for the saved permanent refusal. */
-export function pauseFix(state) {
+function pauseFix(state) {
   const pause = state.baselinePause;
   if (pause.size || /(?:exceeds?|over|larger than|too large).{0,40}(?:bytes|snapshot|limit)|(?:snapshot|limit).{0,40}(?:exceeds?|over|too large)/iu.test(pause.message)) {
     return 'upgrade the configured relay to API version 2 for bounded snapshots, then it resumes automatically';
@@ -22,7 +23,7 @@ export function pauseFix(state) {
 }
 
 /** Render one bounded line with board, safe refusal reason and recovery step. */
-export function baselinePauseLine(state) {
+function baselinePauseLine(state) {
   const pause = state.baselinePause;
   const code = /^[A-Z][A-Z0-9_]{0,63}$/.test(pause.code) ? pause.code : 'RELAY_REFUSED';
   const size = pause.size && Number.isSafeInteger(pause.size.sealedBytes) && Number.isSafeInteger(pause.size.limit)
@@ -55,7 +56,7 @@ export function rememberBaselineFailure(io, file, error) {
 }
 
 /** Confirm absence through authenticated API v1; a lost ACK or another live device must stay ordered. */
-export async function remoteBaselineAbsent(state, io) {
+async function remoteBaselineAbsent(state, io) {
   try { await request(state, '/api/v1/boards/' + state.board + '/state', {}, io); }
   catch (error) {
     if (await io.remoteBoardMissing(error)) return true;

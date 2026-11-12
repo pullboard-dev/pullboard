@@ -6,7 +6,7 @@ import { request } from '../relay.js';
 const ROSTER_READ_IO = Object.freeze({ ignoreRelayEnvironmentToken: true, err: ignoreRosterNotice });
 
 /** Cancel one device ticket without the already-aborted caller signal. */
-export async function cancelDeviceFlow(url, ticket, io) {
+async function cancelDeviceFlow(url, ticket, io) {
   let result;
   try { result = await request({ url }, '/auth/device/cancel', { method: 'POST', body: { ticket } }, io); }
   catch {
@@ -71,7 +71,7 @@ export async function relayDeviceRequest(session, path, options, io) {
 }
 
 /** Ignore notices from courtesy roster reads; disconnected boards keep their local labels and dates. */
-export function ignoreRosterNotice() {}
+function ignoreRosterNotice() {}
 
 /** Read only the fixed, board-scoped roster resources through the CLI's existing outbound transport. */
 export async function relayRosterRead(state, path) {

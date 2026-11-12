@@ -141,7 +141,6 @@ export { relayRosterRead } from './relay/device.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
-const MOVE_FALLBACK_NOTICES = new WeakSet();
 const KEY_WARNED_COMMANDS = new WeakSet();
 const CHECKPOINT_NOTICES = new WeakMap();
 const CHECKPOINT_MOVES = new WeakMap();
