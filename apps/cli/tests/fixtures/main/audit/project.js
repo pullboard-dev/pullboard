@@ -63,7 +63,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   if(env.NODE_OPTIONS)env.NODE_OPTIONS=env.NODE_OPTIONS.replaceAll(`--import=${outerGuard}`,`--import=${installedGuard}`);
   for(const name of Object.keys(env))if(name.startsWith('GIT_')&&!/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(name))delete env[name];
   for(const name of ['PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN'])delete env[name];
-  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true}}));
+  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true,runnerDispatch:'controller'}}));
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node apps/cli/src/io/run/tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(repoPath(repo, `test/${name}.test.js`),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
