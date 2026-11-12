@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { pushedFirstParentCommits } from '../../../../packages/git/index.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fixture } from '../../tests/fixtures/landing/receipts.js';
 import { verifiedItem } from '../../tests/fixtures/landing/receipts.js';
 import { gate } from '../../tests/fixtures/landing/receipts.js';
@@ -22,7 +22,7 @@ test('a native train landing records ordered bound evidence and an audit permits
   assert.notEqual(second.id, receipt.id, 'explicit receipt production never reuses a tree stamp');
   const tip = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   assert.match(onBoard(box, board => nativePushReceiptProblems(box.repo, board, [tip])).join('\n'), /audit/u);
-  const landed = await box.runLocal(box.repo, 'merged', String(id), tip, '--gate-receipt', receipt.id, '--json');
+  const landed = box.run(box.repo, 'merged', String(id), tip, '--gate-receipt', receipt.id, '--json');
   assert.equal(landed.code, 0, `${landed.out}${landed.err}`);
   const value = JSON.parse(landed.out);
   const rows = onBoard(box, board => store.events(board));
@@ -34,8 +34,9 @@ test('a native train landing records ordered bound evidence and an audit permits
   const range = pushedFirstParentCommits(box.repo, `refs/heads/main ${tip} refs/heads/main ${box.base}\n`);
   assert.deepEqual(range, [tip]);
   assert.deepEqual(onBoard(box, board => nativePushReceiptProblems(box.repo, board, range)), []);
-  const positive = await runCliInProcess(['push-receipts', '--json'],
-    { cwd: box.repo, env: box.env, input: `refs/heads/main ${tip} refs/heads/main ${box.base}\n` });
+  const positive = runFixtureChild(process.execPath, [join(box.repo, 'apps/cli/pullboard.js'), 'push-receipts', '--json'],
+    { cwd: box.repo, env: box.env, encoding: 'utf8',
+      input: `refs/heads/main ${tip} refs/heads/main ${box.base}\n` });
   assert.equal(positive.status, 0, `${positive.stdout}${positive.stderr}`);
   const allowed = JSON.parse(positive.stdout);
   assert.equal(allowed.green, true, 'the public CLI accepts the actual native landed range');
@@ -45,8 +46,9 @@ test('a native train landing records ordered bound evidence and an audit permits
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'chore: bypass the native train');
   const bypass = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   assert.match(onBoard(box, board => nativePushReceiptProblems(box.repo, board, [tip, bypass])).join('\n'), /lacks its exact native green landing receipt/u);
-  const negative = await runCliInProcess(['push-receipts', '--json'],
-    { cwd: box.repo, env: box.env, input: `refs/heads/main ${bypass} refs/heads/main ${box.base}\n` });
+  const negative = runFixtureChild(process.execPath, [join(box.repo, 'apps/cli/pullboard.js'), 'push-receipts', '--json'],
+    { cwd: box.repo, env: box.env, encoding: 'utf8',
+      input: `refs/heads/main ${bypass} refs/heads/main ${box.base}\n` });
   assert.equal(negative.status, 1, `${negative.stdout}${negative.stderr}`);
   const refused = JSON.parse(negative.stdout);
   assert.equal(refused.green, false);

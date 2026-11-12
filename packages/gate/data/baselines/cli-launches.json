@@ -1259,6 +1259,9 @@
   "apps/cli/journeys/fact/tests/cpu-unreadable.test.js": {
     "launch": 3
   },
+  "apps/cli/journeys/merged/receipts-train.test.js": {
+    "launch": 3
+  },
   "packages/resources/tests/io/main/probe.test.js": {
     "launch": 2
   },
