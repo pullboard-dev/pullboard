@@ -32,11 +32,12 @@ test('clause 1: with N=3 and four ready items where two share a file, one next c
   assert.equal(shared.length, 1, 'exactly one of the two items sharing a file is claimed');
   assert.equal(held(three).item_status, 'claimed', `${statuses}\n${result.out}\n${result.err}`);
   assert.equal(held(four).item_status, 'claimed', `${statuses}\n${result.out}\n${result.err}`);
+  const printed = [result.document.item, ...(result.document.more ?? []).map(next => next.item)].map(item => item.item_id);
   for (const id of [shared[0], three, four]) {
     const folder = `${box.seats.actor.path}-item-${id}`;
     assert.match(box.git(folder, 'rev-parse', '--show-toplevel').trim(), new RegExp(`item-${id}$`, 'u'), 'its own item folder is open');
     assert.ok(result.out.includes(folder), `the output names ${folder}`);
-    assert.ok(result.out.includes(`#${id}`), `the output names #${id}`);
+    assert.ok(printed.includes(id), `the output names #${id}: ${printed.join(', ')}`);
   }
   assert.equal(result.out.split('The real fixture succeeds.').length - 1 >= 3, true, 'each bar is printed');
 });
