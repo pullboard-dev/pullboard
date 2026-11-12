@@ -30,7 +30,7 @@ export function requireRuntimePorts(ports) {
   }
   if (!Array.isArray(ports.operations) || ports.operations.some(name => typeof name !== 'string')) throw new Refused('NO_POLICY', 'Supply the native operation names from the move registry.');
   if (typeof ports.logEvent !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply logEvent.');
-  for (const name of ['guardStore', 'refreshStoreDeclarations', 'storeTriggers']) {
+  for (const name of ['guardStore', 'refreshStoreDeclarations', 'repairDrift', 'storeTriggers']) {
     if (typeof ports.guards[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply guards.${name}.`);
   }
   for (const name of ['atomic', 'normalizeReviewDefaults', 'ensureProofCounters', 'ensureHotIndexes', 'missingAdditiveIndexes', 'ensureAdditiveIndexes', 'configureBoardJournal', 'closeBoardWrites']) {
@@ -90,7 +90,7 @@ export function requireRuntimePorts(ports) {
 export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext, gitRoot, ports } = {}) {
   const runtimePorts = requireRuntimePorts(ports);
   if (!clock || typeof clock.now !== 'function') throw new Refused('NO_POLICY', 'Supply the native board clock before opening storage.');
-  const { guardStore, refreshStoreDeclarations, storeTriggers } = runtimePorts.guards;
+  const { guardStore, refreshStoreDeclarations, repairDrift, storeTriggers } = runtimePorts.guards;
   const { atomic, ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes } = runtimePorts.lifecycle;
   const { sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
     boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion,
@@ -134,7 +134,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     const board = { db, clock, writeContext, gitRoot, onDiagnostic, runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts };
     let warmCounters = true;
     if (isMain !== false || file === ':memory:') {
-      // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
+      // Migrate and audit only a board whose version is behind; a drifted shape gets only repairDrift's safe repair (#1047, #5825).
       let standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION, readEventLogVersion(db) < EVENT_LOG_VERSION);
       if (standing === 'behind' || standing === 'unstamped') atomic(board, () => {
         if (standing === 'behind') {
@@ -147,6 +147,8 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
         recordSchemaStamp(db, SCHEMA_DIGEST);
       }, { reviewPolicy: false });
       if (refreshStoreDeclarations(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
+      // A drifted board still gains additive tables, and its guards and stamp when the rest of its shape matches (#5825).
+      if (standing === 'drifted' && repairDrift(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
       // Index-only upgrades keep the data version/digest unchanged. Install and restamp together;
       // drifted or read-only stores never take this path, and old clients accept the resulting stamp.
       if (standing !== 'drifted' && missingAdditiveIndexes(db)) atomic(board, () => {
