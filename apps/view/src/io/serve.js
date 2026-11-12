@@ -26,12 +26,16 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { Worker } from 'node:worker_threads';
@@ -143,35 +147,57 @@ function requireViewServices({ runCommand, renderPage, refusalDocument, boardOpe
 }
 
 /**
+ * The most events one export read asks for. A large board's log (hundreds of thousands of events) is read, made
+ * portable and written in pages of this size, so the export never holds the whole log at once and finishes under
+ * Node's default heap.
+ */
+export const EXPORT_EVENT_BATCH = 5000;
+/** How many item details one export reads at a time while it writes each item in full. */
+const EXPORT_ITEM_READS = 16;
+
+/**
  * Export one board through the same API v1 used by the live page, closing its temporary local
  * transport before returning. The static page needs neither that transport nor its session key.
  * Its API reads go through fetchApi, fetchLocal unless a caller passes another; a test passes one
  * that records each address and then reads through fetchLocal, so it sees the requests the export sends.
+ * Nothing is read whole: the state comes as item summaries, and each item's detail (thread, history, verdicts,
+ * criterion) is read from its own path and written into state.json in full, a few items at a time; events are
+ * read in pages of at most eventBatch, each written to events.json before the next is read. On a big board the
+ * one-document full state or event log is larger than a string Node can build (#6587).
+ * A refused or failed export leaves no partial snapshot behind.
  *
  * @param {string} root
  * @param {string} directory
  * @returns {Promise<{path: string}>}
  */
-export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, runCommand, renderPage, refusalDocument, boardOpeners } = {}) {
-  requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
+export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, eventBatch = EXPORT_EVENT_BATCH, source, runCommand, renderPage, refusalDocument, boardOpeners } = {}) {
+  // source: an optional stand-in board reader, (path) => document; it replaces the local API so a test drives the export alone.
+  if (source) { if (typeof renderPage !== 'function') throw new Refused('VIEW_SERVICE_REQUIRED', 'the view needs its caller to provide renderPage'); } else requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
+  if (!Number.isSafeInteger(eventBatch) || eventBatch < 1) throw new TypeError('exportView needs eventBatch as a positive integer');
   const output = resolve(directory);
-  if (existsSync(output) && (!statSync(output).isDirectory() || readdirSync(output).length)) {
+  const existed = existsSync(output);
+  if (existed && (!statSync(output).isDirectory() || readdirSync(output).length)) {
     throw new Refused('EXPORT_EXISTS', `snapshot folder ${output} is not empty; use an empty folder`);
   }
-  const info = repoInfo(root);
-  const config = loadConfig(info.root);
-  const registered = listApiProjects().find((entry) => {
+  const info = source ? { root: resolve(root), commonDir: '' } : repoInfo(root);
+  const config = source ? {} : loadConfig(info.root);
+  const registered = source ? null : listApiProjects().find((entry) => {
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
-  const { serveApi } = await import("../../../../packages/api/index.js");
-  const api = await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
-  let listing;
-  let state;
-  let events;
+  let privateBoard = false;
+  if (publicMode && !source) {
+    const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
+  }
+  const { serveApi } = source ? {} : await import("../../../../packages/api/index.js");
+  const api = source ? { url: 'http://stand-in.invalid/?k=stand-in', close: async () => {} } : await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
+  let wrote = false;
   try {
     const address = new URL(api.url);
     /** Read an authenticated API document without putting its private key in the snapshot. */
     const read = async (path) => {
+      if (source) return source(path);
       let reply;
       try {
         reply = await fetchApi(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });
@@ -183,7 +209,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
       if (!reply.ok) throw new Refused(document.error.code, document.error.message);
       return document;
     };
-    listing = await read('/api/v1/boards');
+    let listing = await read('/api/v1/boards');
     const board = listing.boards[0];
     if (!board) {
       const version = listing.warnings?.map((warning) => warning.error?.error).find((error) => error?.code === 'EVENT_LOG_VERSION');
@@ -191,32 +217,72 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
       throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
     }
     const path = '/api/v1/boards/' + encodeURIComponent(board.id);
-    // Ask for every item's thread, verdicts and criterion: the snapshot has no API to fetch them from later.
-    state = await read(path + '/state?detail=full');
-    events = await read(path + '/events');
+    // The summary state, with every item's thread, verdicts and criterion added below: the snapshot has no API to fetch them from later.
+    let state = await read(path + '/state?detail=summary');
     const last = state.state.events[0]?.event_id ?? 0;
-    events.events = events.events.filter((event) => event.event_id <= last);
+    const summaries = state.state.items;
+    // Items are written one by one where this marker sits in the rest of the state's text.
+    const marker = '\u0000items-' + randomBytes(8).toString('hex');
+    listing = portableSnapshot(listing, info.root);
+    state = portableSnapshot({ ...state, state: { ...state.state, items: [] } }, info.root);
+    // Public checks are per location, so the state, each item and each page of events are checked on their own; any block refuses the whole export.
+    if (publicMode) ({ listing, state } = publicSnapshot({ listing, state }, { privateBoard }));
+    const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
+    mkdirSync(boardPath, { recursive: true });
+    wrote = true;
+    const [stateHead, stateTail] = JSON.stringify({ ...state, state: { ...state.state, items: marker } }).split(JSON.stringify(marker));
+    const stateFile = openSync(join(boardPath, 'state.json'), 'w');
+    try {
+      writeSync(stateFile, stateHead + '[');
+      for (let at = 0; at < summaries.length; at += EXPORT_ITEM_READS) {
+        const part = summaries.slice(at, at + EXPORT_ITEM_READS);
+        const details = await Promise.all(part.map((summary) => read(`${path}/items/${encodeURIComponent(String(summary.id))}`)));
+        let items = part.map((summary, index) => portableSnapshot({ ...summary, ...details[index].item }, info.root));
+        if (publicMode) items = publicSnapshot({ state: { state: { items } } }, { privateBoard }).state.state.items;
+        writeSync(stateFile, (at ? ',' : '') + items.map((item) => JSON.stringify(item)).join(','));
+      }
+      writeSync(stateFile, ']' + stateTail + '\n');
+    } finally { closeSync(stateFile); }
+    const file = openSync(join(boardPath, 'events.json'), 'w');
+    try {
+      let after = 0;
+      let eventsTail = null;
+      let written = 0;
+      let more = true;
+      while (more) {
+        const page = await read(`${path}/events?after=${after}&limit=${eventBatch}`);
+        const records = page.events;
+        if (eventsTail === null) {
+          // The first page's other fields (version, warnings) frame the whole log, in the order the API sent them.
+          let envelope = portableSnapshot({ ...page, events: [] }, info.root);
+          if (publicMode) envelope = publicSnapshot({ events: envelope }, { privateBoard }).events;
+          const [eventsHead, tail] = JSON.stringify({ ...envelope, events: marker }).split(JSON.stringify(marker));
+          writeSync(file, eventsHead + '[');
+          eventsTail = tail;
+        }
+        let kept = portableSnapshot(records.filter((event) => event.event_id <= last), info.root);
+        if (publicMode) kept = publicSnapshot({ events: { events: kept } }, { privateBoard }).events.events;
+        if (kept.length) writeSync(file, (written ? ',' : '') + kept.map((event) => JSON.stringify(event)).join(','));
+        written += kept.length;
+        // A short page is the log's end; events past the exported state are not part of this snapshot.
+        more = records.length === eventBatch && records.at(-1).event_id < last;
+        if (more) after = records.at(-1).event_id;
+      }
+      writeSync(file, ']' + eventsTail + '\n');
+    } finally { closeSync(file); }
+    writeFileSync(join(output, 'index.html'), renderPage('', { snapshot: true }));
+    writeFileSync(join(output, 'view.css'), SNAPSHOT_VIEW_CSS);
+    writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
+  } catch (error) {
+    // Never leave a partial snapshot that could be published: remove what this export wrote.
+    if (wrote) {
+      if (existed) for (const name of readdirSync(output)) rmSync(join(output, name), { recursive: true, force: true });
+      else rmSync(output, { recursive: true, force: true });
+    }
+    throw error;
   } finally {
     await api.close();
   }
-  listing = portableSnapshot(listing, info.root);
-  state = portableSnapshot(state, info.root);
-  events = portableSnapshot(events, info.root);
-  if (publicMode) {
-    const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
-    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
-    try {
-      const privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id'));
-      ({ listing, state, events } = publicSnapshot({ listing, state, events }, { privateBoard }));
-    } finally { store.closeBoard(board); }
-  }
-  const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
-  mkdirSync(boardPath, { recursive: true });
-  writeFileSync(join(output, 'index.html'), renderPage('', { snapshot: true }));
-  writeFileSync(join(output, 'view.css'), SNAPSHOT_VIEW_CSS);
-  writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
-  writeFileSync(join(boardPath, 'state.json'), JSON.stringify(state) + '\n');
-  writeFileSync(join(boardPath, 'events.json'), JSON.stringify(events) + '\n');
   return { path: output };
 }
 /**
