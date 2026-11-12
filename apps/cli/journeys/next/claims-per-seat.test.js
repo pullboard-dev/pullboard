@@ -51,6 +51,7 @@ test('claims.perSeat sets N: a seat holds N live claims and the next refuses ONE
     const claimed = await box.inProcess(box.web, 'claim', id);
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
   }
+  assert.equal(loadConfig(box.web).claims.perSeat, 2, 'the seat reads the setting');
   const refused = await box.inProcess(box.web, 'claim', ids[2]);
   assert.notEqual(refused.code, 0, `the third claim is refused: ${refused.out}\n${refused.err}\n${JSON.stringify(loadConfig(box.web).claims)} ${box.git(box.web, 'log', '--oneline', '-3')}`);
   const text = refused.err + refused.out;
