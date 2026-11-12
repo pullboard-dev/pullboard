@@ -102,12 +102,13 @@ function takeLock(folder) {
  * Serve one board until the signal stops it: runner serve against its loopback URL. A refusal is logged and tried
  * again later, so the local runner never stops serving a board on one error.
  */
-async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, signal, say }) {
+async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, signal, say }) {
   const cache = join(folder, 'cache', createHash('sha256').update(root).digest('hex').slice(0, 16));
   for (let wait = RETRY.firstMs; !signal.aborted; wait = Math.min(wait * 2, RETRY.maxMs)) {
     try {
       say(`serving ${root} as board ${id}`);
-      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, signal, say: line => say(`${basename(root)}: ${line}`) });
+      // One job at a time on the board host: concurrent jobs belong on runners, never on the coordinator Mac (#5805).
+      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, jobs: 1, signal, say: line => say(`${basename(root)}: ${line}`) });
       wait = RETRY.firstMs;
     } catch (error) {
       if (signal.aborted) break;
@@ -128,12 +129,13 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  *   the board API on loopback; boards lists the boards it serves with their ids.
  * @param {string[]} options.capabilities - What this runner offers, BOARD_HOST among them.
  * @param {Parameters<typeof serveRunner>[0]['handlers']} [options.handlers]
+ * @param {() => boolean} [options.admit] - Asked before each claim; the local runner takes a job only while it says yes.
  * @param {AbortSignal} options.signal
  * @param {(line: string) => void} [options.say]
  * @param {{ heartbeatMs?: number }} [options.timing]
  * @returns {Promise<{ served: boolean, pid: number }>} served false when another local runner (pid) already runs.
  */
-export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, signal, say = () => {}, timing = {} }) {
+export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, signal, say = () => {}, timing = {} }) {
   const { heartbeatMs = HEARTBEAT_MS } = timing;
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   if (!takeLock(folder)) return { served: false, pid: localRunnerState(folder)?.pid ?? null };
@@ -151,7 +153,7 @@ export async function serveLocalRunner({ folder, open, capabilities, handlers = 
     say(`local runner ${runner} pulling from ${state.url}`);
     while (!signal.aborted) {
       for (const board of api.boards()) {
-        if (!loops.has(board.root)) loops.set(board.root, serveBoard(board, { origin: api.origin, key: api.key, runner, folder, capabilities, handlers, signal, say }));
+        if (!loops.has(board.root)) loops.set(board.root, serveBoard(board, { origin: api.origin, key: api.key, runner, folder, capabilities, handlers, admit, signal, say }));
       }
       await pause(heartbeatMs, null, { signal }).catch(() => { /* stopped */ });
     }

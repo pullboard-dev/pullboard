@@ -57,6 +57,26 @@ export function validateServe(serve, file) {
   }
 }
 
+/**
+ * Check the board this machine's seats use over HTTP: board.url, an http(s) address, and board.token, the serve key [P7].
+ * @param {unknown} board
+ * @param {string} file
+ */
+export function validateBoardRemote(board, file) {
+  if (board === undefined) return;
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => key !== 'url' && key !== 'token')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url and token; remove it to use the local board`);
+  }
+  let url = null;
+  try { url = board.url === undefined ? null : new URL(board.url); } catch { /* Refused below. */ }
+  if (board.url !== undefined && (!url || !['http:', 'https:'].includes(url.protocol))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board.url in ${file} must be an http or https address, such as http://100.64.0.2:4321; run pullboard settings board.url <url>`);
+  }
+  if (board.token !== undefined && (typeof board.token !== 'string' || !board.token || /\s/u.test(board.token))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board.token in ${file} must be the key pullboard serve printed; run pullboard settings board.token <key>`);
+  }
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
@@ -104,6 +124,7 @@ export function loadMachineSettings() {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.pullPilot in ${file} must be { "items": [item numbers], "share": 0 through 100 }; remove it to send every submit through the controller path`);
   }
   if (value.gate?.localRunner !== undefined && typeof value.gate.localRunner !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.localRunner in ${file} must be true or false`);
+  if (value.gate?.localLoadShare !== undefined && (!Number.isFinite(value.gate.localLoadShare) || value.gate.localLoadShare <= 0)) throw new Refused('BAD_MACHINE_SETTINGS', `gate.localLoadShare in ${file} must be a number above 0: the load per core below which the local runner takes a job`);
   if (value.gate?.submitAuthorization !== undefined && !['runner', 'local'].includes(value.gate.submitAuthorization)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.submitAuthorization in ${file} must be "runner" or "local"`);
   }
@@ -118,6 +139,7 @@ export function loadMachineSettings() {
     throw new Refused('BAD_MACHINE_SETTINGS', `inspection.clauses in ${file} must be true or false`);
   }
   validateServe(value.serve, file);
+  validateBoardRemote(value.board, file);
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
   validateBudget(value.budget, file);
@@ -192,6 +214,7 @@ export function validateRunner(value) {
     }
   }
   if (value.fixed !== undefined && typeof value.fixed !== 'boolean') throw new Refused('BAD_RUNNER', 'runner fixed must be true or false');
+  if (value.drain !== undefined && typeof value.drain !== 'boolean') throw new Refused('BAD_RUNNER', 'runner drain must be true or false');
   for (const key of ['cores', 'memoryMB']) {
     if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 1)) throw new Refused('BAD_RUNNER', `runner ${key} must be a positive whole number measured on the runner`);
   }
@@ -200,7 +223,7 @@ export function validateRunner(value) {
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
-    ...(value.fixed === true ? { fixed: true } : {}),
+    ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
     ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };
 }
 

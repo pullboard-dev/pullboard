@@ -16,6 +16,7 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { apiHttpBox } from '../../tests/fixtures/api.js';
 import { apiHttpFixture } from '../../tests/fixtures/api.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
@@ -35,6 +36,7 @@ function lanAddress() {
 
 /** Start the real `pullboard serve --json` and resolve its startup document; it stops when the test ends. */
 async function startServe(t, box, args = []) {
+  // Process-level: serve is a long-lived child stopped by signal.
   const child = startFixtureChild(process.execPath, [BIN, 'serve', ...args, '--json'], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const closed = new Promise(done => child.once('close', done));
   const stop = async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); await closed; };
@@ -142,6 +144,7 @@ async (t) => {
   writeFileSync(config, JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), trunk: { remote: trunk } }, null, 2));
   const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
   delete env.PULLBOARD_BOARD_KEY;
+  // Process-level: install-serve drives launchd and a PATH-shimmed runner.
   const cli = (...args) => runFixtureChild(process.execPath, [BIN, 'runner', ...args, '--json'], { cwd: box.root, env, encoding: 'utf8' });
 
   const unknown = cli('install-serve', 'runner-z', '--board', `${box.origin}${box.path}?k=${box.key}`);
@@ -208,9 +211,9 @@ async (t) => {
     runners: [{ host: 'runner-a', slots: 1, browser: 0, node: process.execPath, root: runner.root }] });
   const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
   delete env.PULLBOARD_BOARD_KEY;
-  const cli = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: box.root, env, encoding: 'utf8' });
+  const cli = (...args) => runCliInProcess(args, { cwd: box.root, env });
 
-  const installed = cli('runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json');
+  const installed = await cli('runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json');
   assert.equal(installed.status, 1, 'nothing runs until the person loads the daemon');
   const { service } = JSON.parse(installed.stdout);
   assert.equal(service.form, 'daemon');
@@ -229,13 +232,13 @@ async (t) => {
   assert.equal(existsSync(runner.plist), false, 'no login agent is left behind');
   assert.ok(programArguments(plist)[5].endsWith(`on this runner run ${service.sudo}`), 'the service logs the same sudo line when the board stays unreachable');
 
-  const doctor = cli('doctor');
+  const doctor = await cli('doctor');
   assert.ok(doctor.stdout.includes('runner runner-a: runner serve is staged as a LaunchDaemon but not loaded, so nothing pulls from 192.168.1.98; a LaunchAgent or a process left by ssh is blocked by macOS Local Network privacy'), doctor.stdout + doctor.stderr);
   assert.ok(doctor.stdout.includes(`repair: on runner-a run: ${service.sudo}`), 'doctor prints the exact fix');
 
-  const removed = cli('runner', 'install-serve', 'runner-a', '--remove', '--json');
+  const removed = await cli('runner', 'install-serve', 'runner-a', '--remove', '--json');
   assert.equal(removed.status, 0, removed.stdout + removed.stderr);
-  assert.ok(!cli('doctor').stdout.includes('runner runner-a:'), 'a removed service is no longer diagnosed');
+  assert.ok(!(await cli('doctor')).stdout.includes('runner runner-a:'), 'a removed service is no longer diagnosed');
 });
 
 test('clause 2: an installed runner service that cannot reach its board logs the likely macOS Local Network block and its fix instead of retrying silently [P7]', { timeout: 60_000 }, // budget: one CLI run and backoffs of 1 s and 2 s.
@@ -245,7 +248,7 @@ async (t) => {
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' },
     runners: [{ host: 'runner-a', slots: 1, browser: 0, node: process.execPath, root: runner.root }] });
   const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
-  const installed = runFixtureChild(process.execPath, [BIN, 'runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json'], { cwd: box.root, env, encoding: 'utf8' });
+  const installed = await runCliInProcess(['runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json'], { cwd: box.root, env });
   const { service } = JSON.parse(installed.stdout);
   const args = programArguments(readFileSync(service.plist, 'utf8'));
   // The installed program, pointed at a closed loopback port so no request reaches a board, as the blocked agent saw.

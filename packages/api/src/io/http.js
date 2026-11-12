@@ -1,5 +1,7 @@
 /** API v1's shared HTTP boundary; local and relay adapters supply the same board operations (A2). */
 import { createHash } from 'node:crypto';
+import { open } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import { Refused } from '../../../kernel/index.js';
 import { relayStorage } from '../../../link/index.js';
 import { withGitFacts } from '../../../git/index.js';
@@ -83,6 +85,13 @@ async function readBody(req, { maxBytes = BODY_BYTES, uploadRefusal = false } = 
 function eventCursor(value) {
   if (value === null || value === undefined || value === '') return 0;
   if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Refused('BAD_CURSOR', 'after and Last-Event-ID need a nonnegative integer; use the last event id received');
+  return Number(value);
+}
+
+/** The most events one read returns: absent means all, otherwise a positive integer. */
+function eventLimit(value) {
+  if (value === null || value === undefined) return undefined;
+  if (!/^[1-9]\d*$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Refused('BAD_REQUEST', 'limit needs a positive integer; read the next page with after=<last event id>');
   return Number(value);
 }
 
@@ -255,6 +264,24 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
   }
 
   /** Route a request through the adapter and keep every HTTP response inside API v1. */
+  /**
+   * Stream the board's cached trunk pack for one commit, so cold runners share one pack-objects on the coordinator.
+   * Why an open descriptor: a newer trunk commit deletes older packs, and an open file still streams whole.
+   */
+  async function sendTrunkPack(req, res, board, commit, who) {
+    if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read a trunk pack with GET /api/v1/boards/:board/trunk/<commit>.pack');
+    if (!/^[0-9a-f]{40,64}$/u.test(commit)) throw new Refused('BAD_REQUEST', 'a trunk pack needs a full hex commit id; use the commit the job names');
+    if (typeof adapter.trunkPack !== 'function') return json(res, 404, refusal(new Refused('TRUNK_PACK_NOT_AVAILABLE', 'this board serves no trunk packs; fetch the commit from the trunk remote')));
+    const served = await adapter.trunkPack(board, commit, who);
+    if (!served) return json(res, 404, refusal(new Refused('NO_COMMIT', `the trunk has no commit ${commit}; fetch it from the trunk remote`)));
+    const opened = await open(served.file, 'r');
+    try {
+      const { size } = await opened.stat();
+      res.writeHead(200, { 'content-type': 'application/x-git-packed-objects', 'content-length': String(size), 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      await pipeline(opened.createReadStream({ autoClose: false }), res);
+    } finally { await opened.close(); }
+  }
+
   async function handle(req, res) {
     return withGitFacts(() => route(req, res));
   }
@@ -268,7 +295,8 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
-      const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? proofRoute?.[1] ?? null;
+      const trunkRoute = /^\/api\/v1\/boards\/([^/]+)\/trunk\/([^/]+)\.pack$/.exec(url.pathname);
+      const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? proofRoute?.[1] ?? trunkRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
       if (url.pathname === '/api/v1/settings') {
         if (req.method !== 'GET') throw new Refused('READ_ONLY', 'settings are read-only here; use the supported settings commands');
@@ -306,8 +334,9 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
           throw error;
         }
       }
-      if (!route && !shoutRoute && !itemRoute && !proofRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
+      if (!route && !shoutRoute && !itemRoute && !proofRoute && !trunkRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
       const board = await adapter.board(boardId, who);
+      if (trunkRoute) return await sendTrunkPack(req, res, board, trunkRoute[2], who);
       if (proofRoute) {
         if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read a proof record with GET');
         const rawId = proofRoute[2];
@@ -401,7 +430,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
             throw error;
           }
         }
-        const initial = await adapter.events(board, after, who);
+        const initial = await adapter.events(board, after, who, eventLimit(url.searchParams.get('limit')));
         const warnings = await warningsFor(board, who);
         const eventLogVersion = await adapter.eventLogVersion?.(board, who);
         return json(res, 200, { events: initial, ...(eventLogVersion === undefined ? {} : { eventLogVersion }),

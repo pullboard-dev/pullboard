@@ -52,7 +52,7 @@ async t => {
   const first = submitOne(box, id);
   // The builder commits again and resubmits: a newer gate job now holds the item's head.
   assert.equal(box.helpers.commitFile(box, first.folder, `web/${id}-again.txt`, 'again\n', `feat(web): pulled gate ${id} again [G1]`).status, 0);
-  const again = box.run(first.folder, 'submit', String(id), '--json');
+  const again = await box.runLocal(first.folder, 'submit', String(id), '--json');
   assert.equal(again.code, 0, `${again.err}\n${again.out}`);
   const second = box.git(first.folder, 'rev-parse', 'HEAD');
   const { board, url } = await applyingQueue(t, box);

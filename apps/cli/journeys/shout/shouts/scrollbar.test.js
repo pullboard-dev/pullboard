@@ -52,12 +52,12 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
   assert.ok(chromeExecutable(), 'this scrollbar regression proof requires actual Chrome');
   const box = machine();
   const alpha = project(box, 'cards');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G1', '--criterion', 'says goodbye');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G1', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.web, 'claim', '1');
   const second = join(box.dir, 'cards-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/cards2');
-  box.run(second, 'join', 'web');
+  await box.inProcess(second, 'join', 'web');
   // A committed page at a path too long for a phone, for a code reference to name.
   const deep = 'docs/a/very/long/path/that/keeps/going/past/a/phone/screen.md';
   mkdirSync(join(alpha.repo, deep, '..'), { recursive: true });
@@ -83,16 +83,16 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
   earlier(alpha.repo, twoDays, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: older, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 65 * 60e3, (board) => shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: colour, decision: true, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 125e3, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: ship, decision: true, lanes: ['web'] }));
-  const asked = JSON.parse(box.run(alpha.repo, 'decisions', '--json')).decisions.find((d) => d.shout_text === ship);
-  box.run(alpha.repo, 'answer', String(asked.shout_id), 'Yes, ship it.');
-  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
-  box.run(alpha.web, 'shout', 'all', chips);
-  box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
-  box.run(alpha.web, 'shout', 'all', longChips);
-  box.run(alpha.web, 'shout', 'all', refsShout);
-  box.run(alpha.web, 'shout', 'all', blockShout);
-  box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
-  box.run(alpha.web, 'shout', 'all', long);
+  const asked = JSON.parse(await box.inProcess(alpha.repo, 'decisions', '--json')).decisions.find((d) => d.shout_text === ship);
+  await box.inProcess(alpha.repo, 'answer', String(asked.shout_id), 'Yes, ship it.');
+  await box.inProcess(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
+  await box.inProcess(alpha.web, 'shout', 'all', chips);
+  await box.inProcess(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
+  await box.inProcess(alpha.web, 'shout', 'all', longChips);
+  await box.inProcess(alpha.web, 'shout', 'all', refsShout);
+  await box.inProcess(alpha.web, 'shout', 'all', blockShout);
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
+  await box.inProcess(alpha.web, 'shout', 'all', long);
 
 
   const view = await startView(box);

@@ -78,6 +78,7 @@ export { ADMISSION_POLL_FRESH_MS } from './runner/placement.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
+  runnerDeadlineOutput,
   runnerWaitReasons,
   runnerWaitLine,
 } from './runner/reasons.js';
@@ -636,7 +637,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     for (const runner of runners) {
       if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !runnerCompatible(db, runner, waiter, unavailable)) continue;
       const used = usage.get(runner.host);
-      if (used.timing || drain?.host === runner.host || reserved === runner.host) continue;
+      if (runner.drain === true || used.timing || drain?.host === runner.host || reserved === runner.host) continue;
       free += Math.max(0, waiter.browser === 1 ? Math.min(runner.slots - used.slots, runner.browser - used.browsers) : runner.slots - used.slots);
     }
     return free - competing >= headroom;
@@ -656,6 +657,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
         if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (runner.drain === true) return false; // `pullboard runner drain`: no new job while it finishes the running ones
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -1024,6 +1026,7 @@ export async function takeResource(options) {
   let leaseUntil = '';
   let initialTicket = resume?.ticket;
   let lastRunnerWait = '';
+  const deadlineMemory = {};
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
     const result = await renewWithBeat(file, token, table === 'waiter', async () => { await options.beforeAdmission?.(); return options.onWait?.(state); });
@@ -1339,7 +1342,7 @@ export async function takeResource(options) {
         const line = runnerWaitLine(acquired.state.runnerWait);
         if (line !== lastRunnerWait) { process.stderr.write(line + '\n'); lastRunnerWait = line; }
       }
-      if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
+      if (acquired.state.runnerDeadline) for (const line of runnerDeadlineOutput(deadlineMemory, acquired.state.runnerDeadline, acquired.state.runnerWait, Date.now())) process.stderr.write(line + '\n');
       await keepItemLease(acquired.state, 'waiter');
       if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), beatingProbes(options, db, token)).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);

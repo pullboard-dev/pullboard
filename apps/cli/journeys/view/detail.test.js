@@ -67,16 +67,16 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
     assert.ok(executable, 'Chrome is required to open items in the view');
     const box = machine();
     const alpha = project(box, 'detail-demand');
-    box.run(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', 'The greeting renders from the snapshot alone.', '--brief', 'Keep the greeting short.', '--check', 'true', '--wait');
-    box.run(alpha.repo, 'add', 'web', 'Farewell page', '--specs', 'G1', '--criterion', 'The farewell mentions the zeppelin.');
-    box.run(alpha.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'The footer renders.');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', 'The greeting renders from the snapshot alone.', '--brief', 'Keep the greeting short.', '--check', 'true', '--wait');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Farewell page', '--specs', 'G1', '--criterion', 'The farewell mentions the zeppelin.');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'The footer renders.');
     build(box, alpha, 1, 'greeting.html');
     sendBack(box, alpha, 1, 'the first greeting needs a correction');
-    box.run(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
+    await box.inProcess(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
     build(box, alpha, 1, 'greeting-fix.html');
     accept(box, alpha, 1);
     build(box, alpha, 2, 'farewell.html');
-    box.run(alpha.repo, 'milestone', 'add', 'Launch', '--items', '1,2', '--reason', 'Arrange fixture release');
+    await box.inProcess(alpha.repo, 'milestone', 'add', 'Launch', '--items', '1,2', '--reason', 'Arrange fixture release');
 
     const view = await startView(box);
     let chrome, host;
@@ -153,12 +153,12 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await press(chrome, "document.querySelector('#chain .row[data-item=\"2\"]')");
       await chrome.waitFor("view.item === 2 && document.querySelector('#detail h2')?.innerText.includes('Farewell page') && !!document.querySelector('#detail .tl')");
       const states = await chrome.stable("window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length");
-      box.run(alpha.web, 'claim', '3');
+      await box.inProcess(alpha.web, 'claim', '3');
       await chrome.waitFor(`window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length > ${states} && !!document.querySelector('#chain .row[data-item="3"] .item-stage[data-stage="building"]')`, 15_000); // budget: hang-only ceiling for the page's 3-second board poll.
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1'], 'a refresh does not refetch items that have not changed');
 
       // A change to the opened item asks for its detail once more.
-      box.run(alpha.repo, 'fact', '2', 'note', 'The farewell was checked after it opened.');
+      await box.inProcess(alpha.repo, 'fact', '2', 'note', 'The farewell was checked after it opened.');
       await chrome.waitFor("[...document.querySelectorAll('#detail .tl-fact .tl-body')].some((fact) => fact.textContent === 'The farewell was checked after it opened.')", 15_000); // budget: hang-only ceiling for the page's 3-second board poll and one detail read.
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1', 'items/2'], 'only the changed item is read again');
 
@@ -173,7 +173,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
 
       // An export holds every item in full: it opens an item and searches its criteria offline, asking nothing.
       const folder = join(box.dir, 'detail-export');
-      box.run(alpha.repo, 'view', '--export', folder);
+      await box.inProcess(alpha.repo, 'view', '--export', folder);
       host = await serveFolder(folder, '/demo/');
       await chrome.send('Page.navigate', { url: `${host.base}/demo/#items/1` });
       await chrome.waitFor("document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length && view.item === 1 && !!document.querySelector('#detail .tl')");
@@ -201,7 +201,7 @@ test('a failed criterion-only search can be retried without changing the board [
     assert.ok(executable, 'Chrome is required to retry a criterion-only search');
     const box = machine();
     const alpha = project(box, 'detail-search-retry');
-    box.run(alpha.repo, 'add', 'web', 'A searchable item', '--specs', 'G1', '--criterion', 'The moonstone appears only in this criterion.');
+    await box.inProcess(alpha.repo, 'add', 'web', 'A searchable item', '--specs', 'G1', '--criterion', 'The moonstone appears only in this criterion.');
 
     const view = await startView(box);
     let chrome;

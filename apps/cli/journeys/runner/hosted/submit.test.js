@@ -62,7 +62,7 @@ function builderOnlyRunner(box, host) {
  * @param {import('node:test').TestContext} t The test.
  * @returns {{ box: any, id: number, branch: string, runnerFolder: string, local: string, log: string, head: string }} The fixture.
  */
-function hostedItem(t) {
+async function hostedItem(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
@@ -70,11 +70,11 @@ function hostedItem(t) {
   mkdirSync(runnerHome);
   const log = join(box.dir, 'ssh.log');
   fakeSsh(box, runnerHome, log);
-  const registered = box.run(box.repo, 'runner', 'add', 'runner-a', '--slots', '1', '--browser', '0', '--node', process.execPath, '--json');
+  const registered = await box.runLocal(box.repo, 'runner', 'add', 'runner-a', '--slots', '1', '--browser', '0', '--node', process.execPath, '--json');
   assert.equal(registered.code, 0, registered.err || registered.out);
   builderOnlyRunner(box, 'runner-a');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Runner-hosted submit fixture' }).item_id;
-  const claimed = box.run(box.web, 'claim', String(id));
+  const claimed = await box.runLocal(box.web, 'claim', String(id));
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const branch = `web/item-${id}`;
   const folder = join(dirname(box.web), `${basename(box.web)}-item-${id}`);
@@ -94,45 +94,45 @@ function hostedItem(t) {
 }
 
 /** The item's board history, so a refusal can be shown to have written nothing. */
-function boardHistory(box, id) {
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+async function boardHistory(box, id) {
+  const shown = await box.runLocal(box.repo, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err || shown.out);
   const item = JSON.parse(shown.out);
   return { status: item.item_status, owner: item.item_owner, thread: JSON.stringify(item.thread ?? item.events ?? null), outcome: item.item_submit_outcome ?? null };
 }
 
-test('clause 1: from a runner-hosted item folder, pullboard submit pushes the item branch from the runner to the coordinator and runs the ordinary submit there on the pushed commit [C7]', t => {
-  const { box, id, branch, local, log, head } = hostedItem(t);
-  const submitted = box.run(box.web, 'submit', String(id));
+test('clause 1: from a runner-hosted item folder, pullboard submit pushes the item branch from the runner to the coordinator and runs the ordinary submit there on the pushed commit [C7]', async t => {
+  const { box, id, branch, local, log, head } = await hostedItem(t);
+  const submitted = await box.runLocal(box.web, 'submit', String(id));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   assert.match(submitted.out, new RegExp(`runner runner-a pushed ${branch} at ${head.slice(0, 12)}`));
   assert.match(submitted.out, new RegExp(`submitted #${id} at `));
   assert.ok(readFileSync(log, 'utf8').trim().split('\n').includes('runner-a'), 'the push ran over ssh on the registered runner');
   assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', head, `refs/heads/${branch}`), '', 'the coordinator branch holds the runner commit');
-  const item = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+  const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
   assert.equal(item.item_status, 'submitted');
   assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', head, item.item_commit), '', 'the gate judged the pushed commit');
   assert.equal(box.git(local, 'branch', '--show-current'), branch, 'the ordinary submit ran in the coordinator item folder on the claimed branch');
 });
 
-test('clause 2: a runner folder off the claimed branch refuses HOSTED_BRANCH_MISMATCH before any board write [C7]', t => {
-  const { box, id, branch, runnerFolder } = hostedItem(t);
+test('clause 2: a runner folder off the claimed branch refuses HOSTED_BRANCH_MISMATCH before any board write [C7]', async t => {
+  const { box, id, branch, runnerFolder } = await hostedItem(t);
   box.git(runnerFolder, 'checkout', '--quiet', '-b', 'web/elsewhere');
-  const before = boardHistory(box, id);
-  const refused = box.run(box.web, 'submit', String(id));
+  const before = await boardHistory(box, id);
+  const refused = await box.runLocal(box.web, 'submit', String(id));
   assert.equal(refused.code, 1, refused.out);
   assert.match(refused.err, new RegExp(`HOSTED_BRANCH_MISMATCH\\] runner runner-a folder .*item-${id} is on web/elsewhere, not the claimed branch ${branch}`));
-  assert.deepEqual(boardHistory(box, id), before, 'the refusal wrote nothing to the board');
+  assert.deepEqual(await boardHistory(box, id), before, 'the refusal wrote nothing to the board');
   assert.equal(box.tryGit(box.repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/web/elsewhere').status, 1, 'nothing was pushed');
 });
 
-test('clause 2: a push the coordinator does not take refuses HOSTED_PUSH_FAILED before any board write [C7]', t => {
-  const { box, id, branch, runnerFolder, head } = hostedItem(t);
+test('clause 2: a push the coordinator does not take refuses HOSTED_PUSH_FAILED before any board write [C7]', async t => {
+  const { box, id, branch, runnerFolder, head } = await hostedItem(t);
   box.git(runnerFolder, 'remote', 'set-url', 'origin', join(box.dir, 'no-such-coordinator.git'));
-  const before = boardHistory(box, id);
-  const refused = box.run(box.web, 'submit', String(id));
+  const before = await boardHistory(box, id);
+  const refused = await box.runLocal(box.web, 'submit', String(id));
   assert.equal(refused.code, 1, refused.out);
   assert.match(refused.err, new RegExp(`HOSTED_PUSH_FAILED\\] runner runner-a folder .*item-${id} could not push ${branch} to the coordinator`));
-  assert.deepEqual(boardHistory(box, id), before, 'the refusal wrote nothing to the board');
+  assert.deepEqual(await boardHistory(box, id), before, 'the refusal wrote nothing to the board');
   assert.notEqual(box.tryGit(box.repo, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).stdout.trim(), head, 'the coordinator branch did not move');
 });
