@@ -263,11 +263,17 @@ export function cliLaunchGrowth(problems, baseline) {
   });
 }
 
-/** The updater only lowers ceilings: it refuses before writing when any file has grown. */
+/**
+ * The updater only lowers ceilings: a row measured at 0 is dropped, and it refuses before writing when any file
+ * has grown or has no row, naming each such file.
+ *
+ * Why: a stale row of 0 launches is dead weight, and a recount must never raise or add a ceiling (#6228).
+ */
 export function tightenCliLaunchBaseline(problems, baseline) {
   const growth = cliLaunchGrowth(problems, baseline);
-  if (growth.length) throw new Error(growth.map(row => `${row.path}:${row.line}: ${row.text}`).join('\n'));
-  return cliLaunchCounts(problems);
+  if (growth.length) throw new Error(`Refused(CLI_LAUNCH_RAISE, the recount never raises or adds a row; fix the launches in these files): ${[...new Set(growth.map(row => row.path))].join(', ')}\n${growth.map(row => `${row.path}:${row.line}: ${row.text}`).join('\n')}`);
+  const counts = cliLaunchCounts(problems);
+  return Object.fromEntries(Object.entries(counts).filter(([, row]) => Object.values(row).some(count => count > 0)));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
