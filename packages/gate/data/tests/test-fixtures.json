@@ -888,11 +888,16 @@
   "apps/view/tests/logic/activity/model/sentences.test.js": {
     "model": 3
   },
-  "apps/cli/journeys/shout/activity.test.js": {
-    "raw-cli": 10,
+  "apps/cli/journeys/shout/activity/evidence.test.js": {
     "raw-board": 1,
-    "tempdir": 3,
+    "tempdir": 1,
     "repo-read": 1
+  },
+  "apps/cli/journeys/shout/activity/loading.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/shout/activity/times.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/export/addresses.test.js": {
     "raw-cli": 3,
@@ -1073,10 +1078,27 @@
     "raw-cli": 9,
     "tempdir": 2
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "raw-cli": 7,
-    "tempdir": 12,
+  "apps/cli/journeys/init/origin/behind.test.js": {
+    "raw-cli": 3,
+    "tempdir": 2,
     "repo-read": 1
+  },
+  "apps/cli/journeys/init/origin/local-view.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/init/origin/paint.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/init/origin/reads.test.js": {
+    "raw-cli": 2,
+    "tempdir": 4
+  },
+  "apps/cli/journeys/init/origin/startup.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/init/origin/states.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
   },
   "apps/cli/tests/fixtures/cockpit/machine.js": {
     "tempdir": 1,
@@ -1230,9 +1252,36 @@
     "raw-cli": 1,
     "tempdir": 1
   },
-  "apps/cli/journeys/roadmap/cockpit.test.js": {
-    "raw-cli": 25,
-    "tempdir": 15
+  "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/items.test.js": {
+    "raw-cli": 9,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/phone.test.js": {
+    "raw-cli": 2,
+    "tempdir": 3
+  },
+  "apps/cli/journeys/roadmap/cockpit/refs.test.js": {
+    "raw-cli": 6,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/roadmap/cockpit/releases.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/shipping.test.js": {
+    "raw-cli": 3,
+    "tempdir": 4
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
   },
   "apps/cli/journeys/milestone/component.test.js": {
     "repo-read": 2,
@@ -1321,11 +1370,20 @@
   "apps/cli/journeys/fact/plan/state.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/stats/cockpit.test.js": {
-    "raw-cli": 9,
-    "tempdir": 7,
-    "raw-board": 7,
+  "apps/cli/journeys/stats/cockpit/counts.test.js": {
+    "raw-cli": 6,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/stats/cockpit/crowd.test.js": {
+    "tempdir": 1,
+    "raw-board": 2,
     "model": 1
+  },
+  "apps/cli/journeys/stats/cockpit/flow.test.js": {
+    "tempdir": 3
+  },
+  "apps/cli/journeys/stats/cockpit/toggle.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/milestone/title.test.js": {
     "repo-read": 1,
@@ -1877,8 +1935,10 @@
   "apps/cli/journeys/join/idempotent.test.js": {
     "model": 7
   },
-  "apps/cli/journeys/shout/journeys.test.js": {
-    "tempdir": 2,
+  "apps/cli/journeys/shout/journeys/auth.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/tests/fixtures/cockpit/journey/every.js": {
     "raw-cli": 1
   },
   "apps/cli/journeys/shout/shouts/scenarios.test.js": {
@@ -2482,8 +2542,19 @@
     "raw-board": 4
   },
   "apps/cli/journeys/resume/presence.test.js": {
-    "raw-board": 34,
-    "tempdir": 5,
+    "raw-board": 15,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+    "raw-board": 14,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/resume/presence/hooks.test.js": {
+    "raw-board": 4,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/resume/presence/gone.test.js": {
+    "raw-board": 1,
     "model": 1
   },
   "packages/sandbox/tests/privacy/guard.test.js": {

@@ -17,7 +17,7 @@ const ROWS = [
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
-  ['gate.runnerDispatch', 'How runner jobs are watched', 'controller keeps one controller process per runner job until its result; pull submits, waits on a shared status file and finishes in short processes, so waiting costs none.', 'Capacity', 'controller/pull', { compat: true, removeBy: '2026-12-31' }],
+  ['gate.runnerDispatch', 'How runner jobs are watched', 'pull (default) offers each job as a row a runner takes, the loopback local runner when none is registered, and finishes in short processes, so waiting costs none; controller keeps one controller process per runner job until its result.', 'Capacity', 'controller/pull', { compat: true, removeBy: '2026-12-31' }],
   ['gate.pullPilot.items', 'Pull gate pilot items', 'While runner jobs are watched by controller, submits of these item numbers take the pull gate as one runner job and every other submit stays on the controller path.', 'Capacity', 'list', { compat: true, removeBy: '2026-12-31' }],
   ['gate.pullPilot.share', 'Pull gate pilot share', 'While runner jobs are watched by controller, this percentage of items, chosen by item number, take the pull gate on submit; 0 with no pilot items sends every submit through the controller path.', 'Capacity', 'percent', { compat: true, removeBy: '2026-12-31' }],
   ['gate.localRunner', 'Local runner', 'On (default): with no registered runners, the first pull submit starts one runner serve on this machine against the board API on loopback, so gates and landings need no setup; off leaves pulled jobs for other runners.', 'Capacity', 'on/off'],
@@ -122,6 +122,7 @@ const ROWS = [
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
   ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
+  ['review.excludeEarlierHolders', 'Exclude earlier holders from review', 'On refuses a review reservation by any seat that ever claimed, built, submitted or released the item; off excludes only its current builder and submitters.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims

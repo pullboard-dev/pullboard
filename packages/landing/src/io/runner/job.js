@@ -2,9 +2,13 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
+import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
+import { runnerPolicyRecord } from '../../../../sandbox/light.js';
 
 /** The board's landing job kind, as packages/api offers it. */
 export const LANDING_JOB_KIND = 'land';
@@ -62,6 +66,19 @@ export function citedIds(root, commit) {
   return /\[([A-Z][0-9A-Za-z.,\s]*)\]\s*$/u.exec(subject)?.[1] ?? 'P7';
 }
 
+/**
+ * Admit the trunk the merge sits on: point the trunk ref at the base and write the runner policy record for the merged
+ * HEAD, as a runner's gate checkout carries it. Why: the landing checkout is a detached clone with no primary branch,
+ * so run-tests' committed-policy readers refused NO_POLICY and every ledger-proved land job went red (#6179) [P7].
+ */
+export function admitTrunk(root, { trunk, base }) {
+  // Only a branch can be a carried trunk; a landing onto any other ref keeps today's checkout.
+  if (!/^refs\/heads\/[\w./-]+$/u.test(trunk) || trunk.includes('..')) return;
+  must(root, ['update-ref', trunk, base]);
+  const record = runnerPolicyRecord({ id: randomUUID(), commit: must(root, ['rev-parse', 'HEAD']), tree: must(root, ['rev-parse', 'HEAD^{tree}']), trunk: { ref: trunk, commit: base } });
+  writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600 });
+}
+
 /** Run the job's check command in the merged tree; exit 0 is green. */
 export function commandCheck(argv) {
   return ({ root }) => new Promise(resolve => {
@@ -87,7 +104,9 @@ export function commandCheck(argv) {
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [] }) {
   const { remote, trunk, expect, items } = payload;
-  const check = checks ?? (payload.check ? commandCheck(payload.check) : () => ({ ok: true, detail: null }));
+  // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
+  const check = checks ?? (payload.check ? commandCheck(payload.check)
+    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof) : () => ({ ok: true, detail: null }));
   const root = landingCheckout(workdir);
   const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
@@ -116,7 +135,9 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     // Renew around the check: a check longer than the lease may let a second runner take the job, which is safe, since
     // the push's compare-and-swap and the on-trunk skip keep a duplicate landing from losing or doubling a commit.
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before its check' });
+    admitTrunk(root, { trunk, base });
     const result = await check({ root, base, items: pending.map(entry => entry.id), renew });
+    if (result?.proof) receipt.proof = result.proof;
     if (!result?.ok) return done('red', { detail: result?.detail ?? 'the landing check failed' });
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);

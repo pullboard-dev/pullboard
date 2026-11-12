@@ -186,9 +186,9 @@ export function historyShimReferences(root, acceptedBase) {
   if (!/^[a-f0-9]{40,64}$/u.test(base)) return new Map();
   const key = base; // A commit id names its whole tree, so every snapshot root shares one read, in one Git batch (#3896).
   if (historyReferencesByBase.has(key)) return historyReferencesByBase.get(key);
-  const listing = tryGit(root, ['ls-tree', '-r', '-z', base, '--', 'packages/state/data/history']);
+  const listing = tryGit(root, ['ls-tree', '-r', '-z', base, '--', 'packages/state/data/history', 'src/move-history']);
   if (listing.status !== 0) return new Map();
-  const declarations = new Map(), listed = listing.stdout.split('\0').map(row => /^100(?:644|755) blob ([a-f0-9]+)\t(packages\/state\/data\/history\/\d+\.json)$/u.exec(row)).filter(Boolean);
+  const declarations = new Map(), listed = listing.stdout.split('\0').map(row => /^100(?:644|755) blob ([a-f0-9]+)\t((?:packages\/state\/data\/history|src\/move-history)\/\d+\.json)$/u.exec(row)).filter(Boolean);
   const blobs = readBlobs(root, listed.map(match => match[1]));
   for (const [, object, file] of listed) {
     try { // A blob Git could not read is absent here, and its parse throws into the catch below.

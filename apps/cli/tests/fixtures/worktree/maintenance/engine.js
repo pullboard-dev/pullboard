@@ -72,7 +72,11 @@ function project(t, { born = BORN, grace = '1s' } = {}) {
     store.appendFact(board, factItem, { agentId: coordinator, kind: 'note',
       text: `Kept ${record.path}; uncommitted changes: ${record.paths.join(', ')}` });
   }
-  const ports = { agentId: coordinator, readSnapshot, recordArchive, recordDirty, workingDirectories: () => { censusCount++; return []; } };
+  // The archive disk guard reads the host volume; a busy runner disk below its reserve would keep every tree these
+  // custody cases expect pruned, failing every concurrent gate at once (#6151). Its refusal is proven in archive tests.
+  const archiveVolume = () => ({ freeBytes: 900 * 2 ** 30, totalBytes: 1000 * 2 ** 30 });
+  const ports = { agentId: coordinator, readSnapshot, recordArchive, recordDirty, archiveVolume,
+    workingDirectories: () => { censusCount++; return []; } };
   return { box, board, coordinator, factItem, config, ports, archives, readSnapshot, addTree,
     setNow(value) { at = value; }, now() { return at; }, censusCount() { return censusCount; }, common() { return repoInfo(box.repo).commonDir; } };
 }
@@ -464,7 +468,8 @@ export function registerMaintenanceProtectionTests() {
     assert.equal(report.entries.find(row => row.path === joined.path).reason, 'seat-joined');
     assert.equal(report.entries.find(row => row.path === leased.path).reason, 'claim');
     assert.equal(store.getItem(fx.board, claim).item_status, 'claimed');
-    assert.equal(fs.existsSync(spare.path), false, 'the sweep ran and removed its own idle item folder');
+    assert.equal(fs.existsSync(spare.path), false,
+      `the sweep ran and removed its own idle item folder: ${report.entries.find(row => row.path === spare.path)?.reason}`);
     assert.equal(report.pruned, 1);
   });
 

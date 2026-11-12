@@ -98,6 +98,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
     // A fixture's infrastructure retry does not wait out the real 30 s back-off (#3365).
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
+    // A fixture's claims start no detached claim beater bound to the test process; its own journey turns it on (#5726).
+    PULLBOARD_CLAIM_BEATER: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
   };

@@ -16,6 +16,8 @@ import { buildSearchIndex } from '../../index.js';
 import { readSearchIndex } from '../../index.js';
 import { searchItems } from '../../index.js';
 
+/** The two command files that may use the search cell: search prints matches, add prints advice. */
+const COMMANDS = ['apps/cli/src/io/commands/search.js', 'apps/cli/src/io/commands/add.js'];
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /** A board with items whose words sit in different fields, plus a temporary sidecar path. */
@@ -64,7 +66,7 @@ test('deleting the sidecar and rebuilding from the board gives the same ranking 
   assert.ok(readSearchIndex(sidecar).ids.includes(added));
 });
 
-test('no other cell imports the search cell [C7]', () => {
+test('only the search and add commands import the search cell [C7]', () => {
   const files = execFileSync('git', ['ls-files', '-z', '--', '*.js', '*.mjs', '*.cjs'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
   const importers = [];
   for (const file of files) {
@@ -76,5 +78,5 @@ test('no other cell imports the search cell [C7]', () => {
       if (target === 'packages/search' || target.startsWith('packages/search/')) importers.push(`${file} -> ${match[1]}`);
     }
   }
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers.map(entry => entry.split(' -> ')[0]).filter(file => !COMMANDS.includes(file)), []);
 });
