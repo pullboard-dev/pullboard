@@ -174,12 +174,23 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   /**
    * A board's record as of this read: the held one while the board's revision is unchanged, its clock readings restamped to
    * this read with no build started; otherwise the next build, which extends the last one with the change.
+   *
+   * A kept read (a page's first load, which then catches up through deltas) takes the held record even after a change,
+   * and starts the build that catches up on it unless one is already on its way. Why: on a board agents write every few
+   * seconds, nearly every first load waited 10-60 s for a build; a kept read follows no write of its reader [A2,C7].
    */
-  function latest(board, { full = false } = {}) {
+  function latest(board, { full = false, kept = false } = {}) {
     const entry = boardEntry(board);
     if (full) entry.full = true;
     const revision = revisionOf(entry);
-    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision) return restamped(entry.record, Date.now());
+    const usable = entry.record && (!full || entry.record.full);
+    if (usable && revision !== null && entry.record.revision === revision) return restamped(entry.record, Date.now());
+    if (usable && kept) {
+      if (!full) hold(board, entry.record.sequence);
+      entry.wanted = revision;
+      if (entry.inflight === null) request(entry);
+      return restamped(entry.record, Date.now());
+    }
     const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, revision, after: nextId }));
     entry.wanted = revision;
     request(entry);
@@ -196,11 +207,11 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   return {
     /** Whether the worker still runs; a server whose worker failed reads on the request thread instead. */
     get alive() { return failure === null; },
-    /** A state read's JSON, validator and report validator, from the latest materialized record. */
-    async stateJson(board, seen, { detail = null, items = null, stateDetail = 'summary' } = {}) {
+    /** A state read's JSON, validator and report validator, from the latest materialized record, or the kept one for a kept read. */
+    async stateJson(board, seen, { detail = null, items = null, stateDetail = 'summary', kept = false } = {}) {
       const compact = items === 'compact';
       const full = !compact && (detail ?? stateDetail) === 'full';
-      const record = await latest(board, { full });
+      const record = await latest(board, { full, kept });
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
       const variant = full ? record.full : compact ? record.compact : record.summary;
       if (!full) hold(board, record.sequence);
