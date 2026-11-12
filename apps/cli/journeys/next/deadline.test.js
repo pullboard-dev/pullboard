@@ -129,6 +129,7 @@ test('next answers within sixty seconds on a generated private SQLite board of c
   const started = performance.now();
   // Budget: #1811 requires the real command to answer or refuse within sixty seconds, excluding fixture setup.
   const phaseLines = [];
+  // Process-level case, kept: the bar is the real command's wall time at production scale.
   const result = await runFixtureChildAsync(process.execPath, [bin, 'next', '--build', '--json'], {
     cwd: box.seats.actor.path, env: process.env, encoding: 'utf8', timeout: 60_000,
     onStderrChunk: text => phaseLines.push({ atMs: performance.now() - started, text }),
@@ -179,6 +180,7 @@ try {
 `);
   const chunks = [], started = performance.now();
   // Budget: the private synchronous phase is twelve seconds; this outer fixture timeout only drains a broken child.
+  // Process-level case, kept: the bar is a separate process's wall-clock phase budget.
   const child = runFixtureChildAsync(process.execPath, [files.root + '/phase.mjs'], {
     env: process.env, timeout: 30_000,
     onStderrChunk: text => chunks.push({ atMs: performance.now() - started, text }),

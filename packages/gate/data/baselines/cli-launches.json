@@ -809,9 +809,6 @@
   "apps/cli/journeys/move/cells.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/next/builder.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/next/checkout.test.js": {
     "launch": 8
   },
@@ -825,19 +822,13 @@
     "launch": 2
   },
   "apps/cli/journeys/next/eval.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/next/folders.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/next/help.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/next/hold.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/next/order.test.js": {
-    "launch": 88
+    "launch": 1
   },
   "apps/cli/journeys/next/review.test.js": {
     "launch": 3
@@ -845,23 +836,8 @@
   "apps/cli/journeys/next/runs.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/next/session.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/next/skips/bar.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/next/skips/folder/protected.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/next/skips/folder/unfinished.test.js": {
-    "launch": 7
-  },
-  "apps/cli/journeys/next/skips/policy.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/next/take.test.js": {
     "launch": 5

@@ -17,8 +17,8 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Require one fixture command to succeed. */
-function success(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function success(box, cwd, ...args) {
+  const result = (await box.runLocal(cwd, ...args));
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);
   return result;
 }
@@ -34,19 +34,19 @@ function retiredPathBoard() {
   return box;
 }
 
-test('clause 1: add and edit refuse a criterion naming a path missing from main, naming the path [C7]', () => {
+test('clause 1: add and edit refuse a criterion naming a path missing from main, naming the path [C7]', async () => {
   const box = e2e.project('true');
   assert.throws(() => fileFixtureItem(box, box.repo, { lane: 'web', title: 'Retired path', criterion: 'The fix in retired/old.js holds.', args: ['--specs', 'G1'] }),
     /BAR_PATH_MISSING[^]*the bar names retired\/old\.js, missing from main/u);
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fine item', args: ['--specs', 'G1'] });
-  const edited = box.run(box.repo, 'edit', String(item.item_id), '--criterion', 'The fix in retired/old.js holds.');
+  const edited = (await box.runLocal(box.repo, 'edit', String(item.item_id), '--criterion', 'The fix in retired/old.js holds.'));
   assert.notEqual(edited.code, 0, edited.out);
   assert.match(`${edited.out}\n${edited.err}`, /BAR_PATH_MISSING[^]*retired\/old\.js/u);
 });
 
-test('clause 1: claim refuses an item whose bar names a path main has since removed [C7]', () => {
+test('clause 1: claim refuses an item whose bar names a path main has since removed [C7]', async () => {
   const box = retiredPathBoard();
-  const claimed = box.run(box.web, 'claim', '1');
+  const claimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.notEqual(claimed.code, 0, claimed.out);
   assert.match(`${claimed.out}\n${claimed.err}`, /BAR_PATH_MISSING[^]*tools\/old\.js/u);
 });

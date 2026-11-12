@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 /** Require each actual native fixture command to finish successfully. */
-function success(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function success(box, cwd, ...args) {
+  const result = (await box.runLocal(cwd, ...args));
   assert.equal(result.code, 0, result.err || result.out);
   return result;
 }
@@ -39,9 +39,9 @@ function barChangedThenFresh(t) {
   return box;
 }
 
-test('clause 1: next claims an item whose lane policy changed after its freeze, never skipping it [B4,C7]', t => {
+test('clause 1: next claims an item whose lane policy changed after its freeze, never skipping it [B4,C7]', async t => {
   const box = barChangedThenFresh(t);
-  const first = box.run(box.web, 'next');
+  const first = (await box.runLocal(box.web, 'next'));
   assert.equal(first.code, 0, first.err || first.out);
   assert.doesNotMatch(first.out, /skipped #1|NO_POLICY/u);
   assert.match(first.out, /claimed #1: Stale item/u);
@@ -55,7 +55,7 @@ test('clause 2: no stale-policy marker or coordinator shout is raised for a poli
   assert.doesNotMatch(success(box, box.repo, 'inbox').out, /next passes over #1/u, 'no shout to the coordinator');
 });
 
-test('clause 3: a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', t => {
+test('clause 3: a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -63,15 +63,15 @@ test('clause 3: a shrunk owns list that moves no path the bar names refreshes at
   success(box, box.repo, 'add', 'web', 'Shrunk item', '--specs', 'G1', '--criterion', 'The page renders.');
   success(box, box.repo, 'refreeze', '1');
   commitConfig(box, config => { config.lanes.web.owns = ['web/']; }, 'chore: shrink web lane');
-  const result = box.run(box.web, 'next');
+  const result = (await box.runLocal(box.web, 'next'));
   assert.equal(result.code, 0, result.err || result.out);
   assert.doesNotMatch(result.out, /NO_POLICY/u);
   assert.match(result.out, /claimed #1: Shrunk item/u);
 });
 
-test('claim by id on an item whose lane policy changed claims it, never NO_POLICY [B4,C7]', t => {
+test('claim by id on an item whose lane policy changed claims it, never NO_POLICY [B4,C7]', async t => {
   const box = barChangedThenFresh(t);
-  const result = box.run(box.web, 'claim', '1');
+  const result = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(result.code, 0, result.err || result.out);
   assert.doesNotMatch(`${result.out}${result.err}`, /NO_POLICY/u);
 });
