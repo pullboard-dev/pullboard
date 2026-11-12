@@ -151,13 +151,31 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
         : exceededDeadline ? `${phase} stalled: upload-derived child deadline ${deadlineMs}ms exceeded; recorded work ${JSON.stringify(work)}` : '')));
       const failure = code === 0 ? null : reportFailure(code, signal);
       let document;
-      try { document = JSON.parse(stdout); }
+      try { document = parseCommandDocument(stdout); }
       catch (error) { return reject(new Error(reportFailure(code, signal, `private relay fixture child did not return JSON: ${error.message}`))); }
       work = uploadWork(observedSnapshotUploads?.() ?? initialSnapshotUploads);
       resolveResult({ code, document, failure, snapshotUploads: work.legacyUploads,
         snapshotWork: { ...work, observed: typeof observedSnapshotUploads === 'function' }, snapshotDeadlineMs: deadlineMs });
     });
   });
+}
+
+/**
+ * Parse a command's standard output as one JSON document.
+ *
+ * Why: `export --json` streams the board, then a paused relay adds a second `{version, diagnostics}` envelope; the fixture folds the
+ * diagnostics into the first document so callers see exactly one, as they would if that notice went to stderr (#6231).
+ */
+function parseCommandDocument(text) {
+  try { return JSON.parse(text); }
+  catch (error) {
+    // Top-level documents are pretty-printed, so each ends at a line holding only a closing brace.
+    const parts = text.split(/^\}\n/mu).map((part, index, all) => (index < all.length - 1 ? `${part}}` : part)).filter(part => part.trim());
+    if (parts.length < 2) throw error;
+    const [first, ...rest] = parts.map(part => JSON.parse(part));
+    const diagnostics = [...(first.diagnostics ?? []), ...rest.flatMap(extra => extra.diagnostics ?? [])];
+    return { ...first, ...(diagnostics.length ? { diagnostics } : {}) };
+  }
 }
 
 /**
@@ -192,8 +210,8 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
   const report = (detail = '') => reportFixtureChildFailure({ command: process.execPath, args: ['in-process', ...argv], status: run.code, signal: null,
     elapsedMs: performance.now() - startedAt, stderr: run.stderr, env, detail });
   let document;
-  try { document = JSON.parse(run.stdout); }
-  catch (error) { throw new Error(report(`private relay fixture command did not return JSON: ${error.message}; stdout tail: ${JSON.stringify(run.stdout.slice(-400))}`)); }
+  try { document = parseCommandDocument(run.stdout); }
+  catch (error) { throw new Error(report(`private relay fixture command did not return JSON: ${error.message}`)); }
   work = uploadWork(observedSnapshotUploads?.() ?? initialSnapshotUploads);
   deadlineMs = Math.max(deadlineMs, cliChildDeadlineMs(work.budgetUnits));
   return { code: run.code, document, failure: run.code === 0 ? null : report(), snapshotUploads: work.legacyUploads,
