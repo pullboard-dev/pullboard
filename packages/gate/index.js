@@ -55,7 +55,7 @@ export { testConversionPlan } from "./src/logic/test/conversion.js";
 export { validatePlacementIndex, readPlacementIndex, readPlacementReport, writePlacementIndex, indexedStageSelection } from "./src/io/test/economics/placement.js";
 export { testValueCosts, journeyReason, placeTest, placementReport, testsAtStage, auditInterval, incrementalAudit, mainRedCheckFiles, mainRedFrozenCheck, mainRedFilesProven, TEST_VALUE_DEFAULTS, auditFailureItem } from "./src/io/test/economics.js";
 export { dispatchTestFiles, reportDispatchedTests, nativeFileArguments, testFileOptions, optionTakesValue, knownNodeOption, legacyFileMode, legacyNativeFileRun } from "./src/io/test/file/dispatch.js";
-export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/io/test/file/pool.js";
+export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, awaitNestedPhase, withNestedGroup, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/io/test/file/pool.js";
 export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOAD_ENV } from "./src/io/test/isolation.js";
 export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";
 export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
