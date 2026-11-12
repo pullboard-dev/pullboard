@@ -15,6 +15,10 @@ import { returnedMainReceipts } from '../../../../packages/gate/src/io/main/verd
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { jobView } from '../../../../packages/jobs/index.js';
 import { mainRedStatus } from '../../../../packages/receipt/index.js';
+import { provideMainTestRecorder } from '../../../../packages/api/index.js';
+import { cachedMainComparison } from '../../../../packages/landing/index.js';
+import { mainReceipts } from '../../../../packages/landing/index.js';
+import { recordMainTestReceipt } from '../../../../packages/landing/index.js';
 
 /** The project's test command; the job appends the one file it re-checks. */
 const COMMAND = 'node --test --test-reporter=tap';
@@ -28,7 +32,10 @@ async function mainBoard(t) {
   mkdirSync(join(box.root, 'tests'), { recursive: true });
   writeFileSync(join(box.root, 'tests/green.test.js'), "import { test } from 'node:test';\ntest('main passes', () => {});\n");
   writeFileSync(join(box.root, 'tests/red.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('main fails', () => { assert.equal(1, 0); });\n");
-  git(box.root, 'add', 'tests');
+  // The committed policy names the test command, which keys main's receipts in the comparison cache.
+  const config = join(box.root, 'pullboard.json');
+  writeFileSync(config, JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')), affectedTests: COMMAND }, null, 2));
+  git(box.root, 'add', 'tests', 'pullboard.json');
   git(box.root, 'commit', '-q', '-m', 'test: main test files');
   const trunk = join(box.dir, 'trunk.git');
   git(box.dir, 'clone', '-q', '--bare', box.root, trunk);
@@ -40,7 +47,7 @@ async function mainBoard(t) {
   const context = process.env.NODE_TEST_CONTEXT;
   delete process.env.NODE_TEST_CONTEXT;
   t.after(() => { if (context !== undefined) process.env.NODE_TEST_CONTEXT = context; });
-  return { db, main: git(box.root, 'rev-parse', 'HEAD'), tree: git(box.root, 'rev-parse', 'HEAD^{tree}'),
+  return { db, root: box.root, main: git(box.root, 'rev-parse', 'HEAD'), tree: git(box.root, 'rev-parse', 'HEAD^{tree}'),
     board: `${box.origin}${box.path}?k=${box.key}`, cache: join(box.dir, 'runner-cache') };
 }
 
@@ -91,4 +98,22 @@ async (t) => {
   assert.deepEqual(served.jobs.map(entry => entry.outcome).sort(), ['posted', 'posted'], JSON.stringify(served.jobs));
   assert.deepEqual(claims.slice(0, 2).sort(), [...jobs].sort(), `the first two claims took both queued jobs, none answered empty first: ${JSON.stringify(claims)}`);
   assert.deepEqual(db.prepare("SELECT job_id FROM job WHERE job_kind = 'main-test' AND job_step = 'queued'").all(), [], 'no main-test job is left queued');
+});
+
+test('clause 3: a finished main-test job reaches the main comparison cache, so a later receipt lookup at that main finds it instead of reporting it missing [C7,P7]', { timeout: 120_000 }, // budget: hang ceiling for a private init, API start, a git fetch and two one-case test files.
+async (t) => {
+  provideMainTestRecorder(recordMainTestReceipt);
+  t.after(() => provideMainTestRecorder(null));
+  const { db, main, tree, board, cache, root } = await mainBoard(t);
+  const files = ['tests/green.test.js', 'tests/red.test.js'];
+  const [green, red] = files.map(file => mainRedLookup(db, [], { tree, file, command: COMMAND }));
+  assert.deepEqual(mainReceipts(root, main, files).rows.size, 0, 'before the job the cache holds no receipt');
+  for (const runner of ['r-cache-1', 'r-cache-2']) {
+    const served = await serveRunner({ board, runner, capabilities: ['node22'], cache: join(cache, runner), once: true, timing: { idleMs: 10 } });
+    assert.equal(served.jobs[0]?.outcome, 'posted', JSON.stringify(served));
+  }
+  const cached = cachedMainComparison(root, main, files);
+  assert.deepEqual(cached.files.map(row => [row.file, row.result, row.receiptId]).sort(), [['tests/green.test.js', 'green', green.job], ['tests/red.test.js', 'red', red.job]].sort(), JSON.stringify(cached));
+  const known = mainReceipts(root, main, files);
+  for (const file of files) assert.notEqual(mainRedStatus(known.receipts, { tree, file, command: known.command }).status, 'missing', `${file} is no longer missing`);
 });
