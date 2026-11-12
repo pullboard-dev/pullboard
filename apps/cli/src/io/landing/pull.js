@@ -1,7 +1,8 @@
 /**
- * Under gate.runnerDispatch pull with trunk.remote set, the automatic lander offers accepted items as one runner
- * land job and returns: a runner merges, checks and pushes trunk with compare-and-swap, and its receipt marks the items
- * merged. This host merges nothing and runs no landing batch [P7].
+ * Under gate.runnerDispatch pull, the automatic lander offers accepted items as one runner land job and returns: a
+ * runner merges, checks and pushes trunk with compare-and-swap, and its receipt marks the items merged. This host
+ * merges nothing and runs no landing batch. With trunk.remote empty the trunk is the board host's own repository,
+ * which only a runner on this host reaches, so the job needs the local runner's board-host capability [P7].
  */
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
@@ -9,6 +10,8 @@ import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { withBoard } from '../context.js';
+import { BOARD_HOST } from '../runner/local.js';
+import { ensureLocalRunner } from '../runner/local.js';
 
 const TRUNK = 'refs/heads/main';
 
@@ -19,20 +22,24 @@ export function landingItemRef(id) {
 
 /**
  * Offer the board's accepted, unmerged, unheld items as one land job, or return null when this machine lands them
- * itself (not pull, or no trunk remote of record). While a land job is open no second one is offered: its receipt
- * settles the items first. Each item's commit is pushed to the trunk remote under landingItemRef first, since the
- * runner fetches only from there.
+ * itself (not pull, or no trunk remote of record and no local runner). While a land job is open no second one is
+ * offered: its receipt settles the items first. Each item's commit is pushed to the trunk remote under landingItemRef
+ * first, since the runner fetches only from there.
  *
  * @param {object} ctx - The command context at the main checkout.
  * @param {string} root - The main checkout.
  * @param {{ mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function }} reads - The
  *   policy and board reads the lander already holds.
- * @returns {{ offered: string | null, items: number[], waiting: boolean } | null}
+ * @returns {Promise<{ offered: string | null, items: number[], waiting: boolean } | null>}
  */
-export function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit }) {
+export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit }, { local = ensureLocalRunner } = {}) {
+  if (runnerDispatchMode() !== 'pull') return null;
   const policy = mainPolicy(root);
-  const remote = configTrunkRemote(policy.config);
-  if (runnerDispatchMode() !== 'pull' || !remote) return null;
+  const configured = configTrunkRemote(policy.config);
+  // No trunk remote: the board host's repository is trunk, landed by the local runner, which this starts again if it died.
+  const hosted = !configured && (await local(root)).running;
+  if (!configured && !hosted) return null;
+  const remote = configured ?? root;
   return withBoard(ctx, board => {
     const open = openLandingJob(board.db);
     if (open) return { offered: open, items: [], waiting: false };
@@ -45,7 +52,8 @@ export function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLa
     }
     const listed = tryGit(root, ['ls-remote', '--', remote, TRUNK]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    const job = offerLandingJob(board.db, { items, expect, config: policy.config, mode: 'pull', trunk: TRUNK });
+    const job = offerLandingJob(board.db, { items, expect, mode: 'pull', trunk: TRUNK,
+      ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true } : { config: policy.config }) });
     ctx.io.say?.(`offered land job ${job.id} for ${items.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
     return { offered: job.id, items: items.map(entry => entry.id), waiting: false };
   });
