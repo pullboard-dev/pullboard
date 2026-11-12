@@ -98,3 +98,29 @@ export function itemCheckAuthor(board, id) {
   }
   return item.item_created_by;
 }
+
+/** The id of an item whose recorded baseline shows this exact command green at this main commit, or null [V2]. */
+export function knownGreenBaseline(board, command, main) {
+  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item_check_baseline_%'").all()) {
+    let seen;
+    try { seen = JSON.parse(row.meta_value); } catch { continue; }
+    if (seen?.result === 'green' && seen.command === command && seen.main === main) return Number(row.meta_key.slice('item_check_baseline_'.length));
+  }
+  return null;
+}
+
+/**
+ * Refuse a check that a board observation already shows passing on today's main, unless the author says why it stays.
+ * The observation is one the board already holds; no command runs here.
+ *
+ * @param {any} board
+ * @param {{ command: string, main: string|null }} baseline - the prepared baseline for the new check
+ * @param {string|undefined} accepted - the author's reason from --accept-green
+ */
+export function guardGreenCheck(board, baseline, accepted) {
+  if (!baseline?.main || accepted?.trim()) return;
+  const seen = knownGreenBaseline(board, baseline.command, baseline.main);
+  if (!seen) return;
+  throw new Refused('CRITERION_PROVES_NOTHING', `this check already passes on main ${String(baseline.main).slice(0, 12)} (seen on #${seen}), so it proves nothing: ${baseline.command}`,
+    'use a check that fails before the work and passes after it, such as one that runs the new test; if a passing check is right (a guard against a regression), run the command again with --accept-green "why it stays"');
+}
