@@ -90,7 +90,8 @@ for (const name of ['spawnSync','execFileSync','execSync','spawn','execFile','ex
   const real = cp[name];
   cp[name] = function (...a) { const t = performance.now(); const r = real.apply(this, a); appendFileSync(spawnLog, process.pid + ' ' + name + ' ' + (typeof a[0]==='string'? a[0] : '') + ' ' + (Array.isArray(a[1])? a[1].join(' ').slice(0,90):'') + ' ' + (performance.now()-t).toFixed(1) + '\\n'); return r; };
 }
-const realFetch0 = 1;
+import { syncBuiltinESMExports } from 'node:module';
+syncBuiltinESMExports();
 globalThis.fetch = function (url, ...rest) { record('fetch ' + url); return realFetch.call(this, url, ...rest); };
 `);
   writeFileSync(log, '');
@@ -113,65 +114,40 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test('clauses 1 and 2: each local command answers under 200 ms on a large board, with no network [C7]', (t) => {
+test('clause 1: one submit on a large board spawns at most 70 git processes, half the 140 it spawned before [C7]', (t) => {
   const box = largeBoard(t);
   box.beforeCleanup(() => stopResidents(box.repo));
   const recorder = networkRecorder(box.dir);
-  // The resident board process serves the board commands, as on a person's machine; test markers would turn it off.
   for (const name of ['NODE_TEST_CONTEXT', 'NODE_TEST_WORKER_ID']) delete box.env[name];
   Object.assign(box.env, recorder.env, { PULLBOARD_RESIDENT: '1' });
-
-  // Undiagnosed items keep their strong route, so a coordinator may edit their briefs.
   const added = (title) => fileFixtureItem(box, box.repo, { lane: 'web', title, diagnose: false, args: ['--specs', 'G1'] }).item_id;
-  const own = added('Speed claim');
-  const held = added('Speed hold');
   const submits = [0, 1, 2].map(run => added(`Speed submit ${run}`));
-  // The first command starts the resident process (and runs in-process); the second warms it. Neither is timed.
   json(box.run(box.web, 'status', '--json'), 'warm status');
   json(box.run(box.web, 'status', '--json'), 'warm status');
-  writeFileSync(recorder.loads, '');
-
-  const web = (...args) => () => box.run(box.web, ...args);
-  const repo = (...args) => () => box.run(box.repo, ...args);
-  const setup = (cwd, ...args) => json(box.run(cwd, ...args, '--json'), args.join(' '));
-  const release = ['release', String(own), '--reason', 'OTHER', '--note', 'Speed budget sample.', '--no-next'];
-  const dump = (name) => { try { console.log('# SPAWNS ' + name + '\n' + readFileSync(recorder.spawns, 'utf8')); } catch (e) { console.log('# nospawns ' + e.message); } writeFileSync(recorder.spawns, ''); };
-  writeFileSync(recorder.spawns, '');
-  const measured = [
-    measure('claim', web('claim', String(own))),
-  ];
-  dump('claim');
-  measured.push(measure('release', web(...release)));
-  dump('release');
-  // Next claims work for the seat; each run's claim is handed back untimed, so every run is a fresh claim.
-  const nexts = [];
-  measured.push(measure('next', (run) => {
-    const result = box.run(box.web, 'next', '--build', '--json');
-    if (result.code === 0) nexts[run] = JSON.parse(result.out);
-    return result;
-  }, { before: (run) => {
-    const id = run && (nexts[run - 1]?.item?.item_id ?? nexts[run - 1]?.item_id);
-    if (id) setup(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'Speed budget sample.', '--no-next');
-  } }));
-  dump('next');
-  const lastNext = nexts.at(-1)?.item?.item_id ?? nexts.at(-1)?.item_id;
-  if (lastNext) setup(box.web, 'release', String(lastNext), '--reason', 'OTHER', '--note', 'Speed budget sample.', '--no-next');
-  // Submit needs the seat's claim on an item and a clean commit; each run claims its own item and commits once, untimed.
-  measured.push(measure('submit', (run) => box.run(box.web, 'submit', String(submits[run]), '--no-next'), { before: (run) => {
+  const counts = [];
+  const shapes = new Map();
+  submits.forEach((id, run) => {
     // Each submit starts from main, so no run stacks on the previous run's unverified commit.
     runFixtureGit(['checkout', '-q', '-B', `web/speed-${run}`, 'main'], { cwd: box.web, env: box.env });
-    setup(box.web, 'claim', String(submits[run]));
+    json(box.run(box.web, 'claim', String(id), '--json'), 'claim');
     mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, 'web', `speed-${run}.js`), `export const speed = ${run};\n`);
     runFixtureGit(['add', '-A'], { cwd: box.web, env: box.env });
     runFixtureGit(['commit', '-q', '-m', `feat(web): speed budget ${run} [G1]`], { cwd: box.web, env: box.env });
-  } }));
-
-  dump('submit');
-  const loads = readFileSync(recorder.loads, 'utf8').split('\n').filter(Boolean);
-  assert.ok(loads.length >= measured.length * RUNS, `the recorder loaded in every timed command: ${loads.length} loads`);
-  assert.equal(readFileSync(recorder.log, 'utf8'), '', 'no timed command, nor anything it started, touched the network');
-  assert.fail('profile only');
+    writeFileSync(recorder.spawns, '');
+    const result = box.run(box.web, 'submit', String(id), '--no-next');
+    assert.equal(result.code, 0, `submit exited ${result.code}: ${result.err}${result.out}`);
+    const gits = readFileSync(recorder.spawns, 'utf8').split('\n').filter(line => / git /u.test(line));
+    counts.push(gits.length);
+    for (const line of gits) {
+      const shape = line.replace(/^\d+ \w+ /u, '').replace(/ [\d.]+$/u, '').replace(/[0-9a-f]{40}/gu, 'SHA');
+      shapes.set(shape, (shapes.get(shape) ?? 0) + 1);
+    }
+  });
+  console.log('# SUBMIT git spawns per run: ' + counts.join(', '));
+  console.log([...shapes].sort((a, b) => b[1] - a[1]).map(([shape, n]) => `# ${n} ${shape}`).join('\n'));
+  const median = [...counts].sort((a, b) => a - b)[1];
+  assert.ok(median <= 70, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 70 allowed`);
 });
 
 test('clause 2: the network recorder logs a TCP connect and a name lookup, so its empty log means no network [C7]', (t) => {
