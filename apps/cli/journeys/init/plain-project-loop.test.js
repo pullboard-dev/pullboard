@@ -60,6 +60,7 @@ async t => {
     return done.out;
   };
   await say(repo, 'init');
+  await say(repo, 'spec', 'draft', 'Adding numbers works');
   await say(repo, 'lane', 'add', 'web', '--owns', 'src');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard [G1]');
@@ -68,7 +69,7 @@ async t => {
   const reviewer = await say(repo, 'worktree', 'review', '--model', FIXTURE_MODEL, '--json');
   const reviewerSeat = JSON.parse(reviewer).path ?? join(repo, '.claude', 'worktrees', 'review-1');
 
-  const added = await say(repo, 'add', 'web', 'Add adds', '--criterion', 'add(1, 2) is 3.', '--check', 'node --test src/add.test.js', '--json');
+  const added = await say(repo, 'add', 'web', 'Add adds', '--specs', 'G1', '--criterion', 'add(1, 2) is 3.', '--check', 'node --test src/add.test.js', '--json');
   const id = JSON.parse(added).item.item_id;
 
   // Claim through next: the words say the item is claimed and where to build.
