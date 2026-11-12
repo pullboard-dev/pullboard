@@ -1088,9 +1088,6 @@
   "apps/cli/journeys/sentinels/needs.test.js": {
     "launch": 37
   },
-  "apps/cli/journeys/settings/clauses.test.js": {
-    "launch": 11
-  },
   "apps/cli/journeys/settings/descriptions.test.js": {
     "launch": 3
   },
