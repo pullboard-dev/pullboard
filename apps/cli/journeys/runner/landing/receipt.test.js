@@ -12,6 +12,7 @@ import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { takeLandingJob } from '../../../../../packages/landing/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
 import { applyLandingReceipt } from '../../../../../packages/api/index.js';
+import { ensureCoordinator } from '../../../../../packages/store/index.js';
 import { itemThread } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -60,6 +61,7 @@ async function landWith(t, runner, seen = {}) {
   const box = project(t);
   const board = cellBoard(t, ':memory:');
   seen.board = board;
+  ensureCoordinator(board);
   seen.id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Item one', criterion: 'The item lands.' });
   assert.equal(recordTestResults(board.db, { receipt: `gate:${box.item.slice(0, 8)}#0`, origin: 'pulled:r-gate', commit: box.item,
     rows: [{ file: 'test/b.test.js', inputKey: 'a'.repeat(64), command: 'proof', context: 'c'.repeat(64), status: 'pass' }] }), 1);
