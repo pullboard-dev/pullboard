@@ -47,7 +47,7 @@ process.exitCode=failed?1:0;
 `;
 
 /** Build real Git histories and declare synthetic board lifecycle data without claiming a gate ran. */
-function fixture(t, { missingRunner = false } = {}) {
+async function fixture(t, { missingRunner = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
@@ -59,7 +59,7 @@ function fixture(t, { missingRunner = false } = {}) {
   const workerMachine = join(box.dir, 'worker-machine');
   for (const path of [worker, workerHome, workerMachine]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
-  const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
+  const registered = await box.runIn(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(registered.code, 0, registered.out + registered.err);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
@@ -72,11 +72,11 @@ function fixture(t, { missingRunner = false } = {}) {
   box.git(box.repo, 'commit', '-qm', 'chore: comparison base [G1]');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(id, 1);
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  assert.equal((await box.runIn(box.web, 'claim', String(id))).code, 0);
   return { ...box, helpers, id, base };
 }
 
@@ -107,7 +107,7 @@ function gitSpy(box) {
 }
 
 test('clause 1: verify --compare sends both commit ids to the runner and makes no clone, checkout or worktree here [V4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:false,fixed:true,known:false,skip:true};\n');
   const head = submit(box);
   const spy = gitSpy(box);

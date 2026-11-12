@@ -2001,28 +2001,19 @@
     "launch": 2
   },
   "apps/cli/journeys/verify/accept/fast.test.js": {
-    "launch": 7
-  },
-  "apps/cli/journeys/verify/accept/receipt.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/verify/admission.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/verify/check.test.js": {
-    "launch": 9
+    "launch": 3
   },
   "apps/cli/journeys/verify/checks.test.js": {
-    "launch": 20
-  },
-  "apps/cli/journeys/verify/clause.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/verify/compare.test.js": {
-    "launch": 10
+    "launch": 3
   },
   "apps/cli/journeys/verify/compare/checkout.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/verify/fixes.test.js": {
     "launch": 6
@@ -2034,46 +2025,28 @@
     "launch": 14
   },
   "apps/cli/journeys/verify/landing.test.js": {
-    "launch": 5
-  },
-  "apps/cli/journeys/verify/landing/check.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/verify/landing/close.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/verify/landing/drill.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/verify/landing/interrupted.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/verify/landing/reuse.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/verify/landing/verdict.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/verify/machine.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/verify/main.test.js": {
-    "launch": 15
-  },
-  "apps/cli/journeys/verify/packet.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/verify/team/repair.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/verify/team/verdict.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/verify/trunk.test.js": {
-    "launch": 12
-  },
-  "apps/cli/journeys/verify/trunk/moved.test.js": {
-    "launch": 6
   },
   "apps/cli/journeys/verify/walk.test.js": {
     "launch": 5

@@ -46,7 +46,7 @@ process.exitCode=failed?1:0;
 `;
 
 /** Build real Git histories and declare synthetic board lifecycle data without claiming a gate ran. */
-function fixture(t, { missingRunner = false } = {}) {
+async function fixture(t, { missingRunner = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
@@ -58,7 +58,7 @@ function fixture(t, { missingRunner = false } = {}) {
   const workerMachine = join(box.dir, 'worker-machine');
   for (const path of [worker, workerHome, workerMachine]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
-  const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
+  const registered = await box.runIn(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(registered.code, 0, registered.out + registered.err);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
@@ -72,11 +72,11 @@ function fixture(t, { missingRunner = false } = {}) {
   box.git(box.repo, 'commit', '-qm', 'chore: comparison base [G1]');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(id, 1);
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  assert.equal((await box.runIn(box.web, 'claim', String(id))).code, 0);
   return { ...box, helpers, id, base };
 }
 
@@ -105,13 +105,13 @@ async function compare(box) {
     assert.equal(recorded.commit, compared[side + 'Commit']);
     assert.ok(readFileSync(recorded.profileFile, 'utf8').length > 0);
   }
-  const shown = box.run(box.repo, 'show', String(box.id), '--json');
+  const shown = await box.runIn(box.repo, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'submitted', 'comparison never gives a verdict');
   return compared;
 }
 
 test('verify --compare selects importing tests and reports only new reds and actual fixes [V4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:false,fixed:true,known:false,skip:true};\n');
   const head = submit(box);
   const result = await compare(box);
@@ -125,7 +125,7 @@ test('verify --compare selects importing tests and reports only new reds and act
 });
 
 test('verify --compare treats an added test file as new and does not execute its missing base path [V4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   writeFileSync(join(box.web, 'web/added.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {value} from './value.js';test('added red [V4,C7]',()=>assert.equal(value.newRed,false));\n");
   submit(box);
   const result = await compare(box);
@@ -136,7 +136,7 @@ test('verify --compare treats an added test file as new and does not execute its
 });
 
 test('verify --compare falls back from an unrunnable base to composed head versus main [V4,C7]', async t => {
-  const box = fixture(t, { missingRunner: true });
+  const box = await fixture(t, { missingRunner: true });
   writeFileSync(join(box.repo, 'web/runner.js'), RUNNER);
   box.git(box.repo, 'add', 'web/runner.js');
   box.git(box.repo, 'commit', '-qm', 'fix: provide current runner [G1]');
@@ -154,7 +154,7 @@ test('verify --compare falls back from an unrunnable base to composed head versu
 });
 
 test('a green submission records its background comparison without a reviewer command [V4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
   const head = box.helpers.attackCommit(box, box.web);
   const result = await runFixtureChildAsync(process.execPath, [box.helpers.BIN, 'submit', String(box.id), '--no-next', '--json'],
@@ -162,8 +162,8 @@ test('a green submission records its background comparison without a reviewer co
   assert.equal(result.status, 0, result.stdout + result.stderr);
   let comparison, thread;
   // budget: bounded wait for real private runner completion; never an elapsed-time assertion.
-  await box.helpers.waitFor(() => { // budget: hang ceiling for actual background runner completion.
-    const shown = box.run(box.repo, 'show', String(box.id), '--json');
+  await box.helpers.waitFor(async () => { // budget: hang ceiling for actual background runner completion.
+    const shown = await box.runIn(box.repo, 'show', String(box.id), '--json');
     assert.equal(shown.code, 0, shown.err);
     const item = JSON.parse(shown.out);
     assert.equal(item.item_status, 'submitted');
@@ -177,19 +177,19 @@ test('a green submission records its background comparison without a reviewer co
   assert.ok(comparison.head.id && comparison.base.id);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  const joined = fixtureJoin(box.run, reviewer, 'api', '--model', 'Comparison reviewer', '--json');
+  const joined = await fixtureJoin(box.runIn, reviewer, 'api', '--model', 'Comparison reviewer', '--json');
   assert.equal(joined.code, 0, joined.err);
-  const offered = box.run(reviewer, 'next', '--verify', '--json');
+  const offered = await box.runIn(reviewer, 'next', '--verify', '--json');
   assert.equal(offered.code, 0, offered.err);
   assert.equal(JSON.parse(offered.out).comparison.status, 'complete');
 });
 
 
 test('an empty configured runner pool records an unavailable comparison without dispatch [C7,V4]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
   const head = submit(box);
-  const removed = box.run(box.repo, 'runner', 'remove', HOST, '--json');
+  const removed = await box.runIn(box.repo, 'runner', 'remove', HOST, '--json');
   assert.equal(removed.code, 0, removed.out + removed.err);
   const requests = join(box.dir, 'requests');
   const before = existsSync(requests) ? readFileSync(requests, 'utf8') : '';
@@ -200,7 +200,7 @@ test('an empty configured runner pool records an unavailable comparison without 
   assert.equal(comparison.status, 'unavailable');
   assert.equal(comparison.source, head);
   assert.match(comparison.error, /no configured runner/u);
-  const shown = box.run(box.repo, 'show', String(box.id), '--json');
+  const shown = await box.runIn(box.repo, 'show', String(box.id), '--json');
   assert.equal(shown.code, 0, shown.err);
   assert.equal(JSON.parse(shown.out).comparison.status, 'unavailable', 'the ordinary diagnostic records its unavailable fact');
   assert.equal(existsSync(requests) ? readFileSync(requests, 'utf8') : '', before, 'no worker dispatch was attempted');
