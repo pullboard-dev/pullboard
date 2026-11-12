@@ -112,14 +112,14 @@ test('legacy reject and reopen event bytes gain no typed metadata during old-eng
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-test('real refused submit records its original coded outcome without changing the refusal [V4,R2,C7]', () => {
+test('real refused submit records its original coded outcome without changing the refusal [V4,R2,C7]', async () => {
   const box = helpers.project('true');
-  const json = (root, ...args) => { const result = box.run(root, ...args, '--json'); assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  const added = json(box.repo, 'add', 'web', 'Submit outcome fixture', '--criterion', 'The page renders its title.', '--check', 'true');
+  const json = async (root, ...args) => { const result = await box.runLocal(root, ...args, '--json'); assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
+  const added = await json(box.repo, 'add', 'web', 'Submit outcome fixture', '--criterion', 'The page renders its title.', '--check', 'true');
   const id = added.item.item_id;
-  json(box.web, 'claim', String(id));
+  await json(box.web, 'claim', String(id));
   writeFileSync(join(box.web, 'uncommitted.txt'), 'private synthetic fixture dirt');
-  const refused = box.run(box.web, 'submit', String(id), '--json');
+  const refused = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(refused.code, 1, refused.out + refused.err);
   const document = JSON.parse(refused.out);
   assert.equal(document.error.code, 'UNTRACKED');
@@ -137,7 +137,7 @@ test('real refused submit records its original coded outcome without changing th
   } finally { store.closeBoard(board); }
 });
 
-test('real successful submit records immediate admission before its bound proof receipts [V4,R2,H16]', () => {
+test('real successful submit records immediate admission before its bound proof receipts [V4,R2,H16]', async () => {
   const gate = 'node --test web/title.test.js';
   const box = helpers.project(gate);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -146,14 +146,14 @@ test('real successful submit records immediate admission before its bound proof 
   box.git(box.repo, 'add', 'web/title.js', 'web/title.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: establish private admission fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const json = (root, ...args) => { const result = box.run(root, ...args, '--json'); assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  const added = json(box.repo, 'add', 'web', 'Immediate admission fixture', '--criterion', 'The title is corrected.', '--check', gate);
+  const json = async (root, ...args) => { const result = await box.runLocal(root, ...args, '--json'); assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
+  const added = await json(box.repo, 'add', 'web', 'Immediate admission fixture', '--criterion', 'The title is corrected.', '--check', gate);
   const id = added.item.item_id;
-  json(box.web, 'claim', String(id));
+  await json(box.web, 'claim', String(id));
   writeFileSync(join(box.web, 'web/title.js'), "export const title = 'after';\n");
   box.git(box.web, 'add', 'web/title.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): correct private fixture title [G1]');
-  const submitted = json(box.web, 'submit', String(id), '--no-next');
+  const submitted = await json(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.gate.green, true);
   // @pullboard-board-file persistence: observe only the successful private fixture's native admission/proof order.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

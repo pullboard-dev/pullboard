@@ -8,15 +8,15 @@ test('a one-file hotfix already on main submits for review and is not refused EM
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'hotfix review', '--specs', 'G1', '--criterion', 'The feature is present.',
-    '--check', 'test -f web/feature.txt', '--route', 'strong', '--json'));
+  const added = fixtureAdd(box.run, box.repo, 'web', 'hotfix review', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', 'test -f web/feature.txt', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
   const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', `fix(web): add the feature [G1]\n\nPullboard-Item: #${id}`);
   assert.equal(committed.status, 0, committed.stderr);
   box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
-  const result = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
+  const result = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json');
   const refusal = result.code === 0 ? null : JSON.parse(result.out).error;
   assert.notEqual(refusal?.code, 'EMPTY_SUBMIT', result.out);
 });

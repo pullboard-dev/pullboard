@@ -402,6 +402,19 @@ export function crossLaneFixture(t) {
       }
     }
   }
+  /** The same identity swap as runAs, answered by the production dispatch in this process [C7]. */
+  async function runAsLocal(identity, cwd, ...args) {
+    const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
+    box.env.CLAUDECODE = '1';
+    box.env.CLAUDE_CODE_SESSION_ID = identity;
+    try { return await box.runLocal(cwd, ...args); }
+    finally {
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete box.env[name];
+        else box.env[name] = value;
+      }
+    }
+  }
   /** Demand real command success before interpreting its versioned result. */
   function json(result) {
     assert.equal(result.code, 0, `${result.out}\n${result.err}`);
@@ -428,5 +441,5 @@ export function crossLaneFixture(t) {
   function binding(root) {
     return JSON.parse(readFileSync(join(resolve(root, box.git(root, 'rev-parse', '--git-dir')), 'pullboard-checkout-session.json'), 'utf8'));
   }
-  return { ...box, session, runAs, json, seat, add, milestone, binding };
+  return { ...box, session, runAs, runAsLocal, json, seat, add, milestone, binding };
 }

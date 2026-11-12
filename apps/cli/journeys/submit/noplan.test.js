@@ -14,10 +14,10 @@ test('submit skips cells inventory for an accepted private tree without a cells 
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Generic private project change', '--specs', 'G1', '--json'));
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Generic private project change', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = (await box.runLocal(box.web, 'claim', String(id)));
+  const claimed = await box.runLocal(box.web, 'claim', String(id));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
 
   mkdirSync(join(box.web, 'web'), { recursive: true });
@@ -28,7 +28,7 @@ test('submit skips cells inventory for an accepted private tree without a cells 
   assert.equal(box.git(box.repo, 'ls-tree', '--name-only', acceptedMain, '--', 'packages/codemap/data/plan/cells.json'), '',
     'the accepted private Git tree has no cells plan');
 
-  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next'));
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next');
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   assert.doesNotMatch(`${submitted.out}\n${submitted.err}`, /CELLS_INVENTORY_PENDING/u);
   assert.equal(existsSync(join(box.env.PULLBOARD_MACHINE_HOME, 'cells-cache', 'accepted')), false,

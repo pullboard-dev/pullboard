@@ -190,8 +190,8 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   await publishAcceptedCells(t, box.repo, box.git(box.repo, 'rev-parse', 'main').trim(), box.env.PULLBOARD_MACHINE_HOME);
-  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', ORDINARY, '--specs', 'G1', '--criterion', 'An ordinary source lands.',
-    '--check', 'node check.cjs', '--wait', '--no-next', '--json'));
+  const added = fixtureAdd(box.run, box.repo, 'web', ORDINARY, '--specs', 'G1', '--criterion', 'An ordinary source lands.',
+    '--check', 'node check.cjs', '--wait', '--no-next', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal((await box.runLocal(box.web, 'claim', String(id), '--no-next', '--json')).code, 0);
@@ -200,7 +200,7 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   box.git(box.web, 'add', 'src/ordinary-added.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add an ordinary source [G1]');
   rmSync(marker, { force: true });
-  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--no-next'));
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   assert.match(submitted.out + submitted.err, /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
   assert.equal(existsSync(marker), true, 'the ordinary item proceeds to its check');
