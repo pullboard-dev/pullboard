@@ -2820,10 +2820,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/link/tests/fixtures/relay/reset.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/mcp/src/logic/main.js": {
       "cells": 2,
       "deep": 0
@@ -4333,7 +4329,7 @@
       "deep": 0
     },
     "packages/store/tests/fixtures/dispatch.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/tests/fixtures/stats/compare.js": {
@@ -4341,7 +4337,7 @@
       "deep": 0
     },
     "packages/store/tests/fixtures/stats/time.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/sync/src/io/git/lock.js": {
@@ -5164,10 +5160,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/landing/receipts.js": {
-      "cells": 3,
-      "deep": 0
-    },
     "apps/cli/src/io/run/tests.js": {
       "cells": 3,
       "deep": 1
@@ -5181,6 +5173,34 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/init/shards.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/index.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/runner/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/light.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/collision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/relay/parity/reland.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/relay/parity/seeds.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/timeout.js": {
       "cells": 1,
       "deep": 0
     }
