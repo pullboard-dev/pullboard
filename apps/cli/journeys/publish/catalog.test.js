@@ -202,6 +202,11 @@ function sandbox() {
   return { dir, env, git, run, runLocal: run };
 }
 
+/** The box with its command runner replaced by a real child process, for the cases that need one. */
+function processBox(box) {
+  return { ...box, runLocal: (cwd, ...args) => withCatalogChild(() => runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' })) };
+}
+
 /** Initialize a real board with an undeclared legacy coordinator for the API protocol fixtures. */
 async function project() {
   const box = sandbox();
@@ -414,10 +419,11 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
 
   const messageFile = join(box.dir, 'commit-message.txt');
   writeFileSync(messageFile, 'chore: valid fixture\n');
-  await json(box, repo, 'hook', ['pre-commit'], 'pre-commit');
-  await json(box, repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
-  await json(box, repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
-  await json(box, repo, 'hook', ['pre-push'], 'pre-push');
+  // Process-level: the hook commands read the real stdin, so they run as child processes.
+  await json(processBox(box), repo, 'hook', ['pre-commit'], 'pre-commit');
+  await json(processBox(box), repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
+  await json(processBox(box), repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
+  await json(processBox(box), repo, 'hook', ['pre-push'], 'pre-push');
 
   const review = await json(box, repo, 'worktree', ['review']);
   const reviewPath = review.path;
@@ -924,7 +930,8 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   await json(source, source.repo, 'spec', ['apply'], 'apply');
 
   /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
-  const sessionSource = { ...source, run: (cwd, ...args) => runCliInProcess(args, { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' } }) };
+  // Process-level: takeover refuses without a real agent shell, so it runs as a child with the session id set.
+  const sessionSource = processBox({ ...source, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' } });
   await json(sessionSource, source.repo, 'takeover');
   const fitBlueprint = await json(source, source.repo, 'blueprint', ['add', 'web-app'], 'add');
   const fitTarget = fitBlueprint.rows[0].id;
