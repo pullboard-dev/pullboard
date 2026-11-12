@@ -419,38 +419,17 @@
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/checks.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/gate/deferral.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/gate/drift.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/gate/during/holds.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/gate/jobs.test.js": {
-    "launch": 7
+    "launch": 1
   },
   "apps/cli/journeys/gate/kernel.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/gate/landing/gates.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/gate/landing/stop.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/gate/main-red-lock.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/gate/main.test.js": {
     "launch": 21
-  },
-  "apps/cli/journeys/gate/main/reds.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/gate/newcomer.test.js": {
     "launch": 12
@@ -470,17 +449,14 @@
   "apps/cli/journeys/gate/rotates.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/slot.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/gate/stall.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/gate/stalled.test.js": {
-    "launch": 6
+    "launch": 1
   },
   "apps/cli/journeys/gate/timing.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/gate/workflows.test.js": {
     "launch": 2
