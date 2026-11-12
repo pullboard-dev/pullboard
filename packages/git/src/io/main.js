@@ -686,7 +686,7 @@ export function withGitCommandMemo(work) {
 function memoKey(kind, cwd, args, maxBuffer, env) {
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
-  // The worktree list is asked from many modules, some with a cleaned environment; the environment is part of its key [C7].
+  // The worktree list is asked from many modules and environments; one answer serves all of them [C7].
   const listing = command === 'worktree' && words[1] === 'list';
   if (commandMemo === null || (env !== process.env && !listing)) return null;
   const reads = listing || ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
