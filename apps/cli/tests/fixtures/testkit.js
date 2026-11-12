@@ -158,10 +158,10 @@ export function fixtureMachineSettings(machineHome, settings) {
 
 /**
  * The gate dispatch under which a fixture's submit, test run or comparison settles inside the command that started it.
- * Why one constant: a pulled gate runs accepted main's own Pullboard packages, which a fixture project's main lacks, so
- * fixtures name their dispatch here instead of inheriting the machine default; when controller dispatch goes, only this changes [P7].
+ * Why one constant: fixtures name their dispatch here instead of inheriting the machine default. Pull is the only dispatch:
+ * a plain fixture project is judged by the runner's installed Pullboard (#6265), on the loopback local runner [P7,#5821].
  */
-export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'controller' });
+export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'pull' });
 
 /**
  * Make a fixture machine home whose submits settle the same way whatever the machine's runnerDispatch default is:
