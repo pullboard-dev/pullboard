@@ -509,9 +509,6 @@
   "apps/cli/journeys/gate/resource.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/gate/receipt.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/shout/activity/journey.test.js": {
     "launch": 3
   },
