@@ -34,7 +34,9 @@ async () => {
     const found = PHASE_LINE.exec(line.trim());
     if (found) said.add(found[1]);
   }
-  for (const name of ['merge', 'static checks', 'cli smoke']) assert.ok(said.has(name), `the landing said no "landing phase ${name}" line; said: ${[...said].join(', ')}; output: ${(result.diagnostics ?? []).join(" | ")}`);
   const spans = new Set(readLandingSpans(join(box.repo, '.git'), { since: started }).map(span => span.phase));
+  const all = readLandingSpans(join(box.repo, '.git'), { since: started }).map(span => `${span.phase}:${span.ms}`).join(', ');
+  console.log(`# landing spans: ${all}`);
+  for (const name of ['merge', 'static checks', 'cli smoke']) assert.ok(said.has(name), `the landing said no "landing phase ${name}" line; said: ${[...said].join(', ')}; spans: ${all}; output: ${(result.diagnostics ?? []).join(" | ")}`);
   for (const phase of ['compose', 'static', 'smoke']) assert.ok(spans.has(phase), `no "${phase}" landing span recorded; recorded: ${[...spans].join(', ')}`);
 });
