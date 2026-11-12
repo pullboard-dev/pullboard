@@ -57,6 +57,26 @@ export function validateServe(serve, file) {
   }
 }
 
+/**
+ * Check the board this machine's seats use over HTTP: board.url, an http(s) address, and board.token, the serve key [P7].
+ * @param {unknown} board
+ * @param {string} file
+ */
+export function validateBoardRemote(board, file) {
+  if (board === undefined) return;
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => key !== 'url' && key !== 'token')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url and token; remove it to use the local board`);
+  }
+  let url = null;
+  try { url = board.url === undefined ? null : new URL(board.url); } catch { /* Refused below. */ }
+  if (board.url !== undefined && (!url || !['http:', 'https:'].includes(url.protocol))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board.url in ${file} must be an http or https address, such as http://100.64.0.2:4321; run pullboard settings board.url <url>`);
+  }
+  if (board.token !== undefined && (typeof board.token !== 'string' || !board.token || /\s/u.test(board.token))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board.token in ${file} must be the key pullboard serve printed; run pullboard settings board.token <key>`);
+  }
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
@@ -118,6 +138,7 @@ export function loadMachineSettings() {
     throw new Refused('BAD_MACHINE_SETTINGS', `inspection.clauses in ${file} must be true or false`);
   }
   validateServe(value.serve, file);
+  validateBoardRemote(value.board, file);
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
   validateBudget(value.budget, file);

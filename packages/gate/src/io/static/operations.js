@@ -37,10 +37,25 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/[[,]\s*['"`]fetch['"`]/u) },
 ]);
 
-/** The source with its comments blanked and its strings kept, so a commented-out call is not a site. */
+/** A comment inside a template-string script: a line comment that starts its line, or a block comment. */
+const TEMPLATE_COMMENT = /^[ \t]*\/\/.*$|\/\*[\s\S]*?\*\//gmu;
+
+/** `text` with every character but newlines turned to a space. */
+const blanked = text => text.replace(/[^\n]/gu, ' ');
+
+/**
+ * The source with its comments blanked and its strings kept, so a commented-out call is not a site. Comments inside a
+ * template string are blanked too: a template is a script, and a doc comment in it that names the runner is prose.
+ */
 function withoutComments(source) {
+  const { comments, strings } = lex(source);
+  const spans = [...comments];
+  for (const { start, end } of strings) {
+    if (source[start] !== '`') continue;
+    for (const found of source.slice(start, end).matchAll(TEMPLATE_COMMENT)) spans.push({ start: start + found.index, end: start + found.index + found[0].length });
+  }
   let code = source;
-  for (const { start, end } of lex(source).comments) code = code.slice(0, start) + code.slice(start, end).replace(/[^\n]/gu, ' ') + code.slice(end);
+  for (const { start, end } of spans) code = code.slice(0, start) + blanked(code.slice(start, end)) + code.slice(end);
   return code;
 }
 
