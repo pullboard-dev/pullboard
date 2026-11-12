@@ -96,7 +96,7 @@ test('clause 1: the dispatcher runs each gate through a drive-cell driver under 
   const dir = temporaryDirectory('pullboard-durable-wire-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   machineHome(t, join(dir, 'home'));
-  const { commonDir, item } = setupServingHandoff(t);
+  const { commonDir, item } = (await setupServingHandoff(t));
 
 
   const tools = join(dir, 'tools');
@@ -134,7 +134,7 @@ writeFileSync(join(dirname(process.argv[2]), 'submission.json'), '{}');
   assert.equal(existsSync(join(directory, 'worker.json')), false, 'nothing is written beside the hand-off');
 });
 
-test('clause 1: a stalled in-process landing ends after 10 minutes without progress, its job failed with the lease freed [C7]', async t => {
+test('clause 1: a stalled in-process landing ends after 2 minutes without progress, its job failed with the lease freed [C7,#5816]', async t => {
   const board = fixtureBoard(t);
   let clock = 0;
   const now = () => clock;
@@ -156,10 +156,10 @@ test('clause 1: a stalled in-process landing ends after 10 minutes without progr
   const landing = driveLanding(board.db, { owner: 'lander', id, now, renewMs: 1,
     watch: { lastProgressAt, stall: progress.stall }, run: () => runner({ fence: {}, root: '/unused' }, hooks) });
   await beatsPass(1);
-  clock = 9 * 60_000;
+  clock = 115_000;
   await beatsPass(2);
-  assert.equal(jobView(board.db, id).steps.some(step => step.name === 'failed'), false, 'nine quiet minutes do not end the batch');
-  clock = 10 * 60_000;
+  assert.equal(jobView(board.db, id).steps.some(step => step.name === 'failed'), false, '1:55 quiet does not end the batch');
+  clock = 2 * 60_000;
   // The heartbeat timer is unref'd, as in production, so the test keeps the loop turning until the landing settles.
   let settled = false;
   landing.finally(() => { settled = true; }).catch(() => {});
@@ -226,14 +226,14 @@ try {
 });
 
 /** Seed a real claimed item and its queued handoff through the shared fixture seams. */
-function setupServingHandoff(t) {
+async function setupServingHandoff(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Wire fixture gate', '--specs', 'G1', '--criterion', 'The wire gate serves its item.', '--check', 'true', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Wire fixture gate', '--specs', 'G1', '--criterion', 'The wire gate serves its item.', '--check', 'true', '--json'));
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(item), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(item), '--json'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const commonDir = join(box.repo, '.git');
   withFixtureBoard(join(commonDir, 'pullboard', 'board.sqlite'), board => {

@@ -26,6 +26,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { HOST } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
@@ -58,8 +59,14 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
     const result = runFixtureChild(process.execPath, [cliBin, ...args, '--json'], { cwd, env, encoding: 'utf8' });
     return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure, stderr: result.stderr };
   };
+  /** The same receipt as cliAt, from an awaited in-process run of the production dispatch; the fixture's own binary is not used. */
+  const callAt = async (cwd, ...args) => {
+    const result = await runCliInProcess([...args, '--json'], { cwd, env });
+    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure, stderr: result.stderr };
+  };
   /** Keep the coordinator's normal command path separate from its actual joined worktrees. */
   const cli = (...args) => cliAt(root, ...args);
+  const call = (...args) => callAt(root, ...args);
   git('init', '-q', '-b', 'main');
   cliBin = beforeInit?.({ root, scratch, env, git }) ?? BIN;
   assert.equal(cli('init').code, 0);
@@ -102,7 +109,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
     }
     return readFileSync(path, encoding);
   }
-  return { root, scratch, env, git, cli, cliAt, counter, readData, lane: 'build' };
+  return { root, scratch, env, git, cli, cliAt, call, callAt, counter, readData, lane: 'build' };
 }
 
 /** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
@@ -141,9 +148,10 @@ export function privateBuilder(box) {
   const root = made.document.path;
   /** Run a candidate command without taking the coordinator's seat. */
   const cli = (...args) => box.cliAt(root, ...args);
+  const call = (...args) => box.callAt(root, ...args);
   /** Commit only this private candidate's source. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
-  return { root, cli, git };
+  return { root, cli, call, git };
 }
 
 /** Commit one real file change in a private candidate, because submit refuses a head with no change against main. */

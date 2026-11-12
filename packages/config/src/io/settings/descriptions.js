@@ -201,8 +201,9 @@ export const SETTING_DESCRIPTIONS = settingDescriptions(ROWS);
 /** The compatibility rows in one inventory source, read as text so main's copy can be judged too, with their lines. */
 function compatibilityRows(source) {
   return (source ?? '').split('\n').flatMap((line, index) => {
-    const row = /^\s*\['([^']+)',.*\{\s*compat:\s*true\b([^}]*)\}\s*\],?\s*$/u.exec(line);
-    return row ? [{ key: row[1], removeBy: /removeBy:\s*'([^']*)'/u.exec(row[2])?.[1] ?? null, line: index + 1 }] : [];
+    // Any line marked compat: true is a row, whichever order its properties come in; one with no key fails closed (key null).
+    if (!/\bcompat:\s*true\b/u.test(line) || /^\s*\/\//u.test(line)) return [];
+    return [{ key: /^\s*\['([^']+)',/u.exec(line)?.[1] ?? null, removeBy: /\bremoveBy:\s*'([^']*)'/u.exec(line)?.[1] ?? null, line: index + 1 }];
   });
 }
 
@@ -218,7 +219,9 @@ function compatibilityRows(source) {
 export function compatibilityToggleProblems(source, accepted, now = Date.now()) {
   const today = new Date(now).toISOString().slice(0, 10);
   const rows = compatibilityRows(source);
-  const problems = rows.flatMap(({ key, removeBy, line }) => !removeBy || !DATE.test(removeBy)
+  const problems = rows.flatMap(({ key, removeBy, line }) => !key
+    ? [`${INVENTORY_FILE}:${line}: a row marked compat: true cannot be read; next: write it as ['key', ...] on one line ending { compat: true, removeBy: 'YYYY-MM-DD' }`]
+    : !removeBy || !DATE.test(removeBy)
     ? [`${INVENTORY_FILE}:${line}: compatibility toggle ${key} has no removeBy date; next: add removeBy: 'YYYY-MM-DD' to its row`]
     : removeBy < today ? [`${INVENTORY_FILE}:${line}: compatibility toggle ${key} passed its removeBy date ${removeBy}; next: remove ${key}, its reader and its inventory row`] : []);
   const before = compatibilityRows(accepted).length;

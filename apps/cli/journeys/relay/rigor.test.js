@@ -45,7 +45,7 @@ async function agentToken(box, link, agent) {
 
 test('only an authenticated person sender records a never-again over the relay [D1,H16,B26]', async (t) => {
   const box = await relayClientFixture(t);
-  const added = await box.cli('add', box.lane, 'Never-again target', '--criterion', 'a person marks a cause never again');
+  const added = await box.cliLocal('add', box.lane, 'Never-again target', '--criterion', 'a person marks a cause never again');
   assert.equal(added.code, 0, JSON.stringify(added.document));
   const id = added.document.item.item_id;
   await box.link();
@@ -98,7 +98,7 @@ test('only an authenticated person sender records a never-again over the relay [
 
   // The native replica replays the journal and records each refusal by its sealed sender.
   assert.equal((await box.cli('status')).code, 0, 'native replay records the refusals and the person fact');
-  const exported = (await box.cli('export')).document;
+  const exported = (await box.cliLocal('export')).document;
   const refused = new Map(exported.tables.event.filter((row) => row.event_kind === 'relay_refused')
     .map((row) => JSON.parse(row.event_detail)).map((detail) => [detail.sequence, detail.code]));
   for (const [label, at] of sent) {

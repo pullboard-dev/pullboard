@@ -23,6 +23,7 @@ import { loadBearingJudged } from '../../../logic/load/bearing.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
+import { storeRegistryCheck } from '../../stores.js';
 
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.
@@ -113,6 +114,8 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
   { name: 'test-inputs', run: growthCheck(testInputProblems) },
   { name: 'load-bearing', run: loadBearingCheck },
+  // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
+  { name: 'store-registry', run: storeRegistryCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
   // Compatibility toggles carry a removeBy date; one past it, or a rising count, turns every submit red until removed [O6,C7].
   { name: 'compat-toggles', run: ({ text, previous, now }) => {

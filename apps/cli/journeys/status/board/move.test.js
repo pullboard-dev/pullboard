@@ -66,7 +66,7 @@ test('clause 1: a write with no named move body still carries a move on every ho
   }
 });
 
-test('clause 2: status lists the five longest holds of the last hour with at, move, step and heldMs [C7,P4]', () => {
+test('clause 2: status lists the five longest holds of the last hour with at, move, step and heldMs [C7,P4]', async () => {
   const box = helpers.project('true');
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'status-observations');
   const now = Date.now();
@@ -76,13 +76,13 @@ test('clause 2: status lists the five longest holds of the last hour with at, mo
   const lines = [[10_000, 1_500, 'm1'], [20_000, 9_000, 'm2'], [30_000, 3_000, 'm3'], [40_000, 2_000, 'm4'], [50_000, 4_000, 'm5'],
     [60_000, 2_500, 'm6'], [7_200_000, 60_000, 'too-old']];
   runFixtureChild(process.execPath, ['-e', `require('node:fs').mkdirSync(${JSON.stringify(box.env.PULLBOARD_MACHINE_HOME)}, { recursive: true })`], { env: box.env });
-  for (const [age, held, move] of lines) appendFileSync(log, row(age, held, move));
-  const result = box.run(box.repo, 'status', '--json');
+  for (const [age, held, move] of lines) appendFileSync(log, (await row(age, held, move)));
+  const result = (await box.runLocal(box.repo, 'status', '--json'));
   assert.equal(result.code, 0, result.err);
   const holds = JSON.parse(result.out).longestHolds;
   assert.deepEqual(holds.map(hold => hold.move), ['m2', 'm5', 'm3', 'm6', 'm4'], 'five longest of the last hour, longest first, the 2-hour-old hold left out');
   assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'heldMs', 'move', 'step', 'stepMs']);
   assert.equal(holds[0].heldMs, 9_000);
-  const shown = box.run(box.repo, 'status');
+  const shown = (await box.runLocal(box.repo, 'status'));
   assert.match(shown.out, /board hold \S+: 9000 ms in m2, slowest step replay 8900 ms/u);
 });

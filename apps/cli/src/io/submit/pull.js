@@ -9,6 +9,7 @@ import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
+import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
@@ -22,6 +23,9 @@ import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { primaryCheckoutRoot } from '../worktree.js';
+import { exitLines } from '../../logic/runner/output.js';
+import { fitReceipt } from '../../logic/runner/output.js';
+import { tapCaseErrors } from '../../logic/runner/output.js';
 
 /** The line a gate job prints its receipt on, the last line of its output; runner serve reads the same prefix. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
@@ -29,6 +33,12 @@ export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 const PHASE_CASES = 100;
 /** The capabilities a runner needs to take a gate job, or a pulled test job, which runs through the same bootstrap. */
 export const GATE_NEEDS = ['node22'];
+/** The variable runner serve names its kept-output folder for this job in; the gate entry writes each phase's full output there. */
+export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
+/** Budget: a phase's kept output is its last 8 MiB on the runner; the receipt carries its digest and byte count. */
+const KEPT_PHASE_BYTES = 8 * 1024 ** 2;
+/** Budget: the receipt line stays under runner serve's 60 KiB receipt-line cap and the board's 64 KiB receipt cap. */
+const RECEIPT_FIT_BYTES = 56 * 1024;
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -48,9 +58,21 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+import { normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
+// Runner serve's kept-output folder for this job; the phases run without it, so a test of the runner never writes there.
+const keptFolder = process.env.${RUNNER_OUTPUT_ENV} || null;
+delete process.env.${RUNNER_OUTPUT_ENV};
+/** Keep a phase's full output on the runner by job, bounded to its last bytes; a folder that cannot take it keeps nothing. */
+const keepOutput = (name, output) => {
+  if (!keptFolder) return null;
+  try { writeFileSync(join(keptFolder, name), output.length > ${KEPT_PHASE_BYTES} ? output.subarray(-${KEPT_PHASE_BYTES}) : output, { mode: 0o600 }); return name; } catch { return null; }
+};
+${tapCaseErrors}
+${exitLines}
+${fitReceipt}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
 let light = null, gate = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
@@ -88,16 +110,38 @@ const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: i
   : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
-const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
-/** Run one phase and record it; only the proof's test runner comes from accepted main, the files and the frozen check are the candidate's own. */
+/** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
+const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
+/** The modules a script imports by name, sorted: its static and dynamic import specifiers; null when the file is missing. */
+const importsOf = file => {
+  let text;
+  try { text = readFileSync(file, 'utf8'); } catch { return null; }
+  return [...new Set([...text.matchAll(/(?:\\bfrom\\s*|\\bimport\\s*\\(\\s*|\\bimport\\s+)(['"])([^'"\\n]+)\\1/gu)].map(found => found[2]))].sort();
+};
+/**
+ * The proof runner, when the candidate changed what it imports against accepted main, else null. Why: the proof runs
+ * as written inside the checkout, as on the controller; a runner that loads other modules than main's is refused.
+ */
+const changedRunner = command => {
+  const script = proofScript(command), trusted = script ? importsOf(join(tools, script)) : null;
+  return trusted && JSON.stringify(importsOf(join(root, script))) !== JSON.stringify(trusted) ? script : null;
+};
+/** Run one phase as written, inside the candidate checkout, as the controller does; the files and the frozen check are the candidate's own. */
 const runPhase = (role, command, PATH) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
+  // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
-  const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
-    env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
+  const ran = timed(role, () => spawnSync('(' + command + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
+    env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }));
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
-  receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
-    ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
+  const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
+  const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
+  const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
+  for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
+  // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
+  receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures: failingCases(ran.status, text, run), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}) });
 };
 if (shard) runPhase('proof', shard.command, cliPath());
 else {
@@ -107,7 +151,11 @@ const analysed = timed('analysis', () => spawnSync(process.execPath, ['--disable
 const line = String(analysed.stdout ?? '').split('\\n').find(row => row.startsWith('PULLBOARD_TRUSTED_RESULT '));
 let analysis = null;
 try { analysis = JSON.parse(line.slice(line.indexOf(' ') + 1)); } catch { /* reported below */ }
-if (!analysis) receipt.error = 'the analysis returned no result: ' + tail(String(analysed.stderr ?? '') + String(analysed.stdout ?? ''));
+if (!analysis) {
+  const said = String(analysed.stderr ?? '') + String(analysed.stdout ?? ''), kept = keepOutput('analysis.log', Buffer.from(said));
+  receipt.error = 'the analysis returned no result: ' + tail(said);
+  if (kept) receipt.kept = kept;
+}
 else {
   const refusals = Object.entries(analysis.outcomes ?? {}).filter(([, outcome]) => outcome?.refused).map(([part, outcome]) => ({ part, ...outcome.refused }));
   if (analysis.refused) refusals.push({ part: 'analysis', ...analysis.refused });
@@ -116,6 +164,10 @@ else {
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+  // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
+  const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
+  if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
+    message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
   if (!refusals.length && !receipt.analysis.infra) {
     const PATH = cliPath();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
@@ -132,6 +184,7 @@ else {
 // A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
 receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
   : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
+fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
