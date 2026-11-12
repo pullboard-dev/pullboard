@@ -34,7 +34,10 @@ const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
  * Why: the runner's checkout is the candidate; its files are data the trusted entry reads, never code it loads.
  */
 export const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -58,10 +61,17 @@ try {
   const metadata = join(directory, '.objects');
   git('init', '--quiet', '--bare', metadata);
   writeFileSync(join(metadata, 'objects/info/alternates'), objects + '\\n', { flag: 'wx' });
-  mkdirSync(join(metadata, 'info'), { recursive: true });
-  writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
-  const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
-  run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  // A project whose main is not Pullboard's own tree (no packages/items) is judged by the runner's installed Pullboard, never by its own code (#6265).
+  if (spawnSync('git', ['--no-replace-objects', '--git-dir', metadata, 'cat-file', '-e', request.main + ':packages/items/index.js'], { cwd: root, env }).status !== 0) {
+    const installed = env.PULLBOARD_RUNNER_TOOLS;
+    if (!installed || !existsSync(join(installed, 'packages/items/index.js'))) throw new Error('trusted tooling missing: main has no packages/items and this runner names no installed Pullboard');
+    for (const name of readdirSync(installed)) if (!name.startsWith('.')) symlinkSync(join(installed, name), join(directory, name));
+  } else {
+    mkdirSync(join(metadata, 'info'), { recursive: true });
+    writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
+    const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
+    run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  }
   const entry = join(directory, 'pullboard-trusted-entry.mjs');
   writeFileSync(entry, request.entry, { flag: 'wx', mode: 0o600 });
   // The step's stderr is its own pipe, replayed after its result line is whole, so a warning can never land inside a large result.
@@ -279,6 +289,29 @@ export function trustedStepCommand({ main, entry, data, node = 'node' }) {
 }
 
 /**
+ * The Error line and first trusted-main frame of a pinned step that died on an uncaught exception, or null.
+ * Only an authenticated receipt counts: a non-zero exit with no signal or timeout, output matching its hash, no result line, and a stack frame inside the extracted main archive.
+ * Why: the exception is a defect in main's tooling, not machinery; retrying it as infrastructure repeats the same crash [C7].
+ */
+function toolingCrash(result, receipt, phase, { runner, source, tree }) {
+  if (result.executionRunner !== runner || result.executionSource?.commit !== source || result.executionSource?.tree !== tree
+    || receipt?.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0 || typeof phase.code !== 'number' || phase.code === 0
+    || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024) return null;
+  let raw;
+  try { raw = readFileSync(result.rawOutputPath); } catch { return null; }
+  if (raw.length !== phase.length || createHash('sha256').update(raw).digest('hex') !== phase.sha256) return null;
+  const text = `${raw.toString('utf8')}\n${String(result.stderr ?? '')}`;
+  if (text.split(/\r?\n/u).some(line => line.startsWith(RESULT))) return null;
+  const lines = text.split(/\r?\n/u);
+  const at = lines.findIndex(line => /^\s*at .*pullboard-trusted-main-/u.test(line));
+  if (at < 0) return null;
+  const error = lines.slice(0, at).reverse().find(line => /^(?:[A-Za-z]*Error|TypeError|ReferenceError|SyntaxError)\b.*:/u.test(line.trim()) || /^\w*Error\b/u.test(line.trim()));
+  if (!error) return null;
+  const marker = lines[at].match(/pullboard-trusted-main-[^/\\]*[/\\]([^)\s]*)/u);
+  return { error: error.trim().slice(0, 300), frame: (marker ? marker[1] : lines[at].trim()).slice(0, 300) };
+}
+
+/**
  * Run one trusted step on the admitted runner and accept only a complete result bound to its source and policy.
  * The private-check receipt hashes the exact request and output; any mismatch refuses rather than trusting bytes.
  */
@@ -314,6 +347,8 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
+    const crash = toolingCrash(result, receipt, phase, { runner: lease.runner.host, source, tree: checkedSource.tree });
+    if (crash) throw new Refused('RUNNER_TOOLING_CRASH', `the pinned ${stage} tooling crashed on the runner with ${crash.error}${crash.frame ? ` at ${crash.frame}` : ''}; the same main will crash again, so shout the coordinator with this line; kept in ${directory}${stderrNote(kept)}`);
     throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory}${stderrNote(kept)} and submit again`);
   }
   const bytes = readFileSync(result.rawOutputPath);

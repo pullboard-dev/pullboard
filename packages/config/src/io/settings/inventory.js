@@ -31,7 +31,7 @@ import { environmentProblem } from '../main.js';
 const MACHINE_DEFAULTS = {
   gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000,
   'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
-  'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.runnerDispatch': 'pull', 'gate.pullPilot.items': [], 'gate.pullPilot.share': 0, 'gate.localRunner': true, 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'inspection.clauses': false,
+  'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.runnerDispatch': 'pull', 'gate.pullPilot.items': [], 'gate.pullPilot.share': 0, 'gate.localRunner': true, 'gate.localLoadShare': 1, 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'inspection.clauses': false,
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], 'landing.pools': [],
   'serve.address': '127.0.0.1', 'serve.port': 0,
 };
@@ -40,7 +40,7 @@ const OPTIONAL_REPO_DEFAULTS = {
   project: null, name: null, 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'rigor.autoDraft': true, 'cells.cache': false, 'cells.shimMaxAgeDays': 7, 'relay.outbox': true, 'relay.board': null,
   submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null,
-  'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null,
+  'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null, 'claims.perSeat': null,
 };
 
 /** Read one optional object without migrations, writes, or parser diagnostics containing its bytes. */

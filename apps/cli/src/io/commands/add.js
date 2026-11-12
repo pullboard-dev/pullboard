@@ -29,6 +29,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -129,6 +130,8 @@ export async function run(io, args) {
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
+  // Only the person grants size overrides; an agent or the coordinator splits the item instead [C7].
+  if (sizeReason && !asPerson) throw new Refused('ITEM_FORCE_SIZE_PERSON', '--force-size is a size override only the person grants', 'split the item with --after into pieces of 30 minutes or less, or ask the person');
   if (size.oversized && !sizeReason) throw new Refused('ITEM_TOO_LARGE', `criterion names ${size.cells.length} cells and ${size.clauses} clauses (size ${size.score})`,
     `split it into one item per named cell (${size.cells.join(', ') || 'none'}) and at most three numbered clauses per item; or use --force-size "reason"`);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'add', args: {
@@ -142,6 +145,7 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
