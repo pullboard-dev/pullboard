@@ -2,6 +2,8 @@ export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
+export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
+export { readJobSpans } from './src/io/runners/utilization.js';
 export { buildTimeStats, buildTimeLines } from './src/logic/build/time.js';
 export {
   nativeToolCallIds,
@@ -180,3 +182,5 @@ export { LEDGER_HOPS, LEDGER_VERSION, itemLedger, ledgerLines, pipelineLedger, t
 export { foldText, newFold } from './src/logic/activity.js';
 export { readSessions } from './src/io/logs.js';
 export { readPipelineLedger } from './src/io/ledger.js';
+export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
+export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
