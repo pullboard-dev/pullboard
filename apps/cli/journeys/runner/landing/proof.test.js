@@ -37,6 +37,8 @@ function project(t) {
   const dev = graph.root;
   const put = (file, text) => { mkdirSync(dirname(join(dev, file)), { recursive: true }); writeFileSync(join(dev, file), text); git(dev, ['add', file]); };
   const commit = message => { git(dev, [...AS, 'commit', '-q', '-m', message]); return git(dev, ['rev-parse', 'HEAD']); };
+  // An ES-module package: run-tests keys only a complete ES-module import graph.
+  put('package.json', '{ "type": "module" }\n');
   put('bin/proof.mjs', RUNNER);
   put('src/a.js', 'export const a = 1;\n');
   put('src/b.js', 'export const b = 2;\n');
