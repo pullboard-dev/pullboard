@@ -3,9 +3,13 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { reclaimHolders } from '../../../../resources/src/io/liveness.js';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-test('clause 1: a slot holder with no live process is released, and the slot log names who held it and why [C7]', t => {
+const REPO = join(import.meta.dirname, '../../../../..');
+
+test('clause 1: a slot holder with no live process is released, and the slot log names who held it and why [C7]', async t => {
+  const { reclaimHolders } = await import(pathToFileURL(join(REPO, 'packages/resources/src/io/liveness.js')).href);
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec(`CREATE TABLE holder(token TEXT PRIMARY KEY, name TEXT, pid INTEGER, started TEXT, item TEXT, heartbeat INTEGER, terminating INTEGER DEFAULT 0, request TEXT DEFAULT '', relaunched INTEGER DEFAULT 0, agent TEXT DEFAULT '', repo TEXT DEFAULT '', kind TEXT DEFAULT '');
