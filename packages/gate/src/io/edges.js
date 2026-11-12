@@ -22,6 +22,10 @@ import {
   report,
   walk,
 } from './scan.js';
+import {
+  packageAppProblems,
+  packageAppReport,
+} from './edges/package-app.js';
 
 const CEILINGS = new URL('../../data/ceilings/cells-edges.json', import.meta.url);
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
@@ -305,12 +309,12 @@ export function declaredEdges(root) {
  *
  * @param {string} root
  * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options] - `edgesOf` lets a caller answer a file's edges from a cache.
- * @returns {{ files: Record<string, { cells: number, deep: number, edges: { from: string, to: string, deep: boolean, line: number }[] }>, cells: Record<string, { imports: string[], deepImporters: number }> }}
+ * @returns {{ files: Record<string, { cells: number, deep: number, edges: { from: string, to: string, deep: boolean, line: number }[] }>, cells: Record<string, { imports: string[], deepImporters: number }>, packageApps: ReturnType<typeof packageAppReport> }}
  */
 export function cellsEdgeReport(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const declared = declaredEdges(root);
   const names = (files ?? walk(root, SOURCE)).filter(file => SOURCE.test(file) && !TESTISH.test(file));
-  const result = { files: {}, cells: {} };
+  const result = { files: {}, cells: {}, packageApps: packageAppReport(names, read, edgesOf) };
   const seen = new Map();
   /** A forwarder's source, read once per report; a missing file is undefined. */
   const forwarded = path => {
@@ -334,16 +338,17 @@ export function cellsEdgeReport(root, { files, read = file => readFileSync(resol
 }
 
 /**
- * The ceilings to commit for today's report: file counts and cell rows only.
+ * The ceilings to commit for today's report: file counts, cell rows and each package file's apps.
  *
  * @param {ReturnType<typeof cellsEdgeReport>} current
- * @returns {{ files: Record<string, { cells: number, deep: number }>, cells: Record<string, { imports: string[], deepImporters: number }> }}
+ * @returns {{ files: Record<string, { cells: number, deep: number }>, cells: Record<string, { imports: string[], deepImporters: number }>, packageApps: Record<string, string[]> }}
  */
 export function ceilingsOf(current) {
-  const files = {}, cells = {};
+  const files = {}, cells = {}, packageApps = {};
   for (const [file, row] of Object.entries(current.files)) files[file] = { cells: row.cells, deep: row.deep };
   for (const [name, row] of Object.entries(current.cells)) cells[name] = row;
-  return { files, cells };
+  for (const [file, edges] of Object.entries(current.packageApps ?? {})) packageApps[file] = edges.map(edge => edge.to);
+  return { files, cells, packageApps };
 }
 
 /**
@@ -379,6 +384,7 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
       for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it, or add "${name}->${target}" to allowedEdges in packages/codemap/data/plan/cells.json`);
     }
   }
+  problems.push(...packageAppProblems(current.packageApps, ceilings.packageApps ?? {}));
   if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) add('packages/codemap', 1, `allowedEdges entry "${entry}" is used by no import; remove it from allowedEdges in the cells plan`);
   problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) }));
   return problems;
