@@ -30,8 +30,9 @@ function fixture(t) {
 const pending = board => store.listItems(board, { all: true }).filter(item => item.item_title.startsWith('Main red:'));
 
 test('clause 1: the same known-main red filed twice leaves one open item that gains a fact [B3,C7,H16,V4]', async t => {
-  const { board, state } = fixture(t);
+  const { board, state, say } = fixture(t);
   await fileKnownMainReds(state, [{ file: FILE, name: 'case one' }]);
+  assert.deepEqual(say, []);
   state.batch = { ...state.batch, id: 'b2' };
   const again = await fileKnownMainReds(state, [{ file: FILE, name: 'case one' }]);
   assert.equal(pending(board).length, 1);
