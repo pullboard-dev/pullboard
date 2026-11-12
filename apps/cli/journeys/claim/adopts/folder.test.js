@@ -6,12 +6,16 @@ import {
 } from 'node:test';
 import {
   existsSync,
+  mkdirSync,
+  readdirSync,
   readFileSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
@@ -19,6 +23,7 @@ import {
   createE2eHelpers,
   FIXTURE_MODEL,
 } from '../../../tests/fixtures/e2e.js';
+import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
@@ -108,6 +113,45 @@ test('clause 1: a claim moves a clean idle item folder from a seat that still ha
   assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
   assert.equal(box.git(adopted, 'branch', '--show-current'), `web/item-${id}`, 'the branch is kept');
   assert.equal(binding(box, adopted).agent, second.id);
+});
+
+/**
+ * Run `work` on a PATH that has every tool the box's PATH has except lsof, as a runner without it does.
+ *
+ * @template T
+ * @param {any} box
+ * @param {() => T} work
+ * @returns {T}
+ */
+function withoutLsof(box, work) {
+  const [shims, ...rest] = box.env.PATH.split(delimiter);
+  const bin = join(box.dir, 'bin-without-lsof');
+  mkdirSync(bin, { recursive: true });
+  for (const dir of rest) {
+    let names = [];
+    try { names = readdirSync(dir); } catch { continue; }
+    for (const name of names) {
+      if (name === 'lsof' || existsSync(join(bin, name))) continue;
+      try { symlinkSync(join(dir, name), join(bin, name)); } catch { /* a name another directory already supplied */ }
+    }
+  }
+  const previous = box.env.PATH;
+  box.env.PATH = [shims, bin].join(delimiter);
+  try { return work(); } finally { box.env.PATH = previous; }
+}
+
+test('clause 1: with no lsof on the PATH a clean idle item folder is still adopted, since an unknown probe never reads as busy [B3,C7]', () => {
+  const { box, id, folder } = priorFolder();
+  const second = seat(box, 'web-b', 'session-b');
+  const claimed = withoutLsof(box, () => {
+    assert.equal(box.tryGit(box.repo, 'version').status, 0, 'git still runs without lsof');
+    assert.equal(runFixtureChild('lsof', ['-v'], { env: box.env, encoding: 'utf8' }).error?.code, 'ENOENT', 'lsof is absent from the PATH');
+    return as(box, 'session-b', () => box.run(second.root, 'claim', id));
+  });
+  assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
+  const adopted = /item folder: (.+)/u.exec(claimed.out)?.[1];
+  assert.ok(adopted && adopted !== folder, claimed.out);
+  assert.equal(existsSync(folder), false, 'the idle folder was moved to the claiming seat');
 });
 
 test('clause 2: a dirty folder of a live seat is never touched and the refusal names that seat [B3,C7]', () => {
