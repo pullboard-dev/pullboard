@@ -150,3 +150,7 @@ export function coChangedPaths(map, target, groups) {
   }
   return [...counts].map(([file, count]) => ({ file, count })).sort((a, b) => b.count - a.count || a.file.localeCompare(b.file));
 }
+
+/** Where the cell lint baseline descriptor lives; named here so a caller that only needs the path loads no lint store [C7]. */
+export const CELL_BASELINE_DIRECTORY = 'packages/codemap/data/baselines/lints';
+export const CELL_BASELINE_DESCRIPTOR = CELL_BASELINE_DIRECTORY + '/index.json';
