@@ -743,9 +743,10 @@ test('a forced hosted cell failure captures its final page state without raising
             /** Navigate normally and remove only the already witnessed item-chain node. */
             async navigate(url) {
               await page.navigate(url);
-              const shown = await page.poll(OPEN_BOARD, 8_000); // budget: existing blocker-settle fixture ceiling, not a speed assertion.
+              // The witness is the poll's own synchronous read: a second evaluate could see a board mid-redraw and flake.
+              const shown = await page.poll(`(() => { (${OPEN_BOARD}); const seen = (${READ_SCREEN}); return seen.board ? seen : null; })()`, 8_000); // budget: existing blocker-settle fixture ceiling, not a speed assertion.
               assert.ok(shown, 'the real seeded board appears before this control injects its fault');
-              beforeFault.push(await page.evaluate(READ_SCREEN));
+              beforeFault.push(shown);
               await page.evaluate(`document.querySelector('#chain').remove()`);
             },
           };
