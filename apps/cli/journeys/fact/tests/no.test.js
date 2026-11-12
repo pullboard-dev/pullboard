@@ -71,6 +71,7 @@ function runnerProject({ healthDown = false } = {}) {
 
 /** Run one script against the landing package in a child under the box's machine settings and return its JSON line. */
 async function inChild(box, body) {
+  // Process-level: the landing gate runs under the box's machine settings in its own node process (it may exit the process).
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
     const landing = await import(${JSON.stringify(landing)});
     const settle = async run => { try { return { value: await run() }; } catch (error) { return { code: error.code, message: error.message }; } };
