@@ -183,7 +183,7 @@ export async function run(io, { first, values }) {
   }
   if (frozen) {
     io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
+    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${store.readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
   }
   if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
   if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);
