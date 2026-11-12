@@ -42,7 +42,7 @@
     "launch": 1
   },
   "apps/cli/journeys/init/calls.test.js": {
-    "launch": 4
+    "launch": 6
   },
   "apps/cli/tests/io/resident/board.test.js": {
     "launch": 2
@@ -306,7 +306,7 @@
     "launch": 1
   },
   "apps/cli/journeys/why/main.test.js": {
-    "launch": 3
+    "launch": 22
   },
   "apps/cli/journeys/land/switch.test.js": {
     "launch": 1
@@ -399,7 +399,7 @@
     "launch": 1
   },
   "packages/runners/tests/version.test.js": {
-    "launch": 8
+    "launch": 11
   },
   "apps/cli/journeys/submit/regeneration.test.js": {
     "launch": 6
@@ -786,7 +786,7 @@
     "launch": 2
   },
   "apps/cli/journeys/list/startup.test.js": {
-    "launch": 6
+    "launch": 10
   },
   "apps/cli/journeys/flakes/ci.test.js": {
     "launch": 3
@@ -1037,9 +1037,6 @@
   "packages/runners/tests/cap.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/sentinels/main.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/init/scope.test.js": {
     "launch": 3
   },
@@ -1086,7 +1083,7 @@
     "launch": 1
   },
   "apps/runner/tests/io/orphans.test.js": {
-    "launch": 1
+    "launch": 5
   },
   "apps/cli/journeys/land/landing/noop.test.js": {
     "launch": 1
@@ -1146,7 +1143,7 @@
     "launch": 1
   },
   "apps/cli/journeys/init/refresh.test.js": {
-    "launch": 1
+    "launch": 2
   },
   "apps/cli/journeys/merged/receipts-envelope.test.js": {
     "launch": 2
@@ -1179,7 +1176,7 @@
     "launch": 2
   },
   "packages/gate/tests/io/edges/temporary.test.js": {
-    "launch": 1
+    "launch": 7
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
     "launch": 4
@@ -1359,7 +1356,7 @@
     "launch": 1
   },
   "apps/cli/journeys/cells/against.test.js": {
-    "launch": 1
+    "launch": 4
   },
   "apps/cli/journeys/companion/companions/composes.test.js": {
     "launch": 2
@@ -1797,7 +1794,7 @@
     "launch": 2
   },
   "apps/cli/journeys/check/self.test.js": {
-    "launch": 3
+    "launch": 11
   },
   "apps/cli/journeys/verify/accept/fast.test.js": {
     "launch": 1
