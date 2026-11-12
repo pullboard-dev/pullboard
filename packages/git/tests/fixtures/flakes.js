@@ -45,7 +45,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.com',
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.com',
-    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0' };
+    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0', PULLBOARD_CLAIM_BEATER: '0' };
   delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
   // The submitting process holds this fixture's gate, so every flake journey pins controller dispatch like the cockpit fixture [P7].
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
