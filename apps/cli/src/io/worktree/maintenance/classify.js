@@ -114,7 +114,11 @@ export function classifyMaintenanceTree(tree, {
     && (item.item_owner === itemSeat?.agent_id || item.item_built_by === itemSeat?.agent_id)
     && itemObligation(item, now)) : null;
   if (folderClaim) return result('active', true, 'item-folder-obligation', [itemSeat.agent_id], [folderItem]);
-  const matchingSeats = Array.isArray(seats) ? seats.filter(seat => absolutePath(seat.path ?? seat.agent_path) === path) : [];
+  // A seat's prepared spare (#5776) is the seat's own scratch: it follows the seat's retirement and is never a stray checkout.
+  const matchingSeats = Array.isArray(seats) ? seats.filter(seat => {
+    const root = absolutePath(seat.path ?? seat.agent_path);
+    return root && (root === path || `${root}-spare` === path);
+  }) : [];
   const agentIds = matchingSeats.map(seat => seat.agent_id).filter(id => typeof id === 'string' && id.length);
   const priorAgents = Array.isArray(previous?.agents) ? previous.agents.filter(id => typeof id === 'string') : [];
   const allAgentIds = [...new Set([...agentIds, ...priorAgents])];
