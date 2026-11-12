@@ -11,6 +11,8 @@ import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
+import { withLandingPermit } from './landing.js';
+import { landingGuardKey } from '../../../git/index.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
@@ -343,11 +345,13 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} options - compareWithMain:
- *   main's receipt lookup for a red gate's cases; the one provided to this process by default.
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null }} options - compareWithMain:
+ *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
+ *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, ...options }) {
-  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
+  const answer = jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+  return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
 /** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
