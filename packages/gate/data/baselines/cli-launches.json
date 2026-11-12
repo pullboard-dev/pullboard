@@ -1407,7 +1407,7 @@
     "launch": 2
   },
   "apps/cli/journeys/test/warning.test.js": {
-    "launch": 4
+    "launch": 2
   },
   "apps/cli/journeys/lifecycle/merge.test.js": {
     "launch": 1
