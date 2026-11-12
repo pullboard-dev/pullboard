@@ -672,7 +672,7 @@
     "launch": 9
   },
   "apps/cli/journeys/next/claims.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/next/deadline.test.js": {
     "launch": 2
@@ -706,9 +706,6 @@
   },
   "apps/cli/journeys/next/take.test.js": {
     "launch": 5
-  },
-  "apps/cli/journeys/next/verify.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/patch/folder.test.js": {
     "launch": 1
@@ -930,10 +927,7 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
-    "launch": 27
-  },
-  "apps/cli/journeys/resume/e2e.test.js": {
-    "launch": 26
+    "launch": 2
   },
   "apps/cli/journeys/resume/flow.test.js": {
     "launch": 35
@@ -1087,9 +1081,6 @@
   },
   "apps/cli/journeys/sentinels/needs.test.js": {
     "launch": 37
-  },
-  "apps/cli/journeys/settings/clauses.test.js": {
-    "launch": 11
   },
   "apps/cli/journeys/settings/descriptions.test.js": {
     "launch": 3
@@ -1566,7 +1557,7 @@
     "launch": 3
   },
   "apps/cli/journeys/watch/main.test.js": {
-    "launch": 54
+    "launch": 2
   },
   "apps/cli/journeys/why/main.test.js": {
     "launch": 3
