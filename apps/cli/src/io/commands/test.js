@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { queuesTestRun } from '../../../../../packages/drive/index.js';
+import { testRunItem } from '../../../../../packages/drive/index.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { readTestRun } from '../../../../../packages/drive/index.js';
 import { testRunLines } from '../../../../../packages/drive/index.js';
@@ -17,9 +18,12 @@ import { withBoardRead } from '../context.js';
  */
 async function seatClaims(ctx, agent) {
   const { itemsInStatus } = await import('../../../../../packages/store/index.js');
+  const { itemFolderIdentity } = await import('../../../../../packages/items/index.js');
   return withBoardRead(ctx, board => {
     const claims = itemsInStatus(board, 'claimed', agent);
-    return { item: claims.length === 1 ? claims[0].item_id : undefined, held: claims.length > 0, claims: claims.map(claim => claim.item_id) };
+    const folder = itemFolderIdentity(board, ctx.info.root)?.item ?? null;
+    const ids = claims.map(claim => claim.item_id);
+    return { item: testRunItem({ folder, claims: ids }), held: claims.length > 0, claims: ids };
   });
 }
 
@@ -43,7 +47,7 @@ export async function run(io, { first, second, rest, values }) {
   // --item N proves that one claim; with none named, a green run proves every claim the seat holds [C7].
   const named = values.item === undefined ? undefined : Number(values.item);
   if (named !== undefined && !owned.claims.includes(named)) throw new Refused('NOT_YOURS', `--item ${values.item} is not a claim this seat holds; run pullboard whoami to see its claims`);
-  const item = named ?? owned.item;
+  const item = testRunItem({ named, folder: owned.item, claims: owned.claims });
   const items = named === undefined ? owned.claims : [named];
   if (values.diagnose !== true && queuesTestRun(ctx, seat, values, process.env, { claimed: held })) return queueSeatRun(io, ctx, { agent, item, items, files, values }, await import('../test/pull.js'));
   if (values['test-run'] !== undefined) {
