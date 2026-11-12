@@ -76,7 +76,7 @@ function add(box,author,person = false) {
   const result=succeeds(run('add','web','Ready output','--criterion','web/ready.txt exists','--specs','G1','--route','mid','--check',check,'--wait',
     '--brief',`Files: web/ready.txt${box.wholeEvidence ? ', test/witness.test.mjs' : ''}\nTest: named witness asserts the output exists\nNamed test: named witness\nMeasurements: no quantitative bounds\nReviewer edges: absent output and restart`,'--json'));
   const item=JSON.parse(result.out).item;
-  assert.equal(item.item_check_baseline.result,'red');
+  assert.equal(item.item_check_baseline.result,'red',JSON.stringify(item.item_check_baseline).slice(0,1500));
   assert.ok(item.item_check_baseline.testEvidence.failed.some(name=>name.includes('named witness')));
   return item.item_id;
 }
