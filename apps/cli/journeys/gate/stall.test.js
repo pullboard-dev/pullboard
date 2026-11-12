@@ -143,7 +143,7 @@ test('clause 2: a gate whose tests section was skipped RUNNER_UNAVAILABLE re-dis
   const { repo, commit } = candidateRepo();
   /** The first Submit attempt: static loses its runner, and the tests section, stopped by that red, is skipped. */
   const firstAttempt = (name, signal) => {
-    if (name === 'static') return Promise.reject(new Refused('RUNNER_UNAVAILABLE', 'runner coreyolson@192.168.1.53 is quarantined'));
+    if (name === 'static') return Promise.reject(new Refused('RUNNER_UNAVAILABLE', 'runner runner@192.0.2.53 is quarantined'));
     if (name === 'tests') return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Refused('RUNNER_UNAVAILABLE', 'no runner for the tests section')), { once: true }));
     return { name };
   };

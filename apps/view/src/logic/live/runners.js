@@ -54,6 +54,27 @@ function relativeFile(file) {
 /** A whole number from a record, or null when it is not one. */
 const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
 
+/** A whole percent from 0 to 100, or null when the value is not a finite number. */
+const percent = value => Number.isFinite(value) ? Math.min(100, Math.max(0, Math.round(value))) : null;
+
+/**
+ * A runner's CPU and RAM use as whole percents from its latest load sample, null for what the sample does not hold.
+ * CPU is the sampled busy percent, else the one-minute load average over its cores; RAM is the used share of its memory.
+ * Only the two percents leave the machine; the sample's clock, core count and megabytes do not.
+ *
+ * @param {{ busyPercent?: number, average?: number[], cpus?: number, freeMB?: number, memoryMB?: number } | null | undefined} load
+ * @returns {{ cpu: number | null, ram: number | null }}
+ */
+export function loadPercents(load) {
+  if (!load || typeof load !== 'object') return { cpu: null, ram: null };
+  const average = Array.isArray(load.average) ? load.average[0] : null;
+  const cpu = Number.isFinite(load.busyPercent) ? load.busyPercent
+    : Number.isFinite(average) && Number.isFinite(load.cpus) && load.cpus > 0 ? average / load.cpus * 100 : null;
+  const ram = Number.isFinite(load.memoryMB) && load.memoryMB > 0 && Number.isFinite(load.freeMB) && load.freeMB >= 0
+    ? (load.memoryMB - Math.min(load.freeMB, load.memoryMB)) / load.memoryMB * 100 : null;
+  return { cpu: percent(cpu), ram: percent(ram) };
+}
+
 /** A positive item id from a record, or null. */
 const itemId = value => /^[1-9][0-9]*$/u.test(String(value ?? '')) ? Number(value) : null;
 
@@ -82,17 +103,19 @@ function fileProgress(files, progress) {
 /**
  * The anonymous public runner progress, from what readLiveRunners read. Runners are numbered 1..N: configured runners
  * in their settings order, then any other runner by its sorted name. No runner name, host, seat, agent, checkout
- * path, job id or batch id is copied out; only numbers, kind words, item ids and repo-relative test paths are.
+ * path, job id or batch id is copied out; only numbers, kind words, item ids, repo-relative test paths and each
+ * runner's busy flag and CPU and RAM percents are. A runner's load is its own record's `load`, else the newest
+ * `load` a job it holds reported in its progress step.
  *
  * @param {{
  *   now: number,
- *   runners?: { host: string, unavailable?: boolean, holders?: { agent?: string, repo?: string, since: string, item?: string, kind?: string, landing?: number }[] }[],
+ *   runners?: { host: string, unavailable?: boolean, load?: object | null, holders?: { agent?: string, repo?: string, since: string, item?: string, kind?: string, landing?: number }[] }[],
  *   configured?: { host: string }[],
  *   jobs?: { id: string, kind: string, item: number | null, items?: number[], runner: string, claimedAt: number, files?: string[] | null, progress?: object | null }[],
  *   landings?: { batch: string, items: number[], startedAt: number, files?: string[] | null, selected?: number | null, progress?: object | null }[],
  *   fileTimes?: Record<string, number>,
  * }} sources
- * @returns {{ runners: { runner: number, state: 'busy' | 'idle', jobs: object[] }[], runs: object[] }}
+ * @returns {{ runners: { runner: number, state: 'busy' | 'idle', busy: boolean, cpu: number | null, ram: number | null, jobs: object[] }[], runs: object[] }}
  */
 export function publicRunners({ now, runners = [], configured = [], jobs = [], landings = [], fileTimes = {} }) {
   if (!Number.isFinite(now)) throw new TypeError('the live runner snapshot needs an explicit clock reading');
@@ -101,6 +124,10 @@ export function publicRunners({ now, runners = [], configured = [], jobs = [], l
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const numbers = new Map([...order, ...others].map((name, index) => [name, index + 1]));
   const work = new Map([...numbers.values()].map(number => [number, []]));
+  const loads = new Map();
+  // Jobs come oldest first, so a later job's sample replaces an earlier one; the runner's own record wins over both.
+  for (const job of jobs) if (job.progress?.load && typeof job.progress.load === 'object') loads.set(numbers.get(job.runner), job.progress.load);
+  for (const runner of runners) if (runner?.load && typeof runner.load === 'object') loads.set(numbers.get(runner.host), runner.load);
   const runs = new Map();
   /** The run one lease or job belongs to, made once per key. */
   const runOf = (key, fields) => {
@@ -143,7 +170,7 @@ export function publicRunners({ now, runners = [], configured = [], jobs = [], l
   };
   const projected = new Map([...runs].map(([key, run]) => [key, project(run)]));
   return {
-    runners: [...work].map(([runner, held]) => ({ runner, state: held.length ? 'busy' : 'idle',
+    runners: [...work].map(([runner, held]) => ({ runner, state: held.length ? 'busy' : 'idle', busy: held.length > 0, ...loadPercents(loads.get(runner)),
       jobs: held.sort((a, b) => a.since - b.since).map(({ key, kind, item }) => {
         const run = key ? projected.get(key) : null;
         return { kind, item: run?.item ?? item, selected: run?.selected ?? null, done: run?.done ?? null, failing: run?.failing ?? null, minutesLeft: run?.minutesLeft ?? null };
