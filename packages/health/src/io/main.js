@@ -1,4 +1,6 @@
 import { allItemsNeedingRescope } from '../../../store/index.js';
+import { landingBatches } from '../../../store/index.js';
+import { flowWhy } from '../logic/flow.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
@@ -830,4 +832,36 @@ function ownerText({ role, who }) {
   if (role === 'person') return 'the person';
   if (role === 'coordinator') return who === COORDINATOR ? 'the coordinator' : `${who} (coordinator)`;
   return who ? `${who} (${role})` : `a ${role}`;
+}
+
+/**
+ * The release flow document for the board: one cause per unlanded item, every idle seat and recent landings, read from board state alone.
+ * Why here: the projection in logic/flow.js is pure; this wires it to the real board reads so the command and the view share one reader.
+ *
+ * @param {any} board - An open board.
+ * @param {{ config?: any, release?: string, now?: () => number, refuse?: (code: string, message: string) => Error }} [options]
+ * @returns {ReturnType<typeof flowWhy>}
+ */
+export function releaseFlow(board, { config = {}, release, now = () => board.clock.now().getTime(), refuse } = {}) {
+  const policy = config?.verify?.policy ?? 'any';
+  const familyPolicy = config?.verify?.family ?? 'off';
+  const store = { milestones, lineSettings, listItems, listAgents, landingBatches, laneHold, nextFor };
+  const workProgress = (reader) => {
+    const at = now();
+    const all = listItems(reader, { all: true });
+    const byId = new Map(all.map(item => [item.item_id, item]));
+    const lastEvent = reader.db.prepare('SELECT MAX(event_at) AS at FROM event WHERE item_id = ?');
+    return new Map(all.map(item => {
+      const holder = item.item_status === 'claimed' ? item.item_owner : reviewHolder(reader, item);
+      const waits = localDependencyIds(item).filter(other => byId.get(other) && !byId.get(other).item_merged_commit && byId.get(other).item_status !== 'withdrawn').map(other => `#${other}`);
+      const last = Date.parse(lastEvent.get(item.item_id)?.at ?? '');
+      return [item.item_id, { holder: holder ?? null, waits, ...(holder && Number.isFinite(last) ? { idleMinutes: Math.max(0, Math.floor((at - last) / 60_000)), idleBasis: 'event' } : {}) }];
+    }));
+  };
+  const reviewEligibility = (reader, item, options) => {
+    const checks = listAgents(reader).map(agent => ({ agent: agent.agent_id, problem: eligibilityProblem(reader, item, agent, options) }));
+    return { eligible: checks.filter(row => !row.problem).map(row => row.agent), ineligible: checks.filter(row => row.problem).map(row => ({ agent: row.agent, rule: row.problem.message })) };
+  };
+  const merged = (reader, sinceIso) => reader.db.prepare("SELECT item_id, event_at FROM event WHERE event_kind = 'merged' AND event_at >= ?").all(sinceIso);
+  return flowWhy(board, { store, workProgress, reviewEligibility, now, merged, release, policy, familyPolicy, ...(refuse ? { refuse } : {}) });
 }

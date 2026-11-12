@@ -148,11 +148,12 @@ test('sensitive reviews without a required family refuse same-vendor offers and 
     assert.notEqual(offered.document?.item?.item_id, strict, offered.out + offered.err);
     assert.equal(store.getItem(box.board, strict).item_review_by, null);
   }
+  const buildBefore = store.getItem(box.board, build).item_status;
   const refused = await cli(box, box.seats.sameFamily.path, ['next', '--verify', String(strict)]);
   assert.equal(refused.code, 1, refused.out + refused.err);
   assert.equal(refused.document.error.code, 'SAME_FAMILY');
   assert.match(refused.document.error.message, /another declared vendor family/u);
-  assert.equal(store.getItem(box.board, build).item_status, 'open');
+  assert.equal(store.getItem(box.board, build).item_status, buildBefore, 'the refused review leaves the build as it was');
   const outside = await cli(box, box.seats.outside.path, ['next', '--take']);
   assert.equal(outside.code, 0, outside.out + outside.err);
   assert.equal(outside.document.item.item_id, strict);
