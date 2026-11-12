@@ -5,16 +5,15 @@ import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkpointAfterMove } from '../index.js';
-import * as store from '../../store/index.js';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
-import { cellClaim } from '../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../store/tests/fixtures/cell.js';
-import { cellProject } from '../../store/tests/fixtures/cell.js';
-import { cellSeat } from '../../store/tests/fixtures/cell.js';
+import { checkpointAfterMove } from '../../../../packages/stats/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
+import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../packages/store/tests/fixtures/cell.js';
 
-/** The model name store fixtures seat with. */
-const FIXTURE_MODEL = 'Fixture Model';
 const START = Date.parse('2026-11-09T12:00:00.000Z');
 const MINUTE = 60_000;
 
