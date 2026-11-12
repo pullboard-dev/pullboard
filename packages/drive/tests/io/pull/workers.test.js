@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
 import { jobWorkers } from '../../../src/io/pull.js';
-import { JOB_WORKERS_ENV } from '../../../../kernel/light.js';
+import { JOB_WORKERS_ENV } from '../../../light.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 

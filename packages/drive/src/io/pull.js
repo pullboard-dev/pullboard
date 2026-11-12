@@ -24,7 +24,6 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { childEnvironment } from '../../../kernel/light.js';
-import { JOB_WORKERS_ENV } from '../../../kernel/light.js';
 import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
 
@@ -364,6 +363,9 @@ export function serveSlots(setting, cores = availableParallelism()) {
   if (!Number.isInteger(slots) || slots < 1) throw new Refused('USAGE', `runner serve --jobs takes a whole number of at least 1, not ${setting}`);
   return slots;
 }
+
+/** How many test workers a pulled job may use: its share of the runner's cores, set by the serve that runs it [P7,#5919]. */
+export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';
 
 /**
  * How many test workers each job of a serve may use: an even share of the runner's cores, at least one.

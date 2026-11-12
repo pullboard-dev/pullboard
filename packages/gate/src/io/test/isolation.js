@@ -20,7 +20,7 @@ import { declareNodeOptionProofs } from '../../../../kernel/index.js';
 import { foreignNodeOptions as classifyNodeOptions } from '../../../../kernel/index.js';
 import { gateRuntimeCaptureSource } from '../../logic/preload.js';
 import { PULLED_JOB_ENV } from './concurrency.js';
-import { JOB_WORKERS_ENV } from '../../../../kernel/light.js';
+import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 import { childJournalPreloadSource } from '../journal/source.js';
 
 /** Stands in for the OS account home when machine state falls back to it (packages/resources/src/io/home.js). */

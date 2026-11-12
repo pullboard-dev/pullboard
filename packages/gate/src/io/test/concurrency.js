@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { Refused } from '../../../../kernel/index.js';
-import { JOB_WORKERS_ENV } from '../../../../kernel/light.js';
+import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 
 /** Detect the performance-core budget on Apple Silicon, or the runtime's usable CPU budget elsewhere. */
 export function performanceCores() {

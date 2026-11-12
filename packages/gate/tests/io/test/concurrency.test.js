@@ -8,7 +8,7 @@ import { performanceCores } from '../../../src/io/test/concurrency.js';
 import { PULLED_JOB_ENV } from '../../../src/io/test/concurrency.js';
 import { testConcurrency } from '../../../src/io/test/concurrency.js';
 import { isolateTestMachine } from '../../../src/io/test/isolation.js';
-import { JOB_WORKERS_ENV } from '../../../../kernel/light.js';
+import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
