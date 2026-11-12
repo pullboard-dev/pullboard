@@ -68,6 +68,7 @@ import {
 } from '../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA_BEHIND BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE SHIM_IMPORT_PARSER UNKNOWN_SPEC'.split(' ');
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
@@ -1169,6 +1170,9 @@ test('next --verify reserves the review for the reviewLease and says until when;
       PULLBOARD_HOME: join(dir, 'home'),
       PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     };
+    // This journey submits through a real machine home and holds the gate in the submitting process, so it pins controller dispatch (#6182-#6185).
+    fs.mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
     const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
     // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
     // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.

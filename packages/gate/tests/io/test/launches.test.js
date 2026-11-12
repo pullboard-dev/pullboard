@@ -137,3 +137,17 @@ test('clause 1: the report gives each file a pullboard CLI count and an other-ch
   assert.deepEqual(cliLaunchSplit(sites), { files: { [PATH]: { cli: 2, other: 2 } }, totals: { cli: 2, other: 2 } });
   assert.deepEqual(cliLaunchCounts(sites), { [PATH]: { launch: 4 } }, 'the ceilings still count both');
 });
+
+test('tighten drops a row measured at 0 [C7]', () => {
+  const other = 'apps/cli/journeys/example/stale.test.js';
+  const baseline = { [PATH]: { launch: 2 }, [other]: { launch: 3 } };
+  const next = tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', PATH), baseline);
+  assert.deepEqual(next, { [PATH]: { launch: 1 } });
+  assert.equal(other in next, false, 'the file measured at 0 loses its row');
+});
+
+test('tighten refuses to raise or add a row, naming the file [C7]', () => {
+  const added = 'apps/cli/journeys/example/new.test.js';
+  assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);\nbox.run(b);', PATH), { [PATH]: { launch: 1 } }), /main\.test\.js/u);
+  assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', added), { [PATH]: { launch: 1 } }), /new\.test\.js/u);
+});
