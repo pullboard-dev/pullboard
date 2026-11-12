@@ -74,3 +74,26 @@ test("clause 1: pullboard add with --check \"node apps/cli/src/io/run/tests.js '
   assert.match(item.item_brief, /^Test: test\/x\.test\.js$/mu, item.item_brief);
   assert.equal(item.item_route, 'mid', 'an undiagnosed default starts mid, never a light add that refuses');
 });
+
+test('clause 1: a diagnosis fact on a strong item keeps it strong and prints the coordinator edit command; a mid item still goes light [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox());
+  const brief = 'Files: web/handler.js\nTest: test/handler.test.js asserts the canonical result';
+  const diagnosis = 'Files: web/handler.js Change: return the canonical result Test case: test/handler.test.js asserts the canonical result';
+  const ids = {};
+  for (const route of ['strong', 'mid']) {
+    const added = plainAdd(helpers, box, 'web', `Diagnose ${route}`, '--criterion', 'the handler returns the canonical result [test]', '--check', 'true', '--brief', brief, '--route', route, '--json');
+    assert.equal(added.code, 0, added.err + added.out);
+    ids[route] = JSON.parse(added.out).item.item_id;
+  }
+  const fact = id => runFixtureChild(process.execPath, [helpers.BIN, 'fact', String(id), 'diagnosis', diagnosis], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const strong = fact(ids.strong);
+  assert.equal(strong.status, 0, `${strong.stderr}${strong.stdout}`);
+  assert.match(strong.stdout, new RegExp(`pullboard edit ${ids.strong} --route light`, 'u'), strong.stdout);
+  assert.equal(onBoard(box, board => store.getItem(board, ids.strong).item_route), 'strong');
+  const mid = fact(ids.mid);
+  assert.equal(mid.status, 0, `${mid.stderr}${mid.stdout}`);
+  assert.doesNotMatch(mid.stdout, /pullboard edit/u);
+  assert.equal(onBoard(box, board => store.getItem(board, ids.mid).item_route), 'light');
+});
