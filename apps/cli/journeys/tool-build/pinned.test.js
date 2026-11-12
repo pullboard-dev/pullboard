@@ -57,6 +57,7 @@ import {loadConfig} from ${JSON.stringify(new URL('../../../../packages/config/s
 ${executionServicesSource(module)}
 const result=await runGate(process.cwd(),loadConfig(process.cwd()),{executionServices,trustStamp:false,landing:true,agent:'coordinator'});
 if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:result.receiptId}));`;
+  // Process-level: the native full gate runs as its own node process, as a landing does.
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.failure ?? child.stderr + child.stdout);
   return JSON.parse(child.stdout.trim().split('\n').at(-1)).id;
@@ -91,7 +92,7 @@ async function ready(path) {
 }
 
 /** Install source before normal board initialization, as a real installation precedes installing its hooks. */
-function project(source) {
+async function project(source) {
   const box = e2e.sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
@@ -106,9 +107,9 @@ function project(source) {
   copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-qm', 'chore: install synthetic tool source before board initialization');
-  const initialized = box.run(repo, 'init');
+  const initialized = await box.runLocal(repo, 'init');
   assert.equal(initialized.code, 0, initialized.err + initialized.out);
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node packages/gate/src/io/run/tests.js',
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js',
     verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: ['docs/'] }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo spec\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n');
   return { ...box, repo, originalHook };
@@ -116,7 +117,7 @@ function project(source) {
 
 test('pinned CLI, hooks and loaded generation survive trunk advancement; native promotion affects new commands only [C7]', async () => {
   const source = resolve(import.meta.dirname, '../../../..');
-  const box = project(source);
+  const box = await project(source);
   mkdirSync(join(box.repo, 'apps/cli/tests'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('synthetic full gate [C7]',()=>{});\n");
   const first = generation(box, 'first');
@@ -129,16 +130,16 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   assert.throws(() => gatedToolBuild(location, first, firstReceipt, { now: Date.parse(fullBuild.gatedAt) + 3_600_001 }),
     { code: 'TOOL_BUILD_STALE' }, 'an actual full receipt older than the refresh window is named and refused');
   assert.throws(() => gatedToolBuild(location, first, '11111111-1111-4111-8111-111111111111'), { code: 'TOOL_BUILD_NOT_GATED' });
-  let result = box.run(box.repo, 'tool-build', 'promote', first, '--gate-receipt', firstReceipt, '--json');
+  let result = await box.runLocal(box.repo, 'tool-build', 'promote', first, '--gate-receipt', firstReceipt, '--json');
   assert.equal(result.code, 0, result.err + result.out);
   const seat = join(box.dir, 'claimed-seat');
   box.git(box.repo, 'worktree', 'add', '--detach', seat, first);
-  result = fixtureJoin(box.run, seat, 'web', '--family', 'Synthetic independent pin fixture');
+  result = await fixtureJoin(box.runLocal, seat, 'web', '--family', 'Synthetic independent pin fixture');
   assert.equal(result.code, 0, result.err + result.out);
-  result = fixtureAdd(box.run, box.repo, 'web', 'Synthetic held source', '--criterion', 'Keep the held source unchanged', '--specs', 'G1', '--json');
+  result = await fixtureAdd(box.runLocal, box.repo, 'web', 'Synthetic held source', '--criterion', 'Keep the held source unchanged', '--specs', 'G1', '--json');
   assert.equal(result.code, 0, result.err + result.out);
   const item = JSON.parse(result.out).item.item_id;
-  result = box.run(seat, 'claim', String(item), '--json');
+  result = await box.runLocal(seat, 'claim', String(item), '--json');
   assert.equal(result.code, 0, result.err + result.out);
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -147,15 +148,18 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   const second = generation(box, 'second');
   const secondReceipt = gate(box);
   assert.throws(() => gatedToolBuild(location, first, secondReceipt), { code: 'TOOL_BUILD_NOT_GATED' });
+  // Process-level (here and for the second probe and health below): the pinned dispatcher selects a generation only at process start.
   // Version-only arguments intentionally bypass pinned-tool selection; probe an ordinary command to test the selected generation.
   assert.equal(box.run(seat, 'status', '--name', 'tool-probe').out.trim().split('\n')[0], 'first', 'a new trunk commit does not move the claimed seat CLI');
   const hookMarker = join(box.dir, 'hook-generation');
+  // Process-level: a real git hook entry runs as its own process.
   const hook = runFixtureChild(process.execPath, [join(source, 'apps/cli/pullboard.js'), 'hook', 'pre-commit'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_HOOK_MARKER: hookMarker }, encoding: 'utf8' });
   assert.equal(hook.status, 0, hook.failure ?? hook.stderr + hook.stdout);
   assert.equal(readFileSync(hookMarker, 'utf8'), 'first', 'actual hook implementation comes from the selected generation');
   assert.equal(readToolBuild(location).commit, first, 'the actual hook command retained the same published build');
   const marker = join(box.dir, 'pin-ready'), release = join(box.dir, 'pin-release');
+  // Process-level: a held child must outlive the promotion, so it cannot be in-process.
   const held = startFixtureChild(process.execPath, [join(source, 'apps/cli/pullboard.js'), 'status', '--name', 'tool-probe'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_READY: marker, PULLBOARD_PIN_RELEASE: release }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
@@ -163,7 +167,7 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   const closed = new Promise(resolve => held.on('close', resolve));
   try {
     await ready(marker);
-    result = box.run(box.repo, 'tool-build', 'promote', second, '--gate-receipt', secondReceipt, '--json');
+    result = await box.runLocal(box.repo, 'tool-build', 'promote', second, '--gate-receipt', secondReceipt, '--json');
     assert.equal(result.code, 0, result.err + result.out);
     assert.equal(box.run(seat, 'status', '--name', 'tool-probe').out.trim().split('\n')[0], 'second', 'promotion changes the next command');
     assert.equal(box.git(seat, 'rev-parse', 'HEAD').trim(), first, 'tool promotion does not advance the item source');
@@ -175,9 +179,9 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
     const health = JSON.parse(box.run(seat, 'health', '--json').out);
     assert.equal(health.toolBuild.runningCommit, second);
     assert.ok(health.toolBuild.ageMs >= 0);
-    result = box.run(seat, 'tool-build', 'promote', first, '--gate-receipt', firstReceipt, '--json');
+    result = await box.runLocal(seat, 'tool-build', 'promote', first, '--gate-receipt', firstReceipt, '--json');
     assert.equal(JSON.parse(result.out).error.code, 'COORDINATOR_ONLY');
-    result = box.run(box.repo, 'tool-build', 'promote', first, '--gate-receipt', firstReceipt, '--json');
+    result = await box.runLocal(box.repo, 'tool-build', 'promote', first, '--gate-receipt', firstReceipt, '--json');
     assert.equal(result.code, 0, result.err + result.out);
     const prior = readToolBuild(location);
     writeToolBuild(location, { ...prior, promotedAt: new Date(Date.now() - 3_600_001).toISOString() });
@@ -186,13 +190,13 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   } finally { writeFileSync(release, 'release'); await closed; }
 });
 
-test('a native green selected-file gate cannot publish a full tool build [C7]', () => {
-  const box = project(resolve(import.meta.dirname, '../../../..'));
+test('a native green selected-file gate cannot publish a full tool build [C7]', async () => {
+  const box = await project(resolve(import.meta.dirname, '../../../..'));
   mkdirSync(join(box.repo, 'apps/cli/tests'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = 'node packages/gate/src/io/run/tests.js apps/cli/tests/pin-audit.test.js';
+  config.gate = 'node apps/cli/src/io/run/tests.js apps/cli/tests/pin-audit.test.js';
   writeFileSync(configFile, JSON.stringify(config));
   const commit = generation(box, 'partial');
   const receipt = gate(box);
@@ -209,7 +213,7 @@ test('automatic main gate is opt-in and refuses an unregistered timer [C7]', asy
 });
 
 test('timer honors committed main opt-out and retains an observed live owner [C7]', async () => {
-  const box = project(resolve(import.meta.dirname, '../../../..'));
+  const box = await project(resolve(import.meta.dirname, '../../../..'));
   mkdirSync(join(box.repo, 'apps/cli/tests'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
   generation(box, 'timer');

@@ -11,12 +11,12 @@ export function assertCollisionFreeLanding({ landProject, itemWorktree, submitIt
     const box = landProject();
     const shared = 'web/land-1.test.js';
     mkdirSync(join(box.repo, 'web'), { recursive: true });
-    writeFileSync(join(box.repo, shared), 'BASE first\nunchanged middle\nBASE last\n');
+    writeFileSync(join(box.repo, shared), '// BASE first\n// unchanged middle\n// BASE last\n');
     box.git(box.repo, 'add', shared);
     box.git(box.repo, 'commit', '-q', '-m', 'test: shared landing base [G1]');
     const entries = [itemWorktree(box, 1, shared), itemWorktree(box, 2, shared), itemWorktree(box, 3)];
-    submitItem(box, entries[0], 'A first\nunchanged middle\nBASE last\n');
-    submitItem(box, entries[1], 'BASE first\nunchanged middle\nB last\n');
+    submitItem(box, entries[0], '// A first\n// unchanged middle\n// BASE last\n');
+    submitItem(box, entries[1], '// BASE first\n// unchanged middle\n// B last\n');
     submitItem(box, entries[2]);
     for (const entry of entries) acceptItem(box, entry);
     if (enabled) onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'collisionFreeBatch', value: true,
@@ -51,7 +51,7 @@ export function assertCollisionFreeLanding({ landProject, itemWorktree, submitIt
       assert.equal(item.item_status, 'verified');
       assert.ok(item.item_merged_commit, 'every accepted item lands without reopening');
     }
-    assert.equal(box.git(box.repo, 'show', 'main:' + shared), 'A first\nunchanged middle\nB last');
+    assert.equal(box.git(box.repo, 'show', 'main:' + shared), '// A first\n// unchanged middle\n// B last');
     assert.equal(box.git(box.remote, 'rev-parse', 'main'), box.git(box.repo, 'rev-parse', 'main'), 'the actual gated tip was pushed');
   }
 }
@@ -61,12 +61,12 @@ export function assertDeferredLandingPriority({ landProject, itemWorktree, submi
   const box = landProject();
   const shared = 'web/land-1.test.js';
   mkdirSync(join(box.repo, 'web'), { recursive: true });
-  writeFileSync(join(box.repo, shared), 'BASE first\nunchanged middle\nBASE last\n');
+  writeFileSync(join(box.repo, shared), '// BASE first\n// unchanged middle\n// BASE last\n');
   box.git(box.repo, 'add', shared);
   box.git(box.repo, 'commit', '-q', '-m', 'test: deferred landing base [G1]');
   const entries = [itemWorktree(box, 1, shared), itemWorktree(box, 2, shared), itemWorktree(box, 3)];
-  submitItem(box, entries[0], 'A first\nunchanged middle\nBASE last\n');
-  submitItem(box, entries[1], 'BASE first\nunchanged middle\nB last\n');
+  submitItem(box, entries[0], '// A first\n// unchanged middle\n// BASE last\n');
+  submitItem(box, entries[1], '// BASE first\n// unchanged middle\n// B last\n');
   submitItem(box, entries[2]);
   for (const entry of entries) acceptItem(box, entry);
   onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'collisionFreeBatch', value: true,
@@ -96,8 +96,8 @@ export function assertDeferredLandingPriority({ landProject, itemWorktree, submi
 export function assertSiblingConflictLanding({ landProject, itemWorktree, submitItem, acceptItem, json, file }) {
   const box = landProject();
   const entries = [1, 2].map(number => itemWorktree(box, number, file));
-  submitItem(box, entries[0], 'PASS\nfirst sibling\n');
-  submitItem(box, entries[1], 'PASS\nsecond sibling\n');
+  submitItem(box, entries[0], 'PASS\n// first sibling\n');
+  submitItem(box, entries[1], 'PASS\n// second sibling\n');
   for (const entry of entries) acceptItem(box, entry);
   const dry = json(box, box.repo, 'land', '--dry-run');
   assert.deepEqual(dry.blocked, [], 'neither acceptance is stale against unchanged main');

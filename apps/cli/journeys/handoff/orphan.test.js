@@ -84,13 +84,14 @@ test('the real worker guard records one terminal stale result after a waiting ha
     else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   });
   const box = helpers.project('true', sandbox);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Native queued handoff', '--specs', 'G1', '--criterion',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Native queued handoff', '--specs', 'G1', '--criterion',
     'A stale queued handoff is dropped before runner admission. [test]', '--check', 'true', '--brief', 'Files:\n- web/page.js\nTest:\n- the check passes', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(boardFile, undefined, { gitRoot: box.web });
   try {
     const item = store.getItem(board, id);

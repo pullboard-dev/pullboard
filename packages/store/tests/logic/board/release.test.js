@@ -14,7 +14,7 @@ const commit = 'a'.repeat(40);
 /** A board with one item and two core seats. */
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-infra-release-'));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const first = store.register(board, { lane: 'core', path: '/one', route: 'strong' });

@@ -1,3 +1,5 @@
+import ceilings from '../../../../data/context-ceilings.json' with { type: 'json' };
+
 /** Pure exit decisions use known claim counters and exact consecutive receipt failures [B3,C7,N2]. */
 /** An unavailable or malformed count is unknown, never a reason to stop a session. */
 function count(value) { return Number.isSafeInteger(value) && value >= 0 ? value : null; }
@@ -26,10 +28,11 @@ export function exitRulesDecision(policy, usage, receipts = []) {
   return failure ? { code: 'EXIT_REPEAT_FAILURE', failure } : null;
 }
 
-/** The prompt size at which a session ends: exitRules.contextCeiling, else 100000 for a Haiku model and 200000 otherwise. */
+/** The prompt size at which a session ends: exitRules.contextCeiling, else the per-family ceiling from packages/stats/data/context-ceilings.json [P5]. */
 export function contextCeiling(policy, model) {
   if (Number.isSafeInteger(policy?.contextCeiling) && policy.contextCeiling > 0) return policy.contextCeiling;
-  return /haiku/iu.test(String(model ?? '')) ? 100_000 : 200_000;
+  const name = String(model ?? '').toLowerCase();
+  return ceilings.families.find(family => name.includes(family.contains))?.ceiling ?? ceilings.default;
 }
 
 /** A seat whose last call's prompt exceeds the ceiling ends after its claim settles; unknown usage never ends a session [C7]. */

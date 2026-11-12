@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Real private admission uses runner-owned CPU observations without changing fleet capacity [C7,Q1,O5]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

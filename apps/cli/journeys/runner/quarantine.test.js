@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run-tests.js packages/resources/index.js */
 /** One unverified cleanup costs one runner slot, runner jobs start no detached watcher, and a held pool lock never fails a gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -107,6 +107,7 @@ test('a gate whose slot release meets a held pool lock records its release once 
   assert.equal(holders(pool, 'locked-host'), 1);
   const script = `const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1]);db.exec('BEGIN EXCLUSIVE');`
     + `process.stdout.write('locked\\n');setTimeout(()=>{db.exec('COMMIT');db.close();},1500);`;
+  // Process-level: a detached child holds a SQLite write lock across processes.
   const child = spawn(process.execPath, ['-e', script, pool], { stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(resolve => child.once('exit', resolve));
   await new Promise(resolve => child.stdout.once('data', resolve));
@@ -123,7 +124,7 @@ test('a gate whose slot release meets a held pool lock records its release once 
   assert.equal(await exited, 0);
 });
 
-test('a real CLI child of a runner job, with maintenance enabled, leaves no watcher behind [C7]', t => {
+test('a real CLI child of a runner job, with maintenance enabled, leaves no watcher behind [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', undefined, { withWorktree: false });
@@ -134,18 +135,18 @@ test('a real CLI child of a runner job, with maintenance enabled, leaves no watc
   const common = box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').trim();
   const timer = join(common, 'pullboard', 'worktree-maintenance', 'timer.json');
   box.env.PULLBOARD_RUNNER_JOB = 'job-fixture';
-  const marked = box.run(box.repo, 'status');
+  const marked = await box.runLocal(box.repo, 'status');
   assert.equal(marked.code, 0, marked.err || marked.out);
   assert.equal(existsSync(timer), false, 'a CLI inside a runner job registers no detached watcher');
   delete box.env.PULLBOARD_RUNNER_JOB;
-  const plain = box.run(box.repo, 'status');
+  const plain = await box.runLocal(box.repo, 'status');
   assert.equal(plain.code, 0, plain.err || plain.out);
   assert.equal(existsSync(timer), true, 'the same command outside a job does start one, so the marker is what stops it');
   const owner = JSON.parse(readFileSync(timer, 'utf8'));
   try { process.kill(owner.pid, 'SIGKILL'); } catch { /* already gone */ }
 });
 
-test('run-tests keeps the runner job marker for its test children [C7]', () => {
+test('run-tests keeps the runner job marker for its test children [C7]', async () => {
   const source = readFileSync(new URL('../../../../packages/gate/src/io/run-tests.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /delete env(?:\.PULLBOARD_RUNNER_JOB|\[['"]PULLBOARD_RUNNER_JOB['"]\])/u, 'test children and their CLI descendants stay marked');
 });
@@ -173,6 +174,7 @@ test('a controller killed mid-job costs its runner one slot, and proving that ex
     + `const lease=await r.takeResource({name:'gate',capacity:1,browserCapacityProvider:()=>1,scope:'machine',root:${JSON.stringify(dir)},agent:'fixture-controller',remote:true,runnerOnly:true,runnerWaitMs:10000,runnerProvider:()=>${JSON.stringify(runners)}});`
     + `const custody=r.controllerDeadline({token:lease.token,pool:lease.pool},process.pid);custody.job(${JSON.stringify(recovery)});`
     + `process.stdout.write(lease.runner.host+'\\n');setInterval(()=>{},1000);`;
+  // Process-level: a live child holds a runner lease that must outlive this call.
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: process.env, stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(resolve => child.once('exit', resolve));
   const host = await new Promise(resolve => child.stdout.once('data', data => resolve(String(data).trim())));

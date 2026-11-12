@@ -6,6 +6,15 @@ import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
 import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
 import { fileTimesPath } from '../../../gate/index.js';
 import { readFileTimes } from '../../../gate/index.js';
+import { planReleaseShards } from '../../../gate/index.js';
+import { fileKey } from '../../../gate/index.js';
+import { landingBalance } from '../../../gate/index.js';
+import { landingFloor } from '../../../gate/index.js';
+import { planFreeSlotShards } from '../../../gate/index.js';
+import { planLandingShards } from '../../../gate/index.js';
+
+export { fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards };
+
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -26,9 +35,7 @@ import {
 } from 'node:fs';
 import {
   dirname,
-  isAbsolute,
   join,
-  posix,
   relative,
   resolve,
   sep,
@@ -95,39 +102,6 @@ export function releasePlacement(value, actual = releaseExecutors()) {
   return parsed;
 }
 
-/** Partition every file once, reserving compatible work for each executor before balancing the rest. */
-export async function planReleaseShards(files, executors, times = {}, needsBrowser = async () => true, needsGui = async () => true, needsCpuRunner = async () => false) {
-  if (!files.length || new Set(files.map(file => fileKey(file))).size !== files.length || executors.length < 1 || files.length < executors.length) {
-    throw new Error('a release needs distinct tracked files and nonempty work for every executor');
-  }
-  const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms) && ms >= 0);
-  const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
-  const rows = await Promise.all(files.map(async file => ({ file,
-    weight: Number.isFinite(times[fileKey(file)]) && times[fileKey(file)] >= 0 ? times[fileKey(file)] : average,
-    browser: await needsBrowser([file]), gui: await needsGui([file]), cpuRunner: await needsCpuRunner([file]) })));
-  rows.sort((a, b) => b.weight - a.weight || a.file.localeCompare(b.file));
-  const shards = executors.map(executor => ({ executor, files: [], weight: 0 }));
-  /** A placement restriction never confers browser or GUI capability on a worker. */
-  const compatible = (row, shard) => (!row.browser || shard.executor.browser) && (!row.gui || shard.executor.gui)
-    && (!row.cpuRunner || shard.executor.kind === 'ssh');
-  const leastCapableFirst = [...shards].sort((a, b) => Number(a.executor.gui) - Number(b.executor.gui)
-    || Number(a.executor.browser) - Number(b.executor.browser) || a.executor.id.localeCompare(b.executor.id));
-  for (const shard of leastCapableFirst) {
-    const index = rows.findIndex(row => compatible(row, shard));
-    if (index < 0) throw new Error(`no compatible test work for required executor ${shard.executor.id}`);
-    const [row] = rows.splice(index, 1);
-    shard.files.push(row.file); shard.weight += row.weight;
-  }
-  for (const row of rows) {
-    const shard = shards.filter(entry => compatible(row, entry)).sort((a, b) => a.weight - b.weight
-      || a.files.length - b.files.length || a.executor.id.localeCompare(b.executor.id))[0];
-    if (!shard) throw new Error(`no registered release executor has the capabilities required by ${row.file}`);
-    shard.files.push(row.file); shard.weight += row.weight;
-  }
-  for (const shard of shards) shard.files.sort();
-  return shards;
-}
-
 const GATE_MARKERS = [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV];
 // Budget: a stopped shard's run-tests drains its owned processes within its 12 s custody limit; past
 // this its group is killed.
@@ -143,88 +117,6 @@ function writeFileTimes(root, measured) {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
   writeFileSync(temporary, `${JSON.stringify({ version: 1, files }, null, 2)}\n`, { mode: 0o600 });
   renameSync(temporary, path);
-}
-
-/**
- * Canonicalize a test file path to its repository-relative form: `./`, `..` and doubled slashes
- * fold away, and an absolute path under `root` becomes relative to it. Two spellings of one file
- * then share one key, so the shard planner never runs the same cases twice (#3158).
- */
-export function fileKey(file, root = null) {
-  const text = String(file).split(sep).join('/');
-  if (!text) return '';
-  const inside = root && isAbsolute(text) ? relative(root, text).split(sep).join('/') : text;
-  return posix.normalize(inside).replace(/^\.\//u, '');
-}
-
-/**
- * Split files into at most `count` shards by weight, heaviest first onto the lightest shard.
- * A file with a known wall time weighs that time; with no times at all every file weighs one, so the
- * split falls back to file count. A new file weighs the average known time. Empty shards are dropped.
- *
- * @param {string[]} files
- * @param {number} count
- * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
- * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
- * @returns {{ files: string[], weight: number }[]}
- */
-export function planLandingShards(files, count, times = {}, root = null) {
-  const known = files.map(file => times[fileKey(file, root)]).filter(ms => Number.isFinite(ms));
-  const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
-  const weight = file => known.length ? (Number.isFinite(times[fileKey(file, root)]) ? times[fileKey(file, root)] : average) : 1;
-  const distinct = new Map();
-  for (const file of files) if (!distinct.has(fileKey(file, root))) distinct.set(fileKey(file, root), file); // One file once, however spelled, so no case runs twice (#3158).
-  const ordered = [...distinct.values()].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
-  const shards = Array.from({ length: Math.max(1, count) }, () => ({ files: [], weight: 0 }));
-  for (const file of ordered) {
-    const lightest = shards.reduce((best, shard) => shard.weight < best.weight
-      || (shard.weight === best.weight && shard.files.length < best.files.length) ? shard : best);
-    lightest.files.push(file);
-    lightest.weight += weight(file);
-  }
-  for (const shard of shards) shard.files.sort((a, b) => a.localeCompare(b));
-  return shards.filter(shard => shard.files.length);
-}
-
-/**
- * Split a build, submit or review run's test files across the runner slots that are free right now: at most one shard per
- * free slot and per distinct file, balanced by recorded file times through the landing planner. One free slot, or none,
- * gives one shard holding every file, so such a run executes as it does today (#3228).
- *
- * @param {string[]} files
- * @param {number} freeSlots - Runner slots the caller found free; fractions and negatives count as none.
- * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
- * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
- * @returns {{ shards: { files: string[], weight: number }[], balance: 'history'|'history and average'|'file count', slots: number }}
- */
-export function planFreeSlotShards(files, freeSlots, times = {}, root = null) {
-  const distinct = new Set(files.map(file => fileKey(file, root))).size;
-  const slots = Math.max(1, Math.min(Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 1, distinct));
-  const shards = planLandingShards(files, slots, times, root);
-  return { shards, balance: landingBalance(files.map(file => fileKey(file, root)), times), slots: shards.length };
-}
-
-/**
- * Name how a plan was balanced: by the last measured per-file wall times when every file has one,
- * by those times with new files at their average when some do, and by file count when none do.
- *
- * @param {string[]} files
- * @param {Record<string, number>} [times]
- * @returns {'history'|'history and average'|'file count'}
- */
-export function landingBalance(files, times = {}) {
-  const known = files.filter(file => Number.isFinite(times[fileKey(file)])).length;
-  return known === files.length && known ? 'history' : known ? 'history and average' : 'file count';
-}
-
-/** The slowest file with a recorded wall time, which no shard count can beat; null with no history. */
-export function landingFloor(files, times = {}) {
-  let floor = null;
-  for (const file of files) {
-    const ms = times[fileKey(file)];
-    if (Number.isFinite(ms) && (!floor || ms > floor.ms)) floor = { path: fileKey(file), ms: Math.round(ms) };
-  }
-  return floor;
 }
 
 /** Read the per-file wall-time lines a shard printed, keeping the longest report for each file. */
@@ -444,7 +336,7 @@ class NotNeeded extends Error {}
  *
  * @param {{ root: string, runner: string, files: string[], count: number, inherited?: object|null,
  *   needsBrowser?: (files: string[]) => Promise<boolean>, write?: (text: string) => void }} options
- *   `runner` is this repository's packages/gate/src/io/run/tests.js; `inherited` is the gate lease this process already
+ *   `runner` is this repository's apps/cli/src/io/run/tests.js; `inherited` is the gate lease this process already
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
@@ -533,7 +425,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './packages/gate/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './apps/cli/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
@@ -579,8 +471,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       entry.claimed = false;
       entry.localOnly = true;
       acquire(entry);
-    } else if ((status === 'refused' || status === 'infrastructure') && !release && !stop.aborted && entry.attempts.length < 3) {
-      // One runner refusing or dropping a shard is that runner's fault, not the batch's: the shard queues again and
+    } else if (status === 'infrastructure' && !release && !stop.aborted && entry.attempts.length < 3) {
+      // One runner dropping a shard is that runner's fault, not the batch's; a refusal (changed source, unknown code) fails with no retry: the shard queues again and
       // the pool hands it to an available runner. Why: one RUNNER_UNAVAILABLE stopped every other shard and blocked an
       // 8-item batch with no test red at all [C7].
       write(`landing shard ${entry.label}: runner ${record.host} ${status}${record.reason ? ` (${record.reason})` : ''}; queuing shard ${entry.label} again (attempt ${entry.attempts.length + 1})\n`);

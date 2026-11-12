@@ -84,11 +84,12 @@ test('real project state feeds focused draft rows into one Needs-you batch [B26,
   const box = crossLaneFixture(t);
   const item = box.add('web', 'Needs the focused row');
   box.milestone('0.9.3', item);
-  box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
+  box.json(await box.inProcess(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
   const spec = join(box.repo, 'SPEC.md');
   writeFileSync(spec, readFileSync(spec, 'utf8').replace('G1 [approved, must]', 'G1 [draft, must]'));
   const { projectState } = await import('../../../view/index.js');
   const { personNeeds } = await import('../../../../packages/spec/index.js');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const state = projectState(box.repo, { board });
@@ -134,28 +135,29 @@ test('focus does not displace work already held by the seat [B26,C7]', t => {
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, held);
 });
 
-test('milestone focus records the one-line idle observation and clearing restores ordering [B26,C7]', t => {
+test('milestone focus records the one-line idle observation and clearing restores ordering [B26,C7]', async t => {
   const box = crossLaneFixture(t);
   const actor = box.seat('focus-owner', 'web', box.session);
   const peer = box.seat('focus-peer', 'web', 'focus-peer');
   const later = box.add('web', 'Later');
   const focused = box.add('web', 'Focused');
   box.milestone('0.9.3', focused);
-  box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
-  box.json(box.runAs('focus-peer', peer.root, 'claim', String(focused), '--json'));
-  const idle = box.runAs(box.session, actor.root, 'next', '--build');
+  box.json(await box.inProcess(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
+  box.json(await box.runAsLocal('focus-peer', peer.root, 'claim', String(focused), '--json'));
+  const idle = await box.runAsLocal(box.session, actor.root, 'next', '--build');
   assert.equal(idle.code, 0, idle.err);
   assert.deepEqual(idle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
-  const reviewIdle = box.runAs(box.session, actor.root, 'next', '--verify');
+  const reviewIdle = await box.runAsLocal(box.session, actor.root, 'next', '--verify');
   assert.equal(reviewIdle.code, 0, reviewIdle.err);
   assert.deepEqual(reviewIdle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
-  const takeIdle = box.runAs(box.session, actor.root, 'next', '--take');
+  const takeIdle = await box.runAsLocal(box.session, actor.root, 'next', '--take');
   assert.equal(takeIdle.code, 0, takeIdle.err);
   assert.deepEqual(takeIdle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.ok(store.events(board).some(event => event.event_kind === 'next-idle' && JSON.parse(event.event_detail).reason === 'focus'));
   } finally { store.closeBoard(board); }
-  box.json(box.run(box.repo, 'milestone', 'focus', 'off', '--json'));
-  assert.equal(box.json(box.runAs(box.session, actor.root, 'next', '--build', '--json')).item.item_id, later);
+  box.json(await box.inProcess(box.repo, 'milestone', 'focus', 'off', '--json'));
+  assert.equal(box.json(await box.runAsLocal(box.session, actor.root, 'next', '--build', '--json')).item.item_id, later);
 });

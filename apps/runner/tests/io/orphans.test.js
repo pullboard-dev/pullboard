@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/scripts/worker.js */
 /** A runner's idle proof costs a live controller job only its slot and stops a worker its controller lost [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/resources/index.js */
 /** @pullboard-test-loads packages/resources/index.js */
 /** An owned source-advance controller cannot strand capacity after its exact incarnation disappears [C7,P3]. */
 import assert from 'node:assert/strict';

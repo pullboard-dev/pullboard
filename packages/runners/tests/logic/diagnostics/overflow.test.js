@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/index.js packages/resources/src/io/renewal.js */
 /** A runner job's child spawn journal rotates instead of overflowing, so cleanup stays certain and reaps a hung child [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

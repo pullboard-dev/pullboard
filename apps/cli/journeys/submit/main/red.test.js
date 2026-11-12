@@ -89,7 +89,7 @@ test('repair links retain historical receipts and reject closed, stale or ambigu
   const row = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
   const known = { main: 'b'.repeat(40), failures: [row] };
   const repair = { item_id: 7, item_status: 'claimed', item_title: 'Main red: one assertion',
-    item_frozen: JSON.stringify({ check: "node packages/gate/src/io/run/tests.js './test/one.test.js'" }), item_check: 'node wrong.test.js' };
+    item_frozen: JSON.stringify({ check: "node apps/cli/src/io/run/tests.js './test/one.test.js'" }), item_check: 'node wrong.test.js' };
   const linked = linkKnownMainReworks(known, [repair], 1);
   assert.equal(linked.failures[0].item, 7);
   assert.doesNotThrow(() => requireKnownMainReworks(linked, [repair], 1));

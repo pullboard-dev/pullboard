@@ -26,9 +26,13 @@ import { openBoard } from '../../../lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
+import { runCliInProcess } from './process.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
+import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
+import { fixtureMachineSettings } from './testkit.js';
+import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
@@ -99,6 +103,9 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
+  // Journeys here hold their gate in the submitting process, so they pin controller dispatch and the default may move to pull [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
@@ -108,17 +115,31 @@ function sandbox({ declareFamilies = false } = {}) {
     declaredFamilies.set(cwd, value);
     return value;
   };
-  const run = (cwd, ...args) => {
+  /** Apply the fixture's join family and default routes to one argv, as every box call does. */
+  const prepare = (cwd, args) => {
     if (declareFamilies && args[0] === 'join') {
       const familyFlag = args.findIndex(arg => arg === '--family' || arg.startsWith('--family='));
       if (familyFlag >= 0) declareFamily(cwd, args[familyFlag].startsWith('--family=') ? args[familyFlag].slice(9) : args[familyFlag + 1]);
       else if (!declaredFamilies.has(cwd)) args.push('--family', declareFamily(cwd));
     }
-    fixtureJoinRoute(args, env.PULLBOARD_MODEL);
+    // A test of the board's own default routing sets PULLBOARD_FIXTURE_ROUTES=board to receive the routes it asks for.
+    if (env.PULLBOARD_FIXTURE_ROUTES !== 'board') {
+      fixtureJoinRoute(args, env.PULLBOARD_MODEL);
+      fixtureAddRoute(args);
+    }
+  };
+  const run = (cwd, ...args) => {
+    prepare(cwd, args);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  return { dir, env, git, tryGit, run, declareFamilies, declareFamily };
+  /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
+  const inProcess = async (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = await runCliInProcess(args, { cwd, env });
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
+  };
+  return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -224,7 +245,7 @@ function launch(box, cwd, command, args) {
 async function waitFor(predicate, description, timeoutMs = 8_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const value = predicate();
+    const value = await predicate();
     if (value) return value;
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
   }
@@ -338,7 +359,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.check = { install, timeout };
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  fixtureProjectPolicy(box.repo, { config });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -386,6 +407,19 @@ export function crossLaneFixture(t) {
       }
     }
   }
+  /** The same identity swap as runAs, answered by the production dispatch in this process [C7]. */
+  async function runAsLocal(identity, cwd, ...args) {
+    const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
+    box.env.CLAUDECODE = '1';
+    box.env.CLAUDE_CODE_SESSION_ID = identity;
+    try { return await box.runLocal(cwd, ...args); }
+    finally {
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete box.env[name];
+        else box.env[name] = value;
+      }
+    }
+  }
   /** Demand real command success before interpreting its versioned result. */
   function json(result) {
     assert.equal(result.code, 0, `${result.out}\n${result.err}`);
@@ -412,5 +446,5 @@ export function crossLaneFixture(t) {
   function binding(root) {
     return JSON.parse(readFileSync(join(resolve(root, box.git(root, 'rev-parse', '--git-dir')), 'pullboard-checkout-session.json'), 'utf8'));
   }
-  return { ...box, session, runAs, json, seat, add, milestone, binding };
+  return { ...box, session, runAs, runAsLocal, json, seat, add, milestone, binding };
 }

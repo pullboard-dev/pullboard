@@ -186,16 +186,16 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
 
   // A frozen check reads the declarations of the files it names, from the working tree or the submitted commit.
   mkdirSync(join(root, 'bin'), { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root, { files: ['packages/gate/src/io/run/tests.js'] });
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root, { files: ['apps/cli/src/io/run/tests.js'] });
   const env = { ...process.env, NODE_OPTIONS: '', PATH: [dirname(process.execPath), '/usr/bin', '/bin'].join(delimiter) };
-  assert.equal(await checkNeedsBrowser(root, 'node packages/gate/src/io/run/tests.js test/declared.test.js', { env }), true);
-  assert.equal(await checkNeedsBrowser(root, 'node packages/gate/src/io/run/tests.js test/launcher.test.js', { env }), false,
+  assert.equal(await checkNeedsBrowser(root, 'node apps/cli/src/io/run/tests.js test/declared.test.js', { env }), true);
+  assert.equal(await checkNeedsBrowser(root, 'node apps/cli/src/io/run/tests.js test/launcher.test.js', { env }), false,
     'a check over an undeclared file that imports the launcher takes no browser lease');
   const commit = commitSourceFixture(root);
   writeFileSync(join(root, 'test/declared.test.js'), "import '../../tests/fixtures/chrome.js';\n");
   assert.equal(await testsNeedBrowser(root, ['test/declared.test.js']), false, 'live admission reads the current checkout');
   assert.equal(await testsNeedBrowser(root, ['test/declared.test.js'], { commit }), true, 'review admission reads the submitted commit');
-  assert.equal(await checkNeedsBrowser(root, 'node packages/gate/src/io/run/tests.js test/declared.test.js', { env, commit }), true,
+  assert.equal(await checkNeedsBrowser(root, 'node apps/cli/src/io/run/tests.js test/declared.test.js', { env, commit }), true,
     'a review check follows the exact submitted commit rather than a later checkout edit');
 
   // Every listed production caller decides through these functions, and the reader parses no imports.
@@ -260,7 +260,7 @@ function runnerFixture(t, tests) {
     if (chromeSetting) env.PULLBOARD_CHROME = chrome;
     Object.assign(env, { PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_FIXTURE_MARKERS: join(root, 'markers'),
       PULLBOARD_FIXTURE_LAUNCHES: join(root, 'launches'), FIXTURE_BROWSER: chrome });
-    const result = spawnSync(process.execPath, ['packages/gate/src/io/run/tests.js', ...files], { cwd: root, env, encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['apps/cli/src/io/run/tests.js', ...files], { cwd: root, env, encoding: 'utf8' });
     /** Split one record file the fixture tests append to into its lines. */
     const lines = text => text.split('\n').filter(Boolean).sort();
     const markers = existsSync(join(root, 'markers')) ? lines(readFileSync(join(root, 'markers'), 'utf8')) : [];

@@ -41,6 +41,7 @@ function lines(result) {
 
 /** Read the real SQLite state under an optional injected clock, never writing anything. */
 function read(box, id, clock) {
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const board = openBoard(box.boardFile, clock);
   try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
   finally { board.db.close(); }
@@ -50,7 +51,7 @@ function read(box, id, clock) {
 const QUEUED_RED_MODEL = 'Queued red fixture model';
 
 /** A real project whose accepted main carries an empty cells plan, so an unplaced source is refused after queueing. */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = QUEUED_RED_MODEL;
@@ -70,9 +71,9 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // Strong authoring accepts a new item before a capable seat records any light-route diagnosis.
-  const add = (title, criterion = `${title} passes its gate.`) => fileFixtureItem(box, box.repo, { lane: 'web', title, criterion,
-    args: ['--specs', 'G1'], wait: true, diagnose: false }).item_id;
-  const ids = [add('Cells cut: refused queued build', 'Cells cut: queued red fixture [test]'), add('Green queued build'), add('Later build')];
+  const add = async (title, criterion = `${title} passes its gate.`) => (await fileFixtureItem(box, box.repo, { lane: 'web', title, criterion,
+    args: ['--specs', 'G1'], wait: true, diagnose: false, run: box.runLocal })).item_id;
+  const ids = [await add('Cells cut: refused queued build', 'Cells cut: queued red fixture [test]'), await add('Green queued build'), await add('Later build')];
   t.after(async () => {
     for (const id of ids) {
       const job = read(box, id).job;
@@ -109,12 +110,12 @@ async function enforcePlacement(box) {
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
   try { await warmAcceptedCells(box.repo, box.git(box.repo, 'rev-parse', 'main'), { withCheckout: withMainCheckout, withLock: withFileLock }); }
   finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
-  const probe = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cells cut: placement trial probe',
-    criterion: 'Cells cut: probe the placement trial [test]', args: ['--specs', 'G1'], wait: true, diagnose: false }).item_id;
+  const probe = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cells cut: placement trial probe',
+    criterion: 'Cells cut: probe the placement trial [test]', args: ['--specs', 'G1'], wait: true, diagnose: false, run: box.runLocal })).item_id;
   box.ids.push(probe);
-  const folder = document(box.run(box.web, 'claim', String(probe), '--json')).itemFolder;
+  const folder = document((await box.runLocal(box.web, 'claim', String(probe), '--json'))).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'src/probe.js', 'export const probe = true;\n', 'feat(web): probe source [G1]').status, 0);
-  assert.equal(document(box.run(folder, 'submit', String(probe), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(folder, 'submit', String(probe), '--no-next', '--json'))).queued, true);
   await terminal(box, probe);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
   const ledger = JSON.parse(readFileSync(file, 'utf8'));
@@ -126,15 +127,15 @@ async function enforcePlacement(box) {
 }
 
 test('a refused queued gate stays claimed by its seat, leads next, inbox and claim, shows in show, survives idle maintenance, and opens only after its lease (clause 1) [V4,H16,N2,R2,B4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   await enforcePlacement(box);
   const [refused, green, later] = box.ids;
-  const first = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
-  const second = document(box.run(box.web, 'claim', String(green), '--json')).itemFolder;
+  const first = document((await box.runLocal(box.web, 'claim', String(refused), '--json'))).itemFolder;
+  const second = document((await box.runLocal(box.web, 'claim', String(green), '--json'))).itemFolder;
   assert.equal(box.helpers.commitFile(box, first, 'src/unplaced.js', 'export const unplaced = true;\n', 'feat(web): unplaced source [G1]').status, 0);
   assert.equal(box.helpers.commitFile(box, second, 'web/green.txt', 'green\n', 'feat(web): placed work [G1]').status, 0);
-  assert.equal(document(box.run(first, 'submit', String(refused), '--no-next', '--json')).queued, true);
-  assert.equal(document(box.run(second, 'submit', String(green), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(first, 'submit', String(refused), '--no-next', '--json'))).queued, true);
+  assert.equal(document((await box.runLocal(second, 'submit', String(green), '--no-next', '--json'))).queued, true);
   const red = await terminal(box, refused);
   await terminal(box, green);
 
@@ -155,19 +156,20 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   ];
   // next, inbox and claim from that seat print the red first, before any other work.
   // The default loop prints the bounded form: one line per red and a pointer to the full refusal (#2777 once-notice, N41).
-  const nextLines = lines(box.run(box.web, 'next')).slice(0, 2);
+  const nextLines = lines((await box.runLocal(box.web, 'next'))).slice(0, 2);
   assert.equal(nextLines[0], `red queued gate on #${refused}: CELLS_PLAN_UNPLACED; pullboard show ${refused} for the full refusal`);
   assert.match(nextLines[1], new RegExp(`^#${refused} stays claimed by you until \\S+; fix it, commit, then pullboard submit ${refused}$`, 'u'));
-  assert.deepEqual(lines(box.run(box.web, 'inbox')).slice(0, 2), expected);
-  const shown = lines(box.run(box.web, 'show', String(refused))).join('\n');
+  assert.deepEqual(lines((await box.runLocal(box.web, 'inbox'))).slice(0, 2), expected);
+  const shown = lines((await box.runLocal(box.web, 'show', String(refused)))).join('\n');
   assert.match(shown, new RegExp(`queued gate: red at ${red.job.executionCommit}\\nCELLS_PLAN_UNPLACED: ${red.job.error.message.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\nnext: `, 'u'));
-  assert.deepEqual(lines(box.run(box.web, 'claim', String(later))).slice(0, 2), expected);
+  assert.deepEqual(lines((await box.runLocal(box.web, 'claim', String(later)))).slice(0, 2), expected);
 
   // Idle maintenance at 39 minutes, inside the 40-minute idle limit counted from the red return (#2640), leaves the claim with its builder.
   for (const id of [refused, green]) await cleaned(box, id);
   const idle = { now: () => new Date(Date.parse(red.job.completedAt) + 39 * 60_000) };
   const returned = read(box, refused).item;
   assert.ok(idle.now().getTime() < Date.parse(returned.item_lease_until), 'maintenance runs before the fresh lease ends');
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const maintained = openBoard(box.boardFile, idle);
   try {
     const snapshot = captureLapsedClaims({ clock: idle, config: loadConfig(box.repo) }, maintained, 'coordinator');
@@ -180,6 +182,7 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   const held = read(box, refused).item;
   assert.equal(held.item_owner, red.job.agentId);
   const lapsed = { now: () => new Date(Date.parse(held.item_lease_until) + 1000) };
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const board = openBoard(box.boardFile, lapsed);
   try {
     assert.equal(firstRefusal(board, refused), null, 'no builder reservation outlives the lease');
@@ -190,18 +193,19 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
 });
 
 test('a returned red claim left untouched is freed by maintenance once its fresh lease lapses (clause 1) [V4,H16,B4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   await enforcePlacement(box);
   const [refused] = box.ids;
-  const folder = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
+  const folder = document((await box.runLocal(box.web, 'claim', String(refused), '--json'))).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'src/unplaced.js', 'export const unplaced = true;\n', 'feat(web): unplaced source [G1]').status, 0);
-  assert.equal(document(box.run(folder, 'submit', String(refused), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(folder, 'submit', String(refused), '--no-next', '--json'))).queued, true);
   const red = await terminal(box, refused);
   assert.equal(red.job.state, 'red');
   await cleaned(box, refused);
   // Nothing happens after the return: the fresh lease lapses and the stale interval passes.
   const config = loadConfig(box.repo);
   const lapsed = { now: () => new Date(Date.parse(red.item.item_lease_until) + staleStateLimits(config).claim + 60_000) };
+  // @pullboard-board-file journey: observe and advance the board file the real CLI submission wrote
   const board = openBoard(box.boardFile, lapsed);
   try {
     const snapshot = captureLapsedClaims({ clock: lapsed, config }, board, 'coordinator');

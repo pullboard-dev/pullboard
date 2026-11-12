@@ -71,12 +71,16 @@ function freezer() {
   return () => ({ text, digest: createHash('sha256').update(text).digest('hex') });
 }
 
-/** Create synthetic submitted history for the credential test; this fixture does not run a gate. */
-function submitted(board, builder, lane) {
+/**
+ * Create synthetic submitted history for the credential test; this fixture does not run a gate.
+ * A file board binds its repository only while it seals the submit; replayed relay moves run without one.
+ */
+function submitted(board, builder, lane, gitRoot) {
   const added = store.addItem(board, { by: 'coordinator', lane, title: 'provenance review', criterion: 'an independent seat accepts it' });
   const item = { item_id: typeof added === 'number' ? added : added.item_id };
   store.claim(board, item.item_id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: freezer(), head: 'a'.repeat(40) });
-  submitFixture(board, item.item_id, { agentId: builder, commit: 'b'.repeat(40), tree: 'c'.repeat(40) });
+  if (gitRoot) board.gitRoot = gitRoot;
+  try { submitFixture(board, item.item_id, { agentId: builder, commit: 'b'.repeat(40), tree: 'c'.repeat(40) }); } finally { if (gitRoot) board.gitRoot = undefined; }
   return store.getItem(board, item.item_id);
 }
 
@@ -88,7 +92,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   const head = git(box.root, box.env, ['rev-parse', 'HEAD']);
 
   // A seat the coordinator made before the board was linked: it builds, but it was never enrolled.
-  const prelinked = await box.cli('worktree', lane, '--model', 'Prelinked Seat');
+  const prelinked = await box.cliLocal('worktree', lane, '--model', 'Prelinked Seat');
   assert.equal(prelinked.code, 0, prelinked.failure ?? 'the unlinked coordinator makes a worktree');
   await box.link();
   const start = link(box);
@@ -100,7 +104,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   const manualRoot = join(dirname(box.root), 'manual-join');
   git(box.root, box.env, ['worktree', 'add', '-q', '--detach', manualRoot, head]);
   const before = box.transit.length;
-  const manualJoin = await box.cliAt(manualRoot, 'join', lane, '--model', 'Manual Seat');
+  const manualJoin = await box.cliAtLocal(manualRoot, 'join', lane, '--model', 'Manual Seat');
   assert.equal(manualJoin.code, 0, manualJoin.failure ?? 'a manual join enrolls with no person action');
   const manual = manualJoin.document.agent;
   const manualTraffic = box.transit.slice(before);
@@ -113,7 +117,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   /** Make one seat from a creator's checkout and return its id, path and registration exchange. */
   const created = async (cwd, model) => {
     const from = box.transit.length;
-    const result = cwd === box.root ? await box.cli('worktree', lane, '--model', model) : await box.cliAt(cwd, 'worktree', lane, '--model', model);
+    const result = cwd === box.root ? await box.cliLocal('worktree', lane, '--model', model) : await box.cliAtLocal(cwd, 'worktree', lane, '--model', model);
     assert.equal(result.code, 0, result.failure ?? `the creator makes ${model}`);
     const traffic = box.transit.slice(from);
     const registration = traffic.findLast((entry) => entry.method === 'POST' && entry.path.endsWith('/moves') && JSON.parse(entry.request.toString('utf8')).registration
@@ -132,7 +136,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   const reviewer = await created(box.root, 'Reviewer Seat');
   const child = await created(builder.path, 'Child Seat');
   const grandchild = await created(child.path, 'Grandchild Seat');
-  const prelinkedActs = await box.cliAt(prelinked.document.path, 'shout', 'all', 'a seat from before the link keeps building');
+  const prelinkedActs = await box.cliAtLocal(prelinked.document.path, 'shout', 'all', 'a seat from before the link keeps building');
   assert.equal(prelinkedActs.code, 0, prelinkedActs.failure ?? 'an existing seat keeps working after the link');
 
   const boardCopy = join(mkdtempSync(join(tmpdir(), 'pullboard-mint-board-')), 'board.sqlite');
@@ -225,7 +229,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
     assert.equal(premint.status, 201, 'the machine credential first-mints a never-issued name');
     const skipped = await created(box.root, 'After Premint');
     assert.notEqual(skipped.id, target, 'the pre-minted name is skipped, not upgraded');
-    const claimed = await box.cliAt(manualRoot, 'shout', 'all', 'manual seat still builds');
+    const claimed = await box.cliAtLocal(manualRoot, 'shout', 'all', 'manual seat still builds');
     assert.equal(claimed.code, 0, claimed.failure ?? 'the build-only seat keeps acting under its own token');
   });
 
@@ -239,7 +243,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
     };
     const from = box.transit.length;
     let interrupted;
-    try { interrupted = await box.cli('worktree', lane, '--model', 'Interrupted Seat'); }
+    try { interrupted = await box.cliLocal('worktree', lane, '--model', 'Interrupted Seat'); }
     finally { box.auth.enrollSeat = enroll; }
     assert.notEqual(interrupted.code, 0, 'the creator sees the failed registration');
     const failed = box.transit.slice(from).find((entry) => entry.method === 'POST' && entry.path.endsWith('/moves') && JSON.parse(entry.request.toString('utf8')).registration);
@@ -263,7 +267,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
   });
 
   await t.test('linked verify refuses the builder line and seats without standing, in one line', () => {
-    const item = submitted(board, builder.id, lane);
+    const item = submitted(board, builder.id, lane, box.root);
     /** The accept arguments a seat sends for this item. */
     const verdict = (agentId) => [item.item_id, { agentId, decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'checked the proof', head: 'd'.repeat(40), digest: item.item_frozen_digest }];
     let id = 0;
@@ -287,7 +291,7 @@ test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', asyn
     const accepted = move('verify', verdict(reviewer.id), { agent: reviewer.id });
     assert.equal(accepted.result?.decision, 'ACCEPT', 'a seat the coordinator made outside the builder line verifies');
     // The literal rule holds for the coordinator too (decision 11096): its seats share its lineage.
-    const own = submitted(board, 'coordinator', 'coordinator');
+    const own = submitted(board, 'coordinator', 'coordinator', box.root);
     const ownVerdict = move('verify', [own.item_id, { ...verdict(reviewer.id)[1], digest: own.item_frozen_digest }], { agent: reviewer.id });
     assert.equal(ownVerdict.error?.code, 'VERIFIER_STANDING', 'a coordinator-made seat cannot verify the coordinator\'s own work');
     assert.match(ownVerdict.error.message, /another machine's registration lineage, or the person/u);

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/edit.js apps/cli/src/io/entry.js apps/cli/src/logic/help.js apps/view/src/io/serve.js packages/state/index.js packages/state/src/io/machine.js */
 /** Help stays page-safe and its command inventory follows its printed usages [N26]. @pullboard-world-pin: the edit help case reads edit.js itself to check every option is listed. */
 import assert from 'node:assert/strict';
 import {
@@ -99,7 +99,7 @@ test('command phrases match help --all, longest first [N26]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
-  const all = box.run(box.repo, 'help', '--all', '--json');
+  const all = await box.runLocal(box.repo, 'help', '--all', '--json');
   assert.equal(all.code, 0, all.err);
   const full = JSON.parse(all.out).help;
   assert.equal(full, HELP.all);
@@ -108,7 +108,7 @@ test('command phrases match help --all, longest first [N26]', async t => {
     for (const phrase of printedPhrases(line)) expected.add(phrase);
   }
   for (const [name, declaration] of Object.entries(HELP.commands)) {
-    const result = box.run(box.repo, 'help', ...name.split(' '), '--json');
+    const result = await box.runLocal(box.repo, 'help', ...name.split(' '), '--json');
     assert.equal(result.code, 0, `${name}: ${result.err}`);
     const usages = JSON.parse(result.out).help.split('\n').filter(line => /^(?:Usage: |\s+)pullboard /u.test(line))
       .filter(line => !line.startsWith('  pullboard ')).map(line => line.replace(/^Usage: /u, '').trim());
@@ -144,11 +144,11 @@ test('command phrases match help --all, longest first [N26]', async t => {
   assert.equal(new Set(added).size, added.length, 'each phrase occurs once');
 });
 
-test('help spec lists every spec subcommand and who runs it [N32]', t => {
+test('help spec lists every spec subcommand and who runs it [N32]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.sandbox();
-  const result = box.run(box.dir, 'help', 'spec');
+  const result = await box.runLocal(box.dir, 'help', 'spec');
   assert.equal(result.code, 0, result.err);
   for (const command of [
     'pullboard spec --json',
@@ -191,7 +191,7 @@ test('clause 1: help lists every edit option [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const full = box.run(box.repo, 'help', '--all', '--json');
+  const full = await box.runLocal(box.repo, 'help', '--all', '--json');
   assert.equal(full.code, 0, full.err);
   const text = JSON.parse(full.out).help;
   const editStart = text.indexOf('pullboard edit <id>');

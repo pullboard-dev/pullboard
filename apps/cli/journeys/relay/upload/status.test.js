@@ -44,7 +44,7 @@ test('a real refused upload produces only board-scoped sealed status and accepte
   'a foreign page cannot publish through a person cookie');
   box.limitSnapshots(null);
   box.legacySnapshotApi(false);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   assert.equal((await (await fetch(box.origin + path, { headers })).json()).status, null,
     'accepting the actual bounded snapshot clears its stale notice');
   const late = await fetch(box.origin + path, { method: 'PUT', headers: { ...headers, 'content-type': 'application/json' }, body });

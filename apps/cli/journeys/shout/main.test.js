@@ -117,13 +117,18 @@ test('lane and item messages follow worker aliases without granting a helper the
   const reply = store.shout(f.board, { from: f.sibling, to: 'api', item: id, text: 'Item reply', lanes: ['coordinator', 'web', 'api'] });
   assert.equal(store.unreadCount(f.board, 'coordinator'), store.inbox(f.board, 'coordinator', { markRead: false }).length);
   assert.ok(store.inbox(f.board, 'coordinator', { markRead: false }).some(row => row.shout_id === reply), 'the coordinator reads an item shout');
+  // Only an exact item target counts: a number with trailing text, an unknown item and a bare prefix name no item [C7].
+  const before = store.unreadCount(f.board, 'coordinator');
+  const insert = f.board.db.prepare("INSERT INTO shout (shout_from, shout_to, shout_text, shout_at) VALUES (?, ?, 'Malformed target', '2026-01-01T00:00:00.000Z')");
+  for (const to of [`item:${id}x`, `item:${id + 1000}`, 'item:', `item:0${id}`]) insert.run(f.sibling, to);
+  assert.equal(store.unreadCount(f.board, 'coordinator'), before, 'a target that is not exactly item:<id> reaches no seat, the coordinator included');
 });
 
 /** Run one actual CLI command in a private fixture session, never the operational session. */
-function inSession(box, session, root, ...args) {
+async function inSession(box, session, root, ...args) {
   const previous = box.env.CLAUDE_CODE_SESSION_ID;
   box.env.CLAUDE_CODE_SESSION_ID = session;
-  try { return box.run(root, ...args); }
+  try { return await box.runIn(root, ...args); }
   finally {
     if (previous === undefined) delete box.env.CLAUDE_CODE_SESSION_ID;
     else box.env.CLAUDE_CODE_SESSION_ID = previous;
@@ -136,7 +141,7 @@ function document(result) {
   return JSON.parse(result.out);
 }
 
-test('next and status surface directed instructions sent to another seat of this worker [B7,N2]', t => {
+test('next and status surface directed instructions sent to another seat of this worker [B7,N2]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
@@ -145,14 +150,14 @@ test('next and status surface directed instructions sent to another seat of this
   const session = 'private-worker-inbox-session';
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', web, 'main');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', api, 'main');
-  const first = document(inSession(box, session, web, 'join', 'web', '--route', 'strong', '--json'));
+  const first = document(await inSession(box, session, web, 'join', 'web', '--route', 'strong', '--json'));
   // An unrouted item is strong, so both seats of the worker join strong and `next` has a takeable item.
-  document(inSession(box, session, api, 'join', 'api', '--route', 'strong', '--json'));
-  document(fixtureAdd(box.run, box.repo, 'api', 'Read the worker instruction', '--specs', 'G2',
+  document(await inSession(box, session, api, 'join', 'api', '--route', 'strong', '--json'));
+  document(await fixtureAdd(box.runIn, box.repo, 'api', 'Read the worker instruction', '--specs', 'G2',
     '--criterion', 'The result exists', '--check', 'test -f api/result.txt', '--wait', '--json'));
-  document(box.run(box.repo, 'shout', first.agent, 'Shared worker instruction', '--json'));
-  const status = document(inSession(box, session, api, 'status', '--json'));
-  const next = inSession(box, session, api, 'next');
+  document(await box.runIn(box.repo, 'shout', first.agent, 'Shared worker instruction', '--json'));
+  const status = document(await inSession(box, session, api, 'status', '--json'));
+  const next = await inSession(box, session, api, 'next');
   assert.equal(next.code, 0, next.err || next.out);
   assert.equal(status.unread, 1, 'status counts the instruction addressed to the other seat');
   assert.match(next.out, /Shared worker instruction/, 'next surfaces the actual directed instruction');

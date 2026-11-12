@@ -99,14 +99,14 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   const gate = `'${process.execPath.replaceAll("'", "'\\''")}' '${gateFile.replaceAll("'", "'\\''")}'`;
   const { repo, web } = e2e.project(gate, box);
   const id = addBuild(box, repo, 'Independent review recovery', gate);
-  succeeded(box.run(web, 'claim', String(id)));
+  succeeded(await box.runLocal(web, 'claim', String(id)));
   mkdirSync(join(web, 'web'), { recursive: true });
   writeFileSync(join(web, 'web', 'receipt.txt'), 'a real build\n');
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', 'test: build review fixture [G1]');
-  succeeded(box.run(web, 'submit', String(id)));
+  succeeded(await box.runLocal(web, 'submit', String(id)));
 
-  const mainRefusal = box.run(repo, 'next', '--verify', String(id), '--json');
+  const mainRefusal = await box.runLocal(repo, 'next', '--verify', String(id), '--json');
   assert.equal(mainRefusal.code, 1, `${mainRefusal.out}\n${mainRefusal.err}`);
   const mainError = JSON.parse(mainRefusal.out).error;
   assert.equal(mainError.code, 'MAIN_IS_COORDINATOR');
@@ -116,7 +116,7 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'HEAD');
   // Item #1 was filed on the strong route, so its reviewer joins strong to be offered the review [V4].
   succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model', '--route', 'strong'));
-  const selected = succeeded(box.run(reviewer, 'next', '--verify', String(id), '--json'));
+  const selected = succeeded(await box.runLocal(reviewer, 'next', '--verify', String(id), '--json'));
   assert.equal(JSON.parse(selected.out).item.item_id, id, 'the recovery reaches review without SELF_VERIFY');
 
   const gateBox = e2e.sandbox();
@@ -146,7 +146,7 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   const bindingPath = join(repo, '.git', 'pullboard-checkout-session.json');
   const binding = readFileSync(bindingPath, 'utf8');
   box.env.CODEX_THREAD_ID = 'new-agent-session';
-  const foreign = box.run(repo, 'claim', String(id), '--json');
+  const foreign = await box.runLocal(repo, 'claim', String(id), '--json');
   assert.equal(foreign.code, 1, `${foreign.out}\n${foreign.err}`);
   const foreignError = JSON.parse(foreign.out).error;
   assert.equal(foreignError.code, 'NOT_YOUR_CHECKOUT');
@@ -154,7 +154,7 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   const recovery = join(repo, '.claude', 'worktrees', 'new-agent');
   box.git(repo, 'worktree', 'add', '-q', '--detach', recovery, 'HEAD');
   succeeded(fixtureJoin(box.run, recovery, 'web', '--model', 'New Agent Fixture Model'));
-  succeeded(box.run(recovery, 'whoami', '--json'));
+  succeeded(await box.runLocal(recovery, 'whoami', '--json'));
   assert.equal(readFileSync(bindingPath, 'utf8'), binding, 'recovery leaves the main owner binding unchanged');
 });
 

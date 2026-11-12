@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .github/workflows/cla.yml .github/workflows/gate.yml .github/workflows/release.yml packages/gate/src/io/check/cla.js */
 /** @pullboard-test-input .github/workflows/gate.yml .github/workflows/cla.yml .github/workflows/stale.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
@@ -98,6 +98,7 @@ function extract(t, script, changelog, tag = 'v1.2.3') {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'CHANGELOG.md'), changelog);
   const notes = join(root, 'release-notes.md');
+  // process-level: a workflow script run as its own node program.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
     cwd: root, encoding: 'utf8',
     env: { ...process.env, GITHUB_REF_NAME: tag, RUNNER_TEMP: root },
@@ -141,6 +142,7 @@ function runCla(t, pr, signatures) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   fixture.write('pr.json', JSON.stringify(pr));
   fixture.write('signatures.json', JSON.stringify(signatures));
+  // process-level: the CLA check is its own node entry.
   return runFixtureChild(process.execPath, [resolve(ROOT, 'packages/gate/src/io/check/cla.js')], {
     encoding: 'utf8',
     env: { ...process.env, CLA_PR_FILE: join(dir, 'pr.json'), CLA_SIGNATURES_FILE: join(dir, 'signatures.json') },

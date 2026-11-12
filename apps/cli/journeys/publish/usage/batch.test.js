@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js */
 /** Pending historical usage publishes once without extending the lifecycle writer [N2,C7,H16]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

@@ -1000,6 +1000,36 @@ test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 
   }
 });
 
+test('a refresh keeps the draft and focus in a pending Spec question Answer box [N27,I1]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for native setup and Chrome.
+  const executable = chromeExecutable();
+  assert.ok(executable, 'the Answer draft check needs real Chrome');
+  const spec = '# Questions\n\n## G · Goals\n- G1 [pending, must] Which store holds the data: SQLite. Choices: SQLite, Postgres. | gate: review\n';
+  const box = machine();
+  const demo = project(box, 'spec-answer-draft', spec);
+  const view = await startView(box);
+  const profile = join(box.dir, 'spec-draft-chrome');
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(demo.repo)}`);
+    await press(chrome, "document.querySelector('[data-tab=spec]')");
+    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
+    await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
+    await chrome.waitFor("view.row.spec === 'G1' && !!document.querySelector('#spec-detail form[data-spec-answer=\"G1\"]')");
+    await chrome.stable("(() => { const box = document.querySelector('#spec-answer-G1'); box.focus(); box.value = 'Postgres, half typed'; box.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    await chrome.stable('render()'); // the refresh every poll runs
+    const kept = JSON.parse(await chrome.stable(`JSON.stringify({
+      value: document.querySelector('#spec-answer-G1')?.value,
+      focused: document.activeElement?.id,
+    })`));
+    assert.deepEqual(kept, { value: 'Postgres, half typed', focused: 'spec-answer-G1' }, 'the refresh keeps what the person typed and where they typed it');
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
+  } finally {
+    try { if (chrome) await closeSnapshotChrome(chrome); }
+    finally { await view.stop(); }
+  }
+});
+
 test('the spec decision wait names its state on timeout [N26]', { timeout: 60_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec wait diagnostics.');

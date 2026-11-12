@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Lapsed claims expire through captured native writes, preserving activity and original ownership [B4,C7,H16]. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
@@ -122,6 +121,8 @@ test('a seat with no presence at all frees on the next write, and release --stal
   const again = box.add('Second private claim of the same gone seat');
   store.claim(box.board, again, { agentId: ghost, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'private', digest: 'private' }) });
   box.advance(62 * MINUTE);
+  // Keep the unrelated builder live: two quiet seats correctly trigger the machine-stall safeguard.
+  heartbeatSeat(box.board, box.seats.builder.id);
   const write = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write frees a gone seat.']);
   assert.equal(write.code, 0, write.out + write.err);
   assert.equal(itemById(box.board, again).item_status, 'open');

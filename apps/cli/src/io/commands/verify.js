@@ -1,6 +1,7 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { sharedToolsTarget } from '../submit/handoff.js';
 import { toolsSnapshot } from '../submit/handoff.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -160,12 +161,14 @@ import { retryReviewCommit } from '../../../../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
 
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
 export async function knownMainCheck(root, check, { main, item, items, mainRedItems = items, onWait, onMeasuredReceipt, runnerAdmission }) {
+  if (mainComparisonMode() === 'off') return null; // gate.mainComparison off: a red check is red [C7,#5565].
   if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
   const viaMainRedRepairs = failures => {
     // The submit rule: a case an open Main red repair's own check fails on this main never fails a re-run (#2610).
@@ -286,7 +289,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
-    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
+    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
@@ -637,6 +640,9 @@ async function recordComparison(ctx, item, result) {
   });
 }
 
+/** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
+const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../submit/handoff.js', import.meta.url).href };
+
 /** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
 export async function startAutomaticComparison(ctx, id) {
   const item = withBoardRead(ctx, board => store.getItem(board, id));
@@ -647,7 +653,7 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }
 
@@ -661,7 +667,7 @@ export async function reviveStalledComparison(ctx, id) {
   } else if (plan.action === 'restart') {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   }
 }
 

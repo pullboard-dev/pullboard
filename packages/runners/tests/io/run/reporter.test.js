@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Keep the production runner's report stable across Node versions and caller options [C7]. */
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -19,7 +19,7 @@ test('the runner fleet reuses exact receipts across machines and gate stages [C7
   timeout: 120_000, // budget: seven real worker-capsule round trips, committed checkouts and verified cleanup.
 }, fleetTestResultReuse);
 
-const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /** Create a fixture that observes actual child arguments and returns the runner result. */
 function runReporterFixture(t, reporterArgs = [], extraEnv = {}) {
@@ -82,7 +82,7 @@ test('run-tests never injects timing reporters beside caller reporter options [C
     assert.equal(run.result.status, 0, run.output);
     const preload = run.childArgs.indexOf('--import');
     const bootstrap = decodeURIComponent(run.childArgs[preload + 1]);
-    assert.ok(bootstrap.includes(new URL('../../../../gate/src/io/run/tests.js', import.meta.url).href),
+    assert.ok(bootstrap.includes(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url).href),
       'the actual worker admission bootstrap imports the ordinary production watchdog');
     assert.ok(!run.childArgs.some(arg => arg.startsWith('--test-reporter')),
       'caller reporters run once in the parent, without injected worker timing reporters');

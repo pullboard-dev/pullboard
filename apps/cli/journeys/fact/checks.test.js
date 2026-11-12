@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .githooks/pre-commit apps/cli/journeys/resume/board.test.js packages/gate/data/baselines/test-waits-baseline.json packages/gate/data/tests/test-fixtures.json */
 /** The repository pre-commit hook refuses the gate's test fixture and test-name reds on staged files, with the gate's messages [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -53,6 +53,7 @@ const CASES = [
 /**
  * A project that commits through the repository's own pre-commit hook. Its staged checker delegates to this checkout's
  * packages/gate/src/io/changed/scripts/static.js, and its ceilings files are committed, as in the real repository.
+ * The stub also re-exports stagedHookFailures, since the hook now imports the named check in process (#5719).
  */
 function hookedProject() {
   const box = helpers.project('true', runtimeSeededBeforeInit(), { withWorktree: false });
@@ -67,8 +68,12 @@ function hookedProject() {
   writeFileSync(join(box.repo, 'packages/gate/data/tests/test-fixtures.json'), '{}\n');
   writeFileSync(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), [
     `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(CHECKS, 'static.js')).href)};`,
-    'const failures = stagedHookFailures(process.cwd());',
-    "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
+    "import { pathToFileURL } from 'node:url';",
+    'export { stagedHookFailures };',
+    'if (import.meta.url === pathToFileURL(process.argv[1] ?? \'\').href) {',
+    '  const failures = stagedHookFailures(process.cwd());',
+    "  if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }",
+    '}', ''].join('\n'));
   copyFileSync(join(REPO, '.githooks', 'pre-commit'), join(box.repo, '.githooks', 'pre-commit'));
   chmodSync(join(box.repo, '.githooks', 'pre-commit'), 0o755);
   box.git(box.repo, 'add', '--', '.githooks/pre-commit', 'packages/gate/data/baselines/test-waits-baseline.json',

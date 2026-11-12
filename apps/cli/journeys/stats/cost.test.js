@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/logic/native.js */
 /** Native provider records, private attribution, and shared item totals [N2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -35,6 +35,7 @@ import {
   privateFixtureFiles,
   runFixtureChild,
 } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { assertUsagePresentation } from '../../tests/fixtures/cockpit/usage.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
@@ -47,12 +48,12 @@ function record(file, row) {
   appendFileSync(file, JSON.stringify({ timestamp: new Date().toISOString(), ...row }) + '\n');
 }
 
-/** Invoke the real CLI with one private provider identity, never the host's provider home. */
-function seatRun(box, cwd, identity, args, input) {
+/** Invoke the production CLI in process with one private provider identity, never the host's provider home. */
+async function seatRun(box, cwd, identity, args, input) {
   const env = { ...box.env, CODEX_HOME: join(box.dir, 'codex'), CLAUDE_CONFIG_DIR: join(box.dir, 'claude') };
   for (const key of ['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_CI', 'CODEX_SHELL']) delete env[key];
   Object.assign(env, identity);
-  const result = runFixtureChild(process.execPath, [helpers.BIN, ...args], { cwd, env, input, encoding: 'utf8' });
+  const result = await runCliInProcess(args, { cwd, env, input });
   assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
   return args.includes('--json') ? JSON.parse(result.stdout) : result.stdout;
 }
@@ -79,19 +80,19 @@ function seatUsage(box, cwd, identity) {
  * Why: the shared project already joins web-1 with the fixture model, and rejoining one seat with another model is refused ALREADY_JOINED (04384c0971).
  * The seat joins on the strong route: the model table maps these fixture names to mid, and the fixture items need strong (b95e1aa538).
  */
-function costProject(model) {
+async function costProject(model) {
   const box = helpers.project('true', undefined, { withWorktree: false });
   const web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.equal(fixtureJoin(box.run, web, 'web', '--model', model, '--route', 'strong').code, 0);
+  assert.equal((await fixtureJoin(box.runLocal, web, 'web', '--model', model, '--route', 'strong')).code, 0);
   return { ...box, web };
 }
 
-test('an item records the tokens and cost its seats spent [N2]', () => {
-  const box = costProject('fixture-claude');
+test('an item records the tokens and cost its seats spent [N2]', async () => {
+  const box = await costProject('fixture-claude');
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
+  assert.equal((await fixtureJoin(box.runLocal, second, 'web', '--model', 'fixture-codex', '--route', 'strong')).code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -121,23 +122,23 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   const codex = { CODEX_THREAD_ID: codexId };
   record(claudeFile, { type: 'assistant', message: { id: 'before-claim', model: 'fixture-claude', usage: { input_tokens: 9, output_tokens: 1 } } });
   seatUsage(box, box.web, claude);
-  seatRun(box, box.web, claude, ['claim', String(id)]);
+  await seatRun(box, box.web, claude, ['claim', String(id)]);
   const message = { id: 'native-message-one', model: 'fixture-claude', usage: { input_tokens: 100, output_tokens: 10 } };
   record(claudeFile, { type: 'assistant', message });
   record(claudeFile, { type: 'assistant', message }); // Stream repetition must not double charge.
   seatUsage(box, box.web, claude);
   seatUsage(box, box.web, claude);
   record(claudeFile, { type: 'system', subtype: 'tool-metadata', text: 'No provider usage changed' });
-  seatRun(box, box.web, claude, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  await seatRun(box, box.web, claude, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   record(codexFile, { type: 'turn_context', payload: { model: 'fixture-codex' } });
   record(codexFile, { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 500, output_tokens: 50 } } } });
-  seatRun(box, second, codex, ['claim', String(id)]);
+  await seatRun(box, second, codex, ['claim', String(id)]);
   const report = { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 700, output_tokens: 70 } } } };
   record(codexFile, report);
   record(codexFile, report);
   seatUsage(box, second, codex);
-  seatRun(box, second, codex, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-  const shown = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+  await seatRun(box, second, codex, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  const shown = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
   assert.equal(shown.usage.inputTokens, 300);
   assert.equal(shown.usage.outputTokens, 30);
   assert.equal(Object.hasOwn(shown.usage, 'costUSD'), false, 'dollars are not part of this item');
@@ -148,7 +149,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   const beforeStats = openBoard(boardFile);
   let recordedBeforeStats;
   try { recordedBeforeStats = store.events(beforeStats); } finally { store.closeBoard(beforeStats); }
-  const costs = JSON.parse(box.run(box.repo, 'stats', '--json').out).usage;
+  const costs = JSON.parse((await box.runLocal(box.repo, 'stats', '--json')).out).usage;
   // @pullboard-board-file journey: the same real board remains unchanged by a stats read.
   const afterStats = openBoard(boardFile);
   try { assert.deepEqual(store.events(afterStats), recordedBeforeStats, 'stats is a read, not an implicit usage checkpoint'); }
@@ -160,16 +161,16 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   assert.equal(costs.models.find((entry) => entry.model === 'fixture-codex').inputTokens, 200);
   assert.equal(Object.hasOwn(costs.models.find((entry) => entry.model === 'fixture-claude'), 'knownCostUSD'), false);
   unlinkSync(claudeFile);
-  seatRun(box, box.web, claude, ['claim', String(unknownId)]);
-  seatRun(box, box.web, claude, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-  const unknown = JSON.parse(box.run(box.repo, 'show', String(unknownId), '--json').out).usage;
+  await seatRun(box, box.web, claude, ['claim', String(unknownId)]);
+  await seatRun(box, box.web, claude, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  const unknown = JSON.parse((await box.runLocal(box.repo, 'show', String(unknownId), '--json')).out).usage;
   assert.equal(unknown.inputTokens, null);
   assert.equal(unknown.outputTokens, null);
   assert.ok(unknown.unknownReasons.length > 0, 'unreadable native usage says why its counters are unknown');
   assert.equal(Object.hasOwn(unknown, 'costUSD'), false);
   assert.ok(unknown.wallMs >= 0);
   assert.ok(unknown.models.length > 0, 'declared seat model survives unreadable provider records');
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage.inputTokens, 300, 'recorded closed allocations survive transcript removal');
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).usage.inputTokens, 300, 'recorded closed allocations survive transcript removal');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const inspect = openBoard(boardFile);
   let publicRecords;
@@ -194,8 +195,8 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   }
 });
 
-test('an item records the tokens and cost its seats spent when a checkpoint fails [N2]', () => {
-  const box = costProject('fixture-claude');
+test('an item records the tokens and cost its seats spent when a checkpoint fails [N2]', async () => {
+  const box = await costProject('fixture-claude');
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -219,7 +220,7 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   const env = { ...box.env, CLAUDE_CONFIG_DIR: join(box.dir, 'claude'), CODEX_HOME: join(box.dir, 'codex') };
   for (const key of ['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_CI', 'CODEX_SHELL']) delete env[key];
   Object.assign(env, identity);
-  const claimed = runFixtureChild(process.execPath, [helpers.BIN, 'claim', String(id)], { cwd: box.web, env, encoding: 'utf8' });
+  const claimed = await runCliInProcess(['claim', String(id)], { cwd: box.web, env });
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const inspectClaim = openBoard(boardFile);
   try { assert.equal(store.getItem(inspectClaim, id).item_status, 'claimed', 'the primary claim really committed'); }
@@ -236,7 +237,7 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   const fail = openBoard(boardFile);
   try { fail.db.exec("CREATE TRIGGER fixture_usage_unavailable BEFORE INSERT ON event WHEN NEW.event_kind='usage' BEGIN SELECT RAISE(ABORT, 'fixture usage unavailable'); END"); }
   finally { store.closeBoard(fail); }
-  const released = runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next'], { cwd: box.web, env, encoding: 'utf8' });
+  const released = await runCliInProcess(['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next'], { cwd: box.web, env });
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const inspectRelease = openBoard(boardFile);
   try {
@@ -245,23 +246,23 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   } finally { store.closeBoard(inspectRelease); }
   assert.equal(released.status, 0, `${released.stdout}${released.stderr}`);
   assert.match(released.stderr, /USAGE_PENDING/);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage.knownInputTokens, 100);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).usage.knownInputTokens, 100);
   seatUsage(box, box.web, identity); // No active allocation remains: retry the closed summary.
-  const cost = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage;
+  const cost = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).usage;
   assert.equal(cost.inputTokens, null, 'the missed private claim anchor remains unknown');
   assert.equal(cost.knownInputTokens, 105);
   assert.equal(cost.knownOutputTokens, 11);
   assert.ok(cost.wallMs >= 0);
   assert.deepEqual(cost.models, ['fixture-claude']);
   seatUsage(box, box.web, identity);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage.knownInputTokens, 105, 'closed replay is idempotent');
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).usage.knownInputTokens, 105, 'closed replay is idempotent');
 });
 
-test('an item records the tokens and cost its seats spent with a shared native session [N2]', () => {
-  const box = costProject('fixture-codex');
+test('an item records the tokens and cost its seats spent with a shared native session [N2]', async () => {
+  const box = await costProject('fixture-codex');
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
+  assert.equal((await fixtureJoin(box.runLocal, second, 'web', '--model', 'fixture-codex', '--route', 'strong')).code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -283,34 +284,34 @@ test('an item records the tokens and cost its seats spent with a shared native s
   /** Native cumulative counters make both solo and shared attribution observable. */
   const usage = (input, output) => record(file, { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, output_tokens: output } } } });
   usage(100, 10);
-  seatRun(box, box.web, identity, ['claim', String(first)]);
+  await seatRun(box, box.web, identity, ['claim', String(first)]);
   /** Read the item's totals as show prints them for any reader of the board. */
-  const detail = () => JSON.parse(box.run(box.repo, 'show', String(first), '--json').out).usage;
+  const detail = async () => JSON.parse((await box.runLocal(box.repo, 'show', String(first), '--json')).out).usage;
   // A claim only opens its private anchor; the seat's next checkpoint publishes the measured interval.
   seatUsage(box, box.web, identity);
-  assert.equal(detail().inputTokens, 0);
+  assert.equal((await detail()).inputTokens, 0);
   usage(150, 15);
-  seatRun(box, second, identity, ['claim', String(last)]);
-  const sharing = detail();
+  await seatRun(box, second, identity, ['claim', String(last)]);
+  const sharing = await detail();
   assert.equal(sharing.splitByTime, true, 'a peer’s shared record splits this item’s share by claimed time without impersonating this seat');
   assert.equal(sharing.shared, false);
   usage(250, 25);
   seatUsage(box, box.web, identity);
   usage(300, 30);
-  seatRun(box, second, identity, ['release', String(last), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  await seatRun(box, second, identity, ['release', String(last), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   usage(320, 32);
   seatUsage(box, box.web, identity);
-  seatRun(box, box.web, identity, ['release', String(first), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-  const totals = JSON.parse(box.run(box.repo, 'stats', '--json').out).usage;
+  await seatRun(box, box.web, identity, ['release', String(first), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  const totals = JSON.parse((await box.runLocal(box.repo, 'stats', '--json')).out).usage;
   assert.equal(totals.sharedSessions.length, 1);
   const shared = totals.sharedSessions[0];
   assert.equal(shared.inputTokens, 150);
   assert.equal(shared.outputTokens, 15);
   assert.equal(Object.hasOwn(shared, 'costUSD'), false);
-  const seats = [box.web, second].map((cwd) => JSON.parse(box.run(cwd, 'whoami', '--json').out).id).sort();
+  const seats = (await Promise.all([box.web, second].map(async (cwd) => JSON.parse((await box.runLocal(cwd, 'whoami', '--json')).out).id))).sort();
   assert.deepEqual(shared.seats.sort(), seats);
-  const a = JSON.parse(box.run(box.repo, 'show', String(first), '--json').out).usage;
-  const b = JSON.parse(box.run(box.repo, 'show', String(last), '--json').out).usage;
+  const a = JSON.parse((await box.runLocal(box.repo, 'show', String(first), '--json')).out).usage;
+  const b = JSON.parse((await box.runLocal(box.repo, 'show', String(last), '--json')).out).usage;
   assert.equal(a.splitByTime, true);
   assert.equal(b.splitByTime, true);
   assert.equal(a.shared, false);
@@ -321,15 +322,15 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.equal(JSON.stringify({ totals, a, b }).includes(session), false);
   assert.equal(JSON.stringify({ totals, a, b }).includes(file), false);
   seatUsage(box, box.web, identity);
-  assert.equal(JSON.parse(box.run(box.repo, 'stats', '--json').out).usage.sharedSessions[0].inputTokens, 150, 'closed shared-session replay is idempotent');
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'stats', '--json')).out).usage.sharedSessions[0].inputTokens, 150, 'closed shared-session replay is idempotent');
   // @pullboard-board-file journey: inspect the actual CLI-written shared usage and presentation without changing its board.
   const presentation = openBoard(boardFile);
   try { assertUsagePresentation(store.events(presentation), first, { root: box.repo, agents: store.listAgents(presentation) }); } finally { store.closeBoard(presentation); }
 });
 
 
-test('an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', () => {
-  const box = costProject('fixture-claude');
+test('an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', async () => {
+  const box = await costProject('fixture-claude');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
@@ -346,19 +347,19 @@ test('an item records the tokens and cost its seats spent across an actual claim
   writeFileSync(file, '');
   record(file, { type: 'assistant', message: { id: 'known-zero-before-claim', model: 'fixture-claude', usage: { input_tokens: 0, output_tokens: 0 } } });
   seatUsage(box, box.web, identity);
-  seatRun(box, box.web, identity, ['claim', String(ids[0])]);
+  await seatRun(box, box.web, identity, ['claim', String(ids[0])]);
   record(file, { type: 'assistant', message: { id: 'spent-without-hook', model: 'fixture-claude', usage: { input_tokens: 100, output_tokens: 10 } } });
-  seatRun(box, box.web, identity, ['release', String(ids[0]), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-  const first = JSON.parse(box.run(box.repo, 'show', String(ids[0]), '--json').out).usage;
+  await seatRun(box, box.web, identity, ['release', String(ids[0]), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  const first = JSON.parse((await box.runLocal(box.repo, 'show', String(ids[0]), '--json')).out).usage;
   assert.equal(first.inputTokens, 100);
   assert.equal(Object.hasOwn(first, 'costUSD'), false, 'public usage has no dollar output');
-  seatRun(box, box.web, identity, ['claim', String(ids[1])]);
+  await seatRun(box, box.web, identity, ['claim', String(ids[1])]);
   record(file, { type: 'assistant', message: { id: 'new-item-spend', model: 'fixture-claude', usage: { input_tokens: 5, output_tokens: 1 } } });
   seatUsage(box, box.web, identity);
-  seatRun(box, box.web, identity, ['release', String(ids[1]), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-  const second = JSON.parse(box.run(box.repo, 'show', String(ids[1]), '--json').out).usage;
+  await seatRun(box, box.web, identity, ['release', String(ids[1]), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+  const second = JSON.parse((await box.runLocal(box.repo, 'show', String(ids[1]), '--json')).out).usage;
   assert.equal(second.inputTokens, 5);
-  const splitTotals = JSON.parse(box.run(box.repo, 'stats', '--json').out).usage;
+  const splitTotals = JSON.parse((await box.runLocal(box.repo, 'stats', '--json')).out).usage;
   assert.equal(splitTotals.items.filter(row => ids.includes(row.item)).reduce((sum, row) => sum + row.inputTokens, 0), first.inputTokens + second.inputTokens, 'stats sums exactly the item-held token allocations');
   assert.equal(splitTotals.lanes.find(row => row.lane === 'web').inputTokens, 105);
   assert.equal(Object.hasOwn(second, 'costUSD'), false, 'private dollar anchors never become output in this item');
@@ -417,10 +418,10 @@ test('an item records the tokens and cost its seats spent when metadata precedes
   assert.equal(repeated.records[0].outputTokens, group.records[0].outputTokens, 'metadata and retries never charge shared native output twice');
 });
 
-test('an item records the tokens and cost its seats spent with an empty native usage file [N2]', () => {
+test('an item records the tokens and cost its seats spent with an empty native usage file [N2]', async () => {
   for (const provider of ['claude', 'codex']) {
     const model = `fixture-${provider}`;
-    const box = costProject(model);
+    const box = await costProject(model);
     // @pullboard-board-file journey: the real CLI seats share this repository board file.
     const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     let unknownId;
@@ -439,10 +440,10 @@ test('an item records the tokens and cost its seats spent with an empty native u
     const file = join(directory, provider === 'claude' ? `${session}.jsonl` : `rollout-${session}.jsonl`);
     writeFileSync(file, '');
     const identity = provider === 'claude' ? { CLAUDE_CODE_SESSION_ID: session } : { CODEX_THREAD_ID: session };
-    seatRun(box, box.web, identity, ['claim', String(unknownId)]);
+    await seatRun(box, box.web, identity, ['claim', String(unknownId)]);
     seatUsage(box, box.web, identity);
-    seatRun(box, box.web, identity, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-    const unknown = JSON.parse(box.run(box.repo, 'show', String(unknownId), '--json').out).usage;
+    await seatRun(box, box.web, identity, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+    const unknown = JSON.parse((await box.runLocal(box.repo, 'show', String(unknownId), '--json')).out).usage;
     assert.equal(unknown.inputTokens, null, `${provider}: readable empty input usage is unknown`);
     assert.equal(unknown.outputTokens, null, `${provider}: readable empty output usage is unknown`);
     assert.equal(Object.hasOwn(unknown, 'costUSD'), false, `${provider}: public usage contains no dollar fields`);
@@ -454,23 +455,23 @@ test('an item records the tokens and cost its seats spent with an empty native u
       record(file, { type: 'turn_context', payload: { model } });
       record(file, { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 0, output_tokens: 0 } } } });
     }
-    seatRun(box, box.web, identity, ['claim', String(zeroId)]);
-    seatRun(box, box.web, identity, ['release', String(zeroId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
-    const zero = JSON.parse(box.run(box.repo, 'show', String(zeroId), '--json').out).usage;
+    await seatRun(box, box.web, identity, ['claim', String(zeroId)]);
+    await seatRun(box, box.web, identity, ['release', String(zeroId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
+    const zero = JSON.parse((await box.runLocal(box.repo, 'show', String(zeroId), '--json')).out).usage;
     assert.equal(zero.inputTokens, 0, `${provider}: actual native zero remains known`);
     assert.equal(zero.outputTokens, 0, `${provider}: actual native zero remains known`);
   }
 });
 
-test('usage totals use existing stats and show surfaces without a separate cost root [N2,A1]', () => {
+test('usage totals use existing stats and show surfaces without a separate cost root [N2,A1]', async () => {
   const box = helpers.project('true');
-  const result = box.run(box.repo, 'stats', '--json');
+  const result = await box.runLocal(box.repo, 'stats', '--json');
   assert.equal(result.code, 0, result.out);
   const document = JSON.parse(result.out);
   assert.ok(document.usage, 'stats exposes recorded usage alongside its existing proof counters');
   assert.deepEqual(Object.keys(document.usage).sort(), ['items', 'lanes', 'milestones', 'models', 'seats', 'sharedSessions'].sort());
   for (const values of Object.values(document.usage)) assert.deepEqual(values, [], 'a fresh board invents no usage');
-  const separate = box.run(box.repo, 'cost', '--json');
+  const separate = await box.runLocal(box.repo, 'cost', '--json');
   assert.notEqual(separate.code, 0, 'the small CLI has no separate cost command');
 });
 

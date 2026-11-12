@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/src/io/landing/candidate.js */
 /**
  * A tiered one-item landing reuses its green submit proof when main moved since the submit: it reruns only the tests
  * whose import closure main's commits reach, so a batch whose closures did not move runs no test and lands [C7].
@@ -59,7 +59,7 @@ test('clause 1: control: a merged tree that differs from the submit tree beyond 
  * A real tiered repository with a bare origin, per-item separate-publish landing and queued submits, whose focused
  * runner appends every file it runs to a log outside the checkout; plus one item whose frozen check runs its own test.
  */
-function tieredProject(helpers) {
+async function tieredProject(helpers) {
   const box = helpers.project('true');
   const runs = join(box.dir, 'runner-runs.log');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -88,7 +88,7 @@ function tieredProject(helpers) {
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Change with its own test', '--specs', 'G1', '--route', 'strong',
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Change with its own test', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The change lands on its submit proof.', '--brief', `Files:\n- web/snapshot.txt\nTest:\n- ${ITEM_TEST}\n`,
     '--check', `node web/runner.js ${ITEM_TEST}`, '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
@@ -106,12 +106,12 @@ function boardRecord(box, id) {
 
 /** Claim, commit and submit the item through the real queued worker; returns its submitted commit. */
 async function submitQueued(helpers, box, id) {
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runIn(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const source = JSON.parse(claimed.out).itemFolder ?? box.web;
   const committed = helpers.commitFile(box, source, 'web/snapshot.txt', 'candidate\n', 'feat(web): change with its own test [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
+  const submitted = await box.runIn(source, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   await helpers.waitFor(() => ['green', 'infrastructure', 'red', 'incomplete'].includes(boardRecord(box, id).job?.state), // budget: real queued worker hang ceiling
     'queued worker terminal result', 100_000); // budget: hang ceiling for one real queued gate; no elapsed-time assertion
@@ -119,10 +119,10 @@ async function submitQueued(helpers, box, id) {
 }
 
 /** Accept the item at its submitted commit as the coordinator, from the main checkout. */
-function accept(box, id, commit) {
+async function accept(box, id, commit) {
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
-    const verdict = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = await box.runIn(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
     assert.equal(verdict.code, 0, verdict.err + verdict.out);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
@@ -166,13 +166,13 @@ async function cleanupQueued(helpers, box) {
 
 test('clause 2: a one-item batch with a green submit receipt and no changed closures runs zero tests at landing and lands [C7]', { timeout: 200_000 }, async t => {
   const helpers = createE2eHelpers();
-  const { box, id, runs } = tieredProject(helpers);
+  const { box, id, runs } = await tieredProject(helpers);
   t.after(() => cleanupQueued(helpers, box));
   const commit = await submitQueued(helpers, box, id);
   const record = boardRecord(box, id);
   assert.equal(record.job.state, 'green', JSON.stringify(record.job));
   assert.equal(record.submit.gateGreen, true, JSON.stringify(record.submit));
-  accept(box, id, commit);
+  await accept(box, id, commit);
   // Main moves past the submit by a file no test imports, so the merged tree differs from the submit's by main alone.
   assert.equal(helpers.commitFile(box, box.repo, 'web/main-moved.txt', 'main moved past the submit\n', 'chore(web): main moves past the submit [G1]').status, 0);
   const before = runs();

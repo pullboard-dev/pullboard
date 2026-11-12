@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js packages/codemap/data/plan/cells.json packages/codemap/data/plan/path-map/kernel.json packages/codemap/data/plan/transition.json packages/kernel/index.js packages/kernel/src/logic/refused.js */
 /** The Cells reorg-only checks refuse only Cells reorg work; every other item proceeds with printed warnings [C7,D3]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -194,13 +194,13 @@ test('native submit of an ordinary item with unplaced source prints the warning 
     '--check', 'node check.cjs', '--wait', '--no-next', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id), '--no-next', '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--no-next', '--json')).code, 0);
   mkdirSync(join(box.web, 'src'), { recursive: true });
   writeFileSync(join(box.web, 'src/ordinary-added.js'), 'export const value = 1;\n');
   box.git(box.web, 'add', 'src/ordinary-added.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add an ordinary source [G1]');
   rmSync(marker, { force: true });
-  const submitted = box.run(box.web, 'submit', String(id), '--no-next');
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   assert.match(submitted.out + submitted.err, /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
   assert.equal(existsSync(marker), true, 'the ordinary item proceeds to its check');

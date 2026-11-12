@@ -43,15 +43,35 @@ export function selectedGateFiles(candidates, units) {
  * The test files the gate will run for this item: test files committed since the claim, kept to the gate's tier
  * selection, plus every test file the frozen criterion or the brief's "Test:" list names that exists at HEAD, which
  * submit runs whatever the selection says. A [test] clause naming one is ticked by the gate run, not by a builder fact
- * [C7]. A selection that cannot be read names no file, so the clause stays unticked.
+ * [C7]. A selection that cannot be read names no file, so the clause stays unticked. Only the files a clause could be
+ * ticked by are selected: a changed test no bar text quotes is left out without reading the tier plan.
  */
 export function gateTestFiles(root, item) {
   const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
   const named = barTestFiles(item).all.filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
+  // A clause ticks only for a file it quotes by path or base name, so a changed test no bar text quotes cannot matter here.
+  // Selecting tiers rebuilds the commit's whole test inventory (4-55 s), so it runs only for a changed test that the bar
+  // quotes without naming its path (a named path is always in the result) [C7].
+  const quoted = `${item.item_criterion ?? ''}\n${item.item_frozen ?? ''}\n${item.item_brief ?? ''}`.toLowerCase();
+  const candidates = [...selectedGateFiles(changed, null)].filter(file => !named.includes(file) && (quoted.includes(file.toLowerCase()) || quoted.includes(file.split('/').pop().toLowerCase())));
+  if (!candidates.length) return selectedGateFiles(named, null);
   let units = null;
   // An unreadable selection ticks nothing from the changed files, but submit still runs the bar-named files.
-  try { units = selectTestTiers(root, { base: item.item_claim_head ?? undefined, commit: 'HEAD' })?.units ?? null; } catch { return selectedGateFiles(named, null); }
-  return new Set([...selectedGateFiles(changed, units), ...selectedGateFiles(named, null)]);
+  try { units = selectedUnits(root, item.item_claim_head ?? undefined); } catch { return selectedGateFiles(named, null); }
+  return new Set([...selectedGateFiles(candidates, units), ...selectedGateFiles(named, null)]);
+}
+
+/** Selections already read in this process, by checkout, base and HEAD: submit asks twice for the same pair (clause inspection, then preflight). */
+const unitMemo = new Map();
+
+/** The tier plan's units for HEAD against a base, read once per process for the same commits; null when the repository has no tier plan. */
+function selectedUnits(root, base) {
+  const head = tryGit(root, ['rev-parse', '--verify', 'HEAD']).stdout;
+  const key = `${root}\0${base ?? ''}\0${head}`;
+  if (head && unitMemo.has(key)) return unitMemo.get(key);
+  const units = selectTestTiers(root, { base, commit: 'HEAD' })?.units ?? null;
+  if (head) unitMemo.set(key, units);
+  return units;
 }
 
 /**

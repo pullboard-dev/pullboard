@@ -21,7 +21,7 @@ const FILES = Array.from({ length: 60 }, (_, index) => `test/f${String(index).pa
 const RUNNERS = [{ host: 'fixture-a', slots: 6, browser: 0 }];
 const TREE = 'c'.repeat(40);
 const COMMIT = 'd'.repeat(40);
-const COMMAND = 'node packages/gate/src/io/run/tests.js ';
+const COMMAND = 'node apps/cli/src/io/run/tests.js ';
 /** A short slot admission window, so a request that finds no slot asks again within the test. */
 const ADMIT_MS = 1_000;
 /** The wall time each fixture batch reports. */

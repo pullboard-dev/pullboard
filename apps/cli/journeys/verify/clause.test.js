@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Repeated rejects identify the frozen requirement that needs clarification [V6,R2,B30,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -229,17 +228,17 @@ test('the person-routing setting refuses older tags and non-coordinator changes 
   assert.deepEqual(exportBoard(board), before);
 });
 
-test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2,R2,H16]', t => {
+test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2,R2,H16]', async t => {
   const helpers = createE2eHelpers();
   let board;
   t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
   const box = helpers.project('true');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'A quoted public rejection', '--criterion', CRITERION,
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'A quoted public rejection', '--criterion', CRITERION,
     '--specs', 'G1', '--check', 'test -f web/page.html', '--route', 'strong',
     '--brief', 'Files: web/page.html\nTest: assert the rendered title and footer.', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id));
+  const claimed = await box.runIn(box.web, 'claim', String(id));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const committed = helpers.commitFile(box, box.web, 'web/page.html', '<main>Missing the title</main>', 'feat(web): render a page [G1]');
   assert.equal(committed.status, 0, committed.stderr);
@@ -250,17 +249,17 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   const reviewer = join(box.dir, 'clause-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   box.env.CODEX_THREAD_ID = 'independent-clause-review-fixture';
-  assert.equal(fixtureJoin(box.run, reviewer, 'api', '--route', 'strong').code, 0);
-  const reserved = box.run(reviewer, 'next', '--verify', String(id), '--json');
+  assert.equal((await fixtureJoin(box.runIn, reviewer, 'api', '--route', 'strong')).code, 0);
+  const reserved = await box.runIn(reviewer, 'next', '--verify', String(id), '--json');
   assert.equal(reserved.code, 0, reserved.out || reserved.err);
   assert.equal(JSON.parse(reserved.out).item.item_id, id);
-  const missing = box.run(reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--note', 'The title is missing.', '--json');
+  const missing = await box.runIn(reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--note', 'The title is missing.', '--json');
   assert.equal(missing.code, 1, missing.err + missing.out);
   assert.equal(JSON.parse(missing.out).error.code, 'BAR_CLAUSE_REQUIRED');
   const argv = moveArgs({ verb: 'reject', item: id,
     args: { reason: 'TEST_FAILURE', note: 'The title is missing.', clause: TITLE_CLAUSE } });
   assert.ok(argv.includes(`--clause=${TITLE_CLAUSE}`), 'the API transports one literal caller-supplied argument');
-  const rejected = box.run(reviewer, ...argv);
+  const rejected = await box.runIn(reviewer, ...argv);
   assert.equal(rejected.code, 0, rejected.err + rejected.out);
   assert.equal(JSON.parse(rejected.out).clause, TITLE_CLAUSE);
   assert.equal(store.verdictsFor(board, id).at(-1).clause, TITLE_CLAUSE);

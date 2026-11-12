@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/lib/index.js packages/git/index.js packages/store/index.js */
 /** @pullboard-test-loads packages/store/src/io/board.js */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
@@ -30,7 +30,10 @@ import {
   startFixtureChild,
 } from '../../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
 
+// Process-level: the remaining launches here run preloads, IPC lock holders, installed copies and other-process
+// SQLite contention, none of which an in-process call can reproduce.
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
@@ -86,10 +89,8 @@ async function proveBusyWrite(t, args, table, events = 1) {
   const before = snapshot(file);
   const release = await holdWriteLock(box, file);
   t.after(release);
-  const refused = runFixtureChild(process.execPath, [BIN, ...args, '--json'], {
-    cwd: box.repo, env: box.env, encoding: 'utf8',
-  });
-  assert.equal(refused.status, 1, refused.context);
+  const refused = await runCliInProcess([...args, '--json'], { cwd: box.repo, env: box.env });
+  assert.equal(refused.status, 1, `${refused.stdout}${refused.stderr}`);
   const output = `${refused.stdout}\n${refused.stderr}`;
   assert.match(output, /BOARD_BUSY/u, output);
   const document = JSON.parse(refused.stdout);
@@ -100,10 +101,8 @@ async function proveBusyWrite(t, args, table, events = 1) {
   assert.doesNotMatch(output, /Error: database is locked|\n\s+at (?:\S+\s+\()?file:|ERR_SQLITE_ERROR/u);
   assert.deepEqual(snapshot(file), before, 'refused move must not partially change any board table');
   await release();
-  const retried = runFixtureChild(process.execPath, [BIN, ...args, '--json'], {
-    cwd: box.repo, env: box.env, encoding: 'utf8',
-  });
-  assert.equal(retried.status, 0, retried.context);
+  const retried = await runCliInProcess([...args, '--json'], { cwd: box.repo, env: box.env });
+  assert.equal(retried.status, 0, `${retried.stdout}${retried.stderr}`);
   const after = snapshot(file);
   assert.equal(after.tables[table].length, before.tables[table].length + 1, 'one retry makes exactly one move');
   assert.equal(after.tables.event.length, before.tables.event.length + events, 'only the successful retry records its events');
@@ -176,10 +175,8 @@ test('a refused writer names the board lock holder [C7,P4,B2]', async t => {
   t.after(holder.release);
   let message;
   try {
-    const refused = runFixtureChild(process.execPath, [BIN, 'shout', 'all', 'private named-holder contention', '--json'], {
-      cwd: box.repo, env: box.env, encoding: 'utf8',
-    });
-    assert.equal(refused.status, 1, refused.context);
+    const refused = await runCliInProcess(['shout', 'all', 'private named-holder contention', '--json'], { cwd: box.repo, env: box.env });
+    assert.equal(refused.status, 1, `${refused.stdout}${refused.stderr}`);
     const document = JSON.parse(refused.stdout);
     assert.equal(document.error.code, 'BOARD_BUSY');
     message = document.error.message;
@@ -306,10 +303,10 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const fact = box.run(box.repo, 'fact', String(id), 'note', 'private native index input', '--json');
+  const fact = await box.runLocal(box.repo, 'fact', String(id), 'note', 'private native index input', '--json');
   assert.equal(fact.code, 0, fact.err);
   const before = snapshot(file);
   const fixture = new DatabaseSync(file);
@@ -411,10 +408,10 @@ test('opening an older board names and logs its genuine index-building write [C7
 });
 
 
-test('native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', () => {
+test('native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', async () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
-  const added = fixtureAdd(box.run, box.repo, 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const document = snapshot(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.equal(document.tables.item.length, 1);

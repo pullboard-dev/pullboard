@@ -15,6 +15,15 @@ export const PROBE_DOUBTS = ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'];
 export const CONFIRM_PROBE_MS = 15_000;
 /** Retries after a failed confirming probe; only a probe that fails every retry marks the runner unavailable. */
 export const CONFIRM_PROBE_RETRIES = 3;
+/**
+ * An attempt that fails faster than this never reached the runner: the kernel refused the connect itself.
+ * The last retry after only such failures waits CONFIRM_HOST_DOWN_MS. Why: on 11 Nov the coordinator's Wi-Fi missed ARP
+ * replies; macOS then answers every connect to that host with "No route to host" for net.link.ether.inet.host_down_time
+ * (20 s); four attempts 1 s apart all failed in ~30 ms and quarantined idle runners that answered ssh a minute later [C7].
+ */
+export const CONFIRM_FAST_FAIL_MS = 1_000;
+/** The pause before the last retry after only fast failures: just past the 20 s host-down window. */
+export const CONFIRM_HOST_DOWN_MS = 21_000;
 /** A quarantined runner is probed again at most this long after a failed pass, so one that answers heals inside 2 minutes. */
 export const RECOVERY_RETRY_MAX_MS = 30_000;
 /** How long a recovery pass reserves its row: covers a retried transport probe so two passes do not probe one host at once. */
@@ -28,7 +37,7 @@ export const READINESS_HOLD_MAX_MS = 30 * 60_000;
 
 /**
  * How long a runner whose worker just failed readiness stays out before any probe may lift it, and how many lifted
- * readiness failures preceded this one [C7,#3692]. Why: on 7 Nov the Studio's worker missed READY again and again, yet
+ * readiness failures preceded this one [C7,#3692]. Why: on 7 Nov the big runner worker missed READY again and again, yet
  * each idle proof (no live job, root writable) returned it within seconds, and every pass took more shards that then
  * missed READY. A first failure is probed at once; a recurrence waits 1, 2, 4 ... up to 30 minutes.
  */
@@ -51,14 +60,15 @@ function pause(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
  * observation carries every attempt's outcome and duration so a quarantine names what was tried.
  * @param {(runner: object, options: { timeoutMs: number }) => Promise<object>} probe a probe answering `{ healthy }` or `{ ok }`
  * @param {object} runner the configured runner
- * @param {{ timeoutMs?: number, retries?: number, pauseMs?: number, wait?: (ms: number) => Promise<void> }} [options]
+ * @param {{ timeoutMs?: number, retries?: number, pauseMs?: number, hostDownMs?: number, wait?: (ms: number) => Promise<void> }} [options] - hostDownMs: the pause before the last retry when every earlier attempt failed fast; a recovery pass passes 0 to stay inside its row reservation
  * @returns {Promise<object>} the healthy attempt's observation, or the last failed one, with `attempts`
  */
-export async function confirmRunnerProbe(probe, runner, { timeoutMs = CONFIRM_PROBE_MS, retries = CONFIRM_PROBE_RETRIES, pauseMs = 1_000, wait = pause } = {}) {
+export async function confirmRunnerProbe(probe, runner, { timeoutMs = CONFIRM_PROBE_MS, retries = CONFIRM_PROBE_RETRIES, pauseMs = 1_000, hostDownMs = CONFIRM_HOST_DOWN_MS, wait = pause } = {}) {
   const attempts = [];
   let observation = { healthy: false, reason: 'confirming probe not run' };
   for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0 && pauseMs > 0) await wait(pauseMs);
+    const refusedLocally = attempts.length > 0 && attempts.every(row => !row.timedOut && row.ms < CONFIRM_FAST_FAIL_MS);
+    if (attempt > 0 && pauseMs > 0) await wait(attempt === retries && refusedLocally && hostDownMs > 0 ? hostDownMs : pauseMs);
     const started = Date.now();
     let timer;
     try {
@@ -252,7 +262,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     // A doubt is settled by the transport probe alone: one good answer puts the runner back in service [C7,P7].
     if (typeof transportProbe === 'function' && PROBE_DOUBTS.includes(row.detail)) {
       // One retry: a single slow answer under load is not a failed probe, so it neither counts toward quarantine nor keeps the doubt.
-      const answer = await confirmRunnerProbe(transportProbe, configured.get(row.host), { retries: 1 });
+      const answer = await confirmRunnerProbe(transportProbe, configured.get(row.host), { retries: 1, hostDownMs: 0 });
       try { recordRunnerProbe(db, row.host, answer.healthy, now); } catch { /* A locked probe history skips this record; the next pass probes again. */ }
       if (answer.healthy) result = { healthy: true, step: 'transport probe', reason: 'the runner answered its transport probe', attempts: answer.attempts };
     }
