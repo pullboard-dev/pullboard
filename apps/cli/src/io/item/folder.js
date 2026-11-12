@@ -327,10 +327,11 @@ function sameDirectory(first, second) {
  * A dirty folder is left as it was; a merge that conflicts is aborted on the clean tree, and submit still merges main then.
  *
  * @param {string} path the item folder
+ * @param {string} root the repository root, whose trunk setting is shared by every folder
  * @returns {void}
  */
-function advanceToMain(path) {
-  const trunk = trunkBranch(path);
+function advanceToMain(path, root) {
+  const trunk = trunkBranch(root);
   if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return;
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
   if (status.status !== 0 || status.stdout) return;
@@ -376,7 +377,7 @@ function replaceGoneFolder(root, path, ref) {
 /** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
-  if (typeof path === 'string' && existsSync(path)) advanceToMain(path);
+  if (typeof path === 'string' && existsSync(path)) advanceToMain(path, ctx.info.root);
   return path;
 }
 
