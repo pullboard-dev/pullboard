@@ -181,6 +181,16 @@ export function refuseCheckSyntax(command) {
   throw new Refused('CHECK_SYNTAX', `the check is not valid shell, so it would only ever run red: ${said}`);
 }
 
+/**
+ * Refuse a check that runs `node apps/cli/pullboard.js test`.
+ * Why: gate runners have no shared board, so that form dies with UNMERGED_SCHEMA and the check could only ever run red.
+ */
+export function refuseCheckPullboardTest(command) {
+  if (!/pullboard(?:\.js)?['"]?\s+test(?:\s|$)/u.test(command)) return;
+  throw new Refused('CHECK_RUNS_PULLBOARD_TEST', 'the check runs pullboard test, which fails inside gate runners with UNMERGED_SCHEMA',
+    'run the files directly: node packages/gate/src/io/run/tests.js <files>');
+}
+
 /** Capture the authorized check's immutable base without running its shell command [V2,H16]. */
 export function prepareCheckBaseline(root, command) {
   const primary = mainCheckout(root);

@@ -184,6 +184,7 @@ export const GUARDS = [
       { code: "BRIEF_TOO_LONG", next: "shorten the brief and point to a longer doc by path, or pass --brief-file <file>" },
       { code: "NO_BRIEF", next: "add the missing fields with pullboard edit <id> --brief \"...\" --criterion \"...\"" },
       { code: "CHECK_MASKS_EXIT", next: "set the check to run its proof alone, or capture the output first and test it, then retry: pullboard edit <id> --check \"<command>\"" },
+      { code: "CHECK_RUNS_PULLBOARD_TEST", next: "run the files directly: node packages/gate/src/io/run/tests.js <files>" },
       { code: "WITHDRAWN", next: "wait on an item that is not withdrawn; see pullboard list --all" },
       { code: "DEPENDENCY_CYCLE", next: "change --after so no item waits on itself" },
       { code: "BAD_CHECK_BASELINE", next: "the coordinator sets the check again: pullboard edit <id> --check \"<command>\"" },
