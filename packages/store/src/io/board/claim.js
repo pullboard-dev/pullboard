@@ -60,13 +60,45 @@ import { REWORK_SAME_FAMILY_ENGINE } from "../../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { claimProblem } from "../../../../seats/index.js";
 import { randomUUID } from 'node:crypto';
+import { availableParallelism } from 'node:os';
+import { loadConfig } from "../../../../config/index.js";
+import { withLocalSeatPresence } from "../presence.js";
 import {
   atomic,
   logEvent,
 } from "./event/log.js";
 
+/** Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves. */
+function runnerSlots(board) {
+  if (!board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
+  const at = board.clock.now().getTime(), serves = new Map();
+  for (const row of board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
+    let step = null;
+    try { step = JSON.parse(row.payload); } catch { /* an unreadable step declares nothing */ }
+    if (typeof step?.runner === 'string' && Number.isSafeInteger(step.jobs) && step.jobs >= 1) serves.set(step.runner, Math.max(serves.get(step.runner) ?? 0, step.jobs));
+  }
+  if (serves.size === 0) return null;
+  const busy = board.db.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
+  return Math.max(0, [...serves.values()].reduce((sum, jobs) => sum + jobs, 0) - busy);
+}
+
+/**
+ * How many live top-level build claims one seat may hold, and one line saying how N was found [C7].
+ * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
+ */
+function claimsPerSeat(board, perSeat = null) {
+  let set = perSeat;
+  if (set === null && board.gitRoot) { try { set = loadConfig(board.gitRoot).claims?.perSeat ?? null; } catch { set = null; } }
+  if (Number.isSafeInteger(set) && set >= 1) return { n: set, how: `claims.perSeat sets ${set}` };
+  const runners = runnerSlots(board);
+  const slots = runners ?? availableParallelism();
+  const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent').all()).filter(seat => seat.presence === 'live').length);
+  const n = Math.min(5, Math.max(1, Math.floor(slots / seats)));
+  return { n, how: `N = clamp(1, 5, floor(${slots} free ${runners === null ? 'local cores' : 'runner slots'} / ${seats} live seats)) = ${n}; claims.perSeat overrides it` };
+}
+
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, perSeat = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -176,11 +208,15 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         // Every modern-engine claim respects the cap, including legacy-shaped children and reworks.
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
         if (modern && !isRenewal(found)) {
-          const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
+          const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
             .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
+          if (found.item_parent_id !== null || isRework(found)) return null;
+          const top = held.filter(row => row.item_parent_id === null && !isRework(row));
+          const { n, how } = claimsPerSeat(board, perSeat);
+          return top.length >= n ? new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`) : null;
         }
-        if (modern && (itemFolder === true || isRenewal(found))) return null;
+        if (modern) return null;
         if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db
           .prepare(
