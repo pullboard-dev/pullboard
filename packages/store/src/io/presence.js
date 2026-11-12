@@ -1,5 +1,8 @@
 /** Private heartbeat observations travel as sealed display state, never native board history [B3,H5]. */
 import { existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 const memory = new WeakMap();
@@ -8,6 +11,16 @@ export const SEAT_LIVE_WINDOW_MS = 10 * 60_000;
 const PRESENCE_BUSY_TIMEOUT_MS = 250;
 /** After a busy read, how long later reads of that class reuse the cached rows: a short command waits out the timeout once, not per read (2 s still cost a loaded runner 28 waits). */
 const PRESENCE_BUSY_BACKOFF_MS = 30_000;
+/** A marker beside the sidecar that a busy read left: later processes of a command skip the wait while it is fresh. */
+function busyRecently(file) {
+  try { return Date.now() - statSync(`${file}.busy`).mtimeMs < PRESENCE_BUSY_BACKOFF_MS; } catch { return false; }
+}
+
+/** Leave the busy marker; best effort, a display cache never fails a command. */
+function markBusy(file) {
+  try { writeFileSync(`${file}.busy`, ''); } catch { /* best-effort display cache */ }
+}
+
 const LOCAL_TABLE = 'heartbeat';
 const IMPORTED_TABLE = 'imported_heartbeat';
 
@@ -73,7 +86,7 @@ export function heartbeatSeat(board, id) {
   }
   // Why: a locked sidecar would otherwise cost the full busy timeout on every heartbeat of one command.
   const memory = observationMemory(board.db);
-  if (Date.now() < (memory.busyUntil.get('write') ?? 0)) return true;
+  if (Date.now() < (memory.busyUntil.get('write') ?? 0) || busyRecently(file)) return true;
   try {
     if (observationIsFresh(persistedObservation(file, key), Date.parse(at))) return true;
     const db = new DatabaseSync(file);
@@ -87,8 +100,19 @@ export function heartbeatSeat(board, id) {
   } catch (error) {
     if ((Number.isInteger(error?.errcode) ? error.errcode & 0xff : null) !== 5 && error?.code !== 'SQLITE_BUSY') throw error;
     memory.busyUntil.set('write', Date.now() + PRESENCE_BUSY_BACKOFF_MS);
+    markBusy(file);
     return true;
   }
+}
+
+/** A busy class keeps its last rows, says so once per process, and is not read again for the backoff. */
+function busyRows(cached, kind) {
+  cached.busyUntil.set(kind, Date.now() + PRESENCE_BUSY_BACKOFF_MS);
+  if (!cached.warned.has(kind)) {
+    cached.warned.add(kind);
+    process.emitWarning(`presence sidecar remained locked after ${PRESENCE_BUSY_TIMEOUT_MS}ms; using last known ${kind} observations without refreshing their timestamps`, { code: 'PRESENCE_BUSY' });
+  }
+  return cached[kind];
 }
 
 /** Read one private observation class, retaining its last successful snapshot during bounded contention. */
@@ -99,6 +123,7 @@ function observationRows(board, table, kind) {
   // Why: one next reads presence per seat; a locked sidecar would otherwise cost the full timeout on each read.
   if (Date.now() < (cached.busyUntil.get(kind) ?? 0)) return cached[kind];
   if (!existsSync(file)) { cached[kind] = new Map(); return cached[kind]; }
+  if (busyRecently(file)) return busyRows(cached, kind);
   let db;
   try {
     db = new DatabaseSync(file, { readOnly: true });
@@ -109,16 +134,13 @@ function observationRows(board, table, kind) {
     cached[kind] = rows;
     cached.warned.delete(kind);
     cached.busyUntil.delete(kind);
+    rmSync(`${file}.busy`, { force: true });
     return rows;
   } catch (error) {
     const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;
     if (sqliteCode !== 5 && error.code !== 'SQLITE_BUSY') throw error;
-    cached.busyUntil.set(kind, Date.now() + PRESENCE_BUSY_BACKOFF_MS);
-    if (!cached.warned.has(kind)) {
-      cached.warned.add(kind);
-      process.emitWarning(`presence sidecar remained locked after ${PRESENCE_BUSY_TIMEOUT_MS}ms; using last known ${kind} observations without refreshing their timestamps`, { code: 'PRESENCE_BUSY' });
-    }
-    return cached[kind];
+    markBusy(file);
+    return busyRows(cached, kind);
   } finally { db?.close(); }
 }
 
