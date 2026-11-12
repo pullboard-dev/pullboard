@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../../tests/fixtures/testkit.js';
 import {
   SPEC,
@@ -23,6 +24,17 @@ import {
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
+
+/**
+ * A machine whose gate settings pin controller dispatch: build() submits here and expects the gate held in the
+ * submitting process, but with pull as the default (#6182-#6185) submit only queues a job and the item stays claimed.
+ */
+function pinnedMachine() {
+  const box = machine();
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  return box;
+}
 
 /**
  * web-1 builds an item as the shared build() does, claiming and submitting through this process: the Git work and its
@@ -69,7 +81,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
   /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
   const stage = phase => console.log('roadmap-items-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
   const executable = chromeExecutable(); assert.ok(executable, 'Chrome is required for the roadmap header check.');
-  const box=machine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
+  const box=pinnedMachine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
   const names=['Landed A','Accepted A','Waiting A','Shipped B','Landed C','Accepted C','In review C','Building C','Approve the release','Held C','Withdrawn C','Landed D','Withdrawn D'];
   for(const [index,name] of names.entries()) await box.inProcess(alpha.repo,'add',index===9?'ops':'web',name,'--specs','G1','--criterion','The page renders.');
   /** Land through real Git and the ordinary board receipt; acceptance alone stays unlanded. */
@@ -193,7 +205,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
 async function blockedRoadmap(t, stage) {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the roadmap blocker check.');
-  const box = machine(), alpha = project(box, 'blocked-roadmap');
+  const box = pinnedMachine(), alpha = project(box, 'blocked-roadmap');
   await box.inProcess(alpha.repo, 'add', 'web', 'Base work', '--specs', 'G1', '--criterion', 'Base is ready.');
   await box.inProcess(alpha.repo, 'add', 'web', 'Waits on base', '--specs', 'G1', '--criterion', 'Use #1 and #3 <em>literally</em>. More detail stays in Items.', '--after', '1');
   await box.inProcess(alpha.repo, 'add', 'web', 'Free work', '--specs', 'G1', '--criterion', 'Ready.');
