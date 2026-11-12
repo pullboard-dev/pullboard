@@ -92,7 +92,7 @@ test('clause 3: apps/cli/src/io/run/tests.js adds no static front-door import th
 test('clause 1: apps/cli/src/io/run/tests.js is a launcher whose only static import of the repository is the gate entry [C7,V4]', () => {
   const source = readFileSync(RUNNER, 'utf8');
   const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+['"]([^'"]+)['"]/gmu)].map(match => match[1]).filter(name => !name.startsWith('node:'));
-  assert.deepEqual(specifiers, ['../../../bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
+  assert.deepEqual(specifiers, ['../../../../../packages/gate/bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
   assert.ok(source.split('\n').length < 30, 'the engine lives in gate, not in the launcher');
 });
 
