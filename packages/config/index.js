@@ -52,6 +52,7 @@ export {
   pullPilot,
   pullGateFor,
   jobQueueMode,
+  localRunnerEnabled,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,

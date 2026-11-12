@@ -34,7 +34,7 @@ export async function run(io, { first, second, rest, values }) {
   const seat = (await import('../board/access.js')).resourceAgent(ctx);
   const agent = seat ?? `pid-${process.pid}`;
   const item = await claimedItem(ctx, agent);
-  if (values.diagnose !== true && queuesTestRun(ctx, seat, values)) return queueSeatRun(io, ctx, { agent, item, files, values });
+  if (values.diagnose !== true && queuesTestRun(ctx, seat, values)) return queueSeatRun(io, ctx, { agent, item, files, values }, await import('../test/pull.js'));
   if (values['test-run'] !== undefined) {
     const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
     await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, files, values })).payload,
@@ -48,7 +48,7 @@ export async function run(io, { first, second, rest, values }) {
  * Queue a seat's run as a board-held job and print its one line. Refuses at once what the worker would refuse
  * later (no files, a missing file, no test runner), so a seat never learns of a typo through next.
  */
-function queueSeatRun(io, ctx, { agent, item, files, values }) {
+async function queueSeatRun(io, ctx, { agent, item, files, values }, pulledRun = null) {
   const affected = values.affected === true;
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   if (!affected && !files.length) throw new Refused('USAGE', 'name the test files to run: pullboard test <file> [more files]');
@@ -57,6 +57,8 @@ function queueSeatRun(io, ctx, { agent, item, files, values }) {
   if (!affected && (typeof ctx.config.affectedTests !== 'string' || !ctx.config.affectedTests.trim())) {
     throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
   }
+  // A pulled run fetches only the committed source, so its refusal of an uncommitted change comes now, not through next [P7].
+  if (pulledRun?.pullTestWanted(item, values)) await pulledRun.refuseUncommitted(ctx.info.root);
   const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, files, affected, compareMain: values['compare-main'] === true });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });
   io.say(`queued test run ${queued.id}; the board runs it and pullboard next brings the result; take your next item now: pullboard next --take`);
