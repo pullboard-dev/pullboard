@@ -4,7 +4,7 @@
     {
       "order": 6,
       "actor": "editor",
-      "detail": "`brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands)"
+      "detail": "`brief`, `route`, `criterion`, `check`, `unfrozen`, optional `title` and `previousTitle` (the new title and the one it replaced), optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands)"
     }
   ]
 }

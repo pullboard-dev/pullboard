@@ -345,7 +345,7 @@ function recordEventContract() {
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong', reviewFamily: 'Fixture Review', checkTiming: false });
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
-  editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review', checkTiming: false });
+  editItem(board, first, { agentId: coordinator, title: 'Accepted example, retitled', brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review', checkTiming: false });
   const dependency = addItem(board, { by: coordinator, lane: 'docs', title: 'Dependency example' });
   requestCompanion(board, { agentId: builder, parentId: dependency, lane: 'core', key: 'format-event', title: 'Companion event example' });
   editItem(board, first, { agentId: coordinator, after: [dependency] });

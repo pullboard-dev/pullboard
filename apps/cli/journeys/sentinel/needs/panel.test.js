@@ -19,8 +19,8 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
   const box = machine();
   const spec = '# Needs review\n\n## G · Goals\n' + Array.from({ length: 4 }, (_, i) => '- G' + (i + 1) + ' [approved, must] The actual approved requirement ' + (i + 1) + ' keeps its full final words. | gate: browser gate ' + (i + 1)).join('\n') + '\n- G5 [draft, should] A draft remains for review. | gate: draft gate\n';
   const alpha = project(box, 'needs-panel', spec, {}, { agentApproved: true });
-  box.run(alpha.repo, 'shout', 'person', 'Choose the wording for this release. The full question stays available when expanded.', '--decision');
-  box.run(alpha.repo, 'sentinel', 'propose', 'hourly-size', '--check', 'node packages/gate/src/io/file/size.js', '--directory', '.', '--every', 'hourly', '--owner', 'coordinator');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Choose the wording for this release. The full question stays available when expanded.', '--decision');
+  await box.inProcess(alpha.repo, 'sentinel', 'propose', 'hourly-size', '--check', 'node packages/gate/src/io/file/size.js', '--directory', '.', '--every', 'hourly', '--owner', 'coordinator');
   const view = await startView(box);
   let chrome;
   try {

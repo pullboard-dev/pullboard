@@ -2,6 +2,7 @@
 import { Refused } from '../../../../../packages/kernel/index.js';
 import {
   headCommit,
+  withGitCommandMemo,
 } from '../../../../../packages/git/index.js';
 import {
   events,
@@ -30,7 +31,8 @@ import {
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
-  const act = (work) => actOn(io, work);
+  // One claim asks Git for the worktree list and trunk once; a call that writes clears the memory [C7].
+  const act = (work) => withGitCommandMemo(() => actOn(io, work));
   return act(async (ctx, board, me) => {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
@@ -54,7 +56,7 @@ export async function run(io, { first }) {
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
   let itemFolder = null;
   try {
-    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed,
+    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed, onConflict: (files, line) => io.say(`warning: ${line}`),
       onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
         text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
         ref: null }]),

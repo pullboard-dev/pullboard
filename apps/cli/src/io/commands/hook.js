@@ -28,6 +28,10 @@ import { checkLoosening } from '../../../../../packages/doctrine/index.js';
 /** The thin hook entry reads its clock from here, so only this module names the store [H24]. */
 export { systemClock as hookClock };
 const hookRead = hookReader({ openBoardReadOnly, boardBusyError: busyRefusal, readBoardSnapshot });
+/** The id of the seat committing at `root`, its own checkout or one of its item folders; null when none is. */
+export function hookSeatId(ctx, root) {
+  return hookRead(ctx, (board) => (store.agentAt(board, root) ?? itemFolderIdentity(board, root)?.agent)?.agent_id) ?? null;
+}
 const approvedRowPorts = { boardBusyError: busyRefusal, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../../../../packages/commits/index.js';
 import * as store from '../../../../../packages/store/light.js';
@@ -38,6 +42,7 @@ import { landingBatchOwnsRoot } from '../../../../../packages/landing/light.js';
 import { fixStagedImportBindings } from '../../../../../packages/commits/index.js';
 import { landingRows } from '../../../../../packages/commits/index.js';
 import { hookReader } from '../hook/read.js';
+import { stagedStaticProblems } from '../hook/static.js';
 import { readStdin } from '../hook/stdin.js';
 import { checkedLandingCommit } from '../../../../../packages/verify/index.js';
 import {
@@ -46,6 +51,8 @@ import {
   headCommit,
   tryGit,
   withGitCommandMemo,
+  checkoutBranch,
+  checkoutRefCommit,
   isClean,
   repoInfo,
   untracked,
@@ -95,7 +102,7 @@ import {
  */
 export function refuseSeatItemWork(root, seat) {
   if (!seat?.agent_path) return;
-  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim());
+  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(checkoutBranch(root) ?? '');
   if (!match) return;
   const folder = itemFolderPath(seat.agent_path, Number(match[1]));
   throw new Refused('ITEM_WORK_IN_SEAT', `item work for #${match[1]} is committed in the seat checkout ${root}; item work is built in its item folder ${folder}`,
@@ -117,8 +124,11 @@ export async function hookCommand(io, { first, second }) {
     // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
     if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
-    const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
-      ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
+    // A boardless clone with board.url set is a seat whose lane the served board names, never the coordinator [P7].
+    const remoteSeat = existsSync(ctx.file) ? null : await (await import('../remote/board.js')).remoteHookSeat(info.root);
+    const isMain = info.isMain && !remoteSeat;
+    const agent = remoteSeat ?? (isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
+      ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null)));
     const landing = hookRead(ctx, (board) => landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (first === 'pre-commit' && !landing) refuseSeatItemWork(info.root, hookRead(ctx, (board) => store.agentAt(board, info.root)));
     if (landing) io.caller('coordinator', info.root);
@@ -130,9 +140,12 @@ export async function hookCommand(io, { first, second }) {
         && !pendingSubmitHandoff(board, item));
       return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
     }) ?? '' : '';
-    const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
+    const trunk = trunkRef(info.root);
+    // The trunk branch's commit comes from Git's ref files when they can answer, so no process is started for it.
+    const accepted = (trunk?.startsWith('refs/heads/') ? checkoutRefCommit(info.root, trunk) : null) || tryGit(info.root, ['rev-parse', '--verify', trunk]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
-    problems = withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }));
+    const staticProblems = await stagedStaticProblems(info.root, process.env);
+    problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
@@ -204,5 +217,6 @@ export async function hookCommand(io, { first, second }) {
 
 /** Run `pullboard hook` and return its exit code. */
 export async function run(io, args) {
-  return await hookCommand(io, args);
+  // One memo for the whole hook run: the fixers and static checks ask Git the same read-only questions as the hook checks.
+  return await withGitCommandMemo(() => hookCommand(io, args));
 }

@@ -251,7 +251,7 @@ export async function claimOrdered(ctx, board, args) {
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
-    ...(routeCap ? { routeCap } : {}),
+    ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await import('./exit/rules.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;

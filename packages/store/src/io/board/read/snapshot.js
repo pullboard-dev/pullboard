@@ -9,7 +9,7 @@ import { readBoardSnapshot } from "./light.js";
 import { systemClock } from "./light.js";
 import { openBoardReadOnly as openReadOnlyLight } from "./light.js";
 import { boardBusyError } from "../access.js";
-import { boardIsCurrent } from "../migrate.js";
+import { boardStanding } from "../migrate.js";
 import {
   EVENT_LOG_VERSION,
   SIGNED_EVENT_LOG_VERSION,
@@ -38,13 +38,18 @@ export function holdReadConnections(provider) {
 /**
  * Open an existing board for a command that only reads: read-only, with no write lock and no
  * migration, so a writer holding the lock never stalls it (#1047). `current` says whether this
- * code's migration has run on it; only a write open migrates. Null when there is no board yet.
+ * code's migration has run on it; only a write open migrates. `drifted` says its shape changed at this version, which
+ * main's write open repairs when it can (#5825). Null when there is no board yet.
  */
 export function openBoardForRead(file, clock = systemClock, { connection = null } = {}) {
   if (file === ':memory:' || !existsSync(file)) return null;
   // A long-lived process, the resident board process, hands out read-only connections it already holds.
   const db = connection ?? heldReadConnection?.(file) ?? openBoardReadOnly(file);
-  try { readEventLogVersion(db); return { ...readBoardSnapshot(db, clock), readOnly: true, current: boardIsCurrent(db, SCHEMA_DIGEST, SCHEMA_VERSION) }; }
+  try {
+    readEventLogVersion(db);
+    const standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
+    return { ...readBoardSnapshot(db, clock), readOnly: true, current: standing === 'current', drifted: standing === 'drifted' };
+  }
   catch (error) { db.close(); throw error; }
 }
 

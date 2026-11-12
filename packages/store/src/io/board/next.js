@@ -34,7 +34,6 @@ import { verdictsFor } from "./query.js";
 import { listItems } from "./query.js";
 import { listAgents } from "./query.js";
 import { reviewHolder } from "./query.js";
-import { itemHold } from "./query.js";
 import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
@@ -274,7 +273,8 @@ export function nextFor(board, options) {
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
     && (!ownRejectionFirst || entry.item_verdict === 'REJECT' && entry.item_built_by === agentId));
   const mine = laneItems
-    .filter((entry) => { const held = itemHold(board, entry.item_id); if (held) skip(entry, 'ITEM_HELD'); return !held; })
+    // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
+    .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
@@ -308,6 +308,10 @@ export function nextFor(board, options) {
   // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
   const parked = parkedClaims(board, agentId);
   if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));
+  // An open item whose last gate went red at its own head has a builder's work in it and no seat holding it: it goes to
+  // the next eligible seat ahead of never-built items, so a red never waits for luck (#4014).
+  const redUnowned = new Set(mine.filter(({ entry }) => redGateWithoutHolder(board, entry)).map(({ entry }) => entry.item_id));
+  if (redUnowned.size) mine.sort((a, b) => Number(redUnowned.has(b.entry.item_id)) - Number(redUnowned.has(a.entry.item_id)));
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
     const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
@@ -391,6 +395,23 @@ export function greenReviewFor(board, who) {
 const INFRA_HELD = new Set(['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD']);
 
 /**
+ * Whether a gate job belongs to the item's current head: its commit is the item's submitted commit, or it is an
+ * infrastructure stop on the frozen bar of an ownerless item that has no commit yet [C7].
+ * Why one test: gateAtHead and returnedRecord must agree on which job is current, or a red from an older head shows at claim.
+ *
+ * @param {any} entry - the item row
+ * @param {any} job - the item's submit hand-off record
+ * @returns {boolean}
+ */
+function jobAtHead(entry, job) {
+  // An open, ownerless item has no submitted commit, but its frozen criterion still names the work the gate ran: an
+  // infrastructure stop on that digest is the same work waiting for the machine, never fresh builder work (#4989).
+  const frozenHead = !entry.item_commit && Boolean(entry.item_frozen_digest) && job.digest === entry.item_frozen_digest
+    && job.state === 'infrastructure' && job.error?.code === 'GATE_INFRA_EXHAUSTED';
+  return frozenHead || (Boolean(entry.item_commit) && job.commit === entry.item_commit);
+}
+
+/**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running or green gate, or an infrastructure stop under the item's frozen bar, means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
@@ -404,7 +425,7 @@ const INFRA_HELD = new Set(['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD']);
  */
 export function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
-  if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
+  if (!job || !jobAtHead(entry, job)) return null;
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
@@ -413,6 +434,21 @@ export function gateAtHead(board, entry) {
     : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
+}
+
+/**
+ * Whether an open item was built and its gate for the current head went red on its own work, so it holds a builder's
+ * commit and no seat holds it [C7, #4014]. A gate red only on main reds is not this item's red, and a reopen or
+ * reject after the job sends the item back through its own path.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {boolean}
+ */
+export function redGateWithoutHolder(board, entry) {
+  if (entry.item_status !== 'open' || !entry.item_built_by || !entry.item_commit) return false;
+  const job = submitHandoff(board, entry.item_id);
+  return Boolean(job && job.commit === entry.item_commit && job.state === 'red' && job.gateGreen !== true && job.error?.mainRedOnly !== true);
 }
 
 /**
@@ -464,14 +500,14 @@ function waitingOn(item) {
 export function returnedRecord(board, id) {
   const item = itemById(board, id);
   const job = submitHandoff(board, id);
-  const redGate = job && !['queued', 'running', 'green'].includes(job.state) && job.gateGreen !== true && item.item_status !== 'submitted';
+  const redGate = Boolean(job) && jobAtHead(item, job) && !['queued', 'running', 'green'].includes(job.state) && job.gateGreen !== true && item.item_status !== 'submitted';
   const verdict = item.item_verdict === 'REJECT' ? verdictsFor(board, id).filter(row => row.verdict_decision === 'REJECT').at(-1) : null;
   if (!redGate && !verdict) return null;
   const builder = item.item_built_by ?? item.item_owner;
   const thread = itemThread(board, id), replaced = new Set(thread.map(row => row.supersedes).filter(Boolean));
   const facts = thread.filter(row => row.type === 'fact' && !replaced.has(row.id) && (!builder || row.by === builder)).slice(-3).map(row => `${row.kind}: ${row.text}`);
   return {
-    gate: redGate ? { job: job.id, state: job.state, commit: job.commit, code: job.error?.code ?? null, message: job.error?.message ?? null } : null,
+    gate: redGate ? { job: job.id, state: job.state, commit: job.commit, code: job.error?.code ?? null, message: job.error?.message ?? null, next: job.error?.next ?? null } : null,
     reject: verdict ? { reason: verdict.verdict_reason, note: verdict.verdict_note, by: verdict.verdict_by, commit: verdict.verdict_commit } : null,
     facts,
   };

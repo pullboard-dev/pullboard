@@ -1,8 +1,11 @@
 /** Per-item Git worktrees for a joined seat [B5,C7]. */
 import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { basename } from 'node:path';
+import { resolve } from 'node:path';
 import { dirname } from 'node:path';
 import { agentAt } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
@@ -22,8 +25,20 @@ import { writeItemMarker } from './folder/identity.js';
 export { itemFolderIdentity, itemFolderPath } from './folder/identity.js';
 import { itemFolderPath } from './folder/identity.js';
 import { seatRoot } from './folder/identity.js';
+import { prepareSpareFolder } from './folder/spare.js';
+import { takeSpareFolder } from './folder/spare.js';
 import { itemFolderRunner } from '../commands/runner.js';
 import { openHostedItemFolder } from '../commands/runner.js';
+
+/**
+ * Git config arguments that write a checkout's files with parallel workers, one per core, unless the repository sets its own count.
+ * Why: a sequential worktree add wrote this repository's 4,595 files in 2.4-4.3 s, most of a claiming next; parallel workers took 0.9 s [C7,#5776].
+ * @param {string} root any checkout of the repository
+ * @returns {string[]}
+ */
+export function parallelCheckout(root) {
+  return tryGit(root, ['config', '--get', 'checkout.workers']).status === 0 ? [] : ['-c', 'checkout.workers=0'];
+}
 
 /** The item's branch in the seat's lane. */
 function branch(lane, id) { return `${lane}/item-${id}`; }
@@ -41,6 +56,9 @@ function canonical(path) {
   try { return realpathSync(path); } catch { return null; }
 }
 
+/** The trunk branch read once per root for the life of the process, so one claim runs git config pullboard.trunk once [C7]. */
+const trunkBranches = new Map();
+
 /**
  * The project's configured trunk branch, or main when none is recorded.
  * Why: a project whose trunk is master or trunk had claim fail on a hard-coded main [C7,#3759].
@@ -48,9 +66,13 @@ function canonical(path) {
  * @returns {string}
  */
 export function trunkBranch(root) {
+  const known = trunkBranches.get(root);
+  if (known) return known;
   let configured = null;
   try { configured = trunkRef(root); } catch { /* An unreadable trunk setting reads as unset. */ }
-  return typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+  const trunk = typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+  trunkBranches.set(root, trunk);
+  return trunk;
 }
 
 /**
@@ -165,7 +187,7 @@ async function reuseIdleFolder(ctx, me, id, desired, ref, exists, { board }) {
     try { prior = session.endedItemFolderSession(board, me, idle.path); }
     catch (error) { if (error instanceof Refused) continue; throw error; }
     git(ctx.info.root, ['worktree', 'move', idle.path, desired]);
-    try { git(desired, exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)]); }
+    try { git(desired, [...parallelCheckout(desired), ...(exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)])]); }
     catch (error) { git(ctx.info.root, ['worktree', 'move', desired, idle.path]); throw error; }
     if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
     await session.adoptItemFolderSession(desired, me, prior);
@@ -303,23 +325,71 @@ function sameDirectory(first, second) {
  * Bring a clean item folder up to main's tip, keeping every commit the item branch already has.
  * Why: a claim handed over a branch hundreds of commits behind main, so the submit merge was a huge new head every time (#3797).
  * A dirty folder is left as it was; a merge that conflicts is aborted on the clean tree, and submit still merges main then.
+ * A reopened item resumes its earlier builder's branch the same way; a conflict is named file by file (#2906).
  *
  * @param {string} path the item folder
- * @returns {void}
+ * @param {string} root the repository root, whose trunk setting is shared by every folder
+ * @returns {string[]} the files a conflicting merge with main named; empty when the folder is at main's tip
  */
-function advanceToMain(path) {
-  const trunk = trunkBranch(path);
-  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return;
+function advanceToMain(path, root) {
+  const trunk = trunkBranch(root);
+  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
-  if (status.status !== 0 || status.stdout) return;
-  if (tryGit(path, ['merge', '--ff-only', '-q', trunk]).status === 0) return;
-  if (tryGit(path, ['merge', '--no-edit', '-q', trunk]).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
+  if (status.status !== 0 || status.stdout) return [];
+  const workers = parallelCheckout(path);
+  if (tryGit(path, [...workers, 'merge', '--ff-only', '-q', trunk]).status === 0) return [];
+  if (tryGit(path, [...workers, 'merge', '--no-edit', '-q', trunk]).status === 0 || !unfinishedOperation(path, tryGit)) return [];
+  const conflicted = tryGit(path, ['diff', '--name-only', '--diff-filter=U']);
+  tryGit(path, ['merge', '--abort']);
+  return conflicted.status === 0 ? conflicted.stdout.split('\n').filter(Boolean) : [];
 }
 
-/** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
+/**
+ * Whether a folder's Git link is gone: no `.git` entry, or a `.git` file naming a worktree directory that was removed.
+ * @param {string} path the item folder
+ * @returns {boolean}
+ */
+function worktreeGone(path) {
+  const link = `${path}/.git`;
+  if (!existsSync(link)) return true;
+  let text;
+  try { text = readFileSync(link, 'utf8'); } catch { return false; }
+  const target = /^gitdir:\s*(.+)$/mu.exec(text)?.[1]?.trim();
+  return Boolean(target) && !existsSync(resolve(path, target));
+}
+
+/**
+ * Move a folder whose worktree was removed out of the way and prune the dead registration, so claim makes a working one.
+ * Why: next handed such a folder out as the item folder, and every Git command in it failed [C7,#4990].
+ * The old files are kept beside it; the item branch keeps its commits, and the one-line note says whether any wait for submit.
+ * @param {string} root the repository root
+ * @param {string} path the item folder
+ * @param {string} ref the item branch
+ * @returns {void}
+ */
+function replaceGoneFolder(root, path, ref) {
+  const kept = `${path}.gone-${Date.now()}`;
+  renameSync(path, kept);
+  tryGit(root, ['worktree', 'prune']);
+  const exists = tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0;
+  const ahead = exists ? Number(tryGit(root, ['rev-list', '--count', `${trunkBranch(root)}..${ref}`]).stdout) || 0 : 0;
+  process.stderr.write(`item folder ${path} had lost its Git worktree; its old files are kept at ${kept}. `
+    + (ahead > 0 ? `${ref} holds ${ahead} earlier commit${ahead === 1 ? '' : 's'} not on ${trunkBranch(root)}: the new folder has them, so build on them and submit.\n`
+      : `${ref} holds no earlier commits: nothing waits to be submitted.\n`));
+}
+
+/**
+ * Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7].
+ * A merge with main that conflicts is left undone and its files go to `options.onConflict`, else one stderr line (#2906).
+ */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
-  if (typeof path === 'string' && existsSync(path)) advanceToMain(path);
+  const trunk = trunkBranch(ctx.info.root);
+  const conflicts = typeof path === 'string' && existsSync(path) ? advanceToMain(path, ctx.info.root) : [];
+  if (conflicts.length) {
+    const line = `merging ${trunk} into the item branch conflicts in ${conflicts.join(', ')}; the folder keeps the branch as it was: run git merge ${trunk} there and resolve those files`;
+    if (options.onConflict) options.onConflict(conflicts, line); else process.stderr.write(`warning: ${line}\n`);
+  }
   return path;
 }
 
@@ -341,6 +411,7 @@ async function openFolder(ctx, me, id, options = {}) {
       hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
   }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
+  if (existsSync(path) && worktreeGone(path)) replaceGoneFolder(root, path, ref);
   if (existsSync(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
     if (!options.renewed) {
@@ -366,7 +437,12 @@ async function openFolder(ctx, me, id, options = {}) {
     writeItemMarker(path, me.id, id);
     return path;
   }
-  git(root, exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunkBranch(root)]);
+  // A prepared spare is moved into place and switched to the branch; only without one is every file written (#5776).
+  const seat = seatRoot(ctx, options.board, me), workers = parallelCheckout(root), trunk = trunkBranch(root);
+  if (!takeSpareFolder(root, seat, path, [...workers, ...(exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunk])])) {
+    git(root, [...workers, ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunk])]);
+  }
   writeItemMarker(path, me.id, id);
+  await prepareSpareFolder(root, seat, trunk, workers);
   return path;
 }
