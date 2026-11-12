@@ -1485,7 +1485,7 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/fail.test.js": {
-    "launch": 11
+    "launch": 4
   },
   "apps/cli/journeys/flakes/main.test.js": {
     "launch": 3
