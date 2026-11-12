@@ -21,7 +21,7 @@
     "launch": 3
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 16
+    "launch": 2
   },
   "apps/cli/journeys/baseline/delivery.test.js": {
     "launch": 1
@@ -130,9 +130,6 @@
   },
   "apps/cli/journeys/engine/merged.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/engine/settings.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/exit/rules.test.js": {
     "launch": 8
@@ -296,11 +293,11 @@
   "apps/cli/journeys/fact/wake.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/flakes/ci.test.js": {
+    "launch": 3
+  },
   "apps/cli/journeys/flakes/history.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/flakes/main.test.js": {
-    "launch": 46
   },
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
@@ -376,9 +373,6 @@
   },
   "apps/cli/journeys/handoff/verdict.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/health/blocks.test.js": {
-    "launch": 15
   },
   "apps/cli/journeys/health/main.test.js": {
     "launch": 1
@@ -542,17 +536,8 @@
   "apps/cli/journeys/land/takeover.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/lane/bypass.test.js": {
-    "launch": 7
-  },
-  "apps/cli/journeys/lane/lead.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/lane/merged.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/lane/outside.test.js": {
-    "launch": 6
   },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
     "launch": 1
@@ -849,7 +834,7 @@
     "launch": 4
   },
   "apps/cli/journeys/resources/main.test.js": {
-    "launch": 15
+    "launch": 5
   },
   "apps/cli/journeys/resume/board.test.js": {
     "launch": 1
@@ -861,12 +846,9 @@
     "launch": 2
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 35
+    "launch": 29
   },
   "apps/cli/journeys/resume/flow/setup.test.js": {
-    "launch": 63
-  },
-  "apps/cli/journeys/resume/guidance.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/resume/plans.test.js": {
@@ -876,7 +858,7 @@
     "launch": 17
   },
   "apps/cli/journeys/resume/tour-demo.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/resume/tour-slow.test.js": {
     "launch": 1
@@ -918,7 +900,7 @@
     "launch": 5
   },
   "apps/cli/journeys/run/receipts.test.js": {
-    "launch": 8
+    "launch": 7
   },
   "apps/cli/journeys/runner/browser/decision.test.js": {
     "launch": 1

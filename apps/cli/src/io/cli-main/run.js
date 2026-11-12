@@ -131,6 +131,9 @@ export async function main(rawArgv, streams) {
   }
 }
 
+// The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify']);
+
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
@@ -207,12 +210,14 @@ async function runMain(argv, streams) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
-  // A seat whose board lives on another host joins and reads it over HTTP and opens no board.sqlite [P7].
+  // A seat whose board lives on another host joins, reads and moves it over HTTP and opens no board.sqlite [P7].
+  // A command the board host runs for a channel (api, view, mcp) is already on the board, so it never posts back to itself.
   const remoteJoin = parsed?.positionals[0] === 'join' && parsed.positionals[1] !== 'coordinator';
-  if (parsed && !parsed.values.help && !parsed.values.version && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) {
+  if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && (remoteJoin || REMOTE_COMMANDS.has(parsed.positionals[0]))) {
     const remote = await import('../remote/board.js');
     const target = remote.remoteBoard();
-    if (target) return remote.runRemoteRead(io, parsed, target);
+    if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
+    if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
   const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
