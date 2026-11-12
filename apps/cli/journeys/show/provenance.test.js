@@ -137,6 +137,7 @@ test('a receipted native node test preserves caller output and records its actua
   const trace = join(box.dir, 'native-worker.json');
   const file = join(box.dir, 'native-worker.test.cjs');
   writeFileSync(file, `require('node:child_process').execFileSync('git',['--version']);require('node:fs').writeFileSync(${JSON.stringify(trace)},JSON.stringify({pid:process.pid,node:process.versions.node,argv:process.argv,execArgv:process.execArgv,nodeOptions:process.env.NODE_OPTIONS??'',hasNodeOptions:Object.hasOwn(process.env,'NODE_OPTIONS')}));require('node:test')('native selected worker [G1]',()=>{});`);
+  // Process-level: the native node --test worker is the subject, so a real child must run it.
   const bare = runFixtureChild(process.execPath, ['--test', file], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(bare.status, 0, bare.failure || bare.stderr);
   const expected = JSON.parse(readFileSync(trace, 'utf8'));
@@ -167,6 +168,7 @@ test('an unobserved custom nested Node child never borrows its launcher runtime 
   const launcher = `require('node:child_process').execFileSync(${JSON.stringify(alternate)},['-e',${JSON.stringify(childProgram)}]);`;
   const capture = captureTestRuntimes(process.env);
   t.after(() => capture.finish());
+  // Process-level: the nested node child must be a real process for runtime capture to observe it.
   const result = runFixtureChild(process.execPath, ['-e', launcher], { env: capture.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr);
   const actual = JSON.parse(readFileSync(actualPath, 'utf8'));
@@ -185,6 +187,7 @@ test('runtime capture binds the admitted file to its closed actual worker [C7,H1
   box.git(box.repo, 'commit', '-q', '-m', 'test: record the actual admitted test file');
   const capture = captureTestRuntimes(box.env);
   t.after(() => capture.finish());
+  // Process-level: the test dispatcher is the child whose reported runtime the capture binds.
   const result = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url)), file],
     { cwd: box.repo, env: capture.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
@@ -197,6 +200,7 @@ test('runtime capture binds the admitted file to its closed actual worker [C7,H1
   writeFileSync(outside, "require('node:test')('external selected worker [G1]',()=>{});\n");
   const externalCapture = captureTestRuntimes(box.env);
   t.after(() => externalCapture.finish());
+  // Process-level: the external-file dispatcher run must be a real child for runtime capture.
   const externalRun = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url)), outside],
     { cwd: box.repo, env: externalCapture.env, encoding: 'utf8' });
   assert.equal(externalRun.status, 0, externalRun.failure || externalRun.stderr || externalRun.stdout);
@@ -232,6 +236,7 @@ test('timed shell proof records the actual command child rather than the timeout
 test('child boot reports remain read only and a writable replacement stays unknown [C7,H16]', async t => {
   const capture = captureTestRuntimes(process.env);
   t.after(() => capture.finish());
+  // Process-level: a real child writes the boot report the capture reads.
   const result = runFixtureChild(process.execPath, ['-e', 'void 0'], { env: capture.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr);
   const directory = capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR;

@@ -25,11 +25,11 @@ function sessionEnv(box, identity) {
 }
 
 /** Run one public command as an agent session and demand its JSON success. */
-function jsonAs(box, identity, cwd, ...args) {
+async function jsonAs(box, identity, cwd, ...args) {
   const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
   Object.assign(box.env, sessionEnv(box, identity));
   try {
-    const result = box.run(cwd, ...args, '--json');
+    const result = await box.runLocal(cwd, ...args, '--json');
     assert.equal(result.code, 0, result.out + result.err);
     return JSON.parse(result.out);
   } finally {
@@ -56,7 +56,7 @@ function mainBinding(box) {
  * A board whose main checkout belongs to the coordinator's session, with one submitted item per builder lane and a
  * reviewer worktree, joined in its own session, at each submitted head.
  */
-function fixture(t, lanes) {
+async function fixture(t, lanes) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -74,23 +74,25 @@ function fixture(t, lanes) {
     joinFixtureSeat(box, builders.api, 'api', { model: FIXTURE_MODEL }); // the strong route, as the web seat joined
   }
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
-  const items = lanes.map((lane, index) => {
-    const id = jsonAs(box, 'coordinator-session', box.repo, 'add', lane, `Build ${lane}`, '--specs', lane === 'api' ? 'G2' : 'G1',
-      '--criterion', `the ${lane} file is built`, '--check', `grep -q built ${files[lane]}`).item.item_id;
+  const items = [];
+  for (const [index, lane] of lanes.entries()) {
+    const id = (await jsonAs(box, 'coordinator-session', box.repo, 'add', lane, `Build ${lane}`, '--specs', lane === 'api' ? 'G2' : 'G1',
+      '--criterion', `the ${lane} file is built`, '--check', `grep -q built ${files[lane]}`)).item.item_id;
     const builder = builders[lane];
-    assert.equal(box.run(builder, 'claim', String(id)).code, 0);
+    assert.equal((await box.runLocal(builder, 'claim', String(id))).code, 0);
     writeFileSync(join(builder, files[lane]), 'built\n');
     const head = commit(box, builder, `feat(${lane}): build the ${lane} file [${lane === 'api' ? 'G2' : 'G1'}]`);
-    const submitted = box.run(builder, 'submit', String(id));
+    const submitted = await box.runLocal(builder, 'submit', String(id));
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
     const reviewer = join(box.dir, `reviewer-${index}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
-    return { id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] };
-  });
+    await jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
+    items.push({ id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] });
+  }
   return { box, items, binding: mainBinding(box) };
 }
 
+// Process-level case: the accept runs as its own detached process, because the reviewer session and concurrent accepts are the subject.
 /** Accept in the reviewer's own session, outside the main checkout, and keep the full command result. */
 function accept(box, item) {
   return runFixtureChildAsync(process.execPath, [BIN, 'verify', String(item.id), 'accept', '--note', 'Read the diff and ran its frozen check.'],
@@ -120,7 +122,7 @@ function assertLanded(box, items, binding) {
 }
 
 test('an accept from a reviewer worktree session lands on main with no command in the main checkout [B35,B3,R3]', async t => {
-  const { box, items, binding } = fixture(t, ['web']);
+  const { box, items, binding } = await fixture(t, ['web']);
   const result = await accept(box, items[0]);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.doesNotMatch(result.stdout + result.stderr, /NOT_YOUR_CHECKOUT|automatic landing retained/u);
@@ -129,7 +131,7 @@ test('an accept from a reviewer worktree session lands on main with no command i
 });
 
 test('two accepts at once from two sessions land both, each in a batch of one [B35,B3,R3,C7]', async t => {
-  const { box, items, binding } = fixture(t, ['web', 'api']);
+  const { box, items, binding } = await fixture(t, ['web', 'api']);
   // The board's own batch size (Corey 5 Nov). An accept's landing starts at once, with no 10 s wait to gather accepts.
   onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 1,
     reason: 'Batch size stays one', window: { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 } }));
