@@ -160,7 +160,7 @@ export function assertMatchingLandingHost(helpers) {
   boardRead(box, board => {
     const item = store.getItem(board, entry.id);
     const options = { agentId: 'coordinator', decision: 'ACCEPT', note: 'Replay compatibility fixture.', head: entry.head,
-      digest: item.item_frozen_digest, policy: 'any', check: 'green', review: JSON.parse(accepted.event_detail).review };
+      digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off', check: 'green', review: JSON.parse(accepted.event_detail).review };
     const modern = prepareEngineMove(board, 'verify', [entry.id, { ...options, environment }]);
     const count = store.events(board).length;
     assert.throws(() => applyEngineMove(board, { ...modern, engine: 78 }, { sequence: 1, at: new Date().toISOString() }), { code: 'RELAY_MOVE' });
