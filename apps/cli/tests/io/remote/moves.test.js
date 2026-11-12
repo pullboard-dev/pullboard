@@ -2,6 +2,9 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
@@ -30,7 +33,14 @@ async function served(box, cwd, ...args) {
 function onRemoteSeats(body) {
   return async (t) => {
     const seats = await remoteSeats(t);
-    try { await body(seats); } finally { await seats.box.api.close(); }
+    try { await body(seats); } finally {
+      await seats.box.api.close();
+      try { rmSync(seats.box.dir, { recursive: true }); } catch (error) {
+        let left = []; try { left = readdirSync(seats.box.dir, { recursive: true }); } catch { /* gone */ }
+        const ps = String(spawnSync('ps', ['-axo', 'pid,ppid,command']).stdout).split('\n').filter((line) => line.includes('node') && !line.includes(' ps ')).join('\n');
+        throw new Error(`DIAG ${error.code} left=${JSON.stringify(left)}\nps:\n${ps}`);
+      }
+    }
   };
 }
 
