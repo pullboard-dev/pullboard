@@ -88,7 +88,7 @@ export function relandAccepted(board, id, { agentId, main, conflicts = [] }) {
         // The accept being relanded must carry the note that proved it; an accept without one proves nothing.
         proofNoted: () => String(accept.verdict_note ?? '').trim() ? null : new Refused('PROOF_REQUIRED', 'the accept being relanded records no proof note'),
       },
-      set: () => ({ item_verdict: 'ACCEPT', item_verified_by: accept.verdict_by }),
+      set: (found) => ({ item_verdict: 'ACCEPT', item_verified_by: accept.verdict_by, item_commit: found.item_commit }),
     });
     logEvent(board, agentId, 'reland', id, { commit: item.item_commit, accept: accept.verdict_id, verifiedBy: accept.verdict_by,
       digest: accept.verdict_digest, reopen: candidate.reopenEvent, main });

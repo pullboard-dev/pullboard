@@ -10,6 +10,6 @@ import { IN_STATE } from '../shared.js';
 export const MOVES = [
   { verb: 'reland', from: ['open'], to: 'verified', by: ['coordinator'], refuse: 'RELAND_NOT_ELIGIBLE',
     guards: ['coordinatorOnly', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'criterionUnchanged', 'proofNoted'],
-    sets: ['item_verified_by'],
+    sets: ['item_verified_by', 'item_commit'],
     command: 'landing, from the main checkout (no verb of its own)' },
 ];
