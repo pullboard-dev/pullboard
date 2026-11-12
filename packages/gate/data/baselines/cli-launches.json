@@ -833,9 +833,6 @@
   "apps/cli/journeys/digest/main.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/ownership.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/runner/runners/isolation.test.js": {
     "launch": 1
   },
