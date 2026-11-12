@@ -1,3 +1,5 @@
+// pullboard: browser
+/** @pullboard-test-gui */
 /** Sealed relay recovery skips future-engine blockers and keeps retries on two real clients [H3,H16]. */
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
 import { main as nativeTestMain } from '../../../tests/fixtures/native.js';
