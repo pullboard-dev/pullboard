@@ -194,7 +194,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}, named = n
   }
   const owner = agentSessionDigest() ?? `pid-${process.pid}`;
   if (values.adopt && !values['dry-run']) await rebindAdoptedLanding(board, ctx.info.root);
-  // The repository's landing.stall: how long a batch may make no progress before it ends (10 minutes unset, #3186, #3477).
+  // The repository's landing.stall: how long a batch may make no progress before it ends (2 minutes unset, #3186, #3477, #5816).
   const progress = landingProgress();
   const watch = { stallAfterMs: ctx.config?.landing?.stallMs, lastProgressAt: progress.lastProgressAt, stall: progress.stall };
   /** One landing through the batch engine; a real one runs in this process as a drive-cell job [C7]. */
@@ -236,6 +236,9 @@ export const LANDING_COALESCE_MS = 0;
 export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
   const root = primaryCheckoutRoot(ctx.info);
+  // Under pull with a trunk remote of record a runner lands: this host offers one land job row and returns [P7].
+  const pulled = await (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit });
+  if (pulled) return pulled;
   if (session()) {
     await schedule(root, new Date(now() + LANDING_COALESCE_MS).toISOString(), new URL('../landing/automatic.js', import.meta.url));
     ctx.io.say?.('the board lands this accept from the main checkout shortly; no command is needed there');

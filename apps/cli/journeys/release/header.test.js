@@ -24,14 +24,14 @@ test('Dashboard and Roadmap share the approved release headline at desktop and p
   assert.ok(executable, 'Chrome is required for the release header journey.');
   const box = machine(), alpha = project(box, 'release-header');
   for (let id = 1; id <= 5; id++) {
-    box.run(alpha.repo, 'add', 'web', 'Release header item ' + id, '--specs', 'G1', '--criterion', 'The shared release header remains readable.');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Release header item ' + id, '--specs', 'G1', '--criterion', 'The shared release header remains readable.');
     if (id > 3) continue;
     build(box, alpha, id, `release-${id}.txt`);
     accept(box, alpha, id);
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
-    box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
+    await box.inProcess(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
-  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--items', '1,2,3,4,5', '--reason', 'the fixture places its own items');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--items', '1,2,3,4,5', '--reason', 'the fixture places its own items');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-release-header-'));
   let chrome;
   try {

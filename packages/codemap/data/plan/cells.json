@@ -2266,6 +2266,7 @@
     "apps/cli->kernel",
     "apps/cli->git",
     "apps/cli->codemap",
+    "apps/cli->api",
     "health->state",
     "moves->state",
     "moves->doctrine",

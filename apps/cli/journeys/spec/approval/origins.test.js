@@ -23,8 +23,8 @@ import { applyRelayMove } from '../../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../../packages/state/index.js';
 
 /** Run the private project's real CLI and require its structured successful response. */
-function document(box, root, ...args) {
-  const result = box.run(root, ...args, '--json');
+async function document(box, root, ...args) {
+  const result = await box.runIn(root, ...args, '--json');
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);
   return JSON.parse(result.out);
 }
@@ -37,26 +37,26 @@ test('a clone recognizes an exact signed approval without borrowing another boar
   const made = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, encoding: 'utf8' });
   assert.equal(made.status, 0, made.failure ?? made.stderr);
   box.git(box.repo, 'config', 'user.signingkey', key);
-  document(box, box.repo, 'spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person');
-  const approved = document(box, box.repo, 'spec', 'approve', 'G1', '--by', 'fixture-person');
+  await document(box, box.repo, 'spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person');
+  const approved = await document(box, box.repo, 'spec', 'approve', 'G1', '--by', 'fixture-person');
   assert.ok(approved.decisions[0].signature, 'the fixture person produced an actual SSH signature');
-  document(box, box.repo, 'spec', 'apply');
+  await document(box, box.repo, 'spec', 'apply');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore(spec): preserve the signed approval');
   const clone = join(box.dir, 'signed-clone');
   box.git(box.repo, 'clone', '-q', box.repo, clone);
   const cloneSpec = readFileSync(join(clone, 'SPEC.md'), 'utf8');
   writeFileSync(join(clone, 'SPEC.md'), '# Clone setup\n\n## G · Goals\n');
-  document(box, clone, 'init');
+  await document(box, clone, 'init');
   writeFileSync(join(clone, 'SPEC.md'), cloneSpec);
-  assert.equal(document(box, clone, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false,
+  assert.equal((await document(box, clone, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false,
     'a separate local board verifies the committed signed receipt');
   const view = await helpers.startView(box, clone);
   t.after(view.stop);
   const before = (await view.state(clone)).project;
   assert.equal(before.spec.find(row => row.id === 'G1').agentApproval, null);
   const head = box.git(clone, 'rev-parse', 'HEAD');
-  const events = document(box, clone, 'export').tables.event;
+  const events = (await document(box, clone, 'export')).tables.event;
   const receiptFile = join(clone, '.pullboard/signoffs.jsonl');
   const receipt = readFileSync(receiptFile, 'utf8');
   rmSync(receiptFile);
@@ -77,30 +77,30 @@ test('a clone recognizes an exact signed approval without borrowing another boar
   writeFileSync(receiptFile, receipt);
   assert.equal((await view.state(clone)).project.spec.find(row => row.id === 'G1').agentApproval, null);
   assert.equal(box.git(clone, 'rev-parse', 'HEAD'), head, 'proof changes made no Git move');
-  assert.deepEqual(document(box, clone, 'export').tables.event, events, 'proof reads made no board event');
+  assert.deepEqual((await document(box, clone, 'export')).tables.event, events, 'proof reads made no board event');
   const source = readFileSync(join(clone, 'SPEC.md'), 'utf8');
   writeFileSync(join(clone, 'SPEC.md'), source.replace('gate: web test', 'gate: web stricter-test'));
-  assert.ok(document(box, clone, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'),
+  assert.ok((await document(box, clone, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'),
     'a signed approval does not authorize different gate bytes');
 });
 
-test('malformed approval evidence stays unconfirmed without blocking default flag work [S1,B26,P6]', t => {
+test('malformed approval evidence stays unconfirmed without blocking default flag work [S1,B26,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  document(box, box.repo, 'spec', 'approve', 'G1');
-  assert.equal(document(box, box.repo, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
+  await document(box, box.repo, 'spec', 'approve', 'G1');
+  assert.equal((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
   mkdirSync(join(box.repo, '.pullboard'), { recursive: true });
-  document(box, box.repo, 'spec', 'decline', 'G2', '--reason', 'Not a governing requirement');
+  await document(box, box.repo, 'spec', 'decline', 'G2', '--reason', 'Not a governing requirement');
   writeFileSync(join(box.repo, '.pullboard/signoffs.jsonl'), '{not valid JSON\n');
-  const status = document(box, box.repo, 'status');
+  const status = await document(box, box.repo, 'status');
   assert.ok(status.needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), 'bad proof does not confirm even a board-held decision');
   assert.ok(status.specApprovalEvidenceErrors.some(error => error.code === 'BAD_SIGNOFFS'));
-  assert.equal(document(box, box.repo, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G2'), false,
+  assert.equal((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G2'), false,
     'one person decline removes the outstanding approval call');
-  const id = document(box, box.repo, 'add', 'web', 'Default flag remains usable', '--specs', 'G1', '--criterion', 'A real fixture.').item.item_id;
+  const id = (await document(box, box.repo, 'add', 'web', 'Default flag remains usable', '--specs', 'G1', '--criterion', 'A real fixture.')).item.item_id;
   // The malformed ledger is in the coordinator checkout; the builder independently sees an unconfirmed row.
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  assert.equal((await box.runIn(box.web, 'claim', String(id))).code, 0);
 });
 
 test('an authenticated first baseline cannot grandfather an absent future row [H16,S1,P6]', t => {
@@ -160,7 +160,7 @@ test('an authenticated first baseline cannot grandfather an absent future row [H
     'a later approved row absent from the captured source must remain agent-approved until a person confirms it');
 });
 
-test('cached origins follow dirty lines and changed history while person decisions stay live [S1,B26,N26]', t => {
+test('cached origins follow dirty lines and changed history while person decisions stay live [S1,B26,N26]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
@@ -178,7 +178,7 @@ test('cached origins follow dirty lines and changed history while person decisio
   const authoredAt = new Date(box.git(box.repo, 'log', '-1', '--format=%aI', first.commit)).toISOString();
   assert.notEqual(committedAt, authoredAt, 'the fixture distinguishes approval commit time from Git author time');
   assert.equal(first.approvedAt, committedAt, 'approval date is the actual origin commit committer date in ISO UTC');
-  const need = document(box, box.repo, 'status').needs.find(entry => entry.kind === 'agent-approved' && entry.id === 'G1');
+  const need = (await document(box, box.repo, 'status')).needs.find(entry => entry.kind === 'agent-approved' && entry.id === 'G1');
   assert.equal(need.approvedAt, committedAt, 'Needs you carries the same approval date without changing attribution');
   assert.equal(need.attribution, 'Git author, seat unknown');
   assert.deepEqual(read(), first, 'a stable origin map preserves the full attribution');
@@ -187,7 +187,7 @@ test('cached origins follow dirty lines and changed history while person decisio
   const dirty = read();
   assert.equal(dirty.commit, null, 'dirty moved lines cannot reuse the old committed attribution');
   assert.equal(dirty.approvedAt, null, 'zero-SHA blame never turns its synthetic committer time into an approval date');
-  const dirtyNeed = document(box, box.repo, 'status').needs.find(entry => entry.kind === 'agent-approved' && entry.id === 'G1');
+  const dirtyNeed = (await document(box, box.repo, 'status')).needs.find(entry => entry.kind === 'agent-approved' && entry.id === 'G1');
   assert.equal(dirtyNeed.approvedAt, null, 'Needs you preserves an unknown uncommitted approval date');
   assert.equal(dirty.text, 'The changed page renders.');
   writeFileSync(join(box.repo, 'SPEC.md'), original);
@@ -197,7 +197,7 @@ test('cached origins follow dirty lines and changed history while person decisio
   assert.equal(rewritten.agent, 'Replacement Author');
   assert.deepEqual(read(box.web), first, 'a linked worktree keeps its own unchanged revision after main moves');
   assert.deepEqual(read(), rewritten);
-  document(box, box.repo, 'spec', 'approve', 'G1');
+  await document(box, box.repo, 'spec', 'approve', 'G1');
   assert.equal(read(), undefined, 'a person decision is re-evaluated independently of cached Git origins');
 });
 
@@ -233,14 +233,14 @@ test('attribution signatures bypass namespaced refs and external blame configura
   assert.equal(signature(), null, 'external revision lists are unsupported rather than cached incompletely');
 });
 
-test('show reads the origins of only the rows its item cites, the same origins status gives them [C7,S1]', t => {
+test('show reads the origins of only the rows its item cites, the same origins status gives them [C7,S1]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const needs = document(box, box.repo, 'status').needs.filter(need => need.kind === 'agent-approved');
+  const needs = (await document(box, box.repo, 'status')).needs.filter(need => need.kind === 'agent-approved');
   assert.ok(needs.some(need => need.id === 'G1') && needs.some(need => need.id !== 'G1'), JSON.stringify(needs.map(need => need.id)));
-  const id = document(box, box.repo, 'add', 'web', 'Cites one unconfirmed row', '--specs', 'G1', '--criterion', 'A real fixture.').item.item_id;
-  const shown = document(box, box.repo, 'show', String(id));
+  const id = (await document(box, box.repo, 'add', 'web', 'Cites one unconfirmed row', '--specs', 'G1', '--criterion', 'A real fixture.')).item.item_id;
+  const shown = await document(box, box.repo, 'show', String(id));
   assert.deepEqual(shown.agentApproved.map(row => row.id), ['G1'], 'only the cited row is in the item view');
   const status = needs.find(need => need.id === 'G1');
   assert.equal(shown.agentApproved[0].commit, status.commit, 'the cited row keeps the Git origin the whole view gives it');

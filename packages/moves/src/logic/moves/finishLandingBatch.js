@@ -9,7 +9,7 @@ import { LOCAL_LANDING_ENGINE } from "../../../../state/light.js";
 import { latestLandingBatch } from "../../../../git/browser.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
-import { landingTestDefects } from "../../../../store/light.js";
+import { landingTestDefects } from "../../../../store/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../state/light.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/light.js";

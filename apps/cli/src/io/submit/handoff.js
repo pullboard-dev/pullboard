@@ -57,6 +57,7 @@ import { submitHandoff } from '../../../../../packages/store/index.js';
 import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
+import { reviewPacketRerun } from '../../../../../packages/verify/index.js';
 import { handoffRecords } from '../../../../../packages/store/index.js';
 import { withBoardRead } from '../context.js';
 import { withBoard } from '../context.js';
@@ -559,15 +560,23 @@ function unfinishedSubmitHandoffs(ctx) {
 /**
  * Whether a hand-off finished 'submitted' with no green gate for the item's current submitted head. Why: a submit
  * whose proof was red only in cases that also fail on main is recorded with gateGreen false, so no review packet is
- * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448).
+ * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448). A head with a
+ * stored review packet is reviewable: a gate red only in main's named cases stores one (#3449), and returning such
+ * an item bounced good work on 11 Nov (#5774, #5287).
  *
  * @param {{ state?: string, gateGreen?: boolean, submitted?: string, commit?: string } | null} job
  * @param {{ item_status?: string, item_commit?: string | null } | null} item
+ * @param {boolean} [packet] - whether a review packet is stored for the item's head
  * @returns {boolean}
  */
-export function noVerdictHandoff(job, item) {
-  return job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
+export function noVerdictHandoff(job, item, packet = false) {
+  return !packet && job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
     && typeof item.item_commit === 'string' && item.item_commit === (job.submitted ?? job.commit);
+}
+
+/** Whether the board stores a review packet for the item's submitted head. */
+function storedPacket(ctx, item) {
+  return Boolean(item?.item_commit) && reviewPacketRerun(ctx.info.commonDir, item) !== null;
 }
 
 /**
@@ -579,13 +588,13 @@ export function noVerdictHandoff(job, item) {
  */
 export async function returnNoVerdictHandoffs(ctx) {
   const stranded = withBoardRead(ctx, board => boardHandoffs(board)
-    .filter(({ itemId, job }) => noVerdictHandoff(job, getItem(board, itemId))).map(({ itemId }) => itemId));
+    .filter(({ itemId, job }) => { const item = getItem(board, itemId); return noVerdictHandoff(job, item, storedPacket(ctx, item)); }).map(({ itemId }) => itemId));
   let returned = 0;
   for (const itemId of stranded) {
     try {
       returned += await withBoard(ctx, async board => {
         const job = submitHandoff(board, itemId), item = getItem(board, itemId);
-        if (!noVerdictHandoff(job, item)) return 0;
+        if (!noVerdictHandoff(job, item, storedPacket(ctx, item))) return 0;
         const head = item.item_commit.slice(0, 12);
         const note = `HANDOFF_NO_VERDICT: hand-off ${job.id} ended submitted at ${head} with no green gate, so no review packet exists and every reviewer is refused NO_REVIEW_PACKET; returned to its builder ${item.item_built_by ?? 'unknown'}`;
         await ordered(ctx, board, 'reopen', [itemId, { agentId: 'coordinator', note }]);
