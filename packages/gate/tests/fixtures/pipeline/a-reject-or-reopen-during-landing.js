@@ -56,7 +56,11 @@ test('a reopen between select and merge drops the item from the landing batch; m
     const onMain = box.git(box.repo, 'branch', '--contains', dropped.commit, '--list', 'main');
     assert.equal(onMain, '', 'main never took the reopened item\'s commit');
     assert.ok(box.tryGit(box.repo, 'merge-base', '--is-ancestor', dropped.commit, 'origin/main').status !== 0, 'origin never took it either');
-    assert.ok(show(kept.item).item_merged_commit, `the other item still landed (exit ${code}): ${err.slice(-300)}${out.slice(-300)}`);
-    return { ms: Date.now() - started, measured: `reopened #${dropped.item} mid-gate; it stayed ${after.item_status}, #${kept.item} landed, main untouched by it` };
+    // The batch built before the reopen is refused whole (LAND_ITEM_MOVED); the next landing rebuilds it without the reopened item.
+    assert.match(out + err, /LAND_ITEM_MOVED/u, `the stale batch is refused, not published (exit ${code}): ${err.slice(-300)}${out.slice(-300)}`);
+    const again = box.run(box.repo, 'land', '--max', '2', '--json');
+    assert.ok(show(kept.item).item_merged_commit, `the next landing lands the other item (exit ${again.code}): ${again.err.slice(-300)}${again.out.slice(-300)}`);
+    assert.equal(box.git(box.repo, 'branch', '--contains', dropped.commit, '--list', 'main'), '', 'main still never took the reopened item\'s commit');
+    return { ms: Date.now() - started, measured: `reopened #${dropped.item} mid-gate; it stayed ${after.item_status}, #${kept.item} landed on the next landing, main untouched by it` };
   });
 });
