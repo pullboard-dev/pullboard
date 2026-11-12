@@ -9,6 +9,7 @@ import { checkOutSubmitted } from '../../fixtures/api.js';
 import { commitWork } from '../../fixtures/api.js';
 import { FIXTURE_BRIEF } from '../../fixtures/api.js';
 import { FIXTURE_MODEL } from '../../fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 import { FIXTURE_MODEL_EARLIER } from '../../fixtures/testkit.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
@@ -29,6 +30,9 @@ async function remoteSeats(t) {
   runFixtureGit(['clone', '-q', box.root, clone], { cwd: box.dir, env: box.env, stdio: 'pipe' });
   const machine = join(box.dir, 'studio-home');
   mkdirSync(machine);
+  // Both homes hold the submit's gate in process and start no detached local runner, so they pin both [P7].
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  for (const home of [box.env.PULLBOARD_MACHINE_HOME, machine]) fixtureMachineSettings(home, { gate: { runnerDispatch: 'controller', localRunner: false } });
   /** Run the real CLI dispatch in the clone as one seat, awaited, so the in-process server keeps answering. */
   const run = (seat, ...args) => runCliInProcess(args,
     { cwd: clone, env: { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: seat.agent } });
