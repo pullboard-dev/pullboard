@@ -91,19 +91,19 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
 
   const box = machine();
   const alpha = project(box, 'snapshot replay');
-  box.run(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'greeting.html');
   sendBack(box, alpha, 1, 'the first greeting needs a correction');
   build(box, alpha, 1, 'greeting-fix.html');
   // Accept the submitted commit from a throwaway coordinator checkout, then always restore main.
   box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
-  try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
+  try { await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
   finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
   // Exercise the person's decision button so snapshot mode must hide this real mutation control.
-  box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
   const scriptShout = '<script>window.__snapshotShoutRan = true</script>';
-  box.run(alpha.repo, 'shout', 'all', scriptShout);
+  await box.inProcess(alpha.repo, 'shout', 'all', scriptShout);
 
   // Capture the live API state before export; the exported replay must finish at exactly this state.
   const live = await startView(box);
@@ -124,7 +124,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
   const boardId = exportedBoards.boards[0].id;
   const exportedEvents = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events;
-  const fullBoardLog = JSON.parse(box.run(alpha.repo, 'log', '--json')).events;
+  const fullBoardLog = JSON.parse(await box.inProcess(alpha.repo, 'log', '--json')).events;
   assert.deepEqual(fullBoardLog, observationEvents, 'the live and exported projections share the same unchanged native history');
   assert.equal(exportedEvents.length, fullBoardLog.length, 'the snapshot exports every board event');
   assert.deepEqual(exportedEvents.map((event) => event.event_id), fullBoardLog.map((event) => event.event_id),
@@ -363,18 +363,18 @@ test("the static export's Pause keeps its box through a press [A10,N26,C7]", { t
     assert.ok(executable, 'Chrome is required for the static Pause press proof');
     const box = machine();
     const alpha = project(box, 'snapshot replay');
-    box.run(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
     build(box, alpha, 1, 'greeting.html');
     sendBack(box, alpha, 1, 'the first greeting needs a correction');
     build(box, alpha, 1, 'greeting-fix.html');
     box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
-    try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
+    try { await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
     finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
-    box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
-    box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
-    box.run(alpha.repo, 'shout', 'all', '<script>window.__snapshotShoutRan = true</script>');
+    await box.inProcess(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
+    await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
+    await box.inProcess(alpha.repo, 'shout', 'all', '<script>window.__snapshotShoutRan = true</script>');
     const folder = join(box.dir, 'pause-export');
-    box.run(alpha.repo, 'view', '--export', folder);
+    await box.inProcess(alpha.repo, 'view', '--export', folder);
     const host = await serveFolder(folder, '/demo/');
     let chrome;
     try {
@@ -423,10 +423,10 @@ test('replay speed is judged by its scheduled delay [A10,C7]', { timeout: 90_000
   const box = machine();
   const alpha = project(box, 'throttled-snapshot');
   for (let id = 1; id <= 6; id++) {
-    box.run(alpha.repo, 'add', 'web', `Throttled replay item ${id}`, '--specs', 'G1', '--criterion', 'replays');
+    await box.inProcess(alpha.repo, 'add', 'web', `Throttled replay item ${id}`, '--specs', 'G1', '--criterion', 'replays');
   }
   const folder = join(box.dir, 'throttled-export');
-  box.run(alpha.repo, 'view', '--export', folder);
+  await box.inProcess(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
   const profile = join(box.dir, 'throttled-chrome');
   let chrome;
@@ -499,10 +499,10 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
   const box = machine();
   const alpha = project(box, 'stable-replay-controls');
   for (let id = 1; id <= 6; id++) {
-    box.run(alpha.repo, 'add', 'web', `Replay geometry item ${id}`, '--specs', 'G1', '--criterion', 'replay controls stay put');
+    await box.inProcess(alpha.repo, 'add', 'web', `Replay geometry item ${id}`, '--specs', 'G1', '--criterion', 'replay controls stay put');
   }
   const folder = join(box.dir, 'stable-replay-controls-export');
-  box.run(alpha.repo, 'view', '--export', folder);
+  await box.inProcess(alpha.repo, 'view', '--export', folder);
   if (classicScrollbar) {
     const stylesheet = join(folder, 'view.css');
     writeFileSync(stylesheet, readFileSync(stylesheet, 'utf8') + '\n::-webkit-scrollbar { width: 15px; }\n');
@@ -652,7 +652,7 @@ test('the replay controls hold their place with a classic scrollbar [A10,C7]', {
 test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
   const box = machine();
   const alpha = project(box, 'private-project');
-  box.run(alpha.repo, 'add', 'web', 'Private checkout item', '--specs', 'G1', '--criterion', 'exports without checkout paths');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Private checkout item', '--specs', 'G1', '--criterion', 'exports without checkout paths');
   const projectRoot = alpha.repo;
   const worktreeRoot = alpha.web;
   const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
@@ -688,8 +688,8 @@ test('static export redacts structured checkout paths but preserves paths people
     // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
     const brief = `Keep this literal checkout reference: ${projectRoot}`;
     const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
-    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
-    box.run(alpha.web, 'shout', 'all', shout);
+    await box.inProcess(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
+    await box.inProcess(alpha.web, 'shout', 'all', shout);
     const proseOutput = box.exportSnapshot(alpha.repo, 'export-prose');
     const proseSnapshot = proseOutput.root;
     const stateFile = JSON.parse(readFileSync(join(proseSnapshot, 'api', 'v1', 'boards', board.id, 'state.json'), 'utf8')).state;
@@ -718,15 +718,15 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   const box = machine();
   const alpha = project(box, 'roadmap-snapshot');
   const beacon = project(box, 'beacon');
-  box.run(alpha.repo, 'add', 'web', 'Verified page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Open page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Verified page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Open page', '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'one.txt');
   accept(box, alpha, 1);
-  box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
-  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
-  box.run(alpha.repo, 'milestone', 'add', 'Later');
+  await box.inProcess(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Later');
   const folder = join(box.dir, 'roadmap-export');
-  box.run(alpha.repo, 'view', '--export', folder);
+  await box.inProcess(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-export-chrome-'));
   const ready = "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length";
@@ -825,10 +825,10 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
     const box = machine();
     const alpha = project(box, 'full-board');
     const criterion = 'The greeting renders from the snapshot alone.';
-    box.run(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', criterion);
+    await box.inProcess(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', criterion);
     build(box, alpha, 1, 'greeting.html');
     sendBack(box, alpha, 1, 'the first greeting needs a correction');
-    box.run(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
+    await box.inProcess(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
     build(box, alpha, 1, 'greeting-fix.html');
     accept(box, alpha, 1);
 
