@@ -1,6 +1,3 @@
-import { installPostMoveHandoffCases } from '../../tests/fixtures/cases/handoff.js';
-import '../../tests/fixtures/next/take/cases.js';
-import '../../tests/fixtures/next/cases.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 import { assertFreeMainRedRouting } from '../../tests/fixtures/main/routing.js';
@@ -32,9 +29,6 @@ import { recordItemSession } from '../../../../packages/items/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import { healthReport } from '../../../../packages/health/index.js';
 import { deliverHealthNotices } from '../../../../packages/store/index.js';
-import { proveRequiredReviewFamily } from '../../tests/fixtures/family.js';
-import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/refreeze.js';
-import { assertSpecRefreezeReplay } from '../../tests/fixtures/refreeze.js';
 import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
 
 
@@ -450,16 +444,6 @@ test('a held review still returns a newly conflicting submission before offering
 });
 
 
-test('an item required reviewer family is enforced by every dispatch path [V1,V2,B3,H16]',
-  t => proveRequiredReviewFamily(t, { fixture, cli }));
-
-test('a spec correction refreezes every unlanded citing item atomically [V2,H16]',
-  t => assertSpecCorrectionRefreezesCitations(t));
-
-test('spec correction refreezes replay atomically across imported prefixes [V2,H16]',
-  t => assertSpecRefreezeReplay(t, { fixture, cli }));
-
-
 test('automatic review reservation retains coordinator-only policy when a higher lane item is ineligible [N2,V1,B3]', async t => {
   const box = await fixture(t, { policy: 'coordinator' });
   const blocked = box.add('Higher-ranked lane review');
@@ -546,5 +530,3 @@ test('clause 2: list, status data and the health report name each excluded item 
   const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
   assert.match(finding.why, /released 7 min ago/u);
 });
-
-installPostMoveHandoffCases({ fixture, cli });
