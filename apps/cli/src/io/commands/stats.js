@@ -10,8 +10,10 @@ import { timeLines } from '../../../../../packages/stats/index.js';
 import { timeStats } from '../../../../../packages/stats/index.js';
 import { weeklyDue } from '../../../../../packages/stats/index.js';
 import { join } from 'node:path';
+import { runUtilization } from './stats/utilization.js';
 import { coordinatorActions } from '../../../../../packages/stats/index.js';
 import { coordinatorActionLines } from '../../../../../packages/stats/index.js';
+import { runDemand } from './stats/demand.js';
 import { pipelineLimit } from '../../../../../packages/stats/index.js';
 import { pipelineStats } from '../../../../../packages/stats/index.js';
 import { pipelineLines } from '../../../../../packages/stats/index.js';
@@ -68,7 +70,9 @@ import {
 
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
+  if (first === 'runners' && values.demand) return runDemand(io, { second, rest, values });
   const ctx = context(io);
+  if (first === 'runners') return runUtilization(io, { second, rest, values });
   if (first !== undefined && !['pipeline', 'moves', 'time', 'disk'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats disk [--prune], pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
   if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
   if (values.prune && first !== 'disk') throw new Refused('USAGE', '--prune belongs to pullboard stats disk');
