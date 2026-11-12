@@ -45,7 +45,7 @@ async function serveLocal(io) {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
       capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, signal: stop.signal, say,
-      admit: () => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare() }) });
+      admit: ({ running }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running }) });
     if (!served.served) say(`a local runner already runs on this machine (pid ${served.pid})`);
     return 0;
   } finally {
