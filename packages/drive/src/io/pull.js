@@ -22,6 +22,8 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { childEnvironment } from '../../../kernel/light.js';
+import { PROGRESS_ENV } from './progress.js';
+import { watchProgress } from './progress.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -335,7 +337,7 @@ function gateReceipt(result, commit, durationMs) {
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
- * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number }} [options.timing]
+ * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
  * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job.
@@ -396,7 +398,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       continue;
     }
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [];
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null;
     if (!run.length) {
       let asked;
       try { asked = await reliably({ action: 'request', ...held }); }
@@ -405,6 +407,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       if (Array.isArray(request?.run) && request.run.length) {
         run = request.run;
         input = JSON.stringify(request.input ?? null);
+        named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
       }
     }
@@ -424,8 +427,13 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const job = jobEnvironment(cache, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, claim.job);
     // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
     const kept = keepFolder(cache, claim.job, claim.attempt);
+    // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
+    const progressFile = join(cache, 'progress', `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}.jsonl`);
+    mkdirSync(join(cache, 'progress'), { recursive: true }); rmSync(progressFile, { force: true });
+    const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
+      post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
-    const env = { ...job.env, PULLBOARD_TRUNK_REMOTE: answer.trunk, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const env = { ...job.env, PULLBOARD_TRUNK_REMOTE: answer.trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     let lost = false;
@@ -442,6 +450,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const stopping = () => running.stop();
     signal?.addEventListener('abort', stopping, { once: true });
     const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
+    await progress.stop(); rmSync(progressFile, { force: true });
     rmSync(job.folder, { recursive: true, force: true });
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
