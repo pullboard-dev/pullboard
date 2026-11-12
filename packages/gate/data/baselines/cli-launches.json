@@ -1488,7 +1488,7 @@
     "launch": 4
   },
   "apps/cli/journeys/tool-build/pinned.test.js": {
-    "launch": 13
+    "launch": 6
   },
   "apps/cli/journeys/trace/command.test.js": {
     "launch": 7
