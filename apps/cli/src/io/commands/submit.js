@@ -191,6 +191,7 @@ import {
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
 import {
   submitPreflight,
+  hasCellsPlan,
   requirePlannedSource,
 } from '../../../../../packages/items/index.js';
 import {
@@ -262,7 +263,6 @@ import { reportPreflight } from '../submit/preflight.js';
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
   ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
-  process.stderr.write(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s at ${Math.round(performance.now())}\n`);
   const end = Date.now();
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
@@ -604,21 +604,19 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     () => requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
-  process.stderr.write(`submit probe a-stack: 0s at ${Math.round(performance.now())}\n`); withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
-  process.stderr.write(`submit probe b-names: 0s at ${Math.round(performance.now())}\n`); machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
+  withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
+  machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
-  process.stderr.write(`submit probe c-infra: 0s at ${Math.round(performance.now())}\n`); const regeneratedFrom = toolRegenerationSource(root, commit);
-  process.stderr.write(`submit probe d-regen: 0s at ${Math.round(performance.now())}\n`); 
+  const regeneratedFrom = toolRegenerationSource(root, commit);
   // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes [P7].
   if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
   if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
-  process.stderr.write(`submit probe e-config: 0s at ${Math.round(performance.now())}\n`); const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
+  const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
   const submitConfig = regenerated || regeneratedFrom ? { ...configuredSubmit, affectedTests: '', submitGate: 'full' } : configuredSubmit;
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
-  process.stderr.write(`submit probe f-quar: 0s at ${Math.round(performance.now())}\n`); const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
-  process.stderr.write(`submit probe g-quar-done: 0s at ${Math.round(performance.now())}\n`); 
+  const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
   const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
   const submissionStarted = async () => {
     // A queued admission already has its native witness; a free slot records it at the real gate start.
@@ -639,13 +637,13 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
-  process.stderr.write(`submit probe h-crossrun: 0s at ${Math.round(performance.now())}\n`); const crossRun = await withBoardRead(ctx, board => {
+  const crossRun = await withBoardRead(ctx, board => {
     board.gitRoot = ctx.info.root;
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   // Each cited row's gate test and each test file the bar names run with the proof, whatever seal and tier selection say [V4,C7].
-  process.stderr.write(`submit probe i-named: 0s at ${Math.round(performance.now())}\n`); crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests });
+  crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests });
   const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
@@ -862,14 +860,16 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   recordGateSpan({ phase: 'tests-judge', start: judgeStart, outcome: 'done' });
   return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionVerdict, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
-  process.stderr.write(`submit probe j-stages: 0s at ${Math.round(performance.now())}\n`); ctx.submitAttempt.stage = 'runner';
+  ctx.submitAttempt.stage = 'runner';
   // Independent stages start together; a red refuses immediately. A driven gate (ctx.runGateStages) records each stage [C7].
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
   const stages = await (ctx.runGateStages ?? runGateStages)([
     { name: 'preflight', run: async signal => {
       try {
         if (remoteAuthorization) recordRemoteAuthorization(await runRemotePart('authorization', signal));
+        // With no cells plan on accepted main, placement checks nothing; its receipt key would cost more than the tests' head start (#5752).
         const placed = remoteMode ? await runRemotePart('preflight', signal)
+          : !hasCellsPlan(root, trunk.commit) ? { reused: false }
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
@@ -882,7 +882,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
             throw new Refused('GATE_RED', `preflight is red; no runner was queued. Fix the named source, commit, and submit again:\n${lines.join('\n')}`);
           }
         }
-        process.stderr.write(`submit probe k-preflight: 0s at ${Math.round(performance.now())}\n`); settlePreflight.resolve();
+        settlePreflight.resolve();
         return placed;
       } catch (error) { settlePreflight.reject(error); throw error; }
     } },
