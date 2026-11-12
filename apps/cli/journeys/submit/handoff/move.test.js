@@ -29,7 +29,7 @@ function state(box) {
 }
 
 /** Build a real claimed candidate and advance main causally when native preflight reports composition. */
-function fixture(t, rewind, gateMove = null) {
+async function fixture(t, rewind, gateMove = null) {
   const helpers = createE2eHelpers();
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture Model';
@@ -64,15 +64,15 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
   box.git(box.repo, 'commit', '--allow-empty', '-qm', 'chore: captured accepted main [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Main move candidate', '--specs', 'G1',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Main move candidate', '--specs', 'G1',
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(box.id));
+  const claimed = await box.runLocal(box.web, 'claim', String(box.id));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const built = helpers.commitFile(box, box.web, 'web/feature.js', "export const feature='item';\n", 'feat(web): private candidate [G1]');
   assert.equal(built.status, 0, built.stderr);
-  const ready = box.run(box.repo, 'bar', 'ready', 'on', '--json');
+  const ready = await box.runLocal(box.repo, 'bar', 'ready', 'on', '--json');
   assert.equal(ready.code, 0, ready.out + ready.err);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const marker = join(box.dir, 'main-moved.json');
@@ -102,12 +102,13 @@ process.stdout.write=function(...args) {
 
 /** Run the public command with an output observer that moves real Git refs, without replacing a service. */
 function submit(box) {
+  // Process-level: a preload moves real Git refs inside the submit child.
   return runFixtureChild(process.execPath, ['--import', pathToFileURL(box.preload).href, box.helpers.BIN,
     'submit', String(box.id), '--no-next'], { cwd: box.web, env: box.env, encoding: 'utf8' });
 }
 
 test('queued submit accepts a forward main move during native preflight [V4,H16,E18]', async t => {
-  const box = fixture(t, false);
+  const box = await fixture(t, false);
   const result = submit(box);
   assert.ok(existsSync(box.marker), result.stdout + result.stderr);
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -123,8 +124,8 @@ test('queued submit accepts a forward main move during native preflight [V4,H16,
   assert.equal(completed.item.item_commit, box.commit, 'the queued proof records its captured source; landing composes later main');
 });
 
-test('queued submit still refuses a main rewind during native preflight [V4,H16,E18]', t => {
-  const box = fixture(t, true);
+test('queued submit still refuses a main rewind during native preflight [V4,H16,E18]', async t => {
+  const box = await fixture(t, true);
   const result = submit(box);
   assert.ok(existsSync(box.marker), result.stdout + result.stderr);
   assert.equal(result.status, 1, `${result.stdout}${result.stderr}\nrepo head ${box.git(box.repo, 'rev-parse', 'HEAD')}; captured main ${box.main}; marker ${readFileSync(box.marker, 'utf8')}; job ${JSON.stringify(state(box).job)}`);
@@ -133,7 +134,7 @@ test('queued submit still refuses a main rewind during native preflight [V4,H16,
 });
 
 for (const mode of ['unrelated', 'twice', 'policy']) test(`queued gate handles ${mode} main change [V4,H16,E18]`, async t => {
-  const box = fixture(t, false, mode);
+  const box = await fixture(t, false, mode);
   const result = submit(box);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   await box.helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.
