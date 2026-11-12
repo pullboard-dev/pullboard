@@ -1,10 +1,12 @@
 /** Shared real Git landing setup for independently scheduled suites [B3,R3]. */
 import assert from 'node:assert/strict';
 import {
+  mkdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { runFixtureChildAsync } from '../child.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
@@ -104,13 +106,21 @@ function acceptItem(box, entry) {
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 /**
- * submitItem answered in this process: the commit still runs real git hooks, only the submit skips the node start-up.
- * Why: sixteen seeds through child processes cannot finish in the per-file budget [B3].
+ * Commit an item's change through its real hooks without blocking the other items' commits.
+ * Why: each commit starts the hook CLI twice; sixteen in a row cost more than the file's whole budget [B3].
  */
-async function submitItemLocal(box, entry, contents = 'PASS\n') {
-  const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
+async function commitItemLocal(box, entry, contents = 'PASS\n') {
+  mkdirSync(join(entry.path, entry.file, '..'), { recursive: true });
+  writeFileSync(join(entry.path, entry.file), contents);
+  box.git(entry.path, 'add', '-A');
+  const committed = await runFixtureChildAsync('git', ['commit', '-q', '-m', `feat(web): build land fixture ${entry.item} [G1]`], { cwd: entry.path, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, committed.stderr);
   entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
+  return entry;
+}
+
+/** Submit an already committed item in this process, skipping the node start-up [B3]. */
+async function submitItemLocal(box, entry) {
   const submitted = await box.runLocal(entry.path, 'submit', String(entry.item), '--no-next');
   assert.equal(submitted.code, 0, submitted.err);
   return entry;
@@ -137,5 +147,5 @@ function moveMainPastSubmit(box, number = 0) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
 }

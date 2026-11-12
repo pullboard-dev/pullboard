@@ -67,7 +67,7 @@ function fullRuns(box) { return allRuns(box).filter(row => !row.alone); }
  * Why: one landing per item caps the trunk near two items an hour, so the default must be the whole
  * waiting queue in one gate run, and a red batch must cost about log2(n) gates, never n.
  */
-export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, submitItemLocal, acceptItemLocal, json, onBoard }, { separate = false } = {}) {
+export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, json, onBoard }, { separate = false } = {}) {
   const box = landProject();
   if (separate) {
     const path = join(box.repo, 'pullboard.json');
@@ -84,7 +84,11 @@ export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, su
     for (let index = 0; index < WAITING; index += 1) made.push(await itemWorktreeLocal(box, index + 1, `web/land-${index + 1}.test.js`));
     return made;
   });
-  await timed(phases, 'submit', async () => { for (const [index, entry] of entries.entries()) await submitItemLocal(box, entry, index === red ? 'RED\n' : 'PASS\n'); });
+  // The hooks make a commit slow; the commits are independent, so four run at once, then each submit takes the board in turn.
+  await timed(phases, 'commit', async () => {
+    for (let at = 0; at < entries.length; at += 4) await Promise.all(entries.slice(at, at + 4).map((entry, offset) => commitItemLocal(box, entry, at + offset === red ? 'RED\n' : 'PASS\n')));
+  });
+  await timed(phases, 'submit', async () => { for (const entry of entries) await submitItemLocal(box, entry); });
   await timed(phases, 'accept', async () => { for (const entry of entries) await acceptItemLocal(box, entry); });
   // The acceptance proof is for the old main; a real later change makes the batch run its landing gate.
   writeFileSync(join(box.repo, 'main-advance.txt'), 'main changed after acceptance\n');
