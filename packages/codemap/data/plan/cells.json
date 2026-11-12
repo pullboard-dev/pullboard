@@ -2195,6 +2195,7 @@
     "resources->git",
     "codemap->git",
     "codemap->kernel",
+    "config->kernel",
     "gate->codemap",
     "runners->config",
     "runners->verify",
