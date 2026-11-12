@@ -1391,6 +1391,9 @@
   "apps/cli/journeys/hold/demo.test.js": {
     "launch": 12
   },
+  "apps/cli/journeys/hold/demo-lanes.test.js": {
+    "launch": 6
+  },
   "apps/cli/journeys/resume/tour-demo.test.js": {
     "launch": 1
   },
