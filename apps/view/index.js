@@ -1,6 +1,5 @@
 /** The view app: served and exported board pages, their models and the commands that start them [C7,N26]. */
-export { personNeedsSummary, recentBlocks } from "./src/logic/needs/summary.js";
-export { resumeNeeds } from "./src/logic/resume.js";
+export { personNeedsSummary, recentBlocks, resumeNeeds } from "./src/io/needs.js";
 export { freeWindowOffsets } from "./src/logic/offsets.js";
 export { activeViewAgents, compactItemSummaries, expandItemSummaries, viewFlowSummary, viewProofSummary } from "./src/logic/summary/state.js";
 export { esc, renderSpecView } from "./src/logic/main.js";

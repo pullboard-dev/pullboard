@@ -72,6 +72,28 @@ export function handoffRecords(db) {
 }
 
 /**
+ * The claimed items whose newest gate job is a pulled one still on its way (offered, claimed by a runner, or its receipt
+ * not yet applied), as the queued or running record their stage reads, by item id.
+ *
+ * Why separate from handoffRecords: a pulled gate job carries no hand-off record, and the record's readers grant authority
+ * a pulled job must never give; the stage only needs to say "in the gate" instead of "building" [C7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number | null} [only] - Read this one item, for a single-item read.
+ * @returns {Map<number, {state: string, agentId: string, digest: string | null}>}
+ */
+export function pulledGateRecords(db, only = null) {
+  const pulled = new Map();
+  if (!hasJobTables(db)) return pulled;
+  const rows = db.prepare(`SELECT j.job_item AS item, j.job_step AS step, i.item_owner AS owner, i.item_frozen_digest AS digest
+    FROM job j JOIN item i ON i.item_id = j.job_item
+    WHERE j.job_kind = 'gate' AND i.item_status = 'claimed' ${only === null ? '' : 'AND j.job_item = ?'} AND j.job_step IN ('offered', 'claimed', 'receipt')
+      AND j.job_created = (SELECT MAX(job_created) FROM job newest WHERE newest.job_kind = 'gate' AND newest.job_item = j.job_item)`).iterate(...(only === null ? [] : [only]));
+  for (const row of rows) pulled.set(row.item, { state: row.step === 'offered' ? 'queued' : 'running', agentId: row.owner, digest: row.digest });
+  return pulled;
+}
+
+/**
  * Read only new-engine queue observations; historical selection has no new metadata. The record lives on the item's
  * gate job in the job tables, the one place hand-off state is kept [C7].
  */
