@@ -780,7 +780,7 @@
     "launch": 3
   },
   "apps/cli/journeys/milestone/api.test.js": {
-    "launch": 28
+    "launch": 14
   },
   "apps/cli/journeys/milestone/board.test.js": {
     "launch": 2
@@ -793,9 +793,6 @@
   },
   "apps/cli/journeys/milestone/order.test.js": {
     "launch": 9
-  },
-  "apps/cli/journeys/milestone/person.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/milestone/text.test.js": {
     "launch": 2
