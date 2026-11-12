@@ -27,6 +27,10 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -64,6 +68,7 @@ function project() {
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   /** Run one CLI command with --json and return its document. */
   const cli = (cwd, ...args) => {
+    args = fixtureJoinRoute(args, env.PULLBOARD_MODEL);
     if (args[0] === 'submit') args.push('--wait');
     const result = run(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
@@ -316,6 +321,17 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     t.diagnostic(JSON.stringify({ host: hostname(), node: process.version, loadSamples: samples }));
   });
   const box = project();
+  // The baseline worker needs a registered runner in this isolated machine home.
+  const runnerBin = join(box.dir, 'runner-bin'), worker = join(box.dir, 'runner-worker');
+  const runnerHome = join(box.dir, 'runner-home'), runnerMachine = join(runnerHome, '.pullboard');
+  for (const folder of [runnerBin, worker, runnerHome, runnerMachine]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin: runnerBin, worker, home: runnerHome, machineHome: runnerMachine,
+    requests: join(box.dir, 'runner-requests.jsonl'), nodeCommand: process.execPath });
+  box.env.PATH = runnerBin + delimiter + box.env.PATH;
+  // In process: registering the runner is setup, not the watch under test, so it costs no CLI launch.
+  const runnerAdd = ['runner', 'add', HOST, '--slots', '1', '--browser', '0'];
+  const registered = await runCliInProcess(runnerAdd, { cwd: box.root, env: box.env });
+  assert.equal(registered.status, 0, `runner add: ${registered.stderr}${registered.stdout}`);
   const builder = box.cli(box.root, 'worktree', 'app', '--model', 'watch-builder');
   const waiting = box.cli(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
     '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait').item;
@@ -376,7 +392,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   // Accepting the work an item waits on makes that item claimable.
   const reviewer = join(box.dir, 'reviewer');
   box.git('worktree', 'add', '-q', '--detach', reviewer, firstCommit);
-  box.cli(reviewer, 'join', 'docs', '--model', 'watch-reviewer');
+  box.cli(reviewer, 'join', 'docs', '--route', 'strong', '--model', 'watch-reviewer');
   box.cli(reviewer, 'next', '--verify', String(added.item_id));
   box.cli(reviewer, 'verify', String(added.item_id), 'accept', '--no-next', '--note', 'read the fixture file');
   const unblocked = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === blocked.item_id, 5_000, 'claimable notice after its wait was verified')).line); // budget: hang ceiling for one line, not a latency claim.
@@ -424,11 +440,24 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const observations = new Set(['fact', 'usage', 'activity-delivered']);
   // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
-    'add', 'milestone_placed', 'check-baseline', 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
+    'add', 'milestone_placed', 'check-baseline', 'hold_item', 'add', 'milestone_placed', 'claim',
+    'unhold_item', 'check_accept', 'release',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
-  ], 'only the explicit moves, rejection escalation, native placements, baseline and submit proofs were recorded');
-  const facts = recorded.filter(event => event.event_kind === 'fact');
+  ], 'only the explicit moves, rejection escalation, native placements, the baseline with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
+  const allFacts = recorded.filter(event => event.event_kind === 'fact');
+  const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
+  const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
+  assert.equal(allFacts.length, 8, 'only comparison and tier-1 shadow facts are recorded');
+  assert.equal(shadows.length, 4, 'each gate proof has a tier-1 shadow fact');
+  assert.equal(new Set(shadows.map(event => JSON.parse(event.event_detail).ref?.id)).size, 4, 'shadow references are distinct');
+  for (const event of shadows) {
+    const fact = JSON.parse(event.event_detail);
+    assert.equal(fact.kind, 'measurement');
+    assert.equal(fact.ref?.kind, 'proof-run');
+    assert.ok(recorded.some(proof => proof.event_kind === 'proof-run' && proof.item_id === event.item_id
+      && JSON.parse(proof.event_detail).receipt?.id === fact.ref.id), 'the shadow names a real proof on its item');
+  }
   assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
   for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
     const comparisons = facts.filter(event => event.item_id === item).map(event => {
@@ -519,8 +548,7 @@ test('help watch and the generated agent instructions teach seats to listen with
   assert.deepEqual(lines.slice(example + 2), [
     'Claude Code: run pullboard watch --to <your id> under the Monitor tool, and each event line wakes the seat.',
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
-    'next: pullboard status',
-  ], 'the original two harness instructions and the final interactive help action stay exact');
+  ], 'the two harness instructions end the help: one command\'s help adds no next line after its example [N37]');
   const { agentsBlock } = await import('../../../../packages/doctrine/light.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
