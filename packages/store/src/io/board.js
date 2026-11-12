@@ -67,6 +67,7 @@ import { landingBatches } from "../../../git/index.js";
 import { recordRelayRefusal } from "./board/refusal.js";
 import { linkPublishRepair } from "./board/repair.js";
 import { register } from "./board/register.js";
+export { REMOTE_AGENT_PATH, isRemoteAgentPath } from "./board/register.js";
 import { ensureCoordinator } from "./board/coordinator.js";
 import { addItem } from "./board/add.js";
 import { validateItemAddition } from "./board/add.js";
