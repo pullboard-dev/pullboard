@@ -477,7 +477,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(usage.length, 3, 'only release and the two submissions checkpoint usage');
   assert.ok(usage.every(event => event.event_by === builder.agent));
   assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length,
-    Number(firstSubmission.activity.digests.length > 0) + Number(secondSubmission.activity.digests.length > 0), JSON.stringify([firstSubmission.activity, secondSubmission.activity]));
+    // A seat's first delivery starts it at the board head (#6152): it records a receipt with no digest. Later ones record only with a digest.
+    1 + Number(secondSubmission.activity.digests.length > 0));
   assert.deepEqual(watch.out.lines.map(({ line }) => JSON.parse(line)).filter(row => !row.notice)
     .map(row => [row.sequence, row.kind, row.item, row.actor]),
   recorded.map(event => [event.event_id, event.event_kind, event.item_id, event.event_by]),
