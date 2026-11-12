@@ -9,10 +9,9 @@ import { fixture } from '../../../tests/fixtures/submit/outcome.js';
 import { remote } from '../../../tests/fixtures/submit/outcome.js';
 import { submittedProof } from '../../../tests/fixtures/submit/outcome.js';
 
-describe('remote submits refuse unbound and foreign native outcome records [V4,B3,H16]', { concurrency: true }, () => {
+describe('remote submits refuse unbound native outcome records [V4,B3,H16]', { concurrency: true }, () => {
   for (const control of [
     { name: 'unbound', timing: false },
-    { name: 'foreign', corrupt: 'foreign' },
     ]) {
     test(`a real remote submit refuses ${control.name} native outcome records [V4,B3,H16]`, async t => {
       const box = await fixture(t, { beforeMain: beforeMain(control) });

@@ -65,7 +65,13 @@ function source(name = 'shared failure [G1]', expected = 2) {
 /** Build and claim one private board whose accepted main already has a named red test. */
 async function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true, beforeMain } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
+  t.after(() => {
+    // A detached gate worker can still write while the board winds down, so retry the whole tree for a while.
+    for (const deadline = Date.now() + 30_000; ; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250)) {
+      try { rmSync(directory, { recursive: true, force: true }); return; }
+      catch (error) { if (error.code !== 'ENOTEMPTY' || Date.now() >= deadline) throw error; }
+    }
+  });
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
