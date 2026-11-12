@@ -1,5 +1,6 @@
 /** Shared board, auth and hosted-journey setup for apps/cli/journeys/shout/journeys/ [N26, N40]. */
 import assert from 'node:assert/strict';
+import { nextSteps$NEXT_STEPS as NEXT_STEPS } from '../../../../index.js';
 import {
   createServer,
   request,

@@ -3,6 +3,7 @@
 /** @pullboard-test-gui */
 /** Cockpit activity checks, "loading" group, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../../index.js';
 import {
   mkdtempSync,
   rmSync,
