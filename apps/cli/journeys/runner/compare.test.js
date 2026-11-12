@@ -79,6 +79,9 @@ async t => {
   assert.match(facts(board, mainOnly), /only in cases that also fail on main [0-9a-f]{12} \(not this item's; accepted\):\nalso fails on main: check web\/main\.test\.js \(main case\)/u);
 });
 
+/** Main's stand-in selection with the proof under bin/tests/, since the proof's text names a test file the no-runtime-assumptions preflight refuses elsewhere. */
+const PROOF_DOOR = TOOLING['packages/gate/index.js'].replace("proofCommand: 'node bin/proof.js ./web'", "proofCommand: 'node bin/tests/proof.js ./web'");
+
 /**
  * Main's proof as the affectedTests runner prints it on a runner: Node's warning and the no-runner CPU-load line on
  * stderr, the selected file's TAP on stdout, then the run's own suite timing frame and the runner's phase line.
@@ -100,8 +103,8 @@ process.exitCode = ran.status;
 test('clause 2: a pulled proof red only in a case main also fails lists that case and submits the item for review [P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, one submit and one whole gate in a runner process.
 async t => {
   // Main's gate door carries the real TAP accounting and timing reads beside the stand-in plan, as accepted main does.
-  const box = await pullProject(t, 1, { tooling: { 'bin/proof.js': RUN_TESTS_PROOF, 'web/main.test.js': CASES['web/main.test.js'],
-    'packages/gate/index.js': `${TOOLING['packages/gate/index.js']}export { accountedFailures, timingAccountingStages, timingSource, TIMING_RUN_ID_ENV } from ${JSON.stringify(GATE)};\n` } });
+  const box = await pullProject(t, 1, { tooling: { 'bin/tests/proof.js': RUN_TESTS_PROOF, 'web/main.test.js': CASES['web/main.test.js'],
+    'packages/gate/index.js': `${PROOF_DOOR}export { accountedFailures, timingAccountingStages, timingSource, TIMING_RUN_ID_ENV } from ${JSON.stringify(GATE)};\n` } });
   // Main's test command keys its receipts.
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'node --test' }, null, 2) + '\n');
