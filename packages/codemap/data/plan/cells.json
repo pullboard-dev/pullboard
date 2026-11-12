@@ -1806,6 +1806,14 @@
         "packages/gate/tests/io/check/baseline.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-history-plan.js",
+        "packages/landing/src/io/history.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2237,6 +2245,7 @@
     "api->jobs",
     "api->kernel",
     "keys->store",
+    "landing->gate",
     "landing->git",
     "landing->pin",
     "landing->store",
@@ -2257,11 +2266,12 @@
     "apps/cli->config",
     "apps/cli->resources",
     "state->store",
-    "stats->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
     "apps/cli->queue",
+    "apps/cli->health",
+    "apps/cli->store",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2317,5 +2327,13 @@
     "apps/relay->keys",
     "apps/relay->seats",
     "search->store"
+  ],
+  "upwardEdgesGrandfathered": [
+    "apps/cli->apps/relay",
+    "apps/cli->search",
+    "apps/cli->apps/lib",
+    "apps/cli->apps/lib/src",
+    "state->store",
+    "stats->store"
   ]
 }

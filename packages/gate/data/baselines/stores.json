@@ -430,7 +430,7 @@
     },
     "pullboard.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/commands/add.js"
+      "owner": "packages/config/src/logic/config-file.js"
     },
     "pure-roots.json": {
       "kind": "json",
@@ -974,7 +974,7 @@
     },
     "test-journeys.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/test/split.js"
+      "owner": "packages/gate/src/io/test/derived.js"
     },
     "test-path-tables.json": {
       "kind": "json",

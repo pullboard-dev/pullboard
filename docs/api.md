@@ -173,6 +173,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `fact` | `version:number`, `item:number`, `fact:object` |
 | `why` | `version:number`, `id:number`, `decisions:array` |
 | `why file` | `version:number`, `file:string`, `line:number\|null`, `items:array`, `rows:array`, `decisions:array` |
+| `why release` | `version:number`, `release:string\|null`, `asOf:string`, `items:array`, `idle:array`, `landings:object` |
 | `escalate` | `version:number`, `id:number`, `from:string`, `to:string` |
 | `run` | `version:number`, `messages:array` |
 | `sweep` | `version:number`, `messages:array` |
@@ -231,6 +232,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `hook pre-push` | `version:number`, `messages:array` |
 | `tool-build` | `version:number`, `build:object\|null` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
+| `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `red` | `version:number`, `file:string` |
 | `search` | `version:number`, `query:string`, `matches:array` |

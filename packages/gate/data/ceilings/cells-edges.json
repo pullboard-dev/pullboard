@@ -2484,10 +2484,6 @@
       "cells": 6,
       "deep": 0
     },
-    "packages/landing/src/io/history.js": {
-      "cells": 2,
-      "deep": 1
-    },
     "packages/landing/src/io/host.js": {
       "cells": 3,
       "deep": 0
