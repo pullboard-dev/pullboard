@@ -1,7 +1,4 @@
 {
-  "apps/cli/journeys/add/brief.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/add/check.test.js": {
     "launch": 2
   },
@@ -185,15 +182,6 @@
   "apps/cli/journeys/edges/door.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/edit/budget.test.js": {
-    "launch": 13
-  },
-  "apps/cli/journeys/edit/references.test.js": {
-    "launch": 9
-  },
-  "apps/cli/journeys/edit/route.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/edit/verdict.test.js": {
     "launch": 6
   },
@@ -208,9 +196,6 @@
   },
   "apps/cli/journeys/engine/settings.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/exit/rules.test.js": {
-    "launch": 8
   },
   "apps/cli/journeys/export/addresses.test.js": {
     "launch": 8
@@ -440,49 +425,22 @@
   "apps/cli/journeys/gate/workflows.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/handoff/a1.test.js": {
+  "apps/cli/journeys/handoff/checkout.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/handoff/checkout.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/handoff/dead/ends.test.js": {
-    "launch": 5
-  },
-  "apps/cli/journeys/handoff/dead/requeue.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/handoff/dead/running.test.js": {
-    "launch": 5
+    "launch": 1
   },
   "apps/cli/journeys/handoff/dispatcher/relaunch.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/handoff/main.test.js": {
     "launch": 13
   },
-  "apps/cli/journeys/handoff/orphan.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/handoff/snapshot.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/handoff/ticket.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/handoff/tools.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/handoff/verdict.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/health/blocks.test.js": {
-    "launch": 15
+    "launch": 1
   },
   "apps/cli/journeys/health/main.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/health/sentinel/background.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/heartbeat/claims.test.js": {
@@ -490,12 +448,6 @@
   },
   "apps/cli/journeys/heartbeat/seat.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/help/examples.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/help/main.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/hold/demo.test.js": {
     "launch": 12
@@ -637,9 +589,6 @@
   },
   "apps/cli/journeys/intake/main.test.js": {
     "launch": 5
-  },
-  "apps/cli/journeys/join/idempotent.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/land/accept.test.js": {
     "launch": 4
@@ -869,20 +818,8 @@
   "apps/cli/journeys/next/verify.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/patch/folder.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/patch/item.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/patch/item/diff.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/patch/item/journey.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/patch/item/patches.test.js": {
-    "launch": 7
+    "launch": 1
   },
   "apps/cli/journeys/plan/write.test.js": {
     "launch": 12
@@ -904,12 +841,6 @@
   },
   "apps/cli/journeys/queue/busy.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/queue/order.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/queue/review-queue.test.js": {
-    "launch": 21
   },
   "apps/cli/journeys/red/content-cache.test.js": {
     "launch": 4
@@ -1169,12 +1100,6 @@
   "apps/cli/journeys/request/clause.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/request/requests/api.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/request/requests/typed.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/resident/board.test.js": {
     "launch": 6
   },
@@ -1346,26 +1271,11 @@
   "apps/cli/journeys/runner/tooling/lazy.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/seats/timing.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/sentinel/needs/draft.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/sentinel/needs/panel.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/sentinels/main.test.js": {
     "launch": 30
   },
   "apps/cli/journeys/sentinels/needs.test.js": {
     "launch": 37
-  },
-  "apps/cli/journeys/settings/clauses.test.js": {
-    "launch": 11
-  },
-  "apps/cli/journeys/settings/descriptions.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/settings/main.test.js": {
     "launch": 2

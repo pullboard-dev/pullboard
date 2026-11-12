@@ -53,8 +53,8 @@ function dropPackets(box, id) {
 }
 
 /** Run one health sweep as the coordinator, from the main checkout; no command by the item's seat runs. */
-function sweep(box) {
-  const run = box.run(box.repo, 'sentinel', 'run', '--health-only');
+async function sweep(box) {
+  const run = await box.runLocal(box.repo, 'sentinel', 'run', '--health-only');
   assert.equal(run.code, 0, `${run.err}\n${run.out}`);
 }
 
@@ -73,21 +73,21 @@ test('clause 1: a hand-off that finishes with no verdict and no review packet go
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'No-verdict handoff', '--route', 'strong', '--specs', 'G1',
-    '--criterion', 'A hand-off with no verdict returns to its builder.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'No-verdict handoff', '--route', 'strong', '--specs', 'G1',
+    '--criterion', 'A hand-off with no verdict returns to its builder.', '--check', 'true', '--wait', '--json'))).item.item_id;
   // The web bar may name only web-owned files (24e3f4c070).
-  document(box.run(box.repo, 'fact', String(id), 'diagnosis',
-    'Files: web/snapshot.txt Change: end a real hand-off with no verdict Test case: one sweep returns the item to its builder', '--json'));
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  document((await box.runLocal(box.repo, 'fact', String(id), 'diagnosis',
+    'Files: web/snapshot.txt Change: end a real hand-off with no verdict Test case: one sweep returns the item to its builder', '--json')));
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'candidate\n', 'feat(web): no-verdict candidate [G1]').status, 0);
-  assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'))).queued, true);
   /** Whether the queued gate has finished and its item is submitted. */
   const finished = () => { const seen = state(box, id); return ['green', 'submitted'].includes(seen.job?.state) && seen.item.item_status === 'submitted'; };
   await helpers.waitFor(finished, 'the queued gate finishes and the item is submitted', 120000); // budget: worker completion ceiling, no timing assertion.
   const builder = state(box, id).item.item_built_by;
   endWithoutVerdict(box, id);
   // A stored packet at head (a gate red only in main's named cases stores one) keeps the item in review (#5774).
-  sweep(box);
+  await sweep(box);
   assert.equal(state(box, id).inReview, true, 'a head with a stored review packet stays in review');
   assert.equal(state(box, id).reopens.length, 0, 'the sweep returns nothing while a packet is stored');
   dropPackets(box, id);
@@ -95,7 +95,7 @@ test('clause 1: a hand-off that finishes with no verdict and no review packet go
   assert.equal(noVerdictHandoff(stranded.job, stranded.item), true, 'the fixture reproduces the live no-verdict end state');
   assert.equal(stranded.inReview, true, 'before the sweep the item sits in review with no packet');
 
-  sweep(box);
+  await sweep(box);
   const after = state(box, id);
   assert.equal(after.item.item_status, 'open', 'the item left review');
   assert.equal(after.inReview, false, 'no reviewer is offered an item with no gate verdict');
@@ -104,7 +104,7 @@ test('clause 1: a hand-off that finishes with no verdict and no review packet go
   assert.ok(after.shouts.some(row => JSON.stringify(row).includes(builder)), 'the builder is told the item is back with it');
   assert.equal(noVerdictHandoff(after.job, after.item), false);
 
-  sweep(box);
+  await sweep(box);
   assert.equal(state(box, id).reopens.length, 1, 'a second sweep returns nothing more');
 });
 
