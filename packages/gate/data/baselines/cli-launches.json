@@ -338,9 +338,6 @@
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/deferral.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/gate/drift.test.js": {
     "launch": 1
   },
@@ -747,7 +744,16 @@
     "launch": 3
   },
   "apps/cli/journeys/next/order.test.js": {
-    "launch": 88
+    "launch": 23
+  },
+  "apps/cli/journeys/next/order/queue.test.js": {
+    "launch": 23
+  },
+  "apps/cli/journeys/next/order/claims.test.js": {
+    "launch": 15
+  },
+  "apps/cli/journeys/next/order/focus.test.js": {
+    "launch": 27
   },
   "apps/cli/journeys/next/review.test.js": {
     "launch": 3
