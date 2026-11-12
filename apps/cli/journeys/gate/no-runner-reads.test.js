@@ -51,5 +51,5 @@ test('clause 1: a gate job offered a moment ago still reads "(in the gate)" with
   assert.match(list.out, new RegExp(`#${id}\\b.*\\(in the gate\\)`), list.out);
   assert.doesNotMatch(list.out, /no runner/);
   const status = await box.runLocal(box.web, 'status');
-  assert.doesNotMatch(status.out, /top blocker/);
+  assert.doesNotMatch(status.out, /no runner/);
 });
