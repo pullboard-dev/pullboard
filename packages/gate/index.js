@@ -113,3 +113,4 @@ export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
+export { deriveTestRegistries } from './src/io/test/derived.js';
