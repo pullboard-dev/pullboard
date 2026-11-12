@@ -6,6 +6,9 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { defaultItemRoute } from '../../../../items/index.js';
 import { criterionCells } from '../../../../items/index.js';
+import { mainRedRootCause } from '../../../../items/index.js';
+import { mainRedKeyLines } from '../../../../items/index.js';
+import { fileMainRed } from '../../../../items/index.js';
 
 /** One case is its file and its exact test name. */
 const keyOf = (file, name) => JSON.stringify([file, name]);
@@ -21,13 +24,7 @@ export function newRedCases(previous, failures) {
   return fresh;
 }
 
-/** Group only evidence with a recorded root cause, keeping unclassified failures separate by file. */
-function rootCause(row) {
-  if (typeof row.stable === 'string' && row.stable.trim()) return `frame:${row.stable}`;
-  const error = typeof row.firstError === 'string' ? row.firstError.trim() : '';
-  if (error && !/^(?:expected values|assertionerror|error|\[redacted error\])/iu.test(error)) return `error:${error}`;
-  return `file:${row.file}`;
-}
+const rootCause = mainRedRootCause;
 
 /** Read the previous result; an absent or unreadable file is no baseline, said loudly by the caller. */
 function readPrevious(path) {
@@ -86,17 +83,25 @@ export async function postLandSuite(state, ports) {
           groups.get(key).rows.push(row);
         }
       }
-      for (const { lane, cause, rows } of [...groups.values()].sort((a, b) => a.cause.localeCompare(b.cause) || a.lane.localeCompare(b.lane))) {
-        rows.sort((a, b) => a.file.localeCompare(b.file) || a.name.localeCompare(b.name));
-        const files = [...new Set(rows.map(row => row.file))];
-        const cases = rows.map(row => `${row.file} :: ${row.name}`);
-        const criterion = `Repair these exact cases on main ${batch.tip}: ${cases.join('; ')}. First red in batch ${batch.id} (${names}); the previous batch's full suite did not fail them. Filed by the post-land suite.`;
-        const title = files.length > 1 ? `Red cluster: ${cause.slice(0, 120)}` : `Main red: ${files[0]}`;
-        const id = await state.write('addItem', [{ by: 'coordinator', lane, title, route: defaultItemRoute(criterion, criterionCells(batch.root)), specIds: [], parentId: null, after: [],
-          criterion,
-          brief: `Files: ${files.join(', ')}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}`,
-          check: `${String(state.config.affectedTests ?? '').trim()} ${files.map(word).join(' ')}` }]);
-        for (const file of files) filed.push({ file, item: id });
+      for (const { lane, cause, rows: allRows } of [...groups.values()].sort((a, b) => a.cause.localeCompare(b.cause) || a.lane.localeCompare(b.lane))) {
+        // One cause key for every filer: a cause an open repair owns gets a fact there, never a second item.
+        const keyed = allRows.map(row => ({ file: row.file, name: row.name, cause }));
+        await fileMainRed({ items, rows: keyed, source: `post-land suite, batch ${batch.id} (${names}); main ${batch.tip}`,
+          addFact: (id, text) => state.write('appendFact', [id, { agentId: 'coordinator', kind: 'measurement', text }]),
+          create: async fresh => {
+            const rows = allRows.filter(row => fresh.some(entry => entry.file === row.file && entry.name === row.name));
+            rows.sort((a, b) => a.file.localeCompare(b.file) || a.name.localeCompare(b.name));
+            const files = [...new Set(rows.map(row => row.file))];
+            const cases = rows.map(row => `${row.file} :: ${row.name}`);
+            const criterion = `Repair these exact cases on main ${batch.tip}: ${cases.join('; ')}. First red in batch ${batch.id} (${names}); the previous batch's full suite did not fail them. Filed by the post-land suite.`;
+            const title = files.length > 1 ? `Red cluster: ${cause.slice(0, 120)}` : `Main red: ${files[0]}`;
+            const id = await state.write('addItem', [{ by: 'coordinator', lane, title, route: defaultItemRoute(criterion, criterionCells(batch.root)), specIds: [], parentId: null, after: [],
+              criterion,
+              brief: `Files: ${files.join(', ')}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}\n${mainRedKeyLines(fresh)}`,
+              check: `${String(state.config.affectedTests ?? '').trim()} ${files.map(word).join(' ')}` }]);
+            for (const file of files) filed.push({ file, item: id });
+            return id;
+          } });
       }
     }
     writePrevious(path, { version: 1, batch: batch.id, items: batch.items.map(entry => entry.id), tip: batch.tip, failures: result.failures });
