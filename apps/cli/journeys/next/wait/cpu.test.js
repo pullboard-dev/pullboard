@@ -42,7 +42,8 @@ for (const kind of ['created WAL', 'atomic replacement', 'new parent']) {
 
 test('a seat and gate event stream idle for 30 seconds below the declared CPU budget and wake on a shout [C7]', async t => {
   const box = await fixture(t);
-  const target = box.add('Work arriving while the seat sleeps', { lane: 'docs' });
+  // The work arrives with the shout: a seat now moves to another lane's open work at once, so it cannot exist while the seat idles.
+  let target;
   const actor = box.seats.actor, id = boardId(box.board);
   let notifications = 0, reads = 0, revision = 0;
   const streamWake = fileChangeWaiter([box.file, box.file + '-wal']);
@@ -70,7 +71,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
   try {
     const code = await main(['next', '--wait', '1'], { cwd: actor.path, clock: box.clock,
       stdout: { isTTY: false, write: text => {
-        if (outputAt === undefined && text.includes(`act on #${target}`)) outputAt = performance.now();
+        if (outputAt === undefined && target !== undefined && text.includes(`act on #${target}`)) outputAt = performance.now();
         output += text;
       } },
       stderr: { write: text => {
@@ -85,6 +86,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
           quietCounts = { reads: reads - firstIdleCounts.reads, notifications: notifications - firstIdleCounts.notifications,
             waitingReports: waitingReports - firstIdleCounts.waitingReports };
           sent = true; askedAt = performance.now();
+          target = box.add('Work arriving while the seat sleeps', { lane: 'docs' });
           shout(box.board, { from: 'coordinator', to: actor.id, text: `please build #${target} now`, lanes: ['web', 'review', 'docs'] });
           shoutFinishedAt = performance.now();
         }, 30_000);
