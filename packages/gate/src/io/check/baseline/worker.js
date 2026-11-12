@@ -146,13 +146,30 @@ export async function measureBaseline(root, id, expected, services) {
     agent: 'coordinator', item: String(id), kind: 'check-baseline', pinnedSource: source });
 }
 
+/**
+ * The unavailable baseline for a measurement that threw, keeping the refusal code and the first line of its message.
+ * Why: a bare "could not run" hid the cause, so each one needed a debug commit to diagnose (#6232, #6105, #6187) [C7].
+ *
+ * @param {{ command: string, main: string }} expected
+ * @param {unknown} error
+ * @returns {{ command: string, main: string, result: 'unavailable', reason: string }}
+ */
+export function unavailableBaseline(expected, error) {
+  const code = typeof error?.code === 'string' && error.code ? error.code : '';
+  const raw = String(error?.message ?? error ?? '').split('\n')[0].trim();
+  const line = (code ? raw.replace(`[${code}] `, '') : raw).slice(0, 300);
+  const cause = [code, line].filter(Boolean).join(': ') || 'unknown error';
+  return { command: expected.command, main: expected.main, result: 'unavailable',
+    reason: `background check could not run: ${cause}; set --check again from the coordinator` };
+}
+
 /** Measure the captured main once, then seal its terminal result without overwriting a newer check. */
 export async function runCheckBaselineWorker(root, id, request, services) {
   const expected = withBoard(root, (board) => store.getItem(board, id).item_check_baseline, services);
   if (expected?.result !== 'pending' || expected.request !== request) return;
   let baseline;
   try { baseline = await measureBaseline(root, id, expected, services); }
-  catch { baseline = { command: expected.command, main: expected.main, result: 'unavailable', reason: 'background check could not run; set --check again from the coordinator' }; }
+  catch (error) { baseline = unavailableBaseline(expected, error); }
   // No runner took it: the baseline stays pending on the item; it is never run on this machine.
   if (baseline === null) return;
   const receipt = { id, expected, baseline };

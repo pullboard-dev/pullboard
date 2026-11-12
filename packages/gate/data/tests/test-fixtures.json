@@ -1053,9 +1053,24 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/layout.test.js": {
-    "raw-cli": 9,
-    "tempdir": 6,
+    "raw-cli": 2,
     "repo-read": 7
+  },
+  "apps/cli/journeys/shout/layout/phone.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/shout/layout/status.test.js": {
+    "raw-cli": 2,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/shout/layout/corner.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/shout/layout/targets.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/lifecycle/chart.test.js": {
     "model": 1,
@@ -3745,7 +3760,13 @@
     "raw-board": 2
   },
   "apps/cli/journeys/submit/wait.test.js": {
-    "raw-board": 4
+    "raw-board": 1
+  },
+  "apps/cli/journeys/submit/wait/reject.test.js": {
+    "raw-board": 2
+  },
+  "apps/cli/tests/fixtures/submit/wait.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/submit/branch.test.js": {
     "tempdir": 2
