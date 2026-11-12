@@ -409,7 +409,7 @@ test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]',
     const root = join(box.dir, 'make-target-project');
     mkdirSync(root);
     box.git(root, 'init', '-q', '-b', 'main');
-    assert.equal(await box.runLocal(root, 'init').code, 0);
+    assert.equal((await box.runLocal(root, 'init')).code, 0);
     const configFile = join(root, 'pullboard.json');
     const config = JSON.parse(readFileSync(configFile, 'utf8'));
     writeFileSync(configFile, JSON.stringify({ ...config, gate: '' }, null, 2));
