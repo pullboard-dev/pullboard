@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/blueprints/data/blueprints/*.json */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -27,7 +27,7 @@ import { ok } from '../../tests/fixtures/blueprint.js';
 import { refusal } from '../../tests/fixtures/blueprint.js';
 import { resolve } from 'node:path';
 
-test('blueprint add files a blueprint as drafts [S1,I1]', () => {
+test('blueprint add files a blueprint as drafts [S1,I1]', async () => {
   // A fresh board: one new section, rules as drafts with reasons, questions as pending rows with defaults.
   const box = freshBoard();
   const before = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
@@ -52,7 +52,7 @@ test('blueprint add files a blueprint as drafts [S1,I1]', () => {
   assert.deepEqual(added.rows.map((row) => row.id), rows.map((row) => row.id));
   const doctrine = parseSpec(readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8'));
   for (const row of rows) assert.ok(!doctrine.rows.some((entry) => entry.id === row.id), `${row.id} is unique across SPEC.md and DOCTRINE.md`);
-  const check = box.run('spec', 'check');
+  const check = await box.runLocal('spec', 'check');
   assert.equal(check.status, 0, check.stdout + check.stderr);
   assert.equal(rows.some(({ id }) => (check.stdout + check.stderr).split('\n').some((line) => line.includes(` ${id} warning: `) && line.includes('words; rows stay under'))), false, 'a reason or the choices do not count toward the blueprint row length');
 
@@ -73,22 +73,22 @@ test('blueprint add files a blueprint as drafts [S1,I1]', () => {
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specAfter);
   assert.equal(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'), configAfter);
   assert.equal(json(box, 'list', '--all').items.length, 3);
-  const text = box.run('blueprint', 'add', 'web-app');
+  const text = await box.runLocal('blueprint', 'add', 'web-app');
   assert.match(text.stdout, /already on this board; nothing added/u);
 
   // A bad file is refused with its problems named, and changes nothing.
   writeFileSync(join(box.repo, 'bad.json'), `${JSON.stringify({ ...PUBLISHED, name: 'Bad Name', items: [{ key: '1', title: 'x', cites: ['Z9'] }] })}\n`);
-  const bad = box.run('blueprint', 'add', 'bad.json', '--json');
+  const bad = await box.runLocal('blueprint', 'add', 'bad.json', '--json');
   assert.equal(bad.status, 1, bad.stdout + bad.stderr);
   const error = JSON.parse(bad.stdout).error;
   assert.equal(error.code, 'BAD_BLUEPRINT');
   assert.match(error.message, /name must be lowercase/u);
   assert.match(error.message, /items\[0\]\.cites names "Z9"/u);
   writeFileSync(join(box.repo, 'broken.json'), '{ "blueprint": 1,');
-  const broken = box.run('blueprint', 'add', 'broken.json', '--json');
+  const broken = await box.runLocal('blueprint', 'add', 'broken.json', '--json');
   assert.equal(broken.status, 1);
   assert.equal(JSON.parse(broken.stdout).error.code, 'BAD_BLUEPRINT');
-  const missing = box.run('blueprint', 'add', 'no-such-blueprint', '--json');
+  const missing = await box.runLocal('blueprint', 'add', 'no-such-blueprint', '--json');
   assert.equal(JSON.parse(missing.stdout).error.code, 'NO_BLUEPRINT');
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), specAfter, 'refusals leave the spec alone');
   assert.equal(json(box, 'list', '--all').items.length, 3, 'refusals add no items');
@@ -118,14 +118,14 @@ test('blueprint add files a blueprint as drafts even when approved rows say the 
   assert.equal(items[0].item_spec_ids, `${added.rows[0].id},${added.rows[1].id}`, 'starter items cite the blueprint rows, not the approved ones');
 });
 
-test('blueprint add files a blueprint as drafts or nothing at all [S1,I1]', () => {
+test('blueprint add files a blueprint as drafts or nothing at all [S1,I1]', async () => {
   const box = freshBoard();
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const config = readFileSync(join(box.repo, 'pullboard.json'), 'utf8');
   /** Write a variant of the published blueprint and add it, returning the refusal. */
-  const refused = (name, items) => {
+  const refused = async (name, items) => {
     writeFileSync(join(box.repo, `${name}.json`), `${JSON.stringify({ ...PUBLISHED, name, items })}\n`);
-    const result = box.run('blueprint', 'add', `${name}.json`, '--json');
+    const result = await box.runLocal('blueprint', 'add', `${name}.json`, '--json');
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), spec, `${name}: nothing is written to the spec`);
     assert.equal(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'), config, `${name}: the gate is left alone`);
@@ -135,11 +135,11 @@ test('blueprint add files a blueprint as drafts or nothing at all [S1,I1]', () =
   // Every starter carries a criterion and a check, so each refusal below is the board's own.
   const bar = { criterion: 'A test fails without the change.', check: 'true' };
   // A later starter the board refuses (here a brief over its limit) stops the add before any write.
-  const late = refused('late-refusal', [{ key: '1', title: 'First starter', cites: ['W1'], ...bar }, { key: '2', title: 'Second starter', brief: 'x'.repeat(8001), ...bar }]);
+  const late = await refused('late-refusal', [{ key: '1', title: 'First starter', cites: ['W1'], ...bar }, { key: '2', title: 'Second starter', brief: 'x'.repeat(8001), ...bar }]);
   assert.equal(late.code, 'BRIEF_TOO_LONG');
   // A light or mid starter without what pullboard add requires is refused with add's own refusal.
   for (const route of ['light', 'mid']) {
-    const error = refused(`${route}-route`, [{ key: '1', title: 'First starter', cites: ['W1'], ...bar }, { key: '2', title: 'Second starter', route, ...bar }]);
+    const error = await refused(`${route}-route`, [{ key: '1', title: 'First starter', cites: ['W1'], ...bar }, { key: '2', title: 'Second starter', route, ...bar }]);
     assert.equal(error.code, 'NO_BRIEF');
     // A light starter is filed mid, so add names the mid route it was refused on.
     assert.match(error.message, new RegExp(`an item routed ${route === 'light' ? 'mid' : route} must be buildable cold`, 'u'));
@@ -203,7 +203,7 @@ test('blueprint add files a blueprint as drafts only from the coordinator, who s
   assert.equal(json(box, 'blueprint', 'add', 'web-app').items.length, 3, 'the coordinator adds it');
 });
 
-test('a starter item without a check is refused [S1,I1]', () => {
+test('a starter item without a check is refused [S1,I1]', async () => {
   // Loaded from a file or checked before a save writes one: a starter without a criterion or a
   // check is refused by name, the blueprint's and the item's.
   const starter = { key: '2', title: 'Second starter', cites: ['W1'], criterion: 'A test fails without it.', check: 'npm test' };
@@ -223,7 +223,7 @@ test('a starter item without a check is refused [S1,I1]', () => {
       return true;
     });
     writeFileSync(join(box.repo, `${name}.json`), `${JSON.stringify(value)}\n`);
-    const refused = box.run('blueprint', 'add', `${name}.json`, '--json');
+    const refused = await box.runLocal('blueprint', 'add', `${name}.json`, '--json');
     assert.equal(refused.status, 1, refused.stdout + refused.stderr);
     const error = JSON.parse(refused.stdout).error;
     assert.equal(error.code, 'BLUEPRINT_ITEM_UNCHECKED');
@@ -250,7 +250,7 @@ test("an architecture blueprint's rows each arrive with a check that runs red be
   ] }, freshBoard, json, runFixtureChild });
 });
 
-test('a drafted row records its rule source [S1,I1]', () => {
+test('a drafted row records its rule source [S1,I1]', async () => {
   // blueprint add copies each rule's source onto its drafted row as a source field; the row's text
   // stays the rule and its reason, so the person approves the rule and reads where it came from.
   const box = freshBoard({ gate: 'true' });
@@ -270,11 +270,11 @@ test('a drafted row records its rule source [S1,I1]', () => {
 
   // pullboard spec shows where the row came from: spec check passes, its JSON rows carry the
   // source, and spec show prints it.
-  const check = box.run('spec', 'check');
+  const check = await box.runLocal('spec', 'check');
   assert.equal(check.status, 0, check.stdout + check.stderr);
   const rows = json(box, 'spec', '--json').rows;
   assert.equal(rows.find((entry) => entry.id === ea1).source, 'Example Framework OPS 8 https://example.com/framework/ops-8');
-  const shown = box.run('spec', 'show', ea1);
+  const shown = await box.runLocal('spec', 'show', ea1);
   assert.equal(shown.status, 0, shown.stdout + shown.stderr);
   assert.match(shown.stdout, /^source: Example Framework OPS 8 https:\/\/example\.com\/framework\/ops-8$/mu);
   assert.equal(json(box, 'spec', 'show', ea1).row.source, 'Example Framework OPS 8 https://example.com/framework/ops-8');
@@ -285,9 +285,9 @@ test('a drafted row records its rule source [S1,I1]', () => {
   assert.equal(Object.hasOwn(plain, 'source'), false, 'a row without a source carries no source key');
   assert.deepEqual(Object.keys(parseSpec('# S\n\n## G · Goals\n\n- G1 [draft, must] A row. | gate: review\n').rows[0]),
     ['id', 'status', 'tier', 'text', 'gate', 'serves', 'signers', 'unknown', 'section', 'line'], 'an older row parses unchanged');
-  assert.doesNotMatch(box.run('spec', 'show', plain.id).stdout, /^source:/mu);
+  assert.doesNotMatch((await box.runLocal('spec', 'show', plain.id)).stdout, /^source:/mu);
   writeFileSync(join(box.repo, 'SPEC.md'), source.replace(' | source: Example Lens', ' | source: '));
-  const empty = box.run('spec', 'check');
+  const empty = await box.runLocal('spec', 'check');
   assert.equal(empty.status, 1, empty.stdout + empty.stderr);
   assert.match(empty.stdout, /source names where the row came from/u);
   writeFileSync(join(box.repo, 'SPEC.md'), source);
@@ -309,7 +309,7 @@ test('a drafted row records its rule source [S1,I1]', () => {
   assert.deepEqual(initRows.map((entry) => entry.source), ['Example Framework OPS 8 https://example.com/framework/ops-8', 'Example Lens']);
 });
 
-test('an architecture rule without a source is refused [S1,I1]', () => {
+test('an architecture rule without a source is refused [S1,I1]', async () => {
   // Loaded from a file or checked before a save writes one: an architecture blueprint with a rule
   // that names no source is refused by name, the blueprint's and the rule's.
   const unsourced = { ...SOURCED, rules: [SOURCED.rules[0], { key: 'EA2', text: 'No function runs past its time limit.', why: 'the platform stops it there.' }] };
@@ -334,7 +334,7 @@ test('an architecture rule without a source is refused [S1,I1]', () => {
   const box = freshBoard({ gate: 'true' });
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(box.repo, 'unsourced.json'), `${JSON.stringify(unsourced)}\n`);
-  const refused = box.run('blueprint', 'add', 'unsourced.json', '--json');
+  const refused = await box.runLocal('blueprint', 'add', 'unsourced.json', '--json');
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);
   const error = JSON.parse(refused.stdout).error;
   assert.equal(error.code, 'BLUEPRINT_NO_SOURCE');

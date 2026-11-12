@@ -81,13 +81,13 @@ async function fixture(t, { duplicate = false, unrelated = false } = {}) {
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
-  return { ...box, board, item, other, source, marker, cli, before: box.git(box.repo, 'rev-parse', 'main') };
+  return { ...box, board, item, other, source, marker, runLocal: cli, before: box.git(box.repo, 'rev-parse', 'main') };
 }
 
 test('clause 1: a duplicate import in the composed landing blocks its batch and returns the implicated item, main unmoved [C7]', async t => {
   const box = await fixture(t, { duplicate: true });
-  const landed = await box.cli(box.repo, 'land', '--json');
-  assert.equal(landed.code, 0, landed.err + landed.out);
+  const landed = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(landed.code, 1, landed.err + landed.out); // nothing landed and a culprit came back, so land fails [C7,#4265]
   const batch = JSON.parse(landed.out).batch;
   assert.equal(batch.state, 'blocked');
   assert.match(batch.refusal?.code ?? JSON.stringify(batch), /LAND_MODULE_PARSE/u);
@@ -99,8 +99,8 @@ test('clause 1: a duplicate import in the composed landing blocks its batch and 
 
 test('clause 1: the blocked batch keeps an unrelated accepted verdict while charging only the implicated item [C7]', async t => {
   const box = await fixture(t, { duplicate: true, unrelated: true });
-  const landed = await box.cli(box.repo, 'land', '--json');
-  assert.equal(landed.code, 0, landed.err + landed.out);
+  const landed = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(landed.code, 1, landed.err + landed.out); // nothing landed and a culprit came back, so land fails [C7,#4265]
   assert.match(landed.out, /LAND_MODULE_PARSE/u);
   assert.equal(getItem(box.board, box.item).item_status, 'open', 'the implicated item goes back to open');
   assert.equal(getItem(box.board, box.other).item_status, 'verified', 'the unrelated accepted verdict is preserved');
@@ -108,8 +108,8 @@ test('clause 1: the blocked batch keeps an unrelated accepted verdict while char
 
 test('clause 2: the next landing proceeds without adopting the same parser failure again [C7]', async t => {
   const box = await fixture(t, { duplicate: true });
-  assert.equal((await box.cli(box.repo, 'land', '--json')).code, 0);
-  const next = await box.cli(box.repo, 'land', '--json');
+  assert.equal((await box.runLocal(box.repo, 'land', '--json')).code, 1); // only culprits came back [C7,#4265]
+  const next = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.doesNotMatch(next.out + next.err, /LAND_ADOPT|LAND_MODULE_PARSE/u);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), box.before);
@@ -117,10 +117,10 @@ test('clause 2: the next landing proceeds without adopting the same parser failu
 
 test('clause 2: the next landing lands the other independently accepted item without adopting the parser failure [C7]', async t => {
   const box = await fixture(t, { duplicate: true, unrelated: true });
-  assert.equal((await box.cli(box.repo, 'land', '--json')).code, 0);
+  assert.equal((await box.runLocal(box.repo, 'land', '--json')).code, 1); // only culprits came back [C7,#4265]
   let next;
   for (let attempt = 0; attempt < 2 && getItem(box.board, box.other).item_status !== 'landed' && !getItem(box.board, box.other).item_merged_commit; attempt++) {
-    next = await box.cli(box.repo, 'land', '--json');
+    next = await box.runLocal(box.repo, 'land', '--json');
     assert.equal(next.code, 0, next.err + next.out);
     assert.doesNotMatch(next.out + next.err, /LAND_ADOPT|LAND_MODULE_PARSE/u);
   }

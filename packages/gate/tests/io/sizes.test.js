@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/src/io/browser/screens.css apps/view/src/io/main.css docs/demo/view.css packages/gate/src/io/sizes.js */
 /**
  * The ui-sizes Rigor check (C12): a size typed by hand in a stylesheet under src/ or relay/ is one
  * problem, at its line; the scale's own custom properties, comments, 1px hairlines and every other

@@ -65,13 +65,14 @@ function resumeDriver(box, job, { now = Date.now() } = {}) {
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
   // The entry runs only under its real path, as the dispatcher starts it (the OS temp dir may be a symlink).
   // budget: the existing owned-driver hang ceiling; assertions concern exit and native results, not elapsed time.
+  // Process-level: the real detached gate driver, run as its own process.
   return runFixtureChildAsync(process.execPath, [join(realpathSync(request.tools), 'apps/cli/src/io/gate/drive.js'), join(directory, 'request.json'), owner],
     { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8', timeout: 120_000 });
 }
 
 test('clause 1: a driver stopped mid-check stops its check and leaves the job resumable, and a fresh driver finishes it with one terminal result [V4,H16,E18,C7]', async t => {
   const box = fixture(t);
-  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
   await box.helpers.waitFor(() => existsSync(box.started) && checkPids(box).length > 0, 'the captured check is running', 120000); // budget: observed gate start ceiling, not a timing assertion.
   const job = state(box, box.id).job;
@@ -104,7 +105,7 @@ test('clause 1: a driver stopped mid-check stops its check and leaves the job re
 
 test('clause 1: a driver killed mid-check leaves its saved steps, and once its lease lapses a fresh driver resumes the same drive job to one verdict [C7]', async t => {
   const box = fixture(t);
-  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
   await box.helpers.waitFor(() => existsSync(box.started), 'the captured check is running', 120000); // budget: observed gate start ceiling, not a timing assertion.
   const job = state(box, box.id).job;

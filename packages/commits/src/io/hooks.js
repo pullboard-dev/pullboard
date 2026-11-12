@@ -281,6 +281,8 @@ export function stagedPaths(root, base = null) {
 
 /** The reads one pre-commit run shares, so git is asked once per kind of fact instead of once per path (#2232). */
 let readCache = null;
+/** The cells plan folder, listed with the first read of each revision once the shim check runs. */
+const PLAN_DIRECTORY = 'packages/codemap/data/plan/';
 
 /**
  * Run a check with shared git reads: one batched tree or index listing per revision, one resolve-undo
@@ -302,16 +304,21 @@ function withSharedReads(root, paths, check) {
 const sharedReads = (root) => (readCache?.root === root ? readCache : null);
 
 /** List the records of many literal paths at one revision in a few git calls. */
-function fillRecords(root, revision, map, paths) {
+function fillRecords(root, revision, map, paths, directory = null) {
   for (const path of paths) if (!map.has(path)) map.set(path, []);
-  for (let start = 0; start < paths.length; start += 400) {
+  for (let start = 0; start < paths.length || start === 0; start += 400) {
     const specs = paths.slice(start, start + 400).map((path) => `:(literal)${path}`);
+    // The cells plan and its shards are read at every revision by the shim check: list them in the same call [C7].
+    if (directory && start === 0) specs.push(directory);
+    if (!specs.length) continue;
     const raw = revision === ':index'
       ? git(root, ['ls-files', '--stage', '-z', '--', ...specs])
       : git(root, ['ls-tree', '-z', revision, '--', ...specs]);
     for (const record of raw.split('\0').filter(Boolean)) {
       const tab = record.indexOf('\t');
-      map.get(record.slice(tab + 1))?.push(record);
+      const path = record.slice(tab + 1);
+      if (directory && !map.has(path)) map.set(path, []);
+      map.get(path)?.push(record);
     }
   }
 }
@@ -328,9 +335,10 @@ function treeRaw(root, revision, path) {
       : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
   }
   let map = shared.maps.get(revision);
-  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths); }
-  if (!map.has(path)) fillRecords(root, revision, map, [path]);
-  const records = map.get(path);
+  if (!map) { map = new Map(); map.planListed = Boolean(shared.plan); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
+  // A revision listed with the plan folder already knows every plan file it has; the rest are absent.
+  if (!map.has(path) && !(map.planListed && path.startsWith(PLAN_DIRECTORY))) fillRecords(root, revision, map, [path]);
+  const records = map.get(path) ?? [];
   return records.length ? `${records.join('\0')}\0` : '';
 }
 
@@ -552,6 +560,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (shimImports) {
     const revisions = new Map();
+    if (readCache) readCache.plan = true;
     problems.push(...shimImports({ paths: written,
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.

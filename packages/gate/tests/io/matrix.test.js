@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-world-pin: clauses 1 and 2 read the harness folder and docs/architecture.md to keep the matrix, its harnesses and its page in step. */
 /**
  * The pipeline hop matrix stays honest [C7]: every hop names a harness that exists or NONE, every harness file is in

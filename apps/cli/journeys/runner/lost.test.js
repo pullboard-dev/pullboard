@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { runnerLossHealth } from '../../src/logic/runner/loss.js';
@@ -49,6 +48,7 @@ function fixture(t, { dropFirst = true } = {}) {
 
 /** Execute the current implementation inside the fixture's own environment and retain an actionable assertion. */
 function child(box, source) {
+  // Process-level: a fresh node process proves the module graph loads without the CLI seam.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
   });
@@ -344,7 +344,7 @@ test('health counts distinct retained transport refusals by runner and classific
   assert.deepEqual(runnerLossLines(runnerLossHealth([], now)), [], 'no observed losses does not invent a healthy-host row');
 });
 
-test('actual health JSON and text expose private retained transport counts without probing a machine host [C7,C6]', t => {
+test('actual health JSON and text expose private retained transport counts without probing a machine host [C7,C6]', async t => {
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
   const box = e2e.project('true');
   const at = new Date().toISOString();
@@ -352,11 +352,11 @@ test('actual health JSON and text expose private retained transport counts witho
     { code: 'TRANSPORT_LOST', runner: 'private-health-fixture', at, diagnostic: { request: 'private-observation', reason: 'receipt-count' } },
   ] };
   writeFileSync(join(box.repo, '.git', 'pullboard', 'gate-receipts.jsonl'), JSON.stringify(record) + '\n');
-  const result = box.run(box.repo, 'health', '--json');
+  const result = await box.runLocal(box.repo, 'health', '--json');
   assert.equal(result.code, 0, result.err + result.out);
   const report = JSON.parse(result.out).runnerTransportLosses;
   assert.deepEqual(report.runners.map(row => [row.runner, row.count]), [['private-health-fixture', 1]]);
-  const text = box.run(box.repo, 'health');
+  const text = await box.runLocal(box.repo, 'health');
   assert.match(text.out, /private-health-fixture: 1; receipt-count 1/u);
   assert.match(text.out, /retained native attempts/u);
 });

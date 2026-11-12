@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/logic/step/words.js packages/moves/src/io/registry.js packages/state/src/io/engine.js packages/state/src/io/machine.js packages/state/src/logic/engines/train-check-repoint-engine.js */
 /** @pullboard-test-loads packages/state/src/io/machine.js packages/state/src/io/engine.js packages/moves/src/io/registry.js */
 /** A native train landing repairs only live checks for test files it splits [H16]. */
 import assert from 'node:assert/strict';
@@ -161,7 +161,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     box.git(box.repo, 'rm', '-q', '--', 'web/legacy.test.js');
     box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test: split legacy test entry');
     const tip = box.git(box.repo, 'rev-parse', 'HEAD').trim();
-    const gate = box.run(box.repo, 'gate', '--landing', '--receipt', '--json');
+    const gate = (await box.runLocal(box.repo, 'gate', '--landing', '--receipt', '--json'));
     assert.equal(gate.code, 0, `${gate.out}${gate.err}`);
     const receiptId = JSON.parse(gate.out).receiptId;
     assert.ok(receiptId);

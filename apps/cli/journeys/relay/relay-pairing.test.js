@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The command shown to a second browser enrolls it without replacing the first [H15,H17]. */
 import assert from 'node:assert/strict';
@@ -96,7 +95,7 @@ test('clause 1: a second browser pairs with the command the page names after the
   assert.deepEqual(state.devices.map(device => device.deviceId).sort(), [firstDevice.id, secondDevice.id].sort(), 'both browser enrollments remain on this machine');
   assert.equal(state.pending, null);
   const freshTitle = 'Fresh board content after the second browser paired';
-  assert.equal((await box.cli('add', box.lane, freshTitle)).code, 0, 'a real later native move publishes fresh content');
+  assert.equal((await box.cliLocal('add', box.lane, freshTitle)).code, 0, 'a real later native move publishes fresh content');
   for (const browser of [first, second]) {
     await browser.navigate(box.origin + '/');
     await browser.waitFor("data?.project?.items?.some(item => item.title === " + JSON.stringify(freshTitle) + ") && document.querySelector('[data-tab=items]')");

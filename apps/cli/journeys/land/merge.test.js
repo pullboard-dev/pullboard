@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/generated/docs.js apps/cli/tests/fixtures/move/registry/baseline.json docs/api.md docs/lifecycle.md docs/tools/update-docs.js */
 /** Real Git conflict inspection and landing share conservative mechanical resolutions [B3,R3,C7]. */
 import { execPath as nodeExecutable } from 'node:process';
 import assert from 'node:assert/strict';
@@ -269,7 +269,7 @@ test('version-one conflict replay keeps its original Git meaning while fresh mec
   assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).at(-1).event_detail).computedConflict, historical);
 });
 
-test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', () => {
+test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', async () => {
   const box = boardFixture();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('apps/');
@@ -285,7 +285,7 @@ test('a failing lifecycle generator blocks landing without reopening accepted wo
   const left = accepted(box, 1, { 'docs/lifecycle.md': 'left\n' });
   const right = accepted(box, 2, { 'docs/lifecycle.md': 'right\n' });
   const before = box.git(box.repo, 'rev-parse', 'main');
-  const result = box.run(box.repo, 'land', '--max', '2', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--max', '2', '--json');
   assert.equal(result.code, 1, `${result.out}\n${result.err}`);
   const error = JSON.parse(result.out).error;
   assert.equal(error.code, 'LAND_MERGE');

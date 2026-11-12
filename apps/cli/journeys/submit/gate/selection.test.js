@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /**
  * Submit labels a sandbox-blocked or ordinary child failure, and selects the affected tests its change can reach [V4,C7,V16].
  */
@@ -9,6 +9,8 @@ import { test } from 'node:test';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { sandboxBlockedOperation } from '../../../../../packages/gate/index.js';
 import { fileDenialWatcher } from '../../../../../packages/sandbox/index.js';
+import { coordinatorLocal } from './local.js';
+import { runLocal } from './local.js';
 import { SPEC } from '../../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../tests/fixtures/submit/gate.js';
@@ -17,7 +19,7 @@ import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { seedGraph } from '../../../tests/fixtures/submit/gate.js';
 
 /** Build a claimed submit fixture whose changed source selects a nested child-process test. */
-function childFailureSubmitBox(t, testSource) {
+async function childFailureSubmitBox(t, testSource) {
   let box = privateRepo(t);
   // This fixture proves multiline TAP diagnostics; Node's default reporter varies by runtime.
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap', spec: 'SPEC.md' }));
@@ -35,9 +37,9 @@ function childFailureSubmitBox(t, testSource) {
   put(box.root, 'test/child-listener.test.js', testSource);
   commitAll(box);
   box = builderRepo(box);
-  const added = box.coordinator('add', 'build', 'Child-process gate fixture', '--check', 'true');
+  const added = await coordinatorLocal(box, 'add', 'build', 'Child-process gate fixture', '--check', 'true');
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/listener-probe.js', 'export const listenerProbe = 2;\n');
   commitAll(box, 'feat(core): change listener probe [G1]');
   return box;
@@ -102,9 +104,9 @@ function pythonChildTap(path, { traceback = true, frame = true, prefixMarker = f
   ].join('\n');
 }
 
-test('a child process listen denial reads as sandbox blocked [C7,B26]', (t) => {
-  const box = childFailureSubmitBox(t, childListenerTestSource());
-  const result = box.run('submit', '1');
+test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t) => {
+  const box = await childFailureSubmitBox(t, childListenerTestSource());
+  const result = await runLocal(box, 'submit', '1');
   const output = `${result.out}\n${result.err}`;
   assert.equal(result.code, 1, output);
   assert.match(output, /SANDBOX_BLOCKED/u, 'submit names the denied child-process listen');
@@ -115,7 +117,7 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', (t) => {
   const original = childListenerTestSource();
   assert.equal(original.split(explanatory).length, 2, 'replace exactly one explanatory message');
   const bareSource = original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);');
-  const bareBox = childFailureSubmitBox(t, bareSource);
+  const bareBox = await childFailureSubmitBox(t, bareSource);
   const bare = bareBox.run('submit', '1');
   const bareOutput = `${bare.out}\n${bare.err}`;
   assert.equal(bare.code, 1, bareOutput);
@@ -123,7 +125,7 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', (t) => {
   assert.match(bareOutput, /listen \(EPERM\)/u);
   assert.doesNotMatch(bareOutput, /GATE_RED/u);
 
-  const pythonBox = childFailureSubmitBox(t, childPythonTestSource());
+  const pythonBox = await childFailureSubmitBox(t, childPythonTestSource());
   pythonBox.env.CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
   const python = pythonBox.run('submit', '1');
   const pythonOutput = `${python.out}\n${python.err}`;
@@ -138,7 +140,7 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', (t) => {
   const pythonSource = childPythonTestSource();
   const pythonExplanation = "  assert.equal(child.status, 0, `Child process exited with code ${child.status}:\\n${child.stderr}`);";
   assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
-  const barePythonBox = childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
+  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
   barePythonBox.env.CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
   const barePython = barePythonBox.run('submit', '1');
   const barePythonOutput = `${barePython.out}\n${barePython.err}`;
@@ -147,14 +149,14 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', (t) => {
   assert.match(barePython.err, /file access .*\(EACCES\)/u);
   assert.doesNotMatch(barePythonOutput, /GATE_RED/u);
 });
-test('an ordinary failure stays gate red [C7,B26]', (t) => {
+test('an ordinary failure stays gate red [C7,B26]', async (t) => {
   const source = [
     "import { test } from 'node:test';",
     "import assert from 'node:assert/strict';",
     "import { listenerProbe } from '../src/listener-probe.js';",
     "test('ordinary failure', () => assert.equal(listenerProbe, 1));",
   ].join('\n');
-  const box = childFailureSubmitBox(t, source);
+  const box = await childFailureSubmitBox(t, source);
   const outside = join(box.dir, 'outside-python-denial.txt');
   const direct = sandboxBlockedOperation(box.root, pythonPermissionError(outside));
   assert.equal(direct, `file access "${outside}" (EACCES)`, 'the standalone known denial remains recognized');
@@ -231,14 +233,14 @@ test('an ordinary failure stays gate red [C7,B26]', (t) => {
     'bare Python in-repo access stays an ordinary failure');
   assert.equal(sandboxBlockedOperation(box.root, pythonChildTap(outside, { wrapper: false, assertionFooter: '1 !== 0' }), { includeFilePaths: false }), null,
     'bare Python does not bypass the file-path classification switch');
-  const result = box.run('submit', '1');
+  const result = await runLocal(box, 'submit', '1');
   const output = `${result.out}\n${result.err}`;
   assert.equal(result.code, 1, output);
   assert.match(output, /GATE_RED/u);
   assert.doesNotMatch(output, /SANDBOX_BLOCKED/u);
 });
 
-test('one source change selects its direct and transitive static, re-export and literal dynamic importers [V4,C7]', (t) => {
+test('one source change selects its direct and transitive static, re-export and literal dynamic importers [V4,C7]', async (t) => {
   const box = privateRepo(t);
   const base = seedGraph(box);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
@@ -250,7 +252,7 @@ test('one source change selects its direct and transitive static, re-export and 
   assert.equal(selection.reason, '');
 });
 
-test('changed tests are selected and deleting or renaming a source retains importers of its old path [V4,C7]', (t) => {
+test('changed tests are selected and deleting or renaming a source retains importers of its old path [V4,C7]', async (t) => {
   const box = privateRepo(t);
   const base = seedGraph(box);
 
@@ -267,7 +269,7 @@ test('changed tests are selected and deleting or renaming a source retains impor
   assert.deepEqual(selection.files, ['test/a.test.js'], 'the old source path still reaches its importer');
 });
 
-test('unknown imports and broad inputs fall back explicitly, while an all-test closure is full [V4,C7]', (t) => {
+test('unknown imports and broad inputs fall back explicitly, while an all-test closure is full [V4,C7]', async (t) => {
   const box = privateRepo(t);
   const base = seedGraph(box);
   put(box.root, 'src/a.js', "export const load = name => import('./' + name + '.js');\n");

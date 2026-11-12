@@ -109,8 +109,11 @@
   "apps/cli/tests/fixtures/cockpit/journey/routes.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "sleep": 2
+  "apps/cli/journeys/init/origin/paint.test.js": {
+    "sleep": 1
+  },
+  "apps/cli/journeys/init/origin/reads.test.js": {
+    "sleep": 1
   },
   "apps/cli/tests/fixtures/cockpit/perf/run.mjs": {
     "sleep": 1
@@ -121,7 +124,7 @@
   "apps/cli/journeys/relay/signin.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/roadmap/cockpit.test.js": {
+  "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
     "sleep": 1
   },
   "apps/cli/journeys/shout/shouts.test.js": {
@@ -170,7 +173,7 @@
   "apps/cli/tests/fixtures/hosted/shapes.js": {
     "sleep": 2
   },
-  "apps/cli/journeys/shout/journeys.test.js": {
+  "apps/cli/tests/fixtures/cockpit/journey/every.js": {
     "sleep": 1
   },
   "apps/cli/journeys/init/known/main/output.test.js": {
@@ -182,7 +185,7 @@
   "apps/cli/journeys/gate/landing/stop.test.js": {
     "sleep": 1
   },
-  "packages/gate/tests/io/watchdog.test.js": {
+  "packages/gate/tests/fixtures/watchdog/legacy.js": {
     "poll": 1
   },
   "apps/cli/tests/fixtures/main/audit/cases.js": {

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Prove a landing worker obtains a bounded identity receipt before its body [C7,V4]. */
 import { copyPackageFiles } from '../../../index.js';
 import assert from 'node:assert/strict';

@@ -1,6 +1,7 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/seed.json */
 /** Real recorded tool commands regenerate conflicting source, with fresh full proof and no inherited verdict [C7,V4,V6]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -8,6 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { waitFor } from '../../tests/fixtures/gate/resource.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../tests/fixtures/submit/gate.js';
@@ -97,6 +99,15 @@ function advance(main) {
   return commitAll(main, 'feat(core): advance the accepted leaf [G1]');
 }
 
+/** Read the item once its queued gate has settled; the fixture's detached worker runs the real gate. */
+function settledSubmit(box) {
+  const settled = () => {
+    const item = JSON.parse(box.run('show', '1', '--json').out);
+    return ['queued', 'running'].includes(item.queuedSubmit?.state) ? null : item;
+  };
+  return waitFor(settled, 'the queued regeneration gate to settle', 120_000); // budget: hang ceiling for the detached worker's real full gate.
+}
+
 for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, async t => {
   const { main, box, marker } = project(t, command === 'remove-shims');
   let original = move(box, main.dir);
@@ -117,14 +128,18 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.equal(existsSync(marker), false);
   const submitted = box.run('submit', '1', '--wait', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
   assert.equal(submitted.code, 0, submitted.err + submitted.out + (submitted.code ? `\nCurrent item: ${box.run('show', '1', '--json').out}` : ''));
-  const result = JSON.parse(submitted.out);
+  // A seat holding its claim gets submit back at once [P7]; the journey reads the queued gate's settled result.
+  assert.equal(JSON.parse(submitted.out).queued, true, 'the regenerated source goes through the queued handoff');
+  const item = await settledSubmit(box);
   const head = box.git('rev-parse', 'HEAD');
   assert.notEqual(head, original);
   assert.equal(box.git('rev-parse', command === 'remove-shims' ? 'HEAD~2' : 'HEAD^'), currentMain);
   assert.match(readFileSync(join(box.root, 'packages/leaf/src/core/leaf.js'), 'utf8'), /value = 2/u);
   assert.ok(existsSync(marker), 'regeneration runs the full gate even when normal submit defers it');
-  assert.equal(result.gate.full, true);
-  const item = JSON.parse(box.run('show', '1', '--json').out);
+  // The proof phase ran the project's full configured gate, whose receipt names that command's digest.
+  const fullGate = createHash('sha256').update(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate).digest('hex');
+  assert.ok(item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === head && receipt.submitPhase === 'proof' && receipt.command === fullGate),
+    'the new head has a full-gate proof receipt');
   assert.equal(item.queuedSubmit.state, 'green', 'recorded tools use a real queued handoff, not the foreground exemption');
   assert.equal(item.queuedSubmit.commit, head, 'the immutable queue captures the regenerated tool source');
   assert.equal(item.item_status, 'submitted');

@@ -1,6 +1,7 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { sharedToolsTarget } from '../submit/handoff.js';
 import { toolsSnapshot } from '../submit/handoff.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +52,7 @@ import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { committedItemAuthors } from '../../../../../packages/verify/index.js';
+import { earlierHolderProblem } from '../../../../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../../../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../../../../packages/verify/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -288,6 +290,8 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
+    const earlier = earlierHolderProblem(board, item, me.id);
+    if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
@@ -639,6 +643,9 @@ async function recordComparison(ctx, item, result) {
   });
 }
 
+/** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
+const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../submit/handoff.js', import.meta.url).href };
+
 /** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
 export async function startAutomaticComparison(ctx, id) {
   const item = withBoardRead(ctx, board => store.getItem(board, id));
@@ -649,7 +656,7 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }
 
@@ -663,7 +670,7 @@ export async function reviveStalledComparison(ctx, id) {
   } else if (plan.action === 'restart') {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   }
 }
 

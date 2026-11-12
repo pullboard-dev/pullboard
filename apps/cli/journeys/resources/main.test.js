@@ -1,8 +1,7 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** @pullboard-test-loads apps/cli/src/io/entry.js */
 /** Resource queue cases that drive the real CLI (settings, check, verify) or the fixtures that start it [Q1,Q2,Q4,C7,V4]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -16,13 +15,15 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { checkNeedsBrowser } from '../../../../packages/gate/index.js';
+import { awaitNestedPhase } from '../../../../packages/gate/index.js';
 import { queuedLeaseProof } from '../../../../packages/gate/tests/fixtures/resources/lease.js';
 import { openPrivateScopedView } from '../../../../packages/gate/tests/fixtures/resources/lease.js';
 import { resourceNames } from '../../tests/fixtures/resources/lease.js';
 import { checkProject } from '../../../../packages/gate/tests/fixtures/resources/verify.js';
 import { verificationProject } from '../../../../packages/gate/tests/fixtures/resources/verify.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAddArgv } from '../../tests/fixtures/testkit.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { CHILDREN } from '../../tests/fixtures/resources/pool.js';
 import { SUBMIT_CHECK } from '../../tests/fixtures/resources/pool.js';
 import { acquired } from '../../tests/fixtures/resources/pool.js';
@@ -42,6 +43,8 @@ import { worker } from '../../tests/fixtures/resources/pool.js';
 import { writeMemoryReading } from '../../tests/fixtures/resources/pool.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** Run the production CLI in this process against a pool fixture's private environment, from `cwd` (default its first checkout). */
+const cliLocal = (box, args, cwd = box.first) => runCliInProcess(args, { cwd, env: box.env });
 const LEASE_HELPERS = createE2eHelpers();
 after(() => LEASE_HELPERS.cleanup());
 
@@ -55,9 +58,7 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   assert.equal(await checkNeedsBrowser(repo, itemCheck, { env: classifyEnv }), false, 'an explicit CPU-only test file is classifiable');
   assert.equal(await checkNeedsBrowser(repo, 'node apps/cli/src/io/run/tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
     'a named file with no readable declaration stays browser-gated');
-  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--route', 'strong', '--wait', '--json'], {
-    cwd: repo, env: box.env, encoding: 'utf8',
-  });
+  const added = await fixtureAdd((cwd, ...args) => cliLocal(box, args, cwd), repo, 'coordinator', 'CPU check item', '--check', itemCheck, '--route', 'strong', '--wait', '--json');
   assert.equal(added.status, 0, `${added.stdout}\n${added.stderr}`);
   const item = JSON.parse(added.stdout).item.item_id;
   assert.equal(existsSync(join(repo, 'item-check-started')), false, 'the setup baseline ran in its private clone');
@@ -66,16 +67,15 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   await acquired(browserHolder);
   const itemMarker = join(repo, 'item-check-started');
   const itemStarted = waitForMarker(itemMarker);
+  // Process-level: a queued check waits on the gate lease beside other live pool processes, so it keeps its own process.
   const itemRun = runFixtureChildAsync(process.execPath, [BIN, 'check', String(item), '--yes'], { cwd: repo, env: box.env });
-  let itemResult;
-  try {
-    await itemStarted;
-    assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'check-browser-holder'),
-      'the item check starts while the unrelated browser lease remains held');
-  } finally {
-    await release(browserHolder);
-    itemResult = await itemRun;
-  }
+  const itemResult = await awaitNestedPhase(itemRun, async () => {
+    try {
+      await itemStarted;
+      assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'check-browser-holder'),
+        'the item check starts while the unrelated browser lease remains held');
+    } finally { await release(browserHolder); }
+  });
   assert.equal(itemResult.status, 0, itemResult.failure ?? itemResult.stderr);
   assert.equal(readFileSync(itemMarker, 'utf8'), 'started');
 
@@ -83,18 +83,17 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   await acquired(nextBrowserHolder);
   const submitMarker = join(repo, 'submit-check-started');
   const submitStarted = waitForMarker(submitMarker);
+  // Process-level: the submit check is an ES-module script that waits on the lease in its own process.
   const submitRun = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', SUBMIT_CHECK, repo, base, submitCheck], { cwd: repo, env: box.env });
-  let submitResult;
   let submitStartFailure = null;
-  try {
-    try { await submitStarted; }
-    catch (error) { submitStartFailure = error; }
-    assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'submit-browser-holder'),
-      'the submission check starts while the unrelated browser lease remains held');
-  } finally {
-    await release(nextBrowserHolder);
-    submitResult = await submitRun;
-  }
+  const submitResult = await awaitNestedPhase(submitRun, async () => {
+    try {
+      try { await submitStarted; }
+      catch (error) { submitStartFailure = error; }
+      assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'submit-browser-holder'),
+        'the submission check starts while the unrelated browser lease remains held');
+    } finally { await release(nextBrowserHolder); }
+  });
   assert.equal(submitStartFailure, null, `${submitStartFailure?.message ?? ''}\n${submitResult.stdout}\n${submitResult.stderr}`);
   assert.equal(submitResult.status, 0, submitResult.failure ?? submitResult.stderr);
   assert.deepEqual(JSON.parse(submitResult.stdout), {
@@ -106,9 +105,7 @@ test('browser-free checks skip the slot only when the machine allows it [C7]', a
   const box = fixture();
   const { repo } = checkProject(box);
   const check = `out=$(node apps/cli/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - item check marker' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`;
-  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'Browser-free policy check', '--check', check, '--route', 'strong', '--wait', '--json'], {
-    cwd: repo, env: box.env, encoding: 'utf8',
-  });
+  const added = await fixtureAdd((cwd, ...args) => cliLocal(box, args, cwd), repo, 'coordinator', 'Browser-free policy check', '--check', check, '--route', 'strong', '--wait', '--json');
   assert.equal(added.status, 0, `${added.stdout}\n${added.stderr}`);
   const item = JSON.parse(added.stdout).item.item_id;
   const marker = join(repo, 'item-check-started');
@@ -120,22 +117,21 @@ test('browser-free checks skip the slot only when the machine allows it [C7]', a
     await acquired(browserHolder);
     const started = waitForMarker(marker);
     const startedOutcome = started.then(() => null, error => error);
+    // Process-level: the queued check must wait in the gate line while this process polls the pool.
     const resultPromise = runFixtureChildAsync(process.execPath, [BIN, 'check', String(item), '--yes'], { cwd: repo, env: box.env });
-    let result;
-    try {
-      if (shouldStartWithBrowserHeld) {
-        await started;
-        assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === `policy-browser-${String(value)}`),
-          'the browser lease stays live while an opted-in browser-free check runs');
-      } else {
-        await waitUntil(() => privateList(box).find(({ name }) => name === 'gate')?.line.some(({ kind, item: waitingItem }) => kind === 'check' && waitingItem === String(item)),
-          'a browser-disabled check to wait in the gate queue');
-        assert.equal(existsSync(marker), false, 'the check does not start while browser-free checks are disabled or absent');
-      }
-    } finally {
-      await release(browserHolder);
-      result = await resultPromise;
-    }
+    const result = await awaitNestedPhase(resultPromise, async () => {
+      try {
+        if (shouldStartWithBrowserHeld) {
+          await started;
+          assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === `policy-browser-${String(value)}`),
+            'the browser lease stays live while an opted-in browser-free check runs');
+        } else {
+          await waitUntil(() => privateList(box).find(({ name }) => name === 'gate')?.line.some(({ kind, item: waitingItem }) => kind === 'check' && waitingItem === String(item)),
+            'a browser-disabled check to wait in the gate queue');
+          assert.equal(existsSync(marker), false, 'the check does not start while browser-free checks are disabled or absent');
+        }
+      } finally { await release(browserHolder); }
+    });
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     assert.equal(await startedOutcome, null, 'the check marker observer settles and closes');
     assert.equal(readFileSync(marker, 'utf8'), 'started');
@@ -166,7 +162,7 @@ test('queue order follows the machine settings [C7,O5]', async () => {
     assert.equal(changed, 1, `${agent} has a private waiter row`);
   };
   /** Run pullboard settings against the fixture's private machine home. */
-  const settingsCli = (box, ...flags) => runFixtureChild(process.execPath, [BIN, 'settings', ...flags], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const settingsCli = (box, ...flags) => cliLocal(box, ['settings', ...flags]);
 
   // No settings: landings first, then arrival, so a review waits behind an earlier focused run.
   const plain = fixture();
@@ -183,7 +179,7 @@ test('queue order follows the machine settings [C7,O5]', async () => {
   assert.deepEqual(line(plain), [['plain-focused', 'other', ''], ['plain-review', 'review', '']],
     'with reviewsFirst off no waiter ages up, even with a short agingMinutes');
   setQueueOrder(plain, undefined);
-  const plainPrinted = settingsCli(plain);
+  const plainPrinted = await settingsCli(plain);
   assert.equal(plainPrinted.status, 0, plainPrinted.stderr);
   assert.match(plainPrinted.stdout, /^gate\.queue\.reviewsFirst: false\b/mu, 'pullboard settings prints reviewsFirst, default false');
   assert.match(plainPrinted.stdout, /^gate\.queue\.agingMinutes: 30\b/mu, 'pullboard settings prints agingMinutes, default 30');
@@ -224,11 +220,11 @@ test('queue order follows the machine settings [C7,O5]', async () => {
   backdate(aging, 'aging-focused', 61_000);
   assert.deepEqual(line(aging), [['aging-focused', 'submit', 'other'], ['aging-submit', 'submit', '']],
     'after agingMinutes 1 the focused run ranks with submits and keeps its earlier ticket there');
-  const agingPrinted = settingsCli(aging);
+  const agingPrinted = await settingsCli(aging);
   assert.equal(agingPrinted.status, 0, agingPrinted.stderr);
   assert.match(agingPrinted.stdout, /^gate\.queue\.reviewsFirst: true$/mu, 'pullboard settings prints the reviewsFirst set on this machine');
   assert.match(agingPrinted.stdout, /^gate\.queue\.agingMinutes: 1$/mu, 'pullboard settings prints the agingMinutes set on this machine');
-  assert.deepEqual(JSON.parse(settingsCli(aging, '--json').stdout).settings.gate.queue, { reviewsFirst: true, currentReleaseFirst: false, agingMinutes: 1 });
+  assert.deepEqual(JSON.parse((await settingsCli(aging, '--json')).stdout).settings.gate.queue, { reviewsFirst: true, currentReleaseFirst: false, agingMinutes: 1 });
   await release(agingHolders[0]);
   assert.equal((await acquired(agingFocused)).acquired, 'aging-focused', 'the aged focused run is admitted before the later submit');
   await release(agingHolders[1]);
@@ -306,12 +302,12 @@ test('queue order follows the machine settings [C7,O5]', async () => {
 
   // An unusable value is refused by name, with the fix.
   setQueueOrder(aging, { reviewsFirst: 'yes' });
-  const badFlag = settingsCli(aging, '--json');
+  const badFlag = await settingsCli(aging, '--json');
   assert.equal(badFlag.status, 1, 'a non-boolean reviewsFirst is refused');
   assert.equal(JSON.parse(badFlag.stdout).error.code, 'BAD_MACHINE_SETTINGS');
   assert.match(JSON.parse(badFlag.stdout).error.message, /gate\.queue\.reviewsFirst .* must be true or false/u);
   setQueueOrder(aging, { reviewsFirst: true, agingMinutes: 0 });
-  const badAging = settingsCli(aging, '--json');
+  const badAging = await settingsCli(aging, '--json');
   assert.equal(badAging.status, 1, 'agingMinutes 0 is refused');
   assert.match(JSON.parse(badAging.stdout).error.message, /gate\.queue\.agingMinutes .* must be a positive whole number/u);
 });
@@ -339,17 +335,17 @@ test('the memory hold is off until a floor is set, an unread machine warns once,
   const unsetStart = await event(unset);
   assert.equal(unsetStart.acquired, 'unset-run', `with gate.memoryFloorMB absent the pool admits by slots alone, as before: ${JSON.stringify(unsetStart)}`);
   await release(unset);
-  const defaults = runFixtureChild(process.execPath, [BIN, 'settings', '--json'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const defaults = await cliLocal(box, ['settings', '--json']);
   assert.equal(defaults.status, 0, defaults.stderr);
   assert.equal(JSON.parse(defaults.stdout).memoryFloorMB, null, 'pullboard settings reports the hold as off when the floor is absent');
   mkdirSync(box.home, { recursive: true });
   writeFileSync(join(box.home, 'settings.json'), `${JSON.stringify({ gate: { memoryFloorMB: -1 } })}\n`);
-  const refused = runFixtureChild(process.execPath, [BIN, 'settings', '--json'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const refused = await cliLocal(box, ['settings', '--json']);
   assert.equal(refused.status, 1);
   assert.equal(JSON.parse(refused.stdout).error.code, 'BAD_MACHINE_SETTINGS');
   assert.match(JSON.parse(refused.stdout).error.message, /gate\.memoryFloorMB/u);
   writeFileSync(join(box.home, 'settings.json'), `${JSON.stringify({ gate: { memoryFloorMB: 1024 } })}\n`);
-  const set = runFixtureChild(process.execPath, [BIN, 'settings'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const set = await cliLocal(box, ['settings']);
   assert.equal(set.status, 0, set.stderr);
   assert.match(set.stdout, /^gate\.memoryFloorMB: 1024$/mu, 'pullboard settings shows the floor once it is set');
 
@@ -366,19 +362,19 @@ test('the memory hold is off until a floor is set, an unread machine warns once,
 
   checkProject(box);
   writeFileSync(join(box.home, 'settings.json'), `${JSON.stringify({ gate: {} })}\n`);
-  const off = runFixtureChild(process.execPath, [BIN, 'resources', '--json'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const off = await cliLocal(box, ['resources', '--json']);
   assert.equal(off.status, 0, off.stderr);
   assert.equal(JSON.parse(off.stdout).memory, null, 'with no floor set pullboard resources reads no memory');
-  const offHuman = runFixtureChild(process.execPath, [BIN, 'resources'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const offHuman = await cliLocal(box, ['resources']);
   assert.equal(offHuman.status, 0, offHuman.stderr);
   assert.doesNotMatch(offHuman.stdout, /^memory: /mu, 'with no floor set pullboard resources prints no memory line');
   writeFileSync(join(box.home, 'settings.json'), `${JSON.stringify({ gate: { memoryFloorMB: 1024 } })}\n`);
-  const human = runFixtureChild(process.execPath, [BIN, 'resources'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const human = await cliLocal(box, ['resources']);
   assert.equal(human.status, 0, human.stderr);
   const printed = human.stdout.split('\n').filter((line) => line.startsWith('memory: '));
   assert.equal(printed.length, 1, `pullboard resources prints one machine memory line: ${human.stdout}`);
   assert.match(printed[0], /^memory: (admitting: |holding the gate queue because |not checked on )/u);
-  const json = runFixtureChild(process.execPath, [BIN, 'resources', '--json'], { cwd: box.first, env: box.env, encoding: 'utf8' });
+  const json = await cliLocal(box, ['resources', '--json']);
   assert.equal(json.status, 0, json.stderr);
   assert.match(JSON.parse(json.stdout).memory.line, /^memory: /u, 'the JSON result carries the same machine line');
 });
@@ -388,6 +384,7 @@ test('a verification with no frozen check never enters the test queue [C7,V4]', 
   const holder = worker(box, { agent: 'empty-check-holder' });
   await acquired(holder);
   let completed;
+  // Process-level: the verification waits for (or skips) the gate lease while this process holds one.
   const verifying = runFixtureChildAsync(process.execPath, [BIN, 'verify', String(item), 'accept', '--note', 'The private bar holds.', '--json'],
     { cwd: reviewer, env: project.env }).then(result => { completed = result; return result; });
   try {
@@ -410,6 +407,7 @@ test('a verification with a frozen check still waits for its slot [C7,V4]', asyn
   const holder = worker(box, { agent: 'real-check-holder' });
   await acquired(holder);
   let completed;
+  // Process-level: the verification waits for (or skips) the gate lease while this process holds one.
   const verifying = runFixtureChildAsync(process.execPath, [BIN, 'verify', String(item), 'accept', '--note', 'The exact frozen command passed.', '--json'],
     { cwd: reviewer, env: project.env }).then(result => { completed = result; return result; });
   try {

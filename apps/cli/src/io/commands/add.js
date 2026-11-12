@@ -1,4 +1,8 @@
 import { requireOwnLaneCheck } from '../lane.js';
+import { itemText } from '../../../../../packages/search/index.js';
+import { nearestOpenItems } from '../../../../../packages/search/index.js';
+import { searchSidecarPath } from '../../../../../packages/search/index.js';
+import { requireBarPathsOnMain } from '../item/bar.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
@@ -25,6 +29,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -138,6 +143,8 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  if (item.check) refuseCheckPullboardTest(item.check);
+  await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
@@ -163,8 +170,24 @@ export async function run(io, args) {
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
+  sayRelated(io, ctx, board, id, item);
   return 0;
 });
+}
+
+/**
+ * Print the nearest open items to a new item as quiet advice after it is filed.
+ * Why here and never inside the move: advice must not cost the move any time or fail it; a missing or broken index prints nothing.
+ */
+function sayRelated(io, ctx, board, id, item) {
+  let related;
+  try {
+    related = nearestOpenItems(board, itemText(item), { sidecar: searchSidecarPath(ctx.info.root, ctx.info.commonDir), exclude: [id], limit: 3 });
+  } catch { return; }
+  if (!related.length) return;
+  // Quiet advice: stderr in text mode and a diagnostics entry in JSON, so the one `#id` line on stdout stays what scripts read.
+  io.err('related open items:');
+  for (const row of related) io.err(`  ${row.score.toFixed(3)}  #${row.id}  ${row.title}`);
 }
 
 /**
@@ -264,15 +287,24 @@ export function pathTokens(text) {
  * @param {{ prose?: boolean }} [options]
  * @returns {string[]}
  */
-export function coordinatorPaths(config, item, { prose = true } = {}) {
+export function coordinatorPaths(config, item, options) {
+  return barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
+}
+
+/**
+ * The repo paths an item's criterion, check and brief Files section name, resolved against a lane-scoped check [C7].
+ * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
+ *
+ * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
+ * @param {{ prose?: boolean }} [options]
+ * @returns {string[]}
+ */
+export function barPaths(item, { prose = true } = {}) {
   const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
   // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
   const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
-  if (scope) {
-    const scoped = named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`));
-    return [...new Set(scoped)].filter(path => laneOf(config, path) === COORDINATOR);
-  }
-  return [...new Set(named)].filter(path => laneOf(config, path) === COORDINATOR);
+  const scoped = scope ? named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
+  return [...new Set(scoped)];
 }
 
 /** The next step of a cross-ownership refusal: the lane piece, then the coordinator piece filed --after it. */

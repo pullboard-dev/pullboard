@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/relay/src/io/browser/client.js */
 /** @pullboard-test-gui */
 /** The relay browser client's sealed snapshot decode, in Chrome and in WebKit [H5,H16]. */
 import {
@@ -260,7 +260,7 @@ async function publishApi2Checkpoint(box, boardId, sequence) {
   // bin/run-tests uses foreground checkpointing; keep this private writer deterministic in direct node --test runs too.
   box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = '0';
   let published;
-  try { published = await box.cli('status'); }
+  try { published = await box.cliLocal('status'); }
   finally {
     if (previousCheckpointMode === undefined) delete box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND;
     else box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = previousCheckpointMode;
@@ -319,7 +319,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   if (apiVersion === 1) box.legacySnapshotApi(); // Keep explicit historical and current paged wire coverage.
   const initialTitle = 'PHONE_CHECKPOINT_INITIAL_1113';
   const pendingTitles = ['PHONE_PENDING_ONE_1113', 'PHONE_PENDING_TWO_1113', 'PHONE_PENDING_THREE_1113'];
-  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initialTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());

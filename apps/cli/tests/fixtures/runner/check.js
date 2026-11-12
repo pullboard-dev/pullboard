@@ -23,6 +23,7 @@ import {
   startToolingCli,
 } from './tooling.js';
 import { once } from 'node:events';
+import { waitForCondition } from './holders.js';
 import { fixtureAdd } from '../testkit.js';
 import { fixtureJoin } from '../testkit.js';
 
@@ -190,6 +191,9 @@ export async function privateReviewRunnerEdges(t, e2e, from = 0, to = undefined)
     assert.equal(result.status, edge.error ? 1 : 0, result.stdout + result.stderr);
     if (edge.error) assert.equal(response.error.code, edge.error, result.stdout);
     if (edge.problem) assert.match(response.error.message, edge.problem);
+    // The controller can take the worker's result and exit before the ssh stand-in records its request on exit (#5743).
+    const settled = () => { const now = phaseCounts(requests + '.phases'); return now.returned - before.returned >= now.dispatched - before.dispatched; };
+    await waitForCondition(settled, 'every dispatched ssh stand-in recorded its request', { state: () => phaseCounts(requests + '.phases') });
     const dispatched = readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean);
     assert.equal(dispatched.length, edge.dispatches ?? (edge.guard ? 2 : 1), 'a valid restored or guard check dispatches; an invalid descriptor cannot start another remote check');
     const outputRoot = join(box.repo, '.git/pullboard/check-output');

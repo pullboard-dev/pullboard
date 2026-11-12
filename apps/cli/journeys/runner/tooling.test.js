@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 import { committedRunnerController } from '../../../../packages/runners/index.js';
 import { observeDirtyRunnerTooling } from '../../../../packages/runners/index.js';
 import { dirtyToolingFindings } from '../../../../packages/runners/index.js';
@@ -202,15 +201,23 @@ test('a shared tooling export is made once per commit and reused by later dispat
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'test: shared export one');
   const first = committedRunnerController(root, { shared: true });
+  const holder = committedRunnerController(root, { shared: true });
+  assert.equal(holder.root, first.root, 'a second dispatch of one commit reuses its export');
   first.cleanup();
+  assert.equal(existsSync(first.root), true, 'cleanup leaves the export while another run still holds it');
   writeFileSync(join(first.root, 'marker'), 'kept');
   const again = committedRunnerController(root, { shared: true });
-  assert.equal(again.root, first.root, 'the second dispatch of one commit reuses its export');
-  assert.equal(readFileSync(join(again.root, 'marker'), 'utf8'), 'kept', 'the reused export was not exported again, and cleanup left it');
+  assert.equal(again.root, first.root, 'a dispatch while the export is held reuses it');
+  assert.equal(readFileSync(join(again.root, 'marker'), 'utf8'), 'kept', 'the reused export was not exported again');
   assert.equal(readdirSync(temp).filter(name => name.startsWith('pullboard-committed-runner-')).length, 1, 'one folder holds the commit export');
+  holder.cleanup();
+  assert.equal(existsSync(first.root), true, 'the export stays while one run still holds it');
+  again.cleanup();
+  assert.equal(existsSync(first.root), false, 'the export is swept when its last run finishes');
   writeFileSync(join(root, 'apps/runner/src/io/controller.js'), '// controller two\n');
   box.git(root, 'commit', '-qam', 'test: shared export two');
   const next = committedRunnerController(root, { shared: true });
+  t.after(next.cleanup);
   assert.notEqual(next.root, first.root, 'a new commit gets its own export');
   assert.equal(readFileSync(next.entry, 'utf8'), '// controller two\n');
   chmodSync(next.root, 0o777);

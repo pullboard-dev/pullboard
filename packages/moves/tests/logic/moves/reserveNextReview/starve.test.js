@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Real native eligibility and dispatch keep strict reviews from starving [C7,N2,V1,A6]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

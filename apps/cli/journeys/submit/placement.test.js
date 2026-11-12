@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input source-tree packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
 /** Process composition has explicit app ownership; ordinary libraries keep their real edges [C7,D3,CD64]. */
 import assert from 'node:assert/strict';

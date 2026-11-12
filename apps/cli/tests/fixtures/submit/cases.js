@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/io/board/baseline/guard.test.js */
 /** Real private submissions keep declared test scanners even when other proofs defer [C7]. */
 import assert from 'node:assert/strict';
 import {

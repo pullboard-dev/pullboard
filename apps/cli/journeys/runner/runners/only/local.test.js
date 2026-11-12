@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/child.js packages/gate/index.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js packages/landing/index.js packages/resources/index.js */
 /** Actual entry points obey private machine policy before starting any local body [C7,Q1]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -112,7 +112,7 @@ test('direct landing shards refuse unavailable runners without a local shard bod
   assert.equal(ran, false, 'landing scheduling cannot bypass the same machine policy');
 });
 
-for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refuses before its local body [C7,Q1]`, t => {
+for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refuses before its local body [C7,Q1]`, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs', helpers.sandbox(), { withWorktree: false });
@@ -121,7 +121,7 @@ for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refu
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').writeFileSync(${JSON.stringify(privateBox.marker)}, 'ran');\n`);
   box.git(box.repo, 'add', 'check.cjs');
   box.git(box.repo, 'commit', '-qm', 'test: private gate body [G1]');
-  const result = box.run(box.repo, 'gate', ...args, '--json');
+  const result = await box.runLocal(box.repo, 'gate', ...args, '--json');
   assert.notEqual(result.code, 0, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'RUNNER_WAIT_DEADLINE');
   assert.equal(existsSync(privateBox.marker), false, 'no configured gate body ran locally');
