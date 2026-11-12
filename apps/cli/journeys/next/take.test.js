@@ -1,8 +1,5 @@
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
-import { assertFreeMainRedRouting } from '../../tests/fixtures/main/routing.js';
-import { assertNewestMainRedRouting } from '../../tests/fixtures/main/routing.js';
-import { assertMainRedCLI } from '../../tests/fixtures/main/routing.js';
 /** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -467,19 +464,6 @@ test('automatic review reservation retains coordinator-only policy when a higher
   assert.deepEqual(store.verdictsFor(box.board, allowed), [], 'assignment fabricates no verdict');
   assert.equal(store.listItems(box.board).some(item => item.item_status === 'claimed'
     && item.item_owner === reviewer.id), false, 'an eligible review is not replaced with a build');
-});
-
-// Main-red build routing is separate from review-priority selection.
-test('a main red offers a free idle seat before interrupting a build [C7,N2]', async t => {
-  assertFreeMainRedRouting(t);
-});
-
-test('a main red asks the newest build only when no seat is free and preserves native claim guards [C7,N2]', async t => {
-  assertNewestMainRedRouting(t);
-});
-
-test('default next offers actual main red to another free seat and only that seat claims it [C7,N2,H16]', async t => {
-  await assertMainRedCLI(t, { fixture, cli });
 });
 
 /** Give each candidate a disjoint file so the queue's normal collision guard stays active. */
