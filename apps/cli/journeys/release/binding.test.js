@@ -27,11 +27,11 @@ after(e2e.cleanup);
  * @param {() => T} work
  * @returns {T}
  */
-function as(box, session, work) {
+async function as(box, session, work) {
   const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
   box.env.CLAUDECODE = '1';
   box.env.CLAUDE_CODE_SESSION_ID = session;
-  try { return work(); }
+  try { return await work(); }
   finally {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete box.env[name];
@@ -41,20 +41,20 @@ function as(box, session, work) {
 }
 
 /** A web project with one joined web seat in its own checkout and two open items. */
-function project() {
+async function project() {
   const box = e2e.project();
   const ids = ['First bound folder', 'Second bound folder'].map(title =>
     String(fileFixtureItem(box, box.repo, { lane: 'web', title, check: 'true', args: ['--specs', 'G1'] }).item_id));
   const root = join(box.dir, 'web-seat');
   box.git(box.repo, 'worktree', 'add', '-q', root, '-b', 'web/web-seat');
-  const joined = as(box, 'bind-session', () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL }));
+  const joined = await as(box, 'bind-session', () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL }));
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { box, ids, seat: { root, id: JSON.parse(joined.out).agent } };
 }
 
 /** Claim `id` from the seat checkout and return the item folder the claim names. */
-function claimFolder(box, seat, id) {
-  const claimed = as(box, 'bind-session', () => box.run(seat.root, 'claim', id));
+async function claimFolder(box, seat, id) {
+  const claimed = await as(box, 'bind-session', () => box.inProcess(seat.root, 'claim', id));
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const path = /item folder: (.+)/u.exec(claimed.out)?.[1];
   assert.ok(path && existsSync(path), claimed.out);
@@ -62,28 +62,28 @@ function claimFolder(box, seat, id) {
 }
 
 /** Whoami inside `path` names the seat, and a real commit there passes the hooks' seat check. */
-function assertBound(box, seat, path, file) {
-  const who = as(box, 'bind-session', () => box.run(path, 'whoami', '--json'));
+async function assertBound(box, seat, path, file) {
+  const who = await as(box, 'bind-session', () => box.inProcess(path, 'whoami', '--json'));
   assert.equal(who.code, 0, `${who.out}\n${who.err}`);
   assert.equal(JSON.parse(who.out).id, seat.id, 'whoami in the item folder names the claiming seat');
-  const committed = as(box, 'bind-session', () => e2e.commitFile(box, path, file, 'bound work\n', 'feat(web): work in the bound folder [G1]'));
+  const committed = await as(box, 'bind-session', () => e2e.commitFile(box, path, file, 'bound work\n', 'feat(web): work in the bound folder [G1]'));
   assert.equal(committed.status, 0, `${committed.stdout}\n${committed.stderr}`);
 }
 
-test('clause 1: after claim creates an item folder, whoami there names the claiming seat and a commit passes the seat check [B5,C7]', () => {
-  const { box, ids, seat } = project();
-  const path = claimFolder(box, seat, ids[0]);
-  assertBound(box, seat, path, 'web/first.txt');
+test('clause 1: after claim creates an item folder, whoami there names the claiming seat and a commit passes the seat check [B5,C7]', async () => {
+  const { box, ids, seat } = await project();
+  const path = await claimFolder(box, seat, ids[0]);
+  await assertBound(box, seat, path, 'web/first.txt');
 });
 
-test('clause 2: a folder switched to a new item by claim stays bound to the same seat [B5,C7]', () => {
-  const { box, ids, seat } = project();
-  const first = claimFolder(box, seat, ids[0]);
-  const released = as(box, 'bind-session', () => box.run(seat.root, 'release', ids[0], '--reason', 'BLOCKED', '--note', 'fixture switch'));
+test('clause 2: a folder switched to a new item by claim stays bound to the same seat [B5,C7]', async () => {
+  const { box, ids, seat } = await project();
+  const first = await claimFolder(box, seat, ids[0]);
+  const released = await as(box, 'bind-session', () => box.inProcess(seat.root, 'release', ids[0], '--reason', 'BLOCKED', '--note', 'fixture switch'));
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
-  const second = claimFolder(box, seat, ids[1]);
+  const second = await claimFolder(box, seat, ids[1]);
   assert.notEqual(second, first);
   assert.equal(existsSync(first), false, 'the idle folder was switched to the new item, not copied');
   assert.equal(box.git(second, 'branch', '--show-current'), `web/item-${ids[1]}`);
-  assertBound(box, seat, second, 'web/second.txt');
+  await assertBound(box, seat, second, 'web/second.txt');
 });

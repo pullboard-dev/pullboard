@@ -2753,15 +2753,6 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/view/tests/logic/summary/state/codegen.test.js": {
-      "cells": [
-        "api",
-        "app:view"
-      ],
-      "reasons": [
-        "imports past app:view front door (src/view-state-summary.js)"
-      ]
-    },
     "apps/cli/journeys/stats/cockpit.test.js": {
       "cells": [
         "app:lib",

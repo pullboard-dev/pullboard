@@ -61,7 +61,7 @@ function fixture(t, { registrationEngine = ENGINE_VERSION, replayEngine = ENGINE
   });
   delete board.executionEngineVersion;
   /** Execute real CLI parsing/dispatch, with text available to prove the final printed command. */
-  async function cli(index, args, json = true) {
+  async function inProcess(index, args, json = true) {
     let output = '', error = '';
     const code = await main([...args, ...(json ? ['--json'] : [])], { cwd: index === null ? root : paths[index], clock,
       stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write: value => { error += value; } } });
@@ -78,7 +78,7 @@ function fixture(t, { registrationEngine = ENGINE_VERSION, replayEngine = ENGINE
     store.closeBoard(board); rmSync(directory, { recursive: true, force: true });
     for (const [key, value] of Object.entries(original)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   });
-  return { directory, root, paths, agents, board, clock, cli, replay };
+  return { directory, root, paths, agents, board, clock, inProcess, replay };
 }
 
 test('handoff takeover prints real work and retires only the outgoing seat [B3,N19,H16]', async t => {
@@ -90,7 +90,7 @@ test('handoff takeover prints real work and retires only the outgoing seat [B3,N
   writeFileSync(join(box.paths[0], 'unfinished.txt'), 'unfinished ownership');
   const ask = store.shout(box.board, { from: outgoing, to: incoming, text: 'Which edge is next?', decision: true, lanes: ['core'] });
   store.answerDecision(box.board, ask, { agentId: incoming, text: 'Preserve the replay edge.', lanes: ['core'] });
-  const opened = await box.cli(0, ['handoff']);
+  const opened = await box.inProcess(0, ['handoff']);
   assert.equal(opened.code, 0, opened.error);
   const id = opened.document.handoff.item;
   assert.equal(opened.document.resume.claims[0].item_id, item);
@@ -98,14 +98,14 @@ test('handoff takeover prints real work and retires only the outgoing seat [B3,N
   assert.equal(opened.document.resume.asks[0].answers[0].shout_text, 'Preserve the replay edge.');
   assert.ok(opened.document.resume.moves.some(move => move.event_kind === 'claim'));
   assert.match(opened.document.stillToWrite.join(' '), /principles and taste.*open threads.*files outside.*only this chat/iu);
-  const again = await box.cli(0, ['handoff'], false);
+  const again = await box.inProcess(0, ['handoff'], false);
   assert.equal(again.code, 0, again.error);
   assert.ok(again.output.trimEnd().endsWith(`pullboard shout --item ${id} "Hand-off complete; ask any remaining questions here."`));
   assert.equal(store.events(box.board).filter(row => row.event_kind === 'handoff-open').length, 1);
-  const fact = await box.cli(0, ['fact', String(id), 'note', 'Outside scratch file and the reason for this approach.']);
+  const fact = await box.inProcess(0, ['fact', String(id), 'note', 'Outside scratch file and the reason for this approach.']);
   assert.equal(fact.code, 0, fact.error);
   box.clock.value += 1_000;
-  const taken = await box.cli(1, ['handoff', '--take', String(id)]);
+  const taken = await box.inProcess(1, ['handoff', '--take', String(id)]);
   assert.equal(taken.code, 0, taken.error || JSON.stringify(taken.document));
   assert.equal(taken.document.handoff.takenAt, box.clock.now().toISOString());
   assert.equal(taken.document.resume.agent, outgoing);
@@ -113,24 +113,24 @@ test('handoff takeover prints real work and retires only the outgoing seat [B3,N
   assert.ok(taken.document.facts.some(row => row.kind === 'note' && row.text.includes(box.clock.now().toISOString())));
   assert.equal(store.getItem(box.board, item).item_owner, outgoing, 'takeover reports claims; it does not silently reassign work');
   const beforeBlockedFact = store.events(box.board).length;
-  const blocked = await box.cli(0, ['fact', String(id), 'note', 'not a permitted post-takeover move']);
+  const blocked = await box.inProcess(0, ['fact', String(id), 'note', 'not a permitted post-takeover move']);
   assert.equal(blocked.document.error.code, 'AGENT_REPLACED');
   assert.equal(store.events(box.board).length, beforeBlockedFact, 'a refused fact leaves no partial event');
   assert.match(blocked.document.error.message, new RegExp(incoming, 'u'));
-  assert.equal((await box.cli(0, ['shout', 'coordinator', 'a different channel'])).document.error.code, 'AGENT_REPLACED');
-  assert.equal((await box.cli(0, ['shout', '--item', String(item), 'wrong item'])).document.error.code, 'AGENT_REPLACED');
-  assert.equal((await box.cli(0, ['shout', '--item', String(id), 'The final context is here.'])).code, 0);
-  const inbox = await box.cli(1, ['inbox']);
+  assert.equal((await box.inProcess(0, ['shout', 'coordinator', 'a different channel'])).document.error.code, 'AGENT_REPLACED');
+  assert.equal((await box.inProcess(0, ['shout', '--item', String(item), 'wrong item'])).document.error.code, 'AGENT_REPLACED');
+  assert.equal((await box.inProcess(0, ['shout', '--item', String(id), 'The final context is here.'])).code, 0);
+  const inbox = await box.inProcess(1, ['inbox']);
   assert.ok(inbox.document.shouts.some(row => row.shout_text === 'The final context is here.'));
-  assert.equal((await box.cli(1, ['shout', '--item', String(id), 'One last question.'])).code, 0);
+  assert.equal((await box.inProcess(1, ['shout', '--item', String(id), 'One last question.'])).code, 0);
   const beforeRetiredRead = store.events(box.board).length;
-  const retiredInbox = await box.cli(0, ['inbox']);
+  const retiredInbox = await box.inProcess(0, ['inbox']);
   assert.equal(retiredInbox.code, 0, retiredInbox.error);
   assert.ok(retiredInbox.document.shouts.some(row => row.shout_text === 'One last question.'));
   assert.equal(retiredInbox.document.activity.receipt.recorded, false);
   assert.equal(retiredInbox.document.activity.receipt.code, 'AGENT_REPLACED');
   assert.equal(store.events(box.board).length, beforeRetiredRead, 'reading a retired seat does not record a delivery');
-  const retiredAck = await box.cli(0, ['inbox', '--acted-on', 'event:1']);
+  const retiredAck = await box.inProcess(0, ['inbox', '--acted-on', 'event:1']);
   assert.equal(retiredAck.document.error.code, 'AGENT_REPLACED');
   assert.equal(store.events(box.board).length, beforeRetiredRead, 'retirement still blocks acknowledgements without partial writes');
   assert.equal(readFileSync(join(box.paths[0], 'unfinished.txt'), 'utf8'), 'unfinished ownership');
@@ -167,7 +167,7 @@ test('handoff takeover is first-wins and cannot be forged by facts or an authent
 
 test('handoff rejects main and ordinary items, and a closed untaken channel is replaced [B3,N19]', async t => {
   const box = fixture(t), [outgoing, incoming] = box.agents;
-  assert.equal((await box.cli(null, ['handoff'])).document.error.code, 'HANDOFF_WORKTREE');
+  assert.equal((await box.inProcess(null, ['handoff'])).document.error.code, 'HANDOFF_WORKTREE');
   const first = store.openHandoff(box.board, { agentId: outgoing });
   store.withdraw(box.board, first.item, { agentId: 'coordinator', reason: 'Start a fresh active hand-off.' });
   const next = store.openHandoff(box.board, { agentId: outgoing });
