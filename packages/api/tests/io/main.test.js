@@ -59,7 +59,8 @@ test('clause 1 [P7]: a served board keeps answering after a commit lands that ch
   t.after(() => Promise.all(servers.map((server) => server.terminate())));
   /** Start the server from the code tree as it is now, and answer its first message: started, port. */
   const start = async (port) => {
-    const server = new Worker(join(code.root, 'server.mjs'), { workerData: { port, board: project.repo, modules } });
+    // No inherited execArgv: the test runner's own preload belongs to this file's thread alone.
+    const server = new Worker(join(code.root, 'server.mjs'), { workerData: { port, board: project.repo, modules }, execArgv: [] });
     servers.push(server);
     const [message] = await once(server, 'message');
     assert.ok(message.started, JSON.stringify(message));
