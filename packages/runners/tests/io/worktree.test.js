@@ -15,6 +15,8 @@ import { createHostedItemFolder } from '../../index.js';
 import { hostedItemFolderPath } from '../../index.js';
 import { returnHostedBranch } from '../../index.js';
 import { runInHostedItemFolder } from '../../index.js';
+import { cachedTrunkPack } from '../../src/io/worktree.js';
+import { checkoutCandidate } from '../../../drive/index.js';
 
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
 
@@ -94,4 +96,50 @@ test('a runner-hosted folder refuses an unregistered host, a non-item id and a r
   assert.throws(() => hostedItemFolderPath({ host: 'runner-a' }, '../7'), /item number/u);
   assert.throws(() => hostedItemFolderPath({ host: 'runner-a', builderRoot: '../escape' }, 7), /builder root/u);
   await assert.rejects(createHostedItemFolder({ host: 'runner-a' }, { itemId: 7, origin: '/repo', branch: '../main' }), /refuses ref/u);
+});
+
+test('#5932 clause 1: three pulled jobs fetching one trunk commit at once share one cached pack build on the coordinator [C7]', async t => {
+  const trunk = temporaryRepository(t, 'pullboard-trunk-pack-');
+  const scratch = temporaryDirectory('pullboard-trunk-pack-runners-');
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  await git(trunk, 'tag', '-a', 'v0.0.1', '-m', 'release');
+  const commit = await git(trunk, 'rev-parse', 'main');
+  let builds = 0, asked = 0;
+  const pack = async wanted => {
+    asked += 1;
+    const served = await cachedTrunkPack(trunk, wanted, { dir: join(scratch, 'packs') });
+    if (served.built) builds += 1;
+    return served;
+  };
+  const caches = ['a', 'b', 'c'].map(name => join(scratch, name));
+  const checkouts = await Promise.all(caches.map(cache => checkoutCandidate(cache, trunk, commit, 'job', [], { main: commit, pack })));
+  for (const checkout of checkouts) assert.equal(checkout.ok, true, checkout.reason);
+  assert.equal(asked, 3, 'every cold runner asked for the shared pack');
+  assert.equal(builds, 1, 'three concurrent fetchers of one commit ran pack-objects once');
+  for (const checkout of checkouts) {
+    assert.equal(await git(checkout.folder, 'rev-parse', 'HEAD'), commit);
+    assert.equal(await git(checkout.folder, 'rev-parse', 'v0.0.1^{commit}'), commit, 'release tags still reach the checkout');
+  }
+});
+
+test('#5932 clause 2: a runner that already has the commit fetches nothing new, and a warm runner never downloads a whole-history pack [C7]', async t => {
+  const trunk = temporaryRepository(t, 'pullboard-trunk-warm-');
+  const scratch = temporaryDirectory('pullboard-trunk-warm-runner-');
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const cache = join(scratch, 'cache');
+  const first = await git(trunk, 'rev-parse', 'main');
+  assert.equal((await checkoutCandidate(cache, trunk, first, 'job', [], { main: first })).ok, true);
+  let asked = 0;
+  const pack = async () => { asked += 1; return null; };
+  const store = join(cache, 'git');
+  const refsBefore = await git(store, 'for-each-ref');
+  const again = await checkoutCandidate(cache, join(scratch, 'no-such-trunk'), first, 'job', [], { main: first, pack });
+  assert.equal(again.ok, true, again.reason);
+  assert.equal(await git(store, 'for-each-ref'), refsBefore, 'a commit the runner holds fetches nothing, from a trunk it cannot even reach');
+  writeFileSync(join(trunk, 'next.txt'), 'next\n');
+  await git(trunk, 'add', 'next.txt');
+  await git(trunk, 'commit', '-q', '-m', 'next');
+  const second = await git(trunk, 'rev-parse', 'main');
+  assert.equal((await checkoutCandidate(cache, trunk, second, 'job', [], { main: second, pack })).ok, true);
+  assert.equal(asked, 0, 'a warm store fetches the new commit incrementally and never asks for the shared pack');
 });
