@@ -22,7 +22,8 @@ import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 const AS = ['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', '-c', 'core.hooksPath=/dev/null'];
 const GATE = pathToFileURL(fileURLToPath(new URL('../../../../../packages/gate/index.js', import.meta.url))).href;
 // The fixture's runner: plan with the ledger hits run-tests reads, then run only the misses, as the project runner does.
-const RUNNER = `import { planTestActions } from ${JSON.stringify(GATE)};
+const RUNNER = `import { spawnSync } from 'node:child_process';
+import { planTestActions } from ${JSON.stringify(GATE)};
 const files = process.argv.slice(2);
 const plan = await planTestActions(process.cwd(), files, { fullSuite: false, landing: true, listFiles: () => files });
 if (!plan.done) process.exitCode = spawnSync(process.execPath, ['--test', ...plan.args], { stdio: 'inherit' }).status ?? 1;
