@@ -192,6 +192,15 @@ async function pairingFailure(chrome, box, error, { boards, keys, since }) {
         hashPresent: location.hash !== '',
         storedBoards: stored.map(id => ${JSON.stringify(boards)}.indexOf(id)),
         pageErrors: window.__relayPageErrors ?? null,
+        live: document.querySelector('#live')?.textContent ?? null,
+        screen: { ...document.documentElement.dataset },
+        bodyClass: document.body.className,
+        view: typeof view === 'object' ? { root: view.root, tab: view.tab } : null,
+        data: typeof data === 'object' && data ? {
+          root: data.root ?? null, project: Boolean(data.project), group: Boolean(data.group),
+          items: data.project?.items?.length ?? null,
+          projects: (data.projects ?? []).map(entry => ({ id: entry.id, root: entry.root, ok: entry.ok, error: entry.error ?? null })),
+        } : null,
       };
     })()`, 'capture pairing page state', 5000));
   } catch (captureError) { capture.captureError = captureError.message; }
