@@ -231,7 +231,7 @@
     "launch": 3
   },
   "apps/cli/journeys/fact/main/cache.test.js": {
-    "launch": 10
+    "launch": 1
   },
   "apps/cli/journeys/fact/main/comparison/checkout.test.js": {
     "launch": 1
