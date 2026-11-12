@@ -41,10 +41,10 @@ function facts(board, id) {
   return itemThread(board, id).filter(entry => entry.type === 'fact').map(entry => entry.text ?? entry.fact?.text ?? '').join('\n');
 }
 
-/** Main's proof as a runner prints it: the waived file's TAP, whose one case always fails. */
+/** Main's proof as a runner prints it: the TAP of the proof folder's tests (the waived file, whose one case always fails). */
 const PROOF = `import { spawnSync } from 'node:child_process';
 const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
-const ran = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ${JSON.stringify(WAIVED)}], { env, encoding: 'utf8' });
+const ran = spawnSync(process.execPath, ['--test', '--test-reporter=tap'], { cwd: process.argv[2], env, encoding: 'utf8' });
 process.stdout.write(ran.stdout);
 process.exitCode = ran.status;
 `;
@@ -68,7 +68,7 @@ async t => {
   assert.doesNotMatch(facts(board, id), /waived, not green/u);
 
   // The person waives the file from their terminal; the next gate's identical red is submitted waived, not green.
-  const waived = box.run(box.repo, 'land', '--waive', WAIVED, '--until', '2099-01-01', '--reason', 'private fixture exception', '--json');
+  const waived = await box.runLocal(box.repo, 'land', '--waive', WAIVED, '--until', '2099-01-01', '--reason', 'private fixture exception', '--json');
   assert.equal(waived.code, 0, waived.err + waived.out);
   const waiver = JSON.parse(waived.out).waiver;
   assert.equal(waiver.by, 'person');
