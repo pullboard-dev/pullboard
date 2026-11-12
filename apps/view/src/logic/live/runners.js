@@ -8,10 +8,10 @@
  */
 
 /** The job kinds a runner pulls from the board's queue. */
-export const PULLED_KINDS = Object.freeze(['gate', 'land', 'landing', 'test']);
+export const PULLED_KINDS = Object.freeze(['gate', 'gate-shard', 'land', 'landing', 'test', 'main-test']);
 
 /** The public word for each job or lease kind; any other kind is runner work the snapshot names as null. */
-const KIND_WORDS = Object.freeze({ gate: 'gate', submit: 'gate', land: 'landing', landing: 'landing', test: 'test run', 'main-red': 'test run' });
+const KIND_WORDS = Object.freeze({ gate: 'gate', 'gate-shard': 'gate', submit: 'gate', land: 'landing', landing: 'landing', test: 'test run', 'main-red': 'test run', 'main-test': 'test run' });
 
 /** A runner's per-file progress words, as the snapshot says them. */
 const FILE_STATES = Object.freeze({ waiting: 'waiting', queued: 'waiting', running: 'running', green: 'green', pass: 'green', passed: 'green', red: 'red', fail: 'red', failed: 'red' });
@@ -75,6 +75,12 @@ export function loadPercents(load) {
   return { cpu: percent(cpu), ram: percent(ram) };
 }
 
+/**
+ * A pull runner's lease owner without its per-session suffix: `auxiliary-51-mill-2cbb55` and `auxiliary-51-mill-2d74dc` are one runner
+ * that restarted, so the card numbers it once.
+ */
+const runnerBase = name => typeof name === 'string' ? name.replace(/-[0-9a-f]{6}$/u, '') : name;
+
 /** A positive item id from a record, or null. */
 const itemId = value => /^[1-9][0-9]*$/u.test(String(value ?? '')) ? Number(value) : null;
 
@@ -120,13 +126,14 @@ function fileProgress(files, progress) {
 export function publicRunners({ now, runners = [], configured = [], jobs = [], landings = [], fileTimes = {} }) {
   if (!Number.isFinite(now)) throw new TypeError('the live runner snapshot needs an explicit clock reading');
   const order = [...new Set((Array.isArray(configured) ? configured : []).map(runner => runner?.host).filter(name => typeof name === 'string'))];
-  const others = [...new Set([...runners.map(runner => runner.host), ...jobs.map(job => job.runner)])].filter(name => typeof name === 'string' && !order.includes(name))
+  const others = [...new Set([...runners.map(runner => runner.host), ...jobs.map(job => runnerBase(job.runner))])].filter(name => typeof name === 'string' && !order.includes(name))
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const numbers = new Map([...order, ...others].map((name, index) => [name, index + 1]));
+  const numberOf = name => numbers.get(name) ?? numbers.get(runnerBase(name));
   const work = new Map([...numbers.values()].map(number => [number, []]));
   const loads = new Map();
   // Jobs come oldest first, so a later job's sample replaces an earlier one; the runner's own record wins over both.
-  for (const job of jobs) if (job.progress?.load && typeof job.progress.load === 'object') loads.set(numbers.get(job.runner), job.progress.load);
+  for (const job of jobs) if (job.progress?.load && typeof job.progress.load === 'object') loads.set(numberOf(job.runner), job.progress.load);
   for (const runner of runners) if (runner?.load && typeof runner.load === 'object') loads.set(numbers.get(runner.host), runner.load);
   const runs = new Map();
   /** The run one lease or job belongs to, made once per key. */
@@ -153,8 +160,8 @@ export function publicRunners({ now, runners = [], configured = [], jobs = [], l
   for (const job of jobs) {
     const kind = KIND_WORDS[job.kind] ?? null, items = job.items?.length ? job.items : job.item ? [job.item] : [];
     const run = runOf(`job:${job.id}`, { kind, items, since: job.claimedAt, files: job.files ?? null, progress: job.progress ?? null });
-    run.runners.add(numbers.get(job.runner));
-    work.get(numbers.get(job.runner)).push({ key: `job:${job.id}`, kind, item: items[0] ?? null, since: job.claimedAt });
+    run.runners.add(numberOf(job.runner));
+    work.get(numberOf(job.runner)).push({ key: `job:${job.id}`, kind, item: items[0] ?? null, since: job.claimedAt });
   }
   /** One run's public counts and estimate; a count the records do not hold is null. */
   const project = run => {
