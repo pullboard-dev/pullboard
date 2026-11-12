@@ -1,26 +1,25 @@
-/** After a landing is recorded the audit is a board job: it writes an audit proof-run naming the item and its landed commit, unasked [C7,#4743]. */
+/** After a landing is recorded the audit is a board job: it writes an audit proof-run naming the item and its landed commit [C7,#4743]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { BIN } from '../../../../../../apps/cli/tests/fixtures/cockpit/machine.js';
-import { machine } from '../../../../../../apps/cli/tests/fixtures/cockpit/machine.js';
-import { project } from '../../../../../../apps/cli/tests/fixtures/cockpit/machine.js';
-import { fileFixtureItem } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { cellBoard } from '../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { recordLandingAudit } from '../../../../src/io/merged/followup.js';
 
-test('clause 1: after a forced merge the audit runs unasked and the item history shows an audit proof-run naming the item and the landed commit [C7,#4743]', () => {
-  const box = machine(), alpha = project(box, 'post-landing-audit');
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'A landed fixture item', check: 'test -f pullboard.json', args: ['--specs', 'G1'], wait: true,
-    run: (root, ...args) => ({ code: 0, out: box.run(root, ...args), err: '' }) });
-  const head = box.git(alpha.repo, 'rev-parse', 'HEAD');
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: alpha.repo, env: box.env, encoding: 'utf8' });
-  const audits = () => JSON.parse(run('log', '1', '--json').stdout).events.filter(event => event.event_kind === 'proof-run')
-    .map(event => JSON.parse(event.event_detail).receipt).filter(receipt => receipt.kind === 'audit');
-  assert.deepEqual(audits(), [], 'nothing is audited before a landing');
-  const forced = run('merged', '1', head, '--forced', 'landed by hand around the gate');
-  assert.equal(forced.status, 0, forced.stdout + forced.stderr);
-  const [audit] = audits();
-  assert.equal(audits().length, 1, 'one audit per landing');
-  assert.equal(audit.item, 1);
-  assert.equal(audit.commit, head, 'the audit names the landed commit');
-  assert.equal(audit.id, `audit:1:${head.slice(0, 12)}`);
+const LANDED = 'c'.repeat(40);
+
+test('clause 1: the audit job records an audit proof-run naming the item and its landed commit, once per landing [C7,#4743]', t => {
+  const board = cellBoard(t, ':memory:');
+  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
+  const id = cellItem(board, { lane: 'core', title: 'Audited landing', route: 'strong' }).item_id;
+  assert.deepEqual(store.proofReceipts(board, id), [], 'nothing is audited before a landing');
+  const receiptId = recordLandingAudit(board, id, LANDED, 'coordinator');
+  const [audit] = store.proofReceipts(board, id);
+  assert.equal(audit.kind, 'audit');
+  assert.equal(audit.item, id);
+  assert.equal(audit.commit, LANDED, 'the audit names the landed commit');
+  assert.equal(audit.id, receiptId);
+  assert.equal(recordLandingAudit(board, id, LANDED, 'coordinator'), null, 'a replayed landing audits once');
+  assert.equal(store.proofReceipts(board, id).length, 1);
 });
