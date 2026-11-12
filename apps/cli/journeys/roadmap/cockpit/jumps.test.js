@@ -27,11 +27,16 @@ import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 test('the roadmap panel jumps to each release [N26]', {
   timeout: 150_000, //budget: hang ceiling for real Chrome startup, fourteen jumps at two widths, and panel scrolling.
 }, async (t) => {
+  const began = performance.now();
+  /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
+  const stage = phase => console.log('roadmap-jumps-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for Roadmap panel navigation.');
+  stage('setup-start');
   const box = machine();
   const alpha = project(box, 'roadmap-panel-jumps');
   for (const title of ['Shipped release item', 'Next release item']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  stage('items-added');
   build(box, alpha, 1, 'shipped.html');
   accept(box, alpha, 1);
   const shippedBranch = alpha.itemBranches.get(`${alpha.baseBranch}:1`);
@@ -40,10 +45,13 @@ test('the roadmap panel jumps to each release [N26]', {
   box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'Shipped first line.\nThis line stays in the expanded history.', '--reason', 'Arrange fixture release', '--items', '1');
   box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '2');
   box.run(alpha.repo, 'milestone', 'ship', '0.8.6', '--next', '0.8.7');
+  stage('shipped-release');
   for (const name of ['0.8.8', '0.8.9', '0.8.10', '0.8.11', '0.8.12', '0.8.13', '0.8.14', '0.8.15', '0.8.16', '0.8.17', '0.8.18', '0.8.19']) {
     box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Queued after the next release.');
   }
+  stage('setup-end');
   const view = await startView(box);
+  stage('view-ready');
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-panel-jumps-'));
   let chrome;
   /** Read panel selection, list targets, and page overflow after the shared Chrome wait. */
@@ -61,7 +69,9 @@ test('the roadmap panel jumps to each release [N26]', {
   })())`));
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
+    stage('chrome-ready');
     await chrome.waitFor('data?.project?.milestones?.length === 14');
+    stage('state-ready');
     // The panel's breakpoint is below 900px, not at it: at 900 the panel stays on the right, sticky, with its own
     // Shipping; at 899 it is the chip row above the list, and the counts sit under the next release.
     for (const scheme of ['light', 'dark']) {
@@ -79,6 +89,7 @@ test('the roadmap panel jumps to each release [N26]', {
             page: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) };
         })())`));
         const at = `${width}/${scheme}`;
+        stage('edge-' + at);
         if (width === 900) assert.deepEqual([edge.position, edge.beside, edge.desk, edge.phone], ['sticky', true, true, true], `${at}: the panel stays on the right alongside each release summary: ${JSON.stringify(edge)}`);
         else assert.deepEqual([edge.position, edge.beside, edge.chips, edge.desk, edge.phone], ['static', false, 'flex', false, true], `${at}: the chip row above the list, summary under each release: ${JSON.stringify(edge)}`);
         assert.ok(edge.page <= width, `${at}: no sideways scroll: ${JSON.stringify(edge)}`);
@@ -89,6 +100,7 @@ test('the roadmap panel jumps to each release [N26]', {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      stage('width-' + width);
       const initial = await read();
       if (width >= 900) {
         assert.ok(initial.buttons.every((button) => button.height >= tapTarget(width)), 'wide fine-pointer release jumps meet the 32px target');
@@ -120,6 +132,7 @@ test('the roadmap panel jumps to each release [N26]', {
       // so a busy machine that reads late still sees it (a fixed window is the #400 class of red). The list is redrawn
       // when the board refreshes, so the watch is on the document.
       await chrome.stable("(() => { window.__arrivals = []; if (!window.__arrivalWatch) { window.__arrivalWatch = new MutationObserver((changes) => { for (const change of changes) if (change.target.classList?.contains('roadmap-arrival') && change.target.closest('#roadmap-list')) window.__arrivals.push(change.target.dataset.key); }); window.__arrivalWatch.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] }); } return true; })()");
+      stage('jumps-' + width);
       for (const key of keys.slice(0, -1)) {
         await press(chrome, `document.querySelector('#roadmap-panel [data-roadmap-jump="${key}"]')`);
         const moved = await read();
@@ -129,6 +142,7 @@ test('the roadmap panel jumps to each release [N26]', {
         const atTop = moved.targets.find((entry) => entry.rect.bottom > moved.bar.bottom + 8)?.key || moved.targets.at(-1).key;
         assert.equal(moved.buttons.find((button) => button.key === atTop).current, 'location', `${width}: the panel marks the release actually at the top of the list`);
       }
+      stage('shipped-' + width);
       await press(chrome, "document.querySelector('#roadmap-panel [data-roadmap-jump=shipped]')");
       assert.equal((await read()).targets.at(-1).expanded, 'true', `${width}: selecting Shipped opens it`);
       const beforeListScroll = await read();
