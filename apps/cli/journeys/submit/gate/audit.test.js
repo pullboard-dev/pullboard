@@ -22,7 +22,7 @@ function commitChange(box, files) {
 
 test('auditOnly file left to audit unless changed [C7]', t => {
   const box = frozen(t);
-  const commit = commitChange(box, { 'packages/gate/src/io/other.js': 'export const other = 2;\n' });
+  const commit = commitChange(box, { 'packages/gate/src/io/size.js': 'export const size = 2;\n' });
   const without = selectTestTiers(box.root, { base: box.base, commit });
   assert.ok(without.units.includes(SIZE_TEST) && without.units.includes(OTHER_TEST), 'with no auditOnly every unit of the package runs');
   assert.equal(without.auditLeft, undefined);
@@ -42,7 +42,7 @@ test('auditOnly file left to audit unless changed [C7]', t => {
 
 test('an auditOnly file the item changes still runs in its gate [C7]', t => {
   const box = frozen(t);
-  const commit = commitChange(box, { 'packages/gate/src/io/other.js': 'export const other = 2;\n', [SIZE_TEST]: "import { size } from '../../src/io/size.js';\nvoid [size, 1];\n" });
+  const commit = commitChange(box, { 'packages/gate/src/io/size.js': 'export const size = 2;\n', [SIZE_TEST]: "import { size } from '../../src/io/size.js';\nvoid [size, 1];\n" });
   const plan = selectTestTiers(box.root, { base: box.base, commit, auditOnly: [SIZE_TEST, MIXED_TEST] });
   assert.ok(plan.units.includes(SIZE_TEST), 'a changed listed file runs');
   assert.deepEqual(plan.auditLeft, [MIXED_TEST], 'only the untouched listed file is left');
