@@ -11,6 +11,7 @@ import { importsIn } from '../../../gate/index.js';
 import { git } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 import { composeItemPatches } from '../../../items/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { getItem } from '../../../store/index.js';
@@ -34,11 +35,13 @@ const parsers = { importsIn: tolerantImportsIn, commonJsIn };
 
 /** Check all ordered companion effects as one patch set, allowing unrelated later main edits. */
 export function requireLandingCompanions(root, board, entries, tip) {
-  const tree = git(root, ['rev-parse', `${tip}^{tree}`]);
+  // The tip's tree is read only once an item carries companions: a batch with none asked Git for it at every merge [C7].
+  let tree;
   for (const entry of entries) {
     const item = getItem(board, entry.id ?? entry.item_id);
     const patches = itemPatches(board, item.item_id);
     if (!patches.length) continue;
+    tree ??= git(root, ['rev-parse', `${tip}^{tree}`]);
     const expected = composeItemPatches(root, item, patches);
     const merged = tryGit(root, ['merge-tree', '--write-tree', `--merge-base=${item.item_commit}`, tip, expected.commit]);
     if (!Number.isInteger(merged.status) || merged.status < 0 || merged.status > 1) throw new Refused('LAND_COMPANION_SOURCE', `cannot read the exact companion composition for #${item.item_id}; restore its Git objects before landing`);
@@ -74,11 +77,46 @@ function edgeKey(row) { return JSON.stringify([row.file, row.specifier, row.reas
  * parse failure must be found here, directly, or a duplicate import lands [C7].
  */
 function brokenModules(root, tip, changed) {
-  return changed.filter(file => /\.(?:m?js)$/u.test(file)).filter(file => {
-    const shown = tryGit(root, ['show', `${tip}:${file}`]);
-    if (shown.status !== 0) return false;
-    try { importsIn([shown.stdout], undefined); return false; } catch { return true; }
+  const modules = changed.filter(file => /\.(?:m?js)$/u.test(file));
+  const sources = committedSources(root, tip, modules);
+  return modules.filter(file => {
+    const source = sources.has(file) ? sources.get(file) : shownSource(root, tip, file);
+    if (source === null) return false;
+    try { importsIn([source], undefined); return false; } catch { return true; }
   });
+}
+
+/** One file's committed text as `git show` prints it (trimmed), or null when Git cannot show it. */
+function shownSource(root, tip, file) {
+  const shown = tryGit(root, ['show', `${tip}:${file}`]);
+  return shown.status === 0 ? shown.stdout : null;
+}
+
+/**
+ * The committed text of each changed module through one `git cat-file --batch`, trimmed as `git show` output is; a path
+ * the batch reports missing is null, and one it cannot frame as a blob is left out for the per-file read.
+ * Why: a landing read every changed module with its own Git process at each merge group, sixteen a group in a batch [C7].
+ */
+function committedSources(root, tip, files) {
+  const sources = new Map();
+  if (!files.length || files.some(file => /[\r\n]/u.test(file))) return sources;
+  const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0', 'cat-file', '--batch'],
+    { cwd: root, input: files.map(file => `${tip}:${file}\n`).join(''), maxBuffer: 1 << 28 });
+  if (result.status !== 0 || !Buffer.isBuffer(result.stdout)) return sources;
+  let at = 0;
+  for (const file of files) {
+    const end = result.stdout.indexOf(10, at);
+    if (end < 0) break;
+    const header = result.stdout.subarray(at, end).toString('utf8');
+    at = end + 1;
+    if (header === `${tip}:${file} missing`) { sources.set(file, null); continue; }
+    const blob = /^[0-9a-f]{40,64} (\S+) (\d+)$/u.exec(header);
+    if (!blob) break;
+    const size = Number(blob[2]);
+    if (blob[1] === 'blob') sources.set(file, result.stdout.subarray(at, at + size).toString('utf8').trim());
+    at += size + 1;
+  }
+  return sources;
 }
 
 /**
