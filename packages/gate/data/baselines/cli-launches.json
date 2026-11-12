@@ -1260,13 +1260,10 @@
     "launch": 11
   },
   "apps/cli/journeys/submit/gate.test.js": {
-    "launch": 39
-  },
-  "apps/cli/journeys/submit/gate/receipt.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/submit/gate/selection.test.js": {
     "launch": 3
+  },
+  "apps/cli/journeys/submit/handoff/cells.test.js": {
+    "launch": 4
   },
   "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
     "launch": 11
