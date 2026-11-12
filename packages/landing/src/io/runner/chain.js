@@ -1,7 +1,6 @@
 /** A chained landing job: build on the parent candidate, drop only a culprit, push by compare-and-swap after the parent lands [C7]. */
 import { tryGit } from '../../../../git/index.js';
 import { IDENTITY } from './job.js';
-import { INTO_CHECKOUT } from './job.js';
 import { LANDING_JOB_KIND } from './job.js';
 import { citedIds } from './job.js';
 import { commandCheck } from './job.js';
@@ -9,6 +8,7 @@ import { fetchItem } from './job.js';
 import { fetchTrunk } from './job.js';
 import { landingCheckout } from './job.js';
 import { must } from './job.js';
+import { pushTrunk } from './job.js';
 
 /**
  * The red-judge seam until L1 (#5862) supplies its own: the check's named culprit, else the batch's last item. L1's
@@ -75,13 +75,13 @@ async function buildCandidate(root, base, entries, { check, judge, renew }) {
  * @param {{ remote: string, trunk: string, expect: string, parent?: string | null, below?: { id: number, commit: string, ref?: string }[],
  *   items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean }} payload
  * @param {{ workdir: string, checks?: Function | null, judge?: typeof returnLastItem, renew?: () => boolean | Promise<boolean>,
- *   awaitParent?: (parent: string) => Promise<{ outcome: string, trunk: string | null }> }} options - awaitParent: resolves once
- *   the parent candidate's job has a receipt; judge: the single seam to L1's red outcome.
+ *   awaitParent?: (parent: string) => Promise<{ outcome: string, trunk: string | null }>, pushOptions?: () => string[] }} options - awaitParent: resolves once
+ *   the parent candidate's job has a receipt; judge: the single seam to L1's red outcome; pushOptions: the lease's landing permit (#5848).
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'returned' | 'item-moved' | 'parent-failed' | 'replan' | 'lease-lost',
  *   parent: string | null, expect: string, base: string | null, trunk: string | null, landed: number[], returned: { id: number, reason: string, detail: string | null }[],
  *   already: number[], rebuilt: boolean, pushes: number, detail: string | null }>}
  */
-export async function runChainedLandingJob(payload, { workdir, checks = null, judge = returnLastItem, renew = () => true, awaitParent = null }) {
+export async function runChainedLandingJob(payload, { workdir, checks = null, judge = returnLastItem, renew = () => true, awaitParent = null, pushOptions = () => [] }) {
   const { remote, trunk, expect, items, below = [], parent = null } = payload;
   const check = checks ?? (payload.check ? commandCheck(payload.check) : () => ({ ok: true, detail: null }));
   const root = landingCheckout(workdir);
@@ -127,7 +127,7 @@ export async function runChainedLandingJob(payload, { workdir, checks = null, ju
   receipt.returned = built.returned;
   if (built.kept.length === 0) return done(built.returned.length > 0 ? 'returned' : 'landed', { trunk: tip });
   if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
-  const pushed = tryGit(root, ['push', '--porcelain', '--quiet', ...(payload.checkout ? [INTO_CHECKOUT] : []), `--force-with-lease=${trunk}:${tip}`, remote, `${built.tip}:${trunk}`]);
+  const pushed = pushTrunk(root, { payload, trunk, base: tip, remote, source: built.tip, options: pushOptions() });
   if (pushed.status !== 0) return done('replan', { detail: `trunk is no longer ${tip.slice(0, 12)}: ${(pushed.stderr || pushed.stdout).slice(0, 240)}` });
   return done('landed', { trunk: built.tip, landed: built.kept.map(entry => entry.id), pushes: 1 });
 }

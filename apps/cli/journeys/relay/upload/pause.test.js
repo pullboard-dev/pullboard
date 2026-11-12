@@ -52,16 +52,16 @@ test('a size-paused baseline keeps its cipher, warns once per session and resume
   const probe = await pausedCrypto(box);
   assert.equal(probe.code, 0); assert.equal(probe.document.encryptions, 0); assert.equal(probe.document.notices, 0);
   assert.equal((await box.cliLocal('shout', 'all', 'local work while size is paused')).code, 0);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   assert.equal(state(box).snapshot.sealed === saved, true, 'blocked commands retain exact durable pending ciphertext');
   assert.equal(puts(), before, 'small capabilities probes replace failed whole-board uploads');
   const originalSession = box.env.TERM_SESSION_ID;
   box.env.TERM_SESSION_ID = 'another-private-terminal-session';
-  const newSession = await box.cli('status');
+  const newSession = await box.cliLocal('status');
   assert.equal((newSession.document.diagnostics ?? []).filter(line => /relay paused/u.test(line)).length, 1);
   box.env.TERM_SESSION_ID = originalSession;
   box.legacySnapshotApi(false); box.rejectSnapshots(null);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const resumed = state(box);
   assert.equal(resumed.baselinePause, undefined); assert.equal(resumed.snapshot, undefined); assert.equal(resumed.snapshotApiVersion, 2);
   const exported = await box.cliLocal('export');
@@ -80,7 +80,7 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   board.executionEngineVersion = PROOF_RUN_ENGINE - 1;
   try { store.shout(board, { from: 'coordinator', to: 'all', lanes: [box.lane], text: randomBytes(300_000).toString('base64') }); }
   finally { store.closeBoard(board); }
-  const refused = await box.cli('status');
+  const refused = await box.cliLocal('status');
   assert.equal(refused.code, 0);
   const saved = state(box);
   assert.equal(saved.checkpointRefusal.code, 'ACCOUNT_STORAGE_LIMIT');
@@ -120,11 +120,11 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   assert.equal(staged.code, 0);
   const priorWrites = box.transit.length;
   box.setStorageQuota(3_000_000);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const attempts = box.transit.slice(priorWrites).filter(row => row.method === 'POST' && row.path.endsWith('/publish'));
   assert.ok(attempts.length >= 1);
   assert.equal(JSON.parse(attempts[0].request).root.id, staged.document.root, 'recovery publishes the retained checkpoint graph before sealing newer state');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   assert.equal(state(box).checkpointRefusal, undefined); assert.equal(state(box).checkpoint, undefined);
   assert.equal(state(box).storage.limitBytes, 3_000_000);
   const exported = await box.cliLocal('export');
