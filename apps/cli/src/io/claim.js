@@ -94,7 +94,8 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
-    try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
+    // The observation is this command's own write: a snapshot a move prepared before it (submit's) must survive it (#5327).
+    try { await store.acknowledgeOwnWrites(board, () => ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }])); }
     catch (error) {
       if (error.code !== 'STALE_STATE_CHANGED') throw error;
       ctx.io.err('Lapsed-claim observation changed; untouched claims will be observed on the next write.');

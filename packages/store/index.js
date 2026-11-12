@@ -76,7 +76,7 @@ export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim } from './src/io/board/claim.js';
 export { writeBoardCommand } from './src/io/board/write.js';
-export { boardWriteSnapshot, requireBoardWriteSnapshot } from './src/io/board/write/preparation.js';
+export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
 export { invalidateItemPatch } from './src/io/board/patch/attach.js';
 export { writeRowDecisions } from './src/io/board/record/decisions.js';
