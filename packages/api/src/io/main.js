@@ -102,6 +102,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
+import { missingBoard } from './unreadable.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -792,14 +793,14 @@ function projectDecisionListing(selected, projects, isMain, boardOpeners) {
   return { version: 1, project: home.project ?? '', decisions, unreadable };
 }
 
-/** Resolve only registered boards, so a request cannot open an arbitrary path on the machine. */
+/** Resolve only registered boards, opened read-only up to the match (#1040), so a request cannot open an arbitrary path. */
 function findBoard(id, projects, isMain, boardOpeners) {
-  // Each request resolves its board, so this opens boards read-only and stops at the match (#1040).
+  const failures = [];
   const board = projects().find((project) => {
     try { return withReadBoard(project.root, (current) => store.boardId(current), isMain, boardOpeners) === id; }
-    catch { return false; } // An unreadable board is left out, as the board listing leaves it out.
+    catch (error) { failures.push({ root: project.root, error }); return false; } // Logged and named if none matches (#6158).
   });
-  if (!board) throw new Refused('NO_BOARD', `no registered board ${id}; run pullboard serve in its repo and use GET /api/v1/boards`);
+  if (!board) throw missingBoard(id, failures);
   return { ...board, id };
 }
 
