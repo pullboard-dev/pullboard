@@ -3,6 +3,7 @@ import { lstatSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statfsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const GIB = 1024 ** 3;
@@ -84,4 +85,38 @@ export function pruneRunnerStores({ root, cache, live = new Set(), maxAgeMs = PR
     if (free !== null) free += unit.bytes;
   }
   return { removed, freeBytes: free };
+}
+
+/** A slot folder of one serve instance: runner-<instance id>-<slot number>. */
+const SLOT = /^runner-.+-\d+$/u;
+
+/** The newest modification time of a folder and its direct entries; a shallow read, since a slot can hold gigabytes. */
+function touched(path) {
+  let at = 0;
+  try { at = lstatSync(path).mtimeMs; } catch { return 0; }
+  for (const name of names(path)) { try { at = Math.max(at, lstatSync(join(path, name)).mtimeMs); } catch { /* gone meanwhile */ } }
+  return at;
+}
+
+/**
+ * Remove the slot folders under <cache>/main and <cache>/work that belong to other serve instances, keeping the current
+ * instance's. Why: each serve restart takes a new instance id, and its checkouts were left behind, about 55 GB per runner.
+ * A folder changed within the grace is kept, since another serve sharing the cache may be running a job in it.
+ *
+ * @param {{ cache: string, instance: string, graceMs?: number, now?: number }} options
+ *   instance: the current serve's slot folder prefix, runner-<id>; its slots are <instance>-<n>.
+ * @returns {Promise<string[]>} the paths removed
+ */
+export async function pruneStaleSlots({ cache, instance, graceMs = GRACE_MS, now = Date.now() }) {
+  const own = new RegExp(`^${instance.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}-\\d+$`, 'u');
+  const removed = [];
+  for (const parent of ['main', 'work']) {
+    for (const name of names(join(cache, parent))) {
+      if (!SLOT.test(name) || own.test(name)) continue;
+      const path = join(cache, parent, name);
+      if (now - touched(path) < graceMs) continue;
+      try { await rm(path, { recursive: true, force: true }); removed.push(path); } catch { /* best effort */ }
+    }
+  }
+  return removed;
 }

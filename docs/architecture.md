@@ -410,7 +410,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `main-test:<key>`. Created by `mainRedLookup` in `packages/drive/src/io/main/red.js`.
 - **Serves:** no item: main's tree and one test file.
-- **States:** `queued`, `receipt`. Terminal: `receipt`.
+- **States:** `queued`, `offered`, `unoffered`, `receipt`. Terminal: `receipt`.
 - **Lease:** none.
 - **Ends when its item moves on:** n/a, at `mainRedLookup` in `packages/drive/src/io/main/red.js`: keyed by tree; no driver ends a job queued by receiptComparison
 - **Harness:** NONE.
@@ -418,6 +418,8 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | From | To | Trigger | Where |
 |---|---|---|---|
 | (none) | `queued` | a red file is looked up on main | `receiptComparison` in `packages/landing/src/io/main/red/receipt.js` |
+| `queued` | `offered` | the recheck offers the queued file to a runner | `offerMainTests` in `packages/api/src/io/recheck.js` |
+| `queued` | `unoffered` | the queued tree is not among trunk's recent commits | `offerMainTests` in `packages/api/src/io/recheck.js` |
 | `queued` | `receipt` | submit returns a main test result | `returnMainTest` in `packages/gate/src/io/main/verdict.js` |
 
 #### `gate-verdict`: main-owned gate verdict
@@ -467,7 +469,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `test-run:<uuid>`. Created by `queueTestRun` in `packages/drive/src/io/queue.js`.
 - **Serves:** no item that it ends: the seat that queued it, and an optional item for display.
-- **States:** `queued`, `running`, `result`, `lost`, `delivered`. Terminal: `delivered`.
+- **States:** `queued`, `running`, `result`, `lost`, `cancelled`, `delivered`. Terminal: `delivered`.
 - **Lease:** LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later.
 - **Ends when its item moves on:** n/a, at `workTestRun` in `packages/drive/src/io/queue.js`: serves the queuing seat, never an item state; no driver ends it on an item move
 - **Harness:** NONE.
@@ -479,19 +481,21 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `running` | `result` | the work returned or failed; lease released | `workTestRun` in `packages/drive/src/io/queue.js` |
 | `running` | `lost` | the lease lapsed and the worker process is gone; lost step recorded and lease released | `endLostTestRuns` in `packages/drive/src/io/queue.js` |
 | `result` | `delivered` | next hands the finished run to its seat once | `deliverTestRun` in `packages/drive/src/io/queue.js` |
+| `queued` | `cancelled` | the seat cancels its run; the job ends and the worker group stops | `cancelTestRun` in `packages/drive/src/io/queue.js` |
 | `lost` | `delivered` | next hands the lost run to its seat once | `deliverTestRun` in `packages/drive/src/io/queue.js` |
 
 #### `land`: pulled landing job
 
 - **Id:** `land:<items>:<key>`. Created by `offerLandingJob` in `packages/api/src/io/landing.js`.
 - **Serves:** the landing's accepted items at the trunk sha they were accepted against; the runner re-checks each and the board applies the receipt.
-- **States:** `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `request`, `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** held, at `offerLandingJob` in `packages/api/src/io/landing.js`: the runner re-checks each item before it pushes and the board checks the permit on every renewal
 - **Harness:** `apps/cli/journeys/runner/landing/guard.test.js`.
 
 | From | To | Trigger | Where |
 |---|---|---|---|
+| (none) | `request` | the offer carries a request, recorded before it is offered | `offerJob` in `packages/api/src/io/jobs.js` |
 | (none) | `offered` | the job is offered with the capabilities a runner needs | `offerLandingJob` in `packages/api/src/io/landing.js` |
 | `offered` | `claimed` | a runner with every capability takes the lease | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
@@ -502,13 +506,14 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `<gate job>:shard:<n>`. Created by `offerProofShards` in `packages/api/src/io/gate.js`.
 - **Serves:** item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts.
-- **States:** `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `request`, `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** n/a, at `offerProofShards` in `packages/api/src/io/gate.js`: a shard serves its gate job; the gate result applies once and a moved item refuses it
 - **Harness:** NONE.
 
 | From | To | Trigger | Where |
 |---|---|---|---|
+| (none) | `request` | the offer carries a request, recorded before it is offered | `offerJob` in `packages/api/src/io/jobs.js` |
 | (none) | `offered` | the job is offered with the capabilities a runner needs | `offerProofShards` in `packages/api/src/io/gate.js` |
 | `offered` | `claimed` | a runner with every capability takes the lease | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
@@ -519,13 +524,14 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `test:<commit>:<tag>`. Created by `offerTestJob` in `apps/cli/src/io/test/pull.js`.
 - **Serves:** no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing.
-- **States:** `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `request`, `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** n/a, at `offerTestJob` in `apps/cli/src/io/test/pull.js`: serves the pulling runner's work; no driver ends it on an item move
 - **Harness:** `apps/cli/journeys/runner/check.pull.test.js`.
 
 | From | To | Trigger | Where |
 |---|---|---|---|
+| (none) | `request` | the offer carries a request, recorded before it is offered | `offerJob` in `packages/api/src/io/jobs.js` |
 | (none) | `offered` | the job is offered with the capabilities a runner needs | `offerTestJob` in `apps/cli/src/io/test/pull.js` |
 | `offered` | `claimed` | a runner with every capability takes the lease | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |

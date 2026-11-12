@@ -80,3 +80,17 @@ test('the queue answers only under gate.runnerDispatch pull, and refuses an unkn
   assert.throws(() => jobQueueCall(db, { action: 'claim', runner: 'r a' }, { mode: 'pull', now: 2 }), error => error.code === 'JOB_RUNNER');
   assert.equal(jobQueueCall(db, { action: 'claim', runner: 'r-a' }, { mode: 'pull', now: 2 }).claim.job, 'gate:3');
 });
+
+test('clause 1: a drained runner is offered no job and takes one again once undrained, while a held job stays with its lease [C7,P7]', t => {
+  const db = boardWith(t);
+  offerJob(db, { id: 'gate:held', kind: 'gate', needs: [], now: 1 });
+  offerJob(db, { id: 'gate:next', kind: 'gate', needs: [], now: 2 });
+  const held = claimJob(db, { runner: 'r-rest', capabilities: [], now: 10 });
+  assert.equal(held.job, 'gate:held');
+  assert.equal(claimJob(db, { runner: 'r-rest', capabilities: [], now: 11, drained: ['r-rest'] }), null, 'a drained runner takes no new job');
+  assert.equal(jobQueueCall(db, { action: 'claim', runner: 'r-rest', capabilities: [] }, { mode: 'pull', now: 12, drained: () => ['r-rest'] }).claim, null, 'the board route honours the drain');
+  assert.deepEqual(renewJob(db, { job: 'gate:held', runner: 'r-rest', token: held.token, now: 13 }), { renewed: true, leaseUntil: 13 + LEASE_MS }, 'its running job keeps its lease');
+  assert.equal(claimJob(db, { runner: 'r-other', capabilities: [], now: 14, drained: ['r-rest'] }).job, 'gate:next', 'other runners are unaffected');
+  offerJob(db, { id: 'gate:after', kind: 'gate', needs: [], now: 15 });
+  assert.equal(claimJob(db, { runner: 'r-rest', capabilities: [], now: 16, drained: [] }).job, 'gate:after', 'undrained, it takes jobs again');
+});

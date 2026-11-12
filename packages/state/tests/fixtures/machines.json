@@ -195,7 +195,7 @@
       "id": "main-test:<key>",
       "created": "packages/drive/src/io/main/red.js:mainRedLookup",
       "serves": "no item: main's tree and one test file",
-      "states": ["queued", "receipt"],
+      "states": ["queued", "offered", "unoffered", "receipt"],
       "terminal": ["receipt"],
       "lease": "none",
       "transitions": [
@@ -260,7 +260,7 @@
       "id": "test-run:<uuid>",
       "created": "packages/drive/src/io/queue.js:queueTestRun",
       "serves": "no item that it ends: the seat that queued it, and an optional item for display",
-      "states": ["queued", "running", "result", "lost", "delivered"],
+      "states": ["queued", "running", "result", "lost", "cancelled", "delivered"],
       "terminal": ["delivered"],
       "lease": "LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later",
       "transitions": [
@@ -281,6 +281,7 @@
       "created": "packages/api/src/io/landing.js:offerLandingJob",
       "serves": "the landing's accepted items at the trunk sha they were accepted against; the runner re-checks each and the board applies the receipt",
       "states": [
+        "request",
         "offered",
         "claimed",
         "receipt",
@@ -336,6 +337,7 @@
       "created": "packages/api/src/io/gate.js:offerProofShards",
       "serves": "item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts",
       "states": [
+        "request",
         "offered",
         "claimed",
         "receipt",
@@ -391,6 +393,7 @@
       "created": "apps/cli/src/io/test/pull.js:offerTestJob",
       "serves": "no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing",
       "states": [
+        "request",
         "offered",
         "claimed",
         "receipt",
