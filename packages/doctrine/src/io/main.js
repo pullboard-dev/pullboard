@@ -1,4 +1,4 @@
-import { renderAgentsBlock } from '../../../config/index.js';
+import { renderAgentsBlock } from '../../../config/light.js';
 /** @pullboard-test-input packages/doctrine/src/io/standard.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
 import { existsSync } from 'node:fs';
@@ -8,7 +8,7 @@ import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
   doctrineFile,
-} from '../../../config/index.js';
+} from '../../../config/light.js';
 import { parseSpec } from '../../../spec/light.js';
 
 export const STANDARD_VERSION = 1;

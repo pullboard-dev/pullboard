@@ -88,7 +88,7 @@ async function timedMain(argv, streams) {
   }
   // Version and help ask Git nothing, so they never load it.
   if (asksGitNothing(argv)) return runMain(argv, streams);
-  const { withGitFacts } = await import('../../../../../packages/git/index.js');
+  const { withGitFacts } = await import('../../../../../packages/git/light.js');
   let command;
   try { command = parseCommandArgs(argv).positionals[0]; } catch { /* Normal parsing renders usage. */ }
   if (!['submit', 'done'].includes(command)) return withGitFacts(() => runMain(argv, streams));
@@ -222,7 +222,7 @@ async function runMain(argv, streams) {
     if (target && parsed.positionals[0] === 'test') return (await import('../test/remote.js')).runRemoteTest(io, parsed.positionals.slice(1), parsed.values, target);
     if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
-  const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
+  const git = needsRepo ? await import('../../../../../packages/git/light.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
     try {
@@ -296,7 +296,7 @@ async function runMain(argv, streams) {
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) {
       // The person check loads only when a block could clear, so a read pays for neither [#6483].
       const blocks = await import('../../../../../packages/items/light.js');
-      if (blocks.blocksMayClear(io)) blocks.clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/index.js')).requirePersonChannel });
+      if (blocks.blocksMayClear(io)) await blocks.clearCompletedBlocks(io, { loadPersonCheck: async () => (await import('../../../../../packages/person/index.js')).requirePersonChannel });
     }
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);

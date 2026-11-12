@@ -243,19 +243,26 @@ export function blocksMayClear(io) {
   return existsSync(join(info.commonDir, BLOCKS_FILE)) && blockMoveKeys(io).length > 0;
 }
 
-/** Record only the matching completed move's clear, leaving later or unrelated blocks intact. */
-export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.clock?.now?.() ?? new Date()) {
+/**
+ * Record only the matching completed move's clear, leaving later or unrelated blocks intact.
+ * The person-channel check loads only when a person's block could clear, so a read that clears an agent's block loads no person cell [#6483].
+ */
+export async function clearCompletedBlocks(io, { loadPersonCheck }, now = io.clock?.now?.() ?? new Date()) {
   let info;
   try { info = repoInfo(io.cwd); } catch { return; }
   const moveKeys = blockMoveKeys(io);
   if (!moveKeys.length) return;
   const owners = new Set([blockOwner('agent', info)]);
   if (info.isMain) owners.add('coordinator');
-  try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
   try {
     // A move key is a hex digest, so a block naming it holds it verbatim in its line.
-    const ids = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
-      && owners.has(block.owner) && Date.parse(block.at) <= now.getTime()).map(block => block.id);
+    const matching = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
+      && Date.parse(block.at) <= now.getTime());
+    if (matching.some(block => block.owner === 'person')) {
+      const requirePersonChannel = await loadPersonCheck();
+      try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
+    }
+    const ids = matching.filter(block => owners.has(block.owner)).map(block => block.id);
     if (!ids.length) return;
     appendFileSync(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');
   } catch (error) { io.err(`pullboard: the move completed, but its earlier block could not be cleared (${error.message})`); }

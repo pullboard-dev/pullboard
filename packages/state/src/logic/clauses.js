@@ -1,5 +1,5 @@
 /** Clause inspection: a numbered criterion is ticked clause by clause, each with its evidence, before submit (#2050). */
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 
 export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'measurement', 'reasoning']);
 const KINDS = EVIDENCE_KINDS.join('|');

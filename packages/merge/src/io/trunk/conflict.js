@@ -8,7 +8,7 @@
  * builder claims it with its bar unchanged, merges main and resubmits; the re-review checks the
  * frozen check at the new head and nothing else.
  */
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 import { conflictNote } from '../../../../kernel/index.js';
 import { shownPaths } from '../../../../kernel/index.js';
 import { carriesConflict } from '../../logic/carriage.js';

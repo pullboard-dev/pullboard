@@ -7,7 +7,7 @@ import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { join } from 'node:path';
-import { machineHome } from '../../../../../resources/index.js';
+import { machineHome } from '../../../../../resources/light.js';
 
 export const BOARD_HOLD_MS = 1_000;
 /** The machine setting that records every write hold, not only those over a second; off unless set to 1 [C7]. */

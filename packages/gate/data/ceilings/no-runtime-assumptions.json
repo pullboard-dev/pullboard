@@ -175,7 +175,7 @@
     "packages/sentinels/src/io/runner.js": {
       "binSh": 2
     },
-    "packages/spec/src/io/ruling.js": {
+    "packages/spec/src/logic/ruling.js": {
       "testFile": 6
     },
     "packages/store/src/io/board/submit.js": {

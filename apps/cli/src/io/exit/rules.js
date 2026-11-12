@@ -16,7 +16,7 @@ import {
   policyAt,
   trunkRef,
 } from '../../../../../packages/sandbox/light.js';
-import { tryGit } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/light.js';
 
 // Every command imports this module for its policy check, so these cells load only once exit rules are on [C7,#6483].
 let cells = null;

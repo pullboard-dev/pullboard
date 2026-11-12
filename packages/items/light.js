@@ -45,10 +45,13 @@ export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTimi
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/logic/decision/origin.js';
 export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/logic/notes.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, withFamilyReads } from './src/io/declaration.js';
-export { hasForeignDependencies, localDependencyIds } from './src/logic/dependencies.js';
-export { itemPatchRecords, itemPatches } from './src/io/patch/state.js';
+export { dependencyLabel, dependencyReferences, hasForeignDependencies, localDependencyIds } from './src/logic/dependencies.js';
+export { itemPatchDigest, itemPatchRecords, itemPatches } from './src/io/patch/state.js';
 export { outsideSource } from './src/logic/outside/source.js';
 export { itemPatchPaths } from './src/logic/paths.js';
 export { itemFiles } from './src/logic/files.js';
 export { itemSummary, withListFields } from './src/logic/list.js';
-export { conflictCause, reopenConflictEvidence } from './src/logic/reopen/cause.js';
+export { conflictCause, reopenCauseCorrection, reopenConflictEvidence } from './src/logic/reopen/cause.js';
+export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
+export { projectItemDecisions } from './src/logic/decision/queue.js';
+export { caughtFrom } from './src/logic/caught.js';

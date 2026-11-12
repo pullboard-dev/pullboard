@@ -1,7 +1,7 @@
 /** Append-only withdrawal bindings and derived review-history annotations [V2,V6,H16]. */
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 import { VERDICT_WITHDRAW_ENGINE } from '../../../../state/light.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../state/light.js';
 
 /** Pair immutable verdict rows with their corresponding immutable acceptance/rejection events. */

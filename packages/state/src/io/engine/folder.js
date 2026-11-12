@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
-import { engineBindings } from '../../../../kernel/index.js';
-import { lex } from '../../../../kernel/index.js';
+import { engineBindings } from '../../../../kernel/light.js';
+import { lex } from '../../../../kernel/light.js';
 
 
 /** The one folder engine leaves live in; a leaf anywhere else, or a declaration outside it and src/, is refused. */

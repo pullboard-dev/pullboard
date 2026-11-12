@@ -3,3 +3,4 @@ export { BROWSER_REFUSAL_FILE_ENV, gateSlotEnvironment, setResourceCapacity, tak
 export { recoveryIdentity } from './src/io/recovery.js';
 export { openPoolReadOnly } from './src/io/lock.js';
 export { analysisArtifactDescriptor, receiveAnalysisArtifact } from './src/io/artifact.js';
+export { machineHome } from './src/io/home.js';

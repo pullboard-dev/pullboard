@@ -1,13 +1,13 @@
 /** Validate per-item worktree identity against the registered seat and live claim [B5,C7]. */
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { gitPath } from '../../../../../../packages/git/index.js';
-import { itemFolderIdentity } from '../../../../../../packages/items/index.js';
-export { claimedItemRoot, itemFolderPath, writeItemMarker } from '../../../../../../packages/items/index.js';
+import { gitPath } from '../../../../../../packages/git/light.js';
+import { itemFolderIdentity } from '../../../../../../packages/items/light.js';
+export { itemFolderPath, writeItemMarker } from '../../../../../../packages/items/light.js';
 export { itemFolderIdentity };
-import { repoInfo } from '../../../../../../packages/git/index.js';
-import { agentAt } from '../../../../../../packages/store/index.js';
-import { Refused } from '../../../../../../packages/kernel/index.js';
+import { repoInfo } from '../../../../../../packages/git/light.js';
+import { agentAt } from '../../../../../../packages/store/light.js';
+import { Refused } from '../../../../../../packages/kernel/light.js';
 
 /**
  * The seat acting from a checkout: the seat registered there, or the seat whose live-claim item folder it is.

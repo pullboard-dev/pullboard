@@ -1,4 +1,4 @@
-import { machineHome } from '../../../../../resources/index.js';
+import { machineHome } from '../../../../../resources/light.js';
 /** Advisory process-owned write records; never part of native board state or lock authority [C7,P4]. */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -15,7 +15,7 @@ import { closeSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
-import { parseProcessCensus } from "../../../../../kernel/index.js";
+import { parseProcessCensus } from "../../../../../kernel/light.js";
 import { recordBoardHold } from "../hold/log.js";
 
 const pending = new WeakMap();

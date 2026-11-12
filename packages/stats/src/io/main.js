@@ -1,9 +1,9 @@
-import { proofEventDetail } from '../../../kernel/index.js';
+import { proofEventDetail } from '../../../kernel/light.js';
 /** Public proof numbers derived from the append-only event log [R1,R2]. */
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 import { flowStats } from '../logic/flow.js';
 import { barStats } from '../logic/bar.js';
-import { caughtFrom } from '../../../items/index.js';
+import { caughtFrom } from '../../../items/light.js';
 
 /** Identify a registered agent seat without counting board-owned actors. */
 export function isProofAgent({ agent_id: id, agent_lane: lane }) {

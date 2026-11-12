@@ -9,7 +9,7 @@
  */
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
-import { gitSpawnSync } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/light.js';
 import {
   appendFileSync,
   existsSync,
@@ -24,9 +24,9 @@ import {
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../../../config/index.js';
-import { cleanGitEnvironment } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+} from '../../../config/light.js';
+import { cleanGitEnvironment } from '../../../git/light.js';
+import { Refused } from '../../../kernel/light.js';
 import {
   CHECK_FIELDS,
   FIELD_NAMES,
