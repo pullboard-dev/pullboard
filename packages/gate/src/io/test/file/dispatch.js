@@ -41,6 +41,9 @@ import {
   testRuntimeImport,
 } from '../../../../../sandbox/light.js';
 
+/** The hard stop for an audit file, which runs outside the interactive budget but never without a bound. */
+const AUDIT_FILE_KILL_MS = 600_000;
+
 /** One parent FIFO reservation at a time; transferred actual workers may remain live concurrently. */
 function acquisitionQueue() {
   let tail = Promise.resolve();
@@ -167,8 +170,9 @@ export function dispatchTestFiles(options, env) {
       const execArgv = [...options.execArgv];
       const preload = execArgv.indexOf('--import');
       if (preload < 0 || !execArgv[preload + 1]) throw new Error('test-file dispatch requires its ordinary runner preload');
-      // The file's own budget row also sets its watchdog kill, so a declared 200 s file is not killed at the 180 s default.
-      const rowBudget = budgets.get(testFileRelative(budgetRoot, resolve(cwd, file)))?.ms;
+      // An audit row lifts the watchdog's 180 s kill (the wall and idle limits still bound a stuck file); any other row sets it.
+      const row = budgets.get(testFileRelative(budgetRoot, resolve(cwd, file)));
+      const rowBudget = row?.audit ? AUDIT_FILE_KILL_MS : row?.ms;
       execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker, rowBudget);
       fileExited = fileExitObserver(execArgv[preload + 1], file);
       const source = run({ ...options, files: [file], shard: undefined, concurrency: 1, signal,
