@@ -73,7 +73,7 @@ test('add accepts three numbered clauses and refuses a fourth even inside one ce
   assert.match(JSON.parse(refused.out).error.next, /at most three numbered clauses/u);
 });
 
-test('add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
+test('clause 1: add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
