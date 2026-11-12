@@ -38,12 +38,12 @@ import {
  * @param {ReturnType<typeof machine>} box
  * @param {{ repo: string }} p
  * @param {string} name
- * @returns {Promise<string>}
+ * @returns {string}
  */
-async function joinedAgent(box, p, name) {
+function joinedAgent(box, p, name) {
   const web = join(box.dir, `${name}-web`);
   box.git(p.repo, 'worktree', 'add', '-q', web, '-b', `web/${name}`);
-  await box.inProcess(web, 'join', 'web');
+  box.run(web, 'join', 'web');
   return web;
 }
 
@@ -76,19 +76,19 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
   const box = machine();
   const alpha = project(box, 'stats-phone', SPEC, { project: 'Proof project' });
   project(box, 'stats-other', SPEC, { project: 'Proof project' });
-  await box.inProcess(alpha.repo, 'add', 'web', 'Reworked item', '--specs', 'G1', '--criterion', 'survives rework');
+  box.run(alpha.repo, 'add', 'web', 'Reworked item', '--specs', 'G1', '--criterion', 'survives rework');
   build(box, alpha, 1, 'reworked.txt');
   sendBack(box, alpha, 1, 'the first submission needs another pass');
   build(box, alpha, 1, 'reworked-again.txt');
   accept(box, alpha, 1);
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge accepted fixture', alpha.branch);
-  await box.inProcess(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  await box.inProcess(alpha.repo, 'add', 'web', 'Second accepted merge', '--specs', 'G1', '--criterion', 'records the merge');
+  box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  box.run(alpha.repo, 'add', 'web', 'Second accepted merge', '--specs', 'G1', '--criterion', 'records the merge');
   build(box, alpha, 2, 'second-accepted-merge.txt');
   accept(box, alpha, 2);
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge second accepted fixture', alpha.branch);
-  await box.inProcess(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  const expected = JSON.parse(await box.inProcess(alpha.repo, 'stats', '--json')).stats;
+  box.run(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  const expected = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [3, 1, 1 / 3, 2, 0], 'known real rejection, rework and two accepted merges');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-proof-stats-chrome-'));
@@ -145,19 +145,19 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
 
   const box = machine();
   const alpha = project(box, 'stats-count-words');
-  await box.inProcess(alpha.web, 'join', 'web', '--family', 'solo');
-  const crewOne = await joinedAgent(box, alpha, 'stats-crew-one');
-  const crewTwo = await joinedAgent(box, alpha, 'stats-crew-two');
-  const crewThree = await joinedAgent(box, alpha, 'stats-crew-three');
-  const untouched = await joinedAgent(box, alpha, 'stats-untouched');
-  await box.inProcess(crewOne, 'join', 'web', '--family', 'crew');
+  box.run(alpha.web, 'join', 'web', '--family', 'solo');
+  const crewOne = joinedAgent(box, alpha, 'stats-crew-one');
+  const crewTwo = joinedAgent(box, alpha, 'stats-crew-two');
+  const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
+  const untouched = joinedAgent(box, alpha, 'stats-untouched');
+  box.run(crewOne, 'join', 'web', '--family', 'crew');
   for (let move = 0; move < 11; move += 1) {
-    await box.inProcess(crewOne, 'join', 'web', '--family', 'other');
-    await box.inProcess(crewOne, 'join', 'web', '--family', 'crew');
+    box.run(crewOne, 'join', 'web', '--family', 'other');
+    box.run(crewOne, 'join', 'web', '--family', 'crew');
   }
-  await box.inProcess(crewTwo, 'join', 'web', '--family', 'crew');
-  await box.inProcess(crewThree, 'join', 'web', '--family', 'crew');
-  const expected = JSON.parse(await box.inProcess(alpha.repo, 'stats', '--json')).stats;
+  box.run(crewTwo, 'join', 'web', '--family', 'crew');
+  box.run(crewThree, 'join', 'web', '--family', 'crew');
+  const expected = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
   assert.deepEqual(expected.families.find(({ name }) => name === 'solo'), { name: 'solo', agents: 1, moves: 1 });
   assert.deepEqual(expected.families.find(({ name }) => name === 'crew'), { name: 'crew', agents: 3, moves: 14 });
   assert.equal(expected.agents.find(({ id }) => id === 'web-5')?.moves, 1);
@@ -314,7 +314,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
   } finally {
     store.closeBoard(board);
   }
-  const stats = JSON.parse(await box.inProcess(alpha.repo, 'stats', '--json')).stats;
+  const stats = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
   assert.equal(stats.agentCount, 300, 'the actual board stats count all registered agents');
 
   const view = await startView(box);
@@ -625,7 +625,7 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     assert.equal(renamed.untopped, false, 'no shout run is left without its day');
     await chrome.stable('(() => { window.Date = Object.getPrototypeOf(window.Date); return true; })()');
     // A changed board still redraws, once: the page's own stream catch-up and a further read together draw it once.
-    await box.inProcess(alpha.repo, 'shout', 'person', 'refresh redraw control');
+    box.run(alpha.repo, 'shout', 'person', 'refresh redraw control');
     await chrome.waitFor("data.project.shouts.some((shout) => shout.shout_text === 'refresh redraw control')");
     const changed = await reread();
     t.diagnostic(`changed read: ${JSON.stringify(changed)}`);
