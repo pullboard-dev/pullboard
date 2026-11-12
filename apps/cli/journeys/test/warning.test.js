@@ -21,7 +21,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** A project with one committed green test file and a stand-in runner. */
-function greenProject() {
+async function greenProject() {
   const box = e2e.project('true');
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -30,9 +30,9 @@ function greenProject() {
   for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = box.run(box.repo, 'settings', key, value);
+    const set = (await box.runLocal(box.repo, 'settings', key, value));
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
   const configFile = join(box.repo, 'pullboard.json');
@@ -47,12 +47,12 @@ function greenProject() {
   return box;
 }
 
-test('clause 1: pullboard test from a checkout with an uncommitted tracked edit names the file and the committed commit before admission [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
-  const box = greenProject();
+test('clause 1: pullboard test from a checkout with an uncommitted tracked edit names the file and the committed commit before admission [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+  const box = (await greenProject());
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
   writeFileSync(join(box.web, 'test/green.test.js'),
     "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('green case', () => assert.ok(true));\n// uncommitted edit\n");
-  const ran = box.run(box.web, 'test', 'test/green.test.js');
+  const ran = (await box.runLocal(box.web, 'test', 'test/green.test.js'));
   assert.equal(ran.code, 0, ran.err);
   const lines = ran.err.split('\n').filter(line => /uncommitted changes/u.test(line));
   assert.equal(lines.length, 1, 'one line names the uncommitted changes');
@@ -62,9 +62,9 @@ test('clause 1: pullboard test from a checkout with an uncommitted tracked edit 
   assert.ok(ran.err.indexOf(lines[0]) < ran.err.indexOf('admitted on'), 'the line comes before admission');
 });
 
-test('clause 2: pullboard test from a clean checkout prints no uncommitted-changes line [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
-  const box = greenProject();
-  const ran = box.run(box.web, 'test', 'test/green.test.js');
+test('clause 2: pullboard test from a clean checkout prints no uncommitted-changes line [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+  const box = (await greenProject());
+  const ran = (await box.runLocal(box.web, 'test', 'test/green.test.js'));
   assert.equal(ran.code, 0, ran.err);
   assert.doesNotMatch(ran.err, /uncommitted changes/u);
 });

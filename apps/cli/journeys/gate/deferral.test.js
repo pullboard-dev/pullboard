@@ -75,26 +75,26 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   delete box.env.NODE_TEST_CONTEXT;
   const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
   /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
-  const submitChange = (value, { cwd = box.web, files = [] } = {}) => {
+  const submitChange = async (value, { cwd = box.web, files = [] } = {}) => {
     const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     const id = JSON.parse(added.out).item.item_id;
-    const claimed = box.run(cwd, 'claim', String(id));
+    const claimed = (await box.runLocal(cwd, 'claim', String(id)));
     assert.equal(claimed.code, 0, `claim: ${claimed.err}${claimed.out}`);
     for (const [path, text] of files) writeFileSync(join(cwd, path), text);
     assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0, 'the item change commits');
     rmSync(box.env.DEFER_MARKER, { force: true });
-    const submitted = box.run(cwd, 'submit', String(id), '--json');
+    const submitted = (await box.runLocal(cwd, 'submit', String(id), '--json'));
     assert.equal(submitted.code, 0, submitted.err + submitted.out);
     const receipt = JSON.parse(submitted.out);
     const proof = onLocalBoard(box, board => JSON.parse(store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit').event_detail));
     return { id, receipt, proof, ran: ran() };
   };
   /** Accept one submitted item as the coordinator, at its exact commit. */
-  const accept = (id, commit) => {
+  const accept = async (id, commit) => {
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     try {
-      const verified = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.');
+      const verified = (await box.runLocal(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.'));
       assert.equal(verified.code, 0, `verify: ${verified.err}${verified.out}`);
     }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -108,7 +108,7 @@ function onLocalBoard(box, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
-test('a large affected selection is deferred to landing at submit [C7]', () => {
+test('a large affected selection is deferred to landing at submit [C7]', async () => {
   const selected = Array.from({ length: 30 }, (_, index) => `web/selected-${String(index).padStart(2, '0')}.test.js`);
   const all = [...Array.from({ length: 30 }, (_, index) => String(index)), 'guard'].sort();
   const on = largeSelectionProject(20);
@@ -122,7 +122,7 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   assert.match(green.receipt.gate.report, /30 affected test files deferred to the landing gate/u);
   on.accept(green.id, green.receipt.commit);
   rmSync(on.box.env.DEFER_MARKER, { force: true });
-  const landed = on.box.run(on.box.repo, 'land', '--json');
+  const landed = (await on.box.runLocal(on.box.repo, 'land', '--json'));
   assert.equal(landed.code, 0, landed.err + landed.out);
   assert.deepEqual(JSON.parse(landed.out).landed, [green.id]);
   assert.deepEqual(on.ran().sort(), all, 'landing ran every deferred file before the item landed');
@@ -130,10 +130,10 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const red = on.submitChange('red');
   assert.deepEqual(red.ran, ['guard'], 'a red deferred file is not run at submit');
   on.accept(red.id, red.receipt.commit);
-  const blocked = on.box.run(on.box.repo, 'land', '--json');
+  const blocked = (await on.box.runLocal(on.box.repo, 'land', '--json'));
   assert.equal(blocked.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${blocked.err}${blocked.out}`);
   assert.deepEqual(JSON.parse(blocked.out).landed, [], 'a red deferred selection lands nothing');
-  const reopened = JSON.parse(on.box.run(on.box.repo, 'show', String(red.id), '--json').out);
+  const reopened = JSON.parse((await on.box.runLocal(on.box.repo, 'show', String(red.id), '--json')).out);
   assert.notEqual(reopened.item_status, 'verified', 'the red item is sent back like a red submit');
   assert.equal(reopened.item_merged_commit, null);
   assert.ok(reopened.thread.some(entry => entry.kind === 'reopen' && /web\/selected-00\.test\.js/u.test(entry.detail.note)), 'the reopen names the failing deferred file');
@@ -142,10 +142,10 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const inlineRed = inline.submitChange('red');
   assert.deepEqual(inlineRed.ran, ['guard']);
   inline.accept(inlineRed.id, inlineRed.receipt.commit);
-  const inlineLanding = inline.box.run(inline.box.repo, 'land', '--json');
+  const inlineLanding = (await inline.box.runLocal(inline.box.repo, 'land', '--json'));
   assert.equal(inlineLanding.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${inlineLanding.err}${inlineLanding.out}`);
   assert.deepEqual(JSON.parse(inlineLanding.out).landed, [], 'an inline landing whose gate passes anything still runs the deferred files and lands nothing on red');
-  const inlineItem = JSON.parse(inline.box.run(inline.box.repo, 'show', String(inlineRed.id), '--json').out);
+  const inlineItem = JSON.parse((await inline.box.runLocal(inline.box.repo, 'show', String(inlineRed.id), '--json')).out);
   assert.notEqual(inlineItem.item_status, 'verified', 'the inline red item is sent back');
   assert.equal(inlineItem.item_merged_commit, null);
   assert.ok(inline.ran().length > 1, 'the inline landing ran the deferred files');
@@ -161,15 +161,15 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const itemB = split.submitChange('needs-fix', { cwd: second });
   split.accept(itemA.id, itemA.receipt.commit);
   split.accept(itemB.id, itemB.receipt.commit);
-  const splitLanding = split.box.run(split.box.repo, 'land', '--json');
+  const splitLanding = (await split.box.runLocal(split.box.repo, 'land', '--json'));
   assert.equal(splitLanding.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${splitLanding.err}${splitLanding.out}`);
   assert.deepEqual(JSON.parse(splitLanding.out).landed, [], 'B does not land on a rebuilt tree that lost A\'s fix');
   for (const id of [itemA.id, itemB.id]) {
-    const shown = JSON.parse(split.box.run(split.box.repo, 'show', String(id), '--json').out);
+    const shown = JSON.parse((await split.box.runLocal(split.box.repo, 'show', String(id), '--json')).out);
     assert.notEqual(shown.item_status, 'verified', `#${id} is sent back`);
     assert.equal(shown.item_merged_commit, null);
   }
-  const reopenedB = JSON.parse(split.box.run(split.box.repo, 'show', String(itemB.id), '--json').out);
+  const reopenedB = JSON.parse((await split.box.runLocal(split.box.repo, 'show', String(itemB.id), '--json')).out);
   assert.ok(reopenedB.thread.some(entry => entry.kind === 'reopen' && /web\/selected-\d\d\.test\.js/u.test(entry.detail.note)), 'B is sent back for its own deferred files');
 
   const off = largeSelectionProject(null).submitChange(2);
@@ -185,19 +185,19 @@ function deferredLandingLogs(box) {
     .map(path => ({ path: join(directory, path), text: readFileSync(join(directory, path), 'utf8') }));
 }
 
-test('a red deferred landing keeps its real failing file and durable log [C7]', () => {
+test('a red deferred landing keeps its real failing file and durable log [C7]', async () => {
   const project = largeSelectionProject(20, { inline: true });
   const red = project.submitChange('red');
   project.accept(red.id, red.receipt.commit);
-  const result = project.box.run(project.box.repo, 'land', '--json');
+  const result = (await project.box.runLocal(project.box.repo, 'land', '--json'));
   assert.equal(result.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${result.err}${result.out}`);
-  const shown = JSON.parse(project.box.run(project.box.repo, 'show', String(red.id), '--json').out);
+  const shown = JSON.parse((await project.box.runLocal(project.box.repo, 'show', String(red.id), '--json')).out);
   assert.ok(shown.thread.some(entry => entry.kind === 'reopen' && /web\/selected-00\.test\.js/u.test(entry.detail.note)), 'the refusal retains the actual failing file');
   const logs = deferredLandingLogs(project.box);
   assert.ok(logs.some(log => /selected 0 \[G1\]/u.test(log.text) && /not ok/u.test(log.text)), 'a durable native landing log retains the actual failing test output');
 });
 
-test('a pre-test native policy refusal is not reported as deferred files red [C7]', () => {
+test('a pre-test native policy refusal is not reported as deferred files red [C7]', async () => {
   const project = largeSelectionProject(20, { inline: true });
   const missing = join(project.box.dir, 'uncommitted-policy');
   mkdirSync(missing);
@@ -214,7 +214,7 @@ test('a pre-test native policy refusal is not reported as deferred files red [C7
   const ready = project.submitChange(2);
   project.accept(ready.id, ready.receipt.commit);
   rmSync(project.box.env.DEFER_MARKER, { force: true });
-  const result = project.box.run(project.box.repo, 'land', '--json');
+  const result = (await project.box.runLocal(project.box.repo, 'land', '--json'));
   assert.equal(result.code, 1, result.err + result.out);
   assert.equal(JSON.parse(result.out).error.code, 'NO_POLICY', 'the exact native refusal survives without a test-red wrapper');
   assert.doesNotMatch(result.out + result.err, /\d+ file\(s\) red|the deferred affected tests are red/u);

@@ -25,7 +25,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** A project whose one test file is red on a stand-in runner, committed so main has the same red file. */
-function redProject() {
+async function redProject() {
   const box = e2e.project('true');
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -34,9 +34,9 @@ function redProject() {
   for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = box.run(box.repo, 'settings', key, value);
+    const set = (await box.runLocal(box.repo, 'settings', key, value));
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
   const configFile = join(box.repo, 'pullboard.json');
@@ -58,42 +58,42 @@ function fileMainRed(box, file) {
 }
 
 /** Run the red file with --compare-main and parse its result. */
-function compare(box) {
-  const json = box.run(box.web, 'test', 'test/red.test.js', '--compare-main', '--json');
+async function compare(box) {
+  const json = (await box.runLocal(box.web, 'test', 'test/red.test.js', '--compare-main', '--json'));
   assert.equal(json.code, 1, json.err);
   return JSON.parse(json.out);
 }
 
-test('clause 1: a file that is the subject of an open Main red item starts no main run [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
-  const box = redProject();
+test('clause 1: a file that is the subject of an open Main red item starts no main run [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+  const box = (await redProject());
   fileMainRed(box, 'test/red.test.js');
-  const result = compare(box);
+  const result = (await compare(box));
   assert.equal(result.main, null, 'no main run started');
   assert.deepEqual(result.known, []);
   assert.match(result.mainSkipped, /known red.*Main red/u);
-  const text = box.run(box.web, 'test', 'test/red.test.js', '--compare-main');
+  const text = (await box.runLocal(box.web, 'test', 'test/red.test.js', '--compare-main'));
   assert.equal(text.code, 1);
   assert.match(text.err, /main comparison skipped: known red/u);
   assert.doesNotMatch(text.err, /waiting on the main comparison/u);
   assert.doesNotMatch(text.out, /also fails on main/u);
 });
 
-test('clause 1: an open Main red item under the file\'s pre-move name counts too [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
-  const box = redProject();
+test('clause 1: an open Main red item under the file\'s pre-move name counts too [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+  const box = (await redProject());
   mkdirSync(join(box.repo, 'packages/codemap/data/plan/path-map'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/codemap/data/plan/path-map/old.json'), JSON.stringify({ 'test/old-red.test.js': 'test/red.test.js' }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: path map');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   fileMainRed(box, 'test/old-red.test.js');
-  const result = compare(box);
+  const result = (await compare(box));
   assert.equal(result.main, null, 'no main run started');
   assert.match(result.mainSkipped, /known red/u);
 });
 
 
-test('a candidate cannot invent a main-red alias with its own path map [C7]', () => {
-  const box = redProject();
+test('a candidate cannot invent a main-red alias with its own path map [C7]', async () => {
+  const box = (await redProject());
   const directory = join(box.web, 'packages/codemap/data/plan/path-map');
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'invented.json'), JSON.stringify({ 'test/other.test.js': 'test/red.test.js' }));
@@ -101,20 +101,20 @@ test('a candidate cannot invent a main-red alias with its own path map [C7]', ()
   assert.equal(known('test/red.test.js'), null, 'only the accepted main map can establish a moved identity');
 });
 
-test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, () => { // budget: candidate and main runner runs.
-  const box = redProject();
+test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, async () => { // budget: candidate and main runner runs.
+  const box = (await redProject());
   const main = String(box.git(box.repo, 'rev-parse', 'HEAD')).trim();
   const folder = join(box.repo, '.git/pullboard');
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const failure = { file: 'test/red.test.js', name: 'red case', signature: 'a'.repeat(64) };
   writeFileSync(join(folder, 'main-red.json'), JSON.stringify({ version: 2, entries: { [main]: { 'test/red.test.js': { result: 'red', failures: [failure], signatureVersion: 4 } } } }), { mode: 0o600 });
-  const result = compare(box);
+  const result = (await compare(box));
   assert.equal(result.main, main, 'unbound generic cache must not suppress the main comparison');
   assert.equal(result.known[0].result, 'red');
 });
 
-test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000 }, () => { // budget: one real stand-in runner dispatch.
-  const box = redProject();
+test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000 }, async () => { // budget: one real stand-in runner dispatch.
+  const box = (await redProject());
   const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
   const landing = new URL('../../../../packages/landing/index.js', import.meta.url).href;
   const driver = `import { readFileSync } from 'node:fs';
