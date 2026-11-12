@@ -38,6 +38,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_MAIN_COMPARISON: 'retry the landing once main can run the named files; run pullboard resume to start it',
   LAND_MAIN_MOVED: 'run pullboard resume so landing restarts from the new main tip',
   LAND_RUNNER: 'start landing through the CLI (pullboard resume), which supplies its in-process batch runner',
+  LAND_NO_RUNNER: 'set trunk.remote in pullboard.json to the trunk\'s git URL, then retry the forced landing',
+  TRUNK_PACK_NOT_AVAILABLE: 'this board serves no trunk packs; fetch the commit from the trunk remote',
   DRIVE_OWNER: 'pass a driver id as { owner } to the drive call so the lease has a holder',
   SUBMIT_HANDOFF_STOPPED: 'no action needed: the next gate driver resumes the job; run pullboard next to see it',
   ITEM_FOLDER_SESSION_LIVE: 'ask the named agent to finish with the folder or end its session, then claim the item again; build another item meanwhile',
