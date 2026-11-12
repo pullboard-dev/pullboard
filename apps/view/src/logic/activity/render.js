@@ -34,11 +34,6 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
       if (typeof detail.gateGreen === 'boolean') lines.push(detail.gateGreen ? 'Check passed' : 'Check did not pass');
     }
     if (entry.kind === 'reject' && typeof detail.reason === 'string') lines.unshift('Reason: ' + detail.reason.replaceAll('_', ' ').toLowerCase());
-    if (entry.kind === 'merged' && typeof detail.commit === 'string') lines.push('Landed at ' + detail.commit.slice(0, 12));
-    if (entry.kind === 'main-moved') {
-      if (Array.isArray(detail.items) && detail.items.length) lines.push('Items: ' + detail.items.map(id => '#' + id).join(', '));
-      if (typeof detail.sha === 'string') lines.push('Main at ' + detail.sha.slice(0, 12));
-    }
     return lines.map(line => '<p class="activity-evidence">' + esc(line).replaceAll('\n', '<br>') + '</p>').join('');
   };
   const row = entry => {
@@ -57,14 +52,24 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
         + entry.findings.map(finding => line(finding)).join('') + entry.stillStuck.map(finding => line(finding, true)).join('') + '</ul></details>';
     } else {
       if (entry.kind === 'shout') { tone = 'shout'; glyph = 'shout'; }
-      else if (['claim', 'merged', 'accept', 'release'].includes(entry.kind)) { tone = 'build'; glyph = entry.kind === 'release' ? 'release' : entry.kind === 'accept' || entry.kind === 'merged' ? 'pass' : 'build'; }
+      else if (['claim', 'merged', 'accept', 'release', 'renew', 'main-moved'].includes(entry.kind)) { tone = 'build'; glyph = entry.kind === 'release' ? 'release' : ['accept', 'merged', 'main-moved'].includes(entry.kind) ? 'pass' : 'build'; }
       else if (['reserve', 'proof-run', 'submit'].includes(entry.kind)) { tone = 'review'; glyph = 'proof'; }
       else if (['reject', 'reopen'].includes(entry.kind)) { tone = 'back'; glyph = 'back'; }
-      const sentence = entry.released ? 'let go of <b>#' + entry.released.id + '</b> and started building <b>#' + entry.item.id + '</b>' : esc(entry.verb);
+      /** A landing reads as one sentence: main moved to land its items, with the new main tip on hover. */
+      const landed = entry.kind === 'main-moved' && entry.landed?.length
+        ? ' to land ' + entry.landed.map(({ id, href }) => '<a class="activity-landed ref" href="' + esc(href) + '" data-go="item:' + esc(id) + '">#' + esc(id) + '</a>').join(', ') : '';
+      const merged = entry.kind === 'merged' && entry.item;
+      const sentence = entry.released ? 'let go of <b>#' + entry.released.id + '</b> and started building <b>#' + entry.item.id + '</b>'
+        : merged ? 'landed <a class="activity-landed ref" href="' + esc(entry.itemHref) + '" data-go="item:' + entry.item.id + '">#' + entry.item.id + '</a>' : esc(entry.verb) + landed;
       const recipient = entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person'
         : /^item:\d+$/u.test(entry.to || '') ? 'the item’s followers' : entry.to || 'the board';
-      content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(recipient) + about(entry) : '') + '</p>'
-        + (entry.kind !== 'shout' && entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '') + evidence(entry);
+      const commit = typeof entry.detail?.commit === 'string' ? 'Landed at ' + entry.detail.commit.slice(0, 12) : '';
+      const mainTip = entry.kind === 'main-moved' && typeof entry.detail?.sha === 'string' ? 'Main at ' + entry.detail.sha.slice(0, 12)
+        : entry.mainSha ? 'Main at ' + entry.mainSha.slice(0, 12) : '';
+      const hover = entry.kind === 'merged' ? [commit, mainTip].filter(Boolean).join(' · ') : mainTip;
+      const tip = hover ? ' title="' + esc(hover) + '"' : '';
+      content = '<p' + tip + '>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(recipient) + about(entry) : '') + '</p>'
+        + (merged ? '<span class="activity-item" title="' + esc(entry.item.title) + '">' + esc(entry.item.title) + '</span>' : entry.kind !== 'shout' && entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '') + evidence(entry);
     }
     return sharedRowHtml({ variant: 'activity', state: tone, time: entry.timeLabel, iconHtml: icon(glyph), mainHtml: content,
       attributes: { 'data-activity-kind': entry.kind, ...(entry.kind === 'shout' && entry.by === 'coordinator' ? { 'data-activity-coordinator': 'true' } : {}) } });
