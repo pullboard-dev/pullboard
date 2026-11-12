@@ -27,7 +27,7 @@ test('clause 1: next with a live claim answers you hold it, and with a lapsed le
   assert.equal(live.document.item.item_id, mine);
   assert.equal(live.document.held, true, 'a live lease is still held');
 
-  box.advance(48 * 3_600_000);
+  box.advance(30 * 24 * 3_600_000);
   assert.ok(store.getItem(box.board, mine).item_lease_until < box.clock.now().toISOString(), 'the lease lapsed');
   const lapsed = await cli(box, seat.path, ['next']);
   assert.equal(lapsed.code, 0, lapsed.out + lapsed.err);
