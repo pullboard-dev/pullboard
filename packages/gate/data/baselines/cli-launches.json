@@ -116,9 +116,6 @@
   "apps/cli/journeys/handoff/tools.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/show/quarantine/composed.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/shout/shouts/scrollbar.test.js": {
     "launch": 14
   },
@@ -239,9 +236,6 @@
   "apps/cli/journeys/spec/redesign.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/ledger/history.test.js": {
-    "launch": 3
-  },
   "packages/runners/tests/io/run/reporter.test.js": {
     "launch": 4
   },
@@ -263,10 +257,7 @@
   "packages/gate/tests/slots.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/check-baseline/runner.test.js": {
-    "launch": 3
-  },
-  "packages/landing/tests/logic/hold/spec.test.js": {
+    "packages/landing/tests/logic/hold/spec.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/test/timeout.test.js": {
@@ -467,9 +458,6 @@
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/land/next.test.js": {
-    "launch": 3
-  },
   "packages/gate/tests/io/main/resource.test.js": {
     "launch": 4
   },
@@ -495,15 +483,12 @@
     "launch": 1
   },
   "apps/cli/journeys/status/board/move.test.js": {
-    "launch": 3
+    "launch": 2
   },
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/trace/why.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/shout/shouts.test.js": {
+    "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
   "apps/runner/tests/recovery/self.test.js": {
@@ -563,9 +548,6 @@
   "apps/cli/journeys/next/help.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/merged/receipts-refusal.test.js": {
-    "launch": 3
-  },
   "packages/drive/tests/scaled.test.js": {
     "launch": 1
   },
@@ -595,6 +577,15 @@
   },
   "apps/cli/journeys/init/origin.test.js": {
     "launch": 8
+  },
+  "apps/cli/journeys/init/origin/behind.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/init/origin/reads.test.js": {
+    "launch": 3
+  },
+  "apps/cli/journeys/init/origin/states.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
     "launch": 9
@@ -658,9 +649,6 @@
   },
   "apps/cli/journeys/resume/board.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/init/offer.test.js": {
-    "launch": 3
   },
   "apps/lib/tests/schema.test.js": {
     "launch": 1
@@ -819,7 +807,7 @@
     "launch": 7
   },
   "apps/cli/journeys/digest/main.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/runner/runners/isolation.test.js": {
     "launch": 1
@@ -857,10 +845,7 @@
   "apps/cli/journeys/submit/gate/merge-base.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/companion/companions/applies.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/shout/journeys.test.js": {
+    "apps/cli/journeys/shout/journeys.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/run/tests/enotempty.test.js": {
@@ -1178,8 +1163,11 @@
   "apps/cli/journeys/export/fetch.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/test/run/queued.test.js": {
-    "launch": 6
+  "apps/cli/journeys/test/run/queued/check.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/test/run/queued/wait.test.js": {
+    "launch": 2
   },
   "packages/items/tests/io/claim.test.js": {
     "launch": 1
@@ -1331,10 +1319,7 @@
   "packages/sync/tests/io/local.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/landing/retry.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
+    "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
@@ -1626,7 +1611,7 @@
     "launch": 2
   },
   "apps/cli/journeys/verify/landing/interrupted.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/lib/tests/no/cli.test.js": {
     "launch": 1
@@ -1690,9 +1675,6 @@
   },
   "apps/cli/journeys/fact/review/packet/reds.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/resume/guidance.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/check-baseline/replay.test.js": {
     "launch": 1
