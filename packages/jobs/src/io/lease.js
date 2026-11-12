@@ -1,7 +1,9 @@
 /** Take, renew and reclaim job leases on the board's SQLite handle [C7]. */
 import { Refused } from "../../../kernel/light.js";
 import { LEASE_MS } from "../logic/rules.js";
+import { atomically } from "./store.js";
 import { jobView } from "./store.js";
+import { writeStep } from "./store.js";
 
 /**
  * Take a job for a driver. Succeeds only in one statement where the lease has lapsed, so two drivers never both win.
@@ -27,13 +29,47 @@ export function takeJob(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS }
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job
  * @param {string} owner
- * @param {{now?: number, leaseMs?: number}} [options]
+ * @param {{now?: number, leaseMs?: number, lapsed?: boolean}} [options] - lapsed: also renew a lapsed lease the owner
+ *   still holds, for a caller that proved no one took the job since (a runner's current-claim token, #6546).
  * @returns {boolean} True when the lease was renewed.
  */
-export function renewLease(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS } = {}) {
+export function renewLease(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS, lapsed = false } = {}) {
   return db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ? AND job_lease_owner = ? AND job_lease_until >= ?')
-    .run(now + leaseMs, job, owner, now).changes === 1;
+    .run(now + leaseMs, job, owner, lapsed ? 0 : now).changes === 1;
 }
+
+/**
+ * Hand a job back with a recorded reason, not claimable again until a backoff that grows with its attempt has passed.
+ *
+ * Why: a runner whose handler threw released its job at once, and another runner re-claimed it 60 ms later, forever:
+ * one land job took 122,801 claims in 3.5 hours (#6545, #6546). The release step keeps the job's current step, so views
+ * still read it as claimed.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner
+ * @param {{attempt: number, reason?: string, now?: number}} release - attempt: the claim being released, from 1.
+ * @returns {{released: boolean, until: number}} until: when claim may take the job again.
+ */
+export function backOffLease(db, job, owner, { attempt, reason = 'unspecified', now = Date.now() }) {
+  const until = now + releaseBackoffMs(attempt);
+  return atomically(db, () => {
+    const held = db.prepare('SELECT job_step FROM job WHERE job_id = ? AND job_lease_owner = ?').get(job, owner);
+    if (!held) return { released: false, until };
+    writeStep(db, job, 'released', { runner: owner, attempt, reason: String(reason).slice(0, 300), until }, { seq: attempt, now });
+    db.prepare('UPDATE job SET job_step = ?, job_lease_owner = NULL, job_lease_until = ?, job_updated = ? WHERE job_id = ?').run(held.job_step, until, now, job);
+    return { released: true, until };
+  });
+}
+
+/** The wait before a job released on attempt n is offered again: 30 s, doubling per attempt, capped at 5 minutes. */
+export function releaseBackoffMs(attempt) {
+  return Math.min(RELEASE_BACKOFF_FIRST_MS * 2 ** Math.max(0, Math.min(attempt, 20) - 1), RELEASE_BACKOFF_MAX_MS);
+}
+// Budget: a released job waits at least 30 s, so a failing handler costs one claim a half-minute, not ten a second.
+const RELEASE_BACKOFF_FIRST_MS = 30_000;
+// Budget: the backoff stops growing at 5 minutes, so a recovered runner takes the job without a person.
+const RELEASE_BACKOFF_MAX_MS = 300_000;
 
 /**
  * Jobs that were taken and whose lease has lapsed (lease_until < now), oldest first. A lease runs 2 minutes from the last

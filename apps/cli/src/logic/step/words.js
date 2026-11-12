@@ -45,12 +45,12 @@ function stepInMessage(message) {
  * @returns {string}
  */
 export function nextStepFor(error, message, options = {}) {
-  if (personRequestGuidance(String(message), options) !== String(message)) return COORDINATOR_PERSON_REQUEST;
+  if (options.caller !== 'person' && personRequestGuidance(String(message), options) !== String(message)) return COORDINATOR_PERSON_REQUEST;
   const code = typeof error?.code === 'string' ? error.code : '';
   const finalStep = /(?:^|\r?\n)next:[ \t]*([^\r\n]*\S)[ \t]*(?:\r?\n)*$/u.exec(String(message))?.[1];
   if (finalStep) return personRequestStep(finalStep.trim(), options);
   if (typeof error?.next === 'string' && error.next.trim() && error.next.trim() !== RECORDED_GENERIC_NEXT) return personRequestStep(error.next.trim(), options);
-  if (code === 'SPEC_BEHIND_MAIN') return NEXT_STEPS.SPEC_BEHIND_MAIN;
+  if (code === 'SPEC_BEHIND_MAIN') return personRequestStep(NEXT_STEPS.SPEC_BEHIND_MAIN, options);
   return personRequestStep(stepInMessage(message) ?? NEXT_STEPS[code]
     ?? `ask the service owner about refusal code ${code || '(unknown)'}, including the displayed refusal`, options);
 }
