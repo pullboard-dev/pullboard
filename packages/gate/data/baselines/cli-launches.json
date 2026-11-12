@@ -590,14 +590,11 @@
   "apps/cli/journeys/inbox/feed.test.js": {
     "launch": 26
   },
-  "apps/cli/journeys/inbox/filters.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/inbox/projects.test.js": {
     "launch": 8
   },
   "apps/cli/journeys/inbox/shims.test.js": {
-    "launch": 7
+    "launch": 4
   },
   "apps/cli/journeys/inbox/sidebar.test.js": {
     "launch": 22
