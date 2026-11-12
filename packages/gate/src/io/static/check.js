@@ -45,7 +45,7 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
   }
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, command, { onFallback: onBrowserFallback });
   return withGateSlot(root, async lease => {
-    const run = await runProfiledShellAsync(root, command, { waitMs: lease.waitMs, artifactDirectory, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease, signal });
+    const run = await runProfiledShellAsync(root, command, { waitMs: lease.waitMs, artifactDirectory, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease, signal, readOnlyGit: true });
     refuseSandboxBlocked(run);
     if (!run.isGreen) throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${digestOf(run.output)}`);
     const receipt = writeCheckReceipt(root, key, { by: agent ?? '' });
