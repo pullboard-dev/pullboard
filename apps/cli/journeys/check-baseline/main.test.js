@@ -12,7 +12,9 @@ import {
   test,
 } from 'node:test';
 import { getItem } from '../../../../packages/store/index.js';
+import { jobsOf } from '../../../../packages/jobs/index.js';
 import { fixtureAddArgv } from '../../tests/fixtures/testkit.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import {
   BIN,
   BOARD_FILE,
@@ -111,4 +113,24 @@ test('[B35,V2] manual check-baseline is refused because creation owns the observ
   const refused = await box.runLocal(box.repo, ['check-baseline', '1']);
   assert.notEqual(refused.status, 0);
   assert.match(`${refused.stdout}${refused.stderr}`, /CHECK_BASELINE_AUTOMATIC.*the board baselines checks on add/u);
+});
+
+test('[B35,V2,C7] #6560 with no registered runner the baseline is a pulled job on the local runner, never run inline on the host', async (t) => {
+  const box = project({ content: 'committed' });
+  // Process-level: a real local runner process pulls the job over loopback; no push runner is registered, so it is the only place the check can run.
+  assert.equal(box.run(box.repo, ['runner', 'remove', HOST, '--json']).status, 0, 'the fixture runner is removed');
+  const observations = join(box.dir, 'pulled-baseline-locations');
+  t.after(() => box.run(box.repo, ['runner', 'local', '--off']));
+  const added = box.run(box.repo, ['add', 'web', 'Pulled baseline', '--check', fileCheck('committed', 'pulled-marker', observations), '--wait', '--json'], undefined, { timeout: 150_000 });
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
+  const item = JSON.parse(added.stdout).item;
+  assert.equal(withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline.result), 'green', 'the local runner recorded the baseline within the wait');
+  const jobs = withBoard(join(box.repo, BOARD_FILE), (board) => jobsOf(board.db, { kind: 'check-baseline', item: item.item_id }));
+  assert.equal(jobs.length, 1, 'one pulled check-baseline job was offered');
+  assert.match(jobs[0].leaseOwner ?? jobs[0].steps.find((step) => step.name === 'receipt')?.payload.runner ?? '', /^local-/u, 'the local runner took it');
+  const where = readFileSync(observations, 'utf8').trim().split('\n');
+  assert.equal(where.length, 1);
+  assert.notEqual(where[0], box.repo, 'the check never ran in the host checkout');
+  assert.equal(existsSync(join(box.repo, 'pulled-marker')), false, 'the host wrote no check output');
+  assert.match((await box.runLocal(box.repo, ['show', String(item.item_id)])).stdout, /CRITERION_PROVES_NOTHING/u);
 });

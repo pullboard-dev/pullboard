@@ -1,4 +1,4 @@
-/** The add check baseline runs on a runner and never on the coordinator machine [C7,V2]. */
+/** The add check baseline runs as a job on a runner, pulled or pushed, and never inline on the coordinator machine [C7,V2,#6560]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -15,10 +15,13 @@ import { executionServices } from '../../../apps/cli/tests/fixtures/gate/executi
 import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { measureBaseline } from '../src/io/check/baseline/worker.js';
+import { CHECK_BASELINE_KIND } from '../../api/index.js';
+import { offerCheckBaseline } from '../../api/index.js';
+import { openKitBoard } from '../../../apps/cli/tests/fixtures/testkit.js';
 
 const EXPECTED = { command: 'node apps/cli/src/io/run/tests.js test/a.test.js', main: 'a'.repeat(40) };
 
-test('clause 2: with no runner registered the baseline is pending, never run on this machine [C7,V2]', async () => {
+test('clause 2: the in-process measurement runs nothing with no registered runner; the check is a pulled job, never inline on the host [C7,V2,#6560]', async () => {
   // No execution services at all: nothing may run locally.
   assert.equal(await measureBaseline('/nonexistent-root', 1, EXPECTED, {}), null);
   // Services whose runner list is empty: still nothing runs locally.
@@ -28,7 +31,7 @@ test('clause 2: with no runner registered the baseline is pending, never run on 
   assert.equal(touched, 1, 'the registered-runner list was consulted');
 });
 
-test('clause 1: a baseline never starts a local test process; it needs a registered runner to produce a result [C7,V2]', async () => {
+test('clause 1: the in-process measurement never starts a local test process; a result comes from a runner [C7,V2,#6560]', async () => {
   const services = { gateExecutionServices: async () => ({ runners: { effectiveRunners: () => [], runOnRunnerAsync: () => { throw new Error('no run without a runner'); } }, landing: {} }) };
   assert.equal(await measureBaseline('/nonexistent-root', 2, EXPECTED, services), null);
 });
@@ -88,4 +91,15 @@ test('clause 1: with a registered runner the baseline runs there and returns its
   assert.equal(baseline.main, box.main);
   assert.equal(baseline.command, expected.command);
   assert.ok(readFileSync(box.requests, 'utf8').trim().length > 0, 'the run went through the runner transport, not a local process');
+});
+
+test('clause 3: with no registered runner the baseline is offered as a check-baseline pull job that carries the check and main, never run here [C7,V2,#6560]', t => {
+  const directory = privateFixtureFiles('pullboard-baseline-offer-').root;
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const board = openKitBoard(join(directory, 'board.sqlite'));
+  const expected = { command: 'node test/a.test.js', main: 'b'.repeat(40), request: '11111111-2222-3333-4444-555555555555' };
+  const offered = offerCheckBaseline(board.db, { item: 9, expected, command: expected.command });
+  const row = board.db.prepare('SELECT job_kind, job_item, job_candidate FROM job WHERE job_id = ?').get(offered.id);
+  assert.deepEqual({ ...row }, { job_kind: CHECK_BASELINE_KIND, job_item: 9, job_candidate: expected.main });
+  assert.equal(offerCheckBaseline(board.db, { item: 9, expected, command: expected.command }).id, offered.id, 'a retried add reuses the open job');
 });
