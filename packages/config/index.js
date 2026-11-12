@@ -22,7 +22,7 @@ export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
 export { scratchRoot } from './src/logic/scratch.js';
-export { scratchFolder, moveAcross } from './src/logic/scratch/folder.js';
+export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
   JSON_SHAPES,
 } from './src/logic/json.js';

@@ -15,7 +15,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gitSpawnSync } from '../../../git/index.js';
-import { scratchFolder } from '../../../config/index.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 /** The process environment without git's repository variables, so a hook's GIT_DIR never redirects a child. */
 function cleanEnv() {
@@ -74,7 +75,7 @@ export function createFastPass(root) {
   /** The directory holding the given files as committed at a revision, filling in only the ones not yet written. */
   function baseTree(revision, files) {
     let entry = bases.get(revision);
-    if (!entry) { entry = { directory: scratchFolder('pullboard-doctrine-files-'), have: new Set() }; bases.set(revision, entry); }
+    if (!entry) { entry = { directory: mkdtempSync(join(process.env.PULLBOARD_SCRATCH || tmpdir(), 'pullboard-doctrine-files-')), have: new Set() }; bases.set(revision, entry); }
     const wanted = files.filter(file => !entry.have.has(file));
     if (wanted.length) {
       const shown = gitSpawnSync(['--no-replace-objects', 'cat-file', '--batch'], { cwd: root, env: cleanEnv(), maxBuffer: 1024 * 1024 * 1024,

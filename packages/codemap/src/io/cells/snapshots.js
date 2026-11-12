@@ -15,7 +15,8 @@ import { unplanned } from './scripts/plan.js';
 import { stalePlanRows } from './scripts/plan.js';
 import { entryPlacementProblems } from './plan/cuts.js';
 import { ownedStayProblems } from './plan/cuts.js';
-import { scratchRoot } from '../../../../config/index.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /** Parse immutable tree metadata, retaining symlinks and gitlinks as nonregular entries. */
 function entriesAt(root, commit) {
@@ -82,7 +83,7 @@ function objectSnapshot(root, commit, env) {
     files.set(file, blobs.subarray(end + 1, end + 1 + size));
     at = end + 1 + size + 1;
   }
-  return { root: join(scratchRoot(), 'pullboard-landing-plan-objects', commit), repoRoot: root, commit, files, entries };
+  return { root: join(scratchBase(), 'pullboard-landing-plan-objects', commit), repoRoot: root, commit, files, entries };
 }
 
 /**

@@ -3,13 +3,15 @@ import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
+import { loadMachineSettings } from '../../../config/index.js';
+import { scratchRoot } from '../../../config/index.js';
 import { performance } from 'node:perf_hooks';
-import { scratchFolder } from '../../../config/index.js';
 import { Refused } from "../../../kernel/index.js";
 import { sentinels } from "./main.js";
 import { gitChildEnv } from "../../../git/index.js";
@@ -19,7 +21,7 @@ import { mainCheckout } from "../../../git/index.js";
 export async function withSentinelTrunk(root, action) {
   const trunk = mainCheckout(root);
   if (!trunk?.commit) throw new Refused('SENTINEL_TRUNK', 'commit the primary branch before running sentinels: pullboard sentinel run');
-  const directory = scratchFolder('pullboard-sentinel-trunk-');
+  const directory = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-sentinel-trunk-'));
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {
