@@ -11,6 +11,7 @@ import { itemById } from "../../logic/board/item/lookup.js";
 import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
 import { handoffRecord } from "../submit/handoff/records.js";
+import { pulledGateRecords } from "../submit/handoff/records.js";
 import {
   activityEventDetail,
   activityInterests,
@@ -115,7 +116,7 @@ export function getItem(board, id) {
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
   const stored = itemById(board, id);
-  const item = { ...current(board, stored), item_stage: itemStage(stored, handoffRecord(board.db, id) ?? null,
+  const item = { ...current(board, stored), item_stage: itemStage(stored, pulledGateRecords(board.db, id).get(id) ?? handoffRecord(board.db, id) ?? null,
     Boolean(board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='merged' LIMIT 1").get(id)), now(board)) };
   const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
@@ -303,6 +304,11 @@ export function hasAgent(board, id) {
 /** Read one seat and its model without loading every registered seat and model on the board. */
 export function agentById(board, id) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(id));
+}
+
+/** Whether a seat joined with --lock-lane, recorded on its join event: `next` never moves it to another lane (GH #27). */
+export function agentLaneLocked(board, id) {
+  return board.db.prepare("SELECT 1 FROM event WHERE event_by = ? AND event_kind = 'join' AND event_detail LIKE '%\"lockLane\":true%' LIMIT 1").get(id) !== undefined;
 }
 
 /** Read the model label kept beside other board metadata, avoiding any board-schema migration. */
