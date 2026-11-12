@@ -99,7 +99,7 @@ test('clause 3: pullboard resources reports a test process running on the coordi
   const local = spawn(process.execPath, ['-e', "require('node:net').createServer().listen(0)", '--', '--test'], { stdio: 'ignore' });
   t.after(() => { try { local.kill('SIGKILL'); } catch { /* already gone */ } });
   assert.deepEqual(testProcesses(`${local.pid} ${process.execPath} -e x -- --test\n 12 /usr/bin/ssh runner\n`).map(row => row.pid), [local.pid], 'a node --test process is a test process; others are not');
-  const resources = box.run(box.repo, 'resources', '--json');
+  const resources = (await box.runLocal(box.repo, 'resources', '--json'));
   assert.equal(resources.code, 0, `${resources.err}\n${resources.out}`);
   const faults = JSON.parse(resources.out).faults ?? [];
   assert.ok(faults.some(fault => fault.kind === 'test-on-coordinator' && fault.pid === local.pid), `the local test process is a fault: ${resources.out.slice(0, 400)}`);
