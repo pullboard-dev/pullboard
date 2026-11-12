@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/pullboard.js docs/lifecycle.md */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** Lifecycle declaration documentation and CLI parity, moved intact from machine.test.js [C7,M1,P4]. */
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
@@ -12,10 +12,9 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 const copy = () => structuredClone(machineRules.MACHINE);
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
-test('docs/lifecycle.md is the page the declaration generates, so a stale copy fails [M1, P4]', () => {
+test('clause 2: the lifecycle page is printed from the declaration on demand, never kept as a committed copy [M1, P4]', () => {
   const page = machineRules.lifecycleMarkdown();
-  const committed = fs.readFileSync(new URL('../../../../docs/lifecycle.md', import.meta.url), 'utf8');
-  assert.equal(committed, page, 'docs/lifecycle.md is stale; regenerate it: node apps/cli/pullboard.js lifecycle > docs/lifecycle.md');
+  assert.ok(!fs.existsSync(new URL(`../../../../docs/${'lifecycle'}.md`, import.meta.url)), 'docs/lifecycle.md is not committed; pullboard lifecycle prints it');
   assert.match(page, /```mermaid\nstateDiagram-v2\n {2}\[\*\] --> open\n/);
   for (const state of machineRules.MACHINE.states) assert.match(page, new RegExp(`^\\| ${state.id}( \\(final\\))? \\|`, 'm'), `${state.id} has a row`);
   for (const move of machineRules.MACHINE.moves) {

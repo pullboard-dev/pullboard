@@ -58,7 +58,7 @@ export { dispatchTestFiles, reportDispatchedTests, nativeFileArguments, testFile
 export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, awaitNestedPhase, withNestedGroup, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/io/test/file/pool.js";
 export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOAD_ENV } from "./src/io/test/isolation.js";
 export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";
-export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
+export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, allTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
 export { refreshTestPlacement } from "./src/io/test/placement/report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/io/test/placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/io/test/store.js";
