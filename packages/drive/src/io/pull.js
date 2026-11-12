@@ -520,11 +520,11 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         lost = true; onLost();
       });
     }, renewMs);
-    try { return await runHeld(claim, trunk, held, () => lost, stop => { onLost = stop; }); }
+    try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }); }
     finally { clearInterval(renewer); }
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
-  const runHeld = async (claim, trunk, held, isLost, whenLost) => {
+  const runHeld = async (claim, trunk, slot, held, isLost, whenLost) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
     let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null;
     if (!run.length) {
