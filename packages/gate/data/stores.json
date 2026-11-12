@@ -924,6 +924,10 @@
       "kind": "table",
       "owner": "packages/outbox/src/logic/undo.js"
     },
+    "table:test_result": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/ledger.js"
+    },
     "table:timing_client_observation": {
       "kind": "table",
       "owner": "packages/resources/src/io/main.js"

@@ -159,11 +159,12 @@ function combinedReceipt(gateReceipt, shards) {
   const counts = parts.map(part => tailCounts(part.phase?.tail));
   const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
-  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? part.phase?.tail ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
-    ...(reds.length ? { failures } : {}) };
+    ...(reds.length ? { failures, errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
+      errorCount: reds.reduce((total, part) => total + (part.phase?.errorCount ?? part.phase?.errors?.length ?? 0), 0) } : {}) };
   const { proofPlan, ...rest } = gate;
   const green = !reds.length;
   return { ...gateReceipt, status: green ? 0 : 1, gate: { ...rest, green, phases: [...(gate.phases ?? []), proof], steps: { ...gate.steps, proof: Math.max(0, ...parts.map(part => Number(part.ms) || 0)) },
@@ -188,7 +189,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   return applyGateReceipt(board, { job: parent, receipt: combined }, ports);
 }
 
-/** One line per part that failed: analysis refusals, each failing case of a red phase (its output's tail when it names none), or the job's own error. */
+/** One line per part that failed: analysis refusals, each failing case of a red phase (the lines that explain its exit when it names none), or the job's own error. */
 export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
   const clip = text => String(text ?? '').replace(/\s+/gu, ' ').trim().slice(-PART_TEXT);
@@ -201,7 +202,8 @@ export function failingParts(receipt) {
     // A phase whose receipt names its cases lists them as the controller gate does, file :: case name.
     const cases = Array.isArray(phase.failures) ? phase.failures.filter(row => typeof row?.file === 'string' && row.file && typeof row.name === 'string' && row.name) : [];
     if (cases.length) parts.push(...cases.map(row => `${phase.role} failed: ${row.file} :: ${clip(row.name)}`));
-    else parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.tail)}`);
+    // Why the exit lines first: a plain tail of a crashed proof ends on its closing counts, which name nothing.
+    else parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
   }
   if (gate.proofPlan) parts.push('proof: the gate left its proof to shard jobs the board could not offer; submit again');
   if (!parts.length && receipt?.status !== 0) parts.push(`the gate job exited ${receipt?.status ?? receipt?.signal}`);

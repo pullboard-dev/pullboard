@@ -30,6 +30,7 @@ export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVEN
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
+export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
 export { guiSession } from "./src/io/gui/session.js";

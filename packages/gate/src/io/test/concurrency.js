@@ -18,8 +18,20 @@ export function performanceCores() {
   return Math.max(1, availableParallelism());
 }
 
+/** Set to 1 by a pulled runner job's entry: this host is the whole job's execution host, with no other gate to share it [P7]. */
+export const PULLED_JOB_ENV = 'PULLBOARD_PULLED_JOB';
+
+/**
+ * The cores a run's files spread over by default: every core inside a pulled runner job, else the performance cores.
+ * Why every core: a pulled gate runs its whole proof as one run on one runner, where the controller deals it to many
+ * runner slots; at the 4 performance cores of a 10-core runner, a 115-file proof took 575 s (#5790).
+ */
+export function executionCores(env = process.env) {
+  return env[PULLED_JOB_ENV] === '1' ? Math.max(1, availableParallelism()) : performanceCores();
+}
+
 /** One policy for native file concurrency and the separate per-run browser-file limit. */
-export function testConcurrency(root, cores = performanceCores()) {
+export function testConcurrency(root, cores = executionCores()) {
   const file = join(root, 'pullboard.json');
   let config = {};
   if (existsSync(file)) {
