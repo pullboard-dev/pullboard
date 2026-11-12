@@ -168,6 +168,21 @@ export async function tour(io) {
     return result.stdout.trim();
   };
   const pb = (who, args, options) => run(who, process.execPath, [BIN, ...args], { label: `pullboard ${typed(args)}`, ...options, nested: true });
+  /**
+   * Submit and return the short sha its green gate ran at: printed at once by a gate run here, or read from the item
+   * once this machine's runner settles a pulled gate, the default (#6265).
+   */
+  const gated = (who, args) => {
+    const now = /^submitted .* at ([0-9a-f]{12})/mu.exec(pb(who, args, { show: /^submitted/ }));
+    if (now) return now[1];
+    const head = run(who, 'git', ['rev-parse', 'HEAD'], { label: '', show: null }).slice(0, 12);
+    for (const until = Date.now() + 120_000; Date.now() < until; pause(250)) {
+      const shown = pb(who, ['show', args[1]], { label: '', show: null });
+      if (new RegExp(`Gate job \\S+ (?:green|red only on main's own cases) at ${head}`, 'u').test(shown)) { io.say(`       submitted #${args[1]} at ${head}; its gate ran on this machine's runner`); return head; }
+      if (new RegExp(`Gate job \\S+ (?:red|passed but not submitted) at ${head}`, 'u').test(shown)) throw new TourStopped(`the gate of #${args[1]} went red\n${shown}`);
+    }
+    throw new TourStopped(`the gate of #${args[1]} did not settle in two minutes; pullboard runner local shows this machine's runner`);
+  };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
       mkdirSync(join(where[who], path, '..'), { recursive: true });
@@ -200,7 +215,7 @@ export async function tour(io) {
     write('app-1', { 'src/greet.mjs': FIRST, 'src/greet.test.mjs': TEST });
     run('app-1', 'git', ['add', '-A'], { label: '' });
     run('app-1', 'git', ['commit', '-q', '-m', 'feat(app): greet by name [G1]']);
-    const first = pb('app-1', ['submit', '1'], { show: /^submitted/ }).match(/at ([0-9a-f]{12})/)[1];
+    const first = gated('app-1', ['submit', '1']);
 
     step(4, 'A second agent checks out exactly that commit and tries the edge the builder skipped.');
     pb('coordinator', ['worktree', 'review', '--model', 'Scripted'], { show: /^made /, label: 'pullboard worktree review --model Scripted' });
@@ -217,7 +232,7 @@ export async function tour(io) {
     write('app-1', { 'src/greet.mjs': FIXED, 'src/greet.test.mjs': EDGE_TEST });
     run('app-1', 'git', ['commit', '-q', '-am', 'fix(app): a blank name greets the world [G1]']);
     // The fix edits a test that existed at the claim, so the submit says why (#814).
-    const second = pb('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found'], { show: /^submitted/ }).match(/at ([0-9a-f]{12})/)[1];
+    const second = gated('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found']);
 
     step(7, 'The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.');
     run('review-1', 'git', ['switch', '-q', '--detach', second]);
@@ -233,6 +248,8 @@ export async function tour(io) {
     run('coordinator', 'git', ['merge', '-q', '--ff-only', 'app/1']);
     pb('coordinator', ['merged', '1', second]);
     pb('coordinator', ['ledger'], { show: /^\| (#|1 )|verified by a second agent/ });
+    // A pulled gate started this machine's local runner for the demo; it stops with the tour.
+    pb('coordinator', ['runner', 'local', '--off'], { label: '', show: null });
   } catch (error) {
     if (!(error instanceof TourStopped)) throw error;
     io.say(`\nThe tour stopped: ${error.message.trimEnd()}`);

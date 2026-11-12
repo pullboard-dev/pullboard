@@ -39,7 +39,7 @@ export { allItemsNeedingRescope, ineligibleReleaseIds, itemsNeedingRescope, next
 export { jsonChunks, writeJsonChunks } from './src/io/chunks.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/io/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/io/history.js';
-export { normalizeCheckBaseline, saveCheckBaseline } from './src/io/baseline/check.js';
+export { normalizeCheckBaseline, saveCheckBaseline, knownGreenBaseline, guardGreenCheck } from './src/io/baseline/check.js';
 export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds, mainRedBaselinesToRetake, mainRedItemCases } from './src/logic/known/main/reworks.js';
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
 export { mainRedBuildRouting } from './src/io/routing.js';
@@ -76,7 +76,7 @@ export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim } from './src/io/board/claim.js';
 export { writeBoardCommand } from './src/io/board/write.js';
-export { boardWriteSnapshot, requireBoardWriteSnapshot } from './src/io/board/write/preparation.js';
+export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
 export { invalidateItemPatch } from './src/io/board/patch/attach.js';
 export { writeRowDecisions } from './src/io/board/record/decisions.js';

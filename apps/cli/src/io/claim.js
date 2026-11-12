@@ -94,7 +94,8 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
-    try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
+    // The observation is this command's own write: a snapshot a move prepared before it (submit's) must survive it (#5327).
+    try { await store.acknowledgeOwnWrites(board, () => ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }])); }
     catch (error) {
       if (error.code !== 'STALE_STATE_CHANGED') throw error;
       ctx.io.err('Lapsed-claim observation changed; untouched claims will be observed on the next write.');
@@ -251,7 +252,7 @@ export async function claimOrdered(ctx, board, args) {
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
-    ...(routeCap ? { routeCap } : {}),
+    ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await import('./exit/rules.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;
