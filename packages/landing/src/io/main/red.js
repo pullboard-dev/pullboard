@@ -824,6 +824,7 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
       !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
     const owner = matched && linkKnownMainReworks(matched, items, exclude, true, true)?.failures[0].item;
+    process.stderr.write(`DBG owner=${owner} matched=${Boolean(matched)} items=${JSON.stringify(items.map(i=>[i.item_id,i.item_title,i.item_status,i.item_check,Boolean(i.item_frozen)]))} exclude=${exclude} fail=${JSON.stringify([failure.file,failure.ran,failure.name])}\n`);
     const status = matched ? 'also-main' : mainCases.length ? 'different-on-main' : 'candidate-only';
     const message = matched
       ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`
