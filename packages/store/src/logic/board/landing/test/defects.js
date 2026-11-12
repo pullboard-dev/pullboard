@@ -1,5 +1,7 @@
 import { TEST_ECONOMICS_ENGINE } from "../../../../../../state/light.js";
 import { auditFailureItem } from "../../../../../../items/index.js";
+import { splitMainReds } from "../../../../../../items/index.js";
+import { mainRedFact } from "../../../../../../items/index.js";
 import { landingTestDefects } from "./history.js";
 export { landingTestDefects };
 /** Durable test defects hold a trunk when bisection identifies no item culprit [E29]. */
@@ -52,8 +54,19 @@ export function recordLandingTestDefect(board, { agentId, test, hash, blob, trun
     const live = previous && ['open', 'claimed', 'submitted'].includes(getItem(board, previous.item).item_status);
     const reuse = previous && live && (!audited || previous.batchId === batchId) ? previous : null;
     if (reuse && reuse.hash === hash && reuse.batchId === batchId && names.every(name => reuse.names.includes(name))) return reuse;
-    const item = reuse?.item ?? addItem(board, { by: agentId, lane, title: audit?.title ?? `Landing test defect: ${test}`,
-      criterion: audit?.criterion ?? `${test} passes with the combined accepted work; the landing failed without an item culprit: ${names.join('; ')}`, route: 'strong' });
+    // One cause key for every filer: an audit red an open Main red repair already owns adds a fact there, never a second item.
+    let owner = null;
+    if (audit && !reuse) {
+      const open = board.db.prepare("SELECT * FROM item WHERE item_status IN ('open','claimed','submitted','verified')").all();
+      const { owned, fresh } = splitMainReds(open, names.map(name => ({ file: test, name })));
+      if (!fresh.length && owned.size) {
+        [owner] = owned.keys();
+        for (const [id, rows] of owned) appendFact(board, id, { agentId, kind: 'measurement', text: mainRedFact(rows, `scheduled audit after event ${auditSinceEventId}`) });
+      }
+    }
+    const item = owner ?? reuse?.item ?? addItem(board, { by: agentId, lane, title: audit?.title ?? `Landing test defect: ${test}`,
+      criterion: audit?.criterion ?? `${test} passes with the combined accepted work; the landing failed without an item culprit: ${names.join('; ')}`, route: 'strong',
+      ...(audit ? { brief: audit.brief } : {}) });
     if (reuse && (reuse.hash !== hash || names.some(name => !reuse.names.includes(name)))) {
       appendFact(board, item, { agentId, kind: 'note', text: `Landing failed again in ${test} at hash ${hash}: ${names.join('; ')}` });
     }

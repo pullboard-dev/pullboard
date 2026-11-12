@@ -1,6 +1,7 @@
 /** `pullboard stats runners`: measurement of the runner fleet, read-only over the job tables [C7]. */
 import {
   WAIT_STEP_NAMES,
+  readLimitChanges,
   readRunnerJobs,
   runnerWaitLines,
   runnerWaits,
@@ -32,7 +33,8 @@ export function runRunners(io, ctx, { second, rest, values }) {
   const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: WAIT_STEP_NAMES }));
   const waits = runnerWaits(waitRows(jobs), { from, until });
   const serves = serveHosts(withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: ['claimed'], payloads: ['claimed'] })));
-  io.result?.({ runners: { waits, serves } });
+  const limits = withBoard(ctx, board => readLimitChanges(board.db, { from, until }));
+  io.result?.({ runners: { waits, limits, serves } });
   for (const line of runnerWaitLines(waits)) io.say(line);
   return 0;
 }

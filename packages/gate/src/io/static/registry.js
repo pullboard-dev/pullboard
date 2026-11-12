@@ -17,6 +17,7 @@ import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
 import { operationEntryProblems } from './operations.js';
+import { layoutProblems } from './layout.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
 import { relayBoundaryProblems } from '../relay.js';
@@ -40,6 +41,9 @@ import { fileCache } from './cache.js';
 import { toolingKey } from './cache.js';
 import { cellRows } from './cache.js';
 import { cellScopedKey } from './cache.js';
+
+/** The per-file CLI launch ceilings, as a repo-relative path [C7]. */
+export const CLI_LAUNCHES_FILE = 'packages/gate/data/baselines/cli-launches.json';
 
 /** What a check reads, so a change to none of those paths keeps main's answer [5814]: JavaScript sources, and test files among them. */
 const SOURCE = path => /\.[cm]?js$/u.test(path);
@@ -126,7 +130,7 @@ function workerBundleRows(root) {
 export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/cli-launches.json'), 'utf8')))
+  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
   { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
@@ -151,6 +155,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const scope = cellScopedKey(treeSources(root, sources), ['apps/cli'], { edgeCache: edgeCacheOf(context) });
     return context.cache('cli-reach', 1).get('cli-reach', `${scope}:${main}`, () => cliReachRows(root));
   } },
+  // A tracked file that raises a layout rule count above the tree's own baseline (packages/gate/src/io/static/layout.js).
+  { name: 'layout', reads: () => true, run: root => layoutProblems(root) },
   // Modules a test closure reaches whose imports the graph newly cannot read; both graphs are kept per commit (#5840).
   { name: 'keyless', reads: SOURCE, run: root => keylessRows(root) },
   // Edges are read per file by blob; the ceilings and the plan are read fresh each run [5567].
