@@ -111,7 +111,7 @@ async function backingOff(box) {
   command(box, 'list');
   // One read per poll: the lander and the commands rewrite the record, so a second read can see a newer one.
   let pending = null;
-  await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'NOTHING_TO_LAND' && leaseRequests(box).length > 0,
+  await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'NOTHING_TO_LAND',
     'the woken lander lands nothing and backs off', { signal: AbortSignal.timeout(90_000), state: () => wakeState(box) });
   return { pending, requests: leaseRequests(box).length };
 }
@@ -158,7 +158,7 @@ function resumeLander(box, { commits = {}, idle = false, pollMs = 5000 } = {}) {
   return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
 }
 
-test('clause 1: a landing that moves nothing waits 60 s, doubles to 5 minutes while the outcome repeats, and the lease records backoffMs [C7]', { timeout: 420_000 }, async t => { // budget: seven real idle landings in a private repo; hang ceiling, not speed.
+test('clause 1: a landing that moves nothing waits 60 s and doubles to 5 minutes while the outcome repeats [C7]', { timeout: 420_000 }, async t => { // budget: seven real idle landings in a private repo; hang ceiling, not speed.
   const { box } = heldTrunk(t);
   // The real lander, woken by a command, lands nothing once and backs off 60 s.
   const first = await backingOff(box);
@@ -184,8 +184,8 @@ test('clause 1: a landing that moves nothing waits 60 s, doubles to 5 minutes wh
     waits.push(next.backoffMs);
   }
   assert.deepEqual([first.pending.backoff.backoffMs, ...waits], [60_000, 120_000, 240_000, 300_000, 300_000]);
-  // Each attempt's landing_lease request names the back-off that delayed it; the first had none.
-  assert.deepEqual(leaseRequests(box).slice(-5).map(request => request.backoffMs ?? null), [null, 60_000, 120_000, 240_000, 300_000]);
+  // With nothing ready, no attempt took a landing lease: the back-off alone paced them [C7,#5862].
+  assert.equal(leaseRequests(box).length, first.requests, 'an idle attempt requests no landing lease');
   // A landing replaced by one that moves nothing keeps the same outcome, so the wait stays at its 5-minute ceiling.
   const idle = resumeLander(box, { idle: true });
   assert.equal(idle.backoffs[0].outcome, 'NOTHING_TO_LAND');
