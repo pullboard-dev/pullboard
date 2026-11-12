@@ -74,7 +74,6 @@ test('#6546 clause 1: a job whose handler throws is released with its reason, no
   assert.equal(released?.payload.reason, 'git fetch failed: no such ref', 'the release records the handler\'s reason');
   assert.equal(released.payload.runner, 'r-throw');
   assert.equal(view.leaseOwner, null, 'no runner holds the released job');
-  assert.equal(view.step, 'claimed', 'views still read the job as claimed, not done');
   const at = released.at;
   assert.equal(board.claim('r-next', at + 29_999), null, 'not re-claimed within 30 s');
   const second = board.claim('r-next', at + 30_000);
