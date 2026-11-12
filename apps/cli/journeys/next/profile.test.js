@@ -25,25 +25,24 @@ function parse(rows) {
   return { phases, summary };
 }
 
-for (const [kind, seatName] of [['build', 'actor'], ['review', 'sibling']]) {
-  test(`clause 1: next --take for a ${kind} seat on the real-size board prints each phase and names the slowest three [N2]`, async t => {
-    const box = await fixture(t);
-    seedRealSize(box);
-    const { run, rows } = await profiled(box, box.seats[seatName]);
-    assert.equal(run.code, 0, run.out + run.err);
+// One seeded board serves both seats: seeding 230,000 events once keeps the file inside its per-file budget.
+test('next --take profiles a build seat and a review seat on the real-size board [N2]', async t => {
+  const box = await fixture(t);
+  seedRealSize(box);
+  for (const [kind, seatName] of [['build', 'actor'], ['review', 'sibling']]) {
+    const { run, wall, rows } = await profiled(box, box.seats[seatName]);
     const { phases, summary } = parse(rows);
-    assert.ok(phases.length >= 2, `phases printed: ${rows.join(' | ')}`);
-    const slowest = phases.slice(0, 3).map(row => row.phase).join(', ');
-    assert.ok(summary?.endsWith(`slowest three: ${slowest}`), `the summary names the slowest three phases: ${summary}`);
     for (const row of phases) console.log(`# ${kind} seat: ${row.phase} ${row.ms} ms`);
-  });
-
-  test(`clause 2: the ${kind} seat's printed phases add up to within 10% of the command's wall time [N2]`, async t => {
-    const box = await fixture(t);
-    seedRealSize(box);
-    const { wall, rows } = await profiled(box, box.seats[seatName]);
-    const { phases } = parse(rows);
-    const sum = phases.reduce((total, row) => total + row.ms, 0);
-    assert.ok(Math.abs(wall - sum) <= wall * 0.1, `phases sum to ${sum} ms against ${Math.round(wall)} ms of wall time`);
-  });
-}
+    console.log(`# ${kind} seat: wall ${Math.round(wall)} ms`);
+    await t.test(`clause 1: the ${kind} seat's next --take prints each phase and names the slowest three [N2]`, () => {
+      assert.equal(run.code, 0, run.out + run.err);
+      assert.ok(phases.length >= 2, `phases printed: ${rows.join(' | ')}`);
+      const slowest = phases.slice(0, 3).map(row => row.phase).join(', ');
+      assert.ok(summary?.endsWith(`slowest three: ${slowest}`), `the summary names the slowest three phases: ${summary}`);
+    });
+    await t.test(`clause 2: the ${kind} seat's printed phases add up to within 10% of the command's wall time [N2]`, () => {
+      const sum = phases.reduce((total, row) => total + row.ms, 0);
+      assert.ok(Math.abs(wall - sum) <= wall * 0.1, `phases sum to ${sum} ms against ${Math.round(wall)} ms of wall time`);
+    });
+  }
+});
