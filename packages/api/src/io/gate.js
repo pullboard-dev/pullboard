@@ -163,7 +163,8 @@ function combinedReceipt(gateReceipt, shards) {
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
-    ...(reds.length ? { failures, errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []).slice(0, 100) } : {}) };
+    ...(reds.length ? { failures, errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
+      errorCount: reds.reduce((total, part) => total + (part.phase?.errorCount ?? part.phase?.errors?.length ?? 0), 0) } : {}) };
   const { proofPlan, ...rest } = gate;
   const green = !reds.length;
   return { ...gateReceipt, status: green ? 0 : 1, gate: { ...rest, green, phases: [...(gate.phases ?? []), proof], steps: { ...gate.steps, proof: Math.max(0, ...parts.map(part => Number(part.ms) || 0)) },

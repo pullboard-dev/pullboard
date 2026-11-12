@@ -117,9 +117,13 @@ const runPhase = (role, command, PATH) => {
     env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
+  const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
+  const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
+  for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures: failingCases(ran.status, text, run), errors: tapCaseErrors(text, root), exit: exitLines(text) } : {}) });
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures: failingCases(ran.status, text, run), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}) });
 };
 if (shard) runPhase('proof', shard.command, cliPath());
 else {

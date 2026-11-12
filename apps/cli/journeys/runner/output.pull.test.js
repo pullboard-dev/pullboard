@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { fitReceipt } from '../../src/logic/runner/output.js';
+import { tapCaseErrors } from '../../src/logic/runner/output.js';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { keptOutputFolder } from '../../../../packages/drive/index.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
@@ -66,6 +68,8 @@ async t => {
   assert.equal(thrown, 'fixture db is locked');
   assert.match(compared, /Expected values to be strictly equal:[\s\S]*2 !== 3/u, compared);
   assert.equal(quoted, "can't open 'web/seed.json'");
+  assert.equal(proof.errorCount, 3);
+  assert.equal(proof.errorsKept, 'proof.errors.json', 'every case is kept whole on the runner');
   // The accounted cases the board compares with main stay as they were: file and name only.
   assert.deepEqual(proof.failures, [{ file: 'web/cases.test.js', name: 'throws' }, { file: 'web/cases.test.js', name: 'compares' }, { file: 'web/cases.test.js', name: 'quotes' }]);
 });
@@ -107,4 +111,35 @@ async t => {
   assert.equal(Buffer.byteLength(kept), proof.bytes);
   assert.match(kept, /^setup line 0\n/u);
   assert.match(kept, /Error: fixture database is locked/u);
+});
+
+/** A TAP stream with `count` failing cases, each with a long error. */
+function manyFailures(count) {
+  return Array.from({ length: count }, (_, n) => `not ok ${n + 1} - case ${n}\n  ---\n  location: '/r/web/many.test.js:${n}:1'\n  failureType: 'testCodeFailure'\n  error: 'case ${n} broke: ${'x'.repeat(400)}'\n  ...`).join('\n');
+}
+
+test('clause 1: a red proof with hundreds of failures names every case, and a receipt fitted to its cap keeps each name [P7,#5828]', () => {
+  const errors = tapCaseErrors(manyFailures(450), '/r');
+  assert.equal(errors.length, 450, 'no case cap');
+  assert.equal(errors[449].name, 'case 449');
+  assert.match(errors[449].error, /^case 449 broke: x+$/u);
+  const receipt = fitReceipt({ phases: [{ role: 'proof', status: 1, tail: 't'.repeat(5000), errors }] }, 56 * 1024);
+  const [proof] = receipt.phases;
+  assert.ok(Buffer.byteLength(JSON.stringify(receipt)) <= 56 * 1024);
+  assert.deepEqual(proof.errors.map(row => row.name), errors.map(row => row.name), 'every case keeps its row; the errors shrink first');
+  assert.equal(proof.errorCount, 450);
+  assert.equal(proof.errorsOmitted, undefined);
+  assert.match(proof.errors[0].error, /^case 0 broke/u, 'each row keeps the start of its message while it fits');
+});
+
+test('clause 1: when the names alone overflow the cap, the receipt counts every case and says how many rows it left to the runner\'s kept list [P7,#5828]', () => {
+  const errors = tapCaseErrors(manyFailures(3000), '/r');
+  const receipt = fitReceipt({ phases: [{ role: 'proof', status: 1, tail: '', errors, errorsKept: 'proof.errors.json' }] }, 56 * 1024);
+  const [proof] = receipt.phases;
+  assert.ok(Buffer.byteLength(JSON.stringify(receipt)) <= 56 * 1024);
+  assert.equal(proof.errorCount, 3000);
+  assert.ok(proof.errors.length > 0 && proof.errors.length < 3000);
+  assert.equal(proof.errorsOmitted, 3000 - proof.errors.length);
+  assert.deepEqual(proof.errors.map(row => row.name), errors.slice(0, proof.errors.length).map(row => row.name), 'the first cases keep their rows, in order');
+  assert.equal(proof.errorsKept, 'proof.errors.json');
 });

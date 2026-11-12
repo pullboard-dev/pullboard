@@ -11,10 +11,11 @@
  *
  * @param {string} text - The phase's output.
  * @param {string} root - The checkout the phase ran in; locations under it are made relative.
- * @param {{ cases?: number, errorBytes?: number }} [limits] - At most `cases` rows, each error cut to `errorBytes` characters.
+ * @param {{ cases?: number, errorBytes?: number }} [limits] - At most `cases` rows (every case by default), each error cut to
+ *   `errorBytes` characters. Why every case: a red with many failures must still name each one [P7,#5828].
  * @returns {Array<{ file: string | null, name: string, error: string }>}
  */
-export function tapCaseErrors(text, root, { cases = 100, errorBytes = 600 } = {}) {
+export function tapCaseErrors(text, root, { cases = Infinity, errorBytes = 600 } = {}) {
   const lines = String(text).split('\n'), rows = [];
   const unquote = value => {
     const trimmed = value.trim();
@@ -85,9 +86,11 @@ export function exitLines(text, { lines = 40, bytes = 3000 } = {}) {
 }
 
 /**
- * Shrink a gate receipt until its JSON fits `limit` bytes: case errors first, then the case lists, then each phase's
- * tail and exit lines. Why: the runner posts the receipt line whole only under its cap, and the board refuses a
- * receipt over 64 KiB (packages/api/src/io/jobs.js), so a long red must lose detail, never its receipt.
+ * Shrink a gate receipt until its JSON fits `limit` bytes: each phase's tail and exit lines, then case errors down to
+ * none, then case rows from the end. Every phase with errors keeps `errorCount`, its whole number of failing cases,
+ * and a phase that drops rows says how many in `errorsOmitted`; its `errorsKept` file on the runner lists them all.
+ * Why: the runner posts the receipt line whole only under its cap, and the board refuses a receipt over 64 KiB
+ * (packages/api/src/io/jobs.js), so a long red must lose detail, never its receipt, and never hide a case [#5828].
  *
  * @param {Record<string, any>} receipt - Changed in place.
  * @param {number} limit
@@ -96,14 +99,21 @@ export function exitLines(text, { lines = 40, bytes = 3000 } = {}) {
 export function fitReceipt(receipt, limit) {
   const size = () => Buffer.byteLength(JSON.stringify(receipt));
   const phases = Array.isArray(receipt.phases) ? receipt.phases : [];
-  for (let cut = 300; size() > limit && cut >= 40; cut = Math.floor(cut / 2)) {
-    for (const phase of phases) for (const row of phase.errors ?? []) if (row.error.length > cut) row.error = `${row.error.slice(0, cut)}…`;
-  }
-  while (size() > limit && phases.some(phase => (phase.errors ?? []).length > 1)) {
-    for (const phase of phases) if ((phase.errors ?? []).length > 1) phase.errors = phase.errors.slice(0, Math.ceil(phase.errors.length / 2));
-  }
+  for (const phase of phases) if (Array.isArray(phase.errors)) phase.errorCount ??= phase.errors.length;
   for (let keep = 2000; size() > limit && keep >= 50; keep = Math.floor(keep / 2)) {
     for (const phase of phases) for (const key of ['tail', 'exit']) if (typeof phase[key] === 'string' && phase[key].length > keep) phase[key] = phase[key].slice(-keep);
+  }
+  for (const cut of [300, 150, 75, 40, 20, 0]) {
+    if (size() <= limit) break;
+    for (const phase of phases) for (const row of phase.errors ?? []) if (row.error.length > cut) row.error = cut > 0 ? `${row.error.slice(0, cut)}…` : '';
+  }
+  // Rows go last, from the end, so the receipt names as many cases as fit and counts the rest.
+  while (size() > limit && phases.some(phase => (phase.errors ?? []).length)) {
+    for (const phase of phases) {
+      if (!(phase.errors ?? []).length) continue;
+      phase.errors = phase.errors.slice(0, Math.floor(phase.errors.length * 0.9));
+      phase.errorsOmitted = phase.errorCount - phase.errors.length;
+    }
   }
   return receipt;
 }
