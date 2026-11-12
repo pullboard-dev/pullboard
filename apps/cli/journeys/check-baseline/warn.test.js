@@ -37,6 +37,7 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   assert.equal(existsSync(join(box.repo, 'first-check-marker.txt')), false, 'the passing baseline ran in its temporary clone');
 
   const changedCheck = fileCheck('green', 'edited-check-marker.txt');
+  // Process-level: add and edit with a changed check start the baseline in a detached CLI worker, which an in-process call cannot launch.
   const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', changedCheck, '--wait', '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
   assert.equal(edited.stderr, '', 'edit writes no baseline diagnostics to stderr');
@@ -44,7 +45,7 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   assert.equal(JSON.parse(edited.stdout).item.item_check_baseline.command, changedCheck);
   assert.equal(existsSync(join(box.repo, 'edited-check-marker.txt')), false, 'the edited baseline also ran in a temporary clone');
 
-  const shown = box.run(box.repo, ['show', String(item.item_id)]);
+  const shown = await box.runLocal(box.repo, ['show', String(item.item_id)]);
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /CRITERION_PROVES_NOTHING/u);
   const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check, '--wait']);
@@ -54,15 +55,15 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   assert.equal(textEdited.status, 0, textEdited.stderr);
   assert.match(textEdited.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
 
-  const claimed = box.run(box.web, ['next']);
+  const claimed = await box.runLocal(box.web, ['next']);
   assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
   writeFileSync(join(box.web, 'web', 'proof.txt'), 'submitted\n');
   box.git(box.web, 'add', 'web/proof.txt');
   box.git(box.web, 'commit', '-q', '-m', 'test: submit green check baseline fixture');
-  const submitted = box.run(box.web, ['submit', String(item.item_id)]);
+  const submitted = await box.runLocal(box.web, ['submit', String(item.item_id)]);
   assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
 
-  const review = box.run(box.review, ['next', '--verify']);
+  const review = await box.runLocal(box.review, ['next', '--verify']);
   assert.equal(review.status, 0, `${review.stdout}${review.stderr}`);
   assert.match(review.stdout, /CRITERION_PROVES_NOTHING/u);
 });
@@ -83,7 +84,7 @@ test('[V2,H3,H16] repo gates execute before baselines report green and preserve 
   assert.equal(gated.item_check_baseline.warning, 'CRITERION_PROVES_NOTHING');
   assert.equal(existsSync(gateMarker), true, 'an exact gate match runs its command in the temporary clone');
 
-  const metadataEdit = box.run(box.repo, ['edit', String(gated.item_id), '--brief', 'updated brief', '--json']);
+  const metadataEdit = await box.runLocal(box.repo, ['edit', String(gated.item_id), '--brief', 'updated brief', '--json']);
   assert.equal(metadataEdit.status, 0, `${metadataEdit.stdout}${metadataEdit.stderr}`);
   assert.deepEqual(JSON.parse(metadataEdit.stdout).item.item_check_baseline, gated.item_check_baseline,
     'an edit that leaves the check unchanged retains the measured baseline');
@@ -101,7 +102,7 @@ test('[V2,H3,H16] repo gates execute before baselines report green and preserve 
   assert.equal(readFileSync(changedExecutions, 'utf8').trim().split('\n').length, 1, 'the dirty-config check really runs once at main');
   assert.equal(existsSync(join(box.repo, 'changed-check-marker.txt')), false, 'changed checks run only in the temporary main clone');
 
-  const cleared = box.run(box.repo, ['edit', String(gated.item_id), '--check', '', '--json']);
+  const cleared = await box.runLocal(box.repo, ['edit', String(gated.item_id), '--check', '', '--json']);
   assert.equal(cleared.status, 0, `${cleared.stdout}${cleared.stderr}`);
   assert.equal(JSON.parse(cleared.stdout).item.item_check, '');
   assert.equal(Object.hasOwn(JSON.parse(cleared.stdout).item, 'item_check_baseline'), false, 'clearing a check clears its baseline');

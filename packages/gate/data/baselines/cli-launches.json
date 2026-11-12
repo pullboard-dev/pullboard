@@ -201,7 +201,7 @@
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/main.test.js": {
-    "launch": 8
+    "launch": 5
   },
   "apps/cli/journeys/study/metrics.test.js": {
     "launch": 2
@@ -1212,7 +1212,7 @@
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
-    "launch": 10
+    "launch": 4
   },
   "packages/link/tests/logic/relay/poll.test.js": {
     "launch": 1
@@ -1407,9 +1407,6 @@
     "launch": 2
   },
   "apps/cli/journeys/test/warning.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/merged/ratchet.test.js": {
     "launch": 4
   },
   "apps/cli/journeys/lifecycle/merge.test.js": {
@@ -1855,9 +1852,6 @@
   },
   "apps/cli/journeys/relay/local/first/key.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/intake/main.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/submit/handoff/queued.test.js": {
     "launch": 2
