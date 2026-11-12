@@ -50,7 +50,7 @@ function fixture(t) {
     GIT_COMMITTER_NAME: 'Policy Fixture', GIT_COMMITTER_EMAIL: 'policy@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnersFirst: true, runnerDispatch: 'controller' } }));
-  writeFileSync(join(remoteMachine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+  writeFileSync(join(remoteMachine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller' } }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), repo);
   mkdirSync(join(repo, 'test'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'candidate gate', landingShards: 2, protect: { allowed: ['*.example'] } }));
