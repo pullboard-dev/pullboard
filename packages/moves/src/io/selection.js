@@ -104,7 +104,7 @@ export async function nextOnce(ctx, values, ports) {
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values, ports));
   if (looked.autoReview) {
-    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }, ports), review: true }; }
+    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id, unstartedReviewLapse: true }, ports), review: true }; }
     catch (error) {
       if (error instanceof Refused && ['REVIEW_HELD', 'NOT_SUBMITTED'].includes(error.code)) return { retry: true,
         retryDetail: { phase: 'first-review reservation', item: looked.autoReview.item_id, code: error.code } };
@@ -315,7 +315,7 @@ function nextPick(ctx, board, values, ports) {
   const familyOnly = familyRelaxedOnly(ctx, board, me, found?.item);
   if (found?.mandatory && !ownClaim && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
-  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+  if (ownClaim && found?.urgent !== 'age' && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
@@ -333,7 +333,7 @@ function nextPick(ctx, board, values, ports) {
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' && !values.defaultLoop || familyOnly && item?.item_lane === me.lane ? null : found;
+  const offer = held && found?.urgent !== 'age' || familyOnly && item?.item_lane === me.lane ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
