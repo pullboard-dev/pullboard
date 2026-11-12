@@ -207,7 +207,7 @@ test('native push adapter checks real ordered receipts and exact open audit repa
 
 test('additive native CLI refuses malformed actual pre-push stdin before smoke [C7]', async () => {
   const box = e2e.project('true', undefined, { withWorktree: false });
-  const ran = await runCliInProcess(['push-receipts', '--json'], { cwd: box.repo, env: box.env, input: 'malformed pre-push record\n' });
+  const ran = await runCliInProcess(['push-receipts', '--json'], { cwd: box.repo, env: box.env, input: Buffer.from('malformed pre-push record\n') });
   assert.equal(ran.status, 1, `${ran.stdout}${ran.stderr}`);
   assert.match(`${ran.stdout}${ran.stderr}`, /PUSH_RECEIPT_RANGE/u);
 });
