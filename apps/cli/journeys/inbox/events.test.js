@@ -20,6 +20,7 @@ import { main as nativeTestMain } from '../../tests/fixtures/native.js';
 import {
   apiHttpFixture as fixture,
   apiHttpBox as httpBox,
+  registerFixtureRunner,
   shellWord,
   FIXTURE_BRIEF,
 } from '../../tests/fixtures/api.js';
@@ -159,7 +160,8 @@ test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes
 
 test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', async (t) => {
   const box = await httpBox(t);
-  // No runner is registered, so the blocking baseline settles in the command: pin controller dispatch [P7].
+  registerFixtureRunner(t, box);
+  // The stand-in runner serves the baseline inside the command, so pin controller dispatch as test 1 does [P7].
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
