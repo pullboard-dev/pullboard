@@ -44,7 +44,7 @@ test('coordinator decline resolves a paired approval request with a reason and l
   const row = addPendingSpecRow(box, 'G96');
   const before = readFileSync(row.path, 'utf8');
   const title = 'PERSON_REQUEST_DECLINE_FIXTURE';
-  assert.equal((await box.cli('add', box.lane, title)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, title)).code, 0);
   await box.link();
   const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
@@ -77,16 +77,16 @@ test('coordinator decline resolves a paired approval request with a reason and l
   const pending = (await finalState(chrome, link.board)).state.personRequests.find(record => record.id === queued.result.request.id);
   assert.equal(pending.status, 'waiting');
   assert.ok(Number.isSafeInteger(pending.coordinatorRequest));
-  const missingReason = await box.cli('answer', String(pending.coordinatorRequest), 'declined');
+  const missingReason = await box.cliLocal('answer', String(pending.coordinatorRequest), 'declined');
   assert.equal(missingReason.code, 1);
   assert.equal(missingReason.document.error.code, 'REQUEST_OUTCOME');
   const reason = 'Waiting for a revised requirement';
-  assert.equal((await box.cli('answer', String(pending.coordinatorRequest), 'declined ' + reason)).code, 0);
+  assert.equal((await box.cliLocal('answer', String(pending.coordinatorRequest), 'declined ' + reason)).code, 0);
   const completed = (await finalState(chrome, link.board)).state.personRequests.find(record => record.id === queued.result.request.id);
   assert.equal(completed.status, 'refused');
   assert.deepEqual(completed.error, { code: 'REQUEST_DECLINED', message: reason, next: 'Read the coordinator reason and send a revised request from the view.' });
   assert.equal(readFileSync(row.path, 'utf8'), before, 'declining the repository request does not edit any row');
-  assert.deepEqual((await box.cli('resume')).document.requests, [], 'the declined request leaves the open coordinator queue');
+  assert.deepEqual((await box.cliLocal('resume')).document.requests, [], 'the declined request leaves the open coordinator queue');
   box.assertCliChildrenComplete();
 });
 

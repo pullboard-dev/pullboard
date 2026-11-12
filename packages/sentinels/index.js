@@ -10,4 +10,4 @@ export * from "./src/io/main.js";
 export * from "./src/io/serve.js";
 export { REVIEW_WAKE_WAIT_MS, wakeReviewCapacity } from './src/io/wake.js';
 export { waitBudgets, waitItemFields, waitKey } from './src/logic/budgets.js';
-export { openWaitKey, recordWaits, waitLines, waitsSnapshot } from './src/io/waits.js';
+export { openWaitKey, recordWaits, waitPidRecorded, waitLines, waitsSnapshot } from './src/io/waits.js';

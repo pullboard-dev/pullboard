@@ -377,7 +377,7 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
   });
   assert.equal(legacy.status, 400, 'the durable agent-token minimum refuses an engine-2 reader');
   assert.equal((await legacy.json()).error.code, 'ENGINE_VERSION');
-  assert.equal((await box.cli('relay', 'off')).code, 0);
+  assert.equal((await box.cliLocal('relay', 'off')).code, 0);
   const phone = await box.phoneSession();
   assert.equal(box.auth.boardOff(previous.board), null,
     'local relay off retains the active predecessor until the authenticated relink replaces it');
@@ -408,7 +408,7 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
     && new RegExp(`^/api/v[12]/boards/${result.board}/(?:events|state)(?:\\?|$)`, 'u').test(call.path));
   assert.ok(smokeReads.length >= 2, 'the smoke reads the mirrored event and its native checkpoint over the real HTTP API');
   assert.ok(smokeReads.every((call) => call.engine === String(ENGINE_VERSION)), 'every smoke board-content read declares the current engine after the relay minimum is raised');
-  const local = (await box.cli('export')).document;
+  const local = (await box.cliLocal('export')).document;
   assert.ok(local.tables.item.some((item) => item.item_id === result.item && item.item_title.startsWith('Pullboard relay smoke ')),
     'the real CLI move remains in the local board after relay off');
 });

@@ -11,7 +11,7 @@ import { parseSpec } from '../../../../../packages/spec/index.js';
 import { SPEC } from '../../../tests/fixtures/spec/box.js';
 import { specBox } from '../../../tests/fixtures/spec/box.js';
 
-test('spec draft files a row in the named section [S1,C7]', (t) => {
+test('spec draft files a row in the named section [S1,C7]', async (t) => {
   const specSource = `# Demo
 
 ## K · Constraints
@@ -26,17 +26,17 @@ test('spec draft files a row in the named section [S1,C7]', (t) => {
 `;
   const box = specBox(t, { specSource });
   const rows = () => parseSpec(readFileSync(join(box.root, box.specName), 'utf8')).rows;
-  const constraint = box.run('draft', 'Uses the local disk', '--section', 'K');
+  const constraint = await box.spec('draft', 'Uses the local disk', '--section', 'K');
   assert.equal(constraint.status, 0, constraint.stderr);
   assert.equal(constraint.stdout.trim().split('\n')[0], 'K2');
   assert.equal(rows().find(row => row.id === 'K2').section, 'K · Constraints');
 
-  const goal = box.run('draft', 'A new goal');
+  const goal = await box.spec('draft', 'A new goal');
   assert.equal(goal.status, 0, goal.stderr);
   assert.equal(goal.stdout.trim().split('\n')[0], 'G3', 'G stays the default even when another section comes first');
   assert.equal(rows().find(row => row.id === 'G3').section, 'G · Goals');
 
-  const question = box.run('draft', 'Another question', '--section', 'Q', '--aim', '--gate', 'question test', '--json');
+  const question = await box.spec('draft', 'Another question', '--section', 'Q', '--aim', '--gate', 'question test', '--json');
   assert.equal(question.status, 0, question.stderr);
   const result = JSON.parse(question.stdout);
   assert.equal(result.id, 'Q5');
@@ -46,18 +46,18 @@ test('spec draft files a row in the named section [S1,C7]', (t) => {
   assert.equal(rows().find(row => row.id === 'Q5').section, 'Q · Questions');
 
   const before = readFileSync(join(box.root, box.specName), 'utf8');
-  const unknown = box.run('draft', 'Must not be written', '--section', 'Z');
+  const unknown = await box.spec('draft', 'Must not be written', '--section', 'Z');
   assert.equal(unknown.status, 1);
   assert.match(unknown.stderr, /SPEC_SECTION.*Z.*K.*G.*Q/u);
   assert.equal(readFileSync(join(box.root, box.specName), 'utf8'), before);
-  const misplaced = box.run('check', '--section', 'K');
+  const misplaced = await box.spec('check', '--section', 'K');
   assert.equal(misplaced.status, 1);
   assert.match(misplaced.stderr, /FLAG_NOT_ALLOWED.*section/u);
 });
 
-test('spec draft with an inline gate names the flag to use [S1,P4]', (t) => {
+test('spec draft with an inline gate names the flag to use [S1,P4]', async (t) => {
   const box = specBox(t, { freshInit: true });
-  const result = box.run('draft', 'A requirement | gate: node --test test/example.test.js');
+  const result = await box.spec('draft', 'A requirement | gate: node --test test/example.test.js');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /INLINE_GATE/u);
   assert.match(result.stderr, /pullboard spec draft "<text>" --gate "<check>"/u);
@@ -98,14 +98,14 @@ test('spec draft never reuses an existing id [S1,C7]', (t) => {
   }
 });
 
-test('a drafted row reads as draft [S1,C7]', (t) => {
+test('a drafted row reads as draft [S1,C7]', async (t) => {
   const specSource = SPEC.replace(
     '- G2 [retired] Old idea.',
     '- G2 [retired] Old idea.\n- G3 [pending, must] Still a question. | gate: review',
   );
   const box = specBox(t, { specSource });
 
-  const drafted = box.run('draft', 'A proposed requirement');
+  const drafted = await box.spec('draft', 'A proposed requirement');
   assert.equal(drafted.status, 0, drafted.stderr);
   assert.equal(drafted.stdout.trim().split('\n')[0], 'G4');
 
@@ -114,9 +114,9 @@ test('a drafted row reads as draft [S1,C7]', (t) => {
     ['G3', 'pending'],
     ['G4', 'draft'],
   ], 'the existing question stays pending and the newly drafted row is distinct');
-  const approved = box.run('approve', 'G3', 'G4');
+  const approved = await box.spec('approve', 'G3', 'G4');
   assert.equal(approved.status, 0, approved.stderr);
-  const applied = box.run('apply');
+  const applied = await box.spec('apply');
   assert.equal(applied.status, 0, applied.stderr);
   assert.deepEqual(rows().filter((row) => ['G3', 'G4'].includes(row.id)).map(({ id, status }) => [id, status]), [
     ['G3', 'approved'],
@@ -124,9 +124,9 @@ test('a drafted row reads as draft [S1,C7]', (t) => {
   ], 'both an existing pending question and a newly drafted row remain approvable');
 });
 
-test('spec --json emits one versioned document with every field, including empty fields [S13]', (t) => {
+test('spec --json emits one versioned document with every field, including empty fields [S13]', async (t) => {
   const box = specBox(t);
-  const shown = box.run('--json');
+  const shown = await box.spec('--json');
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
   const inherited = data.rows.filter(row => row.origin === 'standard');
@@ -144,10 +144,10 @@ test('spec --json emits one versioned document with every field, including empty
   });
 });
 
-test('spec --json combines both configured files and keeps every row status [S13]', (t) => {
+test('spec --json combines both configured files and keeps every row status [S13]', async (t) => {
   const practice = '# Practice\n\n## P · Practice\n- P1 [fact] A fact.\n- P2 [pending, must] A question.\n- P3 [wont] An old plan.\n';
   const box = specBox(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
-  const shown = box.run('--json');
+  const shown = await box.spec('--json');
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
   assert.equal(data.version, 1);
@@ -161,11 +161,11 @@ test('spec --json combines both configured files and keeps every row status [S13
   ]);
 });
 
-test('spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', (t) => {
+test('spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', async (t) => {
   const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [maybe, must] Bad status. | serves: K9\n`);
-  const check = box.run('check');
-  const shown = box.run('--json');
+  const check = await box.spec('check');
+  const shown = await box.spec('--json');
   assert.equal(check.status, 1);
   assert.equal(shown.status, 1);
   const document = JSON.parse(shown.stdout);
@@ -179,11 +179,11 @@ test('spec --json refuses errors in either file with versioned spec-check diagno
   assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
-test('spec --json also refuses a committed row removed from practice [S13, S8]', (t) => {
+test('spec --json also refuses a committed row removed from practice [S13, S8]', async (t) => {
   const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [fact] Kept forever.\n' });
   writeFileSync(join(box.root, box.practiceName), '# Practice\n\n## P\n');
-  const check = box.run('check');
-  const shown = box.run('--json');
+  const check = await box.spec('check');
+  const shown = await box.spec('--json');
   assert.equal(shown.status, 1);
   const document = JSON.parse(shown.stdout);
   assert.equal(document.version, 1);
@@ -193,13 +193,13 @@ test('spec --json also refuses a committed row removed from practice [S13, S8]',
   assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
-test('warning-only specs keep spec-check success while JSON stays a single document [S13]', (t) => {
+test('warning-only specs keep spec-check success while JSON stays a single document [S13]', async (t) => {
   const box = specBox(t);
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [draft] ${'word '.repeat(25)}\n`);
-  const check = box.run('check');
+  const check = await box.spec('check');
   assert.equal(check.status, 0, check.stderr);
   assert.match(check.stdout, /warning: 25 words/);
-  const shown = box.run('--json');
+  const shown = await box.spec('--json');
   assert.equal(shown.status, 0, shown.stderr);
   assert.equal(JSON.parse(shown.stdout).rows.length, 5 + standardDoctrine().rows.length);
 });

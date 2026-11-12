@@ -69,7 +69,7 @@ function installPullboardEntry(box) {
 async function joinedCanarySeat(box) {
   const root = join(box.root, '..', 'watch-seat');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/watch-canary', root], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(root, 'join', box.lane, '--model', 'watch-fixture');
+  const joined = await box.cliAtLocal(root, 'join', box.lane, '--model', 'watch-fixture');
   assert.equal(joined.code, 0, joined.failure);
   return { root, agentId: joined.document.agent };
 }
@@ -196,21 +196,21 @@ test('the canary command binds machine opt-in to its linked ordinary seat [H5,H1
   const box = await relayClientFixture(t);
   installPullboardEntry(box);
   await box.link();
-  const refused = await box.cli('relay', 'canary', 'on');
+  const refused = await box.cliLocal('relay', 'canary', 'on');
   assert.equal(refused.code, 1, 'a coordinator cannot substitute for the dedicated ordinary canary seat');
   assert.equal(refused.document.error.code, 'RELAY_CANARY_SEAT');
   const seat = await joinedCanarySeat(box);
-  const enabled = await box.cliAt(seat.root, 'relay', 'canary', 'on', '--timeout', '5000');
+  const enabled = await box.cliAtLocal(seat.root, 'relay', 'canary', 'on', '--timeout', '5000');
   assert.equal(enabled.code, 0, enabled.failure);
   assert.equal(enabled.document.config.agentId, seat.agentId);
-  const probed = await box.cliAt(seat.root, 'relay', 'canary', 'run');
+  const probed = await box.cliAtLocal(seat.root, 'relay', 'canary', 'run');
   assert.equal(probed.code, 0, probed.failure);
   assert.equal(probed.document.observation.ok, true);
   assert.equal(probed.document.observation.step, 'complete');
-  const off = await box.cliAt(seat.root, 'relay', 'canary', 'off');
+  const off = await box.cliAtLocal(seat.root, 'relay', 'canary', 'off');
   assert.equal(off.code, 0, off.failure);
   assert.equal(off.document.config.enabled, false);
-  const stopped = await box.cliAt(seat.root, 'relay', 'canary', 'run');
+  const stopped = await box.cliAtLocal(seat.root, 'relay', 'canary', 'run');
   assert.equal(stopped.code, 1);
   assert.equal(stopped.document.error.code, 'RELAY_CANARY_CONFIG');
 });

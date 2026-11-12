@@ -58,7 +58,7 @@ test('legacy machine and board sessions are scrubbed before an agent read or fre
   assert.equal(scrubbed.tokenId, undefined);
   assert.equal(scrubbed.personReauth, true);
   assert.equal(readFileSync(box.linkFile).includes(phone.token), false, 'the old Git-directory person bearer is atomically removed');
-  assert.equal((await box.cli('relay', 'on', '--url', box.origin)).code, 0, 'fresh foreground sign-in restores only machine authority');
+  assert.equal((await box.cliLocal('relay', 'on', '--url', box.origin)).code, 0, 'fresh foreground sign-in restores only machine authority');
   const replacement = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(replacement.machine, agentRead.document.machine, 'the migrated machine identity remains stable');
   assert.equal(/^pm_[A-Za-z0-9_-]{43}$/u.test(replacement.token), true);
@@ -71,7 +71,7 @@ test('legacy machine and board sessions are scrubbed before an agent read or fre
   assert.equal((await box.cli('status')).code, 0, 'the session-file-era link migrates without loading its credential');
   assert.equal(existsSync(legacyFile), false);
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).personReauth, true);
-  assert.equal((await box.cli('relay', 'on', '--url', box.origin)).code, 0);
+  assert.equal((await box.cliLocal('relay', 'on', '--url', box.origin)).code, 0);
   const safeMachine = readFileSync(machineFile);
   const refusedDurableGrant = await box.script(`
     import { updateRelayMachine } from ${JSON.stringify(MACHINE_MODULE)};
