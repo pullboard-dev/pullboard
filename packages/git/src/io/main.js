@@ -850,8 +850,50 @@ export function pinnedSpecText(cwd, spec) {
 export function gitShowText(cwd, revision, file) {
   const same = pinnedWorkingText(cwd, revision, file);
   if (same !== null) return same;
-  const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
+  const spec = `${revision}:${file}`;
+  const known = commandMemo === null ? null : prefetchedShows(cwd, spec);
+  if (known !== null && known.has(spec)) return known.get(spec);
+  const raw = rawGit(cwd, ['show', spec], process.env);
   return raw.status === 0 ? raw.stdout : null;
+}
+
+/** The files a commit hook reads at HEAD and in the index, fetched together with the first one asked for. */
+const HOOK_SHOWN_FILES = ['SPEC.md', 'DOCTRINE.md', 'PRACTICE.md'];
+
+/**
+ * One `git cat-file --batch` answer for the hook's usual `HEAD:` and index file reads, kept in the hook's memory.
+ * Why: eight `git show` children for four files cost more than the checks that read them [C7].
+ *
+ * @param {string} cwd
+ * @param {string} spec the `revision:file` the caller asked for
+ * @returns {Map<string, string | null> | null} null when the batch cannot answer.
+ */
+function prefetchedShows(cwd, spec) {
+  // Kept in the command memory itself, so any write that clears the memory also drops these answers.
+  const file = spec.slice(spec.indexOf(':') + 1);
+  const files = HOOK_SHOWN_FILES.includes(file) ? HOOK_SHOWN_FILES : [file];
+  const key = JSON.stringify(['prefetched-shows', cwd, files]);
+  if (commandMemo.has(key)) return commandMemo.get(key);
+  const wanted = [];
+  for (const revision of ['HEAD', '']) for (const name of files) wanted.push(`${revision}:${name}`);
+  if (!wanted.includes(spec)) return null;
+  const answers = new Map();
+  commandMemo.set(key, answers);
+  const result = gitSpawnSync([...GIT_FLAGS, 'cat-file', '--batch'], { cwd, input: `${wanted.join('\n')}\n`, maxBuffer: 64 * 1024 * 1024 });
+  if (result.status !== 0 || !Buffer.isBuffer(result.stdout)) { commandMemo.set(key, null); return null; }
+  const out = result.stdout;
+  let at = 0;
+  for (const name of wanted) {
+    const end = out.indexOf(0x0a, at);
+    if (end < 0) { commandMemo.set(key, null); return null; }
+    const header = out.toString('utf8', at, end);
+    const size = /^[0-9a-f]{40,64} blob (\d+)$/u.exec(header);
+    if (!size) { answers.set(name, null); at = end + 1; continue; }
+    const length = Number(size[1]);
+    answers.set(name, out.toString('utf8', end + 1, end + 1 + length));
+    at = end + 1 + length + 1;
+  }
+  return answers;
 }
 
 /**
