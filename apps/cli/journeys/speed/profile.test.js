@@ -140,12 +140,15 @@ test('clause 1: one submit on a large board spawns at most 70 git processes, hal
     const gits = readFileSync(recorder.spawns, 'utf8').split('\n').filter(line => / git /u.test(line));
     counts.push(gits.length);
     for (const line of gits) {
-      const shape = line.replace(/^\d+ \w+ /u, '').replace(/ [\d.]+$/u, '').replace(/[0-9a-f]{40}/gu, 'SHA');
+      const [shapeText, where = ''] = line.replace(/^\d+ \w+ /u, '').replace(/ [\d.]+$/u, '').replace(/[0-9a-f]{40}/gu, 'SHA').split(' @ ');
+      const verb = shapeText.replace(/--no-replace-objects|-c core\.quotepath=false|-c gc\.auto=0|-c core\.hooksPath=\/dev\/null|--no-optional-locks|-C \S+/gu, '').replace(/\s+/gu, ' ').trim().slice(0, 30);
+      const frame = where.split(' < ').find(f => !/^packages\/git\/src\//u.test(f) && !/^main\.js/u.test(f)) ?? where.slice(0, 40);
+      const shape = `${verb} @ ${frame}`;
       shapes.set(shape, (shapes.get(shape) ?? 0) + 1);
     }
   });
   console.log('# SUBMIT git spawns per run: ' + counts.join(', '));
-  console.log([...shapes].sort((a, b) => b[1] - a[1]).map(([shape, n]) => `# ${n} ${shape}`).join('\n'));
+  console.log([...shapes].sort((a, b) => b[1] - a[1]).slice(0, 60).map(([shape, n]) => `# ${n} ${shape}`).join('\n'));
   const median = [...counts].sort((a, b) => a - b)[1];
   assert.ok(median <= 70, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 70 allowed`);
 });
