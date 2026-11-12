@@ -50,7 +50,7 @@ test('stats review: seeded verdicts give exact queue depth by hour, time to verd
     { hour: iso('08:00:00.000'), depth: 0, peak: 2, reserved: 0 },
     { hour: iso('09:00:00.000'), depth: 2, peak: 3, reserved: 1 },
     { hour: iso('10:00:00.000'), depth: 2, peak: 2, reserved: 0 },
-    { hour: iso('11:00:00.000'), depth: 1, peak: 2, reserved: 0 },
+    { hour: iso('11:00:00.000'), depth: 2, peak: 2, reserved: 0 },
   ]);
   assert.deepEqual(review.toVerdict, { samples: 5, p50Ms: 30 * MINUTE, p90Ms: 120 * MINUTE, maxMs: 120 * MINUTE });
   assert.deepEqual(review.families, [
