@@ -177,6 +177,8 @@ test('streams and reference pages are declared unbounded, and a single long line
 
 test('inbox after a read shows nothing old: a delivered interrupt comes back only as its id [N26,R2]', async () => {
   const box = outputBudgetProject();
+  // A seat's first read starts at the board head [C7,#6152], so this seat reads once before the decision is answered.
+  assert.equal((await box.runLocal(box.web, 'inbox')).code, 0);
   // @pullboard-board-file journey: the real CLI subprocesses read this answered decision as an interrupt.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
