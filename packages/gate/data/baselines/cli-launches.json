@@ -947,26 +947,11 @@
   "apps/cli/journeys/relay/upload/status.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/release/binding.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/release/claim.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/release/focus.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/release/metadata.test.js": {
     "launch": 6
   },
   "apps/cli/journeys/release/model.test.js": {
-    "launch": 45
-  },
-  "apps/cli/journeys/release/next/untouched.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/release/returns.test.js": {
-    "launch": 3
+    "launch": 4
   },
   "apps/cli/journeys/release/size.test.js": {
     "launch": 2
