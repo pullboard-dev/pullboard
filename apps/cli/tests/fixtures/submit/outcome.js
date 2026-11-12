@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { HOST } from '../runner/ssh.js';
 import { installSshStandIn } from '../runner/ssh.js';
@@ -20,6 +21,7 @@ import { runFixtureChild } from '../child.js';
 import { runFixtureChildAsync } from '../child.js';
 import { runCliInProcess } from '../process.js';
 import { runFixtureGit } from '../child.js';
+import { waitForCondition } from '../runner/holders.js';
 import {
   createFixtureWorktree,
   fileFixtureItem,
@@ -210,8 +212,31 @@ async function remote(box) {
   return requests;
 }
 
+/**
+ * The gate document the runner posted in its receipt for the box's item, once its pulled gate job is done.
+ * Why: under pull dispatch a submit offers its gate as a job and returns; the runner's receipt carries the gate [P7,#6577].
+ *
+ * @param {object} box - The fixture box.
+ * @returns {Promise<object>}
+ */
+async function pulledGate(box) {
+  const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const read = () => {
+    // @pullboard-board-file journey: a read-only look at the gate job the real CLI and runner wrote.
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      const row = db.prepare(`SELECT step.job_step_payload AS payload FROM job JOIN job_step AS step ON step.job_step_job = job.job_id
+        AND step.job_step_name = 'receipt' WHERE job.job_kind = 'gate' AND job.job_item = ? ORDER BY step.job_step_id DESC LIMIT 1`).get(box.item);
+      return row ? JSON.parse(row.payload).receipt.gate : null;
+    } finally { db.close(); }
+  };
+  // budget: hang ceiling for the loopback runner's gate, never a speed assertion.
+  await waitForCondition(() => Boolean(read()), `#${box.item}'s pulled gate posts its receipt`, { signal: AbortSignal.timeout(180_000) });
+  return read();
+}
+
 /** Read actual profile bytes through public response paths; do not manufacture failure identity. */
 function readProfile(path) { return JSON.parse(readFileSync(path, 'utf8')); }
 
 
-export { beforeMain, remote, readProfile, cli, cliAsync, local, fixture, submittedProof, put, source };
+export { beforeMain, pulledGate, remote, readProfile, cli, cliAsync, local, fixture, submittedProof, put, source };

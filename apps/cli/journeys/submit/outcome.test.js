@@ -1,15 +1,14 @@
 /** @pullboard-test-input packages/gate/src/io/test/outcomes.js */
-/** Real private SSH worker/CLI controls exercise remote failure identity and exact main matching [V4,B3,H16]. */
+/** A real pulled gate on the loopback local runner keeps remote failure identity and exact main matching [V4,B3,H16,P7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe } from 'node:test';
 import { test } from 'node:test';
-import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { beforeMain } from '../../tests/fixtures/submit/outcome.js';
 import { cliAsync } from '../../tests/fixtures/submit/outcome.js';
 import { fixture } from '../../tests/fixtures/submit/outcome.js';
 import { readProfile } from '../../tests/fixtures/submit/outcome.js';
-import { remote } from '../../tests/fixtures/submit/outcome.js';
+import { pulledGate } from '../../tests/fixtures/submit/outcome.js';
 import { submittedProof } from '../../tests/fixtures/submit/outcome.js';
 import { SUITE_TIMING_PREFIX } from '../../../../packages/gate/index.js';
 import { timingAccountingStages } from '../../../../packages/gate/index.js';
@@ -19,19 +18,20 @@ import { accountedFailures } from '../../../../packages/landing/index.js';
 describe('a real remote submit retains the failing source file and exact main failure receipt [V4,B3,H16]', { concurrency: true }, () => {
   test('a real remote submit retains the failing source file and exact main failure receipt [V4,B3,H16]', async t => {
     const box = await fixture(t, { beforeMain: beforeMain({ phases: true }), check: 'node test/check-runner.js' });
-    const requests = await remote(box);
     const result = await cliAsync(box, box.builder, 'submit', String(box.item));
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const report = JSON.parse(result.stdout), gate = report.gate;
+    // Under pull the submit offers its gate as a job; the loopback local runner's receipt carries the gate [P7,#6577].
+    const gate = await pulledGate(box);
+    assert.ok(gate, `the runner's receipt carries the gate: ${result.stdout}`);
     assert.equal(gate.green, false, 'the inherited assertion remains red');
     assert.equal(gate.knownMainFailures.main, box.main);
     assert.deepEqual(gate.knownMainFailures.failures.map(({ file, name }) => ({ file, name })),
       [{ file: 'test/inherited.test.js', name: 'shared failure [G1]' }]);
     const phase = readProfile(gate.proofProfilePath), combined = readProfile(gate.profilePath);
-    assert.equal(phase.executionRunner, HOST);
+    assert.ok(phase.executionRunner, 'a runner executed the proof phase');
     assert.equal(phase.executionSource.commit, box.head);
     const check = readProfile(gate.check.profilePath);
-    assert.equal(check.executionRunner, HOST);
+    assert.ok(check.executionRunner, 'a runner executed the check');
     assert.equal(check.executionSource.commit, box.head);
     assert.deepEqual(combined.testOutcomes.map(({ file, name, passed }) => ({ file, name, passed })), [
       { file: 'test/check-only.test.js', name: 'criterion only pass [G1]', passed: true },
@@ -53,8 +53,6 @@ describe('a real remote submit retains the failing source file and exact main fa
     assert.equal(stages[0].pipeline[0].testOutcomeRunId, timing.id);
     assert.equal(stages[0].pipeline[1].testOutcomeRunId, null, 'a sibling cannot lend its source-bound producer');
     assert.equal(accountedFailures({ isGreen: false, stages }, box.builder), null);
-    const launched = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-    assert.ok(launched.some(row => row.workerStarted), 'the real private worker executed');
   });
 
 });
