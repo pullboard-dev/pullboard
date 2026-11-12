@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Refused } from '../../../kernel/index.js';
 import { ledgerFiles } from '../../../store/index.js';
 import { ledgerHits } from '../../../store/index.js';
+import { ledgerMainReds } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
@@ -47,7 +48,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const landed = landingItems(items);
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : [])])).digest('hex').slice(0, 16);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
-  const proof = landingProof(db, landed, config?.affectedTests);
+  const proof = landingProof(db, landed, config?.affectedTests, expect);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, needs, now,
     payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(proof ? { proof } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
@@ -55,18 +56,23 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
 /**
  * The proof a landing job runs on the merged tree, read only from the board's ledger: the test files its items' gates
  * proved, the runner command, and the ledger's hits for those files. The runner reruns only the files whose inputKey
- * at the merged tree misses, so an unrelated main move runs nothing. Null when no item has ledger rows or there is no
- * runner command, so such a landing checks as before [P7].
+ * at the merged tree misses, so an unrelated main move runs nothing. A file with a fail row at main's commit rides as
+ * `mainRed`: at main's identical inputKey it is main's red, charged to main and never run, so it holds no landing.
+ * Null when no item has ledger rows or there is no runner command, so such a landing checks as before [P7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ commit: string }[]} items
  * @param {unknown} runner the project's affectedTests command
+ * @param {string} [main] the trunk sha the items were accepted against
  * @returns {{ runner: string, files: string[], ledger: ReturnType<typeof ledgerHits> } | null}
  */
-export function landingProof(db, items, runner) {
+export function landingProof(db, items, runner, main) {
   if (typeof runner !== 'string' || !runner.trim() || /[\0\n\r]/u.test(runner)) return null;
   const files = ledgerFiles(db, items.map(entry => entry.commit));
-  return files.length ? { runner: runner.trim(), files, ledger: ledgerHits(db, files, { budget: 16_000 }) } : null;
+  if (!files.length) return null;
+  const ledger = ledgerHits(db, files, { budget: 16_000 }) ?? { contexts: [], files: [] };
+  const mainRed = main ? ledgerMainReds(db, files, main, ledger.contexts) : [];
+  return { runner: runner.trim(), files, ledger: mainRed.length ? { ...ledger, mainRed } : ledger.files.length ? ledger : null };
 }
 
 /**
