@@ -12,6 +12,8 @@ import {
   serveApi,
 } from '../../../../../packages/api/index.js';
 import { apiBoards } from '../../../../../packages/api/index.js';
+import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
+import { fileURLToPath } from 'node:url';
 import { servedTrunkPack } from '../../../../../packages/runners/index.js';
 import { performanceCores } from '../../../../../packages/gate/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
@@ -34,6 +36,8 @@ import {
 import {
   git,
 } from '../../../../../packages/git/index.js';
+import { gitChildEnv } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import {
   registerProjectAndLink,
 } from '../../../../../packages/seats/index.js';
@@ -81,13 +85,32 @@ export async function serveHere(io, values) {
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
-  await new Promise((stop) => {
-    const stopped = () => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(); };
+  // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close, command: () => sameServe(api.port) });
+  const restarted = await new Promise((stop) => {
+    const stopped = (moved) => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(moved === true); };
     process.once('SIGINT', stopped);
     process.once('SIGTERM', stopped);
+    fresh.restarted.then(() => stopped(true));
   });
-  await api.close();
+  fresh.stop();
+  if (!restarted) await api.close();
   return 0;
+}
+
+/** The checkout this CLI's code runs from. */
+const CODE_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+
+/** The commit the CLI's checkout is at, or null outside a Git checkout. */
+function codeCommit() {
+  const read = tryGit(CODE_ROOT, ['rev-parse', 'HEAD'], { env: gitChildEnv(CODE_ROOT) });
+  return read.status === 0 ? read.stdout.trim() : null;
+}
+
+/** This process's own serve command, pinned to the port it holds, so a restart answers at the same address. */
+function sameServe(port) {
+  const args = process.argv.slice(2).filter((arg, index, all) => arg !== '--port' && all[index - 1] !== '--port' && !arg.startsWith('--port='));
+  return [process.execPath, ...process.execArgv, process.argv[1], ...args, '--port', String(port)];
 }
 
 /**
