@@ -492,13 +492,16 @@ function closureBlobs(files, blobs) { return files.map(path => [path, blobs.get(
 function ranAccount(store, file) {
   const missed = file.key ? firstChangedInput(store, latestKey(store, file.path), file) : `no key: ${file.reason}`;
   if (file.key) rememberLatest(store, file.path, { key: file.key, inputKey: file.inputKey, context: file.context });
-  return { file: file.path, outcome: 'ran', key: file.key ?? null, missed };
+  return { file: file.path, outcome: 'ran', key: file.key ?? null, missed, ...ledgerKey(file) };
 }
+
+/** A keyed file's proof-ledger key parts: its inputKey and its context class, the digest of its execution context [P7]. */
+function ledgerKey(file) { return file.key ? { inputKey: file.inputKey, context: digest(file.context) } : {}; }
 
 /** A file's row when its cached green is reused; the key becomes its latest. */
 function reusedAccount(store, file) {
   rememberLatest(store, file.path, { key: file.key, inputKey: file.inputKey, context: file.context });
-  return { file: file.path, outcome: 'reused', key: file.key, missed: null };
+  return { file: file.path, outcome: 'reused', key: file.key, missed: null, ...ledgerKey(file) };
 }
 
 /**

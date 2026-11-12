@@ -63,7 +63,7 @@ function twoSeats(hours, { leases = [], lapsed = [] } = {}) {
   } finally { store.closeBoard(board); }
 }
 
-test('one session across 1h and 3h of claimed time gives its items 25% and 75% of its tokens, both marked split by time [N2]', () => {
+test('one session across 1h and 3h of claimed time gives its items 25% and 75% of its tokens, both marked split by time [N2]', async () => {
   const { cost: [a, b] } = twoSeats([1, 3]);
   assert.equal(a.inputTokens, 250);
   assert.equal(b.inputTokens, 750);
@@ -79,22 +79,22 @@ test('one session across 1h and 3h of claimed time gives its items 25% and 75% o
   assert.equal(a.outputTokens + b.outputTokens, 100);
 });
 
-test('an odd split still adds back to the session exactly [N2]', () => {
+test('an odd split still adds back to the session exactly [N2]', async () => {
   const { cost: [a, b] } = twoSeats([1, 2]);
   assert.equal(a.inputTokens + b.inputTokens, 1000);
   assert.equal(a.outputTokens + b.outputTokens, 100);
   assert.ok(a.inputTokens > 0 && b.inputTokens > a.inputTokens, 'the longer claim takes the larger share');
 });
 
-test('show prints that a shared session was split by time, not that the split is unknown [N2]', () => {
+test('show prints that a shared session was split by time, not that the split is unknown [N2]', async () => {
   const { box, items } = twoSeats([1, 3]);
-  const shown = box.run(box.repo, 'show', String(items[0]), '--detail');
+  const shown = (await box.runLocal(box.repo, 'show', String(items[0]), '--detail'));
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /usage: input 250 .*output 25, .*; split by time with a shared session/u);
   assert.doesNotMatch(shown.out, /item split unknown/u);
 });
 
-test('a claim whose lease ran out counts only to its lease, not to the session checkpoint [N2]', () => {
+test('a claim whose lease ran out counts only to its lease, not to the session checkpoint [N2]', async () => {
   // Item 1 was claimed for 1h and never released; the session checkpoint is 10h in. Item 2 held 3h.
   const { cost: [a, b] } = twoSeats([10, 3], { leases: [1 * HOUR], lapsed: [0] });
   assert.equal(a.inputTokens, 250, 'the lapsed claim weighs 1h, its lease, against 3h');

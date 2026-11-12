@@ -33,20 +33,20 @@ import {
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
 
 /** Prove an older agent worktree gets the exact commit-first instruction from its main checkout. */
-test('a worktree names its main checkout\'s uncommitted init files [I1,I2]', (t) => {
+test('a worktree names its main checkout\'s uncommitted init files [I1,I2]', async (t) => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   const oldHead = box.git(box.repo, 'rev-parse', 'HEAD');
   const worktree = join(box.root, 'old-agent-worktree');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', worktree, oldHead);
 
-  const fromWorktree = box.run(worktree, 'status');
+  const fromWorktree = (await box.runLocal(worktree, 'status'));
   assert.equal(fromWorktree.status, 1, fromWorktree.failure || fromWorktree.stderr || fromWorktree.stdout);
   assert.match(fromWorktree.stderr, /main checkout has uncommitted Pullboard setup files/u);
   assert.ok(fromWorktree.stderr.includes(`cd ${box.repo} && git add`), fromWorktree.stderr);
   for (const path of ['pullboard.json', 'SPEC.md', 'DOCTRINE.md']) assert.ok(fromWorktree.stderr.includes(path), fromWorktree.stderr);
   assert.doesNotMatch(fromWorktree.stderr, /worktree <lane>/u);
 
-  const fromMain = box.run(box.repo, 'resume', '--diagnostics');
+  const fromMain = (await box.runLocal(box.repo, 'resume', '--diagnostics'));
   assert.equal(fromMain.status, 0, fromMain.failure || fromMain.stderr || fromMain.stdout);
   assert.match(fromMain.stdout, /The person must commit Pullboard's setup files before agents can use worktrees/u);
   assert.ok(fromMain.stdout.includes(`cd ${box.repo} && git add`), fromMain.stdout);
@@ -59,14 +59,14 @@ test('a worktree names its main checkout\'s uncommitted init files [I1,I2]', (t)
  * The blueprint trial found resume blaming the person for the coordinator's own applied SPEC.md
  * and handing them a commit of every setup file.
  */
-test('resume asks the coordinator to commit an applied row file [I1,L3]', t => {
+test('resume asks the coordinator to commit an applied row file [I1,L3]', async t => {
   const PERSON_LINE = "The person must commit Pullboard's setup files before agents can use worktrees: ";
   const ROW_LINE = 'The coordinator must commit the row file spec apply changed: ';
   /** Resume's text and JSON from the main checkout, both passing, and neither naming an unrelated dirty file. */
-  const resume = (box) => {
-    const text = box.run(box.repo, 'resume', '--diagnostics');
+  const resume = async (box) => {
+    const text = (await box.runLocal(box.repo, 'resume', '--diagnostics'));
     assert.equal(text.status, 0, text.failure || text.stderr || text.stdout);
-    const json = box.run(box.repo, 'resume', '--diagnostics', '--json');
+    const json = (await box.runLocal(box.repo, 'resume', '--diagnostics', '--json'));
     assert.equal(json.status, 0, json.failure || json.stderr || json.stdout);
     const lines = text.stdout.split('\n');
     const card = JSON.parse(json.stdout);
@@ -79,14 +79,14 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', t => {
   const add = (box, files) => `cd ${box.repo} && git add -- ${files.join(' ')}`;
   const commit = (box, files) => `${add(box, files)} && git commit -q -m "docs(spec): apply row decisions" -- ${files.join(' ')}`;
   /** A board whose init files are committed, with a drafted row the person approved and the coordinator applied. */
-  const applied = () => {
+  const applied = async () => {
     const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
-    const drafted = box.run(box.repo, 'spec', 'draft', 'The person can name the project.');
+    const drafted = (await box.runLocal(box.repo, 'spec', 'draft', 'The person can name the project.'));
     assert.equal(drafted.status, 0, drafted.failure || drafted.stderr || drafted.stdout);
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     for (const args of [['spec', 'approve', 'G1'], ['spec', 'apply']]) {
-      const ran = box.run(box.repo, ...args);
+      const ran = (await box.runLocal(box.repo, ...args));
       assert.equal(ran.status, 0, ran.failure || ran.stderr || ran.stdout);
     }
     writeFileSync(join(box.repo, 'README.md'), '# Existing repository\n\nAn unrelated edit.\n');
@@ -95,30 +95,30 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', t => {
   };
 
   // Committed setup plus an applied SPEC.md: the coordinator commits it; the person is not asked.
-  const clean = applied();
-  const after = resume(clean);
+  const clean = await applied();
+  const after = (await resume(clean));
   assert.ok(after.lines.includes(`${ROW_LINE}${commit(clean, ['SPEC.md'])}`), after.lines.join('\n'));
   assert.equal(after.lines.some((line) => line.startsWith(PERSON_LINE)), false, `the person commits nothing:\n${after.lines.join('\n')}`);
   assert.match(after.card.next, /^commit the applied row file first: cd .+ && git add -- SPEC\.md && git commit .+; then /u);
   assert.deepEqual(after.card.commits, { coordinator: { files: ['SPEC.md'], command: commit(clean, ['SPEC.md']) }, person: null });
   const committed = runFixtureChild('sh', ['-c', after.card.commits.coordinator.command], { cwd: clean.repo, env: clean.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, committed.failure || committed.stderr || committed.stdout);
-  assert.deepEqual(resume(clean).card.commits, { coordinator: null, person: null }, 'the command resume names commits the row file, and only it');
+  assert.deepEqual((await resume(clean)).card.commits, { coordinator: null, person: null }, 'the command resume names commits the row file, and only it');
 
   // Uncommitted setup files: the person commits exactly those, and the coordinator is not asked.
   const fresh = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   writeFileSync(join(fresh.repo, 'notes.txt'), 'an unrelated new file\n');
-  const setup = resume(fresh);
+  const setup = (await resume(fresh));
   const initFiles = ['.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-merge-commit', '.githooks/pre-push', 'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json'];
   assert.ok(setup.lines.includes(`${PERSON_LINE}${add(fresh, initFiles)}`), setup.lines.join('\n'));
   assert.equal(setup.lines.some((line) => line.startsWith(ROW_LINE)), false, `the coordinator commits nothing:\n${setup.lines.join('\n')}`);
   assert.deepEqual(setup.card.commits, { coordinator: null, person: { files: initFiles, command: add(fresh, initFiles) } });
 
   // Both at once: each owner gets exactly its own files, and an unrelated dirty file is never setup.
-  const mixed = applied();
+  const mixed = await applied();
   const config = JSON.parse(readFileSync(join(mixed.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(mixed.repo, 'pullboard.json'), JSON.stringify({ ...config, gate: 'npm test' }, null, 2) + '\n');
-  const both = resume(mixed);
+  const both = (await resume(mixed));
   assert.ok(both.lines.includes(`${ROW_LINE}${commit(mixed, ['SPEC.md'])}`), both.lines.join('\n'));
   assert.ok(both.lines.includes(`${PERSON_LINE}${add(mixed, ['pullboard.json'])}`), both.lines.join('\n'));
   assert.deepEqual(both.card.commits, {
@@ -132,25 +132,26 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', t => {
   const keyed = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'resume@example.invalid', '-f', keyPath], { encoding: 'utf8' });
   assert.equal(keyed.status, 0, keyed.failure || keyed.stderr);
   signed.git(signed.repo, 'config', 'user.signingkey', keyPath);
-  const signer = signed.run(signed.repo, 'spec', 'signers', 'add', '--key', `${keyPath}.pub`, '--by', 'CO');
+  const signer = (await signed.runLocal(signed.repo, 'spec', 'signers', 'add', '--key', `${keyPath}.pub`, '--by', 'CO'));
   assert.equal(signer.status, 0, signer.failure || signer.stderr || signer.stdout);
   writeFileSync(join(signed.repo, 'SPEC.md'), `${readFileSync(join(signed.repo, 'SPEC.md'), 'utf8').trimEnd()}\n\n## G · Goals\n- G1 [draft, must] The person signs this row. | gate: true | signers: CO\n`);
   signed.git(signed.repo, 'add', '-A');
   signed.git(signed.repo, 'add', '-f', '--', ...['.pullboard/signers', '.pullboard/signers.initial', '.pullboard/first-commit'].filter((file) => existsSync(join(signed.repo, file))));
   signed.git(signed.repo, 'commit', '-q', '-m', 'chore: set up pullboard');
   for (const args of [['spec', 'approve', 'G1', '--by', 'CO'], ['spec', 'apply']]) {
-    const ran = signed.run(signed.repo, ...args);
+    const ran = (await signed.runLocal(signed.repo, ...args));
     assert.equal(ran.status, 0, ran.failure || ran.stderr || ran.stdout);
   }
-  const receipted = resume(signed);
+  const receipted = (await resume(signed));
   assert.deepEqual(receipted.card.commits.coordinator?.files, ['SPEC.md', '.pullboard/signoffs.jsonl'], 'the receipt spec apply appended is the coordinator\'s to commit with the row');
   assert.ok(receipted.lines.some((line) => line.startsWith('The coordinator must commit the row file spec apply changed and its sign-off receipt: ')), receipted.lines.join('\n'));
   const landed = runFixtureChild('sh', ['-c', receipted.card.commits.coordinator.command], { cwd: signed.repo, env: signed.env, encoding: 'utf8' });
   assert.equal(landed.status, 0, landed.failure || landed.stderr || landed.stdout);
   assert.equal(signed.git(signed.repo, 'cat-file', '-t', 'HEAD:.pullboard/signoffs.jsonl').trim(), 'blob', 'the printed command commits the receipt, so the next worktree or clone has it');
-  assert.deepEqual(resume(signed).card.commits, { coordinator: null, person: null }, 'nothing is left for either owner');
+  assert.deepEqual((await resume(signed)).card.commits, { coordinator: null, person: null }, 'nothing is left for either owner');
 });
 
+// Process-level cases below stay processes: they run the fixture's copied CLI at a chosen release version and changelog, which the in-process dispatcher cannot stand in for.
 test('resume says what is new once after an upgrade [N19]', t => {
   const box = releaseFixture(t, { previous: '0.8.5' });
   const otherCheckout = join(box.root, 'other-checkout');

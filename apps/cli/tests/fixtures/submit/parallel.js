@@ -59,5 +59,5 @@ export function submit(box, marker) {
   const result = box.run('submit', '1', '--json', '--infra', 'concurrent fixture checks');
   const wallMs = Date.now() - started;
   const item = JSON.parse(box.run('show', '1', '--json').out);
-  return { result, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
+  return { result, started, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
 }

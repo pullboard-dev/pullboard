@@ -378,7 +378,7 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const won = await other.cliAt(otherPath, 'claim', String(contested));
   assert.equal(won.code, 0, won.failure);
 
-  const synced = await box.cli('status');
+  const synced = await box.cliLocal('status');
   assert.equal(synced.code, 0, synced.failure);
   const [refused] = synced.document.relay.outboxRefusals ?? [];
   assert.ok(refused, 'the later claim is refused when it replays');

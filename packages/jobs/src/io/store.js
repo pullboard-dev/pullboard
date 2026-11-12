@@ -124,6 +124,23 @@ export function writeStep(db, job, name, payload = {}, { seq = 0, now = Date.now
 }
 
 /**
+ * Record a runner's progress for one attempt: the first post inserts the step, a later post for the same attempt replaces it.
+ *
+ * Why: progress is a live reading, so the newest post wins; this lives here because the jobs store owns job_step.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {number} attempt
+ * @param {string} text - The progress JSON, already validated.
+ * @param {number} now
+ * @returns {void}
+ */
+export function upsertProgressStep(db, job, attempt, text, now) {
+  db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'progress', ?, ?, ?)
+    ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, attempt, text, now);
+}
+
+/**
  * The job and its steps, with the current step being the last one written; null when the job does not exist.
  *
  * @param {import('node:sqlite').DatabaseSync} db
