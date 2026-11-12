@@ -206,7 +206,6 @@
     "view": {
       "owns": [
         "apps/view/",
-        "packages/codemap/data/plan/45-app-view.json",
         "apps/cli/journeys/shout/journeys.test.js",
         "apps/cli/journeys/shout/journeys/",
         "apps/cli/journeys/agents/actors.test.js",
