@@ -15,6 +15,9 @@ import { serveOnce } from '../../tests/fixtures/pull.js';
 import { submitOne } from '../../tests/fixtures/pull.js';
 import { TOOLING } from '../../tests/fixtures/pull.js';
 
+/** The host session's shell: a POSIX sh, never node or the CLI. */
+const SHELL = '/bin/sh';
+
 /**
  * The submitting host's processes: every live process whose command line names the project sandbox, plus the extra
  * pids given, leaving out the runner's process trees (whose command lines name the runner's own home) and this test.
@@ -37,7 +40,7 @@ async t => {
   const { folder, commit } = submitOne(box, id);
   // A session stays alive on the submitting host, in the seat's folder, as a dev box's agent would; it names the folder so the sweep finds it.
   // A shell loop, not a node child: the folder is its $0, and the one-second sleeps it leaves when killed end on their own.
-  const waiter = spawn('/bin/sh', ['-c', 'while :; do sleep 1; done', folder], { cwd: folder, env: box.env, stdio: 'ignore' });
+  const waiter = spawn(SHELL, ['-c', 'while :; do sleep 1; done', folder], { cwd: folder, env: box.env, stdio: 'ignore' });
   const waiterGone = new Promise(done => waiter.once('exit', (code, signal) => done(signal)));
   t.after(() => { if (waiter.exitCode === null && waiter.signalCode === null) waiter.kill('SIGKILL'); });
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
