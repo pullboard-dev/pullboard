@@ -50,6 +50,7 @@ test('remote flaky case [C7]', () => { const n = existsSync(${JSON.stringify(run
   installSshStandIn({ bin: fixtureBin, worker, home: remoteHome, machineHome: remoteMachineHome,
     requests: join(box.dir, 'requests.jsonl'), nodeOptions: '--import=' + pathToFileURL(preload).href, hold });
   assert.equal(cli(repo, env, 'settings', 'gateSlots', '1', '--json').status, 0);
+  assert.equal(cli(repo, env, 'settings', 'gate.runnerDispatch', 'controller', '--json').status, 0);
   const registered = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(registered.status, 0, registered.context);
   const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME };

@@ -72,7 +72,7 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.dir, 'runner-requests.jsonl') });
   const registered = (await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1'));
   assert.equal(registered.code, 0, registered.err || registered.out);
-  for (const [key, value] of [['gate.runnersFirst', 'on'], ['gate.loadAwareDispatch', 'off'], ['browserSlots', '0'], ['gateSlots', '0']]) {
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['gate.loadAwareDispatch', 'off'], ['browserSlots', '0'], ['gateSlots', '0'], ['gate.runnerDispatch', 'controller']]) {
     const configured = (await box.runLocal(box.repo, 'settings', key, value));
     assert.equal(configured.code, 0, configured.err || configured.out);
   }
