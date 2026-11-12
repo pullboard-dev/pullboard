@@ -656,6 +656,15 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
       'the shouts gain one rule, Yesterday, above what is no longer today');
     assert.equal(renamed.untopped, false, 'no shout run is left without its day');
     await chrome.stable('(() => { window.Date = Object.getPrototypeOf(window.Date); return true; })()');
+    // Back on Items, where the control was written, count again from a quiet page.
+    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("!!document.querySelector('[data-oldest=open]')");
+    await chrome.stable(`(() => {
+      window.__redraws = 0;
+      window.__kept = [...document.querySelectorAll('#tabs .tab, #proof-stats-summary, #chain > li, [data-oldest]')];
+      window.__scroll = [scrollX, scrollY];
+      return true;
+    })()`);
     // A changed board still redraws, once: the page's own stream catch-up and a further read together draw it once.
     box.run(alpha.repo, 'shout', 'person', 'refresh redraw control');
     await chrome.waitFor("data.project.shouts.some((shout) => shout.shout_text === 'refresh redraw control')");
