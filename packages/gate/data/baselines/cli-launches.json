@@ -1068,7 +1068,7 @@
     "launch": 1
   },
   "apps/cli/journeys/resume/coordinator.test.js": {
-    "launch": 21
+    "launch": 1
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
     "launch": 27
