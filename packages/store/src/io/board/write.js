@@ -22,7 +22,8 @@ const PREPARATIONS = Object.freeze({
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
   reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
   // A verdict on work whose gate has no captured receipt is refused before any write transaction opens (#5561).
-  verify: (board, args) => { refuseUnreceiptedVerdict(board, args[0]); return args; },
+  // Its slow evidence reads (every item, the quarantine proof's runs) run here too, and the writer re-checks only what it writes (#5576).
+  verify: (board, args) => { refuseUnreceiptedVerdict(board, args[0]); return prepareVerdictEvidence(board, args); },
   // Gate-run and flake writes read every earlier run; read them here so the writer reads only the runs since (#2294).
   recordGateRun: (board, args) => { warmHistories(board); return args; },
   recordFlakeObservation: (board, args) => { warmHistories(board); return args; },
@@ -36,6 +37,15 @@ function refuseUnreceiptedVerdict(board, id) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_GATE_RECEIPT_ENGINE) return;
   const problem = store.gateReceiptProblem(board, store.getItem(board, id) ?? {});
   if (problem) throw problem;
+}
+
+/** Run a verdict's evidence checks with no lock held and mark the options so the writer skips the slow reads. */
+export function prepareVerdictEvidence(board, args) {
+  const [id, options] = args;
+  if (!options || (options.knownMainFailures === undefined && options.quarantineProofId === undefined)) return args;
+  store.verdictEvidence(board, id, { agentId: options.agentId, isAccept: options.decision === 'ACCEPT', engine: board.executionEngineVersion ?? ENGINE_VERSION,
+    review: options.review, knownMainFailures: options.knownMainFailures, quarantineProofId: options.quarantineProofId });
+  return [id, { ...options, prechecked: true }, ...args.slice(2)];
 }
 
 /** Read the shared gate-run and flake histories with no lock held. */
