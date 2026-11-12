@@ -107,7 +107,7 @@ export function assertParallelLanding({ landProject, itemWorktree, submitItem, a
     delete box.env.LAND_SUPPRESS_RED;
     writeFileSync(observed.armed, 'armed');
     const result = runBatch(box, enabled);
-    assert.deepEqual(result.landed, [entries[0].item, entries[2].item], 'green A and independent C land while B is returned');
+    assert.deepEqual(result.landed, [entries[0].item, entries[2].item], `green A and independent C land while B is returned: ${JSON.stringify(result).slice(0, 1500)}`);
     assert.deepEqual(result.culprits.map(row => row.id), [entries[1].item]);
     assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_status, 'open');
     assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
