@@ -44,10 +44,8 @@ function hung(reason, wall = false) {
   killed = true;
   const name = tests.size ? [...tests.values()].join('; ') : '<file setup or cleanup>';
   if (wall) {
-    // Past even the load-scaled wall: a TIMEOUT that names the slowest case still running, not a plain failure.
-    const [slowest] = [...startedAt].sort((a, b) => a[1] - b[1]);
-    const running = slowest ? `${tests.get(slowest[0])} (running ${Math.round(performance.now() - slowest[1])}ms)` : name;
-    writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case ${JSON.stringify(running)}: ${reason}; finished cases ${finishedSummary()}\n`);
+    // Past even the load-scaled wall a running case is bounded by its own deadline, so only file setup or cleanup is left to name.
+    writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case "<file setup or cleanup>": ${reason}; finished cases ${finishedSummary()}\n`);
     void killTree();
     return;
   }

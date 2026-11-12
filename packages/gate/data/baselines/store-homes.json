@@ -407,20 +407,11 @@
   "packages/landing/src/io/computed/conflict/return.js": {
     "board.sqlite": 1
   },
-  "packages/landing/src/io/history.js": {
-    "cells.json": 1
-  },
   "packages/landing/src/io/host.js": {
     "board.sqlite": 1
   },
   "packages/landing/src/io/main/red.js": {
     "pullboard.json": 1
-  },
-  "packages/landing/src/io/plan/check.js": {
-    "cells.json": 2
-  },
-  "packages/landing/src/io/scan.js": {
-    "cells.json": 1
   },
   "packages/landing/src/io/smoke.js": {
     "settings.json": 1,
