@@ -79,6 +79,7 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
   if (payload !== null && Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_BYTES) throw new Refused('JOB_PAYLOAD', `a job payload is at most ${PAYLOAD_BYTES} bytes; name commits and refs, and let the runner fetch the code from git`);
   if (request !== null && (typeof request !== 'object' || Array.isArray(request) || Buffer.byteLength(JSON.stringify(request)) > REQUEST_BYTES)) {
+    if (process.env.MS49_DEBUG) { const d = request?.input?.data ?? {}; process.stderr.write(JSON.stringify(Object.fromEntries(Object.entries({ ...request, input: undefined, ...d, analysis: undefined, ...(d.analysis ?? {}) }).map(([k, v]) => [k, JSON.stringify(v ?? null).length]).sort((a, b) => b[1] - a[1]).slice(0, 8))) + '\n'); }
     throw new Refused('JOB_REQUEST', `a job request is a JSON object of at most ${REQUEST_BYTES} bytes; keep large inputs in git and name them`);
   }
   return atomically(db, () => {
