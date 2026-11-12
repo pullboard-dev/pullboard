@@ -1091,17 +1091,11 @@
   "apps/cli/journeys/resume/tour.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/rigor/auto.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/rigor/broadcasts.test.js": {
+  "apps/cli/journeys/rigor/checks.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/rigor/checks.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/rigor/main.test.js": {
-    "launch": 31
+    "launch": 4
   },
   "apps/cli/journeys/rigor/view.test.js": {
     "launch": 3
