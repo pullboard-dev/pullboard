@@ -496,6 +496,8 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/sandbox/tests/privacy/guard.test.js',
     'packages/gate/tests/logic/wait.test.js',
     'packages/gate/tests/io/test/waits.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
     'packages/gate/tests/io/test/launches.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
