@@ -34,10 +34,16 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
   if (waiveProof !== undefined && !waiver) throw new Refused('WAIVE_PROOF_REASON', 'a proof waiver names why: --waive-proof "<why>"');
   atomic(board, () => {
     const item = itemById(board, id);
+    // A second merge writes nothing for the same commit and refuses for another, so a landing is recorded once.
+    if (item.item_merged_commit) {
+      if (item.item_merged_commit === commit) return;
+      throw new Refused('ALREADY_MERGED', `item #${id} was merged as ${item.item_merged_commit}; it cannot be merged again as ${commit}`);
+    }
     const tip = item.item_commit ?? null;
-    const receipts = reason && tip ? proofReceipts(board, id).filter(run => run.commit === tip && !(run.exitCode > 0)).map(run => run.id) : [];
-    if (reason && tip && !receipts.length && !waiver) {
-      throw new Refused('FORCED_NO_PROOF', `no passing receipt covers item #${id}'s tip ${tip.slice(0, 12)}; run its check there, or record the landing with --waive-proof "<why>"`);
+    // Only a passing run (exit code 0) for this exact tip is proof; a forced merge with none needs --waive-proof [#4742].
+    const receipts = reason && tip ? proofReceipts(board, id).filter(run => run.commit === tip && run.exitCode === 0).map(run => run.id) : [];
+    if (reason && !receipts.length && !waiver) {
+      throw new Refused('FORCED_NO_PROOF', `no passing receipt covers item #${id}'s tip ${tip ? tip.slice(0, 12) : '(none recorded)'}; run its check there, or record the landing with --waive-proof "<why>"`);
     }
     if (!reason && item.item_status !== 'verified') {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);

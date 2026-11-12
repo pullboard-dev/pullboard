@@ -50,3 +50,15 @@ test('clause 2: with a receipt the merged event carries the receipt ids, the lan
   const [event] = merges(board, id);
   assert.deepEqual([event.receipts, event.commit, event.itemTip, event.forced], [['good-proof'], LANDED, TIP, true]);
 });
+
+test('clause 1: a missing tip or a receipt with no exit code is not proof [C7,#4742]', t => {
+  const { board, builder, id } = submittedItem(t);
+  store.logEvent(board, builder, 'proof-run', id, { receipt: { id: 'unknown-exit', kind: 'submit', item: id, commit: TIP } });
+  assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: LANDED, forced: 'landed by hand' }),
+    error => error.code === 'FORCED_NO_PROOF', 'a receipt without an exit code does not count');
+  board.db.prepare('UPDATE item SET item_commit = NULL WHERE item_id = ?').run(id);
+  assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: LANDED, forced: 'landed by hand' }),
+    error => error.code === 'FORCED_NO_PROOF', 'an item with no recorded tip is refused too');
+  store.merged(board, id, { agentId: 'coordinator', commit: LANDED, forced: 'landed by hand', waiveProof: 'no tip recorded' });
+  assert.equal(merges(board, id)[0].waivedProof, 'no tip recorded');
+});

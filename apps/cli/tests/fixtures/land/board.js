@@ -9,6 +9,7 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { startFixtureChild } from '../child.js';
@@ -49,6 +50,19 @@ export function childOutcome(child) {
     child.once('error', (error) => { spawnError = error; });
     child.once('close', (code, signal) => resolveOutcome({ code, signal, error: spawnError }));
   });
+}
+
+/**
+ * Put a private board into rollback-journal mode while no process has it open.
+ * Why: SQLite refuses to leave WAL while any connection is open, so an exclusive writer started after a hook has opened the board
+ * could never take its lock; converting first lets the later writer's own journal pragma be a no-op.
+ */
+export function useRollbackJournal(boardFile) {
+  const db = new DatabaseSync(boardFile);
+  try {
+    const journal = db.prepare('PRAGMA journal_mode = DELETE').get().journal_mode;
+    assert.equal(journal, 'delete', 'the private board leaves WAL before any hook opens it');
+  } finally { db.close(); }
 }
 
 /** Start a separate process holding an exclusive write transaction on the fixture board. */
