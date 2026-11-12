@@ -195,8 +195,7 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
 export function apiHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
-  // A controller gate a submit started may still write .git/pullboard; retry rather than race it [P7].
-  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
