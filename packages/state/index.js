@@ -197,5 +197,6 @@ export { REJECT_OPEN_ENGINE } from './src/logic/engines/reject-open-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from './src/logic/engines/clause-evidence-engine.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/logic/evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
+export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export { INFRA_RELEASE_ENGINE } from './src/logic/engines/infra-release-engine.js';

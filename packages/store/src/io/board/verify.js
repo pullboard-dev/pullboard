@@ -1,4 +1,6 @@
 import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
+import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
+import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
 import { rejectionClauseDetail } from "../../../../verify/index.js";
@@ -10,6 +12,7 @@ import { outsideSandboxProblem } from "../../../../items/index.js";
 import { outsideSource } from "../../../../items/index.js";
 import { saveOutsideSource } from "../../../../items/index.js";
 import { current } from "./query.js";
+import { events } from "./query.js";
 import { getItem } from "./query.js";
 import { listItems } from "./query.js";
 import { requireKnownMainReworks } from '../../logic/known/main/reworks.js';
@@ -67,12 +70,13 @@ import { endReviewLease } from './review/lease.js';
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (landed === true) return landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine });
   if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
   board.nativePorts.landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
@@ -158,5 +162,38 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (!isAccept) postRigorNotices(board, trigger);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
+  });
+}
+
+/**
+ * Record a verdict on an item a forced merge landed around the gate with no review (V1).
+ * An accept is recorded as a verdict and the landing stays: the item keeps its status and merged commit.
+ * Why: hand landings had no second look, and verify refused them as not submitted [V1,H16].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, isAccept: boolean, decision: string, code: string, reason?: string, note: string, policy: string, familyPolicy: string, engine: number }} verdict
+ * @returns {{ decision: string, reason: string }}
+ */
+function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine }) {
+  if (engine < LANDED_VERDICT_ENGINE) throw new Refused('ENGINE_VERSION', `a verdict on a forced landing requires engine ${LANDED_VERDICT_ENGINE}; upgrade Pullboard before recording one`);
+  if (!isAccept) throw new Refused('NOT_SUBMITTED', `item #${id} already landed; only an accept is recorded on a forced landing`);
+  const suppliedNote = note.trim();
+  return atomic(board, () => {
+    const found = getItem(board, id);
+    const forced = found && found.item_merged_commit && found.item_status === 'withdrawn'
+      && events(board, { itemId: id }).some(event => event.event_kind === 'merged' && JSON.parse(event.event_detail || '{}').forced === true);
+    if (!forced) throw new Refused('NOT_LANDED', `item #${id} is ${found?.item_status}, not landed by a forced merge: pullboard show ${id}`);
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy });
+    for (const guard of ['notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree']) {
+      const refusal = checks[guard](found);
+      if (refusal) throw refusal;
+    }
+    if (reason && reason !== ACCEPT_REASON) throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);
+    if (!suppliedNote) throw new Refused('PROOF_REQUIRED', 'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof');
+    recordVerdict(board, { ...found, item_commit: found.item_commit ?? found.item_merged_commit }, { agentId, decision, reason: code, note, digest: found.item_frozen_digest ?? '', head: found.item_merged_commit });
+    setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
+    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote });
+    return { decision, reason: code };
   });
 }
