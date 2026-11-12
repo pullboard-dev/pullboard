@@ -252,7 +252,7 @@ async function intakeFixture(t) {
     assert.equal(result.code, 0, result.err + result.out);
     return JSON.parse(result.out);
   };
-  const item = fixtureAdd(run, box.repo, 'web', 'Patch intake case', '--specs', 'G1').item.item_id;
+  const item = (await fixtureAdd(run, box.repo, 'web', 'Patch intake case', '--specs', 'G1')).item.item_id;
   const author = (await run(box.web, 'whoami')).id;
   await run(box.web, 'claim', String(item));
   const source = box.git(box.web, 'rev-parse', 'HEAD');
