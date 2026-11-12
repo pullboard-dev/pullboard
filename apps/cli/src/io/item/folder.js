@@ -25,6 +25,8 @@ import { writeItemMarker } from './folder/identity.js';
 export { itemFolderIdentity, itemFolderPath } from './folder/identity.js';
 import { itemFolderPath } from './folder/identity.js';
 import { seatRoot } from './folder/identity.js';
+import { prepareSpareFolder } from './folder/spare.js';
+import { takeSpareFolder } from './folder/spare.js';
 import { itemFolderRunner } from '../commands/runner.js';
 import { openHostedItemFolder } from '../commands/runner.js';
 
@@ -415,7 +417,12 @@ async function openFolder(ctx, me, id, options = {}) {
     writeItemMarker(path, me.id, id);
     return path;
   }
-  git(root, [...parallelCheckout(root), ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunkBranch(root)])]);
+  // A prepared spare is moved into place and switched to the branch; only without one is every file written (#5776).
+  const seat = seatRoot(ctx, options.board, me), workers = parallelCheckout(root), trunk = trunkBranch(root);
+  if (!takeSpareFolder(root, seat, path, [...workers, ...(exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunk])])) {
+    git(root, [...workers, ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunk])]);
+  }
   writeItemMarker(path, me.id, id);
+  await prepareSpareFolder(root, seat, trunk, workers);
   return path;
 }
