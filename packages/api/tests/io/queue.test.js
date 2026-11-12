@@ -53,6 +53,18 @@ test('clause 2: a lapsed lease returns the job and the next claim takes it, with
   assert.equal(withFresh(db => offerJob(db, { id: 'shard:9', kind: 'shard', needs: ['node22'], now: lapsed + 4 })).attempt, 3, 'a repeated offer leaves a held job as it is');
 });
 
+test('#6546: a release records its reason and backs off per attempt, and the current claim renews a lapsed lease no one took [C7]', t => {
+  const db = boardWith(t);
+  offerJob(db, { id: 'land:7', kind: 'land', now: 1 });
+  const first = jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now: 10 }).claim;
+  const lapsed = 10 + LEASE_MS + 5;
+  assert.deepEqual(jobQueueCall(db, { action: 'renew', job: 'land:7', runner: 'r-a', token: first.token }, { mode: 'pull', now: lapsed }), { renewed: true, leaseUntil: lapsed + LEASE_MS });
+  assert.deepEqual(jobQueueCall(db, { action: 'release', job: 'land:7', runner: 'r-a', token: first.token, reason: 'fetch threw' }, { mode: 'pull', now: lapsed }), { released: true, until: lapsed + 30_000 });
+  assert.equal(jobView(db, 'land:7').steps.find(step => step.name === 'released').payload.reason, 'fetch threw');
+  assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 29_999 }), null, 'not offered within the backoff');
+  assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 30_000 }).attempt, 2);
+});
+
 test('clause 3: a receipt is recorded under its job only with the current claim token, and a repeat returns the stored one [P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:2', kind: 'gate', now: 1 });
