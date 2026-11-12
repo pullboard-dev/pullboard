@@ -22,5 +22,10 @@
   "vendorClasses": [
     { "match": "anthropic|claude|opus|sonnet|haiku", "class": "anthropic" },
     { "match": "openai|gpt|codex|^o\\d", "class": "openai" }
+    ],
+  "labels": [
+    { "match": "^gpt[- ]6[.]1[- ]sol$", "label": "GPT-6.1 Sol" },
+    { "match": "^(?:claude[- ]?)?opus[- ]5[.]5$", "label": "Claude Opus 5.5" },
+    { "match": "^codex$", "label": "Codex" }
   ]
 }

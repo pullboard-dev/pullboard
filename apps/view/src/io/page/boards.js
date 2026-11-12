@@ -1,3 +1,4 @@
+import { modelLabelRules } from "../cost/tab.js";
 /**
  * Read the private board's cost event history once per board state sequence.
  * This function is serialized into the private page script and uses its page-local state.
@@ -47,6 +48,7 @@ function costPaneHtml(history, project) {
   return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses });
 }` : '';
 return `${privateCostSource}
+const modelLabelRules = ${JSON.stringify(modelLabelRules())};
 
 /** Whether a selected project is backed by the read-only relay transport. */
 function relayProject(root = view.root) {
