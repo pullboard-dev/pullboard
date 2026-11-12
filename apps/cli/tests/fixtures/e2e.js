@@ -5,6 +5,7 @@ import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
+import { runCliInProcess } from './process.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -109,7 +110,8 @@ function sandbox({ declareFamilies = false } = {}) {
     declaredFamilies.set(cwd, value);
     return value;
   };
-  const run = (cwd, ...args) => {
+  /** Apply the fixture's join family and default routes to one argv, as every box call does. */
+  const prepare = (cwd, args) => {
     if (declareFamilies && args[0] === 'join') {
       const familyFlag = args.findIndex(arg => arg === '--family' || arg.startsWith('--family='));
       if (familyFlag >= 0) declareFamily(cwd, args[familyFlag].startsWith('--family=') ? args[familyFlag].slice(9) : args[familyFlag + 1]);
@@ -120,10 +122,19 @@ function sandbox({ declareFamilies = false } = {}) {
       fixtureJoinRoute(args, env.PULLBOARD_MODEL);
       fixtureAddRoute(args);
     }
+  };
+  const run = (cwd, ...args) => {
+    prepare(cwd, args);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  return { dir, env, git, tryGit, run, declareFamilies, declareFamily };
+  /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
+  const inProcess = async (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = await runCliInProcess(args, { cwd, env });
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
+  };
+  return { dir, env, git, tryGit, run, inProcess, declareFamilies, declareFamily };
 }
 
 const CONFIG = {

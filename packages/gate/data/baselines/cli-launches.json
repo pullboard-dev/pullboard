@@ -11,14 +11,11 @@
   "apps/cli/journeys/agents/actors.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/agents/independence.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/agents/main.test.js": {
     "launch": 28
   },
   "apps/cli/journeys/agents/session.test.js": {
-    "launch": 43
+    "launch": 1
   },
   "apps/cli/journeys/badge/main.test.js": {
     "launch": 1
