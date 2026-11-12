@@ -106,7 +106,7 @@
   "apps/cli/journeys/shout/fixture.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/withdraw/items.test.js": {
+  "apps/cli/journeys/withdraw/items/toolbar.test.js": {
     "sleep": 1
   },
   "apps/cli/tests/fixtures/cockpit/journey/routes.js": {
