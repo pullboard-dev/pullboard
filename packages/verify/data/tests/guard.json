@@ -35,6 +35,7 @@
     "apps/cli/journeys/land/main.test.js",
     "apps/cli/journeys/land/waivers.test.js",
     "apps/cli/journeys/land/adoption.test.js",
+    "apps/cli/journeys/land/waiver-expired.test.js",
     "apps/cli/journeys/land/waiverlegacy.test.js",
     "apps/cli/journeys/land/replay.test.js",
     "apps/cli/journeys/land/push.test.js",
