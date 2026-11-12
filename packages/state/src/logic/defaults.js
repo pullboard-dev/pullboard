@@ -39,6 +39,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_MAIN_MOVED: 'run pullboard resume so landing restarts from the new main tip',
   LAND_RUNNER: 'start landing through the CLI (pullboard resume), which supplies its in-process batch runner',
   LAND_NO_RUNNER: 'set trunk.remote in pullboard.json to the trunk\'s git URL, then retry the forced landing',
+  GATE_NOT_WAITING: 'nothing to withdraw: pullboard show <id> prints its gate state',
+  REVIEW_EARLIER_HOLDER: 'ask a seat that never claimed, built or released this item: pullboard next --verify',
   TRUNK_PACK_NOT_AVAILABLE: 'this board serves no trunk packs; fetch the commit from the trunk remote',
   DRIVE_OWNER: 'pass a driver id as { owner } to the drive call so the lease has a holder',
   SUBMIT_HANDOFF_STOPPED: 'no action needed: the next gate driver resumes the job; run pullboard next to see it',
