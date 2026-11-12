@@ -185,6 +185,23 @@ export function runnerDispatchMode() {
 }
 
 /**
+ * Pin one machine home's gate dispatch to the controller, so a demo with no runner gates where it runs.
+ * Why: the pull default leaves a submit queued for a runner a throwaway tour never has [N10].
+ * @param {string} machineHome - The throwaway machine home to write, not the caller's.
+ */
+export function pinControllerDispatch(machineHome) {
+  const caller = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = machineHome;
+  try {
+    const file = machineSettingsFile();
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    writeFileSync(file, `${JSON.stringify({ gate: { runnerDispatch: 'controller' } }, null, 2)}\n`, { mode: 0o600 });
+  } finally {
+    if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
+  }
+}
+
+/**
  * The pull-gate pilot from gate.pullPilot: the items named, and the percentage of other items, whose submits take the
  * pull gate while gate.runnerDispatch stays controller [P7]. Absent or empty, the pilot is off.
  * @returns {{ items: number[], share: number }}
