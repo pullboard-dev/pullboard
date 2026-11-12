@@ -28,6 +28,7 @@ import { totalmem } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
 import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
@@ -37,6 +38,9 @@ import { pruneStaleSlots } from './prune.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
+// Budget: a renewal that could not reach the board tries again every 3 s until the 2-minute lease has really ended, not at the next 30 s tick.
+const RENEW_RETRY_MS = 3_000;
+const LEASE_MS = 120_000;
 // Budget: the first retry after a failed board call waits 1 s, doubling to at most a minute between tries.
 const BACKOFF = { firstMs: 1_000, maxMs: 60_000 };
 // Budget: an idle runner asks for work every 2 s, one small POST to the board.
@@ -71,8 +75,10 @@ class Refused extends Error {
 
 /** A board call that never reached a board answer: the network, a proxy or a board restart. It is a wait, not a refusal. */
 class BoardUnreachable extends Error {
-  constructor(cause) { super(`board unreachable: ${cause?.message ?? cause}`); this.code = 'BOARD_UNREACHABLE'; }
+  constructor(cause) { super(`board unreachable: ${cause?.message ?? cause}`); this.code = 'BOARD_UNREACHABLE'; this.network = cause instanceof Error; }
 }
+/** Network failures in a row before the runner logs its unreachable hint; one blip stays quiet. */
+const HINT_AFTER = 3;
 
 /**
  * Split a board URL into its jobs endpoint and key. The URL is the board's API address,
@@ -331,7 +337,7 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]
  */
 export function jobEnvironment(cache, name, job, host = process.env) {
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
-  rmSync(folder, { recursive: true, force: true });
+  try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
   for (const path of [home, temporary]) mkdirSync(path, { recursive: true, mode: 0o700 });
   const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
   const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
@@ -511,11 +517,12 @@ function gateReceipt(result, commit, durationMs) {
 /**
  * Whether a machine under this load takes another job: its one-minute load is under `share` of its cores [P7].
  * Why: with no runners the machine runs its own gates, and a job taken at any load thrashed a busy Mac; the row waits in the queue instead.
+ * A runner with no job running still takes one at any load, so a person on one busy machine always gets their gate [P7].
  *
- * @param {{ load: number, cores: number, share: number }} machine
+ * @param {{ load: number, cores: number, share: number, running?: number }} machine - running: jobs this runner holds now; default 1.
  */
-export function localLoadAdmits({ load, cores, share }) {
-  return load < share * cores;
+export function localLoadAdmits({ load, cores, share, running = 1 }) {
+  return running === 0 || load < share * cores;
 }
 
 /**
@@ -532,25 +539,28 @@ export function localLoadAdmits({ load, cores, share }) {
  * @param {number | string} [options.jobs] - How many jobs run at once; default PULLBOARD_RUNNER_JOBS, else serveSlots().
  * @param {number} [options.cores] - This runner's cores, shared out between its jobs; default availableParallelism().
  * @param {AbortSignal} [options.signal]
- * @param {() => boolean} [options.admit] - Asked before each claim; false leaves the queue untouched and tries again after the idle wait.
+ * @param {(state: { running: number }) => boolean} [options.admit] - Asked before each claim, with the jobs it holds now; false leaves the queue untouched and tries again after the idle wait.
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
- * @param {{ renewMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
+ * @param {string} [options.unreachableHint] - Logged once a streak of network failures reaches HINT_AFTER: the likely
+ *   cause on this host and its fix, so an installed service never retries silently.
+ * @param {{ renewMs?: number, renewRetryMs?: number, leaseMs?: number, idleMs?: number, firstMs?: number, maxMs?: number, ceilingMs?: number, reapMs?: number, progressMs?: number }} [options.timing] - progressMs: how often a run's test progress is posted.
  * @param {Record<string, (claim: object, tools: { cache: string, renew: () => Promise<boolean>, env: Record<string, string> }) => Promise<object>>} [options.handlers] - Jobs
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job. Its cache is the
  *   slot's own folder, the serve's cache for slot 0.
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
-  const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
+  const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
   // Each job's test run takes only its share of the cores, so the serve's jobs together never oversubscribe the runner (#5919).
   const workers = jobWorkers(slots, cores);
@@ -569,12 +579,19 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     try { const done = pruneRunnerStores({ root: dirname(cache), cache, live: liveEnvironments }); if (done.removed.length) say(`pruned ${done.removed.length} old folder(s)`); } catch { /* Pruning is best effort. */ }
   };
   /** Wait out an unreachable board, longer each time in a row, and note the wait. */
-  const backoff = async error => { say(`${error.message}; retrying in ${delay} ms`); waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs); };
+  let failures = 0;
+  const backoff = async error => {
+    say(`${error.message}; retrying in ${delay} ms`);
+    // A board no request reaches, again and again, is likely blocked on this host: say once per streak what to fix.
+    failures = error.network ? failures + 1 : 0;
+    if (unreachableHint && failures === HINT_AFTER) say(`board still unreachable after ${failures} tries; likely cause: ${unreachableHint}`);
+    waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs);
+  };
   /** Call the board until it answers; only the board's own refusal ends the call. */
   const reliably = async body => {
     for (;;) {
       if (signal?.aborted) throw new Refused('RUNNER_STOPPED', 'the runner was stopped');
-      try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; return answer; }
+      try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; failures = 0; return answer; }
       catch (error) { if (!(error instanceof BoardUnreachable)) throw error; await backoff(error); }
     }
   };
@@ -616,17 +633,24 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
-    let lost = false, onLost = () => {};
-    const renewer = setInterval(() => {
+    let lost = false, onLost = () => {}, renewedAt = Date.now(), timer = null, ended = false;
+    const lose = () => { lost = true; onLost(); };
+    // A renewal the board never answered, or answered with its own restart trouble, retries every few seconds until the lease has ended.
+    const renewOnce = () => {
+      if (ended || lost) return;
       queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
-        if (renewed.renewed === false) { lost = true; onLost(); }
+        if (renewed.renewed === false) { lose(); return; }
+        renewedAt = Date.now(); timer = setTimeout(renewOnce, renewMs);
       }, error => {
-        if (error instanceof BoardUnreachable) { say(`renewal skipped: ${error.message}`); return; }
-        lost = true; onLost();
+        if (error instanceof Refused && error.code === 'JOB_LEASE_MOVED') { lose(); return; }
+        if (Date.now() - renewedAt >= leaseMs) { say(`renewal failed past the lease: ${error.message}`); lose(); return; }
+        say(`renewal skipped: ${error.message}`); timer = setTimeout(renewOnce, renewRetryMs);
       });
-    }, renewMs);
+    };
+    timer = setTimeout(renewOnce, renewMs);
+    const renewer = { stop: () => { ended = true; clearTimeout(timer); } };
     try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }); }
-    finally { clearInterval(renewer); }
+    finally { renewer.stop(); }
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost) => {
@@ -667,7 +691,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
       post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
-    const env = { ...job.env, [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(workers), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    // The gate bootstrap judges a project whose main is not Pullboard's tree with this runner's own install (#6265).
+    const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: fileURLToPath(new URL('../../../../', import.meta.url)), [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(workers), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
@@ -682,7 +707,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const survivors = await reapJob(claim.job, running.pid, { claim: tag, graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
-    rmSync(job.folder, { recursive: true, force: true });
+    // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
+    try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
@@ -714,7 +740,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   while (!signal?.aborted && !failure) {
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
-    if (!admit()) {
+    if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([sleep(idleMs), ...active]); continue;
     }
