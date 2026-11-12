@@ -622,7 +622,7 @@ if (process.argv[1] === ${JSON.stringify(workerTest)}) {
   const original = childProcess.execFileSync;
   let injected = false;
   childProcess.execFileSync = (command, args, options) => {
-    if (!injected && command === 'ps' && args?.[0] === '-axo') {
+    if (!injected && command === 'ps' && (args?.[0] === '-axo' || args?.[0] === '-o')) {
       injected = true;
       writeFileSync(${JSON.stringify(injected)}, JSON.stringify({ stack: new Error().stack }));
       const error = new Error('injected later spawn snapshot failure');
