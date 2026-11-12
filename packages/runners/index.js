@@ -15,6 +15,7 @@ export { enqueueRunnerJob, uploadRunnerPack, fetchRunnerFile } from "./src/io/pu
 export { enqueueScript, packScript, fetchScript, statusScript } from "./src/io/pull/scripts.js";
 export { runnerStatusDir, runnerSshArgs, runRunnerScript } from "./src/io/pull/ssh.js";
 export { readRunnerCapacities } from "./src/io/capacity.js";
+export { readPulledCapacity, SERVE_RECENT_MS } from "./src/io/pulled.js";
 export { runnerUtilization, readRunnerUtilization } from "./src/io/utilization.js";
 export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, computeRunnerSlots, runnerIsComputed, effectiveRunner, effectiveRunners, RUNNER_MEASUREMENT_MS, refreshRunnerMeasurements } from "./src/io/slots.js";
 export { installRunnerPackage } from "./src/io/package/install.js";
@@ -45,3 +46,5 @@ export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/toolin
 export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/io/handoff/capacity.js';
 export { staleDispatcherTools, dispatcherPass, handOver } from './src/io/handoff/handover.js';
 export { installRunnerService, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { mainRedUpdates } from './src/logic/main/reds.js';
+export { filesOfMain } from './src/io/main/reds.js';

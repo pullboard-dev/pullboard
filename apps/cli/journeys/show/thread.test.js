@@ -5,7 +5,7 @@ import { openBoard } from '../../../lib/index.js';
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -224,7 +224,7 @@ function shellWordHttp(value) {
 }
 
 /** Build a committed project in a private HOME, with CLI calls isolated from personal Git state. */
-function threadHttpFixture(t) {
+async function threadHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-thread-http-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
@@ -248,16 +248,16 @@ function threadHttpFixture(t) {
   mkdirSync(env.HOME);
   /** Run Git only in this disposable repository and return trimmed output. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  /** Invoke the actual CLI with the private environment. */
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** Invoke the production dispatcher in this process with the private environment. */
+  const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
   /** Decode one successful JSON command. */
-  function cli(cwd, ...args) {
-    const result = run(cwd, ...args, '--json');
+  async function cliLocal(cwd, ...args) {
+    const result = await runLocal(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return JSON.parse(result.stdout);
   }
   git('init', '-q', '-b', 'main');
-  cli(root, 'init');
+  await cliLocal(root, 'init');
   const configFile = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] } } }));
@@ -265,12 +265,12 @@ function threadHttpFixture(t) {
   writeFileSync(join(root, 'thread-fixture.txt'), 'committed reference target\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: create private thread fixture');
-  return { dir, root, env, git, cli, run, commit: git('rev-parse', 'HEAD') };
+  return { dir, root, env, git, cliLocal, runLocal, commit: git('rev-parse', 'HEAD') };
 }
 
 /** Start a real authenticated API for only this test's fixture board. */
 async function threadHttpBox(t) {
-  const box = threadHttpFixture(t);
+  const box = await threadHttpFixture(t);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url);
@@ -293,8 +293,8 @@ async function threadHttpBox(t) {
 
 test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judgements, and preserve full refs and literal text', async (t) => {
   const box = await threadHttpBox(t);
-  const holder = box.cli(box.root, 'worktree', 'app');
-  const observer = box.cli(box.root, 'worktree', 'app');
+  const holder = await box.cliLocal(box.root, 'worktree', 'app');
+  const observer = await box.cliLocal(box.root, 'worktree', 'app');
   const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'Evidence item', criterion: 'thread stays readable', specs: 'G1' } });
   assert.equal(added.status, 200);
   const id = added.document.result.item.item_id;
@@ -340,7 +340,7 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
   const afterRefusal = await box.call(box.path + '/items/' + id);
   assert.deepEqual(afterRefusal.document.item.thread, existingThread, 'a refused judgement appends no event');
 
-  const correctionRun = box.run(holder.path, 'fact', String(id), 'supersession', '--supersedes', observationId, '--json', '--', 'corrected evidence');
+  const correctionRun = await box.runLocal(holder.path, 'fact', String(id), 'supersession', '--supersedes', observationId, '--json', '--', 'corrected evidence');
   assert.equal(correctionRun.status, 0, correctionRun.stderr);
   const correction = JSON.parse(correctionRun.stdout);
   assert.equal(correction.item, id, 'the holder CLI command returns its versioned result');
@@ -349,7 +349,7 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
   assert.equal(holderCorrection.kind, 'supersession');
   assert.equal(holderCorrection.by, holder.agent);
 
-  const terminalShow = box.run(box.root, 'show', String(id));
+  const terminalShow = await box.runLocal(box.root, 'show', String(id));
   assert.equal(terminalShow.status, 0, terminalShow.stderr);
   const oldText = `fact note ${observationId}: --literal evidence`;
   const newText = `fact supersession ${holderCorrection.id} (supersedes ${observationId}): corrected evidence`;
@@ -360,7 +360,7 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
   assert.ok(terminalShow.stdout.indexOf(newText) > terminalShow.stdout.indexOf(oldText), 'show prints both corrections in append order');
   assert.ok(terminalShow.stdout.includes(`ref: thread-fixture.txt:1@${box.commit}`), 'show keeps the full commit reference');
 
-  const terminalJson = JSON.parse(box.run(box.root, 'show', String(id), '--json').stdout);
+  const terminalJson = JSON.parse((await box.runLocal(box.root, 'show', String(id), '--json')).stdout);
   const apiState = await box.call(box.path + '/items/' + id);
   const apiItem = apiState.document.item;
   assert.deepEqual(terminalJson.thread, apiItem.thread, 'CLI JSON and API state expose the same stamped thread');

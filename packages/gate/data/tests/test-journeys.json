@@ -10354,7 +10354,77 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/submit/gate.test.js": {
+    "apps/cli/journeys/submit/gate/unchecked.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/scanners.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/scanner-source.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/merge-base.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/sandbox.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/sandbox-tap.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/tap-denials.test.js": {
+      "cells": [
+        "app:runner",
+        "gate"
+      ],
+      "reasons": [
+        "runs the CLI (apps/cli/tests/fixtures/submit/gate.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/submit/gate/static-first.test.js": {
       "cells": [
         "app:runner",
         "gate"

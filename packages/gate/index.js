@@ -28,8 +28,9 @@ export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptB
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/io/slot.js";
 export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/io/requeue.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
-export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
+export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
+export { recordGreenRun } from "./src/io/shards/green.js";
 export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
@@ -47,7 +48,7 @@ export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest } from "./src/io/tap.js";
-export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
+export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
 export { prepareTestResultExchange } from "./src/io/test/action/transfer.js";
 export { testCapacityReport } from "./src/io/test/capacity.js";
 export { testConversionPlan } from "./src/logic/test/conversion.js";

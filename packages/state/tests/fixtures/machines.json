@@ -258,17 +258,184 @@
       "id": "test-run:<uuid>",
       "created": "packages/drive/src/io/queue.js:queueTestRun",
       "serves": "no item that it ends: the seat that queued it, and an optional item for display",
-      "states": ["queued", "running", "result", "delivered"],
+      "states": ["queued", "running", "result", "lost", "delivered"],
       "terminal": ["delivered"],
       "lease": "LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later",
       "transitions": [
         { "from": "(none)", "to": "queued", "trigger": "pullboard test queues a run and starts its detached worker", "at": "packages/drive/src/io/queue.js:queueTestRun" },
         { "from": "queued", "to": "running", "trigger": "the worker takes the lease", "at": "packages/drive/src/io/queue.js:workTestRun" },
         { "from": "running", "to": "result", "trigger": "the work returned or failed; lease released", "at": "packages/drive/src/io/queue.js:workTestRun" },
-        { "from": "result", "to": "delivered", "trigger": "next hands the finished or lost run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" }
+        { "from": "running", "to": "lost", "trigger": "the lease lapsed and the worker process is gone; lost step recorded and lease released", "at": "packages/drive/src/io/queue.js:endLostTestRuns" },
+        { "from": "result", "to": "delivered", "trigger": "next hands the finished run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" },
+        { "from": "lost", "to": "delivered", "trigger": "next hands the lost run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" }
       ],
       "servingCheck": { "status": "n/a", "at": "packages/drive/src/io/queue.js:workTestRun", "note": "serves the queuing seat, never an item state; no driver ends it on an item move" },
       "harness": "NONE"
+    },
+    {
+      "kind": "land",
+      "name": "pulled landing job",
+      "id": "land:<items>:<key>",
+      "created": "packages/api/src/io/landing.js:offerLandingJob",
+      "serves": "the landing's accepted items at the trunk sha they were accepted against; the runner re-checks each and the board applies the receipt",
+      "states": [
+        "offered",
+        "claimed",
+        "receipt",
+        "done"
+      ],
+      "terminal": [
+        "done"
+      ],
+      "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "offered",
+          "trigger": "the job is offered with the capabilities a runner needs",
+          "at": "packages/api/src/io/landing.js:offerLandingJob"
+        },
+        {
+          "from": "offered",
+          "to": "claimed",
+          "trigger": "a runner with every capability takes the lease",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "claimed",
+          "trigger": "a lapsed lease is taken by another runner, as the next attempt",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "receipt",
+          "trigger": "the holding runner posts its receipt",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "receipt",
+          "to": "done",
+          "trigger": "the receipt is recorded and the lease released",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        }
+      ],
+      "servingCheck": {
+        "status": "held",
+        "at": "packages/api/src/io/landing.js:offerLandingJob",
+        "note": "the runner re-checks each item before it pushes and the board checks the permit on every renewal"
+      },
+      "harness": "apps/cli/journeys/runner/landing/guard.test.js"
+    },
+    {
+      "kind": "gate-shard",
+      "name": "pulled gate proof shard",
+      "id": "<gate job>:shard:<n>",
+      "created": "packages/api/src/io/gate.js:offerProofShards",
+      "serves": "item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts",
+      "states": [
+        "offered",
+        "claimed",
+        "receipt",
+        "done"
+      ],
+      "terminal": [
+        "done"
+      ],
+      "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "offered",
+          "trigger": "the job is offered with the capabilities a runner needs",
+          "at": "packages/api/src/io/gate.js:offerProofShards"
+        },
+        {
+          "from": "offered",
+          "to": "claimed",
+          "trigger": "a runner with every capability takes the lease",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "claimed",
+          "trigger": "a lapsed lease is taken by another runner, as the next attempt",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "receipt",
+          "trigger": "the holding runner posts its receipt",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "receipt",
+          "to": "done",
+          "trigger": "the receipt is recorded and the lease released",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/api/src/io/gate.js:offerProofShards",
+        "note": "a shard serves its gate job; the gate result applies once and a moved item refuses it"
+      },
+      "harness": "NONE"
+    },
+    {
+      "kind": "test",
+      "name": "pulled test run",
+      "id": "test:<commit>:<tag>",
+      "created": "apps/cli/src/io/test/pull.js:offerTestJob",
+      "serves": "no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing",
+      "states": [
+        "offered",
+        "claimed",
+        "receipt",
+        "done"
+      ],
+      "terminal": [
+        "done"
+      ],
+      "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "offered",
+          "trigger": "the job is offered with the capabilities a runner needs",
+          "at": "apps/cli/src/io/test/pull.js:offerTestJob"
+        },
+        {
+          "from": "offered",
+          "to": "claimed",
+          "trigger": "a runner with every capability takes the lease",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "claimed",
+          "trigger": "a lapsed lease is taken by another runner, as the next attempt",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "receipt",
+          "trigger": "the holding runner posts its receipt",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "receipt",
+          "to": "done",
+          "trigger": "the receipt is recorded and the lease released",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "apps/cli/src/io/test/pull.js:offerTestJob",
+        "note": "serves the pulling runner's work; no driver ends it on an item move"
+      },
+      "harness": "apps/cli/journeys/runner/check.pull.test.js"
     }
   ],
   "processes": [
