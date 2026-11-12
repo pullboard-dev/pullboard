@@ -28,6 +28,7 @@ import { fetchFresh } from '../../tests/fixtures/http.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { liveFrames } from '../../tests/fixtures/http/stream.js';
 import { largeBoard } from '../../tests/fixtures/board/large.js';
+import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
 import { residentPoolSize } from '../../src/io/resident/client.js';
 import { residentSocket } from '../../src/io/resident/client.js';
@@ -522,11 +523,16 @@ test('[C7] a fresh seat first inbox on a board of 100k events answers under 300 
   // The resident board process serves the board commands, as on a person's machine; test markers would turn it off.
   for (const name of ['NODE_TEST_CONTEXT', 'NODE_TEST_WORKER_ID']) delete box.env[name];
   box.env.PULLBOARD_RESIDENT = '1';
-  // Two untimed commands start and warm the resident process; the seat has not yet read its inbox.
-  for (let run = 0; run < 2; run += 1) assert.equal(box.run(box.web, 'status', '--json').code, 0);
+  // The seat joins after the board is seeded, as a new worker does; it has not yet read its inbox.
+  const seat = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', seat, 'main');
+  const joined = joinFixtureSeat(box, seat, 'web');
+  assert.equal(joined.code, 0, `${joined.err}${joined.out}`);
+  // Two untimed commands start and warm the resident process.
+  for (let run = 0; run < 2; run += 1) assert.equal(box.run(seat, 'status', '--json').code, 0);
   const timed = () => {
     const started = performance.now();
-    const result = box.run(box.web, 'inbox', '--json');
+    const result = box.run(seat, 'inbox', '--json');
     return { ms: performance.now() - started, result };
   };
   const first = timed();
