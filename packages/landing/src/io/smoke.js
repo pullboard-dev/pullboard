@@ -153,8 +153,9 @@ export function runLandingCliSmoke(candidate, { record = false, git: launch = gi
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     git(repo, 'worktree', 'add', '-q', seat, '-b', 'core/smoke');
-    pullboard([{ cwd: seat, label: 'join', args: ['join', 'core', '--model', 'smoke', '--route', 'strong'] }]);
-    pullboard([{ cwd: repo, label: 'add', args: ['add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists'] }]);
+    // join writes the seat and add writes the item; neither reads the other, so they run beside each other.
+    pullboard([{ cwd: seat, label: 'join', args: ['join', 'core', '--model', 'smoke', '--route', 'strong'] }],
+      [{ cwd: repo, label: 'add', args: ['add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists'] }]);
     pullboard([{ cwd: seat, label: 'list', args: ['list'] }], [{ cwd: seat, label: 'show', args: ['show', '1'] }],
       [{ cwd: seat, label: 'claim', args: ['claim', '1'] }, { cwd: seat, label: 'next', args: ['next'] }],
       [{ cwd: seat, label: 'status', args: ['status'] }]);
