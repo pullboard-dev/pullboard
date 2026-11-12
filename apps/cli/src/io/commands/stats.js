@@ -15,6 +15,7 @@ import { coordinatorActions } from '../../../../../packages/stats/index.js';
 import { coordinatorActionLines } from '../../../../../packages/stats/index.js';
 import { runDemand } from './stats/demand.js';
 import { runHealth } from './stats/health.js';
+import { runLag } from './stats/lag.js';
 import { pipelineLimit } from '../../../../../packages/stats/index.js';
 import { pipelineStats } from '../../../../../packages/stats/index.js';
 import { pipelineLines } from '../../../../../packages/stats/index.js';
@@ -74,6 +75,7 @@ import {
 export function run(io, { first, second, rest, values }) {
   if (first === 'runners' && values.demand) return runDemand(io, { second, rest, values });
   if (first === 'runners' && values.health) return runHealth(io, context(io), { second, rest, values });
+  if (first === 'runners' && (values.lag || values['main-lag'])) return runLag(io, context(io), { second, rest, values });
   if (first === 'runners' && values.utilization) return runUtilization(io, { second, rest, values });
   const ctx = context(io);
   if (first !== undefined && !['pipeline', 'moves', 'time', 'disk', 'runners'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats disk [--prune], pullboard stats runners, pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
