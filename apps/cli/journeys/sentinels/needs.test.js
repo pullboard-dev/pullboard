@@ -266,7 +266,7 @@ test('a person-only block shows in Needs you with its one step [N26]', async () 
   const box = machine();
   const alpha = project(box, 'person block');
   box.env.CLAUDECODE = '1';
-  const refused = await box.runLocal(alpha.repo, 'answer', '1', 'yes', '--as', 'person');
+  const refused = await box.inProcess(alpha.repo, 'answer', '1', 'yes', '--as', 'person');
   delete box.env.CLAUDECODE;
   assert.equal(refused.status, 1, refused.stderr);
   assert.match(refused.stderr, /only the person can clear this/u);
@@ -688,7 +688,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     assert.deepEqual(copyButtons, flagged.map(row => ({ type: 'button', className: 'hash-copy', title: row.commit, copy: row.commit, text: row.commit.slice(0, 12) })), 'the only read-only buttons copy the full attributed hashes and display twelve characters');
     await closeSnapshotChrome(chrome); chrome = null;
     box.env.CLAUDECODE = '1';
-    const refused = await box.runLocal(alpha.web, 'spec', 'approve', 'G1', '--json');
+    const refused = await box.inProcess(alpha.web, 'spec', 'approve', 'G1', '--json');
     delete box.env.CLAUDECODE;
     assert.equal(refused.status, 1);
     assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL');
