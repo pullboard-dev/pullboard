@@ -208,7 +208,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   `);
   assert.equal(late.code, 1, 'an explicitly retried late CLI stage refuses its terminal request');
   assert.equal(late.document.error.code, 'PERSON_REQUEST_CLOSED');
-  assert.equal((await box.cliLocal('status')).code, 0);
+  assert.equal((await box.cli('status')).code, 0);
   const final = await privateExport(box.root, box.env);
   assert.equal(final.tables.shout.filter(row => row.shout_text === 'RECOVERY_SHOUT_ONCE').length, 1);
 });

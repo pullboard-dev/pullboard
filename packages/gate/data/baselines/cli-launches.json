@@ -969,13 +969,13 @@
     "launch": 2
   },
   "apps/cli/journeys/relay/person/credential.test.js": {
-    "launch": 1
+    "launch": 2
   },
   "apps/cli/journeys/relay/person/decline.test.js": {
     "launch": 4
   },
   "apps/cli/journeys/relay/person/recovery.test.js": {
-    "launch": 1
+    "launch": 2
   },
   "apps/cli/journeys/relay/person/requests.test.js": {
     "launch": 1
@@ -2356,5 +2356,17 @@
   },
   "apps/cli/journeys/relay/sealed/store.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/relay/person/page.test.js": {
+    "launch": 13
+  },
+  "apps/cli/journeys/relay/team/coordinator.test.js": {
+    "launch": 5
+  },
+  "apps/cli/journeys/relay/ssh.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/relay/relay-pairing.test.js": {
+    "launch": 1
   }
 }
