@@ -124,7 +124,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
   const boardId = exportedBoards.boards[0].id;
   const exportedEvents = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events;
-  const fullBoardLog = JSON.parsebox.run(alpha.repo, 'log', '--json').events;
+  const fullBoardLog = JSON.parse(box.run(alpha.repo, 'log', '--json')).events;
   assert.deepEqual(fullBoardLog, observationEvents, 'the live and exported projections share the same unchanged native history');
   assert.equal(exportedEvents.length, fullBoardLog.length, 'the snapshot exports every board event');
   assert.deepEqual(exportedEvents.map((event) => event.event_id), fullBoardLog.map((event) => event.event_id),
