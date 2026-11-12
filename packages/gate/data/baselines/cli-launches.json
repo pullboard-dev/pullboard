@@ -299,9 +299,6 @@
   "packages/gate/tests/logic/cap.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/why/main.test.js": {
-    "launch": 22
-  },
   "apps/cli/journeys/land/switch.test.js": {
     "launch": 1
   },
