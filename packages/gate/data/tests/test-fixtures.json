@@ -2151,9 +2151,6 @@
   "apps/cli/journeys/fact/landing/red.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/reopen/landing/stale.test.js": {
-    "model": 1
-  },
   "apps/cli/journeys/gate/landing/stop.test.js": {
     "hand-policy": 1
   },

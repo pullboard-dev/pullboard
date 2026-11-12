@@ -446,9 +446,6 @@
   "apps/cli/journeys/resume/plans.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/reopen/landing/stale.test.js": {
-    "launch": 1
-  },
   "packages/runners/tests/io/run/tests/filexit.test.js": {
     "launch": 4
   },
@@ -1231,9 +1228,6 @@
   },
   "packages/runners/tests/version.test.js": {
     "launch": 11
-  },
-  "apps/cli/journeys/claim/complete.test.js": {
-    "launch": 1
   },
   "apps/cli/tests/io/resident/board.test.js": {
     "launch": 2

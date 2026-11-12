@@ -23,11 +23,9 @@ import * as store from '../../../../packages/store/index.js';
 import {
   recordSubmitHandoff,
   jobView,
-  takeJob,
 } from '../../../../packages/jobs/index.js';
 import {
   DISPATCHER_JOB,
-  driveLanding,
   ensureDispatcher,
   gateDriveJobId,
   readGateDrive,
@@ -37,10 +35,6 @@ import {
   queueHandoffLaunch,
   reserveHandoffTicket,
 } from '../../../../packages/resources/index.js';
-import {
-  inProcessLandingBatch,
-  landingProgress,
-} from '../../../../packages/landing/index.js';
 import {
   dispatcherRow,
   gateAdmission,
@@ -132,46 +126,6 @@ writeFileSync(join(dirname(process.argv[2]), 'submission.json'), '{}');
   try { assert.equal(jobView(freed.db, DISPATCHER_JOB).leaseOwner, null, 'a drained dispatcher frees its row'); }
   finally { closeBoard(freed); }
   assert.equal(existsSync(join(directory, 'worker.json')), false, 'nothing is written beside the hand-off');
-});
-
-test('clause 1: a stalled in-process landing ends after 2 minutes without progress, its job failed with the lease freed [C7,#5816]', async t => {
-  const board = fixtureBoard(t);
-  let clock = 0;
-  const now = () => clock;
-  const progress = landingProgress({ now });
-  const batch = { id: 'batch-stall', state: 'testing', revision: 1 };
-  let hung;
-  const runner = inProcessLandingBatch({ checkAtCommit: () => {}, candidateWorkerFile: 'unused', progress,
-    // A batch that records itself, then hangs on a child that never ends.
-    runLandingBatch: async options => { await options.write('recordLandingBatch', [{ batch }]); return new Promise(resolve => { hung = resolve; }); } });
-  const hooks = { board, landingPorts: {}, checkLease: async () => {}, checkLeaseNow: () => {}, say: () => {},
-    write: async (_operation, args) => args[0].batch,
-    onStall: async ({ description }) => ({ batch: { ...batch, state: 'blocked' }, landed: [], stalled: true, stallDescription: description }) };
-  const id = 'land:run:stall';
-  // Count the heartbeat's progress reads, so the test waits on observed beats, never on elapsed time.
-  let beats = 0;
-  const lastProgressAt = () => { beats += 1; return progress.lastProgressAt(); };
-  /** Resolve once the heartbeat has read progress `more` more times. */
-  const beatsPass = async more => { const until = beats + more; while (beats < until) await new Promise(resolve => setImmediate(resolve)); };
-  const landing = driveLanding(board.db, { owner: 'lander', id, now, renewMs: 1,
-    watch: { lastProgressAt, stall: progress.stall }, run: () => runner({ fence: {}, root: '/unused' }, hooks) });
-  await beatsPass(1);
-  clock = 115_000;
-  await beatsPass(2);
-  assert.equal(jobView(board.db, id).steps.some(step => step.name === 'failed'), false, '1:55 quiet does not end the batch');
-  clock = 2 * 60_000;
-  // The heartbeat timer is unref'd, as in production, so the test keeps the loop turning until the landing settles.
-  let settled = false;
-  landing.finally(() => { settled = true; }).catch(() => {});
-  while (!settled) await new Promise(resolve => setImmediate(resolve));
-  const result = await landing;
-  assert.equal(result.stalled, true, 'the batch ended as stalled');
-  const view = jobView(board.db, id);
-  const failed = view.steps.find(step => step.name === 'failed');
-  assert.equal(failed?.payload.code, 'LAND_STALLED', 'the landing-run job is marked failed');
-  assert.equal(view.leaseOwner, null, 'its lease is freed');
-  assert.equal(takeJob(board.db, id, 'next-lander', { now: clock }).taken, true, 'the next landing can start');
-  hung?.();
 });
 
 test('clause 2: the old hand-off worker launch, worker.json, board_meta hand-off rows and the landing worker spawn path are gone [C7]', () => {

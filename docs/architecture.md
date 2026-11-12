@@ -598,7 +598,7 @@ Every build claim and every review reservation is checked in one write transacti
 | red notice after the claim lapsed | next still says the item stays claimed by you until a past time | the notice reads the live lease and says the claim lapsed | `packages/gate/tests/fixtures/pipeline/red-notice-after-the-claim-lapsed.js` |
 | a red from an older head shown at claim | returnedRecord shows the newest red or infrastructure gate without matching the current commit | only a red at the item's current commit is shown | `packages/gate/tests/fixtures/pipeline/a-red-from-an-older-head-shown-at-claim.js` |
 | main moved while an item was in review | a clean move keeps the verdict; a real conflict reopens the item naming the file | same | `apps/cli/journeys/lifecycle/merge.test.js` |
-| main moved after acceptance, before landing | the lander reopens a stale verdict to its lane with the file named | same | `apps/cli/journeys/reopen/landing/stale.test.js` |
+| main moved after acceptance, before landing | the land job merges on the moved trunk and checks there; a red or a conflict leaves trunk where it was | same | `apps/cli/journeys/runner/landing/job.test.js` |
 | gate driver lease lost | a refused renewal retakes the lease on the next tick | same, but only while its item still is in its serving state | `apps/cli/journeys/handoff/dead/running.test.js` |
 | gate driver killed | the gate is requeued on the same candidate within seconds, with no builder red | same | `packages/gate/tests/fixtures/pipeline/requeue.js` |
 | live driver mistaken for dead | a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone | same | `packages/gate/tests/fixtures/pipeline/driver.js` |
