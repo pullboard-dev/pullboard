@@ -2,6 +2,7 @@ import { cockpitMarkup } from "../../logic/cockpit/markup.js";
 import { cockpitLive } from "../../logic/cockpit/live.js";
 import { cockpitReplay } from "../../logic/cockpit/replay.js";
 import { cockpitSidebar } from "../../logic/cockpit/sidebar.js";
+import { cockpitProjectMenu } from "../../logic/cockpit/project-menu.js";
 import { cockpitRoadmap } from "./roadmap.js";
 import { cockpitProse } from "../../logic/cockpit/prose.js";
 import { costTabScript } from "../cost/tab.js";
@@ -128,6 +129,6 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
     agentApprovalScript, pageScriptPart4, historyLoadingScript };
-  return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections)
+  return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections) + cockpitProjectMenu()
     + cockpitRoadmap(sections) + cockpitProse(sections);
 }
