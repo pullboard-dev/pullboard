@@ -1604,9 +1604,6 @@
   "apps/cli/journeys/next/eval.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/test/command.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/submit/landing/backoff.test.js": {
     "launch": 5
   },
