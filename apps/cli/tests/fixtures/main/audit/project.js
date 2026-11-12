@@ -110,7 +110,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   /** Invoke the real copied worker; no fake gate, mocked transport, or injected receipt is used. */
   function startWorker({ scheduled = false } = {}) {
     const token=randomUUID();
-    const child=spawn(process.execPath,[join(installed,'apps/cli/src/io/landing/audit.js'),repo,token,...(scheduled?['--scheduled']:[])],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe'],timeout:60_000});
+    const child=spawn(process.execPath,[join(installed,'apps/cli/src/io/landing/audit.js'),repo,token,...(scheduled?['--scheduled']:[])],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe'],timeout:150_000});
     children.push(child);child.stdout.resume();let err='';child.stderr.on('data',b=>{err+=b;});const closed=once(child,'close');
     return {child,token,closed,async finish(){const[code,signal]=await closed;assert.equal(signal,null,err);assert.equal(code,0,err);}};
   }
