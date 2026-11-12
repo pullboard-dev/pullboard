@@ -79,7 +79,8 @@ test('submit precheck refuses a candidate stacked on an unverified item without 
   const { box, markers } = await project(t);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): the first item changes the source [G1]');
-  const first = (await inProcess(box, box.root, 'submit', '1', '--json', '--infra', 'the fail-fast fixture'));
+  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
+  const first = box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
   assert.equal(first.code, 0, first.out + first.err);
   const firstCommit = JSON.parse((await inProcess(box, box.root, 'show', '1', '--json')).out).item_commit;
   assert.match(firstCommit, /^[0-9a-f]{40}$/u);
@@ -124,7 +125,8 @@ test('a change that conflicts with main is refused in seconds, before any static
   put(box.root, 'src/a.js', 'export const value = "branch";\n');
   commitAll(box, 'feat(core): the branch moves the same line [G1]');
   const started = Date.now();
-  const refused = (await inProcess(box, box.root, 'submit', '1', '--json', '--infra', 'the fail-fast fixture'));
+  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
+  const refused = box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
   const elapsed = Date.now() - started;
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /MERGE_CONFLICT/u);
@@ -137,7 +139,8 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   const failing = await project(t, { staticFails: true });
   put(failing.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(failing.box, 'feat(core): change the source [G1]');
-  const refused = (await inProcess(failing.box, failing.box.root, 'submit', '1', '--json', '--infra', 'the fail-fast fixture'));
+  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
+  const refused = failing.box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /a static problem/u);
   assert.equal(existsSync(failing.markers.staticCheck), true, 'the static check ran');
@@ -145,7 +148,8 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   const clean = await project(t, { staticWaitsForDoctrine: true });
   put(clean.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(clean.box, 'feat(core): change the source [G1]');
-  const accepted = (await inProcess(clean.box, clean.box.root, 'submit', '1', '--json', '--infra', 'the fail-fast fixture'));
+  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
+  const accepted = clean.box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(existsSync(clean.markers.staticCheck), true, 'the static check ran');
   assert.equal(existsSync(clean.markers.doctrine), true, 'the doctrine rule ran');
@@ -165,7 +169,8 @@ test('changed import style is refused while other stages may run [V4,C7]', async
   const checkerOutput = checked.failure ?? checked.stderr ?? '';
   assert.notEqual(checked.status, 0, checkerOutput);
   assert.match(checkerOutput, /test\/style-bad\.js:1: one import binding per line/u);
-  const result = (await inProcess(box, box.root, 'submit', '1', '--json', '--infra', 'static preflight fixture'));
+  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
+  const result = box.run('submit', '1', '--json', '--infra', 'static preflight fixture');
   assert.equal(existsSync(markers.staticCheck), true, 'the submit static stage actually ran');
   assert.notEqual(result.code, 0, result.err + result.out);
   assert.match(result.err + result.out, /test\/style-bad\.js:1: one import binding per line/u);
