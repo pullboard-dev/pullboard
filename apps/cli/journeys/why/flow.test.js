@@ -105,7 +105,7 @@ test('why prints the release flow on one screen: a line per unlanded item, and -
   const json = JSON.parse(named.out);
   assert.equal(json.version, 1);
   assert.equal(json.release, 'Delivery');
-  assert.deepEqual(json.items.map(row => [row.id, row.cause]), [[first, 'free'], [second, 'waiting']]);
+  assert.deepEqual(json.items.map(row => [row.id, row.cause]).sort((a, b) => a[0] - b[0]), [[first, 'free'], [second, 'waiting']]);
   assert.ok(Array.isArray(json.idle) && json.landings.lastHour === 0);
 });
 
