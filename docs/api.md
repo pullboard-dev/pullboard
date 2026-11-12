@@ -234,9 +234,11 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `red` | `version:number`, `file:string` |
 | `seats` | `version:number`, `seats:array` |
+| `stats agents` | `version:number`, `agents:object` |
 | `stats disk` | `version:number`, `disk:object` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
+| `stats review` | `version:number`, `review:object` |
 | `stats runners` | `version:number`, `runners:object` |
 | `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |

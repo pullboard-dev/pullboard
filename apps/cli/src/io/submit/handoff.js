@@ -170,9 +170,16 @@ const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
  * with the same tooling trees need one snapshot, and a merge of main that changed only tests or docs must copy nothing [C7].
  */
 function toolingDigest(toolRoot) {
+  // One ls-tree of the top level reads all five ids; a rev-parse per path cost five Git processes (#5900).
+  const listed = tryGit(toolRoot, ['ls-tree', '-z', 'HEAD', '--', ...TOOLING_PATHS]);
+  const found = new Map();
+  if (listed.status === 0) for (const entry of listed.stdout.split('\0')) {
+    const row = /^\d+ \w+ ([^\t]+)\t(.+)$/u.exec(entry);
+    if (row) found.set(row[2], row[1]);
+  }
   const ids = TOOLING_PATHS.map(path => {
-    const id = tryGit(toolRoot, ['rev-parse', `HEAD:${path}`]);
-    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout) ? `${path}=${id.stdout}` : `${path}=absent`;
+    const id = found.get(path);
+    return /^[0-9a-f]{40}$/u.test(id ?? '') ? `${path}=${id}` : `${path}=absent`;
   });
   return createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
 }
@@ -186,10 +193,11 @@ function toolingDigest(toolRoot) {
  * @returns {{ tools: string, commit: string } | null}
  */
 export function sharedToolsTarget(toolRoot) {
-  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
-  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  if (head.status !== 0 || !/^[0-9a-f]{40}$/u.test(head.stdout) || top.status !== 0 || realpathSync(top.stdout) !== realpathSync(toolRoot)) return null;
-  return { tools: join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head.stdout };
+  // One process answers both; it fails when either does, as the two separate reads each refused (#5900).
+  const read = tryGit(toolRoot, ['rev-parse', 'HEAD', '--show-toplevel']);
+  const [head, top, ...rest] = read.status === 0 ? read.stdout.split('\n') : [];
+  if (read.status !== 0 || rest.length || !/^[0-9a-f]{40}$/u.test(head ?? '') || !top || realpathSync(top) !== realpathSync(toolRoot)) return null;
+  return { tools: join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head };
 }
 
 /**

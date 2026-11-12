@@ -79,19 +79,19 @@ async function fixture(t, { companion = false, deleted = false } = {}) {
     '--note', 'The actual frozen change-marker command passed in the reserved composition.', '--json');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(getItem(board, item).item_status, 'verified');
-  return { ...box, board, item, source, marker, cli, before: box.git(box.repo, 'rev-parse', 'main') };
+  return { ...box, board, item, source, marker, before: box.git(box.repo, 'rev-parse', 'main') };
 }
 
 test('native landing includes every attached companion and a manual omission cannot be recorded [B35]', async t => {
   const box = await fixture(t, { companion: true });
-  const omitted = await box.cli(box.repo, 'merged', String(box.item), box.source, '--note', 'private omitted-companion control', '--json');
+  const omitted = await box.runLocal(box.repo, 'merged', String(box.item), box.source, '--note', 'private omitted-companion control', '--json');
   assert.equal(omitted.code, 1, omitted.err + omitted.out);
   assert.equal(JSON.parse(omitted.out).error.code, 'LAND_COMPANION_MISSING');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), box.before);
   assert.equal(getItem(box.board, box.item).item_status, 'verified');
   const reviewed = checkedLandingCommit(box.board, getItem(box.board, box.item));
   assert.notEqual(reviewed, box.source);
-  const landed = await box.cli(box.repo, 'land', '--json');
+  const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
   assert.equal(readFileSync(join(box.repo, 'api/companion.txt'), 'utf8'), 'required companion\n');
   assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', reviewed, 'main'), '');
@@ -100,7 +100,7 @@ test('native landing includes every attached companion and a manual omission can
 
 test('a composed landing with a deleted literal import target never moves main or the remote [B35]', async t => {
   const box = await fixture(t, { deleted: true });
-  const refused = await box.cli(box.repo, 'land', '--json');
+  const refused = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(refused.code, 1, refused.err + refused.out);
   assert.equal(JSON.parse(refused.out).error.code, 'LAND_MODULE_RESOLUTION');
   assert.match(JSON.parse(refused.out).error.message, /web\/client\.js.*\.\/value\.js/u);

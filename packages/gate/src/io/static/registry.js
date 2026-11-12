@@ -17,6 +17,7 @@ import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
 import { operationEntryProblems } from './operations.js';
+import { layoutProblems } from './layout.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
 import { relayBoundaryProblems } from '../relay.js';
@@ -151,6 +152,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const scope = cellScopedKey(treeSources(root, sources), ['apps/cli'], { edgeCache: edgeCacheOf(context) });
     return context.cache('cli-reach', 1).get('cli-reach', `${scope}:${main}`, () => cliReachRows(root));
   } },
+  // A tracked file that raises a layout rule count above the tree's own baseline (packages/gate/src/io/static/layout.js).
+  { name: 'layout', reads: () => true, run: root => layoutProblems(root) },
   // Modules a test closure reaches whose imports the graph newly cannot read; both graphs are kept per commit (#5840).
   { name: 'keyless', reads: SOURCE, run: root => keylessRows(root) },
   // Edges are read per file by blob; the ceilings and the plan are read fresh each run [5567].

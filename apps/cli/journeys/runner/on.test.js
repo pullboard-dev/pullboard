@@ -79,6 +79,7 @@ test('clause 2: pullboard test on a free runner returns within the file run time
   assert.equal(alone.status, 0, alone.stderr);
   assert.ok(ownMs >= SLEEP_MS, `the fixture file runs its known time (${ownMs} ms)`); // budget: the fixture's own run time is the measured baseline.
   const started = Date.now();
+  // Process-level: wall-clock; the bar times the real CLI process end to end, start-up included.
   const ran = box.run(box.web, 'test', 'test/timed.test.js', '--json');
   const ms = Date.now() - started;
   assert.equal(ran.code, 0, ran.err);
