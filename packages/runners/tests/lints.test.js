@@ -144,7 +144,7 @@ test('tests and fixture strings never seed app reach; unknown loaders and missin
 });
 
 test('report is read-only, initialization is explicit and check/update cannot raise or offset a finding [C7,CD64]', t => {
-  const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  const box = fixture(t), run = (mode, root = box.root) => runFixtureChild(process.execPath, [BIN, mode, root], { encoding: 'utf8', maxBuffer: 256 * 1024 ** 2 });
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
   const first = run('--report'); assert.equal(first.status, 0, first.stderr);
@@ -161,6 +161,14 @@ test('report is read-only, initialization is explicit and check/update cannot ra
   const debt = cellLintBaseline(box.report());
   box.remove('stray.js'); box.put('another.js', 'void 0;\n');
   assert.ok(cellLintGrowth(box.report(), debt).some(row => row.key === 'another.js'));
+  // The committed baseline stays hash-bound: this repository's index binds its shards, and a shard edited without a rebind fails --check [C7,CD64].
+  assert.equal(run('--report', fileURLToPath(new URL('../../../', import.meta.url))).status, 0, 'the real index.json binds boundaries-012 and strays-001');
+  assert.doesNotMatch(run('--check').stderr, /CELL_BASELINE/u, 'a bound baseline is never refused as unbound');
+  const index = JSON.parse(readFileSync(join(box.root, 'packages/codemap/data/baselines/lints/index.json'), 'utf8')), shard = join(box.root, index.metrics.strays.shards[0].file);
+  appendFileSync(shard, ' ');
+  const unbound = run('--check');
+  assert.notEqual(unbound.status, 0);
+  assert.match(unbound.stderr, /CELL_BASELINE/u, 'a shard edited without a rebind is refused by --check');
 });
 
 
