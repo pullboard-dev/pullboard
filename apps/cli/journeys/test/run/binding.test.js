@@ -31,7 +31,7 @@ function resources(box) {
   }
 }
 
-/** Launch one owned fixture process and retain its real exit and output for bounded handshakes. */
+/** Launch one owned fixture process (process-level by design: the queue order is observed across real concurrent processes, so the holder and both focused runs stay children) and retain its real exit and output for bounded handshakes. */
 function child(box, args, cwd, extra = {}) {
   const started = startFixtureChild(process.execPath, args, { cwd, env: { ...box.env, ...extra }, stdio: ['pipe', 'pipe', 'pipe'] });
   started.output = ''; started.errors = '';
@@ -65,14 +65,14 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   writeFileSync(join(box.repo, 'test/ready.test.js'), "import { test } from 'node:test';\nimport { appendFileSync } from 'node:fs';\ntest('private fixture body', () => appendFileSync(process.env.BINDING_LOG, process.env.BINDING_LABEL+'\\n'));\n");
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test(web): configure focused runner [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
   for (const args of [['milestone', 'add', 'Now', '--items', String(item), '--reason', 'Arrange fixture release'], ['milestone', 'pin', 'Now', String(item), '--reason', 'Synthetic release blocker'], ['claim', String(item)]]) {
-    const run = box.run(args[0] === 'claim' ? box.web : box.repo, ...args);
+    const run = await box.runLocal(args[0] === 'claim' ? box.web : box.repo, ...args);
     assert.equal(run.code, 0, run.err);
   }
-  const seat = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
+  const seat = JSON.parse((await box.runLocal(box.web, 'whoami', '--json')).out).id;
   const holder = child(box, ['--input-type=module', '-e', `import {takeResource} from ${JSON.stringify(RESOURCES)}; const lease=await takeResource({name:'gate',capacity:1,scope:'machine',root:process.cwd(),agent:'fixture-holder'}); console.log('held'); for await (const line of process.stdin) if(String(line).trim()==='release')break; lease.release();`], box.repo);
   children.push(holder);
   await observed(holder, () => holder.output.includes('held'), 'private gate holder');

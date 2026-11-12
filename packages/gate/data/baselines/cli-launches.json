@@ -116,9 +116,6 @@
   "apps/cli/journeys/handoff/tools.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/show/quarantine/composed.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/shout/shouts/scrollbar.test.js": {
     "launch": 14
   },
@@ -501,7 +498,7 @@
     "launch": 1
   },
   "apps/cli/journeys/status/board/move.test.js": {
-    "launch": 3
+    "launch": 2
   },
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
@@ -1242,7 +1239,7 @@
     "launch": 2
   },
   "apps/cli/journeys/test/run/binding.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "packages/codemap/tests/io/cells/door/app.test.js": {
     "launch": 1
