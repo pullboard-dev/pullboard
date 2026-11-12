@@ -22,6 +22,10 @@ async function spareReady(box) {
 }
 
 test('clause 1: the second claiming next moves the prepared spare into the item folder and prepares a new spare [C7]', async t => {
+  // A runner job starts no spare (its processes die with the job); this test waits for its own spare, so it runs as a seat would.
+  const job = process.env.PULLBOARD_RUNNER_JOB;
+  delete process.env.PULLBOARD_RUNNER_JOB;
+  t.after(() => { if (job !== undefined) process.env.PULLBOARD_RUNNER_JOB = job; });
   const box = await fixture(t, { files });
   for (let n = 1; n <= 2; n++) box.add(`Spare item ${n}`, { brief: `Files: web/spare-${n}.js\nTest: the folder opens from the spare.` });
   const first = await cli(box, box.seats.actor.path, ['next']);
