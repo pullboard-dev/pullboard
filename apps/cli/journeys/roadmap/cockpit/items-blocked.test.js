@@ -54,7 +54,8 @@ async function build(box, p, id, file) {
   mkdirSync(join(p.web, 'web'), { recursive: true });
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
-  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  // The commit-msg, pre-commit and post-commit hooks are three Node launches per commit; this journey tests the roadmap page, not the hooks.
+  box.git(p.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
   await box.inProcess(p.web, 'submit', String(id), '--no-next');
 }
 
@@ -91,7 +92,7 @@ async function blockedRoadmap(t, stage) {
   await box.inProcess(alpha.repo, 'edit', '4', '--after', '1', '--reason', 'Waits on the base.');
   await box.inProcess(alpha.repo, 'add', 'web', 'Landed work', '--specs', 'G1', '--criterion', 'The page renders.');
   await build(box, alpha, 5, 'landed.html'); await accept(box, alpha, 5);
-  box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:5`));
+  box.git(alpha.repo, '-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:5`));
   await box.inProcess(alpha.repo, 'merged', '5', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   await box.inProcess(alpha.repo, 'add', 'web', 'Building work', '--specs', 'G1', '--criterion', 'The corrected page renders.');
   await build(box, alpha, 6, 'building.html'); await sendBack(box, alpha, 6, 'See #1 and #3 before accepting.\nMore detail stays in Items.');
@@ -197,7 +198,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
       await opened('#5');
       const landed = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('#5')},panel=r.parentElement.querySelector('.milestone-why');return {color:getComputedStyle(panel.querySelector('.roadmap-event:last-child .roadmap-step')).backgroundColor,stage:r.querySelector('.stage-word')?.textContent,icon:!!r.querySelector('.roadmap-landed svg')};})())`));
       assert.equal(landed.color, colors.success, `${scheme}: landing history uses the merged-stage token (--stage-merged)`);
-      assert.equal(landed.stage, 'Merged'); assert.equal(landed.icon, false, 'a landed row reads Merged, with no checkmark');
+      assert.equal(landed.stage, 'Landed'); assert.equal(landed.icon, false, 'a landed row reads Landed, with no checkmark');
       await press(chrome, row('#5'));
     }
     assert.deepEqual(chrome.exceptions, []);

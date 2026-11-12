@@ -48,7 +48,7 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
     { id: '#4', label: 'In review', tone: 'in-review' },
     { id: '#2', label: 'Verified', tone: 'verified' },
     { id: 'beacon#1', label: 'Ready', tone: 'ready' },
-    { id: '#1', label: 'Merged', tone: 'merged' },
+    { id: '#1', label: 'Landed', tone: 'merged' },
     { id: '#5', label: 'Building', tone: 'building' },
     { id: '#6', label: 'Ready', tone: 'ready' },
   ];

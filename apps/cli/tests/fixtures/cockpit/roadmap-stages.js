@@ -17,7 +17,10 @@ import {
  * @returns {{ box: object, alpha: object, beacon: object, titles: string[] }} The machine, both projects and the item titles.
  */
 export function roadmapStagesBoard(phase) {
-  const box = machine();
+  const machineBox = machine();
+  // The commit and merge hooks are several Node launches each; this board tests the Roadmap page, not the hooks, so its Git work skips them.
+  const unhooked = (cwd, ...args) => machineBox.git(cwd, ...(['commit', 'merge'].includes(args[0]) ? ['-c', 'core.hooksPath=/dev/null'] : []), ...args);
+  const box = { ...machineBox, git: unhooked };
   const alpha = project(box, 'roadmap-demo');
   const beacon = project(box, 'beacon');
   phase('projects-ready');

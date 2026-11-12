@@ -56,7 +56,8 @@ async function build(box, p, id, file) {
   mkdirSync(join(p.web, 'web'), { recursive: true });
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
-  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  // The commit-msg, pre-commit and post-commit hooks are three Node launches per commit; this journey tests the roadmap page, not the hooks.
+  box.git(p.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
   await box.inProcess(p.web, 'submit', String(id), '--no-next');
 }
 
@@ -87,7 +88,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
   for(const [index,name] of names.entries()) await box.inProcess(alpha.repo,'add',index===9?'ops':'web',name,'--specs','G1','--criterion','The page renders.');
   /** Land through real Git and the ordinary board receipt; acceptance alone stays unlanded. */
   async function land(id) {
-    box.git(alpha.repo,'merge','--no-ff','--no-edit',alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
+    box.git(alpha.repo,'-c','core.hooksPath=/dev/null','merge','--no-ff','--no-edit',alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     await box.inProcess(alpha.repo,'merged',String(id),box.git(alpha.repo,'rev-parse','HEAD'));
   }
   for(const id of [1,2,4,5,6]) {await build(box,alpha,id,`item-${id}.txt`);await accept(box,alpha,id);if([1,4,5].includes(id))await land(id);}
@@ -126,7 +127,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
     const truth=await chrome.stable(`${milestone('Past target')}.textContent`);
     assert.match(truth,/1 of 3 landed/u,'acceptance does not count as landed');assert.match(truth,/past target/u);
     const states=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('Past target')}.querySelectorAll('.milestone-item')].map(row=>[row.querySelector('.id').textContent,row.querySelector('.stage-word')?.textContent]))`));
-    assert.deepEqual(Object.fromEntries(states),{'#1':'Merged','#2':'Verified','#3':'Ready'});
+    assert.deepEqual(Object.fromEntries(states),{'#1':'Landed','#2':'Verified','#3':'Ready'});
     await press(chrome,"document.querySelector('[data-key=shipped] > .milestone-head')");
     await chrome.waitFor(`${milestone('Shipped release')}?.querySelector('.milestone-head')`);
     assert.match(await chrome.stable(`${milestone('Shipped release')}.textContent`),new RegExp(shipped.slice(0,12)),'the shipped release names its actual commit');
