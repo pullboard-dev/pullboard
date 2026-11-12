@@ -51,7 +51,7 @@ import {
 test('an added item confirmation names its returned id [A3,N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'An existing item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'An existing item', '--specs', 'G1');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -79,10 +79,10 @@ test('a review in progress names its reviewer [N26]', async () => {
   const alpha = project(box, 'alpha');
   const second = join(box.dir, 'alpha-web-two');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  box.run(second, 'join', 'web');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(second, 'join', 'web');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(second, 'next', '--verify');
+  await box.inProcess(second, 'next', '--verify');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -102,7 +102,7 @@ test('a review in progress names its reviewer [N26]', async () => {
     await page.run('refresh()');
 
     box.git(second, 'switch', '-q', '--detach', alpha.branch);
-    box.run(second, 'verify', '1', 'accept', '--note', 'opened the page and read the greeting');
+    await box.inProcess(second, 'verify', '1', 'accept', '--note', 'opened the page and read the greeting');
     await page.run('refresh()');
     await page.click({ state: 'all' });
     assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">Verified<\/b>/, 'once the verdict lands, the review is over');
@@ -114,11 +114,11 @@ test('a review in progress names its reviewer [N26]', async () => {
 });
 test('a stale verdict shows a stale chip [N26,V4]', async () => {
   const box = machine(), alpha = project(box, 'alpha');
-  for (const title of ['Stale', 'Fresh', 'Landed', 'Legacy', 'Open']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Stale', 'Fresh', 'Landed', 'Legacy', 'Open']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   for (const id of [1, 2, 3, 4]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); }
   box.git(alpha.repo, 'merge', '-q', '--ff-only', alpha.itemBranches.get(`${alpha.baseBranch}:3`));
-  box.run(alpha.repo, 'merged', '3', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3,4,5', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.repo, 'merged', '3', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3,4,5', '--reason', 'Arrange fixture release');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -154,18 +154,18 @@ test('each row says what it waits on [N26]', async () => {
   const box = machine();
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, 'alpha', SPEC, { lanes });
-  const add = (lane, title, ...more) => box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
-  add('web', 'Free');
-  add('web', 'Base');
-  add('web', 'Depends', '--after', '2');
-  add('api', 'Api work');
-  add('web', 'Shipped');
-  add('web', 'Bounced');
+  const add = async (lane, title, ...more) => box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
+  await add('web', 'Free');
+  await add('web', 'Base');
+  await add('web', 'Depends', '--after', '2');
+  await add('api', 'Api work');
+  await add('web', 'Shipped');
+  await add('web', 'Bounced');
   build(box, alpha, 5, 'shipped.html');
   build(box, alpha, 6, 'bounced.html');
   sendBack(box, alpha, 6, 'not yet');
-  box.run(alpha.web, 'claim', '2');
-  box.run(alpha.repo, 'hold', 'api', '--reason', 'API <freeze> until Friday');
+  await box.inProcess(alpha.web, 'claim', '2');
+  await box.inProcess(alpha.repo, 'hold', 'api', '--reason', 'API <freeze> until Friday');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -261,9 +261,9 @@ test('an item detail shows its pending, red and green check baselines from the A
 test('a sent-back item shows why first [N26]', async () => {
   const box = machine();
   const p = project(box, 'shop');
-  box.run(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets by name', '--brief', 'Files: web/greeting.html');
-  box.run(p.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye', '--brief', 'Files: web/farewell.html');
-  box.run(p.repo, 'add', 'web', 'Heading', '--specs', 'G1', '--criterion', 'has a heading', '--brief', 'Files: web/heading.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets by name', '--brief', 'Files: web/greeting.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye', '--brief', 'Files: web/farewell.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Heading', '--specs', 'G1', '--criterion', 'has a heading', '--brief', 'Files: web/heading.html');
   build(box, p, 1, 'greeting.html');
   sendBack(box, p, 1, 'no <b>greeting</b> on the page\nsecond line of the note');
   build(box, p, 2, 'farewell.html');
@@ -274,14 +274,14 @@ test('a sent-back item shows why first [N26]', async () => {
   build(box, p, 3, 'heading-again.html');
   accept(box, p, 3);
   // Two more ways to be sent back and not verified: withdrawn after the reject, and being reworked.
-  box.run(p.repo, 'add', 'web', 'Banner', '--specs', 'G1', '--criterion', 'shows a banner', '--brief', 'Files: web/banner.html');
-  box.run(p.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'shows a footer', '--brief', 'Files: web/footer.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Banner', '--specs', 'G1', '--criterion', 'shows a banner', '--brief', 'Files: web/banner.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'shows a footer', '--brief', 'Files: web/footer.html');
   build(box, p, 4, 'banner.html');
   sendBack(box, p, 4, 'the banner covers the heading');
-  box.run(p.repo, 'withdraw', '4', 'the banner is dropped');
+  await box.inProcess(p.repo, 'withdraw', '4', 'the banner is dropped');
   build(box, p, 5, 'footer.html');
   sendBack(box, p, 5, 'the footer is empty');
-  box.run(p.web, 'claim', '5');
+  await box.inProcess(p.web, 'claim', '5');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -349,7 +349,7 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
   const box = machine();
   const alpha = project(box, 'sent-back-reason');
   for (const title of ['Duplicate reason', 'Plain note']) {
-    box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the sent-back note reads clearly');
+    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the sent-back note reads clearly');
   }
   const notes = [
     'BEHAVIOR_MISMATCH a78c361: selected-lane exception is unclear',
@@ -404,8 +404,8 @@ test('the list shows active, verified or all [N26]', async () => {
   const box = machine();
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, 'alpha', SPEC, { lanes });
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
   build(box, alpha, 1, 'greeting.html');
   accept(box, alpha, 1);
   const view = await startView(box);
@@ -440,8 +440,8 @@ test('the items toolbar is one row: view, filter and new [N26]', async () => {
   const longLane = 'apilonglanenameforclipping';
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, [longLane]: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, 'toolbar', SPEC, { lanes });
-  box.run(alpha.repo, 'add', 'web', 'Active item', '--specs', 'G1');
-  box.run(alpha.repo, 'add', longLane, 'Another item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Active item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', longLane, 'Another item', '--specs', 'G1');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-items-toolbar-chrome-'));
   let chrome;
@@ -509,8 +509,8 @@ const wideFontToolbar = (forcedFonts) => async () => {
   const longLane = 'apilonglanenameforclipping';
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, [longLane]: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, forcedFonts ? 'wide-fonts' : 'wide-spacing', SPEC, { lanes });
-  box.run(alpha.repo, 'add', 'web', 'Active item', '--specs', 'G1');
-  box.run(alpha.repo, 'add', longLane, 'Another item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Active item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', longLane, 'Another item', '--specs', 'G1');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-items-wide-fonts-chrome-'));
   let chrome;
@@ -583,20 +583,20 @@ test('the filter menu sets show and lane [N26]', async () => {
   const box = machine();
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, 'filter', SPEC, { lanes });
-  box.run(alpha.repo, 'add', 'web', 'Active item', '--specs', 'G1');
-  box.run(alpha.repo, 'add', 'api', 'Verified item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Active item', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', 'api', 'Verified item', '--specs', 'G1');
   const api = join(box.dir, 'filter-api');
   const apiBranch = 'api/filter';
   box.git(alpha.repo, 'worktree', 'add', '-q', api, '-b', apiBranch);
-  box.run(api, 'join', 'api');
-  box.run(api, 'claim', '2');
+  await box.inProcess(api, 'join', 'api');
+  await box.inProcess(api, 'claim', '2');
   mkdirSync(join(api, 'api'), { recursive: true });
   writeFileSync(join(api, 'api', 'verified.html'), 'verified.html\n');
   box.git(api, 'add', '-A');
   box.git(api, 'commit', '-q', '-m', 'feat(api): verified [G1]');
-  box.run(api, 'submit', '2');
+  await box.inProcess(api, 'submit', '2');
   box.git(alpha.repo, 'switch', '-q', '--detach', apiBranch);
-  box.run(alpha.repo, 'verify', '2', 'accept', '--note', 'the page shows it', '--as', 'coordinator');
+  await box.inProcess(alpha.repo, 'verify', '2', 'accept', '--note', 'the page shows it', '--as', 'coordinator');
   box.git(alpha.repo, 'switch', '-q', 'main');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-items-filter-chrome-'));
@@ -666,16 +666,16 @@ test('the filter menu sets show and lane [N26]', async () => {
 test('shout ids, search and narrow windows reach the item [N26]', async () => {
   const box = machine();
   const p = project(box, 'desk');
-  box.run(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(p.repo, 'add', 'web', 'Farewell banner', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(p.repo, 'add', 'web', 'Farewell banner', '--specs', 'G2', '--criterion', 'says goodbye');
   build(box, p, 2, 'farewell.html');
   accept(box, p, 2);
   // Item 39 exists, so an escaped apostrophe (&#39;) read as an id would turn into a link.
-  for (let id = 3; id <= 39; id += 1) box.run(p.repo, 'add', 'web', `Filler ${id}`, '--specs', 'G1', '--criterion', 'fills');
-  box.run(p.repo, 'add', 'web', 'Retired widget', '--specs', 'G1', '--criterion', 'retires');
-  box.run(p.repo, 'withdraw', '40', 'nobody needs the widget');
-  box.run(p.web, 'shout', 'all', "#1 is next; #2 shipped (#99 is not an item) and it's done");
-  box.run(p.web, 'shout', 'all', "#7, see#7 and #7#8: it's 5 o'clock");
+  for (let id = 3; id <= 39; id += 1) await box.inProcess(p.repo, 'add', 'web', `Filler ${id}`, '--specs', 'G1', '--criterion', 'fills');
+  await box.inProcess(p.repo, 'add', 'web', 'Retired widget', '--specs', 'G1', '--criterion', 'retires');
+  await box.inProcess(p.repo, 'withdraw', '40', 'nobody needs the widget');
+  await box.inProcess(p.web, 'shout', 'all', "#1 is next; #2 shipped (#99 is not an item) and it's done");
+  await box.inProcess(p.web, 'shout', 'all', "#7, see#7 and #7#8: it's 5 o'clock");
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -742,19 +742,19 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
 test('the detail opens on the top item, not a blank form [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   // Beta's first row is #3, while its #1 and #2 share ids with alpha's first row and pick.
   const beta = project(box, 'beta');
-  for (const title of ['Beta one', 'Beta two', 'Beta three']) box.run(beta.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Beta one', 'Beta two', 'Beta three']) await box.inProcess(beta.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   const empty = project(box, 'empty');
   const done = project(box, 'done');
-  box.run(done.repo, 'add', 'web', 'Shipped page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(done.repo, 'add', 'web', 'Shipped page', '--specs', 'G1', '--criterion', 'renders');
   build(box, done, 1, 'shipped.html');
   accept(box, done, 1);
   const gone = project(box, 'gone');
-  box.run(gone.repo, 'add', 'web', 'Dropped page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(gone.repo, 'withdraw', '1', 'nobody needs it');
+  await box.inProcess(gone.repo, 'add', 'web', 'Dropped page', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(gone.repo, 'withdraw', '1', 'nobody needs it');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -767,7 +767,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
     assert.deepEqual(rows(), ['2*', '1'], 'its row is marked');
     assert.deepEqual(form(), [true, false], 'no blank form');
 
-    box.run(alpha.web, 'claim', '1');
+    await box.inProcess(alpha.web, 'claim', '1');
     page.element('shout-to').value = 'web';
     page.element('shout-text').value = 'Greeting is claimed';
     await page.fire('shout-form', 'submit');
@@ -815,17 +815,17 @@ test('a new item from the view can carry a brief [N27]', async () => {
       await page.fire('add-form', 'submit');
       return page.element('console').textContent;
     };
-    const stored = (id) => JSON.parse(box.run(alpha.repo, 'show', String(id), '--json')).item_brief;
+    const stored = async (id) => JSON.parse(await box.inProcess(alpha.repo, 'show', String(id), '--json')).item_brief;
 
     const brief = 'Files: web/greeting.html\nTest: the page says hello';
     const ran = await add({ 'add-lane': 'web', 'add-title': 'Greeting', 'add-specs': 'G1', 'add-brief': brief });
     assert.ok(ran.startsWith(`$ pullboard add web Greeting --specs G1 --brief ${brief}\n`), ran);
-    assert.equal(stored(1), brief, 'the brief reaches the board as written, its line break kept');
+    assert.equal(await stored(1), brief, 'the brief reaches the board as written, its line break kept');
     assert.equal(page.element('add-brief').value, '', 'a successful add clears it');
 
     const plain = await add({ 'add-lane': 'web', 'add-title': 'Farewell', 'add-specs': 'G2', 'add-brief': '  ' });
     assert.ok(plain.startsWith('$ pullboard add web Farewell --specs G2\n'), plain);
-    assert.ok(!stored(2), 'left empty, the item gets no brief');
+    assert.ok(!(await stored(2)), 'left empty, the item gets no brief');
     assert.match(page.html, /<label>Brief<textarea id="add-brief"/, 'the field is in the form, not built by the script');
   } finally {
     await view.stop();
@@ -881,21 +881,21 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
 
   const box = machine();
   const alpha = project(box, 'item-thread');
-  box.run(alpha.repo, 'add', 'web', 'Thread fixture', '--specs', 'G1', '--criterion', 'The item keeps its evidence.');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Thread fixture', '--specs', 'G1', '--criterion', 'The item keeps its evidence.');
+  await box.inProcess(alpha.web, 'claim', '1');
   const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
   /** Append a real board fact and return the identity the correction must name. */
-  const addFact = (kind, text, ...flags) => JSON.parse(box.run(alpha.web, 'fact', '1', kind, text, ...flags, '--json')).fact;
-  const oldNote = addFact('note', 'Earlier observation, now replaced.');
-  addFact('capture', 'Captured the rendered page.', '--ref', `SPEC.md:1-2@${sourceHead}`);
-  box.run(alpha.web, 'release', '1', '--reason', 'OTHER', '--note', 'The item detail fixture releases its claim before opening the thread.');
-  addFact('measurement', 'The view settles in 8 seconds.');
-  box.run(alpha.web, 'claim', '1');
-  addFact('diff', 'The detail gained a thread.');
-  addFact('decision', 'Keep the thread in the item.');
-  addFact('rejection', 'The first layout wrapped poorly.');
-  const replacement = addFact('supersession', 'Correction: the note is replaced.', '--supersedes', oldNote.id);
-  addFact('root-cause', 'The missing projection hid the facts.');
+  const addFact = async (kind, text, ...flags) => JSON.parse(await box.inProcess(alpha.web, 'fact', '1', kind, text, ...flags, '--json')).fact;
+  const oldNote = await addFact('note', 'Earlier observation, now replaced.');
+  await addFact('capture', 'Captured the rendered page.', '--ref', `SPEC.md:1-2@${sourceHead}`);
+  await box.inProcess(alpha.web, 'release', '1', '--reason', 'OTHER', '--note', 'The item detail fixture releases its claim before opening the thread.');
+  await addFact('measurement', 'The view settles in 8 seconds.');
+  await box.inProcess(alpha.web, 'claim', '1');
+  await addFact('diff', 'The detail gained a thread.');
+  await addFact('decision', 'Keep the thread in the item.');
+  await addFact('rejection', 'The first layout wrapped poorly.');
+  const replacement = await addFact('supersession', 'Correction: the note is replaced.', '--supersedes', oldNote.id);
+  await addFact('root-cause', 'The missing projection hid the facts.');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-item-thread-chrome-'));
@@ -998,10 +998,10 @@ test('in-text item references stay inline and open their target at phone and des
   const box = machine();
   const demo = project(box, 'inline-references', SPEC, { practice: 'ways.md' });
   writeFileSync(join(demo.repo, 'ways.md'), '# Local rules\n\n## Team\n- G1 [approved, must] Items carry the page behavior. | gate: review\n');
-  box.run(demo.repo, 'add', 'web', 'Target item', '--specs', 'G1', '--criterion', 'the linked target');
-  box.run(demo.repo, 'add', 'web', 'Title links to #1', '--specs', 'G1', '--criterion', 'Criterion links to #1', '--brief', 'Brief links to #1');
-  box.run(demo.web, 'claim', '2');
-  box.run(demo.repo, 'shout', 'person', 'Please choose #1 next', '--decision');
+  await box.inProcess(demo.repo, 'add', 'web', 'Target item', '--specs', 'G1', '--criterion', 'the linked target');
+  await box.inProcess(demo.repo, 'add', 'web', 'Title links to #1', '--specs', 'G1', '--criterion', 'Criterion links to #1', '--brief', 'Brief links to #1');
+  await box.inProcess(demo.web, 'claim', '2');
+  await box.inProcess(demo.repo, 'shout', 'person', 'Please choose #1 next', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-inline-references-chrome-'));
   let chrome;
@@ -1125,14 +1125,14 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
   const demo = project(box, 'row-shape');
   const long = 'A title far too long for one line of the list: it names `pullboard land` and #1, then keeps on going past every width a phone or a laptop gives a row, so only an ellipsis can end it';
   const titles = { 1: 'Short title', 2: long, 3: 'Waits on the short one', 4: 'Built, then sent back with a long reason', 5: 'Being built right now' };
-  box.run(demo.repo, 'add', 'web', titles[1], '--specs', 'G1', '--criterion', 'short');
-  box.run(demo.repo, 'add', 'web', titles[2], '--specs', 'G1', '--criterion', 'long');
-  box.run(demo.repo, 'add', 'web', titles[3], '--specs', 'G1', '--criterion', 'gated', '--after', '1');
-  box.run(demo.repo, 'add', 'web', titles[4], '--specs', 'G1', '--criterion', 'back');
-  box.run(demo.repo, 'add', 'web', titles[5], '--specs', 'G1', '--criterion', 'busy');
+  await box.inProcess(demo.repo, 'add', 'web', titles[1], '--specs', 'G1', '--criterion', 'short');
+  await box.inProcess(demo.repo, 'add', 'web', titles[2], '--specs', 'G1', '--criterion', 'long');
+  await box.inProcess(demo.repo, 'add', 'web', titles[3], '--specs', 'G1', '--criterion', 'gated', '--after', '1');
+  await box.inProcess(demo.repo, 'add', 'web', titles[4], '--specs', 'G1', '--criterion', 'back');
+  await box.inProcess(demo.repo, 'add', 'web', titles[5], '--specs', 'G1', '--criterion', 'busy');
   build(box, demo, 4, 'four.txt');
   sendBack(box, demo, 4, `It misses the edge: ${'the criterion names a blank name and the page still greets it, '.repeat(4)}`);
-  box.run(demo.web, 'claim', '5');
+  await box.inProcess(demo.web, 'claim', '5');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-row-shape-chrome-'));
   let chrome;
@@ -1191,7 +1191,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     config.agents = { names: 'prefix' };
     writeFileSync(configPath, JSON.stringify(config, null, 2));
-    box.run(demo.web, 'join', 'web', '--model', 'claude-opus-designer-on-a-long-review-model-name');
+    await box.inProcess(demo.web, 'join', 'web', '--model', 'claude-opus-designer-on-a-long-review-model-name');
     await chrome.stable('refresh()');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -1287,7 +1287,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
   assert.ok(executable, 'Chrome is required for the Pipeline view criterion');
   const box = machine(), alpha = project(box, 'pipeline-board');
   const { base, arrivals } = pipelineBoard(box, alpha);
-  const status = JSON.parse(box.run(alpha.repo, 'status', '--json')).stats.items;
+  const status = JSON.parse(await box.inProcess(alpha.repo, 'status', '--json')).stats.items;
   assert.deepEqual(status, { open: 2, claimed: 1, submitted: 1, verified: 2, withdrawn: 0 });
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-pipeline-chrome-'));
   let chrome;
@@ -1346,7 +1346,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
       }
       }
     }
-    box.run(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+    await box.inProcess(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
     await chrome.waitFor("document.querySelector('[data-stage-count=verified]').textContent === '0' && document.querySelector('[data-stage-count=merged]').textContent === '2'");
     assert.equal(await chrome.stable("document.querySelector('#pipeline [data-pipeline-stage=verified] .pipeline-oldest').textContent"), 'No items', 'a recorded merge advances only the verified item and leaves an honest empty stage');
     await press(chrome, "document.querySelector('[data-items-view=\"list\"]')");
@@ -1435,7 +1435,7 @@ test('a refresh between pointer down and up does not lose the click [N26,N38,C7]
     await press(chrome, "document.querySelector('#pipeline .pipeline-item[data-item=\"2\"]')", {
       afterMouseDown: async () => {
         const title = 'A new item arrives during the held Pipeline press';
-        box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Refresh the board while a card is pressed');
+        await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Refresh the board while a card is pressed');
         refreshObservation = JSON.parse(await chrome.stable(`(async () => {
           await refresh();
           const old = globalThis.__pipelinePressDiagnostic.down?.node;
