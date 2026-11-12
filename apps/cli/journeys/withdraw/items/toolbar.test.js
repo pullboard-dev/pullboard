@@ -1,7 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit items checks (toolbar), using the shared real-board fixtures [N26]. */
-import '../../init/geometry.test.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,

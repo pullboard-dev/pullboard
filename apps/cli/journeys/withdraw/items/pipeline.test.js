@@ -1,7 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit items checks (pipeline), using the shared real-board fixtures [N26]. */
-import '../../init/geometry.test.js';
 import {
   submitFixture,
 } from '../../../tests/fixtures/board/submit.js';
