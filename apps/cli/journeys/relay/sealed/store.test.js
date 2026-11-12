@@ -58,7 +58,7 @@ test('[A4,H7] two clients append sealed moves in one order and no plaintext or c
     assert.equal(bytes.includes(Buffer.from(text)), false, 'a known client plaintext must never occur in relay database bytes');
   }
   assert.equal(bytes.includes(box.key), false, 'the client key must never occur in relay database bytes');
-  assert.deepEqual(JSON.parse(box.cli('export')), box.document, 'the complete local board remains unchanged');
+  assert.deepEqual(JSON.parse(box.cliLocal('export')), box.document, 'the complete local board remains unchanged');
 });
 
 test('[A4,H7] snapshots compact covered moves, preserve the tail and deletion removes only its database', async (t) => {
@@ -90,7 +90,7 @@ test('[A4,H7] snapshots compact covered moves, preserve the tail and deletion re
   assert.equal(deletedCredential.body.error.code, 'RELAY_BOARD_DELETED');
   assert.equal(deletedCredential.body.state, undefined, 'the deleted credential receives no sealed board data');
   assert.deepEqual(box.clientOpen((await box.call(otherPath + '/state', { token: box.person.token })).body.state.sealed, 'snapshot', 0, other), { other: true });
-  assert.deepEqual(JSON.parse(box.cli('export')), box.document);
+  assert.deepEqual(JSON.parse(box.cliLocal('export')), box.document);
 });
 
 test('[A4,H7] malformed or unauthorized calls cannot store clear records, keys or another board', async (t) => {

@@ -353,6 +353,14 @@ globalThis.fetch = function tracedFetch(input, init) {
   async function cli(...args) {
     return runCliChild(args, undefined, args[0] === 'status');
   }
+  /** Invoke the production CLI in-process under the same budget; the answer is the childResult shape without a fetch trace. */
+  async function cliLocal(...args) {
+    return runCliChild(args, undefined, false);
+  }
+  /** Invoke the production CLI in-process from another worktree sharing this fixture's repository and home. */
+  async function cliAtLocal(cwd, ...args) {
+    return inProcessResult(cwd, env, args);
+  }
   /** Invoke the production CLI from another worktree sharing this fixture's repository and home. */
   async function cliAt(cwd, ...args) {
     return inProcessResult(cwd, env, args);
@@ -590,7 +598,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   }
   return {
     ...serverApi, authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
