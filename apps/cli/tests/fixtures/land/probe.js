@@ -9,9 +9,9 @@ export function setPhase(name) { phase = name; }
 function caller() {
   const lines = (new Error().stack ?? '').split('\n').slice(2);
   const own = lines.filter(line => !line.includes('node:') && !line.includes('probe.js') && !line.includes('git/src/io/adapter.js') && !line.includes('tests/fixtures/'));
-  return own.slice(0, 3).map(line => line.trim().replace(/^at /, '').replace(/\(?\/.*?pullboard-local\/[^/]*\/[^/]*\/[^/]*\//, '(').replace(/^.*?\/(apps|packages)\//, '$1/')).join(' < ');
+  return own.slice(0, 4).map(line => line.trim().replace(/^at /, '').replace(/\(?\/.*?pullboard-local\/[^/]*\/[^/]*\/[^/]*\//, '(').replace(/^.*?\/(apps|packages)\//, '$1/')).join(' < ');
 }
-function label(cmd, args) { return `${cmd.split('/').pop()} ${(args ?? []).filter(a => !String(a).startsWith('-')).slice(0, cmd.endsWith('git') ? 2 : 1).map(a => String(a).split('/').slice(-2).join('/')).join(' ')}`; }
+function label(cmd, args) { const words = []; for (let i = 0; i < (args ?? []).length; i++) { const a = String(args[i]); if (a === '-c') { i++; continue; } if (a.startsWith('-')) continue; words.push(a.split('/').slice(-2).join('/').slice(0, 40)); } return `${cmd.split('/').pop()} ${words.slice(0, cmd.endsWith('git') ? 2 : 1).join(' ')}`; }
 for (const name of ['spawnSync', 'execFileSync']) {
   const real = childProcess[name];
   childProcess[name] = function (cmd, args, ...rest) {
