@@ -1271,23 +1271,22 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     return document;
   }
 
-  /** Compare the live cached handler's full state with a newly constructed full projection. */
+  /** Name each JSON path where two state projections differ, so a drift reads as fields rather than two dumped boards. */
+  const stateDiffs = (a, b, at = '$', out = []) => { if (JSON.stringify(a) !== JSON.stringify(b)) { if (a && b && typeof a === 'object' && typeof b === 'object') for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) stateDiffs(a[key], b[key], `${at}.${key}`, out); else out.push([at, a, b]); } return out; };
+  /** Read one handler's full state at the controlled instant. */
+  async function fullState(handler, label) { const response = await apiFetch(handler, `${path}/state?detail=full`); assert.equal(response.status, 200, `${label}: full state response`); return (await response.json()).state; }
+  /** Compare the live cached full state with a fresh full projection; seats may append itemless usage events after a command returns, so only a board still across the fresh build compares. */
   async function assertFreshFullState(label) {
-    setTestClock();
-    const comparisonTime = Date.now();
-    const currentResponse = await apiFetch(api, `${path}/state?detail=full`);
-    assert.equal(currentResponse.status, 200, `${label}: live state response`);
-    const current = await currentResponse.json();
-    const fresh = await startLocalHandler(t, box, { personChannel: 'api', stateDetail: 'full' });
-    try {
-      const freshResponse = await apiFetch(fresh, `${path}/state?detail=full`);
-      assert.equal(freshResponse.status, 200, `${label}: fresh full state response`);
-      const freshState = (await freshResponse.json()).state, diff = (a, b, p = '$', out = []) => { if (JSON.stringify(a) === JSON.stringify(b)) return out; if (a && b && typeof a === 'object' && typeof b === 'object') for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) diff(a[k], b[k], `${p}.${k}`, out); else out.push([p, a, b]); return out; }; assert.deepEqual(diff(current.state, freshState).slice(0, 20), [], `${label}: incremental state equals a clean full rebuild`);
+    for (let attempt = 1; ; attempt += 1) {
+      setTestClock();
+      const comparisonTime = Date.now(), before = await fullState(api, `${label}: live`);
+      const fresh = await startLocalHandler(t, box, { personChannel: 'api', stateDetail: 'full' });
+      const rebuilt = await fullState(fresh, `${label}: fresh`).finally(() => fresh.close()), after = await fullState(api, `${label}: live again`);
       assert.equal(Date.now(), comparisonTime, `${label}: both state projections use the same controlled instant`);
-    } finally {
-      await fresh.close();
+      if (attempt < 20 && stateDiffs(before, after).length) continue; // Each fresh build is the wait: the board moved during it, so build again.
+      assert.deepEqual(stateDiffs(after, rebuilt).slice(0, 20), [], `${label}: incremental state equals a clean full rebuild`);
+      return after;
     }
-    return current.state;
   }
 
   /** Read one item's current lease from the fixture board without changing its event cursor. */
