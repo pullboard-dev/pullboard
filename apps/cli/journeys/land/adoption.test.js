@@ -45,7 +45,7 @@ test('land stops again with an expired waiver, and a changed test on main releas
   onBoard(box, (board) => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-example', test: FILES[0], until: '2000-01-02', reason: 'expired fixture approval' }), past);
   const start = calls(box).length;
   const refused = box.run(box.repo, 'land', '--json');
-  assert.equal(JSON.parse(refused.out).error?.code, 'LAND_FLAKE');
+  assert.equal(JSON.parse(refused.out).error?.code, 'LAND_FLAKE', `${refused.out}${refused.err}`);
   assert.equal(calls(box).length, start, 'expired waiver authorizes no retry');
   assert.equal(commitFile(box, box.repo, FILES[0], 'PASS\n', 'chore: correct the flaky test').status, 0);
   const landed = json(box, box.repo, 'land');
