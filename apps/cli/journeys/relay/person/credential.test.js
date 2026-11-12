@@ -102,7 +102,7 @@ test('same-user agents never act as their person while the phone approves native
   writeFileSync(join(box.root, 'SPEC.md'), readFileSync(join(box.root, 'SPEC.md'), 'utf8') + '\n- G1 [approved, must] A private security fixture parses. | gate: node --check src/security-fixture.js\n');
   git(box.root, personEnv, 'add', '-A');
   git(box.root, personEnv, 'commit', '-q', '-m', 'test(fixture): prepare native security proof [G1]');
-  const item = await box.cli('add', buildLane, 'native scoped work', '--specs', 'G1', '--criterion', 'the private source parses');
+  const item = await box.cliLocal('add', buildLane, 'native scoped work', '--specs', 'G1', '--criterion', 'the private source parses');
   assert.equal(item.code, 0);
   const itemId = item.document.item.item_id;
 

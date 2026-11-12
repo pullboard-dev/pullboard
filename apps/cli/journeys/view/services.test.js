@@ -30,7 +30,7 @@ function missingService(name) {
 }
 
 /** Record the initial approved spec before init, as the real public-export fixtures do [N26]. */
-function approvedViewFixture(t) {
+async function approvedViewFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.sandbox();
@@ -41,7 +41,7 @@ function approvedViewFixture(t) {
   const model = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
   try {
-    const initialized = box.run(repo, 'init');
+    const initialized = await box.runLocal(repo, 'init');
     assert.equal(initialized.code, 0, initialized.err || initialized.out);
   } finally {
     if (model !== undefined) box.env.PULLBOARD_MODEL = model;
@@ -62,9 +62,9 @@ test('a live view refuses missing command or renderer services before listening 
     boardOpeners: { openBoard: nativeBoardOpeners({ nativeBoard }).openBoard } }), missingService('openBoardForRead'));
 });
 
-test('standalone view projection opens the real native board [N26,C7]', t => {
-  const box = approvedViewFixture(t);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Projection fixture', '--criterion', 'visible in the view');
+test('standalone view projection opens the real native board [N26,C7]', async t => {
+  const box = await approvedViewFixture(t);
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Projection fixture', '--criterion', 'visible in the view');
   assert.equal(added.code, 0, added.err || added.out);
   assert.ok(projectState(box.repo).items.some(item => item.title === 'Projection fixture'));
 });
@@ -82,8 +82,8 @@ test('an export refuses missing services before reading a board or writing outpu
 });
 
 /** @pullboard-test-input apps/cli/src/io/commands/view.js */
-test('the actual CLI composition serves and exports a private real board [N26,C7]', t => {
-  const box = approvedViewFixture(t);
+test('the actual CLI composition serves and exports a private real board [N26,C7]', async t => {
+  const box = await approvedViewFixture(t);
   const module = new URL('../../src/io/commands/view.js', import.meta.url).href;
   const output = join(box.dir, 'snapshot');
   const program = `

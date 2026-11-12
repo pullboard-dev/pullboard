@@ -229,8 +229,8 @@ export async function land(options) {
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
   } catch (error) {
     failed = true;
-    // A gate stopped by the guardian's loss fails on its own; the loss is the cause.
-    throw controller.signal.aborted && controller.signal.reason?.code === 'LAND_WORKER' ? controller.signal.reason : error;
+    // A gate stopped by the guardian's or the lease's loss fails on its own; the loss is the cause (#5770).
+    throw controller.signal.aborted && ['LAND_WORKER', 'LAND_LEASE_LOST'].includes(controller.signal.reason?.code) ? controller.signal.reason : error;
   }
   finally {
     try { await lease.release(); }

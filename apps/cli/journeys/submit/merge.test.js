@@ -53,15 +53,15 @@ test('a conflicting main move names the file and leaves the source untouched [C7
   assert.equal(p.git(p.work, 'status', '--porcelain'), '');
 });
 
-test('submit composes moved main before its actual frozen check [C7,V4]', t => {
+test('submit composes moved main before its actual frozen check [C7,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
-    '--check', "test -f web/feature.txt && test -f web/main.txt", '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', "test -f web/feature.txt && test -f web/main.txt", '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id));
+  const claimed = (await box.runLocal(box.web, 'claim', String(id)));
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add auto merge fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
@@ -71,18 +71,18 @@ test('submit composes moved main before its actual frozen check [C7,V4]', t => {
   box.git(box.repo, 'add', 'web/main.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'docs: advance main');
   const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
-  const result = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  const result = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.deepEqual(box.git(box.web, 'show', '-s', '--format=%P', head).split(' '), [source, trunk]);
   assert.equal(box.git(box.web, 'show', '-s', '--format=%ae', head), box.git(box.web, 'show', '-s', '--format=%ae', source));
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+  const shown = (await box.runLocal(box.repo, 'show', String(id), '--json'));
   assert.equal(shown.code, 0, shown.err);
   assert.equal(JSON.parse(shown.out).item_commit, head);
   assert.match(JSON.stringify(JSON.parse(shown.out)), /Builder web-1 automatic main merge/u);
 });
 
-test('a reviewer checks a builder-attributed composition when main moved [C7,V4]', t => {
+test('a reviewer checks a builder-attributed composition when main moved [C7,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -93,57 +93,57 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: compose at admission');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'review auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
-    '--check', 'test -f web/feature.txt', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'review auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', 'test -f web/feature.txt', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id));
+  const claimed = (await box.runLocal(box.web, 'claim', String(id)));
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add review fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   const source = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, source);
-  const joined = fixtureJoin(box.run, review, 'api', '--route', 'strong');
+  const joined = (await fixtureJoin(box.runLocal, review, 'api', '--route', 'strong'));
   assert.equal(joined.code, 0, joined.err);
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/review-main.txt'), 'review main\n');
   box.git(box.repo, 'add', 'docs/review-main.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'docs: advance review main');
   const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
-  const result = box.run(review, 'verify', String(id), 'accept', '--note', 'checked the merged source', '--json');
+  const result = (await box.runLocal(review, 'verify', String(id), 'accept', '--note', 'checked the merged source', '--json'));
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const refs = box.git(box.repo, 'for-each-ref', '--format=%(objectname)', `refs/pullboard/items/${id}/`).split('\n').filter(Boolean);
   assert.ok(refs.length, 'the actual reviewed composition is retained');
   const merged = refs.find(ref => box.git(box.repo, 'show', '-s', '--format=%P', ref).split(' ').includes(trunk));
   assert.ok(merged, `review ref includes main ${trunk}`);
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+  const shown = (await box.runLocal(box.repo, 'show', String(id), '--json'));
   assert.equal(shown.code, 0, shown.err);
   assert.match(JSON.stringify(JSON.parse(shown.out)), new RegExp(`Automatic main merge ${merged}.*builder web-1`, 'u'));
   assert.equal(box.git(review, 'rev-parse', 'HEAD'), source, 'private review composition leaves the checkout unchanged');
 });
 
-test('submit names a real main conflict and leaves the builder checkout intact [C7,V4]', t => {
+test('submit names a real main conflict and leaves the builder checkout intact [C7,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const base = helpers.commitFile(box, box.repo, 'web/shared.txt', 'base\n', 'feat(web): seed conflict fixture [G1]');
   assert.equal(base.status, 0, base.stderr);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'conflicting auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
-    '--check', 'test -f web/shared.txt', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'conflicting auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', 'test -f web/shared.txt', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id));
+  const claimed = (await box.runLocal(box.web, 'claim', String(id)));
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const sourceChange = helpers.commitFile(box, box.web, 'web/shared.txt', 'builder\n', 'feat(web): edit shared file [G1]');
   assert.equal(sourceChange.status, 0, sourceChange.stderr);
   const source = box.git(box.web, 'rev-parse', 'HEAD');
   const trunkChange = helpers.commitFile(box, box.repo, 'web/shared.txt', 'main\n', 'feat(web): independently edit file [G1]');
   assert.equal(trunkChange.status, 0, trunkChange.stderr);
-  const result = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  const result = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(result.code, 1, result.out);
   const refusal = JSON.parse(result.out).error;
   assert.equal(refusal.code, 'MERGE_CONFLICT');

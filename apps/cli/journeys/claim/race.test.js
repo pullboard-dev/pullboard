@@ -43,8 +43,8 @@ test('a real baseline worker completes during claim preparation without strandin
   installSshStandIn({ bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: join(remoteHome, '.pullboard'), requests: join(box.dir, 'ssh-requests.jsonl') });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
-  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1').code, 0);
-  assert.equal(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1')).code, 0);
+  assert.equal((await box.runLocal(box.repo, 'settings', 'gate.loadAwareDispatch', 'off')).code, 0);
   let board;
   let peer;
   let worker;
