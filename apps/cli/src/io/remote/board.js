@@ -75,10 +75,13 @@ function seatAgent(cwd) {
 async function showRemote(io, remote, positionals) {
   const raw = String(positionals[1] ?? '').replace(/^#/u, '');
   if (!/^[1-9]\d*$/u.test(raw) || positionals.length !== 2) throw new Refused('USAGE', 'pullboard show <id>');
-  const { item } = await getJson(remote, `${await boardPath(remote)}/items/${raw}`);
+  const path = await boardPath(remote);
+  // An item's detail path leaves out its summary fields (title, lane, status), which the board's state carries.
+  const [{ item: detail }, document] = await Promise.all([getJson(remote, `${path}/items/${raw}`), getJson(remote, `${path}/state`)]);
+  const summary = ((document.state ?? document).items ?? []).find((entry) => entry.id === Number(raw)) ?? {};
+  const item = { ...summary, ...detail };
   io.result?.({ item, board: new URL(remote.url).origin });
-  io.say(`#${item.id}  ${item.state}  ${item.lane}  ${item.title}${item.specs?.length ? `  [${item.specs.join(', ')}]` : ''}`);
-  if (item.claimedBy) io.say(`claimed by: ${item.claimedBy}`);
+  io.say(`#${item.id}  ${item.status}  ${item.lane}  ${item.title}${item.specs?.length ? `  [${item.specs.join(', ')}]` : ''}`);
   if (item.criterion) io.say(`criterion: ${item.criterion}`);
   if (item.brief) io.say(`brief:\n  ${String(item.brief).split('\n').join('\n  ')}`);
 }
@@ -87,8 +90,8 @@ async function showRemote(io, remote, positionals) {
 async function whoamiRemote(io, remote, cwd) {
   const name = seatAgent(cwd);
   if (!name) throw new Refused('NO_AGENT', 'this seat has no agent name; run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
-  const state = await getJson(remote, `${await boardPath(remote)}/state`);
-  const agent = (state.agents ?? []).find((entry) => entry.agent_id === name);
+  const document = await getJson(remote, `${await boardPath(remote)}/state`);
+  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
   if (!agent) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}; run pullboard join <lane> with board.url set`);
   const board = new URL(remote.url).origin;
   io.result?.({ id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, board });

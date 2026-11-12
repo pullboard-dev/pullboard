@@ -40,7 +40,7 @@ async (t) => {
   assert.equal((await seat.run('settings', 'board.url', seat.box.origin)).status, 0);
   assert.equal((await seat.run('settings', 'board.token', '--', seat.box.key)).status, 0);
   const shown = await seat.run('show', String(seat.item), '--json');
-  assert.equal(shown.status, 0, shown.stderr);
+  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
   const document = JSON.parse(shown.stdout);
   assert.equal(document.item.id, seat.item);
   assert.equal(document.item.title, 'Remote readable item');
@@ -53,10 +53,10 @@ async (t) => {
 test("whoami prints the named agent's lane from the served board with no board.sqlite [P7]", { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and three CLI children, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
-  await seat.run('settings', 'board.url', `${seat.box.origin}${seat.box.path}`);
-  await seat.run('settings', 'board.token', '--', seat.box.key);
+  assert.equal((await seat.run('settings', 'board.url', `${seat.box.origin}${seat.box.path}`)).status, 0);
+  assert.equal((await seat.run('settings', 'board.token', '--', seat.box.key)).status, 0);
   const me = await seat.run('whoami', '--json');
-  assert.equal(me.status, 0, me.stderr);
+  assert.equal(me.status, 0, me.stdout + me.stderr);
   const document = JSON.parse(me.stdout);
   assert.equal(document.id, seat.env.PULLBOARD_AGENT);
   assert.equal(document.lane, 'app');
