@@ -134,7 +134,7 @@ writeFileSync(join(dirname(process.argv[2]), 'submission.json'), '{}');
   assert.equal(existsSync(join(directory, 'worker.json')), false, 'nothing is written beside the hand-off');
 });
 
-test('clause 1: a stalled in-process landing ends after 10 minutes without progress, its job failed with the lease freed [C7]', async t => {
+test('clause 1: a stalled in-process landing ends after 2 minutes without progress, its job failed with the lease freed [C7,#5816]', async t => {
   const board = fixtureBoard(t);
   let clock = 0;
   const now = () => clock;
@@ -156,10 +156,10 @@ test('clause 1: a stalled in-process landing ends after 10 minutes without progr
   const landing = driveLanding(board.db, { owner: 'lander', id, now, renewMs: 1,
     watch: { lastProgressAt, stall: progress.stall }, run: () => runner({ fence: {}, root: '/unused' }, hooks) });
   await beatsPass(1);
-  clock = 9 * 60_000;
+  clock = 115_000;
   await beatsPass(2);
-  assert.equal(jobView(board.db, id).steps.some(step => step.name === 'failed'), false, 'nine quiet minutes do not end the batch');
-  clock = 10 * 60_000;
+  assert.equal(jobView(board.db, id).steps.some(step => step.name === 'failed'), false, '1:55 quiet does not end the batch');
+  clock = 2 * 60_000;
   // The heartbeat timer is unref'd, as in production, so the test keeps the loop turning until the landing settles.
   let settled = false;
   landing.finally(() => { settled = true; }).catch(() => {});
