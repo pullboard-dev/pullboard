@@ -30,8 +30,8 @@ after(async () => {
 });
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -52,7 +52,7 @@ function thread(...texts) {
   return texts.map((text, index) => ({ type: 'fact', kind: 'note', by: 'web-1', text, id: `fact${index}` }));
 }
 
-test('clause 1: a fact at an earlier head is listed, one at the exact head or at no head is not [C7]', () => {
+test('clause 1: a fact at an earlier head is listed, one at the exact head or at no head is not [C7]', async () => {
   const item = { item_id: 5, item_owner: 'web-1', item_criterion: '1. a greeting shows [test] 2. a name shows [test]' };
   const head = 'b'.repeat(40);
   const facts = earlierHeadFacts(item, thread('clause 1 [test]: "a greeting case passes" passed at aaaaaaaaaa', 'clause 2 [test]: "a name case passes" passed at bbbbbbbbbb'), head);
@@ -66,7 +66,7 @@ test('clause 1: a fact at an earlier head is listed, one at the exact head or at
   assert.match(staleHeadLines(item, thread('clause 1 [test]: "x" at aaaaaaaaaa'), head)[0], /^clause 1: its only evidence cites an earlier head \(aaaaaaaaaa\)/u);
 });
 
-test('clause 1: show --review links an earlier-head fact to the exact-head receipt outcome and names a missing case stale; clause 2: submit names those clauses before queuing [C7,V4]', { timeout: 300_000 }, () => {
+test('clause 1: show --review links an earlier-head fact to the exact-head receipt outcome and names a missing case stale; clause 2: submit names those clauses before queuing [C7,V4]', { timeout: 300_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: 'node --test' });
@@ -79,7 +79,7 @@ test('clause 1: show --review links an earlier-head fact to the exact-head recei
   assert.equal(joinFixtureSeat(box, builder, 'web').code, 0);
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Greet the visitor', criterion: CRITERION,
     check: 'node --test web/cases.test.js', args: ['--specs', 'G1'] }).item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   const cases = name2 => [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
@@ -92,19 +92,19 @@ test('clause 1: show --review links an earlier-head fact to the exact-head recei
   writeFileSync(join(builder, 'web/cases.test.js'), cases(OLD));
   commit(box, builder, 'feat(web): greet the visitor [G1]');
   const first = box.git(builder, 'rev-parse', '--short=10', 'HEAD').trim();
-  ok(box, builder, 'fact', String(id), 'note', `clause 1 [test]: web/cases.test.js case "${KEPT}" passed at ${first}`);
-  ok(box, builder, 'fact', String(id), 'note', `clause 2 [test]: web/cases.test.js case "${OLD}" passed at ${first}`);
+  await ok(box, builder, 'fact', String(id), 'note', `clause 1 [test]: web/cases.test.js case "${KEPT}" passed at ${first}`);
+  await ok(box, builder, 'fact', String(id), 'note', `clause 2 [test]: web/cases.test.js case "${OLD}" passed at ${first}`);
   // A later commit renames clause 2's case, so the exact-head receipt no longer holds the case the fact names.
   writeFileSync(join(builder, 'web/cases.test.js'), cases(RENAMED));
   commit(box, builder, 'test(web): rename the clause 2 case [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
 
-  const submitted = ok(box, builder, 'submit', String(id), '--no-next');
+  const submitted = await ok(box, builder, 'submit', String(id), '--no-next');
   const said = `${submitted.out}\n${submitted.err}`;
   for (const n of [1, 2]) assert.match(said, new RegExp(`clause ${n}: its only evidence cites an earlier head \\(${first}\\)`, 'u'), `submit names clause ${n} before queuing: ${said}`);
   assert.ok(said.indexOf('only evidence cites an earlier head') < said.search(/queued|gate/iu) || /queued/iu.test(said), 'the notice comes with the submit output');
 
-  const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
+  const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   assert.equal(packet.head, head);
   const [one, two] = packet.clauses;
   assert.equal(one.earlier[0].stale, false, 'clause 1: the case still runs at the exact head');
@@ -112,7 +112,7 @@ test('clause 1: show --review links an earlier-head fact to the exact-head recei
   assert.equal(two.earlier[0].stale, true, 'clause 2: the old case is missing at the exact head');
   assert.deepEqual(two.earlier[0].outcomes.map(row => [row.name, row.outcome]), [[OLD, 'missing']]);
   assert.deepEqual(packet.staleClauses, [2]);
-  const text = ok(box, box.repo, 'show', String(id), '--review').out;
+  const text = (await ok(box, box.repo, 'show', String(id), '--review')).out;
   assert.match(text, /earlier head: fact \w+ cites \w+; at the exact head \w+: pass "clause 1:/u);
   assert.match(text, /stale: fact \w+ cites \w+; .*missing "clause 2:.*clause 2 is stale/u);
 });
