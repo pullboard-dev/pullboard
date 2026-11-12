@@ -316,7 +316,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
       }
     }
-    const gate = claim.kind === 'gate' && input !== null;
+    // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
+    const gate = input !== null;
     const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, also,
       { main: claim.base ?? null });
     if (!checkout.ok || !run.length) {

@@ -60,7 +60,7 @@ export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTe
 export { refreshTestPlacement } from "./src/io/test/placement/report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/io/test/placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/io/test/store.js";
-export { runFullSuite, testFiles, runTestFiles, inCleanCheckout } from "./src/io/test/run.js";
+export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNotice } from "./src/io/test/run.js";
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
 export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/io/test/value/timing.js";
