@@ -563,9 +563,6 @@
   "apps/cli/journeys/init/empty.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/gate.test.js": {
-    "launch": 34
-  },
   "apps/cli/journeys/init/geometry.test.js": {
     "launch": 1
   },
@@ -1547,23 +1544,11 @@
   "apps/cli/journeys/stats/cockpit.test.js": {
     "launch": 15
   },
-  "apps/cli/journeys/stats/cold.test.js": {
+  "apps/cli/journeys/stats/cost.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/stats/cost.test.js": {
-    "launch": 24
-  },
   "apps/cli/journeys/stats/log.test.js": {
-    "launch": 5
-  },
-  "apps/cli/journeys/stats/moves.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/stats/pipeline/causes.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/stats/stats-time.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/status/board/lock.test.js": {
     "launch": 3
@@ -1581,9 +1566,6 @@
     "launch": 1
   },
   "apps/cli/journeys/study/metrics.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/submit/advisory.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/submit/branch.test.js": {
@@ -1691,9 +1673,6 @@
   "apps/cli/journeys/submit/move.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/submit/noplan.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/submit/notes.test.js": {
     "launch": 5
   },
@@ -1715,9 +1694,6 @@
   "apps/cli/journeys/submit/preflight/order.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/proof.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/submit/pull.test.js": {
     "launch": 1
   },
@@ -1733,20 +1709,8 @@
   "apps/cli/journeys/submit/retry.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/reuse.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/submit/review.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/submit/size.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/submit/stacked.test.js": {
     "launch": 29
-  },
-  "apps/cli/journeys/submit/steps.test.js": {
-    "launch": 6
   },
   "apps/cli/journeys/submit/ticks.test.js": {
     "launch": 4
@@ -1916,29 +1880,11 @@
   "apps/cli/journeys/why/main.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/withdraw/engine.test.js": {
-    "launch": 10
-  },
-  "apps/cli/journeys/withdraw/handoff.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/withdraw/hold.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/withdraw/items.test.js": {
     "launch": 65
-  },
-  "apps/cli/journeys/withdraw/items/lapse.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/withdraw/latest.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/withdraw/materializer.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/withdraw/note.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/withdraw/projector.test.js": {
     "launch": 5
