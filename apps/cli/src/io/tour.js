@@ -200,7 +200,7 @@ export async function tour(io) {
     write('app-1', { 'src/greet.mjs': FIRST, 'src/greet.test.mjs': TEST });
     run('app-1', 'git', ['add', '-A'], { label: '' });
     run('app-1', 'git', ['commit', '-q', '-m', 'feat(app): greet by name [G1]']);
-    const first = pb('app-1', ['submit', '1'], { show: /^submitted/ }).match(/at ([0-9a-f]{12})/)[1];
+    const first = pb('app-1', ['submit', '1', '--wait'], { show: /^submitted/ }).match(/at ([0-9a-f]{12})/)[1];
 
     step(4, 'A second agent checks out exactly that commit and tries the edge the builder skipped.');
     pb('coordinator', ['worktree', 'review', '--model', 'Scripted'], { show: /^made /, label: 'pullboard worktree review --model Scripted' });
@@ -217,7 +217,7 @@ export async function tour(io) {
     write('app-1', { 'src/greet.mjs': FIXED, 'src/greet.test.mjs': EDGE_TEST });
     run('app-1', 'git', ['commit', '-q', '-am', 'fix(app): a blank name greets the world [G1]']);
     // The fix edits a test that existed at the claim, so the submit says why (#814).
-    const second = pb('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found'], { show: /^submitted/ }).match(/at ([0-9a-f]{12})/)[1];
+    const second = pb('app-1', ['submit', '1', '--wait', '--infra', 'pins the blank-name edge the verifier found'], { show: /^submitted/ }).match(/at ([0-9a-f]{12})/)[1];
 
     step(7, 'The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.');
     run('review-1', 'git', ['switch', '-q', '--detach', second]);
