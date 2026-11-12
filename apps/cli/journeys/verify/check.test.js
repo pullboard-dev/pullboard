@@ -112,7 +112,7 @@ async function succeeds(box, cwd, ...args) {
 /** Add, claim, commit and submit one real worktree item with its optional frozen check. */
 async function submitted(box, repo, web, title, check) {
   const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check'];
-  if (check) args.push('--check', check);
+  if (check) args.push('--check', check, '--wait'); // --wait: the detached baseline worker exits before the fixture is removed
   const added = await succeeds(box, repo, ...args);
   const id = Number(/#(\d+)/.exec(added)?.[1]);
   assert.ok(id > 0, added);
