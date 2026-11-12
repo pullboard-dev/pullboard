@@ -84,7 +84,7 @@ test('[B5,C7] claim refuses a dirty reused folder and names files that are not i
   assert.equal(refusal.error.code, 'ITEM_FOLDER_DIRTY');
   assert.match(refusal.error.message, /stray\.txt/u);
   assert.equal(existsSync(join(path, 'stray.txt')), true, 'the refused folder remains intact');
-  assert.match(box.run(box.repo, 'show', String(id)).out, new RegExp(`^#${id}\\s+open\\b`, 'mu'), 'refused before the move: the item was never claimed (#5766)');
+  assert.match((await box.runLocal(box.repo, 'show', String(id))).out, new RegExp(`^#${id}\\s+open\\b`, 'mu'), 'refused before the move: the item was never claimed (#5766)');
 });
 
 test('[B5,C7] a same-holder claim renewal preserves uncommitted item work', async t => {
