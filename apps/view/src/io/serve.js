@@ -89,7 +89,9 @@ import { viewLanAddress } from "./address.js";
 import { publicSnapshot } from "../logic/public.js";
 import { openBoardForRead } from "../../../../packages/store/index.js";
 import { loadMachineSettings } from "../../../../packages/config/index.js";
+import { machineSettingsFile } from "../../../../packages/config/index.js";
 import { composeViewStyles } from "./styles.js";
+import { publicLiveRunners } from "./live/read.js";
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
 const SHARED_VIEW_CSS = composeViewStyles();
@@ -217,6 +219,24 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
   writeFileSync(join(boardPath, 'events.json'), JSON.stringify(events) + '\n');
   return { path: output };
 }
+/**
+ * The anonymous runner progress /live/data.json carries for this repo's board: Runner 1..N, kinds, item ids, counts,
+ * per-file state and minutes left, from this machine's runner leases and settings; nothing that names the machine [N26].
+ *
+ * @param {string} root
+ * @param {{ now?: number }} [options]
+ */
+export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
+  const { commonDir } = repoInfo(root);
+  const board = openBoardForRead(join(commonDir, 'pullboard', 'board.sqlite'));
+  if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+  let privateBoard;
+  try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
+  // The machine's runner leases sit beside its settings file, in the machine home.
+  return publicLiveRunners(commonDir, { resources: join(dirname(machineSettingsFile()), 'resources.sqlite'), configured: loadMachineSettings().runners ?? [],
+    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
+}
+
 /** The CLI may offer --public only when this implementation checks every retained export value. */
 exportView.supportsPublicExport = true;
 
