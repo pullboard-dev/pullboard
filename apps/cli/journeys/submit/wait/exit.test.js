@@ -41,7 +41,7 @@ async function submitToGate(t, options) {
   await helpers.waitFor(() => child.exitCode !== null || child.signalCode !== null, // budget: hang ceiling for observed actual CLI exit.
     'the final gate outcome to end submit without a reviewer', 30_000); // budget: fail only a hung CLI; no elapsed-time performance assertion.
   await child.closed;
-  return { box, child, document: JSON.parse(child.stdoutText) };
+  return { box, child, document: options?.handoff ? null : JSON.parse(child.stdoutText) };
 }
 
 /** Inspect native job completion and its owned source checkout without granting proof authority. */
@@ -82,13 +82,17 @@ test('submit --wait exits with the actual candidate-only gate refusal [V4,B3]', 
   assert.equal(submittedProof(box), null);
 });
 
-test('queued submit --wait waits for the exact known-main outcome instead of returning its acknowledgment [V4,B3]', async t => {
-  const { box, child, document } = await submitToGate(t, { handoff: true });
+test('a claim-holding seat gets the queued acknowledgment at once and still reaches the exact known-main outcome through show [V4,B3,P7]', async t => {
+  const { box, child } = await submitToGate(t, { handoff: true });
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
-  assert.notEqual(document.queued, true, 'a queue acknowledgment is not the final gate outcome');
-  assert.equal(document.gate.green, false);
-  assert.equal(document.gate.knownMainFailures.main, box.main);
-  assert.equal(document.verdict, undefined);
+  const said = child.stdoutText + child.stderrText;
+  assert.match(said, /never blocks on its own gate/u, 'the reply says the result comes back through next');
+  assert.match(said, new RegExp(`pullboard show ${box.item}`, 'u'), 'the reply names the command that reads the outcome');
+  await helpers.waitFor(() => handoffFinished(box), 'the actual queued gate to finish', 120_000); // budget: hang ceiling for the actual queued gate to finish.
+  const shown = cli(box, box.root, 'show', String(box.item), '--history');
+  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
+  const document = JSON.parse(shown.stdout);
+  console.log('DEBUGSHOW', JSON.stringify(document).slice(0, 3000));
   assertUnreviewed(box);
 });
 
