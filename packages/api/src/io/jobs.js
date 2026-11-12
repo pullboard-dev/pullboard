@@ -13,6 +13,7 @@ import { upsertProgressStep } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
+import { backOffLease } from '../../../jobs/index.js';
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
@@ -253,8 +254,8 @@ function heldBy(db, job, runner, token) {
 }
 
 /**
- * Extend the lease of the runner holding a job's current claim. False once the lease lapsed: the job may already be
- * another runner's, so the caller stops.
+ * Extend the lease of the runner holding a job's current claim, even one that lapsed while the board could not answer:
+ * the token proves no runner claimed it since (#6546). False once the job was released; a newer claim refuses.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ job: string, runner: string, token: string, now?: number, leaseMs?: number }} request
@@ -262,7 +263,7 @@ function heldBy(db, job, runner, token) {
  */
 export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = LEASE_MS }) {
   heldBy(db, job, runner, token);
-  const renewed = renewLease(db, job, runner, { now, leaseMs });
+  const renewed = renewLease(db, job, runner, { now, leaseMs, lapsed: true });
   return { renewed, leaseUntil: renewed ? now + leaseMs : null };
 }
 
@@ -282,15 +283,18 @@ export function jobRequest(db, { job, runner, token }) {
 }
 
 /**
- * Hand a job back to the queue at once, before its lease would lapse: a runner that cannot finish it frees it now.
+ * Hand a job back to the queue, before its lease would lapse, with the runner's reason: a runner that could not run it
+ * frees it, and claim skips it for a backoff that grows per attempt so a failing job never spins (#6545). A stopping
+ * runner passes backoff false and the job is free at once.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, now?: number }} request
- * @returns {{ released: boolean }}
+ * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, now?: number }} request
+ * @returns {{ released: boolean, until?: number }}
  */
-export function releaseJob(db, { job, runner, token, now = Date.now() }) {
-  heldBy(db, job, runner, token);
-  return { released: releaseLease(db, job, runner, { now }) };
+export function releaseJob(db, { job, runner, token, reason, backoff = true, now = Date.now() }) {
+  const { attempt } = heldBy(db, job, runner, token);
+  if (backoff === false) return { released: releaseLease(db, job, runner, { now }) };
+  return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
 }
 
 /**
@@ -358,14 +362,14 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [] }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress } = body ?? {};
+  const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
     const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained() });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
-  if (action === 'release') return releaseJob(db, { job, runner, token, now });
+  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });
