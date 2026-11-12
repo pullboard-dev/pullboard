@@ -105,7 +105,7 @@ export { keepClaimsAlive } from "./src/io/keepalive.js";
 export { gateHealthLines } from "./src/logic/health.js";
 export { gateHealthReport } from "./src/io/health.js";
 export { maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';
-export { firstChangedInput, recordInputParts, ledgerFromOutput } from './src/io/test/account.js';
+export { firstChangedInput, recordInputParts, ledgerFromOutput, phaseLedger } from './src/io/test/account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/io/test/shards.js";
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
