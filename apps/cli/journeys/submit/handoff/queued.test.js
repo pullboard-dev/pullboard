@@ -117,7 +117,7 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
 test('clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
   const box = fixture(t);
   for (const name of AGENT_SHELL_MARKERS) delete box.env[name];
-  const ran = box.run(box.web, 'submit', String(box.id), '--wait', '--no-next');
+  const ran = await box.inProcess(box.web, 'submit', String(box.id), '--wait', '--no-next');
   assert.equal(ran.code, 0, `${ran.out}${ran.err}`);
   assert.match(ran.out, new RegExp(`queued gate for #${box.id}`, 'u'), 'submit queued the gate');
   assert.match(ran.out, /never blocks on its own gate; a red gate comes back through pullboard next/u, 'the reply says the result comes through next');
