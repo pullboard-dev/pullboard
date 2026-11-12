@@ -19,11 +19,11 @@ import { LANE_LEAD_ENGINE } from '../../../../packages/state/light.js';
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
 
-test('coordinator shouts require explicit kinds while status uses item facts [C7]', () => {
+test('coordinator shouts require explicit kinds while status uses item facts [C7]', async () => {
   const box = fixtures.project('true');
-  const lead = box.run(box.repo, 'lanes', 'lead', 'web', 'web-1');
+  const lead = await box.runIn(box.repo, 'lanes', 'lead', 'web', 'web-1');
   assert.equal(lead.code, 0, lead.err + lead.out);
-  const before = box.run(box.repo, 'export', '--json');
+  const before = await box.runIn(box.repo, 'export', '--json');
   assert.equal(before.code, 0, before.err);
   const count = JSON.parse(before.out).tables.shout.length;
 
@@ -34,13 +34,13 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
     ['Choose the next check.', '--decision'],
     ['The gate is blocked by an unavailable runner.', '--kind', 'status'],
   ]) {
-    const refused = box.run(box.web, 'shout', 'coordinator', ...args, '--json');
+    const refused = await box.runIn(box.web, 'shout', 'coordinator', ...args, '--json');
     assert.equal(refused.code, 1, refused.err + refused.out);
     const error = JSON.parse(refused.out).error;
     assert.equal(error.code, 'COORDINATOR_STATUS_FACT');
     assert.match(error.message + ' ' + error.next, /pullboard fact <id> note/u);
   }
-  const unchanged = box.run(box.repo, 'export', '--json');
+  const unchanged = await box.runIn(box.repo, 'export', '--json');
   assert.equal(unchanged.code, 0, unchanged.err);
   assert.equal(JSON.parse(unchanged.out).tables.shout.length, count, 'refusals record no shout');
 
@@ -51,10 +51,10 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
     ['The outage is not resolved; coordinator intervention is needed.', '--kind', 'exception'],
     ['idea: add a visual diff for review receipts', '--kind', 'idea'],
   ]) {
-    const sent = box.run(box.web, 'shout', 'coordinator', ...args, '--json');
+    const sent = await box.runIn(box.web, 'shout', 'coordinator', ...args, '--json');
     assert.equal(sent.code, 0, sent.err + sent.out);
   }
-  const typed = box.run(box.repo, 'export', '--json');
+  const typed = await box.runIn(box.repo, 'export', '--json');
   assert.equal(typed.code, 0, typed.err);
   assert.equal(JSON.parse(typed.out).tables.shout.length, count + 5, 'four coordination kinds and idea intake reach the coordinator');
   assert.deepEqual(JSON.parse(typed.out).tables.shout.slice(count).map(row => row.shout_to),
@@ -73,17 +73,17 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
   `], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(person.status, 0, person.failure ?? person.stderr);
   assert.equal(JSON.parse(person.stdout).status, 200, person.stdout);
-  const afterPerson = box.run(box.repo, 'export', '--json');
+  const afterPerson = await box.runIn(box.repo, 'export', '--json');
   assert.equal(afterPerson.code, 0, afterPerson.err);
   const personRow = JSON.parse(afterPerson.out).tables.shout.at(-1);
   assert.deepEqual([personRow.shout_from, personRow.shout_to, personRow.shout_text],
     ['person', 'coordinator', 'A person asks the coordinator.'], 'the view-origin person request needs no kind');
 
-  const peer = box.run(box.web, 'shout', 'api', 'The API lane can review the patch.', '--json');
+  const peer = await box.runIn(box.web, 'shout', 'api', 'The API lane can review the patch.', '--json');
   assert.equal(peer.code, 0, peer.err + peer.out);
-  const broadcast = box.run(box.web, 'shout', 'all', 'The whole team can review the patch.', '--json');
+  const broadcast = await box.runIn(box.web, 'shout', 'all', 'The whole team can review the patch.', '--json');
   assert.equal(broadcast.code, 0, broadcast.err + broadcast.out);
-  const afterShouts = box.run(box.repo, 'export', '--json');
+  const afterShouts = await box.runIn(box.repo, 'export', '--json');
   assert.equal(afterShouts.code, 0, afterShouts.err);
   assert.equal(JSON.parse(afterShouts.out).tables.shout.length, count + 8, 'person, peer and all shouts remain untyped');
 });
