@@ -284,9 +284,6 @@
   "packages/codemap/tests/logic/layout.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/relay/person/actions.test.js": {
-    "launch": 7
-  },
   "packages/runners/tests/io/source/cache.test.js": {
     "launch": 3
   },
@@ -515,9 +512,6 @@
   "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
-  "apps/cli/journeys/export/team/link.test.js": {
-    "launch": 5
-  },
   "apps/runner/tests/recovery/self.test.js": {
     "launch": 2
   },
@@ -637,9 +631,6 @@
   },
   "apps/cli/journeys/gate/workflows.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/submit/wait.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/shout/item.test.js": {
     "launch": 1
@@ -836,9 +827,6 @@
   "apps/cli/journeys/digest/main.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/submit/ownership.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/runner/runners/isolation.test.js": {
     "launch": 1
   },
@@ -862,9 +850,6 @@
   },
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/rules.test.js": {
-    "launch": 10
   },
   "apps/cli/journeys/bar/session.test.js": {
     "launch": 3
@@ -943,9 +928,6 @@
   },
   "apps/cli/journeys/resume/presence.test.js": {
     "launch": 17
-  },
-  "apps/cli/journeys/shout/people.test.js": {
-    "launch": 10
   },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
@@ -1064,9 +1046,6 @@
   "packages/landing/tests/io/known/main/match.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/inbox/address.test.js": {
-    "launch": 7
-  },
   "apps/cli/journeys/fact/process.test.js": {
     "launch": 2
   },
@@ -1173,7 +1152,7 @@
     "launch": 6
   },
   "apps/cli/journeys/inbox/events.test.js": {
-    "launch": 12
+    "launch": 1
   },
   "packages/gate/tests/run-tests-timeout.test.js": {
     "launch": 3
@@ -1466,9 +1445,6 @@
   "apps/cli/journeys/runner/deadline.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/show/folder.test.js": {
-    "launch": 29
-  },
   "apps/cli/journeys/fact/landing/red.test.js": {
     "launch": 1
   },
@@ -1713,7 +1689,7 @@
     "launch": 1
   },
   "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "packages/landing/tests/io/step/gate/reporter.test.js": {
     "launch": 1
@@ -1804,9 +1780,6 @@
   },
   "apps/lib/tests/runner/prune.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/show/thread.test.js": {
-    "launch": 6
   },
   "apps/cli/journeys/watch/main.test.js": {
     "launch": 2
