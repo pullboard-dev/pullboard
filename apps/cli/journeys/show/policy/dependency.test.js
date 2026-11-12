@@ -61,6 +61,7 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
     const commit = commitFile(box, cwd, path, content, `feat(${lane}): fixture item [${spec}]`);
     assert.equal(commit.status, 0, commit.stderr || commit.failure || `commit #${id}`);
     const submitted = box.run(cwd, 'submit', String(id), '--json');
+    if (submitted.code !== 0) console.log('# DBG ' + JSON.stringify(box.run(box.repo, 'show', String(id), '--detail').out));
     assert.equal(submitted.code, 0, submitted.err || submitted.out);
     return box.git(cwd, 'rev-parse', 'HEAD');
   };
