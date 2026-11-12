@@ -97,6 +97,20 @@ export function eventsOfKinds(board, kinds) {
 }
 
 /**
+ * The events cost analytics reads for a window opening at `fromAt`: every usage, shared-usage and model event, plus the
+ * landing and review moves of items that landed since then. Indexed by kind and item, never the whole log.
+ *
+ * @param {any} board
+ * @param {string} fromAt ISO time the window opens
+ * @returns {any[]}
+ */
+export function costEvents(board, fromAt) {
+  return board.db.prepare(`SELECT * FROM event WHERE event_kind IN ('usage', 'shared-usage', 'model')
+    OR (event_kind IN ('merged', 'submit', 'accept', 'reject', 'reopen')
+      AND item_id IN (SELECT item_id FROM event WHERE event_kind = 'merged' AND event_at >= ?)) ORDER BY event_id`).all(fromAt);
+}
+
+/**
  * Read landing evidence and only the exact submissions a failed gate names. Proposals need no
  * unrelated submission history, and a board with no failed landing needs no submission rows.
  * Keep every landing snapshot in order: later green gates/diagnostics still clear earlier reds,

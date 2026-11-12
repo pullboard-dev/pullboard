@@ -4,6 +4,7 @@ import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { costAnalytics } from '../../../stats/index.js';
+import { costWindowStart } from '../../../stats/index.js';
 import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
@@ -1359,9 +1360,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now: now(), drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
+      const at = new Date(now()), from = costWindowStart(window, at);
       return projectRead(board, () => withReadBoard(board.root, current => costAnalytics({
-      items: store.listItems(current, { all: true }), agents: store.listAgents(current), events: store.events(current),
-      window, now: new Date(now()), modelPresentation: costModelPresentation,
+      items: store.listItems(current, { all: true }), agents: store.listAgents(current), events: store.costEvents(current, from.toISOString()),
+      window, now: at, modelPresentation: costModelPresentation,
       }), codeIsMain, boardOpeners));
     },
     events: (board, after, _who, limit) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
