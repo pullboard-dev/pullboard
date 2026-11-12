@@ -25,12 +25,12 @@ function gateJobs(box, item) {
  * Claim, commit and submit one item that should take the controller path. The fixture's main has none of the repo's
  * static baselines, so the controller gate may stop red at its preflight; either way it ran here, never as a job row.
  */
-function submitController(box, id) {
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+async function submitController(box, id) {
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): controller gate ${id} [G1]`).status, 0);
-  const submitted = box.run(folder, 'submit', String(id), '--json');
+  const submitted = (await box.runLocal(folder, 'submit', String(id), '--json'));
   assert.doesNotMatch(submitted.out, /"queued": true|"gateJob"/u, `#${id} was not queued as a gate job`);
   assert.ok(submitted.code === 0 || /"code": "GATE_RED"/u.test(submitted.out), `#${id} ran the controller gate: ${submitted.out}${submitted.err}`);
 }
@@ -42,10 +42,10 @@ test('clause 1: a pilot naming one item queues only that item; the others and ev
   const queued = submitOne(box, piloted);
   assert.equal(queued.document.queued, true, 'the piloted item queued its whole gate as one job');
   assert.deepEqual(gateJobs(box, piloted).map(row => [row.candidate, row.step]), [[queued.commit, 'offered']]);
-  submitController(box, other);
+  (await submitController(box, other));
   assert.deepEqual(gateJobs(box, other), [], 'no gate job row for the controller submit');
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller' } });
-  submitController(box, later);
+  (await submitController(box, later));
   assert.deepEqual(gateJobs(box, later), []);
 });
 
