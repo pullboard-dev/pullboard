@@ -372,7 +372,8 @@
     "apps/cli/tests/fixtures/cockpit/harness.js",
     "packages/gate/data/tests/test-fixtures.json",
     "packages/gate/data/tests/test-journeys.json",
-    "packages/gate/data/tests/tiers.json"
+    "packages/gate/data/tests/tiers.json",
+    "packages/gate/data/baselines/cli-launches.json"
   ],
   "commits": {
     "requireIds": [
