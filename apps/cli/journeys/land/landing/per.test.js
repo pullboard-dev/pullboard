@@ -1,4 +1,4 @@
-/** Per-item landing, the default: one verified item per run, its own merge, plan and record [C7,#2901]. */
+/** Per-item landing, the default: one batch takes every clean verified item; a red batch bisects [C7,#2901,#5815]. */
 import assert from 'node:assert/strict';
 import {
   chmodSync,
@@ -71,35 +71,31 @@ function land(box, code = 0) {
   return JSON.parse(result.out);
 }
 
-test('per-item landing lands one verified item per run in accept order, hooks off, and records each merged [C7,#2901]', { timeout: 300_000 }, // budget: two real submits, accepts and two landings; hang ceiling only.
+test('clause 1: one landing batch lands all three verified items that merge cleanly, hooks off, each recorded merged [C7,#2901,#5815]', { timeout: 300_000 }, // budget: three real submits, accepts and one landing; hang ceiling only.
 () => {
   const box = perItemProject();
-  const first = item(box, 1), second = item(box, 2);
-  submitItem(box, first);
-  submitItem(box, second);
-  acceptItem(box, second); // accepted first, so it lands first
+  const first = item(box, 1), second = item(box, 2), third = item(box, 3);
+  for (const entry of [first, second, third]) submitItem(box, entry);
+  acceptItem(box, second); // accepted first, so it merges first
   acceptItem(box, first);
+  acceptItem(box, third);
   refuseEveryCommit(box);
   const start = box.git(box.repo, 'rev-parse', 'main');
 
   const one = land(box);
-  assert.deepEqual(one.landed, [second.item], 'the first run lands only the first accepted item');
-  assert.equal(one.batch.items.length, 1);
-  const afterOne = box.git(box.repo, 'rev-parse', 'main');
-  assert.notEqual(afterOne, start, 'main fast-forwarded to the merge');
-  assert.equal(box.git(box.repo, 'rev-parse', `${afterOne}^2`), second.commit, 'main is a --no-ff merge of the reviewed commit');
-  assert.equal(json(box, box.repo, 'show', String(second.item)).item_merged_commit, afterOne);
-  assert.equal(json(box, box.repo, 'show', String(first.item)).item_merged_commit, null, 'the second item waits for the next run');
-
-  const two = land(box);
-  assert.deepEqual(two.landed, [first.item]);
-  const afterTwo = box.git(box.repo, 'rev-parse', 'main');
-  assert.equal(box.git(box.repo, 'rev-parse', `${afterTwo}^1`), afterOne, 'the next merge sits on the advanced main');
-  assert.equal(json(box, box.repo, 'show', String(first.item)).item_merged_commit, afterTwo);
-  assert.equal(box.git(box.repo, 'ls-remote', 'origin', 'main').split(/\s+/u)[0], afterTwo, 'the published main is the landed tip');
+  assert.deepEqual(one.landed, [second.item, first.item, third.item], 'one run lands every clean item in accept order');
+  assert.equal(one.batch.items.length, 3, 'all three ride one batch');
+  const tip = box.git(box.repo, 'rev-parse', 'main');
+  assert.notEqual(tip, start, 'main fast-forwarded to the batch');
+  for (const entry of [first, second, third]) {
+    const merged = json(box, box.repo, 'show', String(entry.item)).item_merged_commit;
+    assert.ok(merged, `#${entry.item} is recorded merged`);
+    assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', entry.commit, tip), '', `#${entry.item}'s reviewed commit is on main`);
+  }
+  assert.equal(box.git(box.repo, 'ls-remote', 'origin', 'main').split(/\s+/u)[0], tip, 'the published main is the landed tip');
 });
 
-test('a red item goes back to open alone with its evidence and the next run lands the next item [C7,#2901]', { timeout: 300_000 }, // budget: two real submits, accepts and two landings; hang ceiling only.
+test('clause 2: a red batch isolates its culprit and lands the rest in the same run [C7,#2901,#5815]', { timeout: 300_000 }, // budget: two real submits, accepts and one bisected landing; hang ceiling only.
 () => {
   const box = perItemProject();
   establishBaseFile(box, 1);
@@ -111,18 +107,14 @@ test('a red item goes back to open alone with its evidence and the next run land
   moveMainPastSubmit(box); // the red submit was recorded green with its red suppressed; main moves so landing runs its own gate [C7]
   const start = box.git(box.repo, 'rev-parse', 'main');
 
-  const one = land(box, 1);
-  assert.deepEqual(one.landed, []);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), start, 'nothing red reaches main');
-  const shown = json(box, box.repo, 'show', String(red.item));
-  assert.equal(shown.item_status, 'open', 'the red item is back to open');
-  assert.match(JSON.stringify(shown), /Landing failure evidence/u, 'its thread carries the evidence');
-  assert.match(JSON.stringify(shown), /land-1\.test\.js/u, 'the evidence names the failing file');
-  assert.equal(json(box, box.repo, 'show', String(green.item)).item_status, 'verified', 'the green item stays verified');
-
-  const two = land(box);
-  assert.deepEqual(two.landed, [green.item], 'the next run lands the next item');
-  assert.ok(json(box, box.repo, 'show', String(green.item)).item_merged_commit);
+  const one = land(box);
+  assert.deepEqual(one.landed, [green.item], 'the green item lands in the same run');
+  assert.deepEqual(one.culprits.map(entry => entry.id), [red.item], 'the bisection names the red item');
+  const tip = box.git(box.repo, 'rev-parse', 'main');
+  assert.notEqual(tip, start);
+  assert.ok(json(box, box.repo, 'show', String(green.item)).item_merged_commit, 'the green item is recorded merged');
+  assert.equal(json(box, box.repo, 'show', String(red.item)).item_merged_commit, null, 'nothing red reaches main');
+  assert.match(JSON.stringify(json(box, box.repo, 'show', String(red.item))), /land-1\.test\.js/u, 'the red item carries evidence naming the failing file');
 });
 
 test('two land runs on an unchanged board never record the same stop twice [C7,#2901]', { timeout: 300_000 }, // budget: one real submit, accept and three landings; hang ceiling only.

@@ -53,8 +53,12 @@ function sendState(req, res, text, tagged, validator = text, reportValidator) {
   res.end(text);
 }
 
-/** Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. */
-async function readBody(req, { maxBytes = BODY_BYTES } = {}) {
+/**
+ * Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. An upload (uploadRefusal)
+ * answers an oversize body with the structured BAD_UPLOAD size refusal: the measured bytes and the stated limit, so the
+ * machine can name the board instead of waiting on a plain BAD_REQUEST (#1196).
+ */
+async function readBody(req, { maxBytes = BODY_BYTES, uploadRefusal = false } = {}) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > PAIR_PACKAGE_BODY_BYTES) throw new TypeError('API body limit needs a positive safe integer within the shared request limit');
   if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] ?? ''))) throw new Refused('BAD_REQUEST', 'send an application/json object as the request body');
   const chunks = [];
@@ -62,6 +66,11 @@ async function readBody(req, { maxBytes = BODY_BYTES } = {}) {
   for await (const chunk of req) {
     size += chunk.length;
     if (size <= maxBytes) chunks.push(chunk);
+  }
+  if (size > maxBytes && uploadRefusal) {
+    const error = new Refused('BAD_UPLOAD', 'the upload body exceeds the relay limit; send a smaller snapshot');
+    error.snapshotLimit = { sealedBytes: size, limit: maxBytes };
+    throw error;
   }
   if (size > maxBytes) throw new Refused('BAD_REQUEST', 'the body exceeds ' + maxBytes + ' bytes; send one move or request at a time');
   let value;
@@ -255,7 +264,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
@@ -401,6 +410,11 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       if (req.method === 'POST' && route[2] === 'moves') {
         const moved = await adapter.move(board, await readBody(req), who);
         return json(res, moved.status, moved.body);
+      }
+      if (route[2] === 'jobs') {
+        // The runner job queue: a runner claims by capability, renews its lease and posts its receipt, all by POST [P7].
+        if (req.method !== 'POST' || typeof adapter.jobs !== 'function') throw new Refused('JOBS_NOT_AVAILABLE', 'POST one job queue call (claim, renew, release or receipt) to a board that serves its runner job queue');
+        return json(res, 200, await adapter.jobs(board, await readBody(req), who));
       }
       if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, await adapter.request(board, await readBody(req), who));
       return json(res, 400, refusal(new Refused('BAD_REQUEST', 'use GET for reads and POST for moves and requests')));

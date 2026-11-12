@@ -32,6 +32,7 @@ import { landingSpan } from '../../../../resources/index.js';
 import { claimRefreshStart } from '../main/red/refresh/flight.js';
 import { AGENT_SESSION_IDS } from '../../../../kernel/index.js';
 import { scanRidesRunner } from '../scan.js';
+import { trunkRemote } from '../../../../config/index.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -43,6 +44,9 @@ function landingRemoteName(root, branch) {
  * An accept uses it to say which landing command fits this repo; the landing itself refuses on null.
  */
 export function landingRemote(root, branch) {
+  // The board's trunk remote setting wins, so the lander pushes where runners fetch, whatever host it runs on [P7].
+  const configured = trunkRemote(root);
+  if (configured) return configured;
   const remote = landingRemoteName(root, branch);
   return tryGit(root, ['remote', 'get-url', remote]).status === 0 ? remote : null;
 }

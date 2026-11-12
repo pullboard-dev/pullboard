@@ -29,6 +29,8 @@ import { signOff } from '../../../../packages/spec/index.js';
 import { standings } from '../../../../packages/spec/index.js';
 import { unmetRows } from '../../../../packages/spec/index.js';
 import { SPEC } from '../../tests/fixtures/spec/box.js';
+import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { specBox } from '../../tests/fixtures/spec/box.js';
 
 test('rows parse with id, status, tier, text, gate, serves, section and line [S1]', () => {
@@ -79,19 +81,19 @@ test('a newer SPEC grammar is refused with its version and an upgrade step [A5]'
   assert.throws(() => parseSpec(`<!-- pullboard-grammar 1 -->\n<!-- pullboard-grammar 2 -->\n${SPEC}`), { code: 'A5_GRAMMAR_VERSION' });
 });
 
-test('real spec check refuses future grammar in either configured file [A5]', (t) => {
+test('real spec check refuses future grammar in either configured file [A5]', async (t) => {
   const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const box = specBox(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
   for (const [name, source] of [[box.specName, SPEC], [box.practiceName, practice]]) {
     writeFileSync(join(box.root, name), `<!-- pullboard-grammar ${SPEC_GRAMMAR_VERSION} -->\n${source}`);
   }
-  assert.equal(box.run('check').status, 0);
+  assert.equal((await box.spec('check')).status, 0);
   for (const [name, source] of [[box.specName, SPEC], [box.practiceName, practice]]) {
     writeFileSync(join(box.root, name), '<!-- pullboard-grammar 2 -->\n' + source);
-    const text = box.run('check');
+    const text = await box.spec('check');
     assert.equal(text.status, 1);
     assert.match(text.stderr, /A5_GRAMMAR_VERSION.*grammar 2.*grammar 1.*upgrade Pullboard/);
-    const json = box.run('check', '--json');
+    const json = await box.spec('check', '--json');
     assert.equal(json.status, 1);
     const error = JSON.parse(json.stdout).error;
     assert.equal(error.code, 'A5_GRAMMAR_VERSION');
@@ -100,7 +102,7 @@ test('real spec check refuses future grammar in either configured file [A5]', (t
     assert.match(error.next, /upgrade Pullboard/);
     writeFileSync(join(box.root, name), source);
   }
-  assert.equal(box.run('check').status, 0);
+  assert.equal((await box.spec('check')).status, 0);
 });
 
 test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
@@ -125,22 +127,20 @@ test('spec check names both locations when ids repeat within or across configure
   assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
 });
 
-test('spec check lists primary-branch collisions as known warnings [A5]', (t) => {
+test('spec check lists primary-branch collisions as known warnings [A5]', async (t) => {
   const practice = '# Practice\n\n## G\n- G1 [draft] A known local rule.\n';
   const box = specBox(t, { practice });
-  const result = box.run('check');
+  const result = await box.spec('check');
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /SPEC\.md:6 G1 warning: known duplicate id; also appears at PRACTICE\.md:4/u);
   assert.match(result.stdout, /PRACTICE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:6/u);
 });
 
-test('spec check uses the retained trunk after its coordinator checkout detaches [A5]', (t) => {
+test('spec check uses the retained trunk after its coordinator checkout detaches [A5]', async (t) => {
   const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const box = specBox(t, { practice });
   const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
-  const runAt = (cwd, ...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), ...args], {
-    cwd, env: box.env, encoding: 'utf8',
-  });
+  const runAt = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
   gitAt(box.root, 'branch', '-m', 'trunk');
   gitAt(box.root, 'config', '--local', 'pullboard.trunk', 'refs/heads/trunk');
   const configPath = join(box.root, 'pullboard.json');
@@ -151,25 +151,23 @@ test('spec check uses the retained trunk after its coordinator checkout detaches
   gitAt(box.root, 'commit', '-q', '-m', 'chore: add the spec fixture lane');
   const builder = join(box.root, 'builder');
   gitAt(box.root, 'worktree', 'add', '-q', builder, '-b', 'builder');
-  const joined = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'join', 'spec'], {
-    cwd: builder, env: box.env, encoding: 'utf8',
-  });
-  assert.equal(joined.status, 0, joined.stderr);
+  const joined = await joinFixtureSeat(box, builder, 'spec', { run: runAt });
+  assert.equal(joined.code, 0, joined.err);
   writeFileSync(join(builder, 'PRACTICE.md'), practice.replace('- P1 [draft] A local rule.', '- P1 [draft] A local rule.\n- G1 [draft] Duplicate.'));
   gitAt(builder, 'add', 'PRACTICE.md');
   gitAt(builder, 'commit', '-q', '-m', 'chore: add a colliding row');
-  const result = runAt(builder, 'spec', 'check');
+  const result = await runAt(builder, 'spec', 'check');
   assert.equal(result.status, 1);
   assert.match(`${result.stdout}${result.stderr}`, /duplicate id; also appears at PRACTICE\.md:\d+/u);
   gitAt(box.root, 'switch', '-q', '--detach');
-  const detached = runAt(builder, 'spec', 'check');
+  const detached = await runAt(builder, 'spec', 'check');
   assert.equal(detached.status, 1);
   assert.match(detached.stdout, /duplicate id; also appears at PRACTICE\.md:\d+/u);
   assert.doesNotMatch(`${detached.stdout}${detached.stderr}`, /COORDINATOR_DETACHED/u);
   gitAt(box.root, 'switch', '-q', 'trunk');
 });
 
-test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', (t) => {
+test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', async (t) => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-grammar-history-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, '.bin');
@@ -189,7 +187,7 @@ test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]
     PULLBOARD_MACHINE_HOME: join(root, '.home'),
   };
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
-  const command = (...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+  const command = (...args) => runCliInProcess(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Test Agent');
   git('config', 'user.email', 'agent@example.com');
@@ -199,12 +197,12 @@ test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]
   git('commit', '-q', '-m', 'docs: preserve pre-upgrade grammar');
   writeFileSync(join(root, 'SPEC.md'), `<!-- pullboard-grammar 1 -->\n${SPEC}`);
   writeFileSync(join(root, 'PRACTICE.md'), '<!-- pullboard-grammar 1 -->\n# Practice\n');
-  const initialized = command('init');
+  const initialized = await command('init');
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   git('add', '-A');
   const repaired = spawnSync('git', ['commit', '-q', '-m', 'docs: restore supported grammar'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(repaired.status, 0, `${repaired.stdout}${repaired.stderr}`);
-  const checked = command('spec', 'check');
+  const checked = await command('spec', 'check');
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
 });
 

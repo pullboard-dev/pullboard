@@ -29,6 +29,7 @@ import {
   mainCommit,
 } from '../../../../codemap/index.js';
 import { newPackageCliReach } from '../../logic/reach.js';
+import { newKeylessImports } from '../../logic/reach.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -377,6 +378,20 @@ export function cliReachRows(root) {
   if (!main) return [];
   return newPackageCliReach(codeMapGraph(root, main), codeMapGraph(root, 'HEAD')).map(({ module, path }) =>
     `cliReach:${module}: reaches ${path.at(-1)} through ${path.join(' -> ')}, which it did not on main ${main.slice(0, 12)}; next: pass the CLI-side entry point in as a parameter or move the shared piece down into a package`);
+}
+
+/**
+ * One refusal row per module a test closure reaches whose import the graph cannot read at HEAD but could on accepted
+ * main. Every test reaching it loses its closure key and reruns at every landing, so cell-lints refuses it (#5840).
+ *
+ * @param {string} root
+ * @returns {string[]} Empty when main is unknown or no reached module newly hides its imports.
+ */
+export function keylessRows(root) {
+  const main = mainCommit(root);
+  if (!main) return [];
+  return newKeylessImports(codeMapGraph(root, main), codeMapGraph(root, 'HEAD'), path => TEST.test(path)).map(({ module, reason, tests }) =>
+    `keyless:${module}: ${reason}, reached by ${tests} test file(s), which main ${main.slice(0, 12)} could read; next: import a literal path, or declare every module it loads in a leading /** @pullboard-module-loads <paths> */ header`);
 }
 
 /** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
