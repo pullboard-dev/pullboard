@@ -25,7 +25,8 @@ test('a seat with no claim is sent to pullboard next and never told to wait for 
   assert.match(card.next, /^pullboard next\b/u, 'an idle seat pulls the ranked queue instead of waiting to be assigned');
   assert.doesNotMatch(card.next, /wait for (?:an? )?assignment|wait to be assigned/iu);
   const guide = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
-  assert.match(guide, /no (?:active )?claim[\s\S]{0,100}pullboard next/iu, 'generated guidance states the idle-seat rule');
+  assert.match(guide, /Never wait[\s\S]{0,60}1\. `pullboard next`/u, 'generated guidance states the idle-seat rule: the worker loop starts at pullboard next');
+  assert.doesNotMatch(guide, /wait for (?:an? )?assignment|wait to be assigned/iu);
   const settings = JSON.parse(readFileSync(join(box.repo, '.claude/settings.json'), 'utf8'));
   const command = settings.hooks.SessionStart.flatMap(entry => entry.hooks).find(hook => hook.command === agentHookCommand('SessionStart'))?.command;
   assert.ok(command, 'the generated SessionStart hook runs pullboard hook SessionStart');
