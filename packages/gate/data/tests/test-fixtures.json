@@ -1276,7 +1276,7 @@
   },
   "apps/cli/journeys/roadmap/cockpit/items.test.js": {
     "raw-cli": 9,
-    "tempdir": 2
+    "tempdir": 1
   },
   "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
     "raw-cli": 1,
@@ -4151,5 +4151,8 @@
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
     "hand-policy": 3
+  },
+  "apps/cli/journeys/roadmap/cockpit/items-blocked.test.js": {
+    "tempdir": 1
   }
 }
