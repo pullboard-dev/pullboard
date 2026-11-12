@@ -4,12 +4,30 @@ import { Refused } from '../../../kernel/index.js';
 import { ledgerFiles } from '../../../store/index.js';
 import { ledgerHits } from '../../../store/index.js';
 import { ledgerMainReds } from '../../../store/index.js';
+import { landingWaiverKind } from '../../../store/index.js';
+import { PERSON } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;
+
+/**
+ * The person's waivers still live at `now`, oldest first, each with its kind resolved: `{ id, kind, test, until, reason }`.
+ * Why here: a runner never opens the board, so a pulled gate's receipt and a land job's payload read the person's
+ * waivers from the board's own events, with the controller's expiry rule (live while `until` is after now) [B3,R3,#655].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} now - Epoch milliseconds.
+ * @returns {{ id: string, kind: string, test: string, until: string, reason: string }[]}
+ */
+export function livePersonWaivers(db, now) {
+  return db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'landing_waiver' ORDER BY event_id").all()
+    .filter(row => row.event_by === PERSON).map(row => JSON.parse(row.event_detail).waiver)
+    .filter(waiver => typeof waiver?.test === 'string' && Date.parse(waiver.until) > now)
+    .map(({ id, test, until, reason }) => ({ id, kind: landingWaiverKind(test), test, until, reason }));
+}
 
 /** Refuse an accepted-items list a runner could not land as written; return it in landing order. */
 function landingItems(items) {
@@ -46,11 +64,13 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   if (check !== null && (!Array.isArray(check) || check.length === 0 || check.some(part => typeof part !== 'string'))) throw new Refused('LANDING_CHECK', 'a landing check is a command as a list of strings, like ["npm", "run", "gate"]');
   if (forced !== null && (typeof forced !== 'string' || !forced.trim())) throw new Refused('FORCED_REASON', 'a forced landing names why it went around the gate: --forced "<why>"');
   const landed = landingItems(items);
-  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : [])])).digest('hex').slice(0, 16);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
+  // The person's live waivers ride on the job, so its runner holds no landing for a waived test; a new waiver is a new job [#655].
+  const waivers = proof ? livePersonWaivers(db, now) : [];
+  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(proof ? { proof } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
+    payload: { remote, trunk, expect, items: landed, ...(check ? { check } : {}), ...(proof ? { proof } : {}), ...(waivers.length ? { waivers } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 
 /**
