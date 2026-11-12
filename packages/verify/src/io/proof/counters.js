@@ -1,15 +1,15 @@
-import { CAPACITY_VERSION } from '../../../../stats/index.js';
-import { emptyCapacityCounter } from '../../../../stats/index.js';
-import { appendCapacityCounter } from '../../../../stats/index.js';
-import { refreshCapacity } from '../../../../stats/index.js';
-import { appendReportCounter } from '../../../../stats/index.js';
-import { emptyReportCounter } from '../../../../stats/index.js';
-import { reportEvent } from '../../../../stats/index.js';
-import { newReportPolicy } from '../../../../stats/index.js';
+import { CAPACITY_VERSION } from '../../../../stats/light.js';
+import { emptyCapacityCounter } from '../../../../stats/light.js';
+import { appendCapacityCounter } from '../../../../stats/light.js';
+import { refreshCapacity } from '../../../../stats/light.js';
+import { appendReportCounter } from '../../../../stats/light.js';
+import { emptyReportCounter } from '../../../../stats/light.js';
+import { reportEvent } from '../../../../stats/light.js';
+import { newReportPolicy } from '../../../../stats/light.js';
 import { NATIVE_FLAKE_ENGINE } from '../../../../state/light.js';
 /** Rebuildable, local proof projections maintained with the event that produced them [R1,R2]. */
-import { moveFlowItem } from '../../../../stats/index.js';
-import { roleOf } from '../../../../stats/index.js';
+import { moveFlowItem } from '../../../../stats/light.js';
+import { roleOf } from '../../../../stats/light.js';
 import { appendRuleProof } from '../rule/proof/append.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
@@ -346,4 +346,4 @@ export function currentProofCounters(board) {
   const last = board.db.prepare('SELECT coalesce(max(event_id),0) AS id FROM event').get().id;
   return summary && !summary.invalid && summary.last === last ? summary : null;
 }
-import { FLOW_REPORT_VERSION } from '../../../../stats/index.js';
+import { FLOW_REPORT_VERSION } from '../../../../stats/light.js';

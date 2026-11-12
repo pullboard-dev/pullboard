@@ -79,10 +79,12 @@ function stageOfItem(item, project = {}, gated = false, gateDetail = '') {
 }
 
 /** Render the approved item stage, its plain detail and any explanatory marks. */
-function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false) {
+function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false) {
   const stage = stageOfItem(item, project, gated, gateDetail);
-  return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(stage.stage) + '</b>' + (compact ? '</span>' : '')
-    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span><small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small></span>';
+  // A Roadmap row names only the stage, with Landed for Merged; the route and holder stay in the title for hover and readers [N26].
+  const word = roadmap && stage.stage === 'Merged' ? 'Landed' : stage.stage;
+  return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(word) + '</b>' + (compact ? '</span>' : '')
+    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
 }
 
 /** Make a mark's reason available on hover and to assistive readers while the row remains tappable. */
@@ -732,6 +734,7 @@ function render() {
     const prepareFinding = finding => ({ ...finding, words: activityWords(finding, { now: Date.parse(entry.at), timestampLabels: activityLabels }) });
     return { ...entry, timeLabel: activityTime(entry.at), dayKey: new Date(entry.at).toDateString(), dayLabel: dayName(entry.at),
       itemHref: entry.item ? itemAddress(entry.item.id) : null,
+      landed: entry.kind === 'main-moved' && Array.isArray(entry.detail?.items) ? entry.detail.items.filter(Number.isSafeInteger).map(id => ({ id, href: itemAddress(id) })) : [],
       quoteHtml: entry.kind === 'shout' && entry.words ? inline(localActivityTimes(entry.words), titles) : '',
       findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
     };
