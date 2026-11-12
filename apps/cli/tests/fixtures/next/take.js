@@ -86,7 +86,8 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize dispatch fixture [G1]');
   const settings = machineSettingsFile();
   mkdirSync(join(directory, 'machine'), { recursive: true });
-  writeFileSync(settings, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false } }));
+  // These submits hold their gate in the submitting process, so the fixture pins controller dispatch [P7].
+  writeFileSync(settings, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { runnerDispatch: 'controller' } }));
   const initialized = await cli({ clock }, root, ['init']);
   assert.equal(initialized.code, 0, initialized.out + initialized.err);
   const file = join(root, '.git/pullboard/board.sqlite');

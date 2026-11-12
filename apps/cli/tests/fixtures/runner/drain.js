@@ -30,7 +30,7 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const removed = { host: 'runner-one.example.invalid', slots: 2, browser: 1, node: 'node', root: '/srv/runner-one' };
   const remaining = { host: 'runner-two.example.invalid', slots: 1, browser: 0 };
-  const original = { gateSlots: 3, browserSlots: 2, gate: { shortSlots: 1, queue: { reviewsFirst: true } },
+  const original = { gateSlots: 3, browserSlots: 2, gate: { shortSlots: 1, queue: { reviewsFirst: true }, runnerDispatch: 'controller' },
     relay: { offerAtInit: true }, custom: { keep: 'unchanged' } };
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(settingsFile, JSON.stringify(original, null, 2));
@@ -105,7 +105,7 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
   writeFileSync(join(repo, 'tracked.txt'), 'private runner drain source\n');
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare runner drain fixture');
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, custom: { preserve: true } }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller' }, custom: { preserve: true } }));
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(directory, 'ssh-requests.jsonl') });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(added.status, 0, added.context);
