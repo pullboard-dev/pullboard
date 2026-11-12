@@ -111,6 +111,7 @@ test('output into a reader that stops early ends quietly [N24]', async () => {
     const added = await fixtureCommand(box, box.repo, 'add', 'web', `Item ${n}`, '--specs', 'G1', '--wait');
     assert.equal(added.code, 0, added.err);
   }
+  // Process-level: a real child whose stdout closes early proves a broken pipe ends quietly.
   const child = spawn(process.execPath, [BIN, 'list', '--all'], { cwd: box.repo, env: box.env });
   const closed = once(child, 'close');
   closed.child = child;
