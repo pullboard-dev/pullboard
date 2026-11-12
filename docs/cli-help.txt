@@ -102,7 +102,7 @@ Work
                 [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
-  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+  pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
@@ -193,6 +193,7 @@ Work
                                         in an agent seat it queues on the board and returns at once with a run id;
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
+  pullboard test --cancel <run id>      stop your queued or running test run and free its slot
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
@@ -411,6 +412,7 @@ Additional commands
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
   pullboard seats                     current seat states and local 24-hour timing ledger
+  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, the most items held at once, and the median and p90 wait from a submit or test start to the seat's next board action
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items

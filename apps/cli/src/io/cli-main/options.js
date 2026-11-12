@@ -21,6 +21,7 @@ const OPTIONS = {
   reason: { type: 'string' },
   revises: { type: 'string' },
   status: { type: 'string' },
+  cancel: { type: 'string' },
   off: { type: 'boolean' },
   stale: { type: 'boolean' },
   port: { type: 'string' },

@@ -112,3 +112,14 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   }
   return null;
 }
+
+/**
+ * Refuse a reviewer that ever held the item when review.excludeEarlierHolders is on: it claimed, released, built or submitted it.
+ * Why: a seat that dropped or handed on an item still knows its code, so its review is not independent (5287, 11 Nov).
+ */
+export function earlierHolderProblem(board, item, reviewer) {
+  if (board.reviewExcludeEarlierHolders !== true) return null;
+  const held = item.item_built_by === reviewer || board.db.prepare("SELECT event_id,event_kind,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','release','submit')").all(item.item_id, reviewer)
+    .some(event => event.event_kind !== 'release' || JSON.parse(event.event_detail ?? '{}').review !== true);
+  return held ? new Refused('REVIEW_EARLIER_HOLDER', `${reviewer} claimed, built or released #${item.item_id} earlier, and review.excludeEarlierHolders is on; ask a seat that never held it`) : null;
+}
