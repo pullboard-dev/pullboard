@@ -151,7 +151,7 @@ export function checkedItem(box) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { runnerDispatch: 'controller', browserFreeChecks: true, timingRunner: false },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
   let added;
