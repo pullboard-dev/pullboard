@@ -188,7 +188,7 @@ db.exec('ROLLBACK');
   const hooks = join(box.dir, 'hooks');
   mkdirSync(hooks, { recursive: true });
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
-  writeFileSync(join(hooks, 'post-merge'), `#!/bin/sh\n${JSON.stringify(process.execPath)} ${JSON.stringify(holder)} &\nwhile [ ! -f ${JSON.stringify(locked)} ]; do sleep 0.05; done\n`, { mode: 0o755 });
+  writeFileSync(join(hooks, 'post-merge'), `#!/bin/sh\n${JSON.stringify(process.execPath)} ${JSON.stringify(holder)} >/dev/null 2>&1 </dev/null &\nwhile [ ! -f ${JSON.stringify(locked)} ]; do sleep 0.05; done\n`, { mode: 0o755 });
   const refused = await runFixtureChildAsync(process.execPath, [BIN, 'submit', String(id), '--no-next', '--json'],
     { cwd: box.web, env: { ...box.env, PULLBOARD_BOARD_QUEUE_MS: '1000' } });
   const result = { code: refused.status, out: refused.stdout, err: refused.stderr };
