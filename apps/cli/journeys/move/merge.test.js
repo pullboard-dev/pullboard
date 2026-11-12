@@ -27,6 +27,8 @@ const CARRIAGE = 'packages/merge/src/logic/carriage.js';
 const DATA_INPUTS = new Map([
   // #5605 [P5]: vendor spellings live in data so the core names no vendor; family comparison in moves reads them.
   ['packages/items/src/logic/vendors.json', 'items: vendor spellings kept in data, not code'],
+  // #5605 [P5]: the stats pipeline reads model families and ceilings from data, and the moves closure reaches it through the pipeline.
+  ['packages/stats/src/logic/models.json', 'stats: model families and ceilings kept in data, not code'],
 ]);
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
