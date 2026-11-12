@@ -143,7 +143,7 @@ test('a repeat inbox with nothing new never scans the event, shout, seat or meta
   assert.equal(read.code, 0, read.err || read.out);
   const inherited = box.env.NODE_OPTIONS;
   box.env.NODE_OPTIONS = [inherited, `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ');
-  const quiet = await box.runIn(box.web, 'inbox', '--json');
+  const quiet = box.run(box.web, 'inbox', '--json'); // a real process: the preload patches DatabaseSync at startup
   if (inherited === undefined) delete box.env.NODE_OPTIONS; else box.env.NODE_OPTIONS = inherited;
   assert.equal(quiet.code, 0, quiet.err || quiet.out);
   assert.deepEqual(JSON.parse(quiet.out).shouts, [], 'the measured read had nothing new');
