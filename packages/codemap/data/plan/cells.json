@@ -1806,6 +1806,14 @@
         "packages/gate/tests/io/check/baseline.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-history-plan.js",
+        "packages/landing/src/io/history.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
