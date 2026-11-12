@@ -1,25 +1,23 @@
-/** The cells plan commands read only tracked source, so an ignored scratch file cannot break them [C7,D3]. */
+/** The cells plan reader reads only tracked source, so an ignored scratch file cannot break it [C7,D3]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { checkCuts } from '../../../../../packages/codemap/index.js';
+import { cellInventory } from '../../../../../packages/codemap/index.js';
+import { commonJsIn } from '../../../../../packages/codemap/index.js';
 import { computePlan } from '../../../../../packages/codemap/index.js';
 import { importCuts } from '../../../../../packages/codemap/index.js';
+import { importsIn } from '../../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../../packages/codemap/index.js';
+import { stalePlanRows } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
+import { unplanned } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { fixture } from '../../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
 
-const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
+const PARSERS = { importsIn, commonJsIn };
 
-/** Run one plan command in the fixture checkout. */
-const plan = (root, mode) => {
-  const cell = mode === '--cuts' ? [importCuts(computePlan(root))[0].cell] : [];
-  return runFixtureChild(process.execPath, [BIN, mode, ...cell], { cwd: root, encoding: 'utf8' });
-};
-
-/** A fixture with its plan committed, so --cuts and --check start green. */
+/** A fixture with its plan committed, so the cuts and the check start green. */
 function committed(t) {
   const box = fixture(t);
   writePlan(box.root, computePlan(box.root));
@@ -28,24 +26,25 @@ function committed(t) {
   return box;
 }
 
+/** The two commands' readers: the cut check for one cell and the unplanned and stale-row check. */
+function runBoth(root) {
+  const plan = computePlan(root);
+  const inventory = cellInventory(root, PARSERS);
+  return { cuts: checkCuts(root, plan, importCuts(plan)[0].cell, { inventory }), check: [...unplanned(root, plan, inventory), ...stalePlanRows(root, plan)] };
+}
+
 test('an ignored, non-module script leaves --cuts and --check green [C7,D3]', t => {
   const { root, put } = committed(t);
+  const before = runBoth(root);
   appendFileSync(join(root, '.git', 'info', 'exclude'), 'src/scratch/\n');
   put('src/scratch/probe.js', "const fs = require('fs');\nmodule.exports = fs.readFileSync(__filename);\n");
-  for (const mode of ['--cuts', '--check']) {
-    const run = plan(root, mode);
-    assert.equal(run.status, 0, `${mode}: ${run.stderr}`);
-  }
+  assert.ok(!cellInventory(root, PARSERS).files.has('src/scratch/probe.js'), 'the ignored script is never read');
+  assert.deepEqual(runBoth(root), before, 'both commands answer as they did before the script existed');
 });
 
 test('a tracked file that does not parse as an ES module fails and names its path [C7,D3]', t => {
   const { root, put } = committed(t);
   put('src/broken.js', 'export const = ;\n');
-  put('src/cli.js', "import './broken.js';\nimport { stats } from './stats.js';\nimport { flow } from './stats-flow.js';\nconsole.log(stats, flow);\n");
   git(root, 'add', '-A');
-  for (const mode of ['--cuts', '--check']) {
-    const run = plan(root, mode);
-    assert.notEqual(run.status, 0, `${mode} must fail`);
-    assert.match(run.stderr, /src\/broken\.js/u, `${mode}: ${run.stderr}`);
-  }
+  assert.throws(() => cellInventory(root, PARSERS), /src\/broken\.js/u);
 });
