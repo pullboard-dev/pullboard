@@ -1679,9 +1679,6 @@
   "packages/codemap/tests/freeze.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/shout/layout.test.js": {
-    "launch": 25
-  },
   "apps/cli/journeys/shout/layout/corner.test.js": {
     "launch": 2
   },

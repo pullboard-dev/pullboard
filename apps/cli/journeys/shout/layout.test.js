@@ -42,9 +42,9 @@ import {
 
 
 /** Send a fixture back using the exact frozen clause, keeping native rejection guards active. */
-function sendBackWithClause(box, project, id, note, clause) {
+async function sendBackWithClause(box, project, id, note, clause) {
   box.git(project.repo, 'switch', '-q', '--detach', project.itemBranches.get(`${project.baseBranch}:${id}`) ?? project.branch);
-  box.run(project.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', note, '--clause', clause, '--as', 'coordinator');
+  await box.inProcess(project.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', note, '--clause', clause, '--as', 'coordinator');
   box.git(project.repo, 'switch', '-q', 'main');
 }
 
@@ -55,12 +55,12 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
 
   const box = machine();
   const demo = project(box, 'narrow');
-  box.run(demo.repo, 'add', 'web', 'A title long enough to need every bit of a narrow phone row, and then some more words', '--specs', 'G1', '--criterion', 'fits');
-  box.run(demo.repo, 'add', 'web', 'Built, then sent back', '--specs', 'G1', '--criterion', 'back');
+  await box.inProcess(demo.repo, 'add', 'web', 'A title long enough to need every bit of a narrow phone row, and then some more words', '--specs', 'G1', '--criterion', 'fits');
+  await box.inProcess(demo.repo, 'add', 'web', 'Built, then sent back', '--specs', 'G1', '--criterion', 'back');
   build(box, demo, 2, 'two.txt');
-  sendBackWithClause(box, demo, 2, 'It misses the edge the criterion names, a reason long enough to wrap on a phone.', 'back');
+  await sendBackWithClause(box, demo, 2, 'It misses the edge the criterion names, a reason long enough to wrap on a phone.', 'back');
   const sha = box.git(demo.repo, 'rev-parse', 'HEAD').trim();
-  box.run(demo.repo, 'shout', 'web', `Run \`pullboard next --verify\` and read SPEC.md:1-2@${sha} before you take #1.`);
+  await box.inProcess(demo.repo, 'shout', 'web', `Run \`pullboard next --verify\` and read SPEC.md:1-2@${sha} before you take #1.`);
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-sideways-chrome-'));
   let chrome;
@@ -154,9 +154,9 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
 test('no box carries a coloured edge [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  sendBackWithClause(box, alpha, 1, 'no greeting yet', 'greets');
+  await sendBackWithClause(box, alpha, 1, 'no greeting yet', 'greets');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -177,7 +177,7 @@ test('no box carries a coloured edge [N26]', async () => {
 test("the authenticated local view assembles its shared and private styles [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   accept(box, alpha, 1);
   const view = await startView(box);
@@ -236,9 +236,9 @@ test('the status bar holds one line under no pointer [N26]', { timeout: 120_000 
   const box = machine();
   const demo = project(box, 'pointer-none');
   for (let index = 1; index <= 3; index += 1) {
-    box.run(demo.repo, 'add', 'web', `Status item ${index}`, '--specs', 'G1', '--criterion', 'visible on the board');
+    await box.inProcess(demo.repo, 'add', 'web', `Status item ${index}`, '--specs', 'G1', '--criterion', 'visible on the board');
   }
-  box.run(demo.web, 'shout', 'coordinator', 'Which status label should we use?', '--kind', 'question');
+  await box.inProcess(demo.web, 'shout', 'coordinator', 'Which status label should we use?', '--kind', 'question');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-status-none-'));
   const wrapper = join(profile, 'chrome-pointer-none');
@@ -289,29 +289,29 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
   const spec = `${SPEC}- G3 [approved, must] The page has a footer. | gate: web test\n- G4 [approved, must] The page has a header. | gate: web test\n`;
   const alpha = project(box, 'glance', spec, { lanes });
-  const add = (lane, title, ...more) => box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Free', criterion: 'renders', args: ['--specs', 'G1,G2,G3,G4'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
-  add('web', 'Base');
-  add('web', 'Depends', '--after', '2');
-  add('api', 'Api work');
-  add('web', 'Shipped');
-  add('web', 'Bounced');
-  add('web', 'Done');
+  const add = (lane, title, ...more) => box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
+  await fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Free', criterion: 'renders', args: ['--specs', 'G1,G2,G3,G4'], run: async (root, ...argv) => ({ code: 0, out: await box.inProcess(root, ...argv) }) });
+  await add('web', 'Base');
+  await add('web', 'Depends', '--after', '2');
+  await add('api', 'Api work');
+  await add('web', 'Shipped');
+  await add('web', 'Bounced');
+  await add('web', 'Done');
   build(box, alpha, 5, 'shipped.html');
   build(box, alpha, 6, 'bounced.html');
   build(box, alpha, 7, 'done.html');
-  sendBackWithClause(box, alpha, 6, 'the footer is missing\nand more on the next line', 'renders');
+  await sendBackWithClause(box, alpha, 6, 'the footer is missing\nand more on the next line', 'renders');
   accept(box, alpha, 7);
-  box.run(alpha.web, 'claim', '2');
-  box.run(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
-  box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7', '--reason', 'Arrange fixture release');
-  box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.web, 'claim', '2');
+  await box.inProcess(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4', '--reason', 'Arrange fixture release');
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
-  joinFixtureSeat(box, second, 'web');
-  box.run(second, 'shout', 'all', 'Free when you need me.');
-  box.run(alpha.repo, 'shout', 'web', 'Pages first, then the footer.');
-  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
+  await joinFixtureSeat(box, second, 'web', { run: async (root, ...argv) => ({ code: 0, out: await box.inProcess(root, ...argv) }) });
+  await box.inProcess(second, 'shout', 'all', 'Free when you need me.');
+  await box.inProcess(alpha.repo, 'shout', 'web', 'Pages first, then the footer.');
+  await box.inProcess(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-glance-chrome-'));
@@ -519,7 +519,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await click('[data-tab=items]');
     const alreadyRead = await chrome.stable('data.project.shouts.length');
     assert.ok(alreadyRead >= 2, `shouts the person has already read: ${alreadyRead}`);
-    box.run(alpha.web, 'shout', 'all', 'web-1 is on it');
+    await box.inProcess(alpha.web, 'shout', 'all', 'web-1 is on it');
     await chrome.waitFor("!document.querySelector('#status-unread')?.hidden && document.querySelector('#status-unread')?.textContent === '1 unread'", 15_000); // budget: hang ceiling for the unread bar after the native shout; no throughput claim.
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && document.querySelector('#status-unread')?.hidden === true");
@@ -557,8 +557,8 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
   const box = machine();
   const alpha = project(box, 'corner-alpha', `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n`);
   project(box, 'corner-beta');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-corner-chrome-'));
   let chrome;
@@ -685,12 +685,12 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
   const box = machine();
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, 'targets', SPEC, { lanes });
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
-  box.run(alpha.web, 'claim', '1');
-  box.run(alpha.web, 'shout', 'all', 'Greeting is under way; see #2 after.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
+  await box.inProcess(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.web, 'shout', 'all', 'Greeting is under way; see #2 after.');
   // A shout that is only a reference: nothing shares its line, so it is a target like any button.
-  box.run(alpha.web, 'shout', 'all', '#2');
+  await box.inProcess(alpha.web, 'shout', 'all', '#2');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-targets-chrome-'));
   let chrome;
