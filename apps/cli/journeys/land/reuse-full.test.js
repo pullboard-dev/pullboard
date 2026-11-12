@@ -23,7 +23,7 @@ function shapedProject(edit) {
   const config = JSON.parse(readFileSync(path, 'utf8'));
   edit(config);
   writeFileSync(path, JSON.stringify(config, null, 2));
-  box.git(box.repo, 'commit', '-q', '-am', 'chore: landing shape for the reuse journey');
+  box.git(box.repo, 'commit', '-q', '--allow-empty', '-am', 'chore: landing shape for the reuse journey');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   return box;
 }
@@ -41,7 +41,10 @@ async function landOne(box) {
   acceptItem(box, entry);
   const before = fullRuns(box);
   const landed = await box.runLocal(box.repo, 'land', '--json');
-  return { entry, landed, output: landed.out + landed.err, runs: fullRuns(box) - before };
+  // The landing's own lines (reuse or gate run) are in its batch log; the JSON document names it.
+  let log = '';
+  try { log = readFileSync(JSON.parse(landed.out).batch.logPath, 'utf8'); } catch { log = ''; }
+  return { entry, landed, output: `${landed.out}${landed.err}\n${log}`, runs: fullRuns(box) - before };
 }
 
 test('clause 1: in the default shape a narrower submit proof is not reused; the landing runs the full gate on the merged tree and pushes it [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
