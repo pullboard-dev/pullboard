@@ -148,7 +148,7 @@ test('clause 1: one submit on a large board spawns at most 70 git processes, hal
     }
   });
   console.log('# SUBMIT git spawns per run: ' + counts.join(', '));
-  console.log([...shapes].sort((a, b) => b[1] - a[1]).slice(0, 60).map(([shape, n]) => `# ${n} ${shape}`).join('\n'));
+  console.log([...shapes].sort((a, b) => b[1] - a[1]).slice(0, 140).map(([shape, n]) => `# ${n} ${shape}`).join('\n'));
   const median = [...counts].sort((a, b) => a - b)[1];
   assert.ok(median <= 70, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 70 allowed`);
 });

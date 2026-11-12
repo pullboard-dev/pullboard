@@ -88,12 +88,11 @@ import {
 } from '../../../sandbox/index.js';
 import { testRuntimeEnvironment } from '../../../verify/light.js';
 import {
+  git,
   gitPath,
   headCommit,
   headTree,
-  isClean,
   tryGit,
-  untracked,
 } from '../../../git/index.js';
 import {
   recordGateRun,
@@ -174,7 +173,8 @@ const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
 export function committedTree(root) {
   // Read once between invalidations: the run's shell drops the remembered answer after the gate has run (#6153).
   return commandFact(`committedTree:${root}`, () => {
-    if (!isClean(root) || untracked(root).length) return null;
+    // One status lists tracked changes and untracked files alike, so it answers both what isClean and untracked did.
+    if (git(root, ['status', '--porcelain', '--untracked-files=all'])) return null;
     return headTree(root);
   });
 }
