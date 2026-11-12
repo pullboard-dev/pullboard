@@ -571,3 +571,21 @@ test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
       error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
   }
 });
+
+test('a cell read by path by a test outside it is not sealed, and the report lists each reader with its cells [C7]', async () => {
+  const { declaredReads, sealedReport, testCellsProblems } = await import('../../../../../packages/gate/src/io/test/cells.js');
+  const cells = ['a', 'b', 'apps/cli'];
+  assert.deepEqual(declaredReads('/** @pullboard-test-input source-tree */\nx\n', cells), ['a', 'apps/cli', 'b']);
+  assert.deepEqual(declaredReads('/** @pullboard-test-input source-cell a apps/cli */\nx\n', cells), ['a', 'apps/cli']);
+  assert.deepEqual(declaredReads('import x from "y";\n/** @pullboard-test-input source-tree */\n', cells), [], 'a header after code declares nothing');
+  const rows = [{ file: 'packages/a/tests/x.test.js', cell: 'a', kind: 'cell' }, { file: 'packages/b/tests/y.test.js', cell: 'b', kind: 'cell' }];
+  const pathReaders = { 'packages/b/tests/y.test.js': ['a', 'b'] };
+  const report = Object.fromEntries(sealedReport(rows, { cells: ['a', 'b'], pathReaders }).map(row => [row.cell, row]));
+  assert.equal(report.a.sealed, false, 'a test in b reads a by path');
+  assert.equal(report.a.pathReaders, 1);
+  assert.equal(report.b.sealed, true, 'a test reading its own cell does not count');
+  const problems = testCellsProblems(ROOT, { facts: { cells: ['a'], deepImporters: {}, pathReaders: { 'packages/b/tests/y.test.js': ['a'] } }, listing: { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 1e9, sealed: [], pathReaders: { a: 0 } } });
+  assert.ok(problems.some(problem => /1 tests outside cell a read its files by path, over the ratchet of 0/u.test(problem.text)), 'the count is a ratchet');
+  const lowered = testCellsProblems(ROOT, { facts: { cells: ['a'], deepImporters: {}, pathReaders: {} }, listing: { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 1e9, sealed: [], pathReaders: { a: 3 } } });
+  assert.ok(!lowered.some(problem => /by path/u.test(problem.text)), 'a lower count passes');
+});
