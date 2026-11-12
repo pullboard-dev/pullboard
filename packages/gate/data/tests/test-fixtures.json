@@ -1365,12 +1365,6 @@
   "apps/cli/journeys/fact/plan/state.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/stats/cockpit.test.js": {
-    "raw-cli": 9,
-    "tempdir": 7,
-    "raw-board": 7,
-    "model": 1
-  },
   "apps/cli/journeys/stats/cockpit/counts.test.js": {
     "raw-cli": 6,
     "tempdir": 2
