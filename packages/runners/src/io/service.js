@@ -9,6 +9,7 @@ import { execFile } from 'node:child_process';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -32,6 +33,7 @@ export const SERVICE_LABEL = 'dev.pullboard.runner-serve';
 const SERVICE_BYTES = 16 * 1024 ** 2;
 // Budget: one ssh writes a few files and asks launchd to load them; a minute covers a slow login shell and retries.
 const INSTALL_MS = 60_000;
+const DATA_DIRECTORY_BYTES = 1024 ** 2;
 // A string the lexer reads right after `from`, `import` or `import(` is an import; strings and comments elsewhere never count.
 const IMPORT_BEFORE = /(?:\bfrom|\bimport\s*\(?)\s*$/u;
 // A data file a module reads next to itself is written `new URL('./file', import.meta.url)`; it is part of the closure too.
@@ -69,12 +71,20 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
     if (!path.endsWith('.js')) continue;
     const { code, strings } = lex(text);
     for (const string of strings) {
+      // A repo directory named by a path string (`join(root, 'apps/cli/src/io/command-docs')`) brings its .json files: modules list them at run time.
+      if (/^[\w-][\w.-]*(?:\/[\w-][\w.-]*)+$/u.test(string.text) && statSync(posix.join(root, string.text), { throwIfNoEntry: false })?.isDirectory()) {
+        const names = readdirSync(posix.join(root, string.text), { recursive: true }).filter(name => name.endsWith('.json'));
+        // Budget: a declaration folder is small data; a folder of megabytes (engine history) is read on demand, never at load.
+        const size = names.reduce((sum, name) => sum + statSync(posix.join(root, string.text, name)).size, 0);
+        if (size <= DATA_DIRECTORY_BYTES) for (const name of names) pending.push(posix.join(string.text, name));
+        continue;
+      }
       const before = code.slice(Math.max(0, string.start - 24), string.start);
       const isData = URL_BEFORE.test(before) && URL_AFTER.test(code.slice(string.end, string.end + 40));
       if (!isData && !IMPORT_BEFORE.test(before)) continue;
       const specifier = string.text;
       if (specifier.startsWith('node:')) continue;
-      if (isData && specifier.includes('${')) continue;
+      if (isData && (specifier.includes('${') || /\.[cm]?js$/u.test(specifier))) continue;
       if (isData && !specifier.startsWith('./') && !specifier.startsWith('../')) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
         throw new Refused('RUNNER_SERVICE_IMPORT', `${path} imports ${specifier}; the runner service may import only node: built-ins and repo files`);
