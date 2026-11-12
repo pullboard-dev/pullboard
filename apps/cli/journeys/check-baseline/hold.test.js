@@ -83,7 +83,7 @@ function commitIn(box, cwd, content, message) {
   box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('[V2,V4,B26,P6] a check green on main holds the item until the person accepts it', () => {
+test('[V2,V4,B26,P6] a check green on main holds the item until the person accepts it', async () => {
   const box = project({ content: 'green', worktrees: true, hold: true });
   const env = personEnv(box.env);
   const file = join(box.repo, BOARD_FILE);
@@ -182,12 +182,12 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   assert.equal(JSON.parse(reset.stdout).item.item_check_baseline.result, 'red');
   // The red baseline itself lifts the proves-nothing hold, so next and claim both hand the item out (P7, #6187).
   assert.equal(showItem(box, second.item_id).item.item_hold_reason ?? null, null, 'a red baseline on main lifts the check hold');
-  const nextClaimed = box.run(box.web, ['next', '--json']);
+  const nextClaimed = await box.runLocal(box.web, ['next', '--json']);
   assert.equal(nextClaimed.status, 0, `a red baseline lifts the hold for next: ${nextClaimed.stdout}${nextClaimed.stderr}`);
   assert.equal(JSON.parse(nextClaimed.stdout).item?.item_id, second.item_id, `next hands out the item once its check is red on main: ${nextClaimed.stdout}`);
-  const released = box.run(box.web, ['release', String(second.item_id), '--reason', 'OTHER', '--note', 'the fixture claims it again', '--json']);
+  const released = await box.runLocal(box.web, ['release', String(second.item_id), '--reason', 'OTHER', '--note', 'the fixture claims it again', '--json']);
   assert.equal(released.status, 0, `${released.stdout}${released.stderr}`);
-  const claimedAgain = box.run(box.web, ['claim', String(second.item_id), '--json']);
+  const claimedAgain = await box.runLocal(box.web, ['claim', String(second.item_id), '--json']);
   assert.equal(claimedAgain.status, 0, `a red baseline lifts the hold for claim, with no ITEM_HELD: ${claimedAgain.stdout}${claimedAgain.stderr}`);
   assert.equal(showItem(box, second.item_id).item.item_status, 'claimed', 'claim took the item once its check was red on main');
 
