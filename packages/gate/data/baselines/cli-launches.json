@@ -411,7 +411,7 @@
     "launch": 1
   },
   "apps/cli/journeys/flakes/main.test.js": {
-    "launch": 3
+    "launch": 46
   },
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1

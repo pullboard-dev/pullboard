@@ -35,7 +35,6 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { flakeSource } from '../../../../packages/flakes/index.js';
 import { observeNativeFailure } from '../../../../packages/flakes/index.js';
@@ -61,12 +60,6 @@ const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors:
   executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
 
-/** Run one public command in this process in the fixture's private environment; same receipt shape as the fixture's cliAt [C7]. */
-async function cliLocal(box, cwd, ...args) {
-  const result = await runCliInProcess([...args, '--json'], { cwd, env: box.env });
-  return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: null, stderr: result.stderr };
-}
-
 const CI_ROOT = join(tmpdir(), 'pullboard-ci-runner', 'repo');
 
 /** Load the source worker from a fresh main clone, so the case never depends on the checkout type: the worker refuses to run from a linked worktree's code. */
@@ -85,7 +78,7 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
     'the foreground skips spawning a source worker when its exact native snapshot has no work');
   assert.equal(await nudgeMainAudit(box.root, new URL('../../src/io/landing/audit.js', import.meta.url)), null,
     'the foreground skips spawning an audit worker before explicit activation');
-  assert.equal((await cliLocal(box, box.root, 'sentinel', 'run', '--health-only')).code, 0,
+  assert.equal(box.cli('sentinel', 'run', '--health-only').code, 0,
     'the real higher-layer CLI path completes a successful health-only command');
   assert.equal(existsSync(join(pullboard, 'source-advances')), false,
     "the real caller's explicit empty eligibility result avoids creating advisory state");
@@ -115,20 +108,20 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
     'an explicit later wake settles even after all source obligations are complete');
 });
 
-test('a red gate records one paired pass and drafts repair work on a second sighting [C7,D1,H16]', async t => {
+test('a red gate records one paired pass and drafts repair work on a second sighting [C7,D1,H16]', t => {
   const box = flakyProject(t);
   const head = box.git('rev-parse', 'HEAD').trim();
-  const first = await cliLocal(box, box.root, 'gate');
+  const first = box.cli('gate');
   assert.equal(first.code, 1, 'a paired pass never turns the original red gate green');
   assert.equal(first.document.green, false);
   if (targetRuns(box) !== 2) {
-    const diagnostic = (await cliLocal(box, box.root, 'flakes')).document;
+    const diagnostic = box.cli('flakes').document;
     const observation = diagnostic?.unclassified?.[0]?.observations?.[0];
     console.log(JSON.stringify({ flakeDiagnostic: diagnostic, originalBody: observation
       ? box.readData(join(box.root, '.git/pullboard', observation.original.artifact), 'utf8') : first.document.report }));
   }
   assert.equal(targetRuns(box), 2, 'the configured target executes once and gets exactly one paired rerun');
-  const listed = await cliLocal(box, box.root, 'flakes');
+  const listed = box.cli('flakes');
   assert.equal(listed.code, 0);
   assert.equal(listed.document.flakes.length, 1);
   const row = listed.document.flakes[0];
@@ -142,30 +135,30 @@ test('a red gate records one paired pass and drafts repair work on a second sigh
   assertReceipts(box, row.observations[0]);
   // Changed with #3131: a proven ledger flake files its repair on the first sighting.
   assert.ok(Number.isSafeInteger(row.item), 'a proven flake files one repair item on its first sighting');
-  const second = await cliLocal(box, box.root, 'gate');
+  const second = box.cli('gate');
   assert.equal(second.code, 1);
   assert.equal(second.document.green, false);
   assert.equal(targetRuns(box), 4, 'a second red adds one new pair, no confidence loop');
-  const repeated = (await cliLocal(box, box.root, 'flakes')).document.flakes[0];
+  const repeated = box.cli('flakes').document.flakes[0];
   assert.equal(repeated.count, 2);
   assert.ok(repeated.firstSeen <= repeated.lastSeen);
   assert.ok(Number.isSafeInteger(repeated.item), 'Rigor drafts one ordinary fix item after the second confirmed sighting');
-  const item = (await cliLocal(box, box.root, 'show', String(repeated.item))).document;
+  const item = box.cli('show', String(repeated.item)).document;
   assert.equal(item.item_status, 'open');
   assert.match(item.item_title, /flaky test/iu);
   assert.match(item.item_brief, /original.*paired/isu, 'the repair work carries both observations as evidence');
   for (const observation of repeated.observations) assertReceipts(box, observation);
-  const causes = (await cliLocal(box, box.root, 'rigor')).document.causes;
+  const causes = box.cli('rigor').document.causes;
   assert.equal(causes.find(row => row.key === 'test:test/alternating.test.mjs::' + TITLE)?.occurrences, 2);
   assert.equal(box.git('status', '--porcelain').trim(), '', 'Rigor changes no source, spec or doctrine file');
   assert.equal(box.git('rev-parse', 'HEAD').trim(), head, 'diagnostics and drafting never move the source head');
 });
 
-test('the ledger records a red by default without running a second command [C7,H16]', async t => {
+test('the ledger records a red by default without running a second command [C7,H16]', t => {
   const box = flakyProject(t, { rerun: null });
-  assert.equal((await cliLocal(box, box.root, 'gate')).code, 1);
+  assert.equal(box.cli('gate').code, 1);
   assert.equal(targetRuns(box), 1);
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
   assert.equal(report.unclassified.length, 1);
   const observation = report.unclassified[0].observations[0];
@@ -174,17 +167,17 @@ test('the ledger records a red by default without running a second command [C7,H
   assertReceipts(box, observation);
 });
 
-test('an unsupported Node reporter stays unclassified rather than guessing a selector [C7,H16]', async t => {
+test('an unsupported Node reporter stays unclassified rather than guessing a selector [C7,H16]', t => {
   const box = flakyProject(t, { reporter: 'spec' });
-  assert.equal((await cliLocal(box, box.root, 'gate')).code, 1);
+  assert.equal(box.cli('gate').code, 1);
   assert.equal(targetRuns(box), 1);
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
   assert.equal(report.unclassified[0].observations[0].paired, null);
   assertReceipts(box, report.unclassified[0].observations[0]);
 });
 
-test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', async t => {
+test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'bundled-unrelated-runs');
   const copied = copyPackageFiles(resolve(import.meta.dirname, '../../../..'), box.root);
@@ -203,16 +196,16 @@ test('unrelated bundled execution [C7]', () => appendFileSync(${JSON.stringify(u
   config.affectedTests = 'node apps/cli/src/io/run/tests.js';
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: private bundled runner');
-  assert.equal((await cliLocal(box, box.root, 'gate')).code, 1);
+  assert.equal(box.cli('gate').code, 1);
   assert.equal(targetRuns(box), 2, 'the known pinned runner executes only its one exact-target pair');
   assert.equal(readFileSync(unrelated, 'utf8'), 'run\n', 'the unrelated body executes only in the original gate');
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 1);
   assert.equal(report.flakes[0].observations[0].paired.green, true);
   assertReceipts(box, report.flakes[0].observations[0]);
 });
 
-test('an unknown script named run-tests cannot rerun unrelated tests or confirm a flake [C7,H16]', async t => {
+test('an unknown script named run-tests cannot rerun unrelated tests or confirm a flake [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'observed-unrelated-runs');
   mkdirSync(join(box.root, 'apps/cli/src/io/run'), { recursive: true });
@@ -232,28 +225,28 @@ test('unrelated execution [C7]', () => appendFileSync(${JSON.stringify(unrelated
   config.affectedTests = 'node apps/cli/src/io/run/tests.js';
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: private unknown runner');
-  assert.equal((await cliLocal(box, box.root, 'gate')).code, 1, 'the original assertion remains red');
+  assert.equal(box.cli('gate').code, 1, 'the original assertion remains red');
   assert.equal(targetRuns(box), 1, 'a conventional script filename does not authorize a paired rerun');
   assert.equal(readFileSync(unrelated, 'utf8'), 'run\n', 'the unrelated test runs only in the original gate');
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
   assert.equal(report.unclassified.length, 1);
   assert.equal(report.unclassified[0].observations[0].paired, null);
   assertReceipts(box, report.unclassified[0].observations[0]);
 });
 
-test('a green pinned main excludes a candidate that passes its paired rerun [C7,H16]', async t => {
+test('a green pinned main excludes a candidate that passes its paired rerun [C7,H16]', t => {
   const box = flakyProject(t, { alwaysPass: true });
   const main = box.git('rev-parse', 'HEAD').trim();
   const builder = privateBuilder(box);
   writeTarget(builder.root, box.counter);
   builder.git('add', '-A'); builder.git('commit', '-q', '-m', 'chore: prepare private candidate');
   const head = builder.git('rev-parse', 'HEAD').trim();
-  const gate = await cliLocal(box, builder.root, 'gate');
+  const gate = builder.cli('gate');
   assert.equal(gate.code, 1);
   assert.equal(gate.document.green, false);
   assert.equal(targetRuns(box), 3, 'one original, one candidate pair and one independently pinned main comparison');
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
   assert.equal(report.regressions.length, 1);
   assert.equal(report.regressions[0].item, null);
@@ -265,46 +258,46 @@ test('a green pinned main excludes a candidate that passes its paired rerun [C7,
   assertReceipts(box, observation);
 });
 
-test('a source change during the original run prevents a paired measurement [C7,H16]', async t => {
+test('a source change during the original run prevents a paired measurement [C7,H16]', t => {
   const box = flakyProject(t);
   writeTarget(box.root, box.counter, false, true);
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: prepare controlled source mutation');
-  assert.equal((await cliLocal(box, box.root, 'gate')).code, 1);
+  assert.equal(box.cli('gate').code, 1);
   assert.equal(targetRuns(box), 1);
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
   assert.equal(report.unclassified[0].observations[0].paired, null);
   assert.match(report.unclassified[0].observations[0].reason, /changed/iu);
   assertReceipts(box, report.unclassified[0].observations[0]);
 });
 
-test('the actual check command retains its red and records one pair [C7,V2,H16]', async t => {
+test('the actual check command retains its red and records one pair [C7,V2,H16]', t => {
   const box = flakyProject(t);
   const id = checkedItem(box);
-  const result = await cliLocal(box, box.root, 'check', String(id), '--yes');
+  const result = box.cli('check', String(id), '--yes');
   assert.equal(result.code, 1);
   assert.equal(result.document.green, false);
   assert.equal(targetRuns(box), 2);
-  const observation = (await cliLocal(box, box.root, 'flakes')).document.flakes[0].observations[0];
+  const observation = box.cli('flakes').document.flakes[0].observations[0];
   assert.equal(observation.kind, 'check');
   assert.equal(observation.original.green, false);
   assert.equal(observation.paired.green, true);
   assertReceipts(box, observation);
 });
 
-test('a red submit records diagnostics without submitting the item [C7,V4,H16]', async t => {
+test('a red submit records diagnostics without submitting the item [C7,V4,H16]', t => {
   const box = flakyProject(t);
   const id = checkedItem(box);
   const builder = privateBuilder(box);
-  const claimed = await cliLocal(box, builder.root, 'claim', String(id));
+  const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
   commitCandidate(builder, 'chore: controlled submission candidate');
-  const result = await cliLocal(box, builder.root, 'submit', String(id));
+  const result = builder.cli('submit', String(id));
   assert.equal(result.code, 1);
-  assert.equal((await cliLocal(box, box.root, 'show', String(id))).document.item_status, 'claimed');
+  assert.equal(box.cli('show', String(id)).document.item_status, 'claimed');
   // Changed today with the submit/landing rerun change: a red submit runs the target four times, and its pair stays red beside a green pinned main.
   assert.equal(targetRuns(box), 4, 'a red submit runs the target four times');
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0, 'a candidate whose pair stays red is no flake');
   const observation = report.regressions[0].observations[0];
   assert.equal(observation.kind, 'submit');
@@ -316,7 +309,7 @@ test('a red submit records diagnostics without submitting the item [C7,V4,H16]',
 
 for (const linkedTemp of [false, true]) test(linkedTemp
   ? 'a private verification accepts on one green check run through a symlinked temporary root [C7,V4,H16]'
-  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', async t => {
+  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   if (linkedTemp) {
     const alias = join(box.scratch, 'temporary-alias');
@@ -325,43 +318,43 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   }
   const id = checkedItem(box);
   const builder = privateBuilder(box);
-  const claimed = await cliLocal(box, builder.root, 'claim', String(id));
+  const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
   commitCandidate(builder, 'chore: controlled review candidate');
-  const submitted = await cliLocal(box, builder.root, 'submit', String(id));
+  const submitted = builder.cli('submit', String(id));
   assert.equal(submitted.code, 0, 'the fixture submits with a real green proof before its external failure is enabled');
-  const head = (await cliLocal(box, box.root, 'show', String(id))).document.item_commit;
+  const head = box.cli('show', String(id)).document.item_commit;
   writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
-  const result = await cliLocal(box, reviewer.root, 'verify', String(id), 'accept');
+  const result = reviewer.cli('verify', String(id), 'accept');
   // Changed today: the verify rerun of the check is a single green run (no CHECK_RED), so no diagnostic pair is made.
   assert.equal(result.code, 0, JSON.stringify(result.document));
   assert.equal(result.document.check, 'green');
-  const item = (await cliLocal(box, box.root, 'show', String(id))).document;
+  const item = box.cli('show', String(id)).document;
   assert.equal(item.item_verdict, 'ACCEPT', 'verify accepts on its one green check run');
   assert.equal(targetRuns(box), 1, 'verify reruns the private check once, green, and nothing else');
-  assert.equal((await cliLocal(box, box.root, 'flakes')).document.flakes.length, 0, 'a verdict records no flake observation');
+  assert.equal(box.cli('flakes').document.flakes.length, 0, 'a verdict records no flake observation');
 });
 
-test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', async t => {
+test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   const id = checkedItem(box);
   const builder = privateBuilder(box);
-  assert.equal((await cliLocal(box, builder.root, 'claim', String(id))).code, 0);
+  assert.equal(builder.cli('claim', String(id)).code, 0);
   writeTarget(builder.root, box.counter, 'controlled', 'controlled');
   builder.git('add', '-A'); builder.git('commit', '-q', '-m', 'chore: controlled private-check mutation');
-  const submitted = await cliLocal(box, builder.root, 'submit', String(id));
+  const submitted = builder.cli('submit', String(id));
   assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
-  const head = (await cliLocal(box, box.root, 'show', String(id))).document.item_commit;
+  const head = box.cli('show', String(id)).document.item_commit;
   writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
-  const result = await cliLocal(box, reviewer.root, 'verify', String(id), 'accept');
+  const result = reviewer.cli('verify', String(id), 'accept');
   // Changed today: verify runs the check once and accepts (no CHECK_RED), so no diagnostic pair is made.
   assert.equal(result.code, 0, JSON.stringify(result.document));
   assert.equal(targetRuns(box), 1, 'verify runs the changed private check once, with no diagnostic pair');
-  const report = (await cliLocal(box, box.root, 'flakes')).document;
+  const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
   assert.equal(report.unclassified.length, 0, 'no unchanged-source pair or observation is recorded');
 });
@@ -401,7 +394,7 @@ function ciAttempt(folder, name, manifest, tap) {
   writeFileSync(join(directory, 'ci-result.json'), JSON.stringify({ provider: 'github', root: CI_ROOT, tap: 'run.tap', ...manifest }));
 }
 
-test('a CI job red then green on its rerun is one flake, and a CI failure with no test names stays unclassified [C7,H16]', async t => {
+test('a CI job red then green on its rerun is one flake, and a CI failure with no test names stays unclassified [C7,H16]', t => {
   const box = flakyProject(t);
   const commit = box.git('rev-parse', 'HEAD').trim();
   const ci = join(box.scratch, 'ci-results');
@@ -413,10 +406,10 @@ test('a CI job red then green on its rerun is one flake, and a CI failure with n
   ciAttempt(ci, 'run-222-1', { ...crash, run: '222', attempt: 1, conclusion: 'failure' }, 'TAP version 13\nnot ok 1 - the shard stopped before its tests reported\n1..1\n');
   ciAttempt(ci, 'run-222-2', { ...crash, run: '222', attempt: 2, conclusion: 'success' }, 'TAP version 13\n1..0\n');
 
-  const imported = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const imported = box.cli('flakes', 'import', ci);
   assert.equal(imported.code, 0, JSON.stringify(imported.document));
   assert.equal(imported.document.imported.length, 2);
-  const listed = (await cliLocal(box, box.root, 'flakes')).document;
+  const listed = box.cli('flakes').document;
   assert.equal(listed.flakes.length, 1, 'the red-then-green CI pair is one flake');
   const flake = listed.flakes[0].observations[0];
   assert.equal(listed.flakes[0].file, 'test/alternating.test.mjs', 'the CI location resolves inside the CI checkout');
@@ -434,13 +427,13 @@ test('a CI job red then green on its rerun is one flake, and a CI failure with n
   assert.equal(unnamed.classification, 'unclassified');
   assert.match(unnamed.reason, /no test named by file/u);
 
-  const again = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const again = box.cli('flakes', 'import', ci);
   assert.equal(again.code, 0);
   assert.ok(again.document.imported.every(entry => entry.duplicate), 'importing the same CI results again records nothing new');
-  assert.equal((await cliLocal(box, box.root, 'flakes')).document.flakes[0].count, 1);
+  assert.equal(box.cli('flakes').document.flakes[0].count, 1);
 });
 
-test('a CI rerun that names its passing test without a location still pairs, and kept CI evidence is never replaced [C7,H16]', async t => {
+test('a CI rerun that names its passing test without a location still pairs, and kept CI evidence is never replaced [C7,H16]', t => {
   const box = flakyProject(t);
   const commit = box.git('rev-parse', 'HEAD').trim();
   const ci = join(box.scratch, 'ci-results');
@@ -449,14 +442,14 @@ test('a CI rerun that names its passing test without a location still pairs, and
   ciAttempt(ci, 'run-444-1', { ...job, attempt: 1, conclusion: 'failure' }, red);
   // As Node's TAP reporter writes it: a passing test carries no location.
   ciAttempt(ci, 'run-444-2', { ...job, attempt: 2, conclusion: 'success' }, `TAP version 13\nok 1 - ${TITLE}\n  ---\n  duration_ms: 1.2\n  ...\n1..1\n`);
-  assert.equal((await cliLocal(box, box.root, 'flakes', 'import', ci)).code, 0);
-  const flake = (await cliLocal(box, box.root, 'flakes')).document.flakes[0]?.observations[0];
+  assert.equal(box.cli('flakes', 'import', ci).code, 0);
+  const flake = box.cli('flakes').document.flakes[0]?.observations[0];
   assert.equal(flake?.classification, 'flake', 'the rerun row matches by its name when it carries no location');
   const kept = join(box.root, '.git/pullboard', flake.original.artifact);
   const before = box.readData(kept);
   // The downloaded red report changes by one comment line; the ledger refuses it, and the kept original is untouched.
   writeFileSync(join(ci, 'run-444-1', 'run.tap'), red + '# re-downloaded\n');
-  const changed = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const changed = box.cli('flakes', 'import', ci);
   assert.equal(changed.code, 1);
   assert.equal(changed.document.error.code, 'FLAKE_OBSERVATION_CHANGED');
   assert.deepEqual(box.readData(kept), before, 'the original red evidence keeps its recorded bytes');
@@ -464,12 +457,12 @@ test('a CI rerun that names its passing test without a location still pairs, and
 });
 
 
-test('a CI passing title cannot prove two files when the other rerun skips [C7,H16]', async t => {
+test('a CI passing title cannot prove two files when the other rerun skips [C7,H16]', t => {
   const box = flakyProject(t);
   for (const suffix of ['a', 'b']) {
     writeFileSync(join(box.root, `test/ci-${suffix}.test.mjs`), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
-test('the shared title [C7]', { skip: process.env.CI_DUPLICATE_MODE === 'rerun' && ${suffix === 'b'} }, async () => {
+test('the shared title [C7]', { skip: process.env.CI_DUPLICATE_MODE === 'rerun' && ${suffix === 'b'} }, () => {
   assert.equal(process.env.CI_DUPLICATE_MODE, 'rerun');
 });\n`);
   }
@@ -491,15 +484,15 @@ test('the shared title [C7]', { skip: process.env.CI_DUPLICATE_MODE === 'rerun' 
   const job = { job: 'duplicate titles', runner: 'private-node-fixture', node: process.version, commit, root: box.root, run: '555', at: '2026-10-20T12:00:00.000Z' };
   ciAttempt(ci, 'red', { ...job, attempt: 1, conclusion: 'failure' }, red.stdout);
   ciAttempt(ci, 'rerun', { ...job, attempt: 2, conclusion: 'success' }, rerun.stdout);
-  const imported = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const imported = box.cli('flakes', 'import', ci);
   assert.equal(imported.code, 0, JSON.stringify(imported.document));
-  const listed = (await cliLocal(box, box.root, 'flakes')).document;
+  const listed = box.cli('flakes').document;
   assert.equal(listed.flakes.length, 0, 'one anonymous pass cannot prove either of two same-title files green');
   assert.deepEqual(listed.unclassified.map(row => row.file).sort(), ['test/ci-a.test.mjs', 'test/ci-b.test.mjs']);
   for (const row of listed.unclassified) assertReceipts(box, row.observations[0]);
 });
 
-test('a CI rerun matches an explicit file before considering anonymous same-title rows [C7,H16]', async t => {
+test('a CI rerun matches an explicit file before considering anonymous same-title rows [C7,H16]', t => {
   const box = flakyProject(t);
   const commit = box.git('rev-parse', 'HEAD');
   const ci = join(box.scratch, 'ci-results');
@@ -507,29 +500,29 @@ test('a CI rerun matches an explicit file before considering anonymous same-titl
   const row = (status, number, file) => `${status} ${number} - shared title [C7]\n  ---\n${file ? `  location: '${CI_ROOT}/${file}:3:1'\n` : ''}  ...\n`;
   ciAttempt(ci, 'red', { ...job, attempt: 1, conclusion: 'failure' }, `TAP version 13\n${row('not ok', 1, 'test/a.test.mjs')}${row('not ok', 2, 'test/b.test.mjs')}1..2\n`);
   ciAttempt(ci, 'rerun', { ...job, attempt: 2, conclusion: 'success' }, `TAP version 13\n${row('ok', 1, 'test/a.test.mjs')}${row('ok', 2, null)}1..2\n`);
-  const imported = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const imported = box.cli('flakes', 'import', ci);
   assert.equal(imported.code, 0, JSON.stringify(imported.document));
-  const listed = (await cliLocal(box, box.root, 'flakes')).document;
+  const listed = box.cli('flakes').document;
   assert.deepEqual(listed.flakes.map(entry => entry.file), ['test/a.test.mjs'], 'the explicitly located passing row proves its own file');
   assert.deepEqual(listed.unclassified.map(entry => entry.file), ['test/b.test.mjs'], 'the anonymous row remains ambiguous');
 });
 
 
-test('a same-title skipped original does not lend its identity to an anonymous CI pass [C7,H16]', async t => {
+test('a same-title skipped original does not lend its identity to an anonymous CI pass [C7,H16]', t => {
   const box = flakyProject(t);
   const commit = box.git('rev-parse', 'HEAD');
   const ci = join(box.scratch, 'ci-results');
   const job = { job: 'original ambiguity', runner: 'private-tap-fixture', node: process.version, commit, run: '777', at: '2026-10-20T12:00:00.000Z' };
   ciAttempt(ci, 'red', { ...job, attempt: 1, conclusion: 'failure' }, `TAP version 13\nnot ok 1 - shared title [C7]\n  ---\n  location: '${CI_ROOT}/test/a.test.mjs:3:1'\n  ...\nok 2 - shared title [C7] # SKIP\n1..2\n`);
   ciAttempt(ci, 'rerun', { ...job, attempt: 2, conclusion: 'success' }, 'TAP version 13\nok 1 - shared title [C7]\n1..1\n');
-  const imported = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const imported = box.cli('flakes', 'import', ci);
   assert.equal(imported.code, 0, JSON.stringify(imported.document));
-  const listed = (await cliLocal(box, box.root, 'flakes')).document;
+  const listed = box.cli('flakes').document;
   assert.equal(listed.flakes.length, 0, 'the anonymous pass could be the other original test');
   assert.deepEqual(listed.unclassified.map(entry => entry.file), ['test/a.test.mjs'], 'the skipped original is not itself recorded as a failure');
 });
 
-test('a duplicate original CI file and title cannot share one located passing occurrence [C7,H16]', async t => {
+test('a duplicate original CI file and title cannot share one located passing occurrence [C7,H16]', t => {
   const box = flakyProject(t);
   const commit = box.git('rev-parse', 'HEAD');
   const ci = join(box.scratch, 'ci-results');
@@ -537,9 +530,9 @@ test('a duplicate original CI file and title cannot share one located passing oc
   const row = (status, number) => `${status} ${number} - shared title [C7]\n  ---\n  location: '${CI_ROOT}/test/shared.test.mjs:3:1'\n  ...\n`;
   ciAttempt(ci, 'red', { ...job, attempt: 1, conclusion: 'failure' }, `TAP version 13\n${row('not ok', 1)}${row('not ok', 2)}1..2\n`);
   ciAttempt(ci, 'rerun', { ...job, attempt: 2, conclusion: 'success' }, `TAP version 13\n${row('ok', 1)}1..1\n`);
-  const imported = await cliLocal(box, box.root, 'flakes', 'import', ci);
+  const imported = box.cli('flakes', 'import', ci);
   assert.equal(imported.code, 0, JSON.stringify(imported.document));
-  const listed = (await cliLocal(box, box.root, 'flakes')).document;
+  const listed = box.cli('flakes').document;
   assert.equal(listed.flakes.length, 0, 'a located pass cannot identify which duplicate original occurrence passed');
   assert.deepEqual(listed.unclassified.map(entry => entry.file), ['test/shared.test.mjs']);
   assertReceipts(box, listed.unclassified[0].observations[0]);
