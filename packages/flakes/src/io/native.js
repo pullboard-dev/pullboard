@@ -28,6 +28,7 @@ import {
   headTree,
   invalidateGitFacts,
   isClean,
+  treeUntouched,
   tryGit,
   untracked,
 } from "../../../git/index.js";
@@ -68,7 +69,7 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
   let trunk = main ?? null;
   if (!trunk) { try { trunk = mainPolicy(root).commit; } catch { /* Missing main prevents classification. */ } }
   return { head, tree: tree?.status === 0 ? tree.stdout.trim() : null, main: trunk, privateCheck,
-    clean: privateCheck || isClean(root) && untracked(root).length === 0,
+    clean: privateCheck || treeUntouched(root),
     load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) } };
 }
 
