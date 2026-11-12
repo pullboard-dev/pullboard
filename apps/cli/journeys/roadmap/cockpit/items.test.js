@@ -186,10 +186,11 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
 
 });
 
-test('a blocked roadmap item shows its dot and expands to say why [N26]', { timeout: 90_000 }, async (t) => {
-  const began = performance.now();
-  /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
-  const stage = phase => console.log('roadmap-blocked-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
+/**
+ * The blocked-roadmap board and a Chrome open on its Roadmap, for the cases below. One case held all of it and took
+ * about 70 s of the 90 s it is given on a fast runner, so the checks that follow the setup are split in two.
+ */
+async function blockedRoadmap(t, stage) {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the roadmap blocker check.');
   const box = machine(), alpha = project(box, 'blocked-roadmap');
@@ -218,7 +219,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');
   stage('setup-end');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-blocked-roadmap-chrome-'));
-  let chrome;
+  let chrome, address;
   const row = id => `[...document.querySelectorAll('#roadmap .milestone-item')].find(x=>x.querySelector('.id')?.textContent===${JSON.stringify(id)})`;
   /** Read the visible detail only, after its optional first detail request settles. */
   async function opened(id) {
@@ -228,6 +229,8 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   }
   /** Count item reads, excluding ordinary board polling. */
   async function reads() { return JSON.parse(await chrome.stable('JSON.stringify(window.__requests)')).filter(url => /\/items\/\d/.test(url)); }
+  /** Close the page, its profile and the view, whichever way the case ends. */
+  const close = async () => { if (chrome) await closeSnapshotChrome(chrome); rmSync(profile, { recursive: true, force: true }); await view.stop(); };
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
     stage('chrome-ready');
@@ -241,7 +244,20 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     assert.equal(await chrome.stable(`${row('#2')}.querySelector('.roadmap-after a[data-go]').dataset.go`), 'item:1');
     assert.equal(await chrome.stable(`Boolean(${row('#3')}.querySelector('.roadmap-after, .block-dot'))`), false);
     await chrome.stable("window.__requests=[];window.__fetch=window.fetch;window.fetch=(url,options)=>{window.__requests.push(String(url));return window.__fetch(url,options);};true");
-    const address = await chrome.stable('location.href');
+    address = await chrome.stable('location.href');
+  } catch (error) {
+    await close();
+    throw error;
+  }
+  return { chrome, row, opened, reads, address, close };
+}
+
+test('a blocked roadmap item shows its dot and expands to say why [N26]', { timeout: 90_000 }, async (t) => {
+  const began = performance.now();
+  /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
+  const stage = phase => console.log('roadmap-blocked-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
+  const { chrome, row, opened, reads, address, close } = await blockedRoadmap(t, stage);
+  try {
     stage('first-open');
     const blocked = await opened('#2');
     assert.match(blocked, /CriterionUse #1 and #3 <em>literally<\/em>\./u, 'the approved dense detail leads with the criterion');
@@ -295,6 +311,16 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
       assert.equal(landed.stage, 'Merged'); assert.equal(landed.icon, false, 'a landed row reads Merged, with no checkmark');
       await press(chrome, row('#5'));
     }
+    assert.deepEqual(chrome.exceptions, []);
+  } finally { await close(); }
+});
+
+test('a blocked roadmap item reads its prose plainly and its remote blocker on a phone [N26]', { timeout: 90_000 }, async (t) => {
+  const began = performance.now();
+  /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
+  const stage = phase => console.log('roadmap-remote-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
+  const { chrome, row, opened, reads, address, close } = await blockedRoadmap(t, stage);
+  try {
     for (const width of [375,1280]) for (const scheme of ['light','dark']) {
       await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
       await chrome.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:scheme}]});
@@ -317,5 +343,5 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     await chrome.waitFor("view.tab==='items' && document.querySelector('#detail h2')?.textContent.includes('Remote sent-back work')");
     assert.equal(await chrome.stable("document.querySelector('#proj-name').textContent"), 'blocked-roadmap-other');
     assert.deepEqual(chrome.exceptions, []);
-  } finally { if(chrome) await closeSnapshotChrome(chrome); rmSync(profile,{recursive:true,force:true}); await view.stop(); }
+  } finally { await close(); }
 });
