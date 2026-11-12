@@ -194,7 +194,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}, named = n
   }
   const owner = agentSessionDigest() ?? `pid-${process.pid}`;
   if (values.adopt && !values['dry-run']) await rebindAdoptedLanding(board, ctx.info.root);
-  // The repository's landing.stall: how long a batch may make no progress before it ends (10 minutes unset, #3186, #3477).
+  // The repository's landing.stall: how long a batch may make no progress before it ends (2 minutes unset, #3186, #3477, #5816).
   const progress = landingProgress();
   const watch = { stallAfterMs: ctx.config?.landing?.stallMs, lastProgressAt: progress.lastProgressAt, stall: progress.stall };
   /** One landing through the batch engine; a real one runs in this process as a drive-cell job [C7]. */

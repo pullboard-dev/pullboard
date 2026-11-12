@@ -1282,8 +1282,15 @@
     "tempdir": 1
   },
   "apps/cli/journeys/fact/snapshot.test.js": {
-    "raw-cli": 10,
-    "tempdir": 2
+    "raw-cli": 3,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/fact/snapshot/replay.test.js": {
+    "raw-cli": 3
+  },
+  "apps/cli/journeys/fact/snapshot/roadmap.test.js": {
+    "raw-cli": 4,
+    "tempdir": 1
   },
   "apps/cli/journeys/spec/redesign.test.js": {
     "raw-cli": 1
