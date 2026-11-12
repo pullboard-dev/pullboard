@@ -26,7 +26,7 @@ test('clauses 1 and 2: with the local runner live the baseline records within 60
   assert.equal(recorded.result, 'green');
   assert.equal(recorded.warning, 'CRITERION_PROVES_NOTHING');
   const next = await box.runLocal(box.web, ['claim', String(item.item_id), '--json']);
-  assert.match((await box.runLocal(box.web, ['next'])).stdout, /check passes on main/u, 'next offers nothing: the item is held');
+  assert.match(JSON.stringify(JSON.parse((await box.runLocal(box.web, ['next', '--json'])).stdout).reasons), /check passes on main/u, 'next offers nothing: the item is held');
   assert.equal(next.status, 1, `${next.stdout}${next.stderr}`);
   assert.equal(JSON.parse(next.stdout).error.code, 'CRITERION_PROVES_NOTHING', 'claiming an item whose check already passes on main is refused');
 });
