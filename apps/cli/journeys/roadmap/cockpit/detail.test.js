@@ -61,7 +61,12 @@ async function startStressView(board) {
   const deadline = Date.now() + 30_000; // budget: hang ceiling for the generated board's view to print its link.
   while (Date.now() < deadline) {
     const link = /Pullboard view: (http:\/\/127\.0\.0\.1:\d+\/\?k=\S+)/u.exec(output);
-    if (link) return { link: new URL(link[1]), stop: async () => { child.kill('SIGTERM'); await closed; } };
+    if (link) return { link: new URL(link[1]), stop: async () => {
+      // The view's graceful close took about 70 s on the 1,038-item board after Chrome had left; the board is a disposable
+      // fixture removed right after, so a view that has not closed within 5 s is ended.
+      const ended = setTimeout(() => child.kill('SIGKILL'), 5_000); // budget: grace for the view's own close before the disposable fixture's process is ended.
+      child.kill('SIGTERM'); await closed; clearTimeout(ended);
+    } };
     await new Promise((done) => setTimeout(done, 25));
   }
   child.kill('SIGKILL');

@@ -412,6 +412,7 @@ Additional commands
   pullboard heartbeat [--claims]      record this seat's local session activity; no board move; --claims keeps beating while the seat holds a claim or queued gate
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
+  pullboard search <text>              the top 5 items most like the text, with score, id, state and title; read-only
   pullboard seats                     current seat states and local 24-hour timing ledger
   pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, the most items held at once, and the median and p90 wait from a submit or test start to the seat's next board action
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives

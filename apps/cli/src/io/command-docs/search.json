@@ -1,0 +1,8 @@
+{
+  "name": "search",
+  "help": "  pullboard search <text>              the top 5 items most like the text, with score, id, state and title; read-only\n",
+  "required": {
+    "query": "string",
+    "matches": "array"
+  }
+}
