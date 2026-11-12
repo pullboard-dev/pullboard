@@ -63,6 +63,8 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     (file === 'packages/sync/src/io/local.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     // Opt-in door: runner pull transport; runs only when the person sets up runners or pullboard serve; localhost on one machine.
     (file === 'packages/transport/src/io/pull/http.js' && /node:https?\b/u.test(line)) ||
+    // Opt-in door: remote board sync; runs only when the person turns remote sync on.
+    (file === 'apps/cli/src/io/remote/board.js' && /node:https?\b/u.test(line)) ||
     // Scanners that name network calls in order to refuse them.
     (file === 'apps/view/src/io/coverage.js' && /^const BROWSER_CALLS = \/\\b\(\?:/u.test(line.trim())) ||
     (file === 'packages/gate/src/io/board/write.js' && line.trim() === "if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {") ||
