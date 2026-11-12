@@ -1856,9 +1856,6 @@
   "apps/cli/journeys/roadmap/held.test.js": {
     "launch": 7
   },
-  "apps/cli/journeys/patch/item/journey.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/view/services.test.js": {
     "launch": 1
   },
