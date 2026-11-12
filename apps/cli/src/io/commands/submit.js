@@ -1363,6 +1363,11 @@ export async function run(io, { first, values }) {
   }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait || !submissionResult.queued) return code;
+  // A seat that held the claim it submitted never waits on its gate; the result comes back through next [P7].
+  if (!ctx.info.isMain && ctx.submitAttempt) {
+    io.say(`a seat holding a claim never blocks on its own gate; a red gate comes back through pullboard next, and pullboard show ${id} reads it any time`);
+    return code;
+  }
   return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }

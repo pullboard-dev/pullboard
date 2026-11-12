@@ -24,6 +24,7 @@ import {
 } from '../../../tests/fixtures/runner/ssh.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { MACHINE_CONTEXT_ENV } from '../../../../../packages/drive/index.js';
+import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 
@@ -68,12 +69,20 @@ function asSeat(box, ...args) {
   return seatRun(box, {}, ...args);
 }
 
-/** Run as the seat with only `extra` of the machine variables set; every other one the test runner set is removed. */
+/**
+ * Run as the seat with only `extra` of the machine variables set; every other one the test runner set is removed.
+ * With `marker: false` no agent-shell marker is set either, as for a seat launched over ssh.
+ */
 function seatRun(box, extra, ...args) {
-  const saved = Object.fromEntries([...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID', 'CLAUDECODE'].map(name => [name, box.env[name]]));
+  return markedRun(box, extra, true, ...args);
+}
+
+/** Run as the seat with `extra` set, with or without the agent-shell marker, and time it. */
+function markedRun(box, extra, marker, ...args) {
+  const saved = Object.fromEntries([...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID', 'PULLBOARD_TEST_WAIT', ...AGENT_SHELL_MARKERS].map(name => [name, box.env[name]]));
   for (const name of Object.keys(saved)) delete box.env[name];
   Object.assign(box.env, extra);
-  box.env.CLAUDECODE = '1';
+  if (marker) box.env.CLAUDECODE = '1';
   try {
     const started = performance.now();
     const ran = box.run(box.web, ...args);
@@ -162,4 +171,34 @@ test('a seat call under a live outer pullboard command or machine variables bloc
   const runnerJob = asSeatInside(box, { GIT_NO_REPLACE_OBJECTS: '1' }, 'test', 'test/red.test.js');
   assert.equal(runnerJob.code, 1, 'in the check runner\'s clean git environment the run blocks and exits red');
   assert.doesNotMatch(runnerJob.out, /queued test run/u);
+});
+
+/** Add one web-lane item and claim it from the web seat, so the seat holds a live build claim. */
+function claimOne(box) {
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Held claim', '--specs', 'G1', '--criterion', 'the seat holds a claim', '--brief', 'Files: web/page.js. Change: none. Test case: none.', '--check', 'true');
+  assert.equal(added.code, 0, `add: ${added.out}${added.err}`);
+  const claimed = box.run(box.web, 'claim', '1');
+  assert.equal(claimed.code, 0, `claim: ${claimed.out}${claimed.err}`);
+}
+
+test('clause 1: a seat holding a claim queues test --wait at once with no agent marker, printing the run id and its status command [P7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
+  const box = runnerProject();
+  claimOne(box);
+  const queued = markedRun(box, { PULLBOARD_TEST_WAIT: '1' }, false, 'test', 'test/red.test.js', '--wait');
+  assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
+  assert.ok(queued.ms < 1000, `the claimed seat's call returns at once (${Math.round(queued.ms)} ms)`); // budget: the queue answer, never the run.
+  const id = /queued test run ([0-9a-f-]{36})/u.exec(queued.out)?.[1];
+  assert.ok(id, `the reply names the run: ${queued.out}`);
+  assert.match(queued.out, /pullboard next brings the result/u, 'the reply says the result comes through next');
+  assert.match(queued.out, new RegExp(`pullboard test --status ${id}`, 'u'), 'the reply prints the command that shows the result');
+  const next = markedRun(box, {}, false, 'next');
+  assert.match(next.out, new RegExp(`test run ${id} red on ${HOST}`, 'u'), 'next hands back the red result');
+});
+
+test('clause 2: a seat holding no claim keeps the blocking --wait inside an agent shell [P7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
+  const box = runnerProject();
+  const ran = asSeat(box, 'test', 'test/red.test.js', '--wait', '--json');
+  assert.equal(ran.code, 1, `the blocking run exits red: ${ran.out}${ran.err}`);
+  assert.doesNotMatch(ran.out, /queued test run/u);
+  assert.equal(JSON.parse(ran.out).runner, HOST, 'the files ran before the command returned');
 });
