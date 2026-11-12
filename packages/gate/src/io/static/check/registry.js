@@ -127,7 +127,8 @@ export const STATIC_CHECKS = Object.freeze([
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
-    const baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8'));
+    let baseline;
+    try { baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')); } catch { return []; } // a plain project keeps no wait baseline to judge [#6544]
     return files.filter(isTestSource).flatMap(file => testWaitGrowth(testWaitSites(read(file).source, file), baseline).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
 ]);
