@@ -394,6 +394,7 @@ Role guides
 Gate and hooks
   pullboard push-receipts               additive check of Git pre-push stdin, native receipts and accepted-policy smoke; does not replace the active hook
   pullboard gate [--landing [--receipt]]  run the configured gate; --receipt produces fresh native landing evidence
+  pullboard gate --withdraw <id>         stop the item's queued or running gate; its holder or the coordinator; submit again to start a new one
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
@@ -410,9 +411,11 @@ Additional commands
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
   pullboard seats                     current seat states and local 24-hour timing ledger
+  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, the most items held at once, and the median and p90 wait from a submit or test start to the seat's next board action
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
+  pullboard stats review [--window <duration>] [--until <ISO time>]  review queue depth by hour, time from submit to verdict, and reject rate per reviewer family
   pullboard stats runners [--window <duration>] [--until <ISO time>]  runner slot wait (queued to running) p50/p90/max and queue depth per job kind and hour
   pullboard stats runners --health [--window <duration>] [--until <ISO time>]  run time per job kind per runner (p50/p90) and runner up spans, lost leases, retries and re-placed jobs
   pullboard stats runners --lag [--window <duration>] [--until <ISO time>]  main check lag: time from each main commit landing to its first full-suite result, and to its first red (--main-lag is the same)
