@@ -53,14 +53,14 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   sessionGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: set up pullboard'], { cwd: box.root, env: box.env });
 
   // S6b: a session that cannot read the key (SSH, a scheduled job, a locked keychain) still reads the whole board.
-  assert.equal((await box.cli('add', box.lane, 'Read from any session')).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, 'Read from any session')).code, 0);
   renameSync(keys, keys + '.parked');
   try {
     for (const command of [['list'], ['show', '1'], ['inbox'], ['whoami'], ['status'], ['resume'], ['log']]) {
-      const read = command[0] === 'inbox' ? await readKeylessInbox(box, inbox) : await box.cli(...command);
+      const read = command[0] === 'inbox' ? await readKeylessInbox(box, inbox) : await box.cliLocal(...command);
       assert.equal(read.code, 0, `${command[0]} reads without the key: ${JSON.stringify(read.document?.error ?? null)}`);
     }
-    const move = await box.cli('add', box.lane, 'Needs the key');
+    const move = await box.cliLocal('add', box.lane, 'Needs the key');
     assert.equal(move.document?.error?.code, 'RELAY_KEY_MISSING', 'a move without the key is refused, never sent or lost');
   } finally { renameSync(keys + '.parked', keys); }
   await finishKeylessInbox(box, inbox);
@@ -69,10 +69,10 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   // The project's committed setup is what every checkout, CI's included, gets.
   const seatRoot = join(box.root, '..', 'ci-seat');
   sessionGit(['worktree', 'add', '-q', '-b', 'ci-seat', seatRoot], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(seatRoot, 'join', box.lane, '--model', 'fixture-model');
+  const joined = await box.cliAtLocal(seatRoot, 'join', box.lane, '--model', 'fixture-model');
   assert.equal(joined.code, 0, `the person gives CI its own seat: ${JSON.stringify(joined.document?.error ?? null)}`);
-  const seat = (await box.cliAt(seatRoot, 'whoami')).document;
-  assert.equal((await box.cliAt(seatRoot, 'shout', 'all', 'the CI seat is ready')).code, 0, 'the seat moves once, which mints its token');
+  const seat = (await box.cliAtLocal(seatRoot, 'whoami')).document;
+  assert.equal((await box.cliAtLocal(seatRoot, 'shout', 'all', 'the CI seat is ready')).code, 0, 'the seat moves once, which mints its token');
   const link = JSON.parse(box.readLink());
   const token = link.agentTokens?.[seat.id]?.token;
   assert.match(token ?? '', /^pa_/u, 'the seat holds its own agent token');
@@ -96,6 +96,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   }
   const ciEnv = { ...box.env, HOME: ciHome, PULLBOARD_HOME: join(ciHome, '.pullboard'), PULLBOARD_MACHINE_HOME: join(ciHome, 'machine'), PATH: ciKeychainBin,
     PULLBOARD_RELAY_TOKEN: token, PULLBOARD_RELAY_KEY: key, PULLBOARD_RELAY_URL: box.origin };
+  // Process-level: a separate CI machine with its own PATH, home and token must be a real child.
   const ci = (...args) => sessionChild(ciRoot, ciEnv, [cli, ...args, '--json']);
   const status = await ci('status');
   assert.equal(status.code, 0, 'CI reads the board');
@@ -104,8 +105,8 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
     `CI reads the board’s items: ${JSON.stringify(listed.document.items?.map((item) => item.title ?? item.item_title))} ${JSON.stringify(status.document).replaceAll(token, '<token>').replaceAll(key, '<key>').slice(0, 900)}`);
   const added = await ci('add', box.lane, 'Added from CI');
   assert.equal(added.code, 0, `CI moves on the board: ${JSON.stringify(added.document?.error ?? null)}`);
-  assert.equal((await box.cli('status')).code, 0);
-  const items = (await box.cli('export')).document.tables.item;
+  assert.equal((await box.cliLocal('status')).code, 0);
+  const items = (await box.cliLocal('export')).document.tables.item;
   assert.ok(items.some((item) => item.item_title === 'Added from CI'), 'the CI move reaches the person’s board');
   assert.equal(filesUnder(join(ciEnv.PULLBOARD_HOME, 'relay-keys')).length, 0, 'CI keeps no key file');
   const written = [...box.privateTreeBytes(join(ciRoot, '.git', 'pullboard')), ...box.privateTreeBytes(ciHome)].map(bytes => bytes.toString('latin1'));

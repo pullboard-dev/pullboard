@@ -21,15 +21,16 @@ import { readGateReceipt } from '../../../../packages/gate/index.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Write only one private fixture's source or synchronization file. */
 function put(root, file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
 /** Preserve real CLI output and fail setup at its actual refusal. */
-function cli(box, root, ...args) {
-  const run = runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: box.env, encoding: 'utf8' });
-  assert.equal(run.status, 0, (run.context ?? '') + '\n' + run.stdout + run.stderr);
+async function cli(box, root, ...args) {
+  const run = await runCliInProcess([...args, '--json'], { cwd: root, env: box.env });
+  assert.equal(run.status, 0, '\n' + run.stdout + run.stderr);
   return JSON.parse(run.stdout);
 }
 /** Commit genuine fixture source with isolated identity. */
@@ -61,7 +62,7 @@ async function observed(predicate, message) {
 }
 
 /** Build two independent claimed items sharing a real red main and one open repair. */
-function fixture(t) {
+async function fixture(t) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pb-cache-submit-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo'); mkdirSync(root);
@@ -77,7 +78,7 @@ function fixture(t) {
   env.PATH = join(directory, 'bin') + ':' + process.env.PATH;
   put(directory, 'machine/settings.json', JSON.stringify({ gateSlots: 4, browserSlots: 1, gate: { browserFreeChecks: true } }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
-  cli(box, root, 'init');
+  await cli(box, root, 'init');
   put(root, 'package.json', '{"type":"module"}\n');
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js', lanes: { core: { owns: ['changes/', 'test/'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] Configured checks describe this fixture. | gate: test/runner.js\n');
@@ -94,14 +95,16 @@ function fixture(t) {
     "const child=spawnSync(process.execPath,['--test','--test-reporter=tap',...files],{encoding:'utf8',env:process.env});process.stdout.write(child.stdout??'');process.stderr.write(child.stderr??'');process.exitCode=child.status??1;",
   ].join('\n'));
   box.main = commit(box, root);
-  const ids = ['a', 'b'].map(name => cli(box, root, 'add', 'core', 'Independent ' + name, '--specs', 'G1', '--route', 'mid', '--criterion', 'The independent file exists.', '--check', `test -f changes/${name}.txt`, '--brief', `Files: changes/${name}.txt\nTest: independent file`).item.item_id);
-  box.builders = ids.map((id, index) => {
-    const made = cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');
-    cli(box, made.path, 'claim', String(id));
+  const ids = [];
+  for (const name of ['a', 'b']) ids.push((await cli(box, root, 'add', 'core', 'Independent ' + name, '--specs', 'G1', '--route', 'mid', '--criterion', 'The independent file exists.', '--check', `test -f changes/${name}.txt`, '--brief', `Files: changes/${name}.txt\nTest: independent file`)).item.item_id);
+  box.builders = [];
+  for (const [index, id] of ids.entries()) {
+    const made = await cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');
+    await cli(box, made.path, 'claim', String(id));
     put(made.path, `changes/${['a','b'][index]}.txt`, 'independent\n');
-    return { id, root: made.path, head: commit(box, made.path) };
-  });
-  cli(box, root, 'add', 'core', 'Main red: both fixture assertions', '--specs', 'G1', '--criterion', 'Both assertions pass.', '--check', 'node test/runner.js test/a.test.js test/b.test.js', '--brief', 'Files: test/a.test.js, test/b.test.js\nTest: real inherited assertions');
+    box.builders.push({ id, root: made.path, head: commit(box, made.path) });
+  }
+  await cli(box, root, 'add', 'core', 'Main red: both fixture assertions', '--specs', 'G1', '--criterion', 'Both assertions pass.', '--check', 'node test/runner.js test/a.test.js test/b.test.js', '--brief', 'Files: test/a.test.js, test/b.test.js\nTest: real inherited assertions');
   box.cache = join(root, '.git/pullboard/main-red.json');
   box.cacheSeed = JSON.stringify({ version: 1, entries: { [box.main]: { 'test/b.test.js': { result: 'red' } } } });
   writeFileSync(box.cache, box.cacheSeed, { mode: 0o600 });
@@ -110,6 +113,7 @@ function fixture(t) {
 
 /** Launch a normal submit and retain its exact terminal output while another process is held. */
 function launch(box, builder, mode) {
+  // process-level: two submits must run concurrently and one is held.
   const child = startFixtureChild(process.execPath, [BIN, 'submit', String(builder.id), '--json'], { cwd: builder.root, env: { ...box.env, CACHE_CASE: mode }, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '', stderr = ''; let finished = false;
   child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
@@ -130,7 +134,7 @@ function assertForgedGone(box) {
 }
 
 test('a second submit records fresh main evidence before a held submit finishes, and stale evidence reruns [V4,C7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   const [one, two] = box.builders;
   const first = launch(box, one, 'first');
   let second;

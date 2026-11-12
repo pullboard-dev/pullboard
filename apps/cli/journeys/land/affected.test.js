@@ -11,10 +11,16 @@ import { selectAffectedTests } from '../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { cleanupFixtureChildren } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { json } from '../../tests/fixtures/land/board.js';
 
 const e2e = createE2eHelpers();
 after(async () => { await cleanupFixtureChildren(); e2e.cleanup(); });
+
+/** Run a successful JSON command through the production dispatch in this process. */
+async function json(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args, '--json');
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+  return JSON.parse(result.out);
+}
 
 /** A real Node test whose imported value must keep the specified contract. */
 function valueTest(expected) {
@@ -22,7 +28,7 @@ function valueTest(expected) {
 }
 
 /** Reject the actual merged importer, exercising either full fallback or the finite import subset. */
-function affectedBatch(t, { stableBadges = false, inline = false, waive = false, opaque = false } = {}) {
+async function affectedBatch(t, { stableBadges = false, inline = false, waive = false, opaque = false } = {}) {
   // The execution and waiver assertions inspect TAP; Node 22 and 24 have different default reporters.
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
@@ -49,32 +55,32 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
     box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   }
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const item = json(box, box.repo, 'add', 'web', 'Change the value and its test', '--specs', 'G1',
-    '--criterion', 'the changed value passes its test', '--check', 'node --test --test-reporter=tap web/value.test.js').item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(item)).code, 0);
+  const item = (await json(box, box.repo, 'add', 'web', 'Change the value and its test', '--specs', 'G1',
+    '--criterion', 'the changed value passes its test', '--check', 'node --test --test-reporter=tap web/value.test.js')).item.item_id;
+  assert.equal((await box.runLocal(box.web, 'claim', String(item))).code, 0);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value = 2;\n');
   writeFileSync(join(box.web, 'web/value.test.js'), valueTest(2));
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): update the value and its test [G1]');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   process.stderr.write('# land-affected: submit frozen source\n');
-  const submitted = box.run(box.web, 'submit', String(item), '--wait', '--no-next');
+  const submitted = await box.runLocal(box.web, 'submit', String(item), '--wait', '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   const checkLog = box.git(box.web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
   assert.match(readFileSync(resolve(box.web, checkLog), 'utf8'), /# tests 1\b/u, 'submit really executes its frozen test');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
     process.stderr.write('# land-affected: verify frozen source\n');
-    const verified = box.run(box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'private real affected-test fixture');
+    const verified = await box.runLocal(box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'private real affected-test fixture');
     assert.equal(verified.code, 0, verified.out + verified.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
-  if (stableBadges) assert.equal(box.run(box.repo, 'badge').code, 0, 'committed badges already match the verified roster');
+  if (stableBadges) assert.equal((await box.runLocal(box.repo, 'badge')).code, 0, 'committed badges already match the verified roster');
   // A later accepted-trunk importer passes on main but fails only when this already-verified item is merged.
   const addedTest = e2e.commitFile(box, box.repo, 'web/new-importer.test.js', valueTest(1), 'test(web): retain the original importing contract [G1]');
   assert.equal(addedTest.status, 0, addedTest.stderr);
   const main = box.git(box.repo, 'rev-parse', 'main');
   process.stderr.write('# land-affected: check accepted main\n');
-  const mainGate = box.run(box.repo, 'gate');
+  const mainGate = await box.runLocal(box.repo, 'gate');
   assert.equal(mainGate.code, 0, mainGate.out + mainGate.err);
   assert.match(readFileSync(join(box.repo, '.git/pullboard-gate.log'), 'utf8'), inline ? /# tests 1\b/u : /# tests 3\b/u,
     'main really executes its configured gate');
@@ -83,9 +89,9 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
     assert.equal(importer.status, 0, importer.context);
     assert.match(importer.stdout, /# tests 1\b/u, 'the omitted importer really passes on main');
   }
-  if (waive) assert.equal(box.run(box.repo, 'land', '--waive', 'web/new-importer.test.js', '--until', '2099-01-01', '--reason', 'private exact affected-stage waiver').code, 0);
+  if (waive) assert.equal((await box.runLocal(box.repo, 'land', '--waive', 'web/new-importer.test.js', '--until', '2099-01-01', '--reason', 'private exact affected-stage waiver')).code, 0);
   process.stderr.write('# land-affected: land candidate with late importer\n');
-  const outcome = box.run(box.repo, 'land', '--json');
+  const outcome = await box.runLocal(box.repo, 'land', '--json');
   // A blocked batch exits 1, a landed one 0 (#4265, #2858: a red-only landing exits 1).
   assert.equal(outcome.code, waive && !opaque ? 0 : 1, outcome.out + outcome.err);
   const landing = JSON.parse(outcome.out);
@@ -94,36 +100,36 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
     assert.deepEqual(landing.landed, [item], 'an exact live waiver covers only the accounted affected failure');
     assert.equal(landing.batch.state, 'landed');
     assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), main);
-    assert.equal(json(box, box.repo, 'show', String(item)).item_merged_commit, landing.batch.tip);
+    assert.equal((await json(box, box.repo, 'show', String(item))).item_merged_commit, landing.batch.tip);
     assert.equal(landing.batch.proof.failures[0].file, 'web/new-importer.test.js');
   } else {
     assert.deepEqual(landing.landed, [], 'the merged-tree importer failure must stop adoption');
     assert.equal(landing.batch.state, 'blocked');
     assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'red affected tests never move main');
-    assert.equal(json(box, box.repo, 'show', String(item)).item_merged_commit, null);
+    assert.equal((await json(box, box.repo, 'show', String(item))).item_merged_commit, null);
   }
   const selection = selectAffectedTests(landing.batch.root, { base: landing.batch.base, commit: landing.batch.tip });
   assert.equal(selection.full, !stableBadges, selection.reason);
   if (stableBadges) assert.deepEqual(selection.files, ['web/new-importer.test.js', 'web/value.test.js']);
 }
 
-test('clause 1: a batch that breaks an affected test is caught at landing [C7,V4]', t => {
-  affectedBatch(t);
+test('clause 1: a batch that breaks an affected test is caught at landing [C7,V4]', async t => {
+  await affectedBatch(t);
 });
 
-test('clause 1: a finite affected import subset is checked with the fixed guard floor [C7,V4]', t => {
-  affectedBatch(t, { stableBadges: true });
+test('clause 1: a finite affected import subset is checked with the fixed guard floor [C7,V4]', async t => {
+  await affectedBatch(t, { stableBadges: true });
 });
 
-test('clause 1: a custom inline gate cannot omit a batch affected importer [C7,V4]', t => {
-  affectedBatch(t, { stableBadges: true, inline: true });
+test('clause 1: a custom inline gate cannot omit a batch affected importer [C7,V4]', async t => {
+  await affectedBatch(t, { stableBadges: true, inline: true });
 });
 
 
-test('clause 1: a generated affected phase retains exact person waiver accounting [C7,V4]', t => {
-  affectedBatch(t, { stableBadges: true, inline: true, waive: true });
+test('clause 1: a generated affected phase retains exact person waiver accounting [C7,V4]', async t => {
+  await affectedBatch(t, { stableBadges: true, inline: true, waive: true });
 });
 
-test('clause 1: an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', t => {
-  affectedBatch(t, { stableBadges: true, inline: true, waive: true, opaque: true });
+test('clause 1: an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', async t => {
+  await affectedBatch(t, { stableBadges: true, inline: true, waive: true, opaque: true });
 });

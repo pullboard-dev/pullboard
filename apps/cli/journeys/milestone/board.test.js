@@ -418,7 +418,7 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
   assert.ok(executable, 'the open-board check needs real Chrome');
   const box = machine();
   const board = project(box, 'open-board-moves');
-  box.run(board.repo, 'add', 'web', 'A board that opens by itself', '--specs', 'G1');
+  await box.inProcess(board.repo, 'add', 'web', 'A board that opens by itself', '--specs', 'G1');
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-open-board-moves-'));
   let view, chrome, stand;
   try {
@@ -515,7 +515,7 @@ test('the link invitation closes, stays closed and comes back [N26,H5]', async t
   if (!executable) return t.skip('Install Chrome for the real link invitation check.');
   const box = machine();
   const demo = project(box, 'link-invitation');
-  box.run(demo.repo, 'milestone', 'add', 'Delivery');
+  await box.inProcess(demo.repo, 'milestone', 'add', 'Delivery');
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-link-invitation-'));
   let view; let chrome; let available = true;
   const failures = [];

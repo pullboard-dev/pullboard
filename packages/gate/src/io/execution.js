@@ -279,7 +279,10 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
   });
   const collectionReport = collectionId ? parseCollectionReports(run.output, { id: collectionId, scope: 'suite', requireComplete: false }) : null;
-  const timingSourceAfter = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
+  // One observation after the run serves both the stage accounting and the suite timing: two back-to-back reads of the
+  // same checkout cost three Git processes each and answer the same (#5900).
+  const observedAfter = !run.executionSource || stages && !pinnedSource ? timingSourceForReceipt(root) : null;
+  const timingSourceAfter = stages ? pinnedSource ?? observedAfter : null;
   const executionSource = run.executionSource && { head: run.executionSource.commit, tree: run.executionSource.tree };
   const accountingSource = sameTimingSource(timingSourceBefore, timingSourceAfter)
     && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
@@ -288,14 +291,14 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const rawResult = { ...profiledRun, id, profile, profilePath, logPath,
     ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource, { collectionId: collectionId ?? id }) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
-      ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),
+      ? { head: run.executionSource.commit, tree: run.executionSource.tree } : observedAfter),
     ...(releaseRequest ? { releaseParticipation: releaseParticipation(run.output, releaseRequest.id) } : {}),
     ...(collectAll ? { collectAllComplete: collectionReport?.complete === true, collectionReport,
       cleanupVerified: collectionReport?.cleanupVerified === true } : {}) };
-  const result = quarantineRunVerdict(rawResult, gateLease?.quarantines, { root,
-    sourceClean: cleanProofSource(root, proofSource, rawResult, gateLease) });
+  const sourceClean = cleanProofSource(root, proofSource, rawResult, gateLease);
+  const result = quarantineRunVerdict(rawResult, gateLease?.quarantines, { root, sourceClean });
   if (result.blockingVerdict) result.profile = writeTimingProfile(profilePath, { ...profile, blockingVerdict: result.blockingVerdict });
-  const proofReceiptId = gateLease?.proof && leaveProofReceipt(root, command, result, proofSource, gateLease.proof, gateLease);
+  const proofReceiptId = gateLease?.proof && leaveProofReceipt(root, command, result, proofSource, gateLease.proof, gateLease, sourceClean);
   return { ...result, ...(proofReceiptId ? { proofReceiptId } : {}) };
 }
 
@@ -312,13 +315,18 @@ function cleanProofSource(root, before, run, lease, pinned = false) {
 /** A computed exception never overwrites what the process actually returned. */
 function rawRunGreen(run) { return run.rawIsGreen ?? run.isGreen ?? run.state === 'pass'; }
 
-/** The private gate writer records process results, never provenance supplied by a CLI argument. */
-function leaveProofReceipt(root, command, run, before, context, lease) {
+/**
+ * The private gate writer records process results, never provenance supplied by a CLI argument.
+ * observedClean is the unpinned clean-source answer the caller already observed after this run; reusing it saves the
+ * five Git processes a second, identical observation costs (#5900).
+ */
+function leaveProofReceipt(root, command, run, before, context, lease, observedClean) {
   try {
     if (!before || run.sandboxBlocked || run.exitCode === undefined) return null;
     const store = receiptStore(root);
     if (!store) return null;
-    const sourceClean = cleanProofSource(root, before, run, lease, Boolean(context.commit));
+    const pinned = Boolean(context.commit);
+    const sourceClean = !pinned && typeof observedClean === 'boolean' ? observedClean : cleanProofSource(root, before, run, lease, pinned);
     const testRuntimes = run.testRuntimes ?? run.profile?.testRuntimes ?? null;
     // A run with no captured test workers still observed its executor: record that host, never an invented one [C7,#2662].
     const executor = run.environment;

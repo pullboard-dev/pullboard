@@ -8,11 +8,11 @@ import * as store from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 
-test('clause 1: a worktree command records the family from the canonical model-tier table [C7]', t => {
+test('clause 1: a worktree command records the family from the canonical model-tier table [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const created = box.run(box.repo, 'worktree', 'web', '--model', 'claude-sonnet-5-5', '--json');
+  const created = (await box.runLocal(box.repo, 'worktree', 'web', '--model', 'claude-sonnet-5-5', '--json'));
   assert.equal(created.code, 0, created.err || created.out);
   const result = JSON.parse(created.out);
   // @pullboard-board-file journey: read the seat the real worktree command registered in the board file
@@ -24,11 +24,11 @@ test('clause 1: a worktree command records the family from the canonical model-t
   } finally { board.db.close(); }
 });
 
-test('an unfamiliar model label declares no family [C7]', t => {
+test('an unfamiliar model label declares no family [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const created = box.run(box.repo, 'worktree', 'web', '--model', 'some-unknown-model', '--json');
+  const created = (await box.runLocal(box.repo, 'worktree', 'web', '--model', 'some-unknown-model', '--json'));
   assert.equal(created.code, 0, created.err || created.out);
   // @pullboard-board-file journey: read the seat the real worktree command registered in the board file
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

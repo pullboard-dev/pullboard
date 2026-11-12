@@ -14,6 +14,7 @@ import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { requireNoCoordinatorPath } from './add.js';
+import { refuseClaimMissingPaths } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
 import {
@@ -35,6 +36,8 @@ export async function run(io, { first }) {
   sayQueuedReds(io, board, () => me);
   cleanItemFolders(ctx, board, me, { spare: true });
   const filed = getItem(board, id);
+  // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
+  if (filed && !outsideBuildProblem(board, filed)) await refuseClaimMissingPaths(ctx, board, id);
   if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
     check: filed.item_check, brief: filed.item_brief });
   let result;

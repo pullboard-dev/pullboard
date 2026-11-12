@@ -93,6 +93,10 @@ import { trunkRevisionReader } from '../../../git/index.js';
 import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
+import { jobQueueMode } from '../../../config/index.js';
+import { boardJobQueueCall } from './gate.js';
+import { boardQueueMode } from './jobs.js';
+import { trunkRemote } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
@@ -821,8 +825,9 @@ function apiProjectScope(projects, scope) {
 }
 
 /** Read events in sequence, including changes made by other processes on the same board. */
-function afterEvents(root, after, isMain, boardOpeners) {
-  return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(after), isMain, boardOpeners);
+function afterEvents(root, after, isMain, boardOpeners, limit) {
+  // A limit stops the read itself: a large board's whole log is never built to be cut down afterwards.
+  return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id LIMIT ?').all(after, limit ?? -1), isMain, boardOpeners);
 }
 
 /** Resolve an authenticated local caller's agent to its own checkout, never another board. */
@@ -833,9 +838,25 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
     // A clone shares the coordinator identity, but resolves its main checkout locally.
-    if (name === COORDINATOR && relayLinked(root)) return root;
+    if (name === COORDINATOR && relayLinked(root)) return { cwd: root };
+    // A seat joined over the API has no checkout here: its move runs at the board root as that agent [P7].
+    if (store.isRemoteAgentPath(agent.agent_path)) return { cwd: root, remoteAgent: name };
     if (!sameCommonDir(repoInfo(agent.agent_path).commonDir, info.commonDir)) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
-    return agent.agent_path;
+    return { cwd: agent.agent_path };
+  }, isMain, boardOpeners);
+}
+
+/** Register a seat from another machine over the API, with a remote marker in place of a board-host path [P7]. */
+function remoteJoin(root, body, isMain, boardOpeners) {
+  const { lane, model, route = 'strong', family } = body.args ?? {};
+  if (body.agent !== undefined || body.item !== undefined || Object.keys(body.args ?? {}).some((key) => !['lane', 'model', 'route', 'family'].includes(key))) throw new Refused('BAD_REQUEST', 'a join takes only args lane, model, route and family; send no agent or item');
+  if (typeof model !== 'string' || !model.trim()) throw new Refused('MODEL_REQUIRED', 'a remote join needs args.model; run pullboard join <lane> --model "<model name>"');
+  const lanes = laneNames(loadConfig(root)).filter((name) => name !== COORDINATOR);
+  if (!lanes.includes(lane)) throw new Refused('NO_LANE', `no lane "${String(lane ?? '')}"; lanes: ${lanes.join(', ') || 'none yet, declare them in pullboard.json'}`);
+  if (relayLinked(root)) throw new Refused('WRONG_BOARD', 'this board is a relay clone; set board.url to the board host that owns it');
+  return withBoard(root, (board) => {
+    const agent = store.register(board, { lane, path: store.REMOTE_AGENT_PATH + randomBytes(16).toString('hex'), route, family, model });
+    return { version: VERSION, event: board.lastEvent ?? null, result: { agent, lane, route, model } };
   }, isMain, boardOpeners);
 }
 
@@ -843,9 +864,10 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
 export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
   if (typeof boardOpeners?.moveArgs !== 'function') throw new TypeError('executeMove needs moveArgs from the higher composition root');
+  if (body.verb === 'join') return { status: 200, body: remoteJoin(root, body, isMain, boardOpeners) };
   const argv = boardOpeners.moveArgs(body);
-  let cwd;
-  try { cwd = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
+  let seat;
+  try { seat = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
     if (!(error instanceof Refused) || error.code === 'BAD_REQUEST') throw error;
     if (typeof refusalDocument !== 'function') throw new TypeError(`executeMove needs the caller's refusalDocument renderer to answer ${error.code}`);
     return { status: error.code === 'WRONG_BOARD' ? 403 : 409, body: refusalDocument(error) };
@@ -854,7 +876,8 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   let diagnostics = '';
   const events = [];
   const status = await runCommand(argv, {
-    cwd,
+    cwd: seat.cwd,
+    ...(seat.remoteAgent ? { remoteAgent: seat.remoteAgent } : {}),
     personChannel,
     stdout: { isTTY: false, write: (text) => { output += text; } },
     stderr: { write: (text) => { diagnostics += text; } },
@@ -1335,7 +1358,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
-    code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)),
+    code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)), trunkPack: boardOpeners?.trunkPack && ((board, commit) => boardOpeners.trunkPack(board.root, commit)),
+    jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now: now(), trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return projectRead(board, () => withReadBoard(board.root, current => costAnalytics({
@@ -1343,7 +1367,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       window, now: new Date(now()), modelPresentation: costModelPresentation,
       }), codeIsMain, boardOpeners));
     },
-    events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners)),
+    events: (board, after, _who, limit) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
     request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
@@ -1356,22 +1380,22 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 }
 
 /**
- * Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. Its
+ * Serve the RFC 0002 API on loopback, or a chosen interface address, behind the session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord } = {}) {
+export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, allowedHosts: address === ADDRESS ? [] : [address] });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {
-    server.once('error', (error) => fail(new Refused(error.code === 'EADDRINUSE' ? 'PORT_BUSY' : 'API_LISTEN', `cannot listen on ${ADDRESS}:${port}: ${error.message}; run pullboard serve --port 0 to choose a free port`)));
-    server.listen(port, ADDRESS, () => {
+    server.once('error', (error) => fail(new Refused(error.code === 'EADDRINUSE' ? 'PORT_BUSY' : 'API_LISTEN', `cannot listen on ${address}:${port}: ${error.message}; run pullboard serve --port 0 to choose a free port, or fix serve.address`)));
+    server.listen(port, address, () => {
       bound = server.address().port;
       ready({
-        url: `http://${ADDRESS}:${bound}/api/v1/boards?k=${secret}`,
+        url: `http://${address}:${bound}/api/v1/boards?k=${secret}`,
         port: bound,
         close: () => new Promise((closed) => { handler.close(); server.close(() => closed()); server.closeIdleConnections(); }),
       });

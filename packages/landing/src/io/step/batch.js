@@ -1,4 +1,3 @@
-import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 import { retryableLandingBatch } from '../../logic/retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from '../pause.js';
@@ -45,9 +44,6 @@ import { oneItemBatch } from './selection.js';
 import { idleLanding } from './selection.js';
 import { emptyLanding } from './selection.js';
 import { landingOperations } from './merge.js';
-import { testHash } from './selection.js';
-import { heldTestDefects } from './selection.js';
-import { testDefectHoldMessage } from './selection.js';
 import { landingEntry } from './selection.js';
 import { save } from './merge.js';
 import { splitRedBatch } from './split.js';
@@ -229,8 +225,8 @@ export async function land(options) {
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
   } catch (error) {
     failed = true;
-    // A gate stopped by the guardian's loss fails on its own; the loss is the cause.
-    throw controller.signal.aborted && controller.signal.reason?.code === 'LAND_WORKER' ? controller.signal.reason : error;
+    // A gate stopped by the guardian's or the lease's loss fails on its own; the loss is the cause (#5770).
+    throw controller.signal.aborted && ['LAND_WORKER', 'LAND_LEASE_LOST'].includes(controller.signal.reason?.code) ? controller.signal.reason : error;
   }
   finally {
     try { await lease.release(); }
@@ -396,8 +392,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   // A main-moved notice that failed on an earlier wake is retried first, so a seat is not left without its stale-verdict notice (#3367).
   if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
-  const testDefects = heldTestDefects(root, board, trunk, landingPorts);
-  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', testDefectHoldMessage(testDefects));
+  // A recorded test defect is a repair item, never a trunk hold: lander v2 judges each red instead [C7,#5862].
   if ((!dryRun || due) && !adopt && !unfinished && !named && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
@@ -436,13 +431,11 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     // The adoption is persisted on the batch itself, so the dead pid and the gap outlive this worker (#2912).
     if (adoptedFrom) batch = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, adoptedFrom }, revision: batch.revision }]);
   }
-  if (batch?.state === 'flaky') {
-    const held = (batch.flakes ?? []).filter((flake) => {
-      const corrected = batch.base !== trunk.commit && testHash(root, flake.test) !== null && testHash(root, flake.test) !== flake.hash;
-      const failures = (batch.failures ?? []).filter((failure) => failure.file === flake.test);
-      return !corrected && (!failures.length || !failures.every((failure) => nativeLandingWaiverFor(board, failure, landingPorts)));
-    });
-    if (held.length) throw new Refused('LAND_FLAKE', `batch ${batch.id} is held by ${held.map((entry) => entry.test).join(', ')}; fix the test or ask the person for an expiring waiver; nothing retries`);
+  // A flaky or test-defect batch is retired blocked, so a fresh batch starts: its flakes and defects are records and
+  // repair items, never a trunk hold. Why: LAND_FLAKE held every landing behind one flaky file [C7,#5862].
+  if (batch && ['flaky', 'test-defect'].includes(batch.state)) {
+    await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', retiredFrom: batch.state }, revision: batch.revision }]);
+    batch = null;
   }
   if (batch && batch.base !== trunk.commit && batch.state !== 'pushed') {
     await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', supersededByMain: trunk.commit }, revision: batch.revision }]);

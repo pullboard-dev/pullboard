@@ -1,3 +1,4 @@
+import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -65,6 +66,7 @@ export async function run(io, args) {
     agentId: me.id,
     ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
     ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(readFileSync(values['machine-commands-file'], 'utf8')) }),
+    ...(values.title === undefined ? {} : { title: values.title }),
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
@@ -90,6 +92,12 @@ export async function run(io, args) {
     if (authors.length) change.referenceAuthors = authors;
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
+  // A changed bar may not name a path missing from main, refused before any other bar rule; an edit that leaves the
+  // criterion and check alone never refuses on it (#5709).
+  if (change.criterion !== undefined || change.check !== undefined) {
+    const before = store.getItem(board, id);
+    await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
+  }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;

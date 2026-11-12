@@ -262,6 +262,11 @@
       "order": 49,
       "name": "app:relay",
       "file": "packages/codemap/data/plan/49-app-relay.json"
+    },
+    {
+      "order": 50,
+      "name": "search",
+      "file": "packages/codemap/data/plan/50-search.json"
     }
   ],
   "stays": [
@@ -2190,6 +2195,7 @@
     "resources->git",
     "codemap->git",
     "codemap->kernel",
+    "config->kernel",
     "gate->codemap",
     "runners->config",
     "runners->verify",
@@ -2234,6 +2240,8 @@
     "items->store",
     "items->queue",
     "queue->kernel",
+    "api->jobs",
+    "api->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
@@ -2264,6 +2272,7 @@
     "apps/cli->kernel",
     "apps/cli->git",
     "apps/cli->codemap",
+    "apps/cli->api",
     "health->state",
     "moves->state",
     "moves->doctrine",
@@ -2314,6 +2323,7 @@
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
-    "apps/relay->seats"
+    "apps/relay->seats",
+    "search->store"
   ]
 }

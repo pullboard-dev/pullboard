@@ -193,6 +193,11 @@ export function residentCommand(argv) {
   return true;
 }
 
+/** Whether a resident command may start a resident process when none serves it: every one but `test --status` [#5888]. */
+export function residentStarts(argv) {
+  return argv[0] !== 'test';
+}
+
 /**
  * A private short folder for sockets whose board path is too long for a Unix socket: one per user under /tmp, used
  * only when it is a real directory this user owns that no one else can enter.
@@ -266,12 +271,18 @@ export function startResident({ socket, pid, home }, entry, version, env) {
  * Run one command through the resident process. Resolves to its exit code, or null when the entry must run it
  * in-process: no process yet (one starts), a process loaded from other code (it retires and a new one starts), or a
  * command the process hands back, every pool process busy with a long command, or a command not started within
- * RESIDENT_START_WAIT_MS. Once the process has started the command, its result is final.
+ * RESIDENT_START_WAIT_MS. Once the process has started the command, its result is final. `test --status` uses a running
+ * process but never starts one: it reads the run receipt in-process instead.
+ *
+ * Why: every agent polls `test --status`, and each poll that started a resident process cost 15-25% CPU [C7,#5888].
  */
-export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
-  let code, place;
+export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr, start = startResident } = {}) {
+  let code, place, starts;
   try {
     if (!residentCommand(argv)) return Promise.resolve(null);
+    // The environment alone can refuse (a test run, PULLBOARD_RESIDENT=0): answer that before codeVersion asks Git [C7].
+    if (!residentAllowed(env, false)) return Promise.resolve(null);
+    starts = residentStarts(argv);
     code = codeVersion(entry);
     if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
     place = residentPlace(cwd, entry, env);
@@ -286,7 +297,7 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       finished = true;
       clearTimeout(waited);
       socket.destroy();
-      if (restart) startResident(place, entry, code.version, env);
+      if (restart && starts) start(place, entry, code.version, env);
       done(status);
     };
     // A command that has not started by now waits behind another; the process never starts it past the cutoff, so

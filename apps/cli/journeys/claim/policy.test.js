@@ -1,5 +1,6 @@
-/** A new claim refreshes a frozen policy to current main unless a file its bar names changed lanes; a held renewal keeps it [C7]. */
+/** A claim freezes the bar alone, never pullboard.json; a bar frozen by the previous release still reads unchanged [B4,R2]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   mkdirSync,
   readFileSync,
@@ -7,22 +8,26 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import * as store from '../../../../packages/store/index.js';
+import { criterionFreezer } from '../../../../packages/moves/index.js';
+import { replayArgs } from '../../../../packages/state/src/logic/engine/move/verify.js';
+import { openKitBoard } from '../../tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
 /** Require each actual native fixture command to finish successfully. */
-function success(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function success(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, result.err || result.out);
   return result;
 }
 
 /** Claim item 1 in the web lane (its brief names web/page.html and web/legacy/old.html), commit that file, and return the box. */
-function claimedWithWork(t) {
+async function claimedWithWork(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  success(box, box.repo, 'add', 'web', 'Lane refresh', '--specs', 'G1', '--criterion', 'The page renders.', '--brief', 'Files: web/page.html, web/legacy/old.html.');
-  success(box, box.web, 'claim', '1');
+  await success(box, box.repo, 'add', 'web', 'Lane refresh', '--specs', 'G1', '--criterion', 'The page renders.', '--brief', 'Files: web/page.html, web/legacy/old.html.');
+  await success(box, box.web, 'claim', '1');
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/page.html'), '<h1>Page</h1>\n');
   box.git(box.web, 'add', 'web/page.html');
@@ -30,86 +35,91 @@ function claimedWithWork(t) {
   return box;
 }
 
-/** Commit a lane change to main's pullboard.json, as the coordinator does. */
-function changeLanes(box, change) {
+/** Commit a policy change to main's pullboard.json, as the coordinator does. */
+function changePolicy(box, change) {
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
   change(config);
   writeFileSync(file, JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: change lanes');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: change policy');
   return box.git(box.repo, 'rev-parse', 'HEAD');
 }
 
-/** The commit the item's frozen policy pins. */
-function pinned(box) {
-  return JSON.parse(JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen).policy.commit;
+/** Item 1's frozen record and digest. */
+async function frozenOf(box) {
+  const item = JSON.parse((await success(box, box.repo, 'show', '1', '--json')).out);
+  return { frozen: JSON.parse(item.item_frozen), digest: item.item_frozen_digest };
 }
 
-test('a held renewal after a lane change keeps the frozen policy; a re-claim after release refreshes it to current main [C7]', t => {
-  const box = claimedWithWork(t);
-  const first = pinned(box);
-  const digest = JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen_digest;
-  const head = changeLanes(box, config => { config.lanes.ops = { owns: ['ops/'], specs: [] }; });
-  assert.notEqual(head, first);
-  assert.match(success(box, box.web, 'claim', '1').out, /renewed #1/);
-  assert.equal(pinned(box), first, 'a held renewal never re-pins the policy');
-  assert.equal(JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen_digest, digest);
-  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'take the new lanes', '--no-next');
-  success(box, box.web, 'claim', '1');
-  assert.equal(pinned(box), head, 'the re-claimed policy now names current main');
-  assert.notEqual(JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen_digest, digest);
+test('a new claim freezes title, criterion and cited rows and no pullboard.json content [B4,R2]', async t => {
+  const box = await claimedWithWork(t);
+  const { frozen, digest } = await frozenOf(box);
+  assert.deepEqual(Object.keys(frozen).sort(), ['criterion', 'rows', 'title']);
+  assert.equal(frozen.title, 'Lane refresh');
+  assert.equal(frozen.criterion, 'The page renders.');
+  assert.deepEqual(frozen.rows.map(row => row.id), ['G1']);
+  assert.equal(frozen.policy, undefined, 'no policy pin in the frozen bar');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  const text = JSON.stringify(frozen);
+  for (const lane of Object.keys(config.lanes)) assert.ok(!text.includes(`"${lane}":`), `no lane table for ${lane}`);
+  assert.equal(digest, createHash('sha256').update(text).digest('hex'), 'the digest covers exactly the frozen bar');
 });
 
-test('a renewal with no lane change keeps the frozen policy [C7]', t => {
-  const box = claimedWithWork(t);
-  const first = pinned(box);
-  changeLanes(box, config => { config.lease = '3h'; });
-  success(box, box.web, 'claim', '1');
-  assert.equal(pinned(box), first);
-});
-
-test('a re-claim after gate inputs and another folder\'s lane change re-freezes the item automatically [C7]', t => {
-  const box = claimedWithWork(t);
-  const first = pinned(box);
-  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'policy moves on', '--no-next');
-  const head = changeLanes(box, config => {
+test('the digest stays put across policy commits and re-claims, and moves only when the bar does [B4,R2]', async t => {
+  const box = await claimedWithWork(t);
+  const { digest } = await frozenOf(box);
+  changePolicy(box, config => {
     config.lanes.web.owns = [...config.lanes.web.owns, 'docs/'];
     config.lanes.ops = { owns: ['ops/'], specs: [] };
     config.affectedTests = 'node -e "process.exit(0)"';
-    config.submitInvariants = ['web/page.test.js'];
+    config.lease = '3h';
   });
-  success(box, box.web, 'claim', '1');
-  assert.notEqual(head, first);
-  assert.equal(pinned(box), head, 'the claim re-pins the policy in its own write');
-  assert.match(success(box, box.repo, 'show', '1').out, /policy re-frozen automatically/);
+  assert.match((await success(box, box.web, 'claim', '1')).out, /renewed #1/);
+  assert.equal((await frozenOf(box)).digest, digest, 'a renewal after a policy commit keeps the digest');
+  await success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'policy moved on', '--no-next');
+  changePolicy(box, config => { config.lanes.web.owns = ['web/', 'site/']; config.lanes.ui = { owns: ['web/legacy/'], specs: [] }; });
+  await success(box, box.web, 'claim', '1');
+  assert.equal((await frozenOf(box)).digest, digest, 'a re-claim after lane changes keeps the digest');
+  await success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'bar edit', '--no-next');
+  await success(box, box.repo, 'edit', '1', '--criterion', 'The page renders twice.', '--reason', 'bar edit');
+  await box.runLocal(box.repo, 'hold', '1', '--off');
+  await success(box, box.web, 'claim', '1');
+  const edited = await frozenOf(box);
+  assert.notEqual(edited.digest, digest, 'a bar edit changes the digest');
+  assert.equal(edited.frozen.criterion, 'The page renders twice.');
 });
 
-test('a re-claim whose lane\'s owns shrank away from a named file is refused, naming the coordinator\'s refreeze, and keeps the old policy [C7,L2]', t => {
-  const box = claimedWithWork(t);
-  const first = pinned(box);
-  changeLanes(box, config => {
-    config.lanes.web.owns = ['site/'];
-    config.lanes.ui = { owns: ['web/'], specs: [] };
-  });
-  assert.match(success(box, box.web, 'claim', '1').out, /renewed #1/);
-  assert.equal(pinned(box), first, 'a held renewal keeps the old policy');
-  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'lane changed', '--no-next');
-  const refused = box.run(box.web, 'claim', '1');
-  assert.notEqual(refused.code, 0, refused.out);
-  assert.match(refused.err + refused.out, /NO_POLICY/);
-  assert.match(refused.err + refused.out, /web\/page\.html moved lanes \(web -> ui\)/, 'the named path it moved refuses, not the shrunk list itself (#3793)');
-  assert.match(refused.err + refused.out, /next: nothing for the builder; take other work .*the coordinator refreezes #1/);
-  assert.equal(pinned(box), first);
+test('a bar frozen by the previous release, with its pinned policy, still re-freezes to the same digest and verifies under its policy [B4,R2]', async t => {
+  const box = await claimedWithWork(t);
+  const commit = box.git(box.repo, 'rev-parse', 'HEAD');
+  const board = openKitBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
+  try {
+    const item = store.getItem(board, 1);
+    const legacyText = JSON.stringify({ ...JSON.parse(item.item_frozen), policy: { version: 1, commit, verify: { policy: 'coordinator', family: 'require' } } });
+    const legacyDigest = createHash('sha256').update(legacyText).digest('hex');
+    store.refreeze(board, 1, { agentId: 'coordinator', freeze: () => ({ text: legacyText, digest: legacyDigest }) });
+    changePolicy(box, config => { config.lanes.ops = { owns: ['ops/'], specs: [] }; config.verify = { ...config.verify, policy: 'any', family: 'off' }; });
+    const legacy = store.getItem(board, 1);
+    const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+    const again = criterionFreezer({ root: box.repo, isMain: true, config }, { board })(legacy);
+    assert.equal(again.text, legacyText, 'the legacy bar reproduces its pinned policy text');
+    assert.equal(again.digest, legacyDigest, 'so submit and verify see an unchanged digest');
+    const args = [1, { agentId: 'reviewer', decision: 'ACCEPT', policy: 'any', familyPolicy: 'off' }];
+    replayArgs(board, args, { move: { id: 'move-1' }, store });
+    assert.equal(args[1].policy, 'coordinator', 'replay keeps the legacy frozen verify policy');
+    assert.equal(args[1].familyPolicy, 'require');
+  } finally { store.closeBoard(board); }
 });
 
-test('a re-claim whose named file another lane now owns is refused, naming that file, and keeps the old policy [C7]', t => {
-  const box = claimedWithWork(t);
-  const first = pinned(box);
-  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'file changed lanes', '--no-next');
-  changeLanes(box, config => { config.lanes.ui = { owns: ['web/legacy/'], specs: [] }; });
-  const refused = box.run(box.web, 'claim', '1');
-  assert.notEqual(refused.code, 0, refused.out);
-  assert.match(refused.err + refused.out, /NO_POLICY.*web\/legacy\/old\.html moved lanes \(web -> ui\)/);
-  assert.equal(pinned(box), first);
+test('a bar-only item verifies under the verify policy its move sealed [B4,R2]', async t => {
+  const box = await claimedWithWork(t);
+  const board = openKitBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
+  try {
+    const args = [1, { agentId: 'reviewer', decision: 'ACCEPT', policy: 'any', familyPolicy: 'prefer' }];
+    replayArgs(board, args, { move: { id: 'move-2' }, store });
+    assert.equal(args[1].policy, 'any');
+    assert.equal(args[1].familyPolicy, 'prefer');
+    assert.throws(() => replayArgs(board, [1, { decision: 'ACCEPT', policy: 'bogus', familyPolicy: 'off' }], { move: { id: 'move-3' }, store }), /NO_POLICY/);
+  } finally { store.closeBoard(board); }
 });
