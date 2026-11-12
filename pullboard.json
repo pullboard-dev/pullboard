@@ -206,11 +206,13 @@
     "view": {
       "owns": [
         "apps/view/",
-        "packages/codemap/data/plan/45-app-view.json",
         "apps/cli/journeys/shout/journeys.test.js",
         "apps/cli/journeys/shout/journeys/",
         "apps/cli/journeys/agents/actors.test.js",
         "apps/cli/journeys/agents/main.test.js",
+        "apps/cli/journeys/agents/feed.test.js",
+        "apps/cli/journeys/agents/revoke.test.js",
+        "apps/cli/journeys/agents/panel.test.js",
         "apps/cli/journeys/blueprint/fit.test.js",
         "apps/cli/journeys/claim/display.test.js",
         "apps/cli/journeys/claim/live.test.js",
@@ -226,6 +228,7 @@
         "apps/cli/journeys/fact/snapshot.test.js",
         "apps/cli/journeys/fact/snapshot/",
         "apps/cli/journeys/hold/demo.test.js",
+        "apps/cli/journeys/hold/demo-widths.test.js",
         "apps/cli/journeys/inbox/projects.test.js",
         "apps/cli/journeys/inbox/sidebar.test.js",
         "apps/cli/journeys/inbox/tabs.test.js",
@@ -357,7 +360,8 @@
         "apps/cli/tests/fixtures/cockpit/view.js",
         "packages/gate/tests/fixtures/cockpit/probe.mjs",
         "packages/gate/tests/io/static/style.test.js",
-        "packages/gate/tests/stable.test.js"
+        "packages/gate/tests/stable.test.js",
+        "packages/codemap/data/plan/46-app-view.json"
       ],
       "specs": [
         "N26",
@@ -373,7 +377,9 @@
     "packages/gate/data/tests/test-fixtures.json",
     "packages/gate/data/tests/test-journeys.json",
     "packages/gate/data/tests/tiers.json",
-    "packages/gate/data/baselines/cli-launches.json"
+    "packages/gate/data/baselines/cli-launches.json",
+    "packages/codemap/data/plan/45-app-view.json",
+    "packages/codemap/data/plan/46-app-view.json"
   ],
   "commits": {
     "requireIds": [
