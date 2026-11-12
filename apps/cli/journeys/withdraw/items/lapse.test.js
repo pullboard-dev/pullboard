@@ -4,11 +4,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { fixtureAddRoute } from '../../../tests/fixtures/testkit.js';
+import { MACHINE_MODEL } from '../../../tests/fixtures/cockpit/machine.js';
 import { machine } from '../../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../../tests/fixtures/cockpit/harness.js';
 import { openPage } from '../../../tests/fixtures/cockpit/harness.js';
 import { earlier } from '../../../tests/fixtures/cockpit/harness.js';
+
+/** Run one CLI command in this process as the machine's agent and return its stdout; a refusal fails the test, as the harness's run does [C7]. */
+async function local(box, cwd, ...args) {
+  fixtureAddRoute(args);
+  const result = await runCliInProcess(args, { cwd, env: { ...box.env, PULLBOARD_MODEL: MACHINE_MODEL } });
+  assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}`);
+  return result.stdout;
+}
 
 test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]', async () => {
   const box = machine(), alpha = project(box, 'pipeline-lapse');
@@ -17,7 +28,7 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
   at(0, board => store.addItem(board, { by:'coordinator', lane:'web', title:'Expired claim', specIds:['G1'] }));
   at(10, board => store.claim(board, 1, { agentId:'web-1', lane:'web', leaseMs:30*60_000, head:commit, freeze:()=>({text:'{}',digest:'a'.repeat(64)}) }));
   at(35, board => store.addItem(board, { by:'coordinator', lane:'web', title:'Older open item', specIds:['G1'] }));
-  const status = JSON.parse(box.run(alpha.repo, 'status', '--json')).stats.items;
+  const status = JSON.parse(await local(box, alpha.repo, 'status', '--json')).stats.items;
   assert.equal(status.open, 2);
   assert.equal(status.claimed, 0);
   const view = await startView(box);
@@ -28,7 +39,7 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
     const open = () => page.show('pipeline').split('data-pipeline-stage="ready"')[1].split('</header>')[1].split('</p>')[0];
     assert.match(open(), /data-go="item:2"/, 'an open item from minute35 is older than a claim that lapses at minute40');
     assert.match(open(), new RegExp(new Date(base+35*60_000).toISOString()), 'the oldest open timestamp is the arrival');
-    box.run(alpha.repo, 'withdraw', '2', 'Private fixture now isolates the lapse age');
+    await local(box, alpha.repo, 'withdraw', '2', 'Private fixture now isolates the lapse age');
     await page.run('refresh()');
     assert.match(open(), /data-go="item:1"/);
     assert.match(open(), new RegExp(new Date(base+40*60_000).toISOString()), 'expired claim age starts at its native lease deadline');

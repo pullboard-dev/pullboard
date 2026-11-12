@@ -129,9 +129,9 @@ test('rigor names a new check with no test and a change past its size budget [D1
   assert.throws(() => qualityBreaches(root, changeRange(root), { rules: ['tabs'] }), (error) => error.code === 'RIGOR_RULE');
 });
 
-test('quality rules are drafted for the person and stay off until approved [D1,D3]', () => {
+test('quality rules are drafted for the person and stay off until approved [D1,D3]', async () => {
   const box = e2e.project('true');
-  const run = box.run(box.repo, 'rigor', '--draft-quality', '--json');
+  const run = (await box.runLocal(box.repo, 'rigor', '--draft-quality', '--json'));
   assert.equal(run.code, 0, run.out + run.err);
   const drafts = JSON.parse(run.out).qualityDrafts;
   assert.equal(drafts.length, QUALITY_RULES.length, 'one draft per rule');
@@ -146,17 +146,17 @@ test('quality rules are drafted for the person and stay off until approved [D1,D
   }
   assert.deepEqual(doctrineReport(box.repo, loadConfig(box.repo)).filter((rule) => drafts.some((draft) => draft.id === rule.id)), [],
     'no drafted rule runs before the person approves it');
-  const again = box.run(box.repo, 'rigor', '--draft-quality', '--json');
+  const again = (await box.runLocal(box.repo, 'rigor', '--draft-quality', '--json'));
   assert.equal(again.code, 0, again.out + again.err);
   assert.deepEqual(JSON.parse(again.out).qualityDrafts, [], 'a rerun drafts nothing twice');
-  const lane = box.run(box.web, 'rigor', '--draft-quality');
+  const lane = (await box.runLocal(box.web, 'rigor', '--draft-quality'));
   assert.equal(lane.code, 1, lane.out + lane.err);
   assert.match(lane.out + lane.err, /COORDINATOR_ONLY/u);
   gitIn(box.repo, 'add', '-A');
   gitIn(box.repo, 'commit', '-q', '-m', 'docs(doctrine): draft the quality rules');
   gitIn(box.web, 'merge', '-q', '--ff-only', 'main');
   const fix = commitIn(box.web, 'fix(web): close the page', { 'web/page.js': 'export const page = 1;\n' });
-  const report = box.run(box.web, 'rigor', 'quality', '--rule', 'fix-test');
+  const report = (await box.runLocal(box.web, 'rigor', 'quality', '--rule', 'fix-test'));
   assert.equal(report.code, 1, report.out + report.err);
   const row = drafts.find((draft) => draft.row.text.startsWith(QUALITY_RULES[0].text)).id;
   assert.equal(report.out.trim(), `web/page.js:1: ${row} fix-test: fix ${fix.slice(0, 12)} "fix(web): close the page" changes no test that reproduces its failure`,
@@ -164,15 +164,15 @@ test('quality rules are drafted for the person and stay off until approved [D1,D
   const config = JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify({ ...config, rigor: { budget: 0 } }));
   const sizeRow = drafts.find((draft) => draft.row.text.startsWith(QUALITY_RULES[4].text)).id;
-  const budget = box.run(box.web, 'rigor', 'quality', '--rule', 'size-budget');
+  const budget = (await box.runLocal(box.web, 'rigor', 'quality', '--rule', 'size-budget'));
   assert.equal(budget.code, 1, budget.out + budget.err);
   assert.equal(budget.out.trim(), `web/page.js:1: ${sizeRow} size-budget: this change grows code by 1 lines, past its 0-line budget; split the change`,
     'the board\'s committed rigor.budget setting replaces the default');
-  assert.equal(box.run(box.web, 'rigor', 'quality', '--rule', 'size-budget', '--budget', '5').code, 0, '--budget wins over the setting');
+  assert.equal((await box.runLocal(box.web, 'rigor', 'quality', '--rule', 'size-budget', '--budget', '5')).code, 0, '--budget wins over the setting');
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify({ ...config, rigor: { budget: -1 } }));
-  assert.match(box.run(box.web, 'rigor', 'quality').err, /BAD_CONFIG/u);
+  assert.match((await box.runLocal(box.web, 'rigor', 'quality')).err, /BAD_CONFIG/u);
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config, null, 2));
-  const clean = box.run(box.repo, 'rigor', 'quality');
+  const clean = (await box.runLocal(box.repo, 'rigor', 'quality'));
   assert.equal(clean.code, 0, clean.out + clean.err);
   // Next steps never suggest --wait (0d3ce1cd90, #2905).
   assert.match(clean.out, /(?:^|\n)next: pullboard next\n$/u);
