@@ -225,7 +225,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       if (lapsedOnly) return [];
       return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }
-    if (row.health === 'waiting') return [{ ...row, idle: 'waiting' }];
+    // A live seat's claim waiting on an unlanded item is returned by background maintenance, never by another seat's write.
+    if (row.health === 'waiting') return lapsedOnly ? [] : [{ ...row, idle: 'waiting' }];
     if (row.idleMs === null || row.idleMs < CLAIM_STALL_MS) return [];
     // A pinned item blocks the coordinator's order, so its idle claim lapses after 30 minutes instead of 40.
     const pinnedLapse = (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, row.id);
