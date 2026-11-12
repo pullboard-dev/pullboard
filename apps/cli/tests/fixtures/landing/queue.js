@@ -20,6 +20,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { unlinkSync } from 'node:fs';
+import { writeSync } from 'node:fs';
+const T0 = Date.now();
+function zt(label, extra) { try { writeSync(1, `# z3 ${Date.now() - T0}ms ${label}${extra === undefined ? '' : ' ' + JSON.stringify(extra)}\n`); } catch { /* A closed stdout drops only the debug trace. */ } }
+function zdir(directory) { try { return Object.fromEntries(readdirSync(directory).map(name => [name, (() => { try { const v = readMainAudit(join(directory, name)); return v ? { g: v.generation, s: v.state, pid: v.pid, item: v.item } : null; } catch { return 'x'; } })()])); } catch (e) { return String(e.code); } }
 import {
   basename,
   dirname,
@@ -508,7 +512,9 @@ export async function sourceAdvancePolicyCase(t, helpers) {
     "for (const name of (fs.existsSync('web') ? fs.readdirSync('web') : []).filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
     "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
+  zt('start');
   const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
+  zt('project');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.lanes.web.owns.push('pullboard.json');
@@ -519,7 +525,9 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
+  zt('remote');
   const entries = acceptedPair(helpers, box, false, true);
+  zt('acceptedPair');
   // Main moves after the submits, so landing cannot reuse a submit receipt proven on the older base (BASE_MOVED) and runs its real gate.
   const moved = helpers.commitFile(box, box.repo, 'web/moved.txt', 'moved\n', 'chore: move main after the submit receipts');
   assert.equal(moved.status, 0, moved.stderr);
@@ -528,29 +536,33 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   const wakeFile = join(directory, 'wake.json');
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
-  console.log('# z2 before first land');
+  zt('before first land', zdir(directory));
   run(box, box.repo, 'land', '--max', '1');
-  console.log('# z2 after first land');
+  zt('after first land', zdir(directory));
   // The actual first landing must schedule this worker; no second nudge can consume its expected generation.
-  await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters');
+  let zlast = 0;
+  await helpers.waitFor(() => { if (Date.now() - zlast > 2000) { zlast = Date.now(); zt('wait entered', zdir(directory)); } return existsSync(entered); }, 'the actual new-policy source gate enters');
   const liveOwner = readMainAudit(join(directory, 'owner.json'));
   assert.ok(Number.isSafeInteger(liveOwner?.pid), 'the held source gate has a real native worker owner');
   const enteredRoot = readFileSync(entered, 'utf8');
   assert.ok(readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
     .some(name => readMainAudit(join(directory, name))?.directory === enteredRoot), 'the held gate belongs to a recorded source job');
-  console.log('# z2 entered');
+  zt('entered', zdir(directory));
   writeFileSync(released, 'released');
   const sourceJob = await helpers.waitFor(() => { // Budget: 120s runaway ceiling for an actual detached native gate and closed wake.
+    if (Date.now() - zlast > 5000) { zlast = Date.now(); zt('wait settled', zdir(directory)); }
     const done = readMainAudit(join(directory, 'settled.json'));
     if (existsSync(join(directory, 'owner.json')) || !(done?.generation >= expectedGeneration)) return false;
     return readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
       .map(name => readMainAudit(join(directory, name)))
       .find(job => job.item === entries[0].id && job.state === 'advanced' && job.receiptIds?.length);
   }, 'the genuine source-advance gate closes its expected generation', 120_000);
-  console.log('# z2 source job done');
+  zt('source job done', zdir(directory));
   const finalGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
   run(box, box.repo, 'land', '--max', '1');
+  zt('second land', zdir(directory));
   await closePolicySourceWake(box, helpers, finalGeneration);
+  zt('closed');
   const batches = readBoard(box, board => store.landingBatches(board).filter(batch => batch.state === 'landed'));
   assert.equal(batches.length, 2);
   const records = readFileSync(callsFile, 'utf8').trim().split(/\r?\n/u).map(line => JSON.parse(line));
@@ -561,7 +573,9 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   assert.throws(() => landingPolicyCalls(box, batches, [...records, background[0]]), /duplicate audit invocation/u);
   assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === background[0] ? { ...record, args: [] } : record)), /accepted policy/u);
   assert.throws(() => landingPolicyCalls(box, batches, [...records, { cwd: join(box.dir, 'unbound-source'), args: ['--new-policy'] }]), /unknown gate root/u);
+  zt('controls');
   await repairedPolicyControls(box, batches[0]);
+  zt('repaired');
   t.diagnostic(JSON.stringify({ liveOwner, finalGeneration, foreground: foreground.length, independentlyBound: background.length,
     expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip,
     sourceJob: { item: sourceJob.item, state: sourceJob.state, head: sourceJob.head, tree: sourceJob.tree,
