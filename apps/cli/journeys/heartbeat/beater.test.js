@@ -13,6 +13,7 @@ import { watch } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { agentAlive } from '../../src/io/beater.js';
 import { agentSession } from '../../src/io/beater.js';
 import { processTable } from '../../src/io/beater.js';
 import { startClaimBeater } from '../../src/io/beater.js';
@@ -39,10 +40,13 @@ async function whenTrue(dir, check, what) {
 /** Whether a process id still answers. */
 function running(pid) { try { process.kill(pid, 0); return true; } catch { return false; } }
 
-/** Block until `pid` has exited, by a shell loop bounded at ten seconds; true when it did. */
+/**
+ * Block until `pid` has exited, by a shell loop bounded at ten seconds; true when it did. A zombie counts as exited:
+ * the claim now runs in this process, so this process is the beater's parent and reaps it only once its loop runs.
+ */
 function exited(pid) {
-  spawnSync('/bin/sh', ['-c', `while kill -0 ${Number(pid)} 2>/dev/null; do sleep 0.05; done`], { timeout: 10_000 });
-  return !running(pid);
+  spawnSync('/bin/sh', ['-c', `while ps -o stat= -p ${Number(pid)} | grep -qv '^Z'; do sleep 0.05; done`], { timeout: 10_000 });
+  return !agentAlive({ pid, start: null });
 }
 
 /** A long-lived stand-in for an agent session (Claude, Codex or any tool): it only sleeps until killed. */
