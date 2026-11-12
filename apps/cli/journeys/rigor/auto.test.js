@@ -28,8 +28,8 @@ import { readDigest } from '../../../../packages/items/index.js';
 import { healthReport } from '../../../../packages/health/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { planAutomaticRigorApply } from '../../../../packages/rigor/index.js';
@@ -70,7 +70,7 @@ function fixture() {
   /** Run Git only inside this private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   /** Invoke only this checkout's CLI against the private fixture board. */
-  const run = (...args) => runFixtureChild(process.execPath, [join(import.meta.dirname, '../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ name: 'Rigor fixture', gate: 'true', spec: 'SPEC.md',
     lanes: { app: { owns: ['src/'] } }, landing: { cadence: '1h' } }));
@@ -110,7 +110,7 @@ function fixture() {
   const reject = (id, options = {}) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT',
     reason: 'TEST_FAILURE', note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
     digest: store.getItem(board, id).item_frozen_digest, policy: 'any', ...options });
-  return { root, file, board, git, run, submit, failure, reject,
+  return { root, file, board, git, runLocal: run, submit, failure, reject,
     advance: ms => { now = new Date(now.getTime() + ms); }, close: () => store.closeBoard(board) };
 }
 
@@ -274,7 +274,7 @@ test('a person can replace automatic advice without breaking a later spec apply 
   } finally { box.close(); }
 });
 
-test('a stale person decision refuses spec apply before any unrelated automatic draft is written [D1,B26,S1]', () => {
+test('a stale person decision refuses spec apply before any unrelated automatic draft is written [D1,B26,S1]', async () => {
   const box = fixture();
   try {
     const config = loadConfig(box.root);
@@ -284,7 +284,7 @@ test('a stale person decision refuses spec apply before any unrelated automatic 
     writeFileSync(spec, readFileSync(spec, 'utf8').replace('Keep the product coherent.', 'Changed after the decision.'));
     for (const title of ['First', 'Second']) { const id = box.submit(title); box.reject(id); }
     const before = ['SPEC.md', 'DOCTRINE.md'].map(file => readFileSync(join(box.root, file), 'utf8'));
-    const applied = box.run('spec', 'apply', '--json');
+    const applied = await box.runLocal('spec', 'apply', '--json');
     assert.equal(applied.status, 1, applied.stdout + applied.stderr);
     assert.equal(JSON.parse(applied.stdout).error.code, 'STALE_ROW_DECISION');
     assert.deepEqual(['SPEC.md', 'DOCTRINE.md'].map(file => readFileSync(join(box.root, file), 'utf8')), before);
