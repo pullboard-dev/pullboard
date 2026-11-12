@@ -26,6 +26,7 @@ function fixture() {
   sh(root, 'commit', '-qm', 'main');
   const base = sh(root, 'rev-parse', 'HEAD');
   sh(root, 'switch', '-q', '-c', 'candidate');
+  mkdirSync(join(root, 'packages/config/src'), { recursive: true });
   sh(root, 'mv', 'src/old-name.js', 'packages/config/src/new-name.js');
   sh(root, 'commit', '-qm', 'rename');
   return { root, base, put, rename: sh(root, 'rev-parse', 'HEAD') };
