@@ -560,9 +560,6 @@
   "apps/cli/journeys/init/browser.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/budget.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/init/calls.test.js": {
     "launch": 4
   },
@@ -596,9 +593,6 @@
   "apps/cli/journeys/init/known/main/output.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/main.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/init/offer.test.js": {
     "launch": 6
   },
@@ -625,9 +619,6 @@
   },
   "apps/cli/journeys/init/shards.test.js": {
     "launch": 8
-  },
-  "apps/cli/journeys/init/testkit.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/init/tools.test.js": {
     "launch": 6
