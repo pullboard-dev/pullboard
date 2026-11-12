@@ -9,6 +9,8 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import * as store from '../../../../packages/store/index.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { join } from 'node:path';
 /** Exercise landing basics against real private Git worktrees [B3,R3]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -33,14 +35,21 @@ test('land names sibling conflicts whose reviews share the unchanged main [B3,R3
   const entries = [1, 2].map(number => itemWorktree(box, number, file));
   submitItem(box, entries[0], 'PASS\n// first sibling\n');
   submitItem(box, entries[1], 'PASS\n// second sibling\n');
-  for (const entry of entries) acceptItem(box, entry);
   const merged = id => onBoard(box, board => store.getItem(board, id).item_merged_commit);
-  // An ACCEPT wakes the automatic lander, which offers the land job after verify returns; wait for both receipts [P7].
+  const state = () => ({ jobs: landJobs(box), items: entries.map(entry => onBoard(box, board => store.getItem(board, entry.item).item_status)) });
   const conflicted = () => landJobs(box).some(job => job.items.includes(entries[1].item) && job.receipt?.outcome === 'conflict');
-  // budget: hang ceiling for two loopback runner land jobs inside the file limit, never a speed assertion.
-  await waitForCondition(() => Boolean(merged(entries[0].item)) && conflicted(), 'the first sibling lands and the second records its conflict',
-    { signal: AbortSignal.timeout(90_000), state: () => ({ jobs: landJobs(box),
-      items: entries.map(entry => onBoard(box, board => store.getItem(board, entry.item).item_status)) }) });
+  // A reviewer accepts from its own checkout, so the main checkout stays on its branch and the ACCEPT offers a land job;
+  // the second accept waits for the first job's receipt, since an open land job takes no second automatic offer [P7].
+  for (const [index, entry] of entries.entries()) {
+    const reviewer = join(box.dir, `sibling-reviewer-${index + 1}`);
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, entry.commit);
+    assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'sibling-reviewer').code, 0);
+    const accepted = box.run(reviewer, 'verify', String(entry.item), 'accept', '--note', 'private sibling fixture check passed');
+    assert.equal(accepted.code, 0, accepted.out + accepted.err);
+    // budget: hang ceiling for one loopback runner land job inside the file limit, never a speed assertion.
+    await waitForCondition(index === 0 ? () => Boolean(merged(entry.item)) : conflicted, `#${entry.item}'s land job posts its receipt`,
+      { signal: AbortSignal.timeout(60_000), state });
+  }
   assert.match(merged(entries[0].item) ?? '', /^[0-9a-f]{40}$/u, 'the first sibling lands by its runner land job');
   assert.equal(box.git(box.repo, 'show', `main:${file}`), 'PASS\n// first sibling', 'trunk holds the first sibling');
   assert.equal(merged(entries[1].item), null, 'the colliding sibling stays accepted and unmerged');
