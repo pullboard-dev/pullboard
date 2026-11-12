@@ -18,7 +18,7 @@ import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../../tests/fixtures/submit/gate.js';
 
-test('a jest project submits with its own gate [V4,C7]', async (t) => {
+test('a jest project submits with its own gate [V4,C7]', (t) => {
   for (const optedIn of [false, true]) {
     let box = privateRepo(t);
     const gateMarker = join(box.dir, `jest-gate-${optedIn}.log`);
@@ -72,11 +72,11 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
     box = builderRepo(box);
     const added = box.coordinator('add', 'build', 'Jest-style project', '--check', 'true');
     assert.equal(added.code, 0, added.err);
-    assert.equal((await box.runLocal('claim', '1')).code, 0);
+    assert.equal(box.run('claim', '1').code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
     commitAll(box, 'feat(core): change a jest project source [G1]');
 
-    const submitted = (await box.runLocal('submit', '1', '--json'));
+    const submitted = box.run('submit', '1', '--json');
     assert.equal(submitted.code, 0, submitted.err || submitted.out);
     const receipt = JSON.parse(submitted.out);
     if (optedIn) {
