@@ -165,7 +165,7 @@ test('moves stay local while the machine credential expires, then replay after s
 
   await revokeCredential(box, state.tokenId);
   box.env.PULLBOARD_RELAY_SENDER_BACKGROUND = '0'; // The test runner's supported foreground sender mode exposes the auth diagnostic.
-  const expired = await box.cli('status');
+  const expired = await box.cliLocal('status');
   assert.equal(expired.code, 0, expired.failure ?? 'status still reads the local board when machine authorization expires');
   assert.match((expired.document.diagnostics ?? []).join('\n'), new RegExp(`\\[AUTH_REQUIRED\\].*relay sign-in expired or was revoked for board ${state.board}.*run pullboard relay on to sign in again or pullboard relay off`, 'u'));
   const textRefusal = await box.script(`
@@ -233,7 +233,7 @@ test('moves stay local while the machine credential expires, then replay after s
   const locallyRecorded = (await box.cliLocal('export')).document.tables;
   assert.equal(locallyRecorded.event.filter(event => event.item_id === queuedId && event.event_kind === 'add').length, 1,
     'the local add is durable exactly once while machine authorization is unavailable');
-  const pending = await box.cli('status');
+  const pending = await box.cliLocal('status');
   assert.equal(pending.code, 0);
   assert.ok(pending.document.relay.outbox.some(move => move.operation === 'addItem'), 'the local add remains queued for ordered delivery');
   assert.ok(pending.document.relay.outbox.some(move => move.operation === 'claim'), 'the local next claim remains queued too');
@@ -248,7 +248,7 @@ test('moves stay local while the machine credential expires, then replay after s
     'replay does not duplicate the locally completed add');
   assert.equal(afterRelink.event.filter(event => event.item_id === claimId && event.event_kind === 'claim').length, 1,
     'replay does not duplicate the locally completed next claim');
-  assert.equal(((await box.cli('status')).document.relay.outbox ?? []).length, 0, 'the reauthorized machine drains the queued moves');
+  assert.equal(((await box.cliLocal('status')).document.relay.outbox ?? []).length, 0, 'the reauthorized machine drains the queued moves');
 
 });
 
@@ -267,7 +267,7 @@ test('relay off keeps a board out of auto-link [H1,H7,H16] [clause 1]', async t 
   assert.ok(excluded.includes(box.root), 'relay off durably records the local opt-out');
 
   const callsBeforeStatus = box.calls.length;
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.code, 0, status.failure ?? 'local status remains available after relay off');
   assert.equal(status.document.relay.linked, false, 'the auto-link pass leaves the board unlinked');
   assert.equal(box.calls.length, callsBeforeStatus, 'auto-link does not contact the relay or relink an excluded board');
@@ -385,7 +385,7 @@ test('another board deletion never turns this board into local mode [H17,E9] [cl
   const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0);
   assert.deepEqual(exported.document.tables, before, 'the refused move changes no local row');
-  assert.equal((await box.cli('status')).document.relay.board, state.board);
+  assert.equal((await box.cliLocal('status')).document.relay.board, state.board);
   assert.equal((await box.cliLocal('add', box.lane, 'the surviving board still syncs')).code, 0, 'ordinary ordered work remains available with its own credential');
 });
 
