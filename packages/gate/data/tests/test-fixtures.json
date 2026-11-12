@@ -3745,7 +3745,13 @@
     "raw-board": 2
   },
   "apps/cli/journeys/submit/wait.test.js": {
-    "raw-board": 4
+    "raw-board": 1
+  },
+  "apps/cli/journeys/submit/wait/reject.test.js": {
+    "raw-board": 2
+  },
+  "apps/cli/tests/fixtures/submit/wait.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/submit/branch.test.js": {
     "tempdir": 2
