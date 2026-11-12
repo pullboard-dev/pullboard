@@ -203,7 +203,8 @@ async function saveStatsToggleShot(chrome, width, scheme, state) {
 }
 
 /** Exercise every real input path that opens and folds the proof card, then check its responsive targets. */
-test('the stats card folds from its summary line [N26]', {
+// One colour scheme per test keeps each real Chrome flow inside its hang ceiling: the file's cases run apart, not shorter.
+for (const scheme of ['light', 'dark']) test(`the stats card folds from its summary line in ${scheme} [N26]`, {
   timeout: 30_000, // budget: stop a hung local Chrome flow, not a rendering-speed assertion.
 }, async () => {
   const executable = chromeExecutable();
@@ -229,7 +230,7 @@ test('the stats card folds from its summary line [N26]', {
       return true;
     })()`);
 
-    for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
+    for (const width of [375, 1280]) {
       await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: false });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
@@ -588,6 +589,9 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('#proof-stats-summary')");
     await chrome.waitFor("!document.querySelector('#proof-stats-full').hidden");
+    // The Shouts feed draws only on its own tab, so open it now: the day names checked below are its rows.
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await chrome.waitFor("!!document.querySelector('#feed .conversation-row')");
     // Count every redraw from here on, and keep the nodes a person could be pointing at to see they survive.
     await chrome.stable(`(() => {
       const drawn = window.render;
@@ -621,7 +625,6 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     // place, the shouts gaining the rule above it they leave off for today: the page's clock moves a day on, alone.
     const days = `JSON.stringify({ headings: [...document.querySelectorAll('.feed .day')].map((node) => node.textContent),
       rules: [...document.querySelectorAll('#feed > .day-rule span')].map((node) => node.textContent),
-      feed: document.querySelector('#feed')?.innerHTML.slice(0, 400), shouts: data.project.shouts.map((x) => x.shout_from + '>' + x.shout_to), tab: view.tab,
       untopped: (() => { const first = document.querySelector('#feed .shout, #feed .conversation-row'); return Boolean(first) && !first.previousElementSibling?.classList.contains('day-rule'); })() })`;
     const today = JSON.parse(await chrome.stable(days));
     // Today's run of shouts carries no label at its top (dayRules in connect.js), so it is the run that midnight must label.
