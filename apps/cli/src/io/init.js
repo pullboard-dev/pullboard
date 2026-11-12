@@ -59,6 +59,8 @@ import { installSkills } from './skills.js';
 import {
   AGENTS_END,
   AGENTS_START,
+  COORDINATOR_GUIDE_FILE,
+  renderCoordinatorGuide,
   claudeLoopRules,
   codexLoopRules,
   configTemplate,
@@ -399,6 +401,8 @@ function writeAgentDocs(root, onWrite) {
       }
     }
   }
+  const guide = writeNew(join(root, COORDINATOR_GUIDE_FILE), renderCoordinatorGuide(), COORDINATOR_GUIDE_FILE, onWrite);
+  if (guide.startsWith('wrote')) notes.push(`${guide} (the coordinator's guide)`);
   const claude = join(root, 'CLAUDE.md');
   if (!existsSync(claude)) {
     writeFileSync(claude, '@AGENTS.md\n');
