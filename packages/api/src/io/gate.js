@@ -468,13 +468,14 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
   const file = keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
   if (typeof compareWithMain !== 'function' || !SHA.test(String(main ?? '')) || typeof file !== 'string') return [];
   const settled = [];
-  for (const { job_id: job, job_item: item } of db.prepare("SELECT job_id, job_item FROM job WHERE job_kind = 'gate' AND job_base = ? AND job_item IS NOT NULL").all(main)) {
+  // Any base: the lookup finds this receipt for a gate on an earlier main where the file is unchanged, and skips the rest (#6333).
+  for (const { job_id: job, job_item: item, job_base } of db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300").all()) {
     const receipt = postedReceipt(db, job)?.receipt;
     const gate = receipt?.gate;
     if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
     if (!(gate.phases ?? []).some(phase => phase.status !== 0 && (phase.failures ?? []).some(row => row?.file === file))) continue;
     if (store.getItem(board, item)?.item_status !== 'claimed') continue;
-    const compared = compareGateWithMain(board, receipt, main, compareWithMain);
+    const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
     if (!compared || compared.cases.some(row => row.onMain === null)) continue;
     if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
   }
