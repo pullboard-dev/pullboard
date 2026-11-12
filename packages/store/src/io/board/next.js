@@ -387,9 +387,12 @@ export function greenReviewFor(board, who) {
   return nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] }).item ?? null;
 }
 
+/** Infrastructure stops whose candidate waits only on the machine: a spent runner or a gate worker that died (#3325). */
+const INFRA_HELD = new Set(['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD']);
+
 /**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
- * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
+ * A queued, running or green gate, or an infrastructure stop under the item's frozen bar, means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
  * which no build can fix and next never hands out (#3796).
  *
@@ -405,7 +408,8 @@ export function gateAtHead(board, entry) {
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
-  const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
+  // An infrastructure stop covers the head only under the bar it was built for: a refreeze or edit since asks for a new build.
+  const state = job.state === 'infrastructure' ? (INFRA_HELD.has(job.error?.code) && (job.digest ?? null) === (entry.item_frozen_digest ?? null) ? job.error.code : null)
     : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;

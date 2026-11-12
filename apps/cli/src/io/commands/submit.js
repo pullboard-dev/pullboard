@@ -398,7 +398,7 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
-  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
+  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx), pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted(id);
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -514,7 +514,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   };
   // With a runner, a queued submit's source check runs in its one runner analysis job; this machine records the result [C7,#5674].
   // Dependencies' snapshots and a moved head stay here: the runner holds only the candidate, main and their history.
-  let remoteAuthorization = remoteMode && submitAuthorizationMode() === 'runner' && !dependencies.length && headCommit(root) === commit;
+  let remoteAuthorization = (remoteMode || pullGate) && submitAuthorizationMode() === 'runner' && !dependencies.length && headCommit(root) === commit;
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
@@ -598,7 +598,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
-  try { if (requireComposition && !remoteMode) await runMachineryGuard(root,
+  try { if (requireComposition && !remoteMode && !pullGate) await runMachineryGuard(root,
     () => requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
@@ -606,11 +606,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
-  // Queue all captured sources before cell compilation; the bound worker runs the same checks and refusal path.
-  if (pending || handoffEnabled) {
-    const { enqueueSubmitHandoff } = await import('../submit/handoff.js');
-    return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
-  }
+  // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes [P7].
+  if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
+  if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
