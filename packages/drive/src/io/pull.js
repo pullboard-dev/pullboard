@@ -130,12 +130,14 @@ async function fetchCommit(store, trunk, commit) {
 }
 
 /**
- * Fetch one commit from the trunk remote into the runner's cache and check it out in a fresh folder. Every commit in
+ * Fetch one commit from the trunk remote into the runner's cache and check it out in the named folder. Every commit in
  * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
  * from its checkout's own objects) finds them there.
- * Why a primary per job: the folder is a linked worktree of a fresh primary checkout whose main branch is the job's
- * main, borrowing the cache's objects, as an item folder is of the coordinator checkout. A worktree of the bare cache
- * had no main branch and a primary that is not a work tree, so every pulled proof refused NOT_A_REPO (#5781).
+ * Why a primary: the folder is a linked worktree of a primary checkout whose main branch is the job's main, borrowing
+ * the cache's objects, as an item folder is of the coordinator checkout. A worktree of the bare cache had no main
+ * branch and a primary that is not a work tree, so every pulled proof refused NOT_A_REPO (#5781).
+ * Why reuse: a folder left by an earlier job under the same name is reset to the commit and cleaned of every untracked
+ * and ignored file instead of being rebuilt, since preparing a fresh one cost 14 s per job (#5812) [P7].
  *
  * @param {string} cache
  * @param {string} trunk
@@ -143,7 +145,7 @@ async function fetchCommit(store, trunk, commit) {
  * @param {string} name
  * @param {string[]} [also]
  * @param {{ main?: string | null }} [options] - main: the commit the primary's main branch names; default none.
- * @returns {Promise<{ ok: true, folder: string, primary: string } | { ok: false, reason: string }>}
+ * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
 export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null } = {}) {
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
@@ -156,6 +158,7 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
     if (missing) return { ok: false, reason: missing };
   }
   const folder = join(cache, 'work', name), primary = join(cache, 'main', name);
+  if (await resetCheckout({ folder, primary }, commit, main)) return { ok: true, folder, primary, reused: true };
   await dropCheckout(cache, { folder, primary });
   mkdirSync(primary, { recursive: true });
   for (const args of [['init', '-q'], ['symbolic-ref', 'HEAD', 'refs/heads/main'], ['config', 'gc.auto', '0']]) {
@@ -163,15 +166,39 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
     if (step.status !== 0) return { ok: false, reason: step.stderr };
   }
   writeFileSync(join(primary, '.git', 'objects', 'info', 'alternates'), `${join(store, 'objects')}\n`);
-  if (main) {
-    // The trunk the job's proof reads, as a pushed runner's checkout names it (apps/runner/src/io/worker/checkout.js) [P7].
-    for (const args of [['update-ref', 'refs/heads/main', main], ['config', '--local', '--replace-all', 'pullboard.trunk', 'refs/heads/main']]) {
-      const pinned = await git(primary, args);
-      if (pinned.status !== 0) return { ok: false, reason: pinned.stderr };
-    }
-  }
+  if (!(await pinMain(primary, main))) return { ok: false, reason: `could not point main at ${main}` };
   const added = await git(primary, ['worktree', 'add', '-q', '--detach', folder, commit]);
-  return added.status === 0 ? { ok: true, folder, primary } : { ok: false, reason: added.stderr };
+  return added.status === 0 ? { ok: true, folder, primary, reused: false } : { ok: false, reason: added.stderr };
+}
+
+/**
+ * Point the primary's main branch at the job's main, or leave it unborn when the job names none, and name it the
+ * trunk in `pullboard.trunk` so a proof run in the folder finds its trunk whether the folder is fresh or reused.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function pinMain(primary, main) {
+  const pinned = main ? await git(primary, ['update-ref', 'refs/heads/main', main])
+    : await git(primary, ['update-ref', '-d', 'refs/heads/main']);
+  if (pinned.status !== 0) return false;
+  return (await git(primary, ['config', '--local', '--replace-all', 'pullboard.trunk', 'refs/heads/main'])).status === 0;
+}
+
+/**
+ * Reuse an earlier job's folder for this commit: detach it at the commit, overwrite every tracked change, and delete
+ * every untracked and ignored file and nested repository, so nothing the earlier job wrote survives. False when there
+ * is no earlier folder or any step fails, and the caller builds a fresh one.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function resetCheckout({ folder, primary }, commit, main) {
+  if (!existsSync(join(primary, '.git')) || !existsSync(join(folder, '.git'))) return false;
+  if (!(await pinMain(primary, main))) return false;
+  for (const args of [['checkout', '-q', '-f', '--detach', commit], ['reset', '-q', '--hard', commit], ['clean', '-q', '-ffdx']]) {
+    if ((await git(folder, args)).status !== 0) return false;
+  }
+  const head = await git(folder, ['rev-parse', 'HEAD']);
+  return head.status === 0 && head.stdout.trim() === commit;
 }
 
 /** Remove a job's checkout and its primary from the cache; a cache from before primaries also prunes the store's worktrees. */
@@ -283,7 +310,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   const endpoint = boardEndpoint(board, key);
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS } = timing;
-  const jobs = [], waits = [];
+  const jobs = [], waits = [], slot = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
   let delay = firstMs;
   /** Wait out an unreachable board, longer each time in a row, and note the wait. */
   const backoff = async error => { say(`${error.message}; retrying in ${delay} ms`); waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs); };
@@ -347,12 +374,11 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
     const gate = input !== null;
-    const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, also,
-      { main: claim.base ?? null });
+    // One folder per runner, reset for each job, since a fresh one cost 14 s per job (#5812) [P7].
+    const checkout = await checkoutCandidate(cache, answer.trunk, claim.candidate, slot, also, { main: claim.base ?? null });
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${checkout.ok ? 'the job names nothing to run' : checkout.reason}`);
-      if (checkout.ok) await dropCheckout(cache, checkout);
       await reliably({ action: 'release', ...held }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
       jobs.push({ job: claim.job, outcome: 'released' });
       if (once) break;
@@ -360,7 +386,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     const started = Date.now();
     const job = jobEnvironment(cache, `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`, claim.job);
-    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null, env: job.env });
+    // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
+    const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
+      env: { ...job.env, PULLBOARD_TRUNK_REMOTE: answer.trunk } });
     let lost = false;
     // Renew while the job runs. An unreachable board only skips a renewal; a moved lease stops the job.
     const renewer = setInterval(() => {
@@ -375,7 +403,6 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const stopping = () => running.stop();
     signal?.addEventListener('abort', stopping, { once: true });
     const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
-    await dropCheckout(cache, checkout);
     rmSync(job.folder, { recursive: true, force: true });
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });

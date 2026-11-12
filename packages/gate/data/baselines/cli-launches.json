@@ -29,9 +29,6 @@
   "apps/cli/journeys/capacity/main.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/capacity/planner.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/cells/against.test.js": {
     "launch": 1
   },
@@ -59,9 +56,6 @@
   "apps/cli/journeys/check/accept.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/check/admission.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/check/receipts.test.js": {
     "launch": 8
   },
@@ -74,23 +68,14 @@
   "apps/cli/journeys/claim/adopts/session.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/claim/branch.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/claim/complete.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/claim/display.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/claim/folder.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/claim/git.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/claim/hygiene.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/claim/latency.test.js": {
     "launch": 1
@@ -98,38 +83,11 @@
   "apps/cli/journeys/claim/live.test.js": {
     "launch": 14
   },
-  "apps/cli/journeys/claim/overlap.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/policy.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/policy/detached.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/policy/live.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/claim/policy/work.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/claim/race.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/claim/report.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/claim/reuse.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/claim/static.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/claim/tip.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/companion/attach.test.js": {
-    "launch": 12
   },
   "apps/cli/journeys/companion/companions/applies.test.js": {
     "launch": 3
@@ -410,9 +368,6 @@
   "apps/cli/journeys/gate/rotates.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/stall.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/gate/stalled.test.js": {
     "launch": 1
   },
@@ -480,7 +435,7 @@
     "launch": 12
   },
   "apps/cli/journeys/hold/seat.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
@@ -687,7 +642,7 @@
     "launch": 47
   },
   "apps/cli/journeys/lanes/wrong-lane.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/ledger/history.test.js": {
     "launch": 3
@@ -713,9 +668,6 @@
   "apps/cli/journeys/merged/dashboard.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/merged/e2e.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/merged/fast.test.js": {
     "launch": 2
   },
@@ -724,9 +676,6 @@
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/merged/map.test.js": {
-    "launch": 9
   },
   "apps/cli/journeys/merged/ratchet.test.js": {
     "launch": 4
@@ -776,9 +725,6 @@
   "apps/cli/journeys/move/cells.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/next/builder.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/next/checkout.test.js": {
     "launch": 8
   },
@@ -792,16 +738,10 @@
     "launch": 2
   },
   "apps/cli/journeys/next/eval.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/next/folders.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/next/help.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/next/hold.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/next/order.test.js": {
     "launch": 88
@@ -812,23 +752,8 @@
   "apps/cli/journeys/next/runs.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/next/session.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/next/skips/bar.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
-    "launch": 6
-  },
-  "apps/cli/journeys/next/skips/folder/protected.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/next/skips/folder/unfinished.test.js": {
-    "launch": 7
-  },
-  "apps/cli/journeys/next/skips/policy.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/next/take.test.js": {
     "launch": 5
@@ -859,9 +784,6 @@
   },
   "apps/cli/journeys/publish/catalog.test.js": {
     "launch": 23
-  },
-  "apps/cli/journeys/publish/pause.test.js": {
-    "launch": 12
   },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
@@ -1128,7 +1050,7 @@
     "launch": 6
   },
   "apps/cli/journeys/resources/coordinator.test.js": {
-    "launch": 5
+    "launch": 4
   },
   "apps/cli/journeys/resources/main.test.js": {
     "launch": 15
@@ -1299,7 +1221,7 @@
     "launch": 2
   },
   "apps/cli/journeys/sentinels/main.test.js": {
-    "launch": 30
+    "launch": 2
   },
   "apps/cli/journeys/sentinels/needs.test.js": {
     "launch": 37
@@ -1515,7 +1437,7 @@
     "launch": 3
   },
   "apps/cli/journeys/status/board/move.test.js": {
-    "launch": 5
+    "launch": 3
   },
   "apps/cli/journeys/status/counts.test.js": {
     "launch": 3
@@ -1688,9 +1610,6 @@
   "apps/cli/journeys/test/command.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/test/diagnose.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/test/knownred.test.js": {
     "launch": 5
   },
@@ -1715,9 +1634,6 @@
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/test/summary.test.js": {
-    "launch": 9
-  },
   "apps/cli/journeys/test/tier-selection.test.js": {
     "launch": 1
   },
@@ -1732,9 +1648,6 @@
   },
   "apps/cli/journeys/trace/command.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/trace/main.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/trace/why.test.js": {
     "launch": 2
@@ -1809,10 +1722,7 @@
     "launch": 9
   },
   "apps/cli/journeys/view/e2e.test.js": {
-    "launch": 18
-  },
-  "apps/cli/journeys/view/main.test.js": {
-    "launch": 7
+    "launch": 4
   },
   "apps/cli/journeys/view/move.test.js": {
     "launch": 1
@@ -1821,7 +1731,7 @@
     "launch": 15
   },
   "apps/cli/journeys/view/services.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/view/startup.test.js": {
     "launch": 1
@@ -2106,9 +2016,6 @@
     "launch": 4
   },
   "packages/gate/tests/io/timing.test.js": {
-    "launch": 1
-  },
-  "packages/gate/tests/io/watchdog.test.js": {
     "launch": 1
   },
   "packages/gate/tests/logic/budgets.test.js": {
