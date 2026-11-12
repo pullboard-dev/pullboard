@@ -168,8 +168,10 @@ export function displayedRefusal(io, error) {
  */
 export function withBoardRead(ctx, work) {
   const board = ctx.nativeBoard.openBoardForRead(ctx.file, ctx.clock);
-  if (board && !board.current && !ctx.allowSchemaUpgrade) store.closeBoard(board);
-  if (!board || (!board.current && !ctx.allowSchemaUpgrade)) return withBoard(ctx, work);
+  // Main repairs a drifted board on a write open, so a read there takes that path once (#5825).
+  const write = board && !board.current && (!ctx.allowSchemaUpgrade || board.drifted);
+  if (write) store.closeBoard(board);
+  if (!board || write) return withBoard(ctx, work);
   try { return withBoard(ctx, work, board); }
   catch (error) {
     if (board.current && store.writeRefused(error)) return withBoard(ctx, work);
