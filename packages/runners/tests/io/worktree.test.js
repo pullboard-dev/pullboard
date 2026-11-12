@@ -155,27 +155,30 @@ test('#5945 clause 1: the board serves GET /trunk/<commit>.pack from one shared 
   const scratch = temporaryDirectory('pullboard-trunk-route-runners-');
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const commit = await git(trunk, 'rev-parse', 'main');
-  let builds = 0;
+  let builds = 0, served = 0;
   // The local adapter's port as pullboard serve wires it: the board's checkout, packs under a scratch folder.
   const handler = createApiHandler({ refusalDocument: error => ({ error: { code: error.code, message: String(error.message) } }),
     authenticate: req => { if (req.headers['x-pullboard-key'] !== 'fixture-key') throw Object.assign(new Error('key'), { code: 'AUTH_REQUIRED' }); return { local: true }; },
     board: id => ({ id, root: trunk }),
     trunkPack: async (board, wanted) => {
-      const served = await servedTrunkPack(board.root, wanted, { dir: join(scratch, 'packs') });
-      if (served?.built) builds += 1;
-      return served;
+      const pack = await servedTrunkPack(board.root, wanted, { dir: join(scratch, 'packs') });
+      if (pack?.built) builds += 1;
+      if (pack) served += 1;
+      return pack;
     } });
   const server = createServer(handler);
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   t.after(() => new Promise(done => { handler.close(); server.close(done); server.closeIdleConnections(); }));
   const board = `http://127.0.0.1:${server.address().port}/api/v1/boards/fixture`;
   const endpoint = boardEndpoint(`${board}?k=fixture-key`);
-  const checkouts = await Promise.all(['a', 'b', 'c'].map(name => checkoutCandidate(join(scratch, name), join(scratch, 'no-such-trunk'), commit, 'job', [],
+  const checkouts = await Promise.all(['a', 'b', 'c'].map(name => checkoutCandidate(join(scratch, name), trunk, commit, 'job', [],
     { main: commit, pack: boardTrunkPack(endpoint, fetchFresh, join(scratch, name, 'packs')) })));
   for (const checkout of checkouts) {
     assert.equal(checkout.ok, true, checkout.reason);
-    assert.equal(await git(checkout.folder, 'rev-parse', 'HEAD'), commit, 'the served pack alone checked the commit out; the trunk remote does not exist');
+    assert.equal(await git(checkout.folder, 'rev-parse', 'HEAD'), commit);
+    assert.ok(existsSync(join(scratch, checkout.folder.slice(scratch.length + 1).split('/')[0], 'packs', `trunk-${commit}.pack`)), 'each cold runner downloaded the board pack');
   }
+  assert.equal(served, 3, 'every cold runner was served the pack over GET /trunk/<commit>.pack');
   assert.equal(builds, 1, 'three concurrent GETs of one commit shared one pack-objects build');
   const unknown = await fetchFresh(`${board}/trunk/${'0'.repeat(40)}.pack`, { headers: { 'x-pullboard-key': 'fixture-key' } });
   assert.deepEqual([unknown.status, (await unknown.json()).error.code], [404, 'NO_COMMIT']);
