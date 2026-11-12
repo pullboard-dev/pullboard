@@ -1359,7 +1359,7 @@
     "launch": 4
   },
   "apps/cli/journeys/show/review/worker.test.js": {
-    "launch": 10
+    "launch": 4
   },
   "apps/cli/journeys/seats/timing.test.js": {
     "launch": 4
