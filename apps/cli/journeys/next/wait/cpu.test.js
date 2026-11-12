@@ -93,7 +93,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
     const totalCpu = process.cpuUsage(cpuStart);
     const postCounts = { reads, notifications, waitingReports };
     assert.equal(code, 0, output);
-    assert.equal(sent, true, 'the seat reached idle and received the actual timed shout');
+    assert.equal(sent, true, 'the seat reached idle and received the actual timed shout: ' + output + stderrText);
     assert.ok(askedAt - quietAt >= 30_000); // budget: declared #2518 requires measurement across 30 seconds.
     assert.ok(quietCpu.user + quietCpu.system < 300_000, JSON.stringify({ quietCpu, totalCpu, quietCounts, postCounts })); // budget: declared #2518 caps CPU at 0.3 seconds across that quiet interval.
     const wakeDetails = JSON.stringify({ output,
