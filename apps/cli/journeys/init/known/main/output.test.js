@@ -44,7 +44,7 @@ test('identical main case is first in text and structured in test and submit, wi
   const fresh = fixture(t);
   const plain = await text(fresh, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
-  assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${fresh.main}:`), plain.stdout + plain.stderr);
+  assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${fresh.main}:`));
   assert.ok(plain.stdout.split('\n')[0].includes('[main receipt '));
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
@@ -80,9 +80,9 @@ test('a unique repair owner appears at the top of submit text and in test JSON [
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
   const lines = submitted.stdout.split('\n');
   const explanation = lines.findIndex(line => line.startsWith('also fails on main at '));
-  assert.ok(explanation >= 0, submitted.stdout.slice(0,1500));
+  assert.ok(explanation >= 0);
   assert.ok(explanation < lines.findIndex(line => line.startsWith('submitted #')), 'case explanation precedes submission summary');
-  assert.ok(lines[explanation].includes(`(not yours; owner #${owner}) [main receipt `), lines[explanation]+" OWNER "+owner+" ERR "+submitted.stderr.slice(0,3000));
+  assert.ok(lines[explanation].includes(`(not yours; owner #${owner}) [main receipt `));
 });
 
 test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', async t => {
