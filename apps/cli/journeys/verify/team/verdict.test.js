@@ -29,7 +29,13 @@ import {
   test,
   withBoard,
 } from '../../../tests/fixtures/scenarios/team.js';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { currentGitAdapter } from '../../../../../packages/git/index.js';
+import { realGitAdapter } from '../../../../../packages/git/index.js';
+import { withGitAdapter } from '../../../../../packages/git/index.js';
+import { verdictProjector } from '../../../../../packages/verify/index.js';
+import { temporaryRepository } from '../../../tests/fixtures/board/submit.js';
 
 test('a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
   const box = helpers.project();
@@ -43,7 +49,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   run(box, box.web, 'submit', '1');
   const reviewer = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-  run(box, reviewer, 'join', 'web');
+  run(box, reviewer, 'join', 'web', '--route', 'strong');
   run(box, reviewer, 'next', '--verify', '1');
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_review_by,
@@ -182,7 +188,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   }
   // A revert that restores the reviewed bytes now composes unchanged and reads fresh (96dd1fbad5, 60327df8ec); a further move still reads stale.
   box.git(mainEditor, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 0\nlater = 2\n', 'feat(web): move main caller again [G1]').status, 0);
+  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 1\nmain = 0\nlater = 2\n', 'feat(web): move main caller again [G1]').status, 0);
   box.git(box.repo, 'merge', '-q', '--no-ff', box.git(mainEditor, 'rev-parse', 'HEAD'), '-m', 'chore(merge): move main caller again [G1]');
   syncTrunk();
   assert.ok(items().every(item => item.item_verdict_state?.code === 'STALE_VERDICT'), 'a later move keeps an old review stale');
@@ -256,4 +262,58 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   syncTrunk();
   assert.ok(items().every(item => !item.item_verdict_state), 'landed items are not waiting for re-review');
   assert.ok(existsSync(join(peer, '.git', 'pullboard', 'board.sqlite')));
+});
+
+test('many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
+  const dir = temporaryRepository(t, 'verdict-ancestry-memo-');
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
+  git('commit', '--allow-empty', '-q', '-m', 'base');
+  const trunk = git('rev-parse', 'HEAD');
+  git('commit', '--allow-empty', '-q', '-m', 'item work');
+  const checked = git('rev-parse', 'HEAD');
+  const tip = git('rev-parse', 'HEAD');
+  const projector = verdictProjector(dir, {}, { main: tip }, {
+    events: () => [], acceptedVerdict: () => ({ review: { trunk, head: checked, paths: ['a.txt'] } }),
+    verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' });
+  const ancestryChecks = [];
+  const counting = { ...realGitAdapter, spawnSync(args, options) {
+    if (args.includes('--is-ancestor')) ancestryChecks.push(args.slice(-2).join(' '));
+    return realGitAdapter.spawnSync(args, options);
+  } };
+  const states = withGitAdapter(counting, () => {
+    const counted = currentGitAdapter() === counting;
+    const out = Array.from({ length: 40 }, (_, index) => projector.state({
+      item_id: index + 1, item_status: 'verified', item_commit: checked, item_claim_head: trunk }));
+    if (counted) assert.deepEqual(ancestryChecks, [`${checked} ${tip}`], 'one ancestry check serves all 40 items at one commit');
+    return out;
+  });
+  assert.ok(states.every(state => state === null), 'every item reads fresh, as it did with a check per item');
+});
+
+test('legacy receipts on a cold state build spawn a bounded number of Git processes, whatever the item count [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 80 projected items; not a speed target.
+  const dir = temporaryRepository(t, 'verdict-legacy-bounded-');
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
+  git('commit', '--allow-empty', '-q', '-m', 'base');
+  const trunk = git('rev-parse', 'HEAD');
+  git('commit', '--allow-empty', '-q', '-m', 'item work');
+  const checked = git('rev-parse', 'HEAD');
+  git('commit', '--allow-empty', '-q', '-m', 'main moves');
+  const tip = git('rev-parse', 'HEAD');
+  /** Project this many legacy-receipt items (no sealed review) and return every Git spawn made, with the states. */
+  const build = (count, claimHead) => {
+    const projector = verdictProjector(dir, {}, { main: tip }, {
+      events: () => [], acceptedVerdict: () => null, verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' });
+    const spawns = [];
+    const counting = { ...realGitAdapter, spawnSync(args, options) { spawns.push(args.join(' ')); return realGitAdapter.spawnSync(args, options); } };
+    const states = withGitAdapter(counting, () => Array.from({ length: count }, (_, index) => projector.state({
+      item_id: index + 1, item_status: 'verified', item_commit: checked, item_claim_head: claimHead })));
+    return { spawns, states, counted: currentGitAdapter() !== counting };
+  };
+  for (const claimHead of [trunk, tip]) {
+    const few = build(5, claimHead);
+    const many = build(80, claimHead);
+    assert.ok(many.states.every(state => state === null), 'every legacy item reads fresh, as it did with a read per item');
+    if (few.spawns.length) assert.equal(many.spawns.length, few.spawns.length, `80 items spawn no more Git processes than 5 (claim head ${claimHead === tip ? 'at the tip' : 'behind it'})`);
+    if (few.spawns.length) assert.ok(many.spawns.length <= 4, `a handful of Git reads serve all 80 items, saw ${many.spawns.length}`);
+  }
 });

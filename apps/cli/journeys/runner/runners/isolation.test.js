@@ -37,6 +37,11 @@ import {
   tmpdir,
   writeFileSync,
 } from '../../../tests/fixtures/scenarios/runners.js';
+import { scopedEnvironment } from '../../../../runner/src/io/worker/environment.js';
+import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
+import { chmodSync } from 'node:fs';
+import { delimiter } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 test('a queued run executes on a registered runner and its result comes back (host checkout isolation) [C7]', async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-tooling-isolation-')));
@@ -170,6 +175,7 @@ test('a private check never refuses its own remote lease [C7,V4]', async (t) => 
     // Filling the only local slot is what sends a remote-capable waiter to the runner.
     held = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: box.repo,
       agent: 'private-check-local-holder', item: 'private-check-local-holder', kind: 'force-registered-runner' });
+    // Process-level: a verify child holds a force-registered runner while this test observes it.
     review = observe(startFixtureChild(process.execPath, [BIN, 'verify', '1', 'accept', '--note', 'the frozen check ran to a verdict', '--json'], {
       cwd: box.review, env, stdio: ['ignore', 'pipe', 'pipe'] }));
     let exited = null;
@@ -201,7 +207,7 @@ test('a private check never refuses its own remote lease [C7,V4]', async (t) => 
     assert.doesNotMatch(`${finished.stdout}\n${finished.stderr}`, /REMOTE_GATE_SLOT_NOT_INHERITABLE/);
     assert.equal(finished.status, 0, `the review reached a verdict: ${finished.stdout}\n${finished.stderr}`);
     assert.equal(readFileSync(marker, 'utf8'), `held=1 pool=${realpathSync(join(machineHome, 'resources.sqlite'))}`, 'the frozen check ran locally under the review\'s own local gate lease');
-    assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'verified');
+    assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_status, 'verified');
     const requestsSeen = readFileSync(requests, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
     assert.deepEqual(requestsSeen.map(request => request.host), [HOST], 'only the gate run reached the runner');
 
@@ -216,4 +222,27 @@ test('a private check never refuses its own remote lease [C7,V4]', async (t) => 
     if (previousMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
     else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   }
+});
+
+test('a job whose PATH holds an older global pullboard runs the checkout CLI by name (checkout CLI first) [C7]', () => {
+  const files = privateFixtureFiles('runner-checkout-cli-');
+  const dir = files.root;
+  try {
+    const globalBin = join(dir, 'nvm-bin');
+    const cli = join(dir, 'checkout/apps/cli/pullboard.js');
+    files.write('nvm-bin/pullboard', '#!/bin/sh\necho 0.9.2-global\n');
+    files.write('checkout/apps/cli/pullboard.js', "#!/usr/bin/env node\nconsole.log('checkout ' + process.argv.slice(2).join(' '));\n");
+    files.write('tmp/keep', '');
+    chmodSync(join(globalBin, 'pullboard'), 0o755);
+    chmodSync(cli, 0o755);
+    const S = { safePath: [globalBin, dirname(process.execPath), '/usr/bin', '/bin'].join(delimiter), workerId: 'job-1' };
+    const env = scopedEnvironment(S, join(dir, 'home'), join(dir, 'tmp'), '', null, { gateSlotEnvironment: () => ({}) });
+    const run = spawnSync('sh', ['-c', 'command -v pullboard; pullboard --version'], { env, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout.trim().split('\n')[0], join(dir, 'cli-bin', 'pullboard'), 'the checkout link is found before the global install');
+    assert.match(run.stdout, /checkout --version/u);
+    assert.doesNotMatch(run.stdout, /0\.9\.2-global/u);
+    const outside = scopedEnvironment(S, join(dir, 'home'), join(dir, 'nowhere/tmp'), '', null, { gateSlotEnvironment: () => ({}) });
+    assert.equal(outside.PATH, S.safePath, 'a temporary folder that is not a job leaves PATH alone');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

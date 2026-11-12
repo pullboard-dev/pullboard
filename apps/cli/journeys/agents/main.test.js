@@ -83,15 +83,15 @@ test('the agents panel says what each agent holds [N26]', async () => {
   const alpha = project(box, 'alpha');
   const second = join(box.dir, 'alpha-web-two');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  box.run(second, 'join', 'web', '--route', 'strong');
-  for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(second, 'join', 'web', '--route', 'strong');
+  for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   // The board lists items newest first; each agent's rows must put its higher id second.
   build(box, alpha, 3, 'greeting.html');
   const two = { ...alpha, web: second, branch: 'web/two', baseBranch: 'web/two' };
   build(box, two, 2, 'farewell.html');
   sendBack(box, two, 2, 'no farewell on the page');
   build(box, two, 4, 'footer.html');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -128,18 +128,18 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
 
   const box = machine();
   const alpha = project(box, 'roster');
-  for (const title of ['Header', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Header', 'Footer']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   // web-1 waits on a verdict for #2 and builds #1: two things, the claim first.
   build(box, alpha, 2, 'footer.html');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.web, 'claim', '1');
   const second = join(box.dir, 'roster-web-2'), gone = join(box.dir, 'roster-web-3');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/roster2');
-  box.run(second, 'join', 'web');
+  await box.inProcess(second, 'join', 'web');
   box.git(alpha.repo, 'worktree', 'add', '-q', gone, '-b', 'web/roster3');
   // web-3 joined three hours ago and has not moved since: not at work, so behind show all.
   earlier(alpha.repo, Date.now() - 3 * 36e5, (board) => assert.equal(register(board, { lane: 'web', path: gone }), 'web-3'));
-  box.run(alpha.web, 'shout', 'all', 'Header is under way.');
-  box.run(second, 'shout', 'all', 'Free when you need me.');
+  await box.inProcess(alpha.web, 'shout', 'all', 'Header is under way.');
+  await box.inProcess(second, 'shout', 'all', 'Free when you need me.');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roster-chrome-'));
@@ -183,8 +183,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         // The approved entry keeps identity and time/state above its held item, with extra holds on hover.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Fixture Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
-        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Fixture Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
+        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
+        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
         assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -200,7 +200,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await shoutsAt(chrome, 1280, 'light');
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Fixture Model)×', 'web-1', [['web-1', 'coordinator and you']]],
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1', 'coordinator and you']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.
@@ -224,10 +224,10 @@ test('the shout feed names a seat broadcast and an item shout in product words [
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered feed checks.');
   const box = machine();
   const alpha = project(box, 'recipients');
-  box.run(alpha.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'renders');
   // A registered seat's shout to all is stored at coordinator+person; an item shout is stored at item:<id>.
-  box.run(alpha.web, 'shout', 'all', 'Seat broadcast for the coordinator');
-  box.run(alpha.web, 'shout', '--item', '1', 'Item shout for its audience');
+  await box.inProcess(alpha.web, 'shout', 'all', 'Seat broadcast for the coordinator');
+  await box.inProcess(alpha.web, 'shout', '--item', '1', 'Item shout for its audience');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-recipients-chrome-'));
   let chrome;
@@ -269,29 +269,29 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   const box = machine();
   const alpha = project(box, 'model-names', SPEC, {}, { joinSeat: false });
   const model = 'GPT-6 with a very long model declaration for readable agent names';
-  box.run(alpha.web, 'join', 'web', '--model', model, '--route', 'strong');
+  await box.inProcess(alpha.web, 'join', 'web', '--model', model, '--route', 'strong');
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try { register(board, { lane: 'coordinator', path: alpha.repo, model: 'Claude' }); }
   finally { closeBoard(board); }
   for (const title of ['Known holder', 'Reviewed model', 'Unknown holder']) {
-    box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'visible');
+    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'visible');
   }
   build(box, alpha, 2, 'reviewed.txt');
   accept(box, alpha, 2);
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.web, 'claim', '1');
   const unknown = join(box.dir, 'unknown-web');
   box.git(alpha.repo, 'worktree', 'add', '-q', unknown, '-b', 'web/unknown');
   // An existing stored registration may have no model even though new CLI joins require one.
   const legacyBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try { register(legacyBoard, { lane: 'web', path: unknown }); }
   finally { closeBoard(legacyBoard); }
-  box.run(unknown, 'claim', '3');
-  box.run(alpha.web, 'shout', 'web-2', 'Known sender and unknown recipient');
-  box.run(unknown, 'shout', 'all', 'Unknown sender and a lane-free recipient');
-  box.run(alpha.repo, 'shout', 'all', 'A coordinator broadcast reaches everyone');
-  box.run(alpha.repo, 'shout', 'person', 'A model decision', '--decision');
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Wait for the model decision');
-  box.run(alpha.repo, 'milestone', 'add', 'Model release', '--items', '1,2,3', '--reason', 'Arrange fixture release');
+  await box.inProcess(unknown, 'claim', '3');
+  await box.inProcess(alpha.web, 'shout', 'web-2', 'Known sender and unknown recipient');
+  await box.inProcess(unknown, 'shout', 'all', 'Unknown sender and a lane-free recipient');
+  await box.inProcess(alpha.repo, 'shout', 'all', 'A coordinator broadcast reaches everyone');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'A model decision', '--decision');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Wait for the model decision');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Model release', '--items', '1,2,3', '--reason', 'Arrange fixture release');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-model-names-chrome-'));
   let chrome;
@@ -472,7 +472,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
 test('staged and exported boards carry API model display names [O8,N26,A10]', async () => {
   const box = machine();
   const alpha = project(box, 'model-export', SPEC, { agents: { names: 'prefix' } }, { joinSeat: false });
-  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6', '--route', 'strong');
+  await box.inProcess(alpha.web, 'join', 'web', '--model', 'GPT-6', '--route', 'strong');
   const source = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   const staged = openBoard(join(box.dir, 'staged-models.sqlite'));
   try {

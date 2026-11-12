@@ -1,16 +1,14 @@
 import { boardId } from '../../../../../packages/store/index.js';
 import { seatAddress } from '../../../../../packages/seats/index.js';
 /** The pullboard whoami command, in its own module so an item adding another command never edits these lines. */
-import {
-  context,
-  whoAmI,
-  withBoard,
-} from '../entry.js';
+import { context } from '../context.js';
+import { withBoardRead } from '../context.js';
+import { whoAmI } from '../join.js';
 
 /** Run `pullboard whoami` and return its exit code. */
 export function run(io) {
   const ctx = context(io);
-  const me = withBoard(ctx, (board) => {
+  const me = withBoardRead(ctx, (board) => {
     const agent = whoAmI(ctx, board);
     return { ...agent, address: seatAddress(boardId(board), agent.id) };
   });

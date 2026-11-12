@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/seed.json */
 /** Real recorded tool commands regenerate conflicting source, with fresh full proof and no inherited verdict [C7,V4,V6]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -15,10 +15,15 @@ import { put } from '../../tests/fixtures/submit/gate.js';
 import { planCellLintBaseline } from '../../../../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
 import { recordedToolCommits } from '../../../../packages/git/index.js';
+import { warmAcceptedCells } from '../../../../packages/gate/index.js';
+import { withMainCheckout } from '../../../../packages/landing/index.js';
+import { withFileLock } from '../../../../packages/outbox/index.js';
 
 /** Execute the real installed cell tool against this small project, never a simulated transform. */
 function tool(box, name, ...args) {
-  const result = runFixtureChild(process.execPath, [fileURLToPath(new URL(`../bin/${name}`, import.meta.url)), ...args],
+  const scripts = { 'cells-plan.js': 'cells/scripts/plan.js', 'cells-move.js': 'cells/move.js', 'cell-lints.js': 'cell/scripts/lints.js' };
+  assert.ok(scripts[name], `unknown cell tool: ${name}`);
+  const result = runFixtureChild(process.execPath, [fileURLToPath(new URL(`../../../../packages/codemap/src/io/${scripts[name]}`, import.meta.url)), ...args],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   return result.stdout;
@@ -92,7 +97,7 @@ function advance(main) {
   return commitAll(main, 'feat(core): advance the accepted leaf [G1]');
 }
 
-for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, t => {
+for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, async t => {
   const { main, box, marker } = project(t, command === 'remove-shims');
   let original = move(box, main.dir);
   if (command === 'remove-shims') {
@@ -104,9 +109,14 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   const before = main.git('rev-parse', 'HEAD');
   assert.equal(recordedToolCommits(box.root, before, original).at(-1).commands[0].tool, command);
   const currentMain = advance(main);
+  // This private board has no background producer; build its real accepted inventory before queuing the gate.
+  const previousHome = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = main.env.PULLBOARD_MACHINE_HOME;
+  try { await warmAcceptedCells(main.root, currentMain, { withCheckout: withMainCheckout, withLock: withFileLock }); }
+  finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
   assert.equal(existsSync(marker), false);
   const submitted = box.run('submit', '1', '--wait', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
-  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  assert.equal(submitted.code, 0, submitted.err + submitted.out + (submitted.code ? `\nCurrent item: ${box.run('show', '1', '--json').out}` : ''));
   const result = JSON.parse(submitted.out);
   const head = box.git('rev-parse', 'HEAD');
   assert.notEqual(head, original);

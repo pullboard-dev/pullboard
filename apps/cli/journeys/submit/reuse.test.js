@@ -11,7 +11,7 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const commit = 'a'.repeat(40), tree = 'b'.repeat(40), main = 'c'.repeat(40), frozen = 'd'.repeat(64);
 const admission = '12345678-1234-1234-1234-123456789abc';
 const item = { item_id: 7, item_frozen_digest: frozen };
-const opts = { item, commit, tree, main, check: 'node check.js', affectedTests: 'node packages/gate/src/io/run/tests.js', gate: 'npm test', supplement: "node packages/gate/src/io/run/tests.js './test/a.test.js'" };
+const opts = { item, commit, tree, main, check: 'node check.js', affectedTests: 'node apps/cli/src/io/run/tests.js', gate: 'npm test', supplement: "node apps/cli/src/io/run/tests.js './test/a.test.js'" };
 const event = (event_id, event_kind, detail) => ({ event_id, event_kind, event_by: 'web-1', event_detail: JSON.stringify(detail) });
 function fixture() {
   const run = (id, phase, command) => ({ id, submitReuse: true, submitAdmission: admission, submitPhase: phase,
@@ -24,11 +24,11 @@ function fixture() {
       submissionProof: { files: ['test/a.test.js'], full: false, deferred: false } })];
 }
 
-test('exact admission, criterion and proof reuse their sealed run ids [C7,H16]', () => {
+test('exact admission, criterion and proof reuse their sealed run ids [C7,H16]', async () => {
   assert.deepEqual(reusableSubmitProof(fixture(), opts), { ids: ['criterion-id', 'proof-id'], environment: null });
 });
 
-test('changed source, main, criterion or incomplete evidence fails closed [C7,H16]', () => {
+test('changed source, main, criterion or incomplete evidence fails closed [C7,H16]', async () => {
   for (const changed of [{ main: 'e'.repeat(40) }, { tree: 'f'.repeat(40) }, { commit: 'e'.repeat(40) }, { check: 'node different.js' }, { supplement: 'node other.js' }]) {
     assert.ok(reusableSubmitProof(fixture(), { ...opts, ...changed }).reason);
   }
@@ -60,10 +60,10 @@ async function nativeProofScenario(t, moveMain) {
   const check = `test -f web/proof-input.txt && printf x >> '${marker}'`;
   const added = fixtureAdd(box.run, box.repo, 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check, '--route', 'strong');
   assert.equal(added.code, 0, added.err || added.out);
-  const claimed = box.run(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
+  const claimed = await box.runLocal(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const committed = helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(box.web, 'submit', '1'); assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  const submitted = await box.runLocal(box.web, 'submit', '1'); assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const afterSubmit = readFileSync(marker, 'utf8'); assert.ok(afterSubmit.length > 0);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
@@ -76,7 +76,7 @@ async function nativeProofScenario(t, moveMain) {
     box.git(box.repo, 'commit', '-q', '-m', 'test(web): change proof input [G1]');
     box.env.CODEX_THREAD_ID = 'proof-reuse-reviewer-session';
   }
-  const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
+  const verdict = await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   if (moveMain) {
     assert.match(verdict.out, /submit proof not reused: (composed main changed|commit or tree changed)/);
@@ -100,6 +100,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
   const { prepareEngineMove, applyEngineMove } = await import('../../../../packages/state/index.js');
   const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../../../../packages/state/light.js');
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-proof-reuse-'));
+  // @pullboard-board-file persistence: the receipt store path derives from this board's file
   const board = openBoard(join(dir, 'board.sqlite')), replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); store.closeBoard(replica); rmSync(dir, { recursive: true, force: true }); });
   let id;
@@ -127,7 +128,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
 });
 
 
-test('a complete tiered unit proof is reusable while journeys stay deferred [C7,H16]', () => {
+test('a complete tiered unit proof is reusable while journeys stay deferred [C7,H16]', async () => {
   const rows = fixture();
   const detail = JSON.parse(rows.at(-1).event_detail);
   detail.submissionProof.deferred = true;

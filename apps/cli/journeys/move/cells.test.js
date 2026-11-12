@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/mcp/index.js */
 /** A leaf move preserves behavior and reverses without overwriting unrelated bytes [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -20,6 +20,7 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import {
@@ -28,7 +29,6 @@ import {
 } from '../../../../packages/codemap/index.js';
 import { cellsMove } from '../../../../packages/codemap/src/io/cells/move/tool.js';
 import { checkMoved } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 
 /** Execute real Git with private fixture identity and no inherited repository selector. */
 function git(root, ...args) {
@@ -59,6 +59,23 @@ function fixture(t, source = "import { number } from './number.js';\nexport cons
   return { root, custody, input };
 }
 
+let fixtureRuns = 0;
+/** Run one fixture test file in this process by importing it afresh, capturing what it logs like a child's stdout. */
+async function runFixtureFile(root, file) {
+  const log = console.log;
+  let stdout = '';
+  console.log = (...parts) => { stdout += `${parts.join(' ')}\n`; };
+  try {
+    await import(`${pathToFileURL(join(root, file)).href}?run=${++fixtureRuns}`);
+    return { status: 0, stdout, context: stdout };
+  } catch (error) {
+    return { status: 1, stdout, context: String(error?.stack ?? error) };
+  } finally {
+    console.log = log;
+  }
+}
+
+// Process-level: a fresh child proves the moved module graph loads with no inherited import cache.
 /** Run the real module graph in a fresh child, without inherited test-worker context. */
 function value(root, path) {
   const env = { ...process.env };
@@ -87,7 +104,7 @@ test('leaf move and independent journal inverse restore exact tree and modes [C7
   assert.equal(existsSync(join(root, 'bin')), false);
 });
 
-test('a move rewrites actual fixture read operands, preserves destinations and undoes every test byte [C7]', t => {
+test('a move rewrites actual fixture read operands, preserves destinations and undoes every test byte [C7]', async t => {
   const { root, custody, input } = fixture(t, 'export const value = 42;\n');
   mkdirSync(join(root, 'test'));
   const source = [
@@ -118,8 +135,7 @@ test('a move rewrites actual fixture read operands, preserves destinations and u
   const inventoriesBefore = inventoryBuildCount();
   assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
   assert.equal(inventoryBuildCount() - inventoriesBefore, 1, 'the moved check shares one repository inventory');
-  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
-  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  const child = await runFixtureFile(root, file);
   assert.equal(child.status, 0, child.context);
   assert.match(child.stdout, /fixture copies actual body/u);
   rmSync(join(root, 'copied'), { recursive: true });
@@ -151,7 +167,7 @@ test('fixture rewrite custody refuses an unexpected test edit and preserves its 
     'a dangling tracked reader is reported before attempting to read through it');
 });
 
-for (const shape of ['braced constant', 'unbraced inline']) test(`a ${shape} fixture list preserves destinations while its copy source moves [C7]`, t => {
+for (const shape of ['braced constant', 'unbraced inline']) test(`a ${shape} fixture list preserves destinations while its copy source moves [C7]`, async t => {
   const { root, custody, input } = fixture(t, 'export const value = 42;\n');
   mkdirSync(join(root, 'test'));
   const file = 'test/list-copy.test.js';
@@ -174,8 +190,7 @@ for (const shape of ['braced constant', 'unbraced inline']) test(`a ${shape} fix
   assert.ok(rewritten.includes('new URL(`../copied/${file}`, import.meta.url)'), 'the shared destination expression remains exact');
   const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
   assert.deepEqual(checkMoved(root, plan, 'leaf'), [], 'the independent proof recognizes the rewritten finite source table');
-  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
-  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  const child = await runFixtureFile(root, file);
   assert.equal(child.status, 0, child.context);
   assert.match(child.stdout, /export const value = 42/u);
   assert.match(child.stdout, /export const number = 41/u);
@@ -223,7 +238,7 @@ test('lookalike calls, comments, assertions and synthetic fixture code are not p
   assert.equal(git(root, 'status', '--porcelain'), '');
 });
 
-test('fixture joins retain rooted later segments while resolve keeps its absolute reset [C7]', t => {
+test('fixture joins retain rooted later segments while resolve keeps its absolute reset [C7]', async t => {
   const { root, custody, input } = fixture(t, 'export const value = 42;\n');
   mkdirSync(join(root, 'test'));
   const file = 'test/join-copy.test.js';
@@ -247,8 +262,7 @@ test('fixture joins retain rooted later segments while resolve keeps its absolut
   assert.ok(rewritten.includes(external), 'an actual absolute resolve read is unchanged');
   const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
   assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
-  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
-  const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
+  const child = await runFixtureFile(root, file);
   assert.equal(child.status, 0, child.context);
   assert.match(child.stdout, /joined copy reads actual body/u);
   writeFileSync(join(root, file), source);
@@ -405,6 +419,7 @@ test('the shipped installation includes the first real package and runs its CLI 
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);
   const env = { ...process.env, HOME: join(outer, 'home'), PULLBOARD_HOME: join(outer, 'home/pullboard'), PULLBOARD_MACHINE_HOME: join(outer, 'machine') };
   delete env.NODE_OPTIONS; delete env.NODE_TEST_CONTEXT;
+  // Process-level: the installed copy must start as its own process from its own folder.
   const child = spawnSync(process.execPath, [join(installed, 'apps/cli/pullboard.js'), '--help'], { cwd: installed, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);
   assert.match(child.stdout, /pullboard/u);

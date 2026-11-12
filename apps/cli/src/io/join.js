@@ -24,6 +24,17 @@ import { seatAt } from './item/folder/identity.js';
 import { itemFolderRenewalRefusal } from './item/folder/identity.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
+import { realpathSync } from 'node:fs';
+import { join as joinPath } from 'node:path';
+import { sep } from 'node:path';
+
+/** Whether a root is one of the private worktrees publish makes under .git/pullboard/publish for its push (GitHub #25). */
+function isPublishWorktree(info) {
+  try {
+    const folder = realpathSync(joinPath(info.commonDir, 'pullboard', 'publish'));
+    return realpathSync(info.root).startsWith(folder + sep);
+  } catch { return false; }
+}
 
 /**
  * Bind this checkout to the session behind a write command, which the command line has already told apart from a
@@ -56,7 +67,7 @@ export async function bindWriteSession(io, positionals, values) {
     const ctx = context(io);
     const ownsLandingRoot = command === 'hook' ? (await import('../../../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
     agent = withBoardRead(ctx, (board) => seatAt(board, info.root)?.agent_id
-      ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
+      ?? (command === 'hook' && (isPublishWorktree(info) || store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root))) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoardRead(ctx, (board) =>
       (command === 'hook' ? itemFolderRenewalRefusal(board, info.root) : null)
       ?? unjoinedRefusal(info, store.listAgents(board), agentSessionDigest));

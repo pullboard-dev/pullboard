@@ -1,4 +1,5 @@
 import { requireOwnLaneCheck } from '../lane.js';
+import { requireBarPathsOnMain } from '../item/bar.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
@@ -138,6 +139,7 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
@@ -264,9 +266,24 @@ export function pathTokens(text) {
  * @param {{ prose?: boolean }} [options]
  * @returns {string[]}
  */
-export function coordinatorPaths(config, item, { prose = true } = {}) {
+export function coordinatorPaths(config, item, options) {
+  return barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
+}
+
+/**
+ * The repo paths an item's criterion, check and brief Files section name, resolved against a lane-scoped check [C7].
+ * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
+ *
+ * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
+ * @param {{ prose?: boolean }} [options]
+ * @returns {string[]}
+ */
+export function barPaths(item, { prose = true } = {}) {
   const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
-  return [...new Set(named)].filter(path => laneOf(config, path) === COORDINATOR);
+  // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
+  const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
+  const scoped = scope ? named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
+  return [...new Set(scoped)];
 }
 
 /** The next step of a cross-ownership refusal: the lane piece, then the coordinator piece filed --after it. */

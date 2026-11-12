@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import { redGateReleaseSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';
@@ -56,7 +55,7 @@ import { writeMemoryReading } from '../../../../../../apps/cli/tests/fixtures/re
 test('single-quoted named-test checks skip the browser slot [C7]', async () => {
   const box = fixture();
   const { repo } = cpuCheckRepo(box);
-  const itemCheck = 'node packages/gate/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
+  const itemCheck = 'node apps/cli/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
   /** Keep assertions about the parser independent of worker custody inherited by the test process. */
   const classify = command => checkNeedsBrowser(repo, command, { env: { ...process.env, NODE_OPTIONS: '' } });
   assert.equal(await classify(itemCheck), false, 'an explicit CPU-only test file is classifiable');
@@ -85,7 +84,7 @@ test('single-quoted named-test checks skip the browser slot [C7]', async () => {
   const substituted = capturedCheck(accepted[0].formats, accepted[0].patternQuotes)
     .replace('printf \'%s\\n\' "$out"', 'printf \'%s\\n\' "$(printf %s "$out")"');
   assert.equal(await classify(substituted), true, 'a command substitution remains outside the exact printf wrapper');
-  assert.equal(await classify('node packages/gate/src/io/run/tests.js test/cockpit/brief.test.js'), true,
+  assert.equal(await classify('node apps/cli/src/io/run/tests.js test/cockpit/brief.test.js'), true,
     'a named file with no readable declaration stays browser-gated');
   assert.equal(await checkNeedsBrowser(repo, itemCheck, {
     env: { ...process.env, NODE_OPTIONS: '--import=unknown-preload.mjs' },
@@ -245,11 +244,11 @@ test('the pool alone orders submits, reviews and browser runs [C7]', async () =>
   assert.equal((await acquired(olderReview)).acquired, 'older-review');
 
   const diagnosticOne = poolWorker(orderBox, { agent: 'diagnostic-one', kind: 'diagnostic' });
-  assert.equal((await event(diagnosticOne)).queued.position, 2);
+  assert.equal((await event(diagnosticOne)).queued.position, 1, 'a diagnostic goes ahead of the waiting focused run');
   const laterReview = poolWorker(orderBox, { agent: 'later-review', item: '621', kind: 'review' });
   assert.equal((await event(laterReview)).queued.position, 3);
   const diagnosticTwo = poolWorker(orderBox, { agent: 'diagnostic-two', kind: 'diagnostic' });
-  assert.equal((await event(diagnosticTwo)).queued.position, 4);
+  assert.equal((await event(diagnosticTwo)).queued.position, 2, 'a diagnostic queues behind the earlier diagnostic');
   const laterGate = poolWorker(orderBox, { agent: 'later-gate', kind: 'focused' });
   assert.equal((await event(laterGate)).queued.position, 5);
   const laterLanding = poolWorker(orderBox, { agent: 'later-landing', landing: true });
@@ -258,12 +257,12 @@ test('the pool alone orders submits, reviews and browser runs [C7]', async () =>
   assert.deepEqual(orderedGate.line.map(({ agent, landing, diagnostic, itemCheck, kind }) =>
     [agent, landing, diagnostic === true, itemCheck, kind ?? '']), [
     ['later-landing', true, false, false, ''],
-    ['later-focused', false, false, false, 'focused'],
     ['diagnostic-one', false, true, false, 'diagnostic'],
-    ['later-review', false, false, true, 'review'],
     ['diagnostic-two', false, true, false, 'diagnostic'],
+    ['later-focused', false, false, false, 'focused'],
+    ['later-review', false, false, true, 'review'],
     ['later-gate', false, false, false, 'focused'],
-  ], 'landing moves ahead while all other kinds retain their arrival order');
+  ], 'landing, then diagnostics, then every other kind in arrival order');
 
   await release(otherHolder);
   assert.equal((await acquired(laterLanding)).acquired, 'later-landing',
@@ -272,19 +271,16 @@ test('the pool alone orders submits, reviews and browser runs [C7]', async () =>
   assert.ok(orderedGate.holders.some(({ agent, landing }) => agent === 'later-landing' && landing));
 
   await release(laterLanding);
-  assert.equal((await acquired(laterFocused)).acquired, 'later-focused',
-    'the oldest eligible non-landing waiter acquires next');
-  await release(laterFocused);
-  assert.equal((await acquired(diagnosticOne)).acquired, 'diagnostic-one');
+  assert.equal((await acquired(diagnosticOne)).acquired, 'diagnostic-one',
+    'diagnostics pass the older focused run once every waiter knows the ordering');
   await release(diagnosticOne);
-  assert.equal((await acquired(laterReview)).acquired, 'later-review',
-    'a diagnostic does not yield its older ticket to a later item check');
-  await release(laterReview);
-  assert.equal((await acquired(diagnosticTwo)).acquired, 'diagnostic-two',
-    'diagnostics keep their FIFO place around a later item check');
+  assert.equal((await acquired(diagnosticTwo)).acquired, 'diagnostic-two', 'diagnostics keep their FIFO place among themselves');
   await release(diagnosticTwo);
-  assert.equal((await acquired(laterGate)).acquired, 'later-gate',
-    'a diagnostic does not yield its older ticket to later ordinary gate work');
+  assert.equal((await acquired(laterFocused)).acquired, 'later-focused', 'the oldest other waiter follows the diagnostics');
+  await release(laterFocused);
+  assert.equal((await acquired(laterReview)).acquired, 'later-review');
+  await release(laterReview);
+  assert.equal((await acquired(laterGate)).acquired, 'later-gate');
   await release(laterGate);
   await release(olderReview);
 
@@ -362,18 +358,18 @@ test('the pool admits reviews before submits before focused runs, and waiting ru
     waiting.set(agent, child);
     positions[agent] = (await event(child)).queued.position;
   }
-  assert.deepEqual(positions, { 'focused-one': 1, 'diagnostic-one': 2, 'submit-one': 1, 'review-one': 1, 'landing-one': 1, 'focused-two': 6 },
-    'each arrival takes its place by class, behind earlier runs of its own class');
+  assert.deepEqual(positions, { 'focused-one': 1, 'diagnostic-one': 1, 'submit-one': 2, 'review-one': 2, 'landing-one': 1, 'focused-two': 6 },
+    'each arrival takes its place by class, with diagnostics ahead of the other waiting runs');
   const line = () => privateList(box).find(({ name }) => name === 'gate').line
     .map(({ agent, queueClass: listed, agedFrom }) => [agent, listed, agedFrom ?? '']);
   assert.deepEqual(line(), [
     ['landing-one', 'landing', ''],
+    ['diagnostic-one', 'other', ''],
     ['review-one', 'review', ''],
     ['submit-one', 'submit', ''],
     ['focused-one', 'other', ''],
-    ['diagnostic-one', 'other', ''],
     ['focused-two', 'other', ''],
-  ], 'landing, then reviews, then submits, then focused and other runs, first come first served within each');
+  ], 'landing, then diagnostics, then reviews, submits, and focused runs, first come first served within each');
 
   // Waiting time is the only input to aging; backdating the queued time stands in for the clock.
   const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
@@ -386,16 +382,16 @@ test('the pool admits reviews before submits before focused runs, and waiting ru
   } finally { db.close(); }
   assert.deepEqual(line(), [
     ['landing-one', 'landing', ''],
+    ['diagnostic-one', 'submit', 'other'],
     ['review-one', 'review', ''],
     ['focused-two', 'review', 'other'],
-    ['diagnostic-one', 'submit', 'other'],
     ['submit-one', 'submit', ''],
     ['focused-one', 'other', ''],
   ], 'a run waiting an hour ranks with reviews and one waiting half an hour with submits, keeping its arrival place there');
 
   const order = [];
   let releasing = [...holders];
-  for (const agent of ['landing-one', 'review-one', 'focused-two', 'diagnostic-one', 'submit-one', 'focused-one']) {
+  for (const agent of ['landing-one', 'diagnostic-one', 'review-one', 'focused-two', 'submit-one', 'focused-one']) {
     await release(releasing.shift());
     const child = waiting.get(agent);
     assert.equal((await acquired(child)).acquired, agent, `${agent} is admitted next`);
@@ -403,7 +399,7 @@ test('the pool admits reviews before submits before focused runs, and waiting ru
     releasing.push(child);
   }
   for (const child of releasing) await release(child);
-  assert.deepEqual(order, ['landing-one', 'review-one', 'focused-two', 'diagnostic-one', 'submit-one', 'focused-one']);
+  assert.deepEqual(order, ['landing-one', 'diagnostic-one', 'review-one', 'focused-two', 'submit-one', 'focused-one']);
 
   // A remote run whose runner drops is requeued with its original arrival ticket: it sits behind
   // earlier runs of its own class and behind waiting reviews and submits, and the line stays in
@@ -999,6 +995,11 @@ test('a gate-slot waiter retries a locked slot database [C7]', async () => {
   const released = join(box.dir, 'lock-released');
   // The waiter's test passes only if the lock was already released when it ran.
   writeFileSync(join(box.first, 'ran.test.js'), `import assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('the waiter ran', () => assert.ok(existsSync(${JSON.stringify(released)})));\n`);
+  // The runner refuses a repository with no commit (NO_POLICY), so commit the waiter's test file first.
+  for (const args of [['add', 'ran.test.js'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture']]) {
+    const committed = spawnSync('git', args, { cwd: box.first, encoding: 'utf8' });
+    assert.equal(committed.status, 0, committed.failure);
+  }
   const env = { ...box.env, PULLBOARD_SLOT_DB_LOCK_MS: '6000' };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
   /** Hold a write lock on the machine slot database from another process for `ms`; wrapped so awaiting it waits only for the lock. */

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js apps/lib/src/io/worker/checkpoint/relay.js packages/link/src/io/relay.js packages/outbox/index.js */
 /** A relay timeout, a busy link lock or an uncertain baseline never fails a local board move [B26,H16,H17]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -90,12 +90,13 @@ async function remoteState(box, state) {
 /** After the relay answers again, every local move must be inside the one accepted baseline. */
 async function assertUploadedLater(box, texts) {
   box.stallApi(false); box.legacySnapshotApi(false);
+  // Process-level: status runs as a traced child, since in-process it stalls on the earlier stalled relay connections.
   const status = await box.cli('status');
   assert.equal(status.code, 0);
   const state = link(box);
   assert.equal(state.baselineAccepted, true, 'the next command uploads the baseline');
   assert.equal(state.baselineStale, undefined);
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   for (const text of texts) assert.ok(exported.document.tables.shout.some(row => row.shout_text === text), `local move kept: ${text}`);
   assert.equal(box.moveAcks.length, 0, 'the moves went up inside the baseline, not as ordered moves');
 }
@@ -160,16 +161,16 @@ for (const [name, setup] of [['a link whose first upload is uncertain', uncertai
 test('the public CLI waits out a lost baseline reply and sends the move in relay order [B26,H16]', async t => {
   const box = await uncertainLink(t);
   box.legacySnapshotApi(true);
-  box.loseNextSnapshotReply({ thenStateReads: { status: 503, code: 'RELAY_UNAVAILABLE' } });
-  const recover = setTimeout(() => box.rejectStateReads(null), 1500); // budget: hang ceiling for the outage the uncertain upload waits out.
-  t.after(() => clearTimeout(recover));
+  // The outage ends 1500 ms after the reply is lost, not after the test starts: a slow first in-process start
+  // used to clear it before it began, leaving state reads at 503 for the whole 110 s settle wait.
+  box.loseNextSnapshotReply({ thenStateReads: { status: 503, code: 'RELAY_UNAVAILABLE' }, recoverAfterMs: 1500 });
   const text = 'public CLI move after a lost baseline reply';
-  const result = await box.cli('shout', 'all', text);
+  const result = await box.cliLocal('shout', 'all', text);
   assert.equal(result.code, 0, JSON.stringify(result.document));
   assert.equal(box.lostSnapshotReplies().length, 1, 'the relay accepted one baseline whose reply was lost');
   assert.equal(box.moveAcks.length, 1, 'the move went through relay order once the upload was decided');
   assert.equal(link(box).baselineAccepted, true);
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.document.tables.shout.filter(row => row.shout_text === text).length, 1);
 });
 
@@ -190,6 +191,7 @@ test('a lock held past the wait refuses once with RELAY_BUSY and a retry step [B
 test('on an accepted baseline a stalled relay refuses once with a reason and the retry step, committing nothing [B26,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
+  // Process-level: status runs as a traced child, since in-process it stalls on the earlier stalled relay connections.
   assert.equal((await box.cli('status')).code, 0);
   assert.equal(link(box).baselineAccepted, true);
   box.stallApi(true);

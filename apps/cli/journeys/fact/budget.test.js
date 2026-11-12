@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads apps/cli/pullboard.js apps/cli/tests/fixtures/lock/hold/budget/preload.js */
 /** Real policy reads must precede the actual SQLite writer lease [B2,C7,V4]. */
 import assert from 'node:assert/strict';

@@ -46,6 +46,11 @@ import { timingSource } from '../run/timing.js';
 import { whileSeatAlive } from '../keepalive.js';
 import { announceTestRun } from '../../logic/test/progress.js';
 import { trackedDefaultTestFiles } from './selection.js';
+import { recordGreenRun } from '../shards/green.js';
+import {
+  preQueueReuse,
+  reuseReceipt,
+} from './action/cache.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
@@ -55,13 +60,13 @@ import {
 
 /** Give a direct full suite the same admitted execution and immutable receipt writer as a gate. */
 export async function runFullSuite(root, runner, executionServices) {
-  if (relative(root, runner).split(sep).join('/') !== 'packages/gate/src/io/run/tests.js' || !timingSource(root)) return null;
+  if (relative(root, runner).split(sep).join('/') !== 'apps/cli/src/io/run/tests.js' || !timingSource(root)) return null;
   let policy;
   try { policy = mainPolicy(root); } catch { return null; }
   const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('../main.js'), import('../execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('../admission/cpu/load.js');
-  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node packages/gate/src/io/run/tests.js --all' }, false,
+  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node apps/cli/src/io/run/tests.js --all' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
   { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), ...testRunnerAdmission(), kind: 'gate' });
   return result;
@@ -186,6 +191,23 @@ export async function localLoadStart({ read = loadavg, cores = availableParallel
 }
 
 /**
+ * Split named files into those a runner already proved under the same inputs and those that must queue. Null when
+ * nothing is reused or anything about the lookup is unavailable (including no trustedTooling handed in by the caller), so the caller runs every file as before.
+ *
+ * @returns {Promise<{ run: string[], text: string } | null>}
+ */
+async function dropReused(checkout, paths, trustedTooling) {
+  try {
+    if (process.env.PULLBOARD_TEST_REUSE === '0') return null;
+    if (typeof trustedTooling !== 'function') return null;
+    const split = await preQueueReuse(checkout, headCommit(checkout), paths, trustedTooling().tooling.sha256);
+    if (!split.reused.size) return null;
+    // All reused: the stored TAP is the proof. Mixed: the runner's own TAP counts what ran, the reused files are named.
+    return { run: split.run, text: reuseReceipt(split.reused, { tap: !split.run.length }) };
+  } catch { return null; }
+}
+
+/**
  * Run named test files through a gate slot, which deals them to the registered runners first (#1054); the focused
  * runner (pullboard.json affectedTests) gives each file its timeout. A red file is compared with main's recorded
  * result for that file, so a failure main already has reads as known. A single named file skips that comparison
@@ -198,7 +220,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
   if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
-    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node packages/gate/src/io/run/tests.js"');
+    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
   }
   let paths = affected ? [] : testFiles(root, files);
   if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');
@@ -210,6 +232,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   const noRunners = !(loadMachineSettings().runners ?? []).length;
   const loadStart = noRunners && !admission.runnerOnly ? await localLoadStart({ onWait }) : null;
   // The claim stays live for the whole run: a long runner wait must not look like a gone seat (#3430).
+  let requested = null;
   const run = await whileSeatAlive(root, () => inCleanCheckout(root, async (checkout) => {
     let full = false;
     if (policy) {
@@ -220,18 +243,33 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
       paths = [...new Set([...(full ? [] : selection.files), ...guards])].sort();
       if (paths.length) paths = testFiles(checkout, paths);
     }
+    // Files whose inputs match a runner-completed green never queue: no slot is held for them [C7].
+    let reusedText = '';
+    if (!full && !diagnose && paths.length) {
+      const split = await dropReused(checkout, paths, executionServices?.runners?.trustedTooling);
+      if (split) {
+        reusedText = split.text;
+        requested = paths;
+        if (!split.run.length) return { isGreen: true, output: split.text + '# all ' + paths.length + ' test files reused; none ran\n', executionRunner: null, reusedAll: true };
+        requested = paths;
+        paths = split.run;
+      }
+    }
     const focused = paths.length ? `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}` : '';
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
-    return withGateSlot(checkout, async (lease) => {
+    const ran = await withGateSlot(checkout, async (lease) => {
       const stop = typeof say === 'function' ? announceTestRun(say, { host: lease.runner?.host, files: paths, ...timers }) : () => {};
       try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
     },
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full && !diagnose, agent, item, itemCheck: Boolean(item) && !diagnose, diagnostic: diagnose, kind: 'test', onWait });
+    // A green runner run of named files is the gate's proof of them at this tree: the submit's item check takes it [C7].
+    if (!full && !diagnose && ran?.isGreen) recordGreenRun(ran, { runner: config.affectedTests, files: paths, timingRunId: ran.id ?? null });
+    return reusedText && typeof ran?.output === 'string' ? { ...ran, output: reusedText + ran.output } : ran;
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
-  const result = { green: run.isGreen, output: diagnose && !run.isGreen ? readFileSync(summary.logPath, 'utf8') : renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
+  const result = { green: run.isGreen, output: diagnose && !run.isGreen ? readFileSync(summary.logPath, 'utf8') : renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: requested ?? paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: loadStart ? `${localReason()}; ${loadStart.note}` : localReason() }) };
   // A one-file run is a builder diagnosing its own red: main's run of that file waits for a second runner slot and
   // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).

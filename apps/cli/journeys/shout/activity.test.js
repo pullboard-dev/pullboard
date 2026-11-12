@@ -53,7 +53,7 @@ const verifiedIsFinal = Boolean(MACHINE.states.find((state) => state.id === 'ver
 
 test('activity shows each submit note and verdict with landing evidence [N26]', { timeout: 120_000 }, async () => {
   const box = machine(), alpha = project(box, 'activity-evidence');
-  box.run(alpha.repo, 'add', 'web', 'Readable evidence', '--specs', 'G1', '--criterion', 'Evidence is readable.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Readable evidence', '--specs', 'G1', '--criterion', 'Evidence is readable.');
   // @pullboard-board-file journey: native event records are served to the real Activity browser view.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -191,8 +191,8 @@ test('the activity lifecycle draws a move out of a state below the row [N26, M1]
 test("the history is a timeline of the item's states [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   build(box, alpha, 1, 'greeting.html');
   sendBack(box, alpha, 1, 'no greeting');
   build(box, alpha, 1, 'greeting-again.html');
@@ -200,8 +200,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge fixture item', alpha.branch);
   const trunkCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
   assert.notEqual(trunkCommit, box.git(alpha.repo, 'rev-parse', alpha.branch), 'the receipt names the trunk merge commit');
-  box.run(alpha.repo, 'merged', '1', trunkCommit);
-  box.run(alpha.web, 'claim', '2');
+  await box.inProcess(alpha.repo, 'merged', '1', trunkCommit);
+  await box.inProcess(alpha.web, 'claim', '2');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -210,19 +210,21 @@ test("the history is a timeline of the item's states [N26]", async () => {
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
       ['tl-open', 'coordinator added this work'],
       ['tl-claimed', 'web-1 claimed it'],
-      ['tl-claimed', 'web-1 continued building'],
+      ['tl-claimed tl-quiet', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
+      ['tl-fact', 'web-1 recorded a measurement'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-open tl-back', 'coordinator sent it back'],
       ['tl-claimed', 'web-1 claimed it'],
-      ['tl-claimed', 'web-1 continued building'],
+      ['tl-claimed tl-quiet', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
+      ['tl-fact', 'web-1 recorded a measurement'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-verified', 'coordinator passed it'],
       ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
-    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
-    assert.ok(done.filter(row => !row.dot.includes('tl-quiet')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
+    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', '', 'now', 'submitted for', 'sent back for', 'claimed for', '', '', 'now', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
+    assert.ok(done.filter(row => !row.dot.includes('tl-quiet') && !row.dot.includes('tl-fact')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
     assert.ok(done.every((row) => /^\d{1,2}:\d\d [AP]M$/.test(row.time)), 'every event keeps its time');
 
     await page.click({ go: 'item:2' });
@@ -264,21 +266,21 @@ test("the history is a timeline of the item's states [N26]", async () => {
 test('the activity tab draws the lifecycle from the declaration, as the README does, with live counts [N26, M1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar', 'Banner', 'Menu', 'Search']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar', 'Banner', 'Menu', 'Search']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'greeting.html');
   accept(box, alpha, 1);
   build(box, alpha, 2, 'farewell.html');
   sendBack(box, alpha, 2, 'no farewell');
   // Withdrawn from claimed twice, from submitted once and from open once, so each route has its count.
   for (const id of ['6', '8']) {
-    box.run(alpha.web, 'claim', id);
-    box.run(alpha.repo, 'withdraw', id, 'not this release');
+    await box.inProcess(alpha.web, 'claim', id);
+    await box.inProcess(alpha.repo, 'withdraw', id, 'not this release');
   }
   build(box, alpha, 7, 'menu.html');
-  box.run(alpha.repo, 'withdraw', '7', 'the menu moved to the next release');
-  box.run(alpha.web, 'claim', '3');
-  box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'withdraw', '4', 'the footer moved to the next release');
+  await box.inProcess(alpha.repo, 'withdraw', '7', 'the menu moved to the next release');
+  await box.inProcess(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.repo, 'withdraw', '4', 'the footer moved to the next release');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -300,7 +302,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     const keeping = MACHINE.states.filter((state) => MACHINE.moves.some((move) => move.to === state.id && move.from.includes(state.id))).map((state) => state.id);
     assert.deepEqual(Object.fromEntries(boxes.filter((entry) => entry.keeps).map((entry) => [entry.state, entry.keeps])), {
       open: '↻ release · escalate · refreeze (none yet)',
-      claimed: '↻ claim 4',
+      claimed: '↻ claim 1',
       submitted: '↻ patch · reserve (none yet)',
       verified: '↻ accept (none yet)',
     });
@@ -325,7 +327,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     // Each declared route retains its own move label and observed count.
     assert.deepEqual(Object.fromEntries(routes.map((route) => [route.pair, route.label])), {
       'open>claimed': 'claim 6',
-      'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
+      'claimed>open': 'patch-objected · release · lapse · escalate · refreeze (none yet)',
       'claimed>submitted': 'submit 3',
       'claimed>verified': 'submit-merge (none yet)',
       'open>verified': 'rehomeImport (none yet)',
@@ -361,7 +363,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       if (one.span === other.span) assert.equal(one.y, other.y, 'equal-span returns share their declared level');
       else if (one.span > other.span) assert.ok(one.y < other.y, 'longer returns clear shorter return levels');
     }
-    assert.match(await styleOf(view), /\n\.flow \.edge\.back \{ stroke: var\(--reject\); stroke-dasharray: 5 4; \}/, 'dashed');
+    assert.match(await styleOf(view), /\n\.flow \.edge\.back \{ stroke: var\(--mark-back\); stroke-dasharray: 5 4; \}/, 'dashed');
 
     // No word comes within two units of another, a box it is not in, or a route.
     const texts = textBoxes(svg);
@@ -397,7 +399,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
 test('a closed lifecycle stays closed, across a reload and a restart of the view [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   const first = await startView(box);
   const store = storage();
   let port;
@@ -447,9 +449,9 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
 test('ages stay true while the board is quiet [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--kind', 'decision', '--decision');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -477,9 +479,9 @@ test('ages stay true while the board is quiet [N26]', async () => {
 test('times say which day they were [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
-  box.run(alpha.repo, 'shout', 'web', '#1 is in');
+  await box.inProcess(alpha.repo, 'shout', 'web', '#1 is in');
   const view = await startView(box);
   try {
     const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>|<div class="day-rule" role="separator"><span>([^<]*)<\/span><\/div>/g)].map((match) => match[1] ?? match[2]);
@@ -511,7 +513,7 @@ test('times say which day they were [N26]', async () => {
     assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
     assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
     const history = times(later.show('detail'));
-    assert.ok(history.length === 5 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
+    assert.ok(history.length === 6 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
 
     // A heading wherever the day changes, and only there.
     const at = (day, hour) => new Date(2026, 9, day, hour).toISOString();
@@ -532,14 +534,14 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
 
   const box = machine();
   const demo = project(box, 'said');
-  box.run(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
-  box.run(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
-  for (let n = 1; n <= 40; n++) box.run(demo.repo, 'shout', 'web', `Filler ${n}`);
+  await box.inProcess(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
+  for (let n = 1; n <= 40; n++) await box.inProcess(demo.repo, 'shout', 'web', `Filler ${n}`);
   const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
-  box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
-  box.run(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
-  box.run(demo.repo, 'lanes', 'lead', 'web', 'web-1');
-  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
+  await box.inProcess(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
+  await box.inProcess(demo.repo, 'shout', 'all', 'The private news release is ready.', '--news');
+  await box.inProcess(demo.repo, 'lanes', 'lead', 'web', 'web-1');
+  await box.inProcess(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--kind', 'decision', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
   let chrome;
@@ -548,7 +550,7 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
     const [board] = (await (await fetchLive(`${view.base}/api/v1/boards`, { headers })).json()).boards;
     const state = (await (await fetchLive(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
     const ask = state.asked.find((row) => row.shout_text === 'Ship the greeting today?');
-    box.run(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
+    await box.inProcess(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
     const asker = ask.shout_from;
 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -611,8 +613,8 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
 test('activity names the item each event moved [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting <b>bold</b>', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting <b>bold</b>', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -634,9 +636,9 @@ test('older history says it is still loading until the stream completes [N26,H5]
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the history-loading proof.');
   const box = machine();
   const streaming = project(box, 'streaming');
-  box.run(streaming.repo, 'add', 'web', 'Greet the visitor', '--criterion', 'greets');
-  box.run(streaming.repo, 'shout', 'web', 'The oldest shout, read once the feed reaches its end');
-  for (let n = 1; n <= 41; n++) box.run(streaming.repo, 'shout', 'web', `Filler ${n}`);
+  await box.inProcess(streaming.repo, 'add', 'web', 'Greet the visitor', '--criterion', 'greets');
+  await box.inProcess(streaming.repo, 'shout', 'web', 'The oldest shout, read once the feed reaches its end');
+  for (let n = 1; n <= 41; n++) await box.inProcess(streaming.repo, 'shout', 'web', `Filler ${n}`);
   const live = await startView(box);
   const reads = [];
   // The relay transport's shape (#903): board reads, plus historyProgress(boardId) the test moves by hand.

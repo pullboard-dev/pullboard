@@ -67,7 +67,6 @@
     "apps/cli/tests/fixtures/chrome.js": 156,
     "test/chrome-fixture.test.js": 206,
     "apps/cli/journeys/shout/activity.test.js": 134,
-    "apps/cli/journeys/export/addresses.test.js": 131,
     "apps/cli/journeys/agents/main.test.js": 44,
     "apps/cli/journeys/hold/demo.test.js": 1228,
     "apps/cli/tests/fixtures/cockpit/harness.js": 786,
@@ -123,7 +122,6 @@
     "apps/cli/journeys/relay/sealed.test.js": 986,
     "apps/cli/journeys/relay/setup/once.test.js": 49,
     "apps/cli/journeys/relay/setup.test.js": 102,
-    "apps/cli/journeys/relay/snapshot/size.test.js": 91,
     "apps/cli/journeys/relay/upload.test.js": 79,
     "apps/cli/journeys/relay/main.test.js": 976,
     "test/reopen.test.js": 451,
@@ -139,7 +137,6 @@
     "apps/cli/journeys/spec/approval.test.js": 127,
     "apps/cli/journeys/spec/main.test.js": 765,
     "test/stats-flow.test.js": 51,
-    "apps/cli/journeys/submit/gate.test.js": 998,
     "test/team.test.js": 911,
     "apps/cli/journeys/test/resources.test.js": 277,
     "apps/cli/journeys/view/port.test.js": 233

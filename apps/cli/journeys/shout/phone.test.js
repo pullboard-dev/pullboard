@@ -14,7 +14,8 @@ import { ENGINE_VERSION } from "../../../../packages/state/index.js";
 
 const outboxUrl = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/outbox/index.js')).href;
 const linkUrl = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/link/index.js')).href;
-const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../src/' + name + '.js')).href;
+const storeUrl = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/store/index.js')).href;
+const libUrl = pathToFileURL(resolve(import.meta.dirname, '../../../lib/index.js')).href;
 
 /**
  * Post one genuine phone answer request through the real relay, claim it as this machine's executor,
@@ -34,10 +35,10 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
   const result = await box.script(`
     const {syncRelay,relayRequestDevice,relayOperation}=await import(${JSON.stringify(linkUrl)});
     const {personRequestRecords,requestIntentDigest,requestStageText}=await import(${JSON.stringify(linkUrl)});
-    const store=await import(${JSON.stringify(url('board'))});
+    const store=await import(${JSON.stringify(storeUrl)});
     const {openBoard,nativeBoardPorts}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../lib/index.js')).href)});
     const {replay:replayConflictRecord,ACKNOWLEDGED_OPERATIONS,outboxQueueable,...outboxDoors}=await import(${JSON.stringify(outboxUrl)});
-    const {loadConfig}=await import(${JSON.stringify(url('config'))});
+    const {loadConfig}=await import(${JSON.stringify(libUrl)});
     const {laneNames}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../../packages/seats/index.js')).href)});
     const root=process.cwd(), sink={isTTY:false,write(){}};
     const io={...outboxDoors,replayConflictRecord,outboxPolicy:()=>({acknowledgedOperations:ACKNOWLEDGED_OPERATIONS,outboxQueueable}),openBoard,nativeBoardPorts,cwd:root,stdout:sink,stderr:sink,say(){},err(){},onEvent(){},skipPersonRequests:true};
@@ -68,7 +69,7 @@ async function linkedBoard(t) {
   const box = await relayClientFixture(t);
   await box.link();
   const ask = async (text) => {
-    const asked = await box.cli('shout', 'person', text, '--decision');
+    const asked = await box.cliLocal('shout', 'person', text, '--decision');
     assert.equal(asked.code, 0, JSON.stringify(asked.document));
     return asked.document.id;
   };

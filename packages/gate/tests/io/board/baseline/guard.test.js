@@ -48,14 +48,20 @@ test('the board-file debt ratchet names outstanding tests and prevents new logic
 });
 
 /** Moving a test relocates its existing debt; neither spelling gains another allowance. */
-test('store test moves retain exact board-file ceilings and refuse one extra open [C7]', () => {
+test('moved store tests retain exact board-file ceilings and refuse one extra open [C7]', () => {
   const moved = {
-    'api-identity': 8, badge: 1, 'board-capture': 4, 'claim-reopen-clock': 1,
-    'commit-metadata': 1, 'landing-noop': 1, 'shout-readable': 1,
-    'stacked-submit': 2, 'verdict-check': 2, verify: 1,
+    'api-identity': ['packages/store/tests/io/board.test.js', 8],
+    badge: ['apps/cli/journeys/badge/main.test.js', 1],
+    'board-capture': ['packages/store/tests/io/board/capture.test.js', 4],
+    'claim-reopen-clock': ['packages/moves/tests/logic/moves/claim.test.js', 1],
+    'commit-metadata': ['apps/cli/journeys/release/metadata.test.js', 1],
+    'landing-noop': ['apps/cli/journeys/land/landing/noop.test.js', 1],
+    'shout-readable': ['apps/cli/journeys/shout/readable.test.js', 1],
+    'stacked-submit': ['apps/cli/journeys/submit/stacked.test.js', 2],
+    'verdict-check': ['apps/cli/journeys/verify/check.test.js', 2],
+    verify: ['apps/cli/journeys/verify/main.test.js', 1],
   };
-  for (const [name, ceiling] of Object.entries(moved)) {
-    const path = `packages/store/tests/${name}.test.js`;
+  for (const [name, [path, ceiling]] of Object.entries(moved)) {
     const legacy = `test/${name}.test.js`;
     assert.equal(BOARD_FILE_BASELINE[path], ceiling);
     assert.equal(Object.hasOwn(BOARD_FILE_BASELINE, legacy), false);

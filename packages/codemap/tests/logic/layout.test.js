@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js apps/cli/pullboard.js apps/cli/src/io/commands/push-receipts.js apps/cli/src/io/commands/tool-build.js packages/codemap/src/io/layout.js packages/kernel/index.js */
 /** The layout check names every root, cell-entry, test and naming violation and holds the counts to a baseline that only lowers [V32,V33]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

@@ -2,6 +2,9 @@
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
+import { isSourceCellLine } from './inputs.js';
+import { readsChangedCell } from './inputs.js';
+import { sourceCellPrefixes } from './inputs.js';
 import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
@@ -26,6 +29,7 @@ import {
   mainCommit,
 } from '../../../../codemap/index.js';
 import { newPackageCliReach } from '../../logic/reach.js';
+import { newKeylessImports } from '../../logic/reach.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -34,7 +38,7 @@ const DOC = /^docs\/.+\.md$/u;
 const TEST_TREE_INPUT = '/** @pullboard-test-input test-tree */';
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
 const COMMAND_REGISTRY = 'apps/cli/src/io/commands/index.js';
-const GLOBAL = new Set(['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
+const GLOBAL = new Set(['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
 function declaredInputs(source, paths) {
@@ -43,6 +47,7 @@ function declaredInputs(source, paths) {
   for (const line of declarations) {
     const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
     if (!match) return null;
+    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return null; continue; }
     for (const value of match[1].trim().split(/\s+/u)) {
       if (['source-tree', 'test-tree', 'docs-tree'].includes(value)) continue;
       if (value.startsWith('/') || value.split('/').some(part => !part || part === '..' || part === '.')) return null;
@@ -375,6 +380,20 @@ export function cliReachRows(root) {
     `cliReach:${module}: reaches ${path.at(-1)} through ${path.join(' -> ')}, which it did not on main ${main.slice(0, 12)}; next: pass the CLI-side entry point in as a parameter or move the shared piece down into a package`);
 }
 
+/**
+ * One refusal row per module a test closure reaches whose import the graph cannot read at HEAD but could on accepted
+ * main. Every test reaching it loses its closure key and reruns at every landing, so cell-lints refuses it (#5840).
+ *
+ * @param {string} root
+ * @returns {string[]} Empty when main is unknown or no reached module newly hides its imports.
+ */
+export function keylessRows(root) {
+  const main = mainCommit(root);
+  if (!main) return [];
+  return newKeylessImports(codeMapGraph(root, main), codeMapGraph(root, 'HEAD'), path => TEST.test(path)).map(({ module, reason, tests }) =>
+    `keyless:${module}: ${reason}, reached by ${tests} test file(s), which main ${main.slice(0, 12)} could read; next: import a literal path, or declare every module it loads in a leading /** @pullboard-module-loads <paths> */ header`);
+}
+
 /** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
 function closuresInGraph(graph) {
   const forward = new Map();
@@ -410,7 +429,7 @@ function closuresInGraph(graph) {
     const reached = new Set(entries.filter(path => graph.blobs.has(path)));
     for (const path of reached) {
       let dependencies = forward.get(path) ?? [];
-      if (withoutSelectedRunnerModules && ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'].includes(path)) {
+      if (withoutSelectedRunnerModules && ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'].includes(path)) {
         // These two ** declarations admit caller-selected reporters and test files. The caller
         // refuses custom reporters and keys each selected test's own complete closure. Keep every literal import and URL guard, and all other modules'
         // conservative discovery edges; ordinary affected-test selection still follows **.
@@ -469,6 +488,17 @@ function renamedPaths(root, base, commit) {
   return renames;
 }
 
+/** One test's reason for joining a gate: the changed file and import chain that reached it, or what forced it in. */
+function selectionReason(test, via, changed, isReached, unresolved) {
+  if (isReached) {
+    const chain = [test];
+    for (let at = via.get(test); at !== undefined && chain.length < 50; at = via.get(at)) chain.push(at);
+    return chain.length === 1 ? `changed: ${test}` : `${chain.at(-1)} -> ${chain.slice(0, -1).reverse().join(' -> ')}`;
+  }
+  const hit = unresolved.find(line => line.startsWith(`${test}: `));
+  return hit ? `unresolved closure: ${hit.slice(test.length + 2)}` : 'reads a changed test or source tree';
+}
+
 /**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
@@ -509,11 +539,13 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
     const reached = new Set(changed);
     const queue = [...changed];
+    // Why each path joined: the path that reached it, so a selected test can name its changed file and import chain.
+    const via = new Map();
     for (const doc of changed.filter(path => DOC.test(path))) {
       for (const graph of [before, after]) {
         for (const [reader, inputs] of graph.docInputs) {
           if ([...inputs].some(input => input === doc || doc.startsWith(input + '/'))) {
-            if (!reached.has(reader)) { reached.add(reader); queue.push(reader); }
+            if (!reached.has(reader)) { reached.add(reader); via.set(reader, doc); queue.push(reader); }
           }
         }
       }
@@ -523,22 +555,27 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       for (const graph of [before, after]) {
         if (graph.unknown.has(path)) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
-          if (!reached.has(importer)) { reached.add(importer); queue.push(importer); }
+          if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
         }
       }
     }
     const changedTestInput = changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path) || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
     const changedSourceInput = changed.some(path => /^(?:src|bin|packages|apps)\//u.test(path));
     // An opaque loader may read any changed dependency: retain its roots without inventing missing edges.
+    // A change with no code module in it cannot reach an opaque loader's import closure, so it retains no root [V4].
+    const codeChanged = changed.some(path => MODULE.test(path));
     const unknownRoots = [before, after].map(graph => unknownRootTests(graph, path => TEST.test(path)));
-    const unknownRoot = path => unknownRoots.some(roots => roots.has(path));
+    const unknownRoot = path => codeChanged && unknownRoots.some(roots => roots.has(path));
     const rootReason = path => (unknownRoots[1].has(path) ? unknownRoots[1] : unknownRoots[0]).reasonOf(path);
-    const selected = files.filter(path => reached.has(path) || unknownRoot(path)
+    const cellReads = path => changedSourceInput && [before, after].some(graph => readsChangedCell(headerLines(graph.modules.get(path) ?? ''), changed));
+    const selected = files.filter(path => reached.has(path) || unknownRoot(path) || cellReads(path)
       || (changedTestInput && (before.testTreeReaders.has(path) || after.testTreeReaders.has(path)))
       || (changedSourceInput && (before.sourceTreeReaders.has(path) || after.sourceTreeReaders.has(path))));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };
-    const unresolved = selected.filter(unknownRoot).map(path => `${path}: ${rootReason(path)}`);
-    return { full: false, reason: unresolved.length ? `unresolved root closures retained: ${unresolved.join('; ')}` : '', files: selected };
+    const unresolved = selected.filter(path => unknownRoot(path) && !reached.has(path)).map(path => `${path}: ${rootReason(path)}`);
+    const retained = selected.filter(unknownRoot).map(path => `${path}: ${rootReason(path)}`);
+    return { full: false, reason: retained.length ? `unresolved root closures retained: ${retained.join('; ')}` : '', files: selected,
+      reasons: Object.fromEntries(selected.map(path => [path, selectionReason(path, via, changed, reached.has(path), unresolved)])) };
   } catch (error) {
     if (error?.code === 'MAIN_FACTS_BUSY') throw error;
     return { full: true, reason: `import selection could not be computed: ${error.message}`, files };

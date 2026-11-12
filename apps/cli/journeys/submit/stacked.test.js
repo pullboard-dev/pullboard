@@ -53,8 +53,8 @@ after(async () => {
 });
 
 /** Add a work item through the fixture's real CLI. */
-function add(box, lane, title) {
-  const result = fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', title);
+async function add(box, lane, title) {
+  const result = (await fixtureAdd(box.runLocal, box.repo, lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', title));
   assert.equal(result.code, 0, result.out + result.err);
   return Number(result.out.match(/#(\d+)/u)?.[1]);
 }
@@ -79,39 +79,40 @@ function assertStackRefusal(result, itemId, commit) {
   assert.match(error.message, /rebuild without/iu);
 }
 
-test('clause 1, clause 2: [V17] submit refuses a candidate stacked on another item until it is accepted', () => {
+test('clause 1, clause 2: [V17] submit refuses a candidate stacked on another item until it is accepted', async () => {
   const box = e2e.project('true');
-  const first = add(box, 'web', 'First submission');
-  assert.equal(box.run(box.web, 'claim', String(first)).code, 0);
+  const first = (await add(box, 'web', 'First submission'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
   const firstCommit = commitFile(box, box.web, 'web/first.txt', 'first submission');
-  assert.equal(box.run(box.web, 'submit', String(first)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
 
-  const stacked = add(box, 'web', 'Stacked submission');
-  assert.equal(box.run(box.web, 'claim', String(stacked)).code, 0);
+  const stacked = (await add(box, 'web', 'Stacked submission'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(stacked))).code, 0);
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'stacked submission');
-  assertStackRefusal(box.run(box.web, 'submit', String(stacked), '--json'), first, firstCommit);
-  assert.equal(JSON.parse(box.run(box.web, 'show', String(stacked), '--json').out).item_status, 'claimed');
+  assertStackRefusal((await box.runLocal(box.web, 'submit', String(stacked), '--json')), first, firstCommit);
+  assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(stacked), '--json')).out).item_status, 'claimed');
 
   const review = join(box.dir, 'review-first');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, firstCommit);
-  assert.match(fixtureJoin(box.run, review, 'api', '--model', FIXTURE_MODEL, '--route', 'strong').out, /joined as api-1/u);
-  const accepted = box.run(review, 'verify', String(first), 'accept', '--note', 'checked the submitted change', '--json');
+  assert.match((await fixtureJoin(box.runLocal, review, 'api', '--model', FIXTURE_MODEL, '--route', 'strong')).out, /joined as api-1/u);
+  const accepted = (await box.runLocal(review, 'verify', String(first), 'accept', '--note', 'checked the submitted change', '--json'));
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
-  const resubmitted = box.run(box.web, 'submit', String(stacked), '--json');
+  const resubmitted = (await box.runLocal(box.web, 'submit', String(stacked), '--json'));
   assert.equal(resubmitted.code, 0, resubmitted.out + resubmitted.err);
-  assert.equal(JSON.parse(box.run(box.web, 'show', String(stacked), '--json').out).item_commit, stackedCommit);
+  assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(stacked), '--json')).out).item_commit, stackedCommit);
 });
 
-test('[V17] accept refuses a historical candidate stacked on another item', () => {
+test('[V17] accept refuses a historical candidate stacked on another item', async () => {
   const box = e2e.project('true');
-  const first = add(box, 'web', 'Unverified history');
-  assert.equal(box.run(box.web, 'claim', String(first)).code, 0);
+  const first = (await add(box, 'web', 'Unverified history'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
   const firstCommit = commitFile(box, box.web, 'web/first.txt', 'unverified history');
-  assert.equal(box.run(box.web, 'submit', String(first)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
 
-  const stacked = add(box, 'web', 'Historical stacked submission');
-  assert.equal(box.run(box.web, 'claim', String(stacked)).code, 0);
+  const stacked = (await add(box, 'web', 'Historical stacked submission'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(stacked))).code, 0);
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'historical stacked submission');
+  // @pullboard-board-file journey: read the board file the real CLI submission wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     submitFixture(board, stacked, {
@@ -126,34 +127,35 @@ test('[V17] accept refuses a historical candidate stacked on another item', () =
 
   const review = join(box.dir, 'review-stacked');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, stackedCommit);
-  assert.match(fixtureJoin(box.run, review, 'api', '--model', FIXTURE_MODEL, '--route', 'strong').out, /joined as api-1/u);
-  assertStackRefusal(box.run(review, 'verify', String(stacked), 'accept', '--note', 'reviewed historical submission', '--json'), first, firstCommit);
-  assert.equal(JSON.parse(box.run(review, 'show', String(stacked), '--json').out).item_status, 'submitted');
+  assert.match((await fixtureJoin(box.runLocal, review, 'api', '--model', FIXTURE_MODEL, '--route', 'strong')).out, /joined as api-1/u);
+  assertStackRefusal((await box.runLocal(review, 'verify', String(stacked), 'accept', '--note', 'reviewed historical submission', '--json')), first, firstCommit);
+  assert.equal(JSON.parse((await box.runLocal(review, 'show', String(stacked), '--json')).out).item_status, 'submitted');
 });
 
 /**
  * Create private history where a claimed item is placed at an unverified submission on trunk. Historical placement
  * records the unverified commit itself; a live single-checkout submit gets its own commit on trunk above it [V17,V1].
  */
-function trunkStack(box, { historical = false } = {}) {
-  const stacked = add(box, 'coordinator', 'Single-checkout stack');
-  assert.equal(box.run(box.repo, 'claim', String(stacked)).code, 0);
-  const first = add(box, 'web', 'Unverified trunk commit');
-  assert.equal(box.run(box.web, 'claim', String(first)).code, 0);
+async function trunkStack(box, { historical = false } = {}) {
+  const stacked = (await add(box, 'coordinator', 'Single-checkout stack'));
+  assert.equal((await box.runLocal(box.repo, 'claim', String(stacked))).code, 0);
+  const first = (await add(box, 'web', 'Unverified trunk commit'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
   const firstCommit = commitFile(box, box.web, 'web/trunk.txt', 'unverified trunk commit');
-  assert.equal(box.run(box.web, 'submit', String(first)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
 
   box.git(box.repo, 'merge', '--ff-only', '-q', 'web/one');
   const trunkHead = box.git(box.repo, 'rev-parse', 'HEAD');
   assert.equal(trunkHead, firstCommit);
   if (historical) {
+    // @pullboard-board-file journey: read the board file the real CLI submission wrote
     const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
     try {
       submitFixture(board, stacked, {
         agentId: 'coordinator',
         commit: trunkHead,
         tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}'),
-        policyCommit: JSON.parse(box.run(box.repo, 'show', String(stacked), '--json').out).item_claim_head,
+        policyCommit: JSON.parse((await box.runLocal(box.repo, 'show', String(stacked), '--json')).out).item_claim_head,
       });
     } finally {
       store.closeBoard(board);
@@ -165,42 +167,42 @@ function trunkStack(box, { historical = false } = {}) {
   return { first, firstCommit, stacked, trunkHead: commitFile(box, box.repo, 'web/single-checkout.txt', 'single-checkout stacked change') };
 }
 
-test('[V17,V1] single-checkout submit allows an unverified head already on trunk', () => {
+test('[V17,V1] single-checkout submit allows an unverified head already on trunk', async () => {
   const box = e2e.project('true');
-  const { first, firstCommit, stacked, trunkHead } = trunkStack(box);
+  const { first, firstCommit, stacked, trunkHead } = (await trunkStack(box));
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), trunkHead);
-  const result = box.run(box.repo, 'submit', String(stacked), '--json');
+  const result = (await box.runLocal(box.repo, 'submit', String(stacked), '--json'));
   assert.equal(result.code, 0, result.out + result.err);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(stacked), '--json').out).item_commit, trunkHead);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(first), '--json').out).item_status, 'submitted');
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(stacked), '--json')).out).item_commit, trunkHead);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(first), '--json')).out).item_status, 'submitted');
 });
 
-test('[V17,V1] detached accept allows an unverified head already on trunk', () => {
+test('[V17,V1] detached accept allows an unverified head already on trunk', async () => {
   const box = e2e.project('true');
-  const { first, firstCommit, stacked, trunkHead } = trunkStack(box, { historical: true });
+  const { first, firstCommit, stacked, trunkHead } = (await trunkStack(box, { historical: true }));
   const review = join(box.dir, 'review-trunk');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, trunkHead);
-  assert.match(fixtureJoin(box.run, review, 'api', '--model', FIXTURE_MODEL, '--route', 'strong').out, /joined as api-1/u);
-  const result = box.run(review, 'verify', String(stacked), 'accept', '--note', 'checked detached trunk history', '--json');
+  assert.match((await fixtureJoin(box.runLocal, review, 'api', '--model', FIXTURE_MODEL, '--route', 'strong')).out, /joined as api-1/u);
+  const result = (await box.runLocal(review, 'verify', String(stacked), 'accept', '--note', 'checked detached trunk history', '--json'));
   assert.equal(result.code, 0, result.out + result.err);
-  assert.equal(JSON.parse(box.run(review, 'show', String(stacked), '--json').out).item_status, 'verified');
-  assert.equal(JSON.parse(box.run(review, 'show', String(first), '--json').out).item_status, 'submitted');
+  assert.equal(JSON.parse((await box.runLocal(review, 'show', String(stacked), '--json')).out).item_status, 'verified');
+  assert.equal(JSON.parse((await box.runLocal(review, 'show', String(first), '--json')).out).item_status, 'submitted');
 });
 
-test('[V17] a trunk-merged unverified commit is outside a newer candidate range', () => {
+test('[V17] a trunk-merged unverified commit is outside a newer candidate range', async () => {
   const box = e2e.project('true');
-  const first = add(box, 'web', 'Merged submission');
-  assert.equal(box.run(box.web, 'claim', String(first)).code, 0);
+  const first = (await add(box, 'web', 'Merged submission'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
   const firstCommit = commitFile(box, box.web, 'web/first.txt', 'merged submission');
-  assert.equal(box.run(box.web, 'submit', String(first)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
   box.git(box.repo, 'merge', '--ff-only', '-q', 'web/one');
 
-  const stacked = add(box, 'web', 'After trunk merge');
-  assert.equal(box.run(box.web, 'claim', String(stacked)).code, 0);
+  const stacked = (await add(box, 'web', 'After trunk merge'));
+  assert.equal((await box.runLocal(box.web, 'claim', String(stacked))).code, 0);
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'after trunk merge');
   assert.notEqual(stackedCommit, firstCommit);
-  const submitted = box.run(box.web, 'submit', String(stacked), '--json');
+  const submitted = (await box.runLocal(box.web, 'submit', String(stacked), '--json'));
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  assert.equal(JSON.parse(box.run(box.web, 'show', String(stacked), '--json').out).item_commit, stackedCommit);
-  assert.equal(JSON.parse(box.run(box.web, 'show', String(first), '--json').out).item_status, 'submitted');
+  assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(stacked), '--json')).out).item_commit, stackedCommit);
+  assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(first), '--json')).out).item_status, 'submitted');
 });

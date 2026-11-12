@@ -39,12 +39,22 @@ export function testBlob(root, commit, file) {
  */
 export function defectPassedAtTrunk(root, trunk, defect, comparison = cachedMainComparison) {
   if (!Array.isArray(defect.names) || !defect.names.length) return false;
+  // A green run of the original test cannot clear a defect observed with different candidate-only test bytes.
+  if (defect.blob && defect.trunkBlob && defect.blob !== defect.trunkBlob
+    && testBlob(root, trunk.commit, defect.test) === defect.trunkBlob) return false;
   let entry;
   try { entry = comparison(root, trunk.commit, [defect.test]).files?.find(row => row.file === defect.test); } catch { return false; }
   if (!entry) return false;
   if (entry.result === 'green') return true;
   const failures = entry.result === 'red' ? cachedFailureSignatures(entry, defect.test) : undefined;
   return Array.isArray(failures) && failures.length > 0 && !failures.some(row => defect.names.includes(row.name));
+}
+
+/** An interaction defect cannot be cleared by a green test run on the same trunk that produced it. */
+function defectAtOriginalTrunk(board, trunk, defect) {
+  if (!defect.batchId) return false;
+  const batch = store.landingBatches(board).find(entry => entry.id === defect.batchId);
+  return Boolean(batch?.base && batch.base === trunk.commit);
 }
 
 /** The repair item statuses under which a test defect still holds its trunk: its repair is still outstanding [C7]. */
@@ -80,7 +90,8 @@ export function heldTestDefects(root, board, trunk, landingPorts, { defects = st
     if (defect.branch !== trunk.branch) return [];
     if (!defectStillHolds(board, defect, getItem)) return [];
     const status = defectItemStatus(board, defect, getItem);
-    const holds = !defectReleasedWithoutRun(root, board, trunk, defect, landingPorts) && !defectPassedAtTrunk(root, trunk, defect, comparison);
+    const holds = !defectReleasedWithoutRun(root, board, trunk, defect, landingPorts)
+      && (defectAtOriginalTrunk(board, trunk, defect) || !defectPassedAtTrunk(root, trunk, defect, comparison));
     return holds ? [{ ...defect, status: status ?? undefined }] : [];
   });
 }
@@ -114,6 +125,7 @@ export async function closePassedTestDefects({ root, board, trunk, write, say = 
     if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item)) continue;
     // A defect whose repair item was withdrawn or landed holds nothing, so its test is not run for it (#3761).
     if (!defectStillHolds(board, defect)) continue;
+    if (defectAtOriginalTrunk(board, trunk, defect)) continue;
     if (!defectPassedAtTrunk(root, trunk, defect, comparison)) {
       // A changed or waived test holds nothing, so no runner run stands between the accept and its landing [C7].
       if (defectReleasedWithoutRun(root, board, trunk, defect, landingPorts)) continue;
@@ -172,12 +184,15 @@ export function dependencySatisfied(dependency) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [] } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [], named = null } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
-  const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
+  // A coordinator's named landing takes the named items at their named proven commits whatever their status [C7,#5559].
+  const proven = named ? new Map(named.map(({ id, commit }) => [id, commit])) : null;
+  const pending = all.filter((item) => (proven ? proven.has(item.item_id) && item.item_status !== 'withdrawn' : item.item_status === 'verified') && !item.item_merged_commit)
+    .map((item) => (proven ? { ...item, item_commit: proven.get(item.item_id) } : item));
   const order = new Map();
   // Only accept rows set the order; reading every event (380,000 on 9 Nov) cost each selection about 2 s [C7].
   const accepts = board.db ? board.db.prepare("SELECT item_id, event_id, event_kind FROM event WHERE event_kind = 'accept' ORDER BY event_id").all() : store.events(board);
@@ -188,7 +203,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
   // picking take turns and cannot starve the queue (#2911).
   const failed = landingTurns(batches, roundFailures(batches), pending);
+  const namedOrder = proven ? [...proven.keys()] : null;
   pending.sort((left, right) => {
+    if (namedOrder) return namedOrder.indexOf(left.item_id) - namedOrder.indexOf(right.item_id);
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;
       if (!failed.has(right.item_id)) return 1;
@@ -235,8 +252,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     }
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
-    const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
-    const stale = projector.state(item);
+    const item = { ...original, item_landing_commit: proven ? original.item_commit : store.checkedLandingCommit(board, original) };
+    const stale = proven ? null : projector.state(item);
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
     const known = knownReds.find((entry) => entry.id === item.item_id && entry.commit === item.item_commit
       && (entry.reviewedCommit ?? entry.commit) === item.item_landing_commit);
@@ -345,30 +362,26 @@ export function landingTurns(batches, failed, pending) {
 }
 
 /**
- * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
- * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
+ * Whether landing runs in per-item mode: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
+ * A batch of one keeps per-item handling: a red goes back to its builder alone instead of a bisection.
  */
 export function landsPerItem(config) {
   return config?.landing?.perItem !== false && config?.landing?.parallel !== true;
 }
 
-/** With per-item landing, a landing takes one verified item; otherwise the caller's limit stands [C7,#2901]. */
-export function perItemMaximum(config, maximum = Infinity) {
-  return landsPerItem(config) ? 1 : maximum ?? Infinity;
-}
-
 /**
- * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
- * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
- * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ * The most items one landing batch takes. A set line.landingBatchSize applies to every real landing. Otherwise per-item
+ * landing and a hand landing take every verified item that composes cleanly; automatic batch landing (perItem false)
+ * sizes from the recorded batches. A limit the caller gave still holds [C7,H24].
+ * Why every item: with one item per batch, all 10 landings of 11 Nov waited behind each other's lease, and
+ * accept-to-batch-start was 54% of accepted-to-landed (982 s median). A red batch still bisects to its culprit and
+ * lands the rest in the same run [C7,#5815].
  */
 export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
-  // A runners-only machine batches like any other: a batch lands on its items' submit receipts and reruns only each
-  // item's own moved closures and their interactions, fanned out over runner slots [C7].
-  if (landsPerItem(config)) return 1;
   const override = store.lineSettings(board).landingBatchSize;
-  if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
-  return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));
+  if (typeof override === 'number') return Math.min(maximum ?? Infinity, landingBatchSize([], override));
+  if (landsPerItem(config) || !automatic) return maximum ?? Infinity;
+  return Math.min(maximum ?? Infinity, landingBatchSize(store.landingBatches(board), override));
 }
 
 /**

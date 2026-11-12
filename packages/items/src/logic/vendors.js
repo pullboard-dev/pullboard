@@ -1,12 +1,6 @@
-/** Small explicit vendor spellings; unlisted declarations retain their normalized names [V4,B26]. */
-const VENDORS = {
-  openai: ['openai', 'codex', 'gpt', 'chatgpt'],
-  anthropic: ['anthropic', 'claude', 'sonnet', 'opus', 'haiku'],
-  google: ['google', 'gemini'],
-  xai: ['xai', 'grok'],
-  deepseek: ['deepseek'],
-  mistral: ['mistral'],
-};
+import VENDORS from './vendors.json' with { type: 'json' };
+
+/** Small explicit vendor spellings live in vendors.json, so the core names no vendor itself; unlisted declarations retain their normalized names [V4,B26,P5]. */
 const BUILTINS = new Map(Object.entries(VENDORS).flatMap(([vendor, names]) => names.map(name => [name, vendor])));
 
 /** Retain custom unknown aliases while keeping known vendor names canonical and independent of configuration. */

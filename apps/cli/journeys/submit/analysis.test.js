@@ -21,6 +21,9 @@ import { remoteSubmitAnalysis } from '../../src/io/submit/gate.js';
 import { remoteGateWanted } from '../../src/io/submit/gate.js';
 import { submitUntilSettled } from '../../../lib/src/io/submit/requeue.js';
 
+/** The real scope and memo module, which a scoped fixture's main re-exports from its gate front door [5814]. */
+const SCOPE = new URL('../../../../packages/gate/src/io/static/scope.js', import.meta.url).href;
+
 // Captured before any patching, so the fake runner's own processes never count as the controller's.
 const unpatchedExecFileSync = childProcess.execFileSync;
 const KEEP = new Set(['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']);
@@ -43,10 +46,10 @@ export function record(root, step, url) { appendFileSync(join(root, '.git', 'tru
  * Build a controller repository whose main holds recording tooling and whose candidate replaces every tool with a bomb,
  * plus a separate runner clone checked out at the candidate.
  */
-function fixture(t, { red = false, flaky = 0, brokenMain = false, cellsPlan = false, warmFails = false } = {}) {
+function fixture(t, { red = false, flaky = 0, brokenMain = false, cellsPlan = false, warmFails = false, scoped = false, wholeRepo = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'submit-remote-gate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const env = gitEnv();
+  const env = { ...gitEnv(), PULLBOARD_MACHINE_HOME: join(dir, 'home') };
   const controller = join(dir, 'controller');
   const runner = join(dir, 'runner');
   mkdirSync(controller);
@@ -78,7 +81,7 @@ export function submitGatePlan(root, config, options) {
     proofCommand: config.affectedTests + ' ./test/a.test.js', phases: [], testTiers: null, testRunner: config.affectedTests };
 }
 export async function submitGateAdmission(root) { record(root, 'admission', import.meta.url); return { browser: false, gui: false }; }
-${cellsPlan ? `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+${scoped ? `export * from ${JSON.stringify(SCOPE)};\n` : ''}${cellsPlan ? `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 export function readAcceptedCells(root, commit) {
   const file = join(root, '.git', 'produced-' + commit);
@@ -106,7 +109,9 @@ export async function requireSubmitCells(root, main, source, item, services) {
   put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('apps/cli/src/io/static/checks.js', `import { existsSync } from 'node:fs';
 import { record } from '../../../../../bin/record.js';
+import { appendFileSync } from 'node:fs';
 record(process.cwd(), 'static', import.meta.url);
+appendFileSync('.git/static-scope.jsonl', (process.env.PULLBOARD_STATIC_SCOPE ?? 'null') + '\\n');
 if (existsSync('RED')) { console.error('src/thing.js:1 one import binding per line'); process.exitCode = 1; }
 `);
   git(controller, 'add', '.');
@@ -116,6 +121,7 @@ if (existsSync('RED')) { console.error('src/thing.js:1 one import binding per li
   for (const path of ['bin/record.js', 'bin/cells-submit-checks.js', 'packages/codemap/src/io/cells/scripts/cache.js', 'apps/cli/src/io/static/checks.js', 'packages/items/index.js', 'packages/gate/index.js', 'packages/landing/index.js']) put(path, bomb);
   put('src/thing.js', 'export const thing = 1;\n');
   if (red) put('RED', 'candidate data\n');
+  if (wholeRepo) put('package.json', '{"type":"module","private":true}\n');
   git(controller, 'add', '.');
   git(controller, '-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'candidate');
   const source = git(controller, 'rev-parse', 'HEAD');
@@ -159,7 +165,7 @@ async function controllerSpawns(work) {
 /** The request a queued worker sends: pinned commits, its config and the board's cut rows, all as data. */
 function request(box, readCutItems = () => [{ item_id: 7 }]) {
   return { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'fixture criterion',
-    composition: box.source, staticChecks: 'node apps/cli/src/io/static/checks.js', config: { affectedTests: 'node packages/gate/src/io/run/tests.js', gate: 'npm test' },
+    composition: box.source, staticChecks: 'node apps/cli/src/io/static/checks.js', config: { affectedTests: 'node apps/cli/src/io/run/tests.js', gate: 'npm test' },
     browserFreeChecks: true, readCutItems };
 }
 
@@ -176,7 +182,7 @@ test('a queued submit runs placement, static, composition, cells and selection o
   const steps = readFileSync(join(box.runner, '.git', 'trusted-steps.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.deepEqual(steps.map(row => row.step), ['placement', 'static', 'composition', 'cells', 'selection', 'admission']);
   for (const row of steps) {
-    assert.equal(row.root, box.runner);
+    assert.equal(realpathSync(row.root), realpathSync(box.runner)); // a step's own cwd is the real path of a symlinked temp folder
     assert.match(row.url, /pullboard-trusted-main-/u);
     assert.notEqual(row.pid, process.pid);
   }
@@ -287,4 +293,38 @@ test('clause 2: a runner that cannot produce the accepted inventory stops as pen
   assert.equal(runs, 2);
   assert.equal(settled.result, 'same candidate after the coordinator build');
   assert.deepEqual(settled.attempts, []);
+});
+
+/** The scopes the fixture's static command was handed, one per run: a list of paths, or null for a whole-tree run. */
+function staticScopes(box) {
+  const file = join(box.runner, '.git', 'static-scope.jsonl');
+  return existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
+}
+
+test('clause 1 [5814]: the static step is handed only the paths the item changed against main when no whole-repo input changed [C7]', async t => {
+  const box = fixture(t, { scoped: true });
+  const value = await remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts'));
+  const changed = execFileSync('git', ['diff', '--name-only', box.main, box.source], { cwd: box.controller, env: box.env, encoding: 'utf8' }).trim().split('\n').sort();
+  assert.deepEqual(staticScopes(box), [changed]);
+  assert.ok(changed.includes('src/thing.js'));
+  assert.ok(value.steps.static >= 0, 'the static step ran');
+  // A change to an input every rule reads runs the whole tree, and says why.
+  const whole = fixture(t, { scoped: true, wholeRepo: true });
+  const wide = await remoteSubmitAnalysis(whole.controller, request(whole), fakeRunner(whole), join(whole.dir, 'artifacts'));
+  assert.deepEqual(staticScopes(whole), [null]);
+  assert.ok(wide.notes.some(note => note.startsWith('analysis: whole tree, since package.json')));
+});
+
+test('clause 2 [5814]: resubmitting the same head reuses the recorded static result, and a red result is never kept [C7]', async t => {
+  const box = fixture(t, { scoped: true });
+  await remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'first'));
+  const again = await remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'second'));
+  assert.equal(staticScopes(box).length, 1, 'the static command ran once for the head');
+  assert.equal(again.steps.static, undefined);
+  assert.ok(again.notes.includes('static checks: reused the green run kept for this head'));
+  const red = fixture(t, { scoped: true, red: true });
+  for (const attempt of ['first', 'second']) {
+    await assert.rejects(remoteSubmitAnalysis(red.controller, request(red), fakeRunner(red), join(red.dir, attempt)), { code: 'GATE_RED' });
+  }
+  assert.equal(staticScopes(red).length, 2, 'a red head runs its static check again');
 });

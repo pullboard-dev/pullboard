@@ -13,11 +13,17 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
+import { HOST } from '../runner/ssh.js';
+import { installSshStandIn } from '../runner/ssh.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
 import { runFixtureChild } from '../child.js';
+import { runFixtureChildAsync } from '../child.js';
+import { runCliInProcess } from '../process.js';
 import { runFixtureGit } from '../child.js';
 import {
   createFixtureWorktree,
   fileFixtureItem,
+  fixtureMachineSettings,
 } from '../testkit.js';
 
 const BIN = join(import.meta.dirname, '../../../pullboard.js');
@@ -33,6 +39,17 @@ function cli(box, root, ...args) {
   return runFixtureChild(process.execPath, [BIN, ...args, ...(args.includes('--json') ? [] : ['--json'])], { cwd: root, env: box.env, encoding: 'utf8' });
 }
 
+/** The same command answered by the production dispatcher in this process; setup calls skip a node start-up each. */
+async function local(box, root, ...args) {
+  const result = await runCliInProcess([...args, ...(args.includes('--json') ? [] : ['--json'])], { cwd: root, env: box.env });
+  return { ...result, status: result.status };
+}
+
+/** The real executable, launched without blocking, so independent cases overlap their gates. */
+function cliAsync(box, root, ...args) {
+  return runFixtureChildAsync(process.execPath, [BIN, ...args, ...(args.includes('--json') ? [] : ['--json'])], { cwd: root, env: box.env, encoding: 'utf8' });
+}
+
 /** Commit fixture changes normally, retaining its real Git history. */
 function commit(box, root) {
   runFixtureGit(['add', '-A'], { cwd: root, env: box.env });
@@ -46,9 +63,15 @@ function source(name = 'shared failure [G1]', expected = 2) {
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
-function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true, beforeMain } = {}) {
+async function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true, beforeMain } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => {
+    // A detached gate worker can still write while the board winds down, so retry the whole tree for a while.
+    for (const deadline = Date.now() + 30_000; ; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250)) {
+      try { rmSync(directory, { recursive: true, force: true }); return; }
+      catch (error) { if (error.code !== 'ENOTEMPTY' || Date.now() >= deadline) throw error; }
+    }
+  });
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
@@ -62,13 +85,18 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
     GIT_COMMITTER_NAME: 'Main red fixture', GIT_COMMITTER_EMAIL: 'main-red@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'submit-main-red-fixture', PULLBOARD_MODEL: 'Fixture Model',
+    // A fixture's infrastructure retry does not wait out the real 30 s back-off (#3365).
+    PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0', PULLBOARD_USAGE_CHECKPOINT: 'inline',
   });
+  // These submits hold their gate in the submitting process, so the fixture pins controller dispatch [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
   chmodSync(join(directory, 'bin/pullboard'), 0o755);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
-  let result = cli(box, root, 'init');
+  let result = await local(box, root, 'init');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(root, 'package.json', '{"type":"module"}\n');
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js' + gateSuffix,
@@ -84,18 +112,18 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
   ].join('\n') + '\n');
   beforeMain?.(box);
   box.main = commit(box, root);
-  box.item = fileFixtureItem(box, root, { lane: 'core', title: 'Unrelated change', criterion: 'The unrelated change works.',
-    check, route: 'mid', brief: 'Files: change.txt, test/\nTest: inherited failure accounting', args: ['--specs', 'G1'],
-    run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
-  result = createFixtureWorktree(box, root, 'core', { route: 'mid', run: (cwd, ...args) => cli(box, cwd, ...args) });
+  box.item = (await fileFixtureItem(box, root, { lane: 'core', title: 'Unrelated change', criterion: 'The unrelated change works.',
+    check, route: 'mid', diagnose: false, brief: 'Files: change.txt test/inherited.test.js\nChange: add change.txt\nTest: inherited failure accounting', args: ['--specs', 'G1'],
+    run: (cwd, ...args) => local(box, cwd, ...args) })).item_id;
+  result = await createFixtureWorktree(box, root, 'core', { route: 'mid', run: (cwd, ...args) => local(box, cwd, ...args) });
   assert.equal(result.code, 0, result.out + result.err);
   box.builder = JSON.parse(result.out).path;
-  result = cli(box, box.builder, 'claim', String(box.item));
+  result = await local(box, box.builder, 'claim', String(box.item));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(box.builder, 'change.txt', 'Unrelated change.\n');
   put(box.builder, 'test/inherited.test.js', candidate);
   box.head = commit(box, box.builder);
-  if (mainRed) box.rework = fileMainRed(box);
+  if (mainRed) box.rework = await fileMainRed(box);
   return box;
 }
 
@@ -103,15 +131,86 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
 function fileMainRed(box) {
   return fileFixtureItem(box, box.root, { lane: 'core', title: 'Main red: inherited assertion needs repair', args: ['--specs', 'G1'],
     criterion: 'The inherited assertion passes on main.', check: 'node test/runner.js test/inherited.test.js',
-    brief: 'Files: test/inherited.test.js\nTest: inherited assertion', run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
+    diagnose: false, brief: 'Files: test/inherited.test.js\nChange: repair the assertion\nTest: inherited assertion', run: (cwd, ...args) => local(box, cwd, ...args) }).then(item => item.item_id);
 }
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */
-function submittedProof(box) {
-  const result = cli(box, box.root, 'log', String(box.item));
+async function submittedProof(box) {
+  const result = await local(box, box.root, 'log', String(box.item));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const row = JSON.parse(result.stdout).events.filter(event => event.event_kind === 'submit').at(-1);
   return row ? JSON.parse(row.event_detail) : null;
 }
 
-export { cli, fixture, submittedProof, put, source };
+/** The production collector observes real Node events inside the worker's source tree. */
+function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
+  return box => {
+    const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
+    const timingModule = new URL('../../../../../packages/gate/index.js', import.meta.url).href;
+    const beginTiming = timing ? 'beginSuiteTiming(process.cwd(), process.argv.slice(2));' : '';
+    if (duplicate) put(box.root, 'test/second.test.js', source());
+    if (phases) {
+      put(box.root, 'test/check-only.test.js', "import { describe, test } from 'node:test';\ntest('criterion only pass [G1]', () => {});\n");
+      put(box.root, 'test/shared-pass.test.js', "import { describe, test } from 'node:test';\ntest('shared phase pass [G1]', () => {});\n");
+      put(box.root, 'test/check-runner.js', `import { spawnSync } from 'node:child_process';
+import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+// The actual private controller observes its own clean source and wall duration.
+${beginTiming}
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js',
+  'test/check-only.test.js', 'test/shared-pass.test.js'], { encoding: 'utf8', env: process.env });
+process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
+`);
+    }
+    const outcomesModule = new URL('../../../../../packages/gate/src/io/test/outcomes.js', import.meta.url).href;
+    put(box.root, 'test/native-outcomes.js', `export { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(outcomesModule)};\n`);
+    put(box.root, 'test/outcome-reporter.js', `import { tap } from 'node:test/reporters';
+import { testOutcomeCollector, formatTestOutcomes } from './native-outcomes.js';
+export default async function* report(events) {
+  const collector = testOutcomeCollector(process.cwd());
+  let count = null;
+  async function* observe() {
+    for await (const event of events) {
+      collector.observe(event);
+      if (event.type === 'test:summary') count = event.data.counts.tests;
+      yield event;
+    }
+  }
+  for await (const chunk of tap(observe())) yield chunk;
+  const outcomes = formatTestOutcomes(process.env[${JSON.stringify(TIMING_RUN_ID_ENV)}], collector.finish(count !== null, count));
+  yield ${corrupt === 'malformed' ? "outcomes.replace('version', 'invalidVersion')" : 'outcomes'};
+  ${corrupt === 'foreign' ? "yield formatTestOutcomes('00000000-0000-4000-8000-000000000000', collector.finish(count !== null, count));" : ''}
+}
+`);
+    put(box.root, 'test/runner.js', `import { spawnSync } from 'node:child_process';
+import { beginSuiteTiming } from ${JSON.stringify(timingModule)};
+// Preserve genuine producer timing; no fabricated frame or completed-file claim.
+${beginTiming}
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outcome-reporter.js', ...${JSON.stringify(files)}],
+  { encoding: 'utf8', env: process.env });
+process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');
+process.exitCode = run.status ?? 1;
+`);
+  };
+}
+
+/** The existing stand-in launches the real worker locally; zero local slots prove the remote path was used. */
+async function remote(box) {
+  const bin = join(box.directory, 'remote-bin'), worker = join(box.directory, 'worker'), home = join(box.directory, 'worker-home');
+  const machineHome = join(home, '.pullboard'), requests = join(box.directory, 'requests.jsonl');
+  for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
+  box.env.PATH = bin + ':' + box.env.PATH;
+  installSshStandIn({ bin, worker, home, machineHome, requests });
+  let result = await local(box, box.root, 'runner', 'add', HOST, '--slots', '4', '--browser', '2');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
+    result = await local(box, box.root, 'settings', key, value);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
+  return requests;
+}
+
+/** Read actual profile bytes through public response paths; do not manufacture failure identity. */
+function readProfile(path) { return JSON.parse(readFileSync(path, 'utf8')); }
+
+
+export { beforeMain, remote, readProfile, cli, cliAsync, local, fixture, submittedProof, put, source };

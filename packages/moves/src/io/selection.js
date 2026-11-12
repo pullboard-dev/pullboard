@@ -14,14 +14,13 @@ import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
 import { shoutReviewCoverStuck } from '../../../health/index.js';
-import { nextSessionSeats } from '../../../seats/index.js';
-import { laneNames } from '../../../seats/index.js';
 import { mainRedReviewItems } from '../../../landing/index.js';
 import { computedReturnArgs } from '../../../landing/index.js';
 import { mainRedReworkItems } from '../../../landing/index.js';
 import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
+import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
@@ -41,9 +40,6 @@ import { criterionFreezer } from './freezer.js';
  *   dirtyFiles: Function, recoverOwnSubmitHandoffs: Function, openItemFolder: Function, liveFolderRefusal: Function,
  *   mainLaneWork: Function, claimWorktreeSnapshot: Function }} NextPorts
  */
-
-/** The agent reader and session digest nextSessionSeats finds this session's seats with. */
-const sessionSeatReaders = Object.freeze({ listAgents: store.listAgents, sessionDigest: agentSessionDigest });
 
 /**
  * The files an agent has been working in (N20): what its latest three items touched, and what is
@@ -162,8 +158,17 @@ export async function nextOnce(ctx, values, ports) {
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
-      // An item frozen under an older submit policy is passed over and named, so one stale item never stops the seat; claim by id still refuses (#3770).
-      if (error instanceof Refused && error.code === 'NO_POLICY' && /accepted submit policy changed|no longer contains the frozen policy/u.test(error.message)) {
+      // An item frozen under an older policy is passed over and named, so one stale item never stops the seat; claim by id
+      // still refuses (#3770). The coordinator hears of it once per frozen bar, never once per next (#3793).
+      if (error instanceof Refused && error.code === 'NO_POLICY' && STALE_POLICY.test(error.message)) {
+        await reportStalePolicyOnce(target, board, item, holder, error.message, ordered);
+        return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
+      }
+      // A bar naming a path missing from main, or a held check already green there, has nothing a builder can do: next
+      // passes over it and the coordinator hears once per bar; claim by id still refuses (#5709).
+      if (error instanceof Refused && UNBUILDABLE.has(error.code)) {
+        await reportUnbuildableOnce(target, board, item, holder, error, ordered);
+        target.io.say?.(`skipped #${item.item_id}: ${error.message}`);
         return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       }
       throw error;
@@ -172,6 +177,51 @@ export async function nextOnce(ctx, values, ports) {
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/** Claim refusals of a bar no build can satisfy: next passes over the item instead of stopping (#5709). */
+const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
+
+/** The claim refusals that name one item's frozen policy as stale; any other NO_POLICY still stops next. */
+const STALE_POLICY = /accepted submit policy changed|no longer contains the frozen policy|is frozen against an older accepted policy/u;
+
+/**
+ * Tell the coordinator once that next passed over an item frozen against an older policy [B7,B25].
+ *
+ * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on the
+ * frozen digest keeps the report to one per frozen bar, and a refreeze (a new digest) is a new episode.
+ */
+async function reportStalePolicyOnce(ctx, board, item, holder, message, ordered) {
+  const text = JSON.stringify({ staleFrozenPolicy: { digest: item.item_frozen_digest ?? null } });
+  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
+  try {
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
+      text: `next passes over #${item.item_id} until it is refrozen: ${message.replace(/^\[NO_POLICY\] /u, '')}; pullboard refreeze ${item.item_id}` }]);
+  } catch (error) {
+    // A refused report must never stop the seat it only reports on.
+    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
+  }
+}
+
+/**
+ * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
+ *
+ * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
+ * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
+ */
+async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered) {
+  const text = JSON.stringify({ unbuildableBar: { code: refusal.code, message: refusal.message } });
+  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
+  try {
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
+      // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
+      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);
+  } catch (error) {
+    // A refused report must never stop the seat it only reports on.
+    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
+  }
 }
 
 /**
@@ -268,21 +318,17 @@ function nextPick(ctx, board, values, ports) {
   if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
-  const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
-  // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
-  // never this seat's to resume or be pointed at (#958).
-  const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
-    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
-    && !(values.wait > 0 && store.submitHandoffFailure(board, item))
-    && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
-  const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
-  const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
+  const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
+  // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
+  // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
+  const elsewhere = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+  const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';

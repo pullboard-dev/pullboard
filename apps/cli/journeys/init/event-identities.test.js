@@ -1,6 +1,5 @@
 /** @pullboard-test-input apps/cli/src/io/documentation/*.json */
 /** @pullboard-test-input apps/cli/src/io/documentation/events/*.json */
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input packages/codemap/data/plan/path-map/freeze.json */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/step/merge.js */
 /** @pullboard-test-input docs-tree */
 /** Clean landing merges regenerate shared documentation before the real gate [B3,C7,V4]. */
 import assert from 'node:assert/strict';

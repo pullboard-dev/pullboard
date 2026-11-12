@@ -5,7 +5,7 @@ export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBar
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/logic/bar/check.js';
 export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPath, normalizeBarCoverage, prepareBarCoverage, previewBarCoverage } from './src/io/bar/coverage.js';
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/io/bar/readiness.js';
-export { PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
+export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
@@ -23,7 +23,7 @@ export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliases
 export { reviewQueueLine } from './src/logic/review/queue.js';
 export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/io/review/routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/io/rule/proof/counts.js';
-export { committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
+export { bindProofRunner, committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
 export { appendRuleProof } from './src/io/rule/proof/append.js';
 export { advancedVerdict, effectiveItemHead, requireSourceAdvanceReview, sourceAdvanceChain, sourceAdvanceEpisode, sourceAdvanceFloor, sourceAdvanceReviewEpisode } from './src/logic/advance.js';
 export { composeReview, composesAtAdmission } from './src/io/verdict/admission.js';
@@ -47,6 +47,7 @@ export { comparisonRestartPlan, COMPARISON_RESTART_LIMIT } from './src/io/compar
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/io/compare.js';
 
 export { launchComparisonWorker } from './src/io/comparison.js';
+export { prepareComparison } from './src/io/comparison.js';
 
 export { machineBarDigest, machineClauseCommands, machineProofProblem } from './src/logic/verdict/machine.js';
 export { machineVerification, validateMachineVerification, saveMachineVerification, machineVerificationEligible, acceptMachineSubmission } from './src/io/machine.js';

@@ -86,6 +86,8 @@ import { gateWithRunnerPlan } from '../submit/gate.js';
 import { doctrineRunnerChecks } from '../submit/gate.js';
 export { doctrineExecutionPhases } from '../submit/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { submitAuthorizationMode } from '../../../../../packages/config/index.js';
 import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import {
@@ -147,6 +149,7 @@ import {
   deferredSelectionNote,
   runStaticChecks,
   runSubmitGate,
+  startCriterionRun,
   withGateSlot,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -189,6 +192,7 @@ import {
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
 import {
   submitPreflight,
+  hasCellsPlan,
   requirePlannedSource,
 } from '../../../../../packages/items/index.js';
 import {
@@ -235,8 +239,10 @@ import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
+import { recordedMainComparison } from '../submit/recorded.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit/reds.js';
+import { regressesMain } from '../submit/reds.js';
 import { redsAreMains } from '../submit/reds.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
@@ -253,14 +259,31 @@ import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
 /**
- * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
- * span for an open gate's telemetry [C7].
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's span for an open gate's telemetry [C7].
  */
 function reportSubmitStage(ctx, name, start) {
   const elapsed = performance.now() - start;
   ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
   const end = Date.now();
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
+}
+
+/**
+ * Run one step of the authorization stage and record it as its own gate span (phase "authorization-<step>"), so the
+ * stage's median can be traced to the step that spends it: the whole stage had no sub-spans (p50 14.5 s, 584 spans) [C7].
+ *
+ * @template T
+ * @param {string} step
+ * @param {() => T} work
+ * @returns {T}
+ */
+function authorizationStep(step, work) {
+  const start = Date.now();
+  const finish = outcome => recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome });
+  let value;
+  try { value = work(); } catch (error) { finish('failed'); throw error; }
+  if (typeof value?.then !== 'function') { finish('done'); return value; }
+  return /** @type {any} */ (value.then(result => { finish('done'); return result; }, error => { finish('failed'); throw error; }));
 }
 
 /**
@@ -378,7 +401,7 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
-  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
+  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx), pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted(id);
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -405,7 +428,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightWallStart = Date.now();
   const runnerAdmission = { ...gateRunnerAdmission(), ...(ctx.submitHandoffAdmissionCheck
     ? { beforeAdmission: ctx.submitHandoffAdmissionCheck } : {}) };
-  const held = await withBoard(ctx, async (board) => {
+  const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     const folder = itemFolderIdentity(board, ctx.info.root);
@@ -415,7 +438,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
     if (clauseProblem) throw clauseProblem;
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
@@ -426,13 +449,14 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       return store.getItem(board, id);
     }
     return item;
-  });
+  }));
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   ctx.submitAttempt.stage = 'fast';
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
-  if (!isClean(root)) {
+  const dirty = authorizationStep('tree-state', () => !isClean(root));
+  if (dirty) {
     // Preserve the typed grammar refusal without starting gates for a dirty candidate.
     try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
     catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
@@ -443,22 +467,22 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A live handoff owns its captured source; never rewrite it underneath its queued worker.
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? (await (await import('../submit/handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held))) : null;
+  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? await authorizationStep('handoff-recover', async () => (await (await import('../submit/handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held)))) : null;
   const pending = pendingHandoff && pendingHandoff.commit !== commit ? await (await import('../submit/handoff.js')).replaceSubmitHandoff(ctx, id, held.item_owner, pendingHandoff) : pendingHandoff;
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx) && !pending) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
-    try { mainMerge = mergeSubmissionMain(root, acceptedMain.commit); }
+    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit)); }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
     if (mainMerge) commit = mainMerge.commit;
     if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
-  requireNonEmptySubmit(root, id, commit, acceptedMain.commit);
+  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
   let trunk;
   let regenerated = null;
-  try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
+  try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
   catch (error) {
     if (error?.code !== 'MERGE_CONFLICT') throw error;
     if (!isSubmitHandoffWorker(ctx)) {
@@ -476,19 +500,26 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   const remoteMode = isSubmitHandoffWorker(ctx) && remoteGateWanted(runnerAdmission);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
-  withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
-  withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id }));
-  const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
+  authorizationStep('proves-nothing', () => withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id))));
+  authorizationStep('kernel-approval', () => withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id })));
+  const dependencies = authorizationStep('dependencies', () => withBoard(ctx, board => dependencySnapshots(board.db, held)));
   let mechanicalPaths = [];
   let ownershipRefusal = null;
-  try {
-    submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
-      onMechanicalPaths: paths => { mechanicalPaths = paths; } });
-  } catch (error) {
-    if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
-    ownershipRefusal = error;
-  }
-  const { me, claimHead } = withBoard(ctx, (board) => {
+  /** The lane ownership check of authorization and source, on this machine: a lane refusal is routed after proof. */
+  const localSubmissionPaths = () => {
+    try {
+      authorizationStep('submission-paths', () => submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
+        onMechanicalPaths: paths => { mechanicalPaths = paths; } }));
+    } catch (error) {
+      if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
+      ownershipRefusal = error;
+    }
+  };
+  // With a runner, a queued submit's source check runs in its one runner analysis job; this machine records the result [C7,#5674].
+  // Dependencies' snapshots and a moved head stay here: the runner holds only the candidate, main and their history.
+  let remoteAuthorization = (remoteMode || pullGate) && submitAuthorizationMode() === 'runner' && !dependencies.length && headCommit(root) === commit;
+  if (!remoteAuthorization) localSubmissionPaths();
+  const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== who.id) {
@@ -513,13 +544,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       }
     }
     return { me: who, claimHead: item.item_claim_head };
-  });
+  }));
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
-  const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
-  const preflightLines = changedLines(root, acceptedMain.commit, commit);
+  // gate.mainComparison off: no base, so no main comparison and no carried-red acceptance; a red gate is red [C7,#5565].
+  const mainFailureBase = mainComparisonMode() === 'off' ? null
+    : acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
+  const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
-    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
+    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
@@ -530,7 +563,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     else ctx.io.say(`precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
     return 0;
   }
-  const companion = await withBoard(ctx, async board => {
+  const companion = await authorizationStep('item-patches', () => withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
       try { patchStat = statSync(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
@@ -550,23 +583,25 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
     }
     return prepareItemPatchSubmit(root, board, held, commit);
-  });
+  }));
+  // A companion's composed source carries another lane's patch, so its owner check stays on the builder's own commit here.
+  if (companion && remoteAuthorization) { remoteAuthorization = false; localSubmissionPaths(); }
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-  if (!pending) withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit));
+  if (!pending) authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
     text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
-  const barWarning = await withBoard(ctx, async board => {
+  const barWarning = await authorizationStep('bar-warning', () => withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
     await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: `bar.check warning: ${warning}` }]);
     return warning;
-  });
+  }));
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
-  try { if (requireComposition && !remoteMode) await runMachineryGuard(root,
+  try { if (requireComposition && !remoteMode && !pullGate) await runMachineryGuard(root,
     () => requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
@@ -574,11 +609,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
-  // Queue all captured sources before cell compilation; the bound worker runs the same checks and refusal path.
-  if (pending || handoffEnabled) {
-    const { enqueueSubmitHandoff } = await import('../submit/handoff.js');
-    return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
-  }
+  // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes [P7].
+  if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal; else if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
+  if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
@@ -600,7 +633,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, doctrine: runnerDoctrine, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, doctrine: runnerDoctrine, collectMachinery: true, ...submitTooling(root, commit),
+      ...(remoteAuthorization ? { authorization: { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } } : {}) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
@@ -611,12 +645,20 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   // Each cited row's gate test and each test file the bar names run with the proof, whatever seal and tier selection say [V4,C7].
   crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests });
-  const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
+  const runGate = (check, runnerPlan = {}, signal, earlyCriterion) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal, ...(earlyCriterion ? { earlyCriterion } : {}),
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
     onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
       { withDb: work => withBoard(ctx, board => work(board.db)), gate: { id: `submit:${id}:${companion?.commit ?? commit}`, item: Number(id), candidate: companion?.commit ?? commit }, repo: root, owner: me.id, cases: failingCases }) }));
+  /** Record the runner's authorization result as the local check would have left it; a skipped check runs here. */
+  const recordRemoteAuthorization = analysis => {
+    const found = analysis.authorization;
+    recordGateSpan({ phase: 'authorization-runner', host: analysis.runner ?? null, start: Date.now() - (analysis.steps?.authorization ?? 0), end: Date.now(), outcome: found?.skipped ? 'skipped' : 'done' });
+    if (!found || found.skipped) { ctx.io.say(`submit authorization: the runner could not check lane ownership (${found?.skipped ?? 'no result'}); checking it here`); localSubmissionPaths(); return; }
+    mechanicalPaths = found.mechanical ?? [];
+    if (found.ownership) ownershipRefusal = Object.assign(new Refused('OUTSIDE_LANE', found.ownership.message), { paths: found.ownership.paths, policy: found.ownership.policy });
+  };
   /**
    * Stage one: settled when preflight is clean. Every stage that queues a runner waits on it, so a static failure queues none [C7].
    * Why: the stages start together, and a runner queued before a static red is wasted work the refusal cannot take back.
@@ -632,8 +674,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const judgeTests = async (signal) => {
   await preflightPassed;
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
-  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
-    runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
+  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests, check: frozenCheck(held) },
+    (runnerPlan, early) => runGate(frozenCheck(held), runnerPlan, signal, early),
+    // The frozen check needs no test selection: it starts at once on its own lease. A companion source runs in a temporary checkout, so it keeps the in-gate start.
+    () => companion || !frozenCheck(held) ? null : startCriterionRun(root, { check: frozenCheck(held), executionServices, outputRoot: root,
+      outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, trunk: acceptedMain.commit,
+      proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
+      signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined,
+      onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit, privateCheck: false, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+      timing: frozenCheckTiming(held), agent: me.id, item: String(id), signal }));
   if (signal.aborted) throw signal.reason;
   // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
   const judgeStart = Date.now();
@@ -757,10 +806,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
-      const compareStart = Date.now();
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
-        recordedRuns: withBoard(ctx, board => gateRuns(board)),
-        execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
+      const compareStart = Date.now(); // A file with a recorded main result at this main is read from it, never rerun [C7,#5813].
+      comparison = await recordedMainComparison(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)), execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
@@ -781,7 +829,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // The proof is judged like the check: a case an open Main red repair's own check fails on this main is known main (#2594).
   let proofMainRed = [];
-  if (failures && mainFailureBase && !proofMatched && !companion) {
+  if (failures && mainFailureBase && !proofMatched && !companion && !regressesMain(failures, comparison)) {
     try {
       const items = mainRedItems();
       const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
@@ -826,11 +874,14 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const stages = await (ctx.runGateStages ?? runGateStages)([
     { name: 'preflight', run: async signal => {
       try {
+        if (remoteAuthorization) recordRemoteAuthorization(await runRemotePart('authorization', signal));
+        // With no cells plan on accepted main, placement checks nothing; its receipt key would cost more than the tests' head start (#5752).
         const placed = remoteMode ? await runRemotePart('preflight', signal)
+          : !hasCellsPlan(root, trunk.commit) ? { reused: false }
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-        if (!remoteMode && !companion && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+        if (!remoteMode && !companion && /\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
           const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
           const report = await runPreflight(root, changed);
           if (!report.ok) {
@@ -892,7 +943,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         if (remoteMode) return await runRemotePart('static', signal);
         const changedStaticStart = performance.now();
         try {
-          if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+          if (/\bapps\/cli\/src\/io\/static\/checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
             await withItemPatchSubmit(root, companion, async gateRoot => {
               const checker = fileURLToPath(new URL('../static/checks.js', import.meta.url));
               const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
@@ -1047,7 +1098,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
         }
       }
-      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
+      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held), head: submitted });
       if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: summary }]);
     }
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
@@ -1074,7 +1125,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   } else if (gate.isGreen && !waived && (!criterionMatched || mainOwnedGreen)) {
     try { if (submissionReceiptIds.length) for (const line of countTrialGate(root, { id: JSON.stringify([...submissionReceiptIds].sort()) })) ctx.io.say(line); }
     catch { ctx.io.err('could not record this gate in the refusal-trial ledger'); }
-    try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
+    try { if (mainComparisonMode() !== 'off') await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
     catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
   }
   recordGateSpan({ phase: 'post-submit', start: postSubmitStart, outcome: 'done' });
@@ -1323,6 +1374,11 @@ export async function run(io, { first, values }) {
   }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait || !submissionResult.queued) return code;
+  // A seat that held the claim it submitted never waits on its gate; the result comes back through next [P7].
+  if (!ctx.info.isMain && ctx.submitAttempt) {
+    io.say(`a seat holding a claim never blocks on its own gate; a red gate comes back through pullboard next, and pullboard show ${id} reads it any time`);
+    return code;
+  }
   return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }

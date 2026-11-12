@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** A private native event import seeds two windows; this fixture is not review assurance [N26,R1,R2]. */
 import assert from 'node:assert/strict';

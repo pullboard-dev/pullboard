@@ -432,9 +432,9 @@ function sweepLeases(db) {
   const cutoff = Date.now() - LEASE_MS;
   const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity });
   for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
-    // A live but hung gate process cannot retain a queue place indefinitely.
-    const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
-    if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+    // A live but hung or orphaned waiter (any resource, e.g. a repo source-cache pin) cannot retain a queue place indefinitely.
+    const staleBeat = row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
+    if (staleBeat || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
   }
   return relaunches;
 }
@@ -1363,9 +1363,17 @@ export async function takeResource(options) {
         runner: error.infrastructureAttempt?.runners?.[0]?.host ?? null, runners: error.infrastructureAttempt?.runners ?? [],
         at: new Date().toISOString(), message: error.message }];
     }
-    try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); } catch { /* Preserve the original error. */ }
+    dropWaiterRow(db, token);
     db.close();
     throw error;
+  }
+}
+
+/** Delete this attempt's waiter row, retrying while the pool is locked so a retry's new token never leaves an orphan ahead of it; the sweep covers what remains. */
+function dropWaiterRow(db, token) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); return; }
+    catch (error) { if (error?.code !== 'SLOT_DB_LOCKED') return; /* Preserve the original error. */ }
   }
 }
 

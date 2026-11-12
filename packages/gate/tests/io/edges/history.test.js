@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
+/** @pullboard-test-input source-tree packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
 /** Every packages/state/data/history/<digits>.json is placed by one rule, so a landing that adds an engine never jams on it [C7]. */
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';

@@ -34,7 +34,7 @@ function insideRealHome(path) {
   return path === REAL_MACHINE_HOME || path.startsWith(REAL_MACHINE_HOME + sep);
 }
 
-test('a test that spawns claim and submit on a fixture board uses a temporary machine home and waits on no runner [C7]', t => {
+test('a test that spawns claim and submit on a fixture board uses a temporary machine home and waits on no runner [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
@@ -50,14 +50,14 @@ test('a test that spawns claim and submit on a fixture board uses a temporary ma
   assert.equal(home, expected, 'all fixture commands resolve the same private fallback settings and resource pool');
   assert.ok(!insideRealHome(home), `fixture commands use ${home}, not ~/.pullboard`);
 
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Isolated work', '--specs', 'G1', '--criterion', 'it is isolated', '--check', 'true').code, 0);
-  const claimed = box.run(box.web, 'claim', '1');
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Isolated work', '--specs', 'G1', '--criterion', 'it is isolated', '--check', 'true')).code, 0);
+  const claimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'isolated.txt'), 'isolated\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): isolated work [G1]');
-  const submitted = box.run(box.web, 'submit', '1', '--wait', '--no-next');
+  const submitted = (await box.runLocal(box.web, 'submit', '1', '--wait', '--no-next'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   for (const [name, result] of [['claim', claimed], ['submit', submitted]]) {
     assert.doesNotMatch(result.out + result.err, /runner wait/u, `${name} never waited on a runner`);

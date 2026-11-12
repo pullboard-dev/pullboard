@@ -20,14 +20,20 @@ export function changedStaticFailures(root, files, { staged = false, only = null
   const accepted = new Map();
   let indexed = null;
   let aliases = null;
+  let mainPaths = null;
   /** Main's text of one path, or null when main has no such file. */
   const mainText = file => {
+    if (mainPaths === null) {
+      const listed = gitSpawnSync(['ls-tree', '-r', '-z', '--name-only', 'refs/heads/main'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      if (listed.error) throw listed.error;
+      if (listed.status !== 0) throw new Error(`cannot list accepted static sources: ${listed.stderr}`);
+      mainPaths = new Set(listed.stdout.split('\0').filter(Boolean));
+    }
+    if (!mainPaths.has(file)) return null;
     const result = gitSpawnSync(['show', `refs/heads/main:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     if (result.error) throw result.error;
     if (result.status === 0) return result.stdout;
-    const exists = gitSpawnSync(['ls-tree', '-z', 'refs/heads/main', '--', file], { cwd: root, encoding: 'utf8' });
-    if (exists.status !== 0 || exists.stdout) throw new Error(`cannot read accepted static source ${file}: ${result.stderr}`);
-    return null;
+    throw new Error(`cannot read accepted static source ${file}: ${result.stderr}`);
   };
   /**
    * Existing debt is read from accepted main, never the candidate working tree or a baseline file. A file main lacks is

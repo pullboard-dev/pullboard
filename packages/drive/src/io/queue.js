@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
+import { reclaimLapsed } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
@@ -35,6 +36,9 @@ export const DELIVERED = 'delivered';
 /** How long a queued run may wait for its worker to take it before it is reported refused, not queued. */
 export const START_BOUND_MS = LEASE_MS;
 
+/** The step that ends a run whose worker is gone: it frees the job's lease and reads as lost. */
+export const LOST = 'lost';
+
 /** The last line a finished worker writes to its log: its verdict, runner and seconds. */
 const FINAL_LINE = /^pullboard test: (red|green) on (\S+) in (\d+(?:\.\d+)?)s/mu;
 
@@ -46,23 +50,28 @@ const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../apps/c
 
 /**
  * True when this `pullboard test` call belongs to an agent seat and so queues instead of blocking: a joined seat
- * (not the main checkout) inside an agent shell, with no `--wait`, and not itself a queued run's worker.
+ * (not the main checkout), not machine work, and not itself a queued run's worker. A seat holding a claim always
+ * queues, whatever `--wait`, PULLBOARD_TEST_WAIT or its shell says; a seat holding none queues only inside an agent
+ * shell without either.
  *
- * Why the agent-shell check: a person or a script in a seat worktree keeps the blocking answer it always had, and
- * PULLBOARD_TEST_WAIT lets any wrapper (an item check that runs pullboard test) keep it too.
+ * Why the claim decides: about 80 `pullboard test --wait` processes, each an agent waiting on runner results, ran the
+ * coordinator Mac out of memory on 11 Nov, and ssh-launched seats carry no agent marker. A claim is board state no
+ * shell can lose; a person or a script with no claim keeps the blocking answer it always had [P7].
  *
  * @param {any} ctx
  * @param {string|undefined} agent - The seat's agent id, or undefined when the checkout has no seat.
  * @param {Record<string, any>} values - The parsed switches.
  * @param {NodeJS.ProcessEnv} [environment]
- * @param {{ alive?: (pid: number) => boolean, pid?: number }} [options]
+ * @param {{ alive?: (pid: number) => boolean, pid?: number, claimed?: boolean }} [options] - `claimed`: the seat holds
+ *   at least one live build claim.
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid } = {}) {
-  if (values.wait === true || values['test-run'] !== undefined || environment.PULLBOARD_TEST_WAIT === '1') return false;
-  if (ctx.info.isMain || agent === undefined) return false;
-  if (!AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]))) return false;
-  return machineContext(environment, { alive, pid }) === null;
+export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
+  if (values['test-run'] !== undefined || ctx.info.isMain || agent === undefined) return false;
+  if (machineContext(environment, { alive, pid }) !== null) return false;
+  if (claimed) return true;
+  if (values.wait === true || environment.PULLBOARD_TEST_WAIT === '1') return false;
+  return AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]));
 }
 
 /**
@@ -107,11 +116,25 @@ function workerLog(ctx, id) {
 }
 
 /**
+ * The item a test run records on its job: the one `--item` names, else the item folder the command runs in when the
+ * seat holds that claim, else the seat's sole claim. Why: a seat with several claims running from one item folder
+ * left the job with no item, so the stale sweep could not see its run in flight (#6130).
+ *
+ * @param {{ named?: number, folder?: number | null, claims?: number[] }} from
+ * @returns {number | undefined}
+ */
+export function testRunItem({ named, folder = null, claims = [] }) {
+  if (named !== undefined) return named;
+  if (folder !== null && claims.includes(folder)) return folder;
+  return claims.length === 1 ? claims[0] : undefined;
+}
+
+/**
  * Record a queued run on the board and start its detached worker. Returns at once with the run id.
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, files: string[], affected?: boolean, compareMain?: boolean }} run
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number }} [options]
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
@@ -120,13 +143,13 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   const log = workerLog(ctx, id);
   withBoard(board => {
     createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
-    writeStep(board.db, id, 'queued', { agent: run.agent, files: run.files, affected: run.affected === true,
+    writeStep(board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
   });
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
-    const args = [BIN, 'test', '--test-run', id, ...run.files,
+    const args = [BIN, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
@@ -143,15 +166,19 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
  * @param {(work: (board: any) => any) => any} withBoard
  * @param {string} id
  * @param {() => Promise<object>} work - The blocking run; resolves to the result payload.
- * @param {{ renewMs?: number }} [options]
+ * Each beat also calls `beatSeat`, so the queuing seat reads alive while its run is live, even on a remote runner where
+ * its own machine runs no test process; the stale sweep would otherwise free the claim after 2 quiet minutes [B28].
+ * The caller injects it because the drive cell does not import the store.
+ *
+ * @param {{ renewMs?: number, beatSeat?: (board: any) => void }} [options]
  * @returns {Promise<object>} The recorded result.
  */
-export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS } = {}) {
+export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, beatSeat = null } = {}) {
   const owner = `test-run:${process.pid}`;
   const taken = withBoard(board => takeJob(board.db, id, owner, { leaseMs: LEASE_MS }));
   if (!taken.taken) throw new Refused('TEST_RUN_TAKEN', `test run ${id} already has a live worker; read it with pullboard test --status ${id}`);
-  withBoard(board => writeStep(board.db, id, 'running', { pid: process.pid }));
-  const beat = setInterval(() => { try { withBoard(board => renewLease(board.db, id, owner)); } catch { /* the next beat retries */ } }, renewMs);
+  withBoard(board => { writeStep(board.db, id, 'running', { pid: process.pid }); beatSeat?.(board); });
+  const beat = setInterval(() => { try { withBoard(board => { renewLease(board.db, id, owner); beatSeat?.(board); }); } catch { /* the next beat retries */ } }, renewMs);
   let result;
   try { result = await work(); }
   catch (error) { result = { green: false, error: { code: error?.code ?? 'TEST_RUN_FAILED', message: String(error?.message ?? error) } }; }
@@ -179,6 +206,7 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
   let status;
   let refusal = null;
   if (result) status = result.green ? 'green' : 'red';
+  else if (view.steps.some(row => row.name === LOST)) status = 'lost';
   else if (view.leaseOwner) status = view.leaseUntil < now ? 'lost' : 'running';
   else if (view.created + START_BOUND_MS < now) {
     status = 'refused';
@@ -205,6 +233,33 @@ export function readFinalLine(path) {
     const match = FINAL_LINE.exec(buffer.toString('utf8'));
     return match ? { green: match[1] === 'green', runner: match[2], seconds: Number(match[3]) } : null;
   } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/**
+ * End every test run whose lease lapsed and whose worker process is gone: record a `lost` step and free the lease,
+ * so the run reads lost, `next` hands that back once, and the dead row stops holding a slot.
+ *
+ * Why: a worker killed mid-run stopped renewing, but nothing ever wrote an ending, so rows sat running for up to 30
+ * hours; the liveness rule is that every hold heartbeats or is reclaimed within 2 minutes (`waits record` runs this each minute).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - A board handle opened for writing.
+ * @param {{ now?: number, alive?: (pid: number) => boolean }} [options]
+ * @returns {{ id: string, lapsedMs: number, pid: number | null }[]} The runs ended.
+ */
+export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive } = {}) {
+  const ended = [];
+  for (const job of reclaimLapsed(db, { now })) {
+    if (job.kind !== TEST_RUN_KIND) continue;
+    const view = jobView(db, job.id);
+    if (!view || view.steps.some(row => row.name === 'result' || row.name === LOST)) continue;
+    const pid = Number(/^test-run:(\d+)$/u.exec(job.leaseOwner)?.[1]);
+    const known = Number.isSafeInteger(pid) && pid > 0 ? pid : null;
+    if (known !== null && alive(known)) continue;
+    writeStep(db, job.id, LOST, { pid: known, lapsedMs: job.lapsedMs }, { now });
+    finishJob(db, job.id, job.leaseOwner, { now });
+    ended.push({ id: job.id, lapsedMs: job.lapsedMs, pid: known });
+  }
+  return ended;
 }
 
 /**

@@ -198,6 +198,9 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
   return problems;
 }
 
+/** The whole-package copy itself, so a fixture can copy the shipped tool without its own cross-cell import. */
+export { copyPackageFiles };
+
 /** Copy only explicitly requested fixture files, finding moved definitions through the committed source map. */
 export function copyPackageSubset(source, destination, files) {
   return copyPackageFiles(source, destination, { files, pathMap: readPathMap(source) });
