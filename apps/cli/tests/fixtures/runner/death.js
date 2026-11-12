@@ -100,7 +100,7 @@ export async function parentDeathDrainFixture(t, tools, { holdRelease = false, c
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) {
     mkdirSync(folder, { recursive: true });
   }
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false, runnerDispatch: 'controller' } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
