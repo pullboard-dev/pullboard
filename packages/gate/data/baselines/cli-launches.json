@@ -951,7 +951,7 @@
     "launch": 29
   },
   "apps/cli/journeys/resume/flow/setup.test.js": {
-    "launch": 2
+    "launch": 3
   },
   "apps/cli/journeys/resume/plans.test.js": {
     "launch": 4

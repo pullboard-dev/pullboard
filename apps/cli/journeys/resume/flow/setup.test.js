@@ -74,7 +74,8 @@ test('spec draft adds draft rows and resume names them [N32]', async t => {
 
 test('setup lets agents build starter items while rows wait [S1,B26]', async t => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
-  const initialized = (await box.runLocal(box.repo, 'init', '--blueprint', 'web-app'));
+  // Process-level case: init installs hooks stamped with the running version, and the git hooks run the fixture's copied CLI.
+  const initialized = box.run(box.repo, 'init', '--blueprint', 'web-app');
   assert.equal(initialized.status, 0, initialized.failure || initialized.stderr);
   const rows = JSON.parse((await box.runLocal(box.repo, 'spec', '--json')).stdout).rows;
   const starters = JSON.parse((await box.runLocal(box.repo, 'list', '--all', '--json')).stdout).items.sort((a, b) => a.item_id - b.item_id);
@@ -169,7 +170,7 @@ test("resume says setup waits on the person's approval [I1,I2]", async t => {
   assert.equal(next.setup.waitingOn, undefined);
 });
 
-// Process-level cases kept as processes: the shell-run record-answer command and the two spawned, signalled view servers below.
+// Process-level cases kept as processes (beside the blueprint init above): the shell-run record-answer command and the two spawned, signalled view servers below.
 /** Execute the exact record-answer command offered by resume inside its private repository. */
 function recordSetupAnswer(box, command) {
   const result = runFixtureChild('sh', ['-c', command], { cwd: box.repo, env: box.env, encoding: 'utf8' });
