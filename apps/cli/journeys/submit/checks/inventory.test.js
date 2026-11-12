@@ -80,11 +80,11 @@ function commitCandidate(box) {
 
 /** Move the real kernel body through its named front door and a committed per-cell path-map shard. */
 function moveFixtureKernel(box, body) {
-  box.put('packages/kernel/src/core/refused.js', body);
-  box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  box.put('packages/kernel/src/logic/refused.js', body);
+  box.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
-  box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+  box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
 }
 
 import childProcess from 'node:child_process';
@@ -242,7 +242,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
     moveFixtureKernel({ put }, 'export class Refused extends Error {}\n');
   });
   assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
-  box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
+  box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {} // one-cell change\n');
   const candidate = commitCandidate(box);
   const compilerCalls = bindingCompilerCalls(t);
   const spawn = childProcess.spawn;
@@ -260,7 +260,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   assert.ok(compilerCalls() <= 4, 'compiler setup is bounded independently of the number of source files');
   assert.ok(workers <= 2, `the census uses at most two shared parser workers, got ${workers}`);
   assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
-  box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
+  box.put('packages/kernel/src/logic/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
     'the same many-cell board still refuses a new cut in a touched cell');
 });

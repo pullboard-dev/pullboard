@@ -168,22 +168,22 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
   assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
     'temporary exceptions are disabled in both snapshots and the old exact edge is still equal debt');
   const clean = await plannedFixture(t);
-  clean.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
-  clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  clean.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
+  clean.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   clean.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   clean.put('apps/cli/index.js', "import '../../src/cli.js';\n");
-  clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+  clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
   assert.deepEqual((await requireSubmitCells(clean.root, clean.main, commitCandidate(clean), clean.item)).problems, [],
     'the actual reachable named front door and body satisfy the canonical move check');
 });
 
 /** Move the real kernel body through its named front door and a committed per-cell path-map shard. */
 function moveFixtureKernel(box, body) {
-  box.put('packages/kernel/src/core/refused.js', body);
-  box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  box.put('packages/kernel/src/logic/refused.js', body);
+  box.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
-  box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+  box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
 }
 
 test('submit preserves an existing cut across a real importer relocation [C7,D3,CD64]', async t => {
@@ -201,7 +201,7 @@ test('submit still refuses a genuinely new cut after an importer relocation [C7,
   const box = await plannedFixture(t);
   moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item),
-    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/core\/refused\.js -> src\/stats-flow\.js/u,
+    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/logic\/refused\.js -> src\/stats-flow\.js/u,
     'a rename cannot lend an old allowance to a new dependency');
 });
 

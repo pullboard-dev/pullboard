@@ -97,10 +97,10 @@ const bindingCacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS)
 
 test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
   const box = await plannedFixture(t, box => {
-    box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
-    box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
+    box.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
     box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
-    box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+    box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
     box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
   });
@@ -170,7 +170,7 @@ test('scheduled rows stay unmoved while mapped cells retain real missing-body ch
   writePlan(box.root, plan);
   assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
     'a scheduled asset in an unmoved cell does not require its future body');
-  box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+  box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --moved: missing/u,
     'an actual mapped move still refuses missing implementation bytes');
 });
