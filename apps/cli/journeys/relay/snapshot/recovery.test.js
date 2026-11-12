@@ -63,7 +63,7 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   const initial = 'RECOVERY_INITIAL_336';
   const recovered = 'RECOVERY_CHECKPOINT_336';
   const later = 'RECOVERY_LATER_NATIVE_336';
-  assert.equal((await box.cli('add', box.lane, initial)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initial)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -138,7 +138,7 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   assert.equal(pageLoads(), originalLoads, 'checkpoint recovery does not reload the page');
 
   // The next ordinary CLI command catches up from the same checkpoint and authors a real native event.
-  assert.equal((await box.cli('add', box.lane, later)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, later)).code, 0);
   await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(later) + ')');
   assert.equal(await chrome.stable('document.querySelector("#relay-notice").textContent.includes(' + JSON.stringify(timeoutText) + ')'), false);
   assert.equal(pageLoads(), originalLoads, 'later native updates keep the recovered document');

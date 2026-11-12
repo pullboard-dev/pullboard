@@ -58,16 +58,21 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   }
   if (first === 'serve') {
     // A pull runner: only outbound HTTPS to the board and git fetches from its trunk remote, no ssh in [P7].
-    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once'].includes(key))) {
-      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--once]');
+    if (!second || rest.length || Object.keys(values).some(key => !['json', 'as', 'key', 'directory', 'once', 'jobs'].includes(key))) {
+      throw new Refused('USAGE', 'pullboard runner serve <board-url> [--as <runner-id>] [--key <board-key>] [--directory <cache>] [--jobs <n>] [--once]');
     }
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
+  }
+  if (first === 'local') {
+    // The machine's own runner: the board API on loopback and runner serve against it, started by a pull submit [P7].
+    if (second || rest.length || Object.keys(values).some(key => !['json', 'off'].includes(key))) throw new Refused('USAGE', 'pullboard runner local [--off]');
+    return (await import('../runner/local/serve.js')).localRunnerCommand(io, { off: values.off === true });
   }
   if (first === 'install-serve') {
     // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].

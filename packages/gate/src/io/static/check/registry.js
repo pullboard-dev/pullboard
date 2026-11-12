@@ -21,6 +21,7 @@ import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
+import { storeRegistryCheck } from '../../stores.js';
 
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.
@@ -111,6 +112,8 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
   { name: 'test-inputs', run: growthCheck(testInputProblems) },
   { name: 'load-bearing', run: loadBearingCheck },
+  // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
+  { name: 'store-registry', run: storeRegistryCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
   { name: 'test-waits', run: ({ root, files, read }) => {
     const baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8'));
