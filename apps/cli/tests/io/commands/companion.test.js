@@ -20,8 +20,8 @@ function request(runnersOnly) {
   fixtureMachineSettings(machine, { gate: { runnersOnly, runnerWaitMs: 100 } });
   const marker = join(box.dir, 'check-ran');
   const parent = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Parent', criterion: 'needs the API', args: ['--specs', 'G1'] }).item_id;
-  assert.equal(box.run(box.web, 'claim', String(parent)).code, 0);
-  const made = box.run(box.web, 'companion', String(parent), 'api', 'Provide the API', '--key', 'api-part',
+  // Only the coordinator (the main checkout) supplies a check.
+  const made = box.run(box.repo, 'companion', String(parent), 'api', 'Provide the API', '--key', 'api-part',
     '--criterion', 'the API serves this parent [test]', '--specs', 'G2', '--route', 'strong',
     '--check', `touch '${marker}'`, '--json');
   return { made, marker, box };
@@ -31,16 +31,15 @@ test('with gate.runnersOnly set, companion never runs checkBaseline on this mach
   const { made, marker } = request(true);
   // A local run would have created the marker before the command returned.
   assert.equal(existsSync(marker), false, `the check ran locally: ${made.err}${made.out}`);
-  if (made.code === 0) {
-    const baseline = JSON.parse(made.out).item.item_check_baseline;
-    assert.ok(['pending', 'unavailable'].includes(baseline?.result), `baseline is ${baseline?.result}, not measured here`);
-  } else assert.match(made.err + made.out, /next:|runner/iu, 'a refusal names its next step');
+  assert.equal(made.code, 0, made.err + made.out);
 });
 
 test('the check runs through the runner worker or refuses with a next step under gate.runnersOnly [C7,E28]', () => {
   const { made } = request(true);
-  if (made.code === 0) assert.equal(JSON.parse(made.out).item.item_check_baseline.result === 'pending' || JSON.parse(made.out).item.item_check_baseline.result === 'unavailable', true);
-  else assert.match(made.err + made.out, /next:/u);
+  if (made.code === 0) {
+    const baseline = JSON.parse(made.out).item.item_check_baseline;
+    assert.ok(['pending', 'unavailable'].includes(baseline?.result), `baseline is ${baseline?.result}, not measured here`);
+  } else assert.match(made.err + made.out, /"next"|next:/u, 'a refusal names its next step');
 });
 
 test('without gate.runnersOnly the baseline still runs on this machine as before [C7]', () => {
