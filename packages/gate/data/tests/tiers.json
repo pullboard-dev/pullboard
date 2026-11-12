@@ -60863,7 +60863,7 @@
       "reasons": []
     },
     {
-      "file": "apps/view/tests/logic/summary/state/codegen.test.js",
+      "file": "apps/view/tests/cockpit/state-reader-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",

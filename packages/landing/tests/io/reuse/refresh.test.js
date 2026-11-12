@@ -1,11 +1,10 @@
 /** After a landing the next batch starts before the code map refresh finishes, and the refresh still completes [C7,#5829]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { refreshLandedCodeMap } from '../../../src/logic/main/notices.js';
-import { codeMapRefreshArgs } from '../../../src/logic/main/notices.js';
+import { refreshLandedCodeMap as writeCodeMap } from '../../../../codemap/index.js';
 import { startCodeMapRefresh } from '../../../src/logic/main/notices.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 
@@ -27,9 +26,9 @@ test('clause 1: refreshLandedCodeMap returns while the refresh is still running 
   assert.equal(finished, true);
 });
 
-test('clause 1: the refresh the detached process runs still writes the code map [C7,#5829]', t => {
+test('clause 1: the refresh the detached process runs still writes the code map [C7,#5829]', async t => {
   const { root } = cellRepo(t);
-  execFileSync(process.execPath, codeMapRefreshArgs(root), { cwd: root, stdio: 'ignore', timeout: 60000 });
+  await writeCodeMap(root);
   assert.ok(existsSync(join(root, '.git', 'pullboard', 'code-map.json')));
 });
 
