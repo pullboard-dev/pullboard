@@ -72,7 +72,7 @@ async function boardBox({ initialize = true, repoName = 'repo', lanes = {} } = {
   const dbFile = join(root, '.git', 'pullboard', 'board.sqlite');
   if (initialize) { const result = await run('status'); assert.equal(result.status, 0, result.stderr || result.stdout); }
   else mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
-  return { dir, root, env, git, run, dbFile };
+  return { dir, root, env, git, local: run, dbFile };
 }
 
 /** Exercise installed-release repair advice independently of the checkout running this test. */
