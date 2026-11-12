@@ -39,6 +39,7 @@ import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { fallbackReclaim } from '../reclaim.js';
+import { restartDeadRunner } from '../runner/restart.js';
 import { agentDisplayName } from '../context.js';
 import { cdTo } from '../context.js';
 import { context } from '../context.js';
@@ -150,6 +151,9 @@ async function nextWithProgress(io, values, progress) {
   let ctx = context(io);
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   await fallbackReclaim(ctx, 'next');
+  // A gate job waiting with no live runner brings this machine's local runner back, and says so in one line [#6556].
+  const restarted = await restartDeadRunner(ctx);
+  if (restarted) io.say(restarted);
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
   const hasQueuedReds = withBoardRead(ctx, board => {
