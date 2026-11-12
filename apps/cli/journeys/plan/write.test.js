@@ -14,6 +14,7 @@ import { placePath } from '../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../packages/codemap/index.js';
 import { checkMoved } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
+import { retirePath } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { stalePlanRows } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { orphanCutEdges } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { importCuts } from '../../../../packages/codemap/index.js';
@@ -21,6 +22,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 
+// Process-level: the remaining launches of this script check its exit code and stderr, which only the entry point's main() sets.
 const BIN = fileURLToPath(new URL('../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
 test('plan --write preserves exact temporary edge contracts while removing stale plan shards [C7,D3,CD64]', t => {
@@ -29,8 +31,7 @@ test('plan --write preserves exact temporary edge contracts while removing stale
   const contracts = JSON.stringify({ version: 1, edges: [{ importer: 'src/board.js', target: 'src/claims.js', contractItem: 1624, expires: '2099-01-01' }] }, null, 2) + '\n';
   put(file, contracts);
   put('packages/codemap/data/plan/99-obsolete.json', '{}\n');
-  const run = runFixtureChild(process.execPath, [BIN, '--write'], { cwd: root, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
+  writePlan(root, computePlan(root)); // what `plan.js --write` does, called in-process
   assert.equal(existsSync(join(root, file)), true, 'regeneration retains the live migration contract file');
   assert.equal(readFileSync(join(root, file), 'utf8'), contracts, 'regeneration neither drops nor rewrites contract bytes');
   assert.equal(existsSync(join(root, 'packages/codemap/data/plan/99-obsolete.json')), false, 'obsolete generated shards are still pruned');
@@ -51,6 +52,7 @@ for (const mode of ['writePlan', '--place']) test(`${mode} keeps a two-space ind
   const shards = before.cells.map(cell => [cell.file, readFileSync(join(root, cell.file), 'utf8')]);
   if (mode === 'writePlan') placePath(root, added, { stay: true });
   else {
+    // Process-level: the script's own --place argument parsing, which only the entry point runs.
     const result = runFixtureChild(process.execPath, [BIN, '--place', added, '--stay'], { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }
@@ -84,11 +86,8 @@ test('a deleted planned file is named stale by --check and --moved, and --retire
   assert.match(check.stderr, new RegExp(`stale plan row in \\S+: ${deleted} no longer exists; retire it: node packages/codemap/src/io/cells/scripts/plan.js --retire ${deleted}`, 'u'));
   assert.ok(checkMoved(root, readPlan(root), owner.name).includes(`${deleted} was deleted, so its plan row is stale; retire it: node packages/codemap/src/io/cells/scripts/plan.js --retire ${deleted}`),
     'the move check names the retire step rather than a missing target');
-  const live = runFixtureChild(process.execPath, [BIN, '--retire', 'src/stats.js'], { cwd: root, encoding: 'utf8' });
-  assert.notEqual(live.status, 0);
-  assert.match(live.stderr, /CELLS_PLAN_RETIRE/u, 'a file that still exists never retires');
-  const retire = runFixtureChild(process.execPath, [BIN, '--retire', deleted], { cwd: root, encoding: 'utf8' });
-  assert.equal(retire.status, 0, retire.stderr);
+  assert.throws(() => retirePath(root, 'src/stats.js'), { code: /CELLS_PLAN_RETIRE/u }, 'a file that still exists never retires');
+  retirePath(root, deleted);
   const plan = readPlan(root);
   assert.ok(!plan.cells.some(cell => cell.paths.some(([from]) => from === deleted) || cell.reexports.includes(deleted)
     || cell.cuts.some(link => link.edges.some(edge => edge.split('->').includes(deleted)))), 'no active row, shim or cut names the file');
@@ -104,9 +103,7 @@ test('--retire refuses a deleted file that a live import still names [C7,D3,CD64
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'delete a file its importer still names');
   const before = readFileSync(join(root, 'packages/codemap/data/plan/cells.json'), 'utf8');
-  const retire = runFixtureChild(process.execPath, [BIN, '--retire', 'src/claims.js'], { cwd: root, encoding: 'utf8' });
-  assert.notEqual(retire.status, 0);
-  assert.match(retire.stderr, /CELLS_PLAN_RETIRED[\s\S]*live import/u);
+  assert.throws(() => retirePath(root, 'src/claims.js'), error => /CELLS_PLAN_RETIRED[\s\S]*live import/u.test(`${error.code} ${error.message}`));
   assert.equal(readFileSync(join(root, 'packages/codemap/data/plan/cells.json'), 'utf8'), before, 'a refused retirement writes nothing');
 });
 
@@ -283,8 +280,7 @@ test('a shim deleted by hand leaves no cut edge naming it: --check says so and -
   const check = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
   assert.equal(check.status, 1, 'the plan check fails');
   assert.match(check.stderr, new RegExp(`names ${shim}, which has no plan row; drop its cut edges: node packages/codemap/src/io/cells/scripts/plan.js --retire ${shim}`, 'u'));
-  const retire = runFixtureChild(process.execPath, [BIN, '--retire', shim], { cwd: root, encoding: 'utf8' });
-  assert.equal(retire.status, 0, retire.stderr);
+  retirePath(root, shim);
   assert.deepEqual(orphanCutEdges(readPlan(root)), [], 'no cut edge names a file without a row');
   assert.doesNotThrow(() => importCuts(readPlan(root)), 'the cuts read again');
 });

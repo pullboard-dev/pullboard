@@ -474,10 +474,15 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [], c
  * @param {boolean} remoteMode
  * @param {Promise<object>|null} selection The runner selection stage's analysis.
  * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
- * @param {(runnerPlan: object) => Promise<any>} runGate
+ * @param {(runnerPlan: object, early?: any) => Promise<any>} runGate
+ * @param {(() => any)|null} [startCriterion] Starts the frozen check on its own runner lease; it needs no test selection (#3325).
  */
-export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
-  return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
+export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate, startCriterion = null) {
+  if (!remoteMode) return runGate({});
+  // The criterion run begins now, beside the selection; only the proof waits for the plan.
+  const early = startCriterion?.() ?? null;
+  try { return await runGate(acceptRunnerPlan(await selection, pinned), early); }
+  catch (error) { early?.abort(); throw error; }
 }
 
 /** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */

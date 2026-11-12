@@ -53,8 +53,8 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
 
   const box = machine();
   const alpha = project(box, 'composer');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.web, 'claim', '1');
   const idle = join(box.dir, 'composer-web-2'), fresh = join(box.dir, 'composer-web-3');
   box.git(alpha.repo, 'worktree', 'add', '-q', idle, '-b', 'web/composer2');
   // web-2 joined and spoke three hours ago, and has not moved since.
@@ -62,11 +62,11 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     assert.equal(register(board, { lane: 'web', path: idle }), 'web-2');
     shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: 'An idle agent spoke this morning.', lanes: ['web'] });
   });
-  box.run(alpha.repo, 'shout', 'web-2', 'The coordinator wrote to the idle agent.');
+  await box.inProcess(alpha.repo, 'shout', 'web-2', 'The coordinator wrote to the idle agent.');
   box.git(alpha.repo, 'worktree', 'add', '-q', fresh, '-b', 'web/composer3');
-  box.run(fresh, 'join', 'web');
-  box.run(fresh, 'shout', 'all', 'A fresh agent says hello.');
-  box.run(alpha.web, 'shout', 'all', 'The claim holder reports in.');
+  await box.inProcess(fresh, 'join', 'web');
+  await box.inProcess(fresh, 'shout', 'all', 'A fresh agent says hello.');
+  await box.inProcess(alpha.web, 'shout', 'all', 'The claim holder reports in.');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-composer-chrome-'));
@@ -187,8 +187,8 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
   const box = machine();
   // A docs lane nobody has joined: a shout to it reaches no agent.
   const alpha = project(box, 'heard', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'shout', 'all', 'Starting on the greeting.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.web, 'shout', 'all', 'Starting on the greeting.');
   earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'docs', text: 'Docs, anyone?', lanes: ['web', 'docs'] }));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-heard-chrome-'));
@@ -244,14 +244,14 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     await key();
     await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === 'Ship the greeting?')", 15_000); // budget: hang ceiling for the person shout to be recorded; no throughput claim.
     await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Not heard yet'`, 15_000); // budget: hang ceiling for the initial unread state to appear; no throughput claim.
-    box.run(alpha.repo, 'inbox');
+    await box.inProcess(alpha.repo, 'inbox');
     await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator'`, 15_000); // budget: hang ceiling for coordinator inbox to mark the shout heard; no throughput claim.
     // A shout that reaches everyone says who of them has read it: the coordinator first, then how many agents.
     // (The person reaches every agent through the relay's requests; here the board records one directly.)
     earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'all', text: 'Hold the merge, please.', lanes: ['web'] }));
     await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'all')", 15_000); // budget: hang ceiling for the addressed-to-all shout to be recorded; no throughput claim.
-    box.run(alpha.repo, 'inbox');
-    box.run(alpha.web, 'inbox');
+    await box.inProcess(alpha.repo, 'inbox');
+    await box.inProcess(alpha.web, 'inbox');
     await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000); // budget: hang ceiling for both inbox reads to appear; no throughput claim.
     const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
     assert.deepEqual(all.slice(2), [0, `Heard by coordinator, web-1 (${MACHINE_MODEL})`], 'with no avatars, retaining every native recipient name on hover');
@@ -292,7 +292,7 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
   assert.ok(executable, 'Chrome is required for the wide-font regression');
   const box = machine();
   const demo = project(box, 'wide-waiting-ask');
-  box.run(demo.web, 'shout', 'coordinator', 'Does this waiting ask fit with a wider font?', '--decision', '--kind', 'question');
+  await box.inProcess(demo.web, 'shout', 'coordinator', 'Does this waiting ask fit with a wider font?', '--decision', '--kind', 'question');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-wide-ask-chrome-'));
   let chrome;

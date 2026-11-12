@@ -1,6 +1,6 @@
 /**
- * Board reads over HTTP for a seat whose board lives on another host: with board.url set, show and whoami ask the
- * board host's pullboard serve and open no board.sqlite [P7].
+ * Board calls over HTTP for a seat whose board lives on another host: with board.url set, join, show and whoami ask
+ * the board host's pullboard serve and open no board.sqlite [P7]. Writes reuse its transport from moves.js.
  */
 import { execFileSync } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
@@ -17,18 +17,24 @@ export function remoteBoard() {
 }
 
 /**
- * GET one API path from the board host and decode its JSON, turning transport and key failures into refusals.
+ * GET one API path from the board host, or POST a JSON body to it, and decode its JSON, turning transport, key and
+ * board refusals into refusals that keep the board's own code and next step.
  * @param {{ url: string, token: string }} remote
  * @param {string} path An absolute API path.
+ * @param {any} [body] A JSON body to POST; omitted for a read.
+ * @param {number} [timeout] Milliseconds to wait for the answer.
  * @returns {Promise<any>}
  */
-function getJson(remote, path) {
+export function requestJson(remote, path, body, timeout = READ_TIMEOUT_MS) {
   const origin = new URL(remote.url).origin;
   const target = new URL(origin + path);
   const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
+  const payload = body === undefined ? null : JSON.stringify(body);
+  const headers = { authorization: `Bearer ${remote.token}`, accept: 'application/json',
+    ...(payload === null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) }) };
   return new Promise((resolve, reject) => {
     const unreachable = (why) => new Refused('BOARD_UNREACHABLE', `cannot reach board.url ${origin} (${why}); start pullboard serve on the board host, or fix it with pullboard settings board.url <url>`);
-    const request = send(target, { headers: { authorization: `Bearer ${remote.token}`, accept: 'application/json' }, timeout: READ_TIMEOUT_MS }, (response) => {
+    const request = send(target, { method: payload === null ? 'GET' : 'POST', headers, timeout }, (response) => {
       let body = '';
       response.setEncoding('utf8');
       response.on('data', (part) => { body += part; });
@@ -41,20 +47,25 @@ function getJson(remote, path) {
           reject(new Refused('BOARD_TOKEN', `the board at ${origin} refused board.token; set the key its pullboard serve printed with pullboard settings board.token <key>`));
           return;
         }
-        reject(new Refused(error?.code ?? 'BOARD_UNREACHABLE', error?.message ?? `the board at ${origin} answered HTTP ${response.statusCode}; check pullboard serve on the board host`));
+        reject(new Refused(error?.code ?? 'BOARD_UNREACHABLE', error?.message ?? `the board at ${origin} answered HTTP ${response.statusCode}; check pullboard serve on the board host`, error?.next));
       });
     });
     request.once('timeout', () => request.destroy(Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })));
     request.once('error', (error) => reject(unreachable(error.code ?? error.message)));
-    request.end();
+    request.end(payload ?? undefined);
   });
+}
+
+/** GET one API path from the board host. */
+function getJson(remote, path) {
+  return requestJson(remote, path);
 }
 
 /**
  * The API path of the board board.url names: its own /api/v1/boards/<id> path, or the only board the host serves.
  * @param {{ url: string, token: string }} remote
  */
-async function boardPath(remote) {
+export async function boardPath(remote) {
   const named = /^\/api\/v1\/boards\/([^/?#]+)/u.exec(new URL(remote.url).pathname);
   if (named) return `/api/v1/boards/${named[1]}`;
   const { boards = [] } = await getJson(remote, '/api/v1/boards');
@@ -65,7 +76,7 @@ async function boardPath(remote) {
 }
 
 /** This seat's agent name: PULLBOARD_AGENT, or the worktree's git config pullboard.agent that a remote join records. */
-function seatAgent(cwd) {
+export function seatAgent(cwd) {
   if (process.env.PULLBOARD_AGENT) return process.env.PULLBOARD_AGENT;
   try { return execFileSync('git', ['config', '--get', 'pullboard.agent'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; }
   catch { return null; }
@@ -99,24 +110,54 @@ async function whoamiRemote(io, remote, cwd) {
 }
 
 /**
- * Run show or whoami against the board host and return the exit code; a refusal prints its code and next step.
+ * The seat a commit hook checks in a boardless clone with board.url set, read from the served board's state, or null
+ * when board.url is unset so the local check decides. An unreachable board or an unnamed seat refuses, never passes.
+ * Why: the pre-commit lane check needs the seat's lane, and only the board host knows it [P7].
+ * @param {string} cwd
+ * @returns {Promise<{ agent_id: string, agent_lane: string } | null>}
+ */
+export async function remoteHookSeat(cwd) {
+  const remote = remoteBoard();
+  if (!remote) return null;
+  const name = seatAgent(cwd);
+  if (!name) throw new Refused('NO_AGENT', 'this clone has board.url set but no seat name, so its lane is unknown', 'run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
+  const document = await getJson(remote, `${await boardPath(remote)}/state`);
+  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
+  if (!agent?.agent_lane) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}`, 'run pullboard join <lane> with board.url set');
+  return { agent_id: agent.agent_id, agent_lane: agent.agent_lane };
+}
+
+/**
+ * Run join, show or whoami against the board host and return the exit code; a refusal prints its code and next step.
  * @param {any} io
  * @param {{ positionals: string[] }} parsed
  * @param {{ url: string, token: string }} remote
  */
 export async function runRemoteRead(io, parsed, remote) {
   try {
-    if (parsed.positionals[0] === 'show') await showRemote(io, remote, parsed.positionals);
+    if (parsed.positionals[0] === 'join') {
+      const postMove = async (move) => requestJson(remote, `${await boardPath(remote)}/moves`, move);
+      await (await import('../commands/join.js')).joinRemote(io, parsed, new URL(remote.url).origin, postMove);
+    } else if (parsed.positionals[0] === 'show') await showRemote(io, remote, parsed.positionals);
     else await whoamiRemote(io, remote, io.cwd);
   } catch (error) {
-    if (!(error instanceof Refused)) throw error;
-    io.refusal(error);
-    await io.prepareRefusal();
-    io.err(`pullboard: ${error.message}\nnext: ${io.refusalDocument(error).error.next}`);
-    io.flush(1);
-    return 1;
+    return reportRemoteRefusal(io, error);
   }
   const status = io.exitCode(0);
   io.flush(status);
   return status;
+}
+
+/**
+ * Print a refusal from the board host as the local command prints it, code and next: line included, and return 1.
+ * @param {any} io
+ * @param {unknown} error Rethrown unless it is a Refused.
+ */
+export async function reportRemoteRefusal(io, error) {
+  if (!(error instanceof Refused)) throw error;
+  io.refusal(error);
+  await io.prepareRefusal();
+  io.err(`pullboard: ${error.message}\nnext: ${error.next ?? io.refusalDocument(error).error.next}`);
+  io.flush(1);
+  return 1;
 }
