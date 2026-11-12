@@ -62,7 +62,8 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
     assert.equal(store.agentById(board, imported).heartbeatAt, display.heartbeatAt);
     assert.equal(withLocalSeatPresence(board, [{ agent_id: imported }])[0].presence, 'gone', 'imported display activity never becomes local authority');
     const started = Date.now();
-    const next = (await box.runLocal(box.web, 'next', '--build', '--json'));
+    // Process-level: the PRESENCE_BUSY warning is written by the Node process to its own stderr.
+    const next = box.run(box.web, 'next', '--build', '--json');
     assert.equal(next.code, 0, next.err + next.out);
     assert.equal(JSON.parse(next.out).item.item_id, item, 'actual next reaches its native work result');
     assert.match(next.err, /PRESENCE_BUSY.*presence sidecar remained locked/su);

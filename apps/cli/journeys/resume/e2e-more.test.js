@@ -89,7 +89,8 @@ test('verify and escalate take a note from a file, exactly as written [V12]', as
 
 test('the help keeps every command description apart from its usage [N37]', async () => {
   const box = sandbox();
-  const help = (await box.runLocal(box.dir, 'help', '--all')).out;
+  // Process-level: the help outside any repository is the real binary's own output.
+  const help = box.run(box.dir, 'help', '--all').out;
   const commandLines = help.split('\n').filter((line) => line.startsWith('  pullboard '));
   for (const line of commandLines) {
     const hasDescriptionGap = / {2,}\S/.test(line.slice('  pullboard '.length));
@@ -118,7 +119,7 @@ test('output into a reader that stops early ends quietly [N24]', async () => {
   child.stdout.destroy();
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk; });
-  const [code] = awaitNestedRun(closed);
+  const [code] = await awaitNestedRun(closed);
   assert.equal(stderr, '');
   assert.equal(code, 0);
 });
