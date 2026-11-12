@@ -1,5 +1,7 @@
 /** Select testing tiers from immutable source; caller hints never hide a changed package [C7,CS4,V4]. */
 import { gitSpawnSync } from '../../../../../git/index.js';
+import { currentGitAdapter } from '../../../../../git/index.js';
+import { realGitAdapter } from '../../../../../git/index.js';
 import { posix } from 'node:path';
 import { cleanGitEnvironment } from '../../../../../git/index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
@@ -35,16 +37,41 @@ function sourceGit(root, args, optional = false, { input, binary = false } = {})
   throw new Refused('TEST_SELECTION_SOURCE', 'the immutable test-selection source could not be read; restore Git history and retry');
 }
 
+const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+/** Answers about exact object ids, which never change: a resolved commit, and whether its tree holds the manifest. */
+const exactAnswers = new Map();
+
+/**
+ * Remember one answer about an exact object id under real Git, or compute it every time under an injected adapter.
+ * Why: one submit asked Git the same commit and manifest question up to eight times, a process each (#5900).
+ */
+function exactAnswer(key, read) {
+  if (currentGitAdapter() !== realGitAdapter) return read();
+  if (exactAnswers.has(key)) return exactAnswers.get(key);
+  const value = read();
+  exactAnswers.set(key, value);
+  if (exactAnswers.size > 256) exactAnswers.delete(exactAnswers.keys().next().value);
+  return value;
+}
+
 /** Resolve one immutable commit instead of retaining a movable ref inside the selection. */
 function commitAt(root, ref) {
-  const commit = sourceGit(root, ['rev-parse', '--verify', `${ref}^{commit}`]).trim();
-  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) throw new Refused('TEST_SELECTION_SOURCE', 'test selection needs a real committed source');
-  return commit;
+  const resolve = () => {
+    const commit = sourceGit(root, ['rev-parse', '--verify', `${ref}^{commit}`]).trim();
+    if (!OBJECT_ID.test(commit)) throw new Refused('TEST_SELECTION_SOURCE', 'test selection needs a real committed source');
+    return commit;
+  };
+  // A movable ref is read every time; an exact id that resolved once resolves the same way for good.
+  return OBJECT_ID.test(ref) ? exactAnswer(JSON.stringify(['commit', root, ref]), resolve) : resolve();
 }
 
 /** The checked-in portable manifest enables tiers for any project; older projects keep their existing gate. */
 export function hasTestTiers(root, commit = 'HEAD') {
-  return sourceGit(root, ['cat-file', '-e', `${commit}:${TEST_TIERS_FILE}`], true) !== null;
+  const read = () => sourceGit(root, ['cat-file', '-e', `${commit}:${TEST_TIERS_FILE}`], true) !== null;
+  // A commit's tree never changes, so the answer for an exact commit already resolved here is final; a missing object is
+  // asked again, since a fetch can bring it.
+  return OBJECT_ID.test(commit) && exactAnswers.get(JSON.stringify(['commit', root, commit])) === commit
+    ? exactAnswer(JSON.stringify(['tiers', root, commit]), read) : read();
 }
 
 /**
