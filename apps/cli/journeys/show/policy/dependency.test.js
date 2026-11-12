@@ -21,12 +21,10 @@ import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
-// Claim and submit stay processes: in-process, a later board write by another identity runs the lapsed-claim sweep, which
-// returns an api claim that waits on a submitted but unlanded dependency, so submit refuses NOT_YOURS (#6003).
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  project, commitFile, attackCommit,
+  project, commitFile, attackCommit, waitFor,
 } = e2e;
 
 test("a dependency's own verified dependency admits its files [N16,V4]", async () => {
@@ -56,19 +54,25 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   };
   /** Claim, commit, and submit one fixture item through the real CLI lifecycle. */
   const buildAndSubmit = async (cwd, lane, id, path, content) => {
-    assert.equal(box.run(cwd, 'claim', String(id)).code, 0, `claim #${id}`);
+    assert.equal((await box.runLocal(cwd, 'claim', String(id))).code, 0, `claim #${id}`);
     const spec = lane === 'api' ? 'G2' : 'G1';
     const commit = commitFile(box, cwd, path, content, `feat(${lane}): fixture item [${spec}]`);
     assert.equal(commit.status, 0, commit.stderr || commit.failure || `commit #${id}`);
-    const submitted = box.run(cwd, 'submit', String(id), '--json');
-    if (submitted.code !== 0) console.log('# DBG ' + JSON.stringify(box.run(box.repo, 'show', String(id), '--detail').out));
+    const submitted = await box.runLocal(cwd, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.err || submitted.out);
+    await settled(id);
     return box.git(cwd, 'rev-parse', 'HEAD');
+  };
+  /** Wait until the item's queued gate has finished writing its events, so no later board write lands inside a dependent's claim. */
+  const settled = async id => {
+    try { await waitFor(async () => { const queued = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).queuedSubmit; return !queued || ['green', 'red'].includes(queued.state); }, `#${id} gate to settle`); }
+    catch (error) { console.log('# DBG ' + JSON.stringify((await box.runLocal(box.repo, 'show', String(id), '--detail')).out)); throw error; }
   };
   /** Record a real accepted verdict from the other lane's worktree. */
   const accept = async (cwd, id, note) => {
     const result = await box.runLocal(cwd, 'verify', String(id), 'accept', '--note', note, '--json');
     assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+    await settled(id);
   };
 
   const webItem = await add('web', 'verified web ancestor');
@@ -82,11 +86,11 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   await accept(box.web, apiItem, 'the api middle submitted cleanly');
 
   const designItem = await add('design', 'transitive design target', apiItem);
-  assert.equal(box.run(design, 'claim', String(designItem)).code, 0);
+  assert.equal((await box.runLocal(design, 'claim', String(designItem))).code, 0);
   box.git(design, 'merge', '-q', '--ff-only', 'api/one');
   const targetChange = commitFile(box, design, 'design/target.txt', 'target bytes\n', 'feat(design): target fixture [G1]');
   assert.equal(targetChange.status, 0, targetChange.stderr || targetChange.failure || 'target commit');
-  const submitted = box.run(design, 'submit', String(designItem), '--json');
+  const submitted = await box.runLocal(design, 'submit', String(designItem), '--json');
   const submitFailure = submitted.out ? JSON.parse(submitted.out).error?.code : submitted.err;
   assert.equal(submitted.code, 0, submitFailure);
   const targetCommit = box.git(design, 'rev-parse', 'HEAD');
