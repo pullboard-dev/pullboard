@@ -452,9 +452,6 @@
   "apps/cli/journeys/relay/person/cockpit-requests.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/companion/main.test.js": {
-    "launch": 4
-  },
   "packages/runners/tests/io/probe.test.js": {
     "launch": 1
   },
