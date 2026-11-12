@@ -4,16 +4,20 @@ import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { heartbeatSeat } from '../../../../packages/store/index.js';
-import { CELL_CONFIG } from '../../../../packages/store/tests/fixtures/cell.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixturePolicy } from '../../tests/fixtures/testkit.js';
 import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../packages/store/tests/fixtures/cell.js';
 
+const e2e = createE2eHelpers();
+
 /** A real repository, its board on a fixed clock, and web seats that heartbeat so they read as live. */
-function fixture(t, { seats = 1, claims } = {}) {
-  const repo = cellRepo(t, { config: claims === undefined ? CELL_CONFIG : { ...CELL_CONFIG, claims } });
+function fixture(t, { seats = 1 } = {}) {
+  const repo = cellRepo(t);
   const at = Date.now() + 60_000;
   const board = cellBoard(t, ':memory:', { now: () => new Date(at) }, { gitRoot: repo.root });
   cellSeat(board, { lane: 'coordinator', path: repo.root });
@@ -33,12 +37,24 @@ function fill(f) {
   return { held: 10, error: null };
 }
 
-test('claims.perSeat sets N: a seat holds N live claims and the next refuses ONE_CLAIM naming N [C7]', t => {
-  const f = fixture(t, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 3 } });
-  const { held, error } = fill(f);
-  assert.equal(held, 3, 'the seat holds exactly the configured three claims');
-  assert.equal(error.code, 'ONE_CLAIM');
-  assert.match(error.message, /a seat holds up to 3 \(claims\.perSeat sets 3\)/u, 'the refusal names N and says where it came from');
+test('claims.perSeat sets N: a seat holds N live claims and the next refuses ONE_CLAIM naming N [C7]', async () => {
+  const box = e2e.project();
+  fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 2 } });
+  box.git(box.web, 'merge', '-q', 'main');
+  const ids = ['One', 'Two', 'Three'].map(title => {
+    const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--json');
+    assert.equal(added.code, 0, added.err || added.out);
+    return String(JSON.parse(added.out).item.item_id);
+  });
+  for (const id of ids.slice(0, 2)) {
+    const claimed = await box.inProcess(box.web, 'claim', id);
+    assert.equal(claimed.code, 0, claimed.err || claimed.out);
+  }
+  const refused = await box.inProcess(box.web, 'claim', ids[2]);
+  assert.notEqual(refused.code, 0, 'the third claim is refused');
+  const text = refused.err + refused.out;
+  assert.match(text, /ONE_CLAIM/u);
+  assert.match(text, /a seat holds up to 2 \(claims\.perSeat sets 2\)/u, 'the refusal names N and says where it came from');
 });
 
 test('with no runner, N is clamp(1, 5, local cores / live seats), at least 2 for one live seat [C7]', t => {

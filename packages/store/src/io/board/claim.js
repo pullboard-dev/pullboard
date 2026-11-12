@@ -61,7 +61,6 @@ import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { claimProblem } from "../../../../seats/index.js";
 import { randomUUID } from 'node:crypto';
 import { availableParallelism } from 'node:os';
-import { loadConfig } from "../../../../config/index.js";
 import { withLocalSeatPresence } from "../presence.js";
 import {
   atomic,
@@ -85,11 +84,10 @@ function runnerSlots(board) {
 /**
  * How many live top-level build claims one seat may hold, and one line saying how N was found [C7].
  * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
+ * perSeat is the claims.perSeat setting the claiming command read, so a replay reads the same number.
  */
 function claimsPerSeat(board, perSeat = null) {
-  let set = perSeat;
-  if (set === null && board.gitRoot) { try { set = loadConfig(board.gitRoot).claims?.perSeat ?? null; } catch { set = null; } }
-  if (Number.isSafeInteger(set) && set >= 1) return { n: set, how: `claims.perSeat sets ${set}` };
+  if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
   const runners = runnerSlots(board);
   const slots = runners ?? availableParallelism();
   const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent').all()).filter(seat => seat.presence === 'live').length);
