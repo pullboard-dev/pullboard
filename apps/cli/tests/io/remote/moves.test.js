@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
 import { checkOutSubmitted } from '../../fixtures/api.js';
@@ -30,8 +31,15 @@ async function served(box, cwd, ...args) {
 function onRemoteSeats(body) {
   return async (t) => {
     const seats = await remoteSeats(t);
-    try { await body(seats); } finally { await seats.box.api.close(); }
+    try { await body(seats); } finally { await seats.box.api.close(); quiet(seats.box.dir); }
   };
+}
+
+/** Name every process that still holds a file or working directory under the fixture's tree, for the run log. */
+function quiet(dir) {
+  const held = spawnSync('lsof', ['-Fpc', '+D', dir], { encoding: 'utf8' }).stdout.replace(/p(\d+)\nc/gu, '$1 ').trim();
+  const ps = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' }).stdout.split('\n').filter(line => line.includes(dir)).join('\n');
+  console.log('moves-quiet holders: ' + held + '\nmoves-quiet ps: ' + ps);
 }
 
 /** A served board with a builder and a verifier seat, and a boardless clone on its own machine home set to its URL. */
