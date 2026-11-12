@@ -5,6 +5,11 @@ import { bindCostOverview } from "./overview.js";
 import MODEL_TABLES from "../../../data/ceilings/model-names.json" with { type: "json" };
 import { modelPresentation as presentModel } from "../presentation.js";
 
+/** The shipped label rules for model spellings, serialized into the page script by page/boards.js [P5]. */
+export function modelLabelRules() {
+  return MODEL_TABLES.labels;
+}
+
 /** Name one model with the shipped tables; the browser copy is rebuilt around the same data in costTabScript. */
 export function modelPresentation(reported, family = '') {
   return presentModel(reported, family, MODEL_TABLES);
