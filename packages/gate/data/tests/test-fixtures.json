@@ -796,7 +796,10 @@
     "tempdir": 1
   },
   "packages/gate/tests/io/clone.test.js": {
-    "tempdir": 6
+    "tempdir": 3
+  },
+  "packages/gate/tests/io/clone/startup.test.js": {
+    "tempdir": 3
   },
   "packages/gate/tests/ci.test.js": {
     "repo-read": 3,
@@ -2104,7 +2107,7 @@
   "apps/cli/journeys/init/lapse.test.js": {
     "raw-board": 5
   },
-  "packages/gate/tests/io/watchdog.test.js": {
+  "packages/gate/tests/fixtures/watchdog/legacy.js": {
     "tempdir": 1
   },
   "apps/lib/tests/capacity/line.test.js": {
