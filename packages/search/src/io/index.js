@@ -86,3 +86,21 @@ export function searchIndex(board, { sidecar }) {
 export function searchItems(board, text, { sidecar, limit, exclude } = {}) {
   return rank(searchIndex(board, { sidecar }), text, { limit, exclude });
 }
+
+/**
+ * The best matches for a text with each item's state and title, for a person to read.
+ *
+ * @param {object} board - An open board.
+ * @param {string} text
+ * @param {{ sidecar: string, limit?: number, exclude?: number[], open?: boolean }} options - `open` keeps only items still to be done.
+ * @returns {{ id: number, score: number, state: string, title: string }[]}
+ */
+export function searchItemRows(board, text, { sidecar, limit = 5, exclude, open = false }) {
+  const byId = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
+  const closed = new Set(['verified', 'withdrawn']);
+  const hits = searchItems(board, text, { sidecar, exclude, limit: open ? Infinity : limit });
+  return hits
+    .map(hit => ({ id: hit.id, score: hit.score, state: byId.get(hit.id)?.item_status ?? 'unknown', title: byId.get(hit.id)?.item_title ?? '' }))
+    .filter(row => !open || !closed.has(row.state))
+    .slice(0, limit);
+}
