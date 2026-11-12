@@ -14,7 +14,9 @@ test('doctor on a verified item whose gate names a missing file finishes and nam
   try {
     const frozen = JSON.parse(db.prepare('SELECT item_frozen FROM item WHERE item_id=1').get().item_frozen ?? '{}');
     frozen.check = 'node --test test/cockpit.test.js';
-    db.prepare("UPDATE item SET item_status='verified', item_frozen=? WHERE item_id=1").run(JSON.stringify(frozen));
+    // Precedent: doctor/drift.test.js drops the scratch board's triggers to stage a state no command reaches.
+    for (const { name } of db.prepare("SELECT name FROM sqlite_master WHERE type='trigger'").all()) db.exec(`DROP TRIGGER "${name}"`);
+    db.prepare("UPDATE item SET item_status='verified', item_verified_by='api-1', item_frozen=? WHERE item_id=1").run(JSON.stringify(frozen));
   } finally { db.close(); }
   const result = box.run(box.repo, 'doctor');
   assert.equal(result.code, 1, result.out + result.err);
