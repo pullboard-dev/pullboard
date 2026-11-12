@@ -1,0 +1,833 @@
+{
+  "apps/cli/src/io/cells-reorg.js": {
+    "cells.json": 3
+  },
+  "apps/cli/src/io/cells-submit-checks.js": {
+    "path-map.json": 1,
+    "temporary-edges.json": 1
+  },
+  "apps/cli/src/io/cli-main/recovery.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/cli-main/run.js": {
+    "pending.json": 2,
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/commands/init.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/commands/next.js": {
+    "pullboard.json": 1
+  },
+  "apps/cli/src/io/disk/use.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/hook/composed.js": {
+    "pullboard-item.json": 1,
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/hook/thin.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/init/finish.js": {
+    "pullboard.json": 1
+  },
+  "apps/cli/src/io/item/bar.js": {
+    "pullboard.json": 1
+  },
+  "apps/cli/src/io/landing/automatic.js": {
+    "pending.json": 2
+  },
+  "apps/cli/src/io/landing/budget.js": {
+    "pullboard.json": 1
+  },
+  "apps/cli/src/io/read.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/resident/client.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/static/view.js": {
+    "path-map.json": 1
+  },
+  "apps/cli/src/io/submit/handoff.js": {
+    "board.sqlite": 1
+  },
+  "apps/cli/src/io/submit/handoff/worker.js": {
+    "refusal.json": 1
+  },
+  "apps/cli/src/io/submit/remote.js": {
+    "cells.json": 2
+  },
+  "apps/cli/src/io/submit/wait.js": {
+    "submission.json": 1
+  },
+  "apps/cli/src/io/tool/build.js": {
+    "timer.guard.sqlite": 1,
+    "timer.json": 1
+  },
+  "apps/cli/src/io/tour.js": {
+    "pullboard.json": 1
+  },
+  "apps/cli/src/io/worktree/maintenance/observation.js": {
+    "state.json": 2
+  },
+  "apps/cli/src/io/worktree/maintenance/scheduler.js": {
+    "timer.guard.sqlite": 1,
+    "timer.json": 1
+  },
+  "apps/lib/src/io/notice.js": {
+    "board.sqlite": 1
+  },
+  "apps/lib/src/io/seal.js": {
+    "board.sqlite": 1
+  },
+  "apps/lib/src/io/serving.js": {
+    "request.json": 1
+  },
+  "apps/relay/src/io/board/links.js": {
+    ".journal.sqlite": 2
+  },
+  "apps/relay/src/io/deploy/smoke.mjs": {
+    "pullboard.json": 1,
+    "relay.json": 1
+  },
+  "apps/relay/src/io/journal.js": {
+    ".journal.sqlite": 1
+  },
+  "apps/relay/src/io/quota.js": {
+    ".journal.sqlite": 1
+  },
+  "apps/relay/src/io/service.js": {
+    ".journal.sqlite": 3
+  },
+  "apps/relay/src/io/store/page.js": {
+    ".journal.sqlite": 1
+  },
+  "apps/relay/src/logic/person/enrollment/store.js": {
+    "table:device": 1,
+    "table:wrapped_key": 1
+  },
+  "apps/runner/src/io/sweep.js": {
+    "worker-owner.json": 1,
+    "resources.sqlite": 1,
+    "settings.json": 1
+  },
+  "apps/runner/src/io/worker/health.js": {
+    "worker-owner.json": 1,
+    "resources.sqlite": 1
+  },
+  "apps/view/src/io/live/read.js": {
+    "board.sqlite": 1
+  },
+  "apps/view/src/io/needs.js": {
+    "board.sqlite": 1
+  },
+  "apps/view/src/io/serve.js": {
+    "board.sqlite": 3,
+    "boards.json": 1,
+    "state.json": 1,
+    "resources.sqlite": 1
+  },
+  "apps/view/src/io/session.js": {
+    "view.json": 1
+  },
+  "packages/api/src/io/event-signals.js": {
+    "board.sqlite": 2
+  },
+  "packages/api/src/io/jobs.js": {
+    "table:job": 1
+  },
+  "packages/codemap/src/io/cell/lint/inventory.js": {
+    "temporary-edges.json": 1
+  },
+  "packages/codemap/src/io/cell/lint/shards.js": {
+    "index.json": 1
+  },
+  "packages/codemap/src/io/cell/lints.js": {
+    "transition.json": 1,
+    "cells.json": 1,
+    "temporary-edges.json": 1,
+    "path-map.json": 1
+  },
+  "packages/codemap/src/io/cell/parser/worker.js": {
+    "exit.json": 1,
+    "supervisor-rotation.json": 1
+  },
+  "packages/codemap/src/io/cells-plan-model.js": {
+    "cells.json": 1
+  },
+  "packages/codemap/src/io/cells/backlog.js": {
+    "cells.json": 2
+  },
+  "packages/codemap/src/io/cells/cache.js": {
+    "pullboard.json": 1
+  },
+  "packages/codemap/src/io/freeze.js": {
+    "pullboard.json": 1
+  },
+  "packages/codemap/src/io/map.js": {
+    "code-map.json": 1
+  },
+  "packages/codemap/src/io/module/imports.js": {
+    "sources.json": 1
+  },
+  "packages/codemap/src/io/shim/lifecycle.js": {
+    "path-map.json": 2
+  },
+  "packages/codemap/src/io/shim/ratchet.js": {
+    "cells.json": 1,
+    "temporary-edges.json": 2
+  },
+  "packages/codemap/src/io/shims.js": {
+    "pullboard.json": 1,
+    "cells-edges.json": 1,
+    "cells.json": 1
+  },
+  "packages/codemap/src/io/slice.js": {
+    "code-map.json": 1
+  },
+  "packages/codemap/src/logic/allowlist.js": {
+    "path-map.json": 1,
+    "pullboard.json": 1
+  },
+  "packages/commits/src/io/listing.js": {
+    "test-cells.json": 1
+  },
+  "packages/commits/src/io/note.js": {
+    "pullboard.json": 1
+  },
+  "packages/commits/src/io/signoff.js": {
+    "pullboard.json": 1
+  },
+  "packages/commits/src/logic/change/row/plan.js": {
+    "cells.json": 2
+  },
+  "packages/config/src/io/git/sync.js": {
+    "git-sync.json": 1
+  },
+  "packages/config/src/io/main.js": {
+    "pullboard.json": 1
+  },
+  "packages/config/src/io/settings/inventory.js": {
+    "state.json": 1,
+    "pullboard.json": 1,
+    "relay.json": 1,
+    "board.sqlite": 2
+  },
+  "packages/doctrine/src/io/checks.js": {
+    "pullboard.json": 1
+  },
+  "packages/drive/src/io/gate/admission.js": {
+    "board.sqlite": 1
+  },
+  "packages/flakes/src/io/native.js": {
+    "observation.json": 1,
+    "manifest.json": 1
+  },
+  "packages/gate/src/io/browser/admission.js": {
+    "pullboard.json": 1
+  },
+  "packages/gate/src/io/changed/scripts/static.js": {
+    "test-fixtures.json": 1
+  },
+  "packages/gate/src/io/check/baseline/worker.js": {
+    "board.sqlite": 1
+  },
+  "packages/gate/src/io/coordinator/release.js": {
+    "board.sqlite": 1
+  },
+  "packages/gate/src/io/edges.js": {
+    "cells-edges.json": 1,
+    "cells.json": 2
+  },
+  "packages/gate/src/io/inventory.js": {
+    "cells.json": 2
+  },
+  "packages/gate/src/io/keepalive.js": {
+    "pullboard-item.json": 1,
+    "seat-timing.jsonl": 1,
+    "board.sqlite": 2
+  },
+  "packages/gate/src/io/launches.js": {
+    "baseline.json": 1
+  },
+  "packages/gate/src/io/main/audit/attribution.js": {
+    "last-green.json": 1
+  },
+  "packages/gate/src/io/main/audit/economics.js": {
+    "last-green.json": 2,
+    "schedule.json": 1
+  },
+  "packages/gate/src/io/main/audit/nudge.js": {
+    "activation.json": 2,
+    "last-green.json": 1
+  },
+  "packages/gate/src/io/main/audit/state.js": {
+    "activation.json": 1
+  },
+  "packages/gate/src/io/main/audit/worker.js": {
+    "board.sqlite": 1,
+    "last-green.json": 1
+  },
+  "packages/gate/src/io/receipt.js": {
+    "gate-receipts.jsonl": 1
+  },
+  "packages/gate/src/io/scan.js": {
+    "path-map.json": 1
+  },
+  "packages/gate/src/io/shards/proof.js": {
+    "resources.sqlite": 1
+  },
+  "packages/gate/src/io/slot.js": {
+    "resources.sqlite": 1
+  },
+  "packages/gate/src/io/static/check/registry.js": {
+    "test-waits-baseline.json": 1
+  },
+  "packages/gate/src/io/static/registry.js": {
+    "test-waits-baseline.json": 1,
+    "test-fixtures.json": 1
+  },
+  "packages/gate/src/io/test/action/reporter.js": {
+    "keys.json": 1
+  },
+  "packages/gate/src/io/test/cells.js": {
+    "test-cells.json": 1,
+    "cells.json": 1
+  },
+  "packages/gate/src/io/test/concurrency.js": {
+    "pullboard.json": 2
+  },
+  "packages/gate/src/io/test/economics/placement.js": {
+    "current.json": 2
+  },
+  "packages/gate/src/io/test/fixtures.js": {
+    "test-fixtures.json": 1
+  },
+  "packages/gate/src/io/test/launches.js": {
+    "cli-launches.json": 1
+  },
+  "packages/gate/src/io/test/tiers.js": {
+    "tiers.json": 1,
+    "cells.json": 1
+  },
+  "packages/gate/src/io/test/value/timing.js": {
+    "landing-file-times.json": 1
+  },
+  "packages/gate/src/io/test/waits.js": {
+    "test-waits-baseline.json": 1
+  },
+  "packages/gate/src/logic/export/only.js": {
+    "cells.json": 1
+  },
+  "packages/git/src/io/check/receipts.js": {
+    "pullboard.json": 1
+  },
+  "packages/health/src/io/claim/sweep.js": {
+    "table:board_meta": 2
+  },
+  "packages/health/src/io/main.js": {
+    "resources.sqlite": 1
+  },
+  "packages/health/src/io/stale/observation/run.js": {
+    "resources.sqlite": 1
+  },
+  "packages/items/src/io/claim.js": {
+    "pullboard-item.json": 2
+  },
+  "packages/items/src/io/criterion.js": {
+    "cells.json": 1
+  },
+  "packages/items/src/io/declaration.js": {
+    "table:board_meta": 4
+  },
+  "packages/items/src/io/offer.js": {
+    "table:board_meta": 1
+  },
+  "packages/items/src/io/outside/proof.js": {
+    "receipt.json": 1
+  },
+  "packages/items/src/io/outside/verify.js": {
+    "pullboard.json": 1
+  },
+  "packages/items/src/io/patch/submit.js": {
+    "board.sqlite": 2
+  },
+  "packages/items/src/io/patches.js": {
+    "table:board_meta": 1
+  },
+  "packages/items/src/io/planning.js": {
+    "code-map.json": 1
+  },
+  "packages/items/src/io/rehome.js": {
+    "table:sqlite_sequence": 2,
+    "table:board_meta": 4
+  },
+  "packages/items/src/io/submit/recovery.js": {
+    "submission.json": 1,
+    "refusal.json": 2,
+    "request.json": 3
+  },
+  "packages/items/src/logic/check/timing.js": {
+    "table:board_meta": 1
+  },
+  "packages/items/src/logic/decision/queue.js": {
+    "table:board_meta": 1
+  },
+  "packages/items/src/logic/fields.js": {
+    "table:item": 1
+  },
+  "packages/items/src/logic/outside/sensitive.js": {
+    "pullboard.json": 1
+  },
+  "packages/items/src/logic/outside/source.js": {
+    "table:board_meta": 1
+  },
+  "packages/items/src/logic/submit/preflight.js": {
+    "cells.json": 1
+  },
+  "packages/jobs/src/io/review.js": {
+    "table:job": 3
+  },
+  "packages/jobs/src/io/store.js": {
+    "table:job": 3
+  },
+  "packages/keys/src/io/relay/client.js": {
+    "relay.json": 1,
+    "board.sqlite": 3
+  },
+  "packages/landing/src/io/automatic/scheduler.js": {
+    "pending.json": 3,
+    "timer.json": 1
+  },
+  "packages/landing/src/io/candidates.js": {
+    "board.sqlite": 1
+  },
+  "packages/landing/src/io/computed/conflict/return.js": {
+    "board.sqlite": 1
+  },
+  "packages/landing/src/io/history.js": {
+    "cells.json": 1
+  },
+  "packages/landing/src/io/host.js": {
+    "board.sqlite": 1
+  },
+  "packages/landing/src/io/main/red.js": {
+    "pullboard.json": 1
+  },
+  "packages/landing/src/io/plan/check.js": {
+    "cells.json": 2
+  },
+  "packages/landing/src/io/scan.js": {
+    "cells.json": 1
+  },
+  "packages/landing/src/io/smoke.js": {
+    "settings.json": 1,
+    "pullboard.json": 1
+  },
+  "packages/landing/src/io/step/batch.js": {
+    "cells.json": 2
+  },
+  "packages/landing/src/io/worker.js": {
+    "table:board_meta": 1
+  },
+  "packages/link/src/io/relay.js": {
+    "board.sqlite": 2
+  },
+  "packages/link/src/io/relay/canary/health.js": {
+    "relay-health.sqlite": 1
+  },
+  "packages/link/src/io/relay/environment.js": {
+    "relay.json": 1
+  },
+  "packages/link/src/io/relay/execution.js": {
+    "board.sqlite": 1
+  },
+  "packages/link/src/io/relay/join.js": {
+    "board.sqlite": 1
+  },
+  "packages/link/src/io/relay/lock.js": {
+    "table:relay_lease": 2
+  },
+  "packages/link/src/io/relay/machine.js": {
+    "state.json": 2
+  },
+  "packages/link/src/io/relay/requests.js": {
+    "table:board_meta": 2
+  },
+  "packages/link/src/io/relay/setup.js": {
+    "board.sqlite": 1
+  },
+  "packages/link/src/io/relay/summary.js": {
+    "relay-outbox.summary.json": 1
+  },
+  "packages/merge/src/logic/manifest.js": {
+    "cells.json": 1,
+    "tiers.json": 1
+  },
+  "packages/outbox/src/io/relay.js": {
+    "table:agent": 1
+  },
+  "packages/outbox/src/io/relay/ordering.js": {
+    "board.sqlite": 1
+  },
+  "packages/outbox/src/logic/undo.js": {
+    "table:sqlite_sequence": 2
+  },
+  "packages/pages/src/io/relay/cache.js": {
+    "table:job": 3
+  },
+  "packages/pages/src/io/relay/presentation.js": {
+    "board.sqlite": 2
+  },
+  "packages/person/src/io/signing.js": {
+    "table:board_meta": 2
+  },
+  "packages/person/src/io/signing/cli.js": {
+    "board.sqlite": 3
+  },
+  "packages/resources/src/io/controller/custody.js": {
+    "resources.sqlite": 1,
+    "table:runner_recovery_event": 1,
+    "table:holder": 4,
+    "board.sqlite": 2
+  },
+  "packages/resources/src/io/controller/disposition.js": {
+    "table:runner_recovery_event": 1
+  },
+  "packages/resources/src/io/handoff/prune.js": {
+    "submission.json": 1,
+    "refusal.json": 2,
+    "request.json": 1,
+    "board.sqlite": 1
+  },
+  "packages/resources/src/io/handoff/worker/cap.js": {
+    "request.json": 1,
+    "submission.json": 1,
+    "refusal.json": 1
+  },
+  "packages/resources/src/io/heartbeat/blocked.js": {
+    "table:holder": 1
+  },
+  "packages/resources/src/io/heartbeat/waiter.js": {
+    "table:waiter": 1
+  },
+  "packages/resources/src/io/home.js": {
+    "settings.json": 1
+  },
+  "packages/resources/src/io/liveness.js": {
+    "table:holder": 4
+  },
+  "packages/resources/src/io/main.js": {
+    "resources.sqlite": 2,
+    "table:runner_unavailable": 1
+  },
+  "packages/resources/src/io/renewal.js": {
+    "table:waiter": 1
+  },
+  "packages/resources/src/io/runner/heal.js": {
+    "table:runner_recovery_event": 2,
+    "table:runner_unavailable": 1
+  },
+  "packages/resources/src/io/runner/reserve.js": {
+    "table:runner_timing_drain": 1
+  },
+  "packages/rigor/src/io/counters.js": {
+    "table:board_meta": 2
+  },
+  "packages/roadmap/src/logic/main.js": {
+    "board.sqlite": 1
+  },
+  "packages/roadmap/src/logic/milestones.js": {
+    "table:board_meta": 1
+  },
+  "packages/runners/src/io/capacity.js": {
+    "resources.sqlite": 1
+  },
+  "packages/runners/src/io/checkouts.js": {
+    "pullboard-source-snapshot.json": 1
+  },
+  "packages/runners/src/io/controller/watch.js": {
+    "board.sqlite": 1
+  },
+  "packages/runners/src/io/handoff/handover.js": {
+    "request.json": 1
+  },
+  "packages/runners/src/io/pack.js": {
+    "pullboard.json": 1
+  },
+  "packages/runners/src/io/source/cache.js": {
+    "source-cache-pin.json": 1
+  },
+  "packages/runners/src/io/source/scan.js": {
+    "pullboard.json": 1
+  },
+  "packages/runners/src/io/tooling/committed.js": {
+    ".pullboard-runner-source.json": 1
+  },
+  "packages/runners/src/io/transport.js": {
+    "resources.sqlite": 1
+  },
+  "packages/runners/src/io/wait.js": {
+    "resources.sqlite": 1
+  },
+  "packages/sandbox/src/io/source/advance.js": {
+    "table:board_meta": 1
+  },
+  "packages/sandbox/src/io/source/advance/origin.js": {
+    "board.sqlite": 1
+  },
+  "packages/sandbox/src/io/source/advance/worker.js": {
+    "board.sqlite": 1,
+    "manifest.json": 1,
+    "owner.json": 1,
+    "wake.json": 1,
+    "owner.guard.sqlite": 1
+  },
+  "packages/sandbox/src/io/submit/handoff/seal.js": {
+    "board.sqlite": 1
+  },
+  "packages/sandbox/src/io/trusted/policy/committed.js": {
+    "pullboard-runner-policy.json": 1
+  },
+  "packages/sandbox/src/io/verify.js": {
+    "manifest.json": 1,
+    "receipt.json": 1
+  },
+  "packages/seats/src/io/agent/binding.js": {
+    "pullboard-checkout-session.json": 1
+  },
+  "packages/seats/src/io/agent/events.js": {
+    "settings.json": 1
+  },
+  "packages/seats/src/io/agent/session.js": {
+    "pullboard-checkout-session.json": 2
+  },
+  "packages/seats/src/io/hold.js": {
+    "table:board_meta": 1
+  },
+  "packages/seats/src/io/ledger.js": {
+    "seat-timing.jsonl": 1
+  },
+  "packages/seats/src/io/main.js": {
+    "table:board_meta": 4
+  },
+  "packages/seats/src/io/projects.js": {
+    "board.sqlite": 2,
+    "table:board_meta": 2
+  },
+  "packages/seats/src/io/timing.js": {
+    "pullboard-item.json": 1,
+    "board.sqlite": 1
+  },
+  "packages/seats/src/logic/lane/lead/policy.js": {
+    "table:board_meta": 1
+  },
+  "packages/seats/src/logic/line/settings.js": {
+    "table:board_meta": 1
+  },
+  "packages/seats/src/logic/tier.js": {
+    "tiers.json": 1
+  },
+  "packages/sentinels/src/io/waits.js": {
+    "resources.sqlite": 2
+  },
+  "packages/sentinels/src/logic/budgets.js": {
+    "pullboard.json": 1
+  },
+  "packages/spec/src/io/main.js": {
+    "signoffs.jsonl": 1
+  },
+  "packages/spec/src/io/revisions.js": {
+    "table:board_meta": 2
+  },
+  "packages/spec/src/io/verdicts.js": {
+    "table:board_meta": 1
+  },
+  "packages/spec/src/logic/row/draft.js": {
+    "table:board_meta": 1
+  },
+  "packages/spec/src/logic/siblings.js": {
+    "board.sqlite": 1
+  },
+  "packages/state/src/io/engine.js": {
+    "table:board_meta": 3
+  },
+  "packages/state/src/logic/policy.js": {
+    "table:board_meta": 4
+  },
+  "packages/stats/src/io/cost.js": {
+    "table:board_meta": 1
+  },
+  "packages/stats/src/io/cost/shared.js": {
+    "table:board_meta": 2
+  },
+  "packages/stats/src/io/time/checkpoint.js": {
+    "stats-history.jsonl": 1
+  },
+  "packages/store/src/io/baseline/check.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/io/baseline/spec/approval.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board.js": {
+    "table:temp": 2
+  },
+  "packages/store/src/io/board/add.js": {
+    "table:item": 1
+  },
+  "packages/store/src/io/board/blobs.js": {
+    "table:job_step": 1,
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/claim.js": {
+    "table:board_meta": 4
+  },
+  "packages/store/src/io/board/coordinator.js": {
+    "table:agent": 1
+  },
+  "packages/store/src/io/board/edit.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/io/board/event/log/migrate.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/fact.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/io/board/item/slice.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/jobs.js": {
+    "table:job": 2,
+    "table:job_step": 1,
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/link.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/link/relay.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/members.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/record/decisions.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/register.js": {
+    "table:board_meta": 3
+  },
+  "packages/store/src/io/board/release/lane.js": {
+    "table:hold": 1
+  },
+  "packages/store/src/io/board/schema.js": {
+    "board.sqlite": 1
+  },
+  "packages/store/src/io/board/sqlite.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/state.js": {
+    "signoffs.jsonl": 1
+  },
+  "packages/store/src/io/board/submit.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/board/wait.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/io/board/write/lock.js": {
+    "board-writes.jsonl": 1
+  },
+  "packages/store/src/io/companion.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/io/exchange.js": {
+    "table:event": 1,
+    "table:agent": 1,
+    "table:board_meta": 3
+  },
+  "packages/store/src/io/expected.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/io/home.js": {
+    "relay-deleted.json": 1,
+    "git-sync.json": 1
+  },
+  "packages/store/src/io/memory.js": {
+    "resources.sqlite": 1
+  },
+  "packages/store/src/logic/board/activity/delivery.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/logic/board/claim.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/logic/board/holds.js": {
+    "table:board_meta": 3
+  },
+  "packages/store/src/logic/board/inbox.js": {
+    "table:agent": 1
+  },
+  "packages/store/src/logic/board/landing/lease.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/logic/board/landing/local.js": {
+    "table:board_meta": 2
+  },
+  "packages/store/src/logic/board/notices.js": {
+    "table:board_meta": 1
+  },
+  "packages/store/src/logic/exit/rules/claim.js": {
+    "table:board_meta": 3
+  },
+  "packages/store/src/logic/known/main/autofile.js": {
+    "table:board_meta": 1
+  },
+  "packages/sync/src/io/git/lock.js": {
+    "recovery.json": 1
+  },
+  "packages/sync/src/io/git/repair.js": {
+    "recovery.json": 1
+  },
+  "packages/sync/src/io/main.js": {
+    "git-sync.json": 1,
+    "relay.json": 1,
+    "table:board_meta": 1
+  },
+  "packages/verify/src/io/bar/readiness.js": {
+    "table:board_meta": 1
+  },
+  "packages/verify/src/io/compare.js": {
+    "request.json": 1
+  },
+  "packages/verify/src/io/comparison.js": {
+    "request.json": 1
+  },
+  "packages/verify/src/io/machine.js": {
+    "table:board_meta": 1
+  },
+  "packages/verify/src/io/proof/counters.js": {
+    "table:board_meta": 4
+  },
+  "packages/verify/src/io/review/default.js": {
+    "table:board_meta": 1
+  },
+  "packages/verify/src/io/review/independence.js": {
+    "table:board_meta": 1
+  },
+  "packages/verify/src/io/review/tier.js": {
+    "pullboard.json": 1
+  },
+  "packages/verify/src/io/rule/proof/append.js": {
+    "board.sqlite": 1
+  },
+  "packages/verify/src/logic/required.js": {
+    "table:board_meta": 2
+  },
+  "packages/verify/src/logic/verdict/assurance.js": {
+    "table:board_meta": 1
+  }
+}
