@@ -1478,6 +1478,9 @@
   "apps/cli/journeys/shout/http/agent.test.js": {
     "launch": 8
   },
+  "apps/cli/journeys/shout/item.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/shout/journey.test.js": {
     "launch": 7
   },
