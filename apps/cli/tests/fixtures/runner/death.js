@@ -101,8 +101,6 @@ export async function parentDeathDrainFixture(t, tools, { holdRelease = false, c
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) {
     mkdirSync(folder, { recursive: true });
   }
-  // The stand-in worker's own machine home pins controller dispatch too [P7].
-  fixtureMachineSettings(remoteMachineHome, { gate: { runnerDispatch: 'controller' } });
   fixtureMachineSettings(machineHome, { gateSlots: 1, gate: { loadAwareDispatch: false, runnerDispatch: 'controller' } });
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
