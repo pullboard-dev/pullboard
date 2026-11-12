@@ -528,9 +528,10 @@ export async function sourceAdvancePolicyCase(t, helpers) {
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   const wakeFile = join(directory, 'wake.json');
   const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
-  run(box, box.repo, 'land', '--max', '1');
+  const landOut = run(box, box.repo, 'land', '--max', '1');
   // The actual first landing must schedule this worker; no second nudge can consume its expected generation.
-  await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters');
+  try { await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters'); }
+  catch (error) { throw new Error(error.message + ' DIAG land: ' + landOut.slice(0, 1500) + ' | dir: ' + (existsSync(directory) ? readdirSync(directory).join(',') : 'none') + ' | calls: ' + readFileSync(callsFile, 'utf8').slice(0, 500) + ' | batches: ' + JSON.stringify(readBoard(box, board => store.landingBatches(board).map(batch => [batch.state, batch.items.map(e => e.id)])))); }
   const liveOwner = readMainAudit(join(directory, 'owner.json'));
   assert.ok(Number.isSafeInteger(liveOwner?.pid), 'the held source gate has a real native worker owner');
   const enteredRoot = readFileSync(entered, 'utf8');
