@@ -1,8 +1,10 @@
 /** New work defaults to mid, so a plain add and the Main-red filer never refuse DIAGNOSIS_REQUIRED [C7,B13]. */
 import assert from 'node:assert/strict';
 import {
+  mkdirSync,
   mkdtempSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -70,6 +72,13 @@ test("clause 1: pullboard add with --check \"node apps/cli/src/io/run/tests.js '
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
+  // The bar names files that must exist on the fixture's main, or the add refuses them as unbuildable.
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), '// fixture runner\n');
+  writeFileSync(join(box.repo, 'test/x.test.js'), '// fixture test\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: add the bar files');
   const added = plainAdd(helpers, box, 'web', 'Quoted check', '--specs', 'G1', '--criterion', 'x passes [test]',
     '--check', "node apps/cli/src/io/run/tests.js 'test/x.test.js'", '--json');
   assert.equal(added.code, 0, added.out + added.err);
