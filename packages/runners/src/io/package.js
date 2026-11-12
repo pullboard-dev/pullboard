@@ -62,8 +62,6 @@ function dependency(file, specifier, manifest) {
   if (target.startsWith('../') || target.startsWith('/') || /[\\\u0000-\u001f\u007f?#]/u.test(target)) unavailable(file, `unsafe import ${specifier}`);
   // A directory URL (new URL('../..', import.meta.url)) names a folder, not a file to ship or read.
   if (target === '.' || target.endsWith('/')) return null;
-  // A hidden root file (the runner export's own source marker) exists only inside an export and is read with a fallback; it is never shipped code.
-  if (/^\.[^/]+$/u.test(target)) return null;
   return target;
 }
 
