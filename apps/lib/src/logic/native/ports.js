@@ -176,6 +176,7 @@ import { boardEnginePorts } from '../../../../../packages/store/index.js';
 import {
   guardStore,
   refreshStoreDeclarations,
+  repairDrift,
 } from '../../../../../packages/store/index.js';
 import {
   storeTriggers,
@@ -315,7 +316,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
-    guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
+    guards: Object.freeze({ guardStore, refreshStoreDeclarations, repairDrift, storeTriggers }),
     lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
       missingAdditiveIndexes, ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,

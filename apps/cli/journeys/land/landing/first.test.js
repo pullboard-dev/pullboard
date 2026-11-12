@@ -38,7 +38,7 @@ function landFirst(box, ids) {
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(box.git(box.repo, 'show', 'HEAD:pullboard.json'));
   config.landing.first = ids;
-  config.landing.perItem = true; // one item per run, so the order shows across two runs
+  config.landing.perItem = true;
   writeFileSync(path, JSON.stringify(config, null, 2));
   box.git(box.repo, 'commit', '-q', '-am', 'chore: land the named items first');
 }
@@ -63,12 +63,12 @@ test('landing.first in accepted trunk policy lands the named item ahead of the a
   landFirst(box, [first.item, 999999]); // an unknown id is ignored
   refuseEveryCommit(box);
 
-  const one = box.run(box.repo, 'land', '--json');
+  const one = box.run(box.repo, 'land', '--max', '1', '--json'); // one item per run, so the order shows across two runs [#5815]
   assert.equal(one.code, 0, one.out + one.err);
   assert.deepEqual(JSON.parse(one.out).landed, [first.item], 'the named item lands ahead of the earlier-accepted one');
   assert.equal(json(box, box.repo, 'show', String(second.item)).item_merged_commit, null);
 
-  const two = box.run(box.repo, 'land', '--json');
+  const two = box.run(box.repo, 'land', '--max', '1', '--json');
   assert.equal(two.code, 0, two.out + two.err);
   assert.deepEqual(JSON.parse(two.out).landed, [second.item], 'the accept order resumes after the named items');
 });
