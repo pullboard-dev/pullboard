@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
+import { offeredRequest } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
@@ -38,7 +39,7 @@ function offeredGate(db, job) {
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
   if (!row) return null;
-  const request = JSON.parse(row.job_step_payload).request ?? null;
+  const request = offeredRequest(db, job);
   return { kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, main: row.job_base, submit: request?.submit ?? null,
     check: typeof request?.input?.data?.check === 'string' ? request.input.data.check : null };
 }
@@ -95,10 +96,10 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   return ids;
 }
 
-/** The request a job was offered with, or null. */
-function offeredRequest(db, job) {
+/** The offer a job was made with, its request read back whole, or null. */
+function offeredStep(db, job) {
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
-  return row ? JSON.parse(row.job_step_payload) : null;
+  return row ? { ...JSON.parse(row.job_step_payload), request: offeredRequest(db, job) } : null;
 }
 
 /** The newest receipt posted for a job, or null. */
@@ -133,7 +134,7 @@ function offerProofShards(board, { job, receipt, offered }) {
   if (receipt?.status === undefined || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || (gate.phases ?? []).some(phase => phase.status !== 0)
     || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores || files.length <= cores
     || files.some(file => typeof file !== 'string' || !PROJECT_FILE.test(file))) return null;
-  const request = offeredRequest(board.db, job);
+  const request = offeredStep(board.db, job);
   const gateRequest = request?.request;
   if (!Array.isArray(gateRequest?.run) || typeof gateRequest.input?.entry !== 'string') return null;
   const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
@@ -187,7 +188,7 @@ function combinedReceipt(gateReceipt, shards) {
  * @returns {{ applied: boolean, outcome: string, remaining?: number }}
  */
 export function applyShardReceipt(board, { job }, ports = {}) {
-  const parent = offeredRequest(board.db, job)?.request?.gate;
+  const parent = offeredRequest(board.db, job)?.gate;
   if (typeof parent !== 'string') return { applied: false, outcome: 'not-shard' };
   const shards = shardJobs(board.db, parent);
   const remaining = shards.filter(row => row.job_step !== 'done').length;

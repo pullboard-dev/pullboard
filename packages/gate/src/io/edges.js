@@ -190,8 +190,45 @@ export function importSpecifiers(source) {
   return found;
 }
 
+// A repo path to a source file of one cell, and the calls that run or read a file by such a path [C7].
+const PATH_STRING = /^(?:packages|apps)\/[^/\s]+\/[^\s$]*\.[cm]?js$/u;
+const REACH_CALLS = 'spawn|spawnSync|execFile|execFileSync|fork|exec|execSync|import|readFileSync|readFile|createReadStream|runFixtureChild|runFixtureChildAsync|startFixtureChild';
+const REACH_CALLEE = new RegExp(`(?:^|[^\\w$.])(?:${REACH_CALLS})$`, 'u');
+
+/** Whether the string at `start` sits inside the arguments of a spawn, dynamic import or file read, or in a variable passed to one. */
+function reachedByCall(code, start) {
+  let depth = 0;
+  for (let at = start - 1; at >= 0 && start - at < 600; at -= 1) {
+    const char = code[at];
+    if (char === ';' && depth === 0) break;
+    if (')]}'.includes(char)) depth += 1;
+    else if ('([{'.includes(char)) {
+      if (depth > 0) depth -= 1;
+      else if (char === '(' && REACH_CALLEE.test(code.slice(Math.max(0, at - 30), at).trimEnd())) return true;
+    }
+  }
+  const tail = code.slice(code.lastIndexOf(';', start) + 1, start);
+  const name = /^\s*(?:const|let|var)\s+([\w$]+)\s*=/u.exec(tail)?.[1];
+  if (!name) return false;
+  const use = new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u');
+  for (const call of code.matchAll(new RegExp(`\\b(?:${REACH_CALLS})\\s*\\(([^;]*)`, 'gu'))) if (use.test(call[1])) return true;
+  return false;
+}
+
 /**
- * Every other cell one file imports, each with whether the import reaches into that cell's src folder.
+ * The repo-path strings a file spawns, dynamically imports or reads, with their lines; a path named only as data never counts.
+ *
+ * @param {string} source
+ * @returns {{ specifier: string, line: number }[]}
+ */
+export function reachedPaths(source) {
+  const { code, strings } = lex(source);
+  return strings.filter(string => PATH_STRING.test(string.text) && reachedByCall(code, string.start))
+    .map(string => ({ specifier: string.text, line: lineAt(source, string.start) }));
+}
+
+/**
+ * Every other cell one file imports or reaches by a repo path string, each with whether it reaches into that cell's src folder.
  *
  * @param {string} file - Repo-relative path.
  * @param {string} source
@@ -202,6 +239,10 @@ export function fileEdges(file, source) {
   const edges = [];
   for (const { specifier, line } of importSpecifiers(source)) {
     const target = cellOf(posix.normalize(posix.join(posix.dirname(file), specifier)));
+    if (target.cell !== own && target.cell !== ROOT_OWNER) edges.push({ to: target.cell, deep: target.deep, line });
+  }
+  for (const { specifier, line } of reachedPaths(source)) {
+    const target = cellOf(specifier);
     if (target.cell !== own && target.cell !== ROOT_OWNER) edges.push({ to: target.cell, deep: target.deep, line });
   }
   return edges;

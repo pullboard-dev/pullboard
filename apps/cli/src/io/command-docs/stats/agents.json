@@ -1,5 +1,5 @@
 {
   "name": "stats agents",
-  "help": "  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, and the most items held at once\n",
+  "help": "  pullboard stats agents [--window <duration>] [--until <ISO time>]  per seat and hour: items claimed, submitted and landed, the most items held at once, and the median and p90 wait from a submit or test start to the seat's next board action\n",
   "required": { "agents": "object" }
 }

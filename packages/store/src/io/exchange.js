@@ -24,6 +24,7 @@ import {
  * continue producing the same ids after its rows are restored.
  */
 import { createHash } from 'node:crypto';
+import { jsonChunks } from './chunks.js';
 import { Refused } from "../../../kernel/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import {
@@ -158,7 +159,9 @@ export function semanticBoardDigest(document) {
       agent: tables.agent.map(({ agent_last_shout_id, ...row }) => row),
     },
   };
-  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+  const hash = createHash('sha256');
+  for (const piece of jsonChunks(normalized)) hash.update(piece);
+  return hash.digest('hex');
 }
 
 /** Recognize only nonnegative SQLite-safe inbox cursors for monotonic checkpoint preservation. */
