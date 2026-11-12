@@ -1,5 +1,8 @@
 /** An add with no route and no brief is strong unless its check names a test file, which fills a mid brief [V4]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -73,6 +76,10 @@ test('add accepts three numbered clauses and refuses a fourth even inside one ce
 test('add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
+  mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), '');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: run-tests launcher');
   const bad = 'node apps/cli/pullboard.js test web/handler.test.js';
   const good = 'node packages/gate/src/io/run/tests.js web/handler.test.js';
   const criterion = 'the handler returns the canonical result [test]';
