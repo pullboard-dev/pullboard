@@ -1,0 +1,143 @@
+/** Exercise CPU-test placement with a real committed repo, SSH worker, and private machine leases [C7]. */
+import { copyFixtureRunner } from '../../../../packages/gate/tests/fixtures/copy.js';
+import assert from 'node:assert/strict';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  dirname,
+  join,
+  resolve,
+} from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { awaitNestedRun } from '../../../../packages/gate/index.js';
+import { runFixtureChildAsync } from './child.js';
+import {
+  HOST,
+  installSshStandIn,
+} from './runner/ssh.js';
+import { repoPath } from '../../../../packages/kernel/light.js';
+
+const SOURCE = resolve(import.meta.dirname, '../../../..');
+let fixtureSequence = 0;
+
+/** The repo, stand-in ssh and registered runner a test file's CPU-load cases share, one per module kind (CommonJS needs a browser slot). */
+const shells = new WeakMap();
+
+/**
+ * Build once per test file and module kind the committed runner checkout, stand-in ssh and runner registration.
+ * Why: each case used to rebuild the repo, copy the runner files and register a runner (about 15 s of the case's 15-20 s)
+ * before its gate ran; only the probe differs between cases, so a case now commits just its own probe on this base.
+ */
+function cpuLoadShell(e2e, commonjs, stage) {
+  const kinds = shells.get(e2e) ?? new Map();
+  shells.set(e2e, kinds);
+  if (kinds.has(commonjs)) return kinds.get(commonjs);
+  stage('project-start');
+  const probeFile = `cpu-probe.test.${commonjs ? 'cjs' : 'js'}`;
+  const box = e2e.project(`node apps/cli/src/io/run/tests.js test/${probeFile}`, undefined, { withWorktree: false });
+  stage('project-ready');
+  const bin = join(box.dir, 'ssh-bin');
+  const remoteHome = join(box.dir, 'runner-home');
+  const remoteMachineHome = join(remoteHome, '.pullboard');
+  const requests = join(box.dir, 'ssh-requests.jsonl');
+  for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
+  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
+  const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
+  installSshStandIn({ ...standIn, requests });
+  // The ordinary CLI registers its runner through this stand-in ssh, so it leads the box's own PATH; it starts with env node,
+  // which a vanilla runner's PATH lacks, so the current node's folder follows it.
+  box.env.PATH = `${bin}:${dirname(process.execPath)}:${box.env.PATH}`;
+  const env = { ...box.env };
+  for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_TEST_CONTEXT') delete env[key];
+  /** Use the ordinary fixture CLI to configure its own genuine runner registration and policy. */
+  function command(...args) {
+    const result = box.run(box.repo, ...args, '--json');
+    assert.equal(result.code, 0, result.err || result.out);
+    // A case that unregisters the runner leaves a base the next case must not reuse.
+    if (args[0] === 'runner' && args[1] === 'remove') kinds.delete(commonjs);
+    return JSON.parse(result.out);
+  }
+  // CommonJS conservatively needs browser admission; this private worker supplies a genuine browser slot.
+  command('runner', 'add', HOST, '--node', process.execPath, '--slots', '1', '--browser', commonjs ? '1' : '0');
+  command('settings', 'gate.runnersFirst', 'off');
+  command('settings', 'gateSlots', '1');
+  stage('runner-registered');
+  const shell = { box, env, requests, standIn, remoteHome, remoteMachineHome, command, probeFile };
+  kinds.set(commonjs, shell);
+  return shell;
+}
+
+/** Build an ordinary CLI fixture whose declared test reports its actual checkout and live holder. */
+export function cpuLoadFixture(e2e, { declaration = '{ cpuLoad: true }', binding = 'test', subtest = null, commonjs = false, dynamicImport = false, importBinding = null, moduleSpecifier = 'node:test', importedOptions = false, registrationHelper = false, lifecycleHelper = false } = {}) {
+  const fixture = ++fixtureSequence;
+  const started = performance.now();
+  /** Expose only bounded phase metadata so a timed-out diagnostic retains the last reached setup step. */
+  const stage = phase => console.error('CPU_LOAD_STAGE ' + JSON.stringify({ fixture, phase, elapsedMs: Math.round(performance.now() - started) }));
+  const { box, env, standIn, remoteHome, remoteMachineHome, command, probeFile } = cpuLoadShell(e2e, commonjs, stage);
+  // Each case counts its own requests: a fresh log for the stand-in, so a late call from an earlier case lands in the earlier log.
+  const requests = join(box.dir, `ssh-requests-${fixture}.jsonl`);
+  installSshStandIn({ ...standIn, requests });
+  if (registrationHelper) {
+    writeFileSync(join(box.repo, 'test/registrations.js'), registrationHelper === 'wrapper'
+      ? "import { test, after } from 'node:test'; export { after }; export const launch = (...args) => test(...args);\n"
+      : "export { test as launch, after } from 'node:test';\n");
+    writeFileSync(join(box.repo, 'test/registration-barrel.js'), "export { launch, after } from './registrations.js';\n");
+  }
+  if (lifecycleHelper) writeFileSync(join(box.repo, 'test/lifecycle.js'), "import { after } from 'node:test'; after(() => {});\n// Text is not CPU load: { cpuLoad: true }\n");
+  if (importedOptions) writeFileSync(join(box.repo, 'test/options.js'), 'export const options = { cpuLoad: true };\n');
+  writeFileSync(repoPath(box.repo, `test/${probeFile}`), `${commonjs
+    ? `const { test: ${binding}, after: finish } = require('node:test');\nconst { DatabaseSync } = require('node:sqlite');`
+    : dynamicImport
+      ? `const { default: ${binding}, after: finish } = await import('node:test');\nimport { DatabaseSync } from 'node:sqlite';`
+      : `import { ${importBinding ?? `test${binding === 'test' ? '' : ` as ${binding}`}`}, after as finish } from '${moduleSpecifier}';\nimport { DatabaseSync } from 'node:sqlite';`}
+${importedOptions ? "import { options } from './options.js';" : ''}
+${lifecycleHelper ? "import './lifecycle.js';" : ''}
+// Example text is not a declaration: { cpuLoad: true }
+const example = '{ cpuLoad: true }';
+// Fixture ${fixture} keeps this case's tree unlike the cases before it on the shared base, so its gate executes.
+finish(() => {});
+${subtest ? `${binding}('parent', async t => { t.after(() => {}); await ${subtest}` : binding}('declared load stand-in', ${declaration}, () => {
+  const db = new DatabaseSync(process.env.PULLBOARD_GATE_SLOT_POOL, { readOnly: true });
+  const row = db.prepare('SELECT * FROM holder WHERE token=?').get(process.env.PULLBOARD_GATE_SLOT_TOKEN);
+  db.close();
+  console.log('CPU_LOAD_EXECUTOR ' + JSON.stringify({ cwd: process.cwd(), home: process.env.HOME,
+    gatePool: process.env.PULLBOARD_GATE_SLOT_POOL, liveLease: Boolean(row), runnerExecution: row?.runner_execution === 1, browserLease: row?.browser === 1 }));
+});
+${subtest ? '});' : ''}
+`);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: commit declared CPU placement probe');
+  stage('source-committed');
+  const cli = join(SOURCE, 'apps/cli/pullboard.js');
+  return {
+    ...box, env, requests, remoteHome, remoteMachineHome, command,
+    /** Count real completed SSH requests without treating a configured host as execution proof. */
+    requestsMade() { return existsSync(requests) ? readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : []; },
+    /** Commit a harmless source change so the next public gate executes instead of reusing a green tree. */
+    commitProbeChange() {
+      const probe = repoPath(box.repo, `test/${probeFile}`);
+      writeFileSync(probe, readFileSync(probe, 'utf8') + '\n// A new fixture revision exercises ordinary gate execution again.\n');
+      box.git(box.repo, 'add', `test/${probeFile}`);
+      box.git(box.repo, 'commit', '-q', '-m', 'test: advance the CPU placement fixture source');
+    },
+    /** Run the public landing gate under its ordinary lease and wait on its original child promise. */
+    async runGate() {
+      stage('gate-start');
+      rmSync(join(box.repo, '.git', 'pullboard-gate.log'), { force: true }); // an earlier case's log must not answer for this gate
+      const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [cli, 'gate', '--landing', '--json'],
+        { cwd: box.repo, env, encoding: 'utf8' }));
+      stage('gate-returned');
+      const log = readFileSync(join(box.repo, '.git', 'pullboard-gate.log'), 'utf8');
+      if (result.status !== 0) console.error('CPU placement gate output:', result.stdout, '\nGate log:', log);
+      const match = /^# CPU_LOAD_EXECUTOR (.+)$/mu.exec(log);
+      return { result, log, executor: match ? JSON.parse(match[1]) : null };
+    },
+  };
+}

@@ -1,7 +1,0 @@
-{
-  "src/resources.js": "packages/resources/src/shell/resources.js",
-  "test/lsof-lookups.test.js": "packages/resources/tests/lsof-lookups.test.js",
-  "test/resource-inheritance.test.js": "packages/resources/tests/resource-inheritance.test.js",
-  "test/runner-wait-deadline.test.js": "packages/resources/tests/runner-wait-deadline.test.js",
-  "test/submit-lease.test.js": "packages/resources/tests/submit-lease.test.js"
-}

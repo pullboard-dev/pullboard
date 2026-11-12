@@ -1,0 +1,6036 @@
+{
+  "files": {
+    "apps/cli/pullboard.js": {
+      "cells": 2,
+      "deep": 3
+    },
+    "apps/cli/src/io/add.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/alive.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/bar.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/blueprint.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "apps/cli/src/io/board/access.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/board/read.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/cells-submit-checks.js": {
+      "cells": 1,
+      "deep": 18
+    },
+    "apps/cli/src/io/claim.js": {
+      "cells": 10,
+      "deep": 1
+    },
+    "apps/cli/src/io/cli-main/recovery.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/cli-main/run.js": {
+      "cells": 6,
+      "deep": 2
+    },
+    "apps/cli/src/io/cli-main/run/command.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/cockpit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/add.js": {
+      "cells": 10,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/agents.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/answer.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/badge.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/bar.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/blueprint.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/capacity.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/check-baseline.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/check.js": {
+      "cells": 13,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/claim.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/companion.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/decisions.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/digest.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/doctor.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/doctrine.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/edit.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/escalate.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/export.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/fact.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/flakes.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/flow.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/forget.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/gate.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/handoff.js": {
+      "cells": 4,
+      "deep": 1
+    },
+    "apps/cli/src/io/commands/health.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/help.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/hold.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/hook.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/hooks.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/import.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/inbox.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/init.js": {
+      "cells": 10,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/intake.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/join.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/land.js": {
+      "cells": 11,
+      "deep": 3
+    },
+    "apps/cli/src/io/commands/lane.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/lanes.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/ledger.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/lifecycle.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/list.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/log.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/maintenance.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/map.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/mcp.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/merged.js": {
+      "cells": 12,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/milestone.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/move.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/next.js": {
+      "cells": 11,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/pass.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/patch.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/prompt.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/publish.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/push-receipts.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/queue.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/relay.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/release.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/reopen.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/request.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/resources.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/resume.js": {
+      "cells": 16,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/rigor.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/roadmap.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/run.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/runner.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/seats.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/sentinel.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/sentinels.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/serve.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/settings.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/shadow-batch.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/ship.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/shout.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/show.js": {
+      "cells": 11,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/skills.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/slice.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/spec.js": {
+      "cells": 12,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/stats.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/status.js": {
+      "cells": 12,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/submit.js": {
+      "cells": 21,
+      "deep": 2
+    },
+    "apps/cli/src/io/commands/sync.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/takeover.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/test-value.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/test.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/tool-build.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/verify.js": {
+      "cells": 17,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/view.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/watch.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/whoami.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/why.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/withdraw.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/commands/worktree.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/context.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/coordinator-file.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/docs.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/effects.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/exit/rules.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/gate/drive.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "apps/cli/src/io/generated/declarations.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/generated/docs.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/hook/work.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/identity.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/init.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/init/finish.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/item/folder.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/item/folder/identity.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/join.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "apps/cli/src/io/landing/advance.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/landing/audit.js": {
+      "cells": 6,
+      "deep": 2
+    },
+    "apps/cli/src/io/landing/automatic.js": {
+      "cells": 10,
+      "deep": 1
+    },
+    "apps/cli/src/io/lane.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/next.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/next/say.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/next/steps.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/pinned/tool/publish.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/ports/process.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/ports/project.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/ports/seat.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/ports/suite.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/presence.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/read.js": {
+      "cells": 10,
+      "deep": 0
+    },
+    "apps/cli/src/io/reclaim.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/resident/board.js": {
+      "cells": 2,
+      "deep": 2
+    },
+    "apps/cli/src/io/resume.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/scale.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/sender.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/setup.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/shout.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/skills.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/spec.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/static/checks.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "apps/cli/src/io/static/view.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/cache.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/gate.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/handoff.js": {
+      "cells": 11,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/handoff/sweep.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/handoff/worker.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/receipt.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/reds.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/remote.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/src/io/submit/wait.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/support.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/sweep.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/sync.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/tool/build.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/tour.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/verify.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/cli/src/io/view.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree/maintenance.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree/maintenance/archive.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree/maintenance/command.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree/maintenance/observation.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree/maintenance/retention.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/io/worktree/maintenance/scheduler.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/src/logic/exports.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/logic/help.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/logic/help/declarations.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "apps/cli/src/logic/help/intro.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/src/logic/loop.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/logic/purpose.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/src/logic/step/words.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/api.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/blueprint/starter.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/board.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/board/link.js": {
+      "cells": 6,
+      "deep": 1
+    },
+    "apps/cli/tests/fixtures/board/submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/bridge.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/budget.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cadence.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cases/handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cases/quarantine.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cases/registry.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cells/cases.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "apps/cli/tests/fixtures/clause.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/harness.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/hosted.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/lifecycle/seed/native.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/lifecycle/seed/ordinary.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/line.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/perf/generate.mjs": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/perf/run.mjs": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/cockpit/usage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/copy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/e2e.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/evidence.js": {
+      "cells": 4,
+      "deep": 1
+    },
+    "apps/cli/tests/fixtures/family.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/gate/execution.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/generated/handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/http.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/isolation.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/land/batch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/land/board.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/land/engine.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/land/parallel.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/environment.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/ports.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/queue.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/machine/rehome.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/main/audit/cases.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/main/audit/project.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/main/audit/receipt.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/main/moved.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/main/routing.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/membership.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/move.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/move/registry.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/move/registry/cases.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "apps/cli/tests/fixtures/native.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "apps/cli/tests/fixtures/next/cases.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/next/order.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/next/take.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/next/take/cases.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/person/apply.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/person/passkey.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/person/pin.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/person/replay.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/person/signing.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/placement.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "apps/cli/tests/fixtures/ports.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/presence.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/refreeze.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/regression.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/client-harness.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/client.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/client/case/legacy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/client/inventories.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/client/replica.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/exclusion.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/parity.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/parity/reader.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/phone.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/tests/fixtures/relay/reset.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/sealed-client.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/relay/setup.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/release/cases/producer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/release/cases/transport.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/review/family.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/runner/browser/free.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/runner/check.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/runner/lost.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/runner/phases.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/runner/recovery.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/runner/stage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/scenarios/runners.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/scenarios/team.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/seats.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/submit/cases.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/submit/handoff.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/worker/scale.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/worktree/maintenance/engine.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/worktree/maintenance/lifecycle.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/worktree/maintenance/scheduler.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/src/io/check/baseline.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/lib/src/io/drive/worker.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/lib/src/io/handoff/dispatcher.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/lib/src/io/landing/candidate.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/lib/src/io/main/audit.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/lib/src/io/seal.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/lib/src/io/submit/handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/src/io/submit/requeue.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/lib/src/io/worker/checkpoint/relay.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/src/io/worker/checkpoint/usage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/src/logic/index.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "apps/lib/src/logic/native.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/src/logic/native/ports.js": {
+      "cells": 17,
+      "deep": 0
+    },
+    "apps/lib/tests/fixtures/generated/doc/default.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/tests/fixtures/legacy.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/lib/tests/fixtures/rejected.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/tests/fixtures/scale.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/io/auth.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/relay/src/io/auth/http.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/io/board/inbox.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/io/board/links.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/relay/src/io/browser/model.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/relay/src/io/browser/page.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/relay/src/io/deploy/smoke.mjs": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/io/github.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/io/journal.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/io/pages.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/relay/src/io/passkeys.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/io/quota.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/io/retention.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/io/service.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/relay/src/io/store/device.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/io/store/excluded.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/io/store/page.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/io/store/request.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/logic/browser/deadline.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/src/logic/browser/pages.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/logic/http/device.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/relay/src/logic/http/passkey.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/relay/src/logic/http/request.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/relay/src/logic/pairing/http.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/relay/src/logic/pairing/store.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/logic/person/enrollment/http.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/relay/src/logic/person/enrollment/store.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/src/logic/status.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/parity/operations.js": {
+      "cells": 10,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/relay-direct-fixture.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/relay-phone-fixture.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/relay-server-fixture.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/study.study.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/study/browser.study.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/study/delta.study.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/study/failure.study.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/study/moves.study.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "apps/relay/tests/fixtures/study/native.study.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "apps/runner/src/io/chrome.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "apps/runner/src/io/controller.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/runner/src/io/custody.js": {
+      "cells": 2,
+      "deep": 2
+    },
+    "apps/runner/src/io/private/check/worker.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/runner/src/io/private/privacy.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "apps/runner/src/io/scripts/worker.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/runner/src/io/shell.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/runner/src/io/stage.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/runner/src/io/sweep.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/runner/src/io/worker/checkout.js": {
+      "cells": 1,
+      "deep": 10
+    },
+    "apps/runner/src/io/worker/cleanup.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "apps/runner/src/io/worker/command.js": {
+      "cells": 2,
+      "deep": 3
+    },
+    "apps/runner/src/io/worker/entry.js": {
+      "cells": 5,
+      "deep": 12
+    },
+    "apps/runner/src/io/worker/environment.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/runner/src/io/worker/health.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "apps/runner/src/io/worker/receipt.js": {
+      "cells": 2,
+      "deep": 2
+    },
+    "apps/runner/src/io/worker/spec.js": {
+      "cells": 3,
+      "deep": 2
+    },
+    "apps/runner/src/logic/stage.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "apps/view/src/io/address.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/io/background.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/view/src/io/cockpit/page.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/view/src/io/coverage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/io/help/setup.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/io/needs.js": {
+      "cells": 9,
+      "deep": 1
+    },
+    "apps/view/src/io/release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/io/serve.js": {
+      "cells": 14,
+      "deep": 0
+    },
+    "apps/view/src/io/session.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/view/src/logic/main.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/logic/needs/summary.js": {
+      "cells": 10,
+      "deep": 1
+    },
+    "apps/view/src/logic/offsets.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/logic/public.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/view/src/logic/resume.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "bin/cells-data-reads.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "bin/cells-engine-stays.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "bin/cells-move-fixtures.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "bin/cells-move-transaction.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "bin/cells-reorg.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "bin/cells-submit-checks.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "docs/tools/case-study/structure.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "docs/tools/guarded-docs-refresh.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "docs/tools/update-docs.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "docs/tools/update-formats.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/activity/src/io/delivery/cli.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/activity/src/io/delivery/read.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/activity/src/io/inbox.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/activity/src/io/shouts.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/activity/src/io/worktrees.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/api/src/io/http.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/api/src/io/main.js": {
+      "cells": 17,
+      "deep": 0
+    },
+    "packages/blueprints/src/io/fit.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/blueprints/src/io/fit/command.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/blueprints/src/io/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/blueprints/src/io/report.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/blueprints/src/io/set.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/io/accepted.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/exports.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/inputs.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/plan.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/ratchet.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/roots.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/shards.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lint/store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/lints.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/scripts/lints.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cell/uses.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/backlog.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/door.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/git.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/memo.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/move.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/move/closure.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/move/tool.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/plan.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/plan/cuts.js": {
+      "cells": 2,
+      "deep": 2
+    },
+    "packages/codemap/src/io/cells/scripts/cache.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/scripts/plan.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/shims.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/codemap/src/io/cells/snapshots.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/main/lints.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/io/shim/lifecycle.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/io/shim/ratchet.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/io/source/plan.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/logic/path/map.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/codemap/src/logic/path/map/operands.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/io/hooks.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/commits/src/io/import/fix.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/io/note.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/io/revert.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/io/signoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/logic/bindings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/logic/board.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/logic/import-only-change.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/commits/src/logic/message.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/commits/src/logic/why.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/config/src/io/git/sync.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/config/src/io/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/config/src/io/settings.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/config/src/io/settings/inventory.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/config/src/logic/prices.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/config/src/logic/settings.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/doctrine/src/io/checks.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/doctrine/src/io/fast.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/doctrine/src/io/main-criterion-facts.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/doctrine/src/io/main.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/doctrine/src/io/paths.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/doctrine/src/io/rulings.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/drive/src/io/diagnose.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/drive/src/io/dispatcher.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/drive/src/io/gate.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/drive/src/io/gate/admission.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/drive/src/io/keyed.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/drive/src/io/landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/drive/src/io/main/red.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/drive/src/io/once.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/drive/src/io/reclaim.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/drive/src/logic/diagnose.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/flakes/src/io/boundary.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/flakes/src/io/command.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/flakes/src/io/main.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/flakes/src/io/native.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/flakes/src/io/native/cli.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "packages/flakes/src/io/native/receipts.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/flakes/src/io/quarantine.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "packages/gate/src/io/admission/cpu/load.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/board/write.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/browser/admission.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/browser/guard.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/budgets.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/changed/scripts/static.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/changed/static.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/check/baseline.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/gate/src/io/check/baseline/worker.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/gate/src/io/check/budgets.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/check/signoffs.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/config.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/coordinator/release.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/gate/src/io/execution.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/gate/src/io/inventory.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/keepalive.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/launches.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/main.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/main/audit/nudge.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/main/audit/scheduler.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/main/audit/state.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/main/audit/worker.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/gate/src/io/output.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/quarantine.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/receipts.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/refusal/trial.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/relay.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/release.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/run/receipt.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/gate/src/io/run/shadow.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/run/shell.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/run/timing.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/gate/src/io/scan.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/shards/proof.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/slot.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/gate/src/io/static/check.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/gate/src/io/static/check/registry.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/static/registry.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/gate/src/io/submit.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/action/transfer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/capacity.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/concurrency.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/economics.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/file/dispatch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/file/policy.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/gate/src/io/test/file/pool.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/outcomes.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/placement.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/run.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/selection.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/gate/src/io/test/tier/selection.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/test/value.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/io/timed.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/logic/format.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/logic/load/bearing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/logic/policy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/clone.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/cockpit/probe.mjs": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/copy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/diagnostics.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/p95.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/resources/capacity.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/resources/lease.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/gate/tests/fixtures/resources/release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/resources/runner.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/resources/verify.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/seeds.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/git/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/adapter.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/check/definition.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/committed.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/launch/ratchet.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/main.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/receipts.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/src/io/trunk/ref.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/git/tests/fixtures/flakes.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/github/src/io/flakes.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/github/src/io/intake.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/github/src/io/pr.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/github/src/io/pr/findings.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/github/src/io/pr/graph.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/github/src/io/pr/publish.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/github/src/io/pr/verification.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/github/src/io/publish.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/github/src/logic/private.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/github/src/logic/snapshot.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/io/claim/sweep.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/health/src/io/cover.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/health/src/io/dependency.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/io/doctor.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/health/src/io/landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/io/main.js": {
+      "cells": 15,
+      "deep": 1
+    },
+    "packages/health/src/io/stale/observation/run.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/io/stale/observation/work.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/io/stale/state/capture.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/health/src/io/stale/state/command.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/io/stale/state/snapshot.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/logic/stale/state/blockers.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/logic/stale/state/query.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/light.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/items/src/io/authors.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/blocks.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/claim.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/criterion.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/decision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/declaration.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/digest.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/items/src/io/offer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/outside/proof.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/outside/verify.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/parent.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/patch/compose.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/patch/review.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/patch/state.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/items/src/io/patch/submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/patches.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/items/src/io/planning.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/receipt.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/rehome.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/items/src/io/sessions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/io/sources.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/items/src/io/submit/recovery.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/io/submit/wait.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/brief.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/caught.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/check/timing.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/items/src/logic/claims.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/decision/origin.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/items/src/logic/decision/queue.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/items/src/logic/dependencies.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/diagnosis.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/edit/bar.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/expected.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/handoff.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/holds.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/list.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/notes.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/items/src/logic/offer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/order/path.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/order/work.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/outside/sensitive.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/outside/source.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/paths.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/queue.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/reopen/authority.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/reopen/cause.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/logic/resume.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/routing.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/items/src/logic/submit/composition.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/submit/invariants.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/logic/submit/preflight.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/items/src/logic/submit/size.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/io/lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/io/review.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/io/shadow.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/io/store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/keys/src/io/relay.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/keys/src/io/relay/client.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/keys/src/io/relay/enrollment.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/keys/src/logic/device.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/land/src/io/runs.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/land/src/io/sequence.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/io/automatic/scheduler.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/candidates.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/computed/conflict/receipt.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/io/computed/conflict/return.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/compose.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/deferred/run.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/landing/src/io/derive.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/docs.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/doctrine.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "packages/landing/src/io/first.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/guards.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/landing/src/io/history.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/host.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/in/process.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/known/main.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/land/envelope.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/main/matches.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/main/red.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "packages/landing/src/io/main/red/passing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/main/red/receipt.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/io/main/red/refresh.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/landing/src/io/merged/scripts/followup.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/pause.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/plan/check.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/landing/src/io/post/land.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/queue.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/reland.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/resource.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/shards.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/landing/src/io/smoke.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/static.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/batch.js": {
+      "cells": 7,
+      "deep": 2
+    },
+    "packages/landing/src/io/step/diagnose.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/failures.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/gate.js": {
+      "cells": 9,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/derive.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/compose.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/merge.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/landing/src/io/step/parallel.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/publish.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/selection.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/step/trunk.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/landing/src/io/test/policy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/io/train.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/io/train/receipt.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/io/train/repoints.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/io/trainrecord.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/landing/src/io/verify/release.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/io/worker.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/logic/batch/history.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/logic/cadence.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/landing/src/logic/envelope.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/logic/environment.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/logic/land/collisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/logic/land/guard.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/src/logic/main/notices.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/logic/message.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/logic/waivers.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/tests/fixtures/plan.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/tests/fixtures/relay/parity/advance.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/landing/tests/fixtures/relay/parity/train.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/link/src/io/relay.js": {
+      "cells": 7,
+      "deep": 1
+    },
+    "packages/link/src/io/relay/approvers.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/canary/command.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/canary/health.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/canary/needs.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/canary/probe.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/canary/watch.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/config.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/environment.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/excluded.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/exclusion.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/execution.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/handover.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/join.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/local.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/lock.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/machine.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/membership.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/pause.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/phone.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/proof.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/read.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/relink.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/requests.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/roster.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/seats.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/link/src/io/relay/setup.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/link/src/logic/landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/logic/relay/approval.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/link/src/logic/relay/fallback.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/logic/relay/limits.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/logic/relay/origin.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/logic/relay/poll.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/src/logic/relay/storage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/link/tests/fixtures/relay/reset.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/mcp/src/logic/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/merge/src/io/auto.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/merge/src/io/automatic.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/merge/src/io/compose.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/merge/src/io/mechanical.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/merge/src/io/only/source.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/merge/src/io/only/submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/merge/src/io/only/verdict.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/merge/src/io/trunk.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/merge/src/io/trunk/conflict.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/merge/src/io/warning.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/io/moves/recordSharedUsage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/io/moves/recordUsage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/io/registry.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/acceptCheck.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/addItem.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/advanceItemSource.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/answerDecision.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/appendFact.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/applyRehomeItem.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/attachItemPatch.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/claim.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/editMilestone.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/maintainStaleState.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/merged.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/passDecision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/recordHealthFindings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/recordProofRun.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/refreeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/register.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/rehomeItem.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/removeItemPatch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/reopen.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/reserveNextReview.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "packages/moves/src/logic/moves/reserveReview.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "packages/moves/src/logic/moves/shipMilestone.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/moves/src/logic/moves/shout.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/moves/src/logic/moves/submit.js": {
+      "cells": 3,
+      "deep": 3
+    },
+    "packages/moves/src/logic/moves/verify.js": {
+      "cells": 3,
+      "deep": 4
+    },
+    "packages/moves/tests/fixtures/next.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/outbox/src/io/relay.js": {
+      "cells": 5,
+      "deep": 1
+    },
+    "packages/outbox/src/io/relay/checkpoint/publish.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/outbox/src/io/relay/conflict.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/outbox/src/io/relay/ordering.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/outbox/src/io/relay/settle.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/outbox/src/io/relay/undo.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/outbox/src/io/relay/worker.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/src/io/relay/cache.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/src/io/relay/client.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/src/io/relay/presentation.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "packages/pages/src/logic/relay/layout.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/src/logic/relay/presentation.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/src/logic/relay/writer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/src/logic/sealed.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pages/tests/fixtures/study.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/person/src/io/adapter.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/person/src/io/bar.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/person/src/io/confirmation.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/person/src/io/main.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/person/src/io/pairing.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/person/src/io/proof.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/person/src/io/signing.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/person/src/io/signing/cli.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/person/src/logic/effect.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/person/src/logic/enrollment.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/person/src/logic/qr.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/person/src/logic/request.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/person/src/logic/signing/presentation.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/person/src/logic/vault.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pin/src/io/cache.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/pin/src/io/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/pin/src/io/tooling.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/queue/src/io/settings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/queue/src/logic/definitions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/receipt/src/logic/judge.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/receipt/src/logic/main/red.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/receipt/src/logic/reuse.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/admission/testseats.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/controller/custody.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/resources/src/io/controller/disposition.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/handoff/worker/cap.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/home.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/liveness.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/resources/src/io/recovery.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/runner/reserve.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/io/write/lock.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/rigor/src/io/auto.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/rigor/src/io/auto/apply.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/rigor/src/io/broadcasts.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/rigor/src/io/conflicts.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/rigor/src/io/draft.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/rigor/src/io/proof.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "packages/rigor/src/io/quality.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/rigor/src/io/quality/draft.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/rigor/src/io/splits.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/rigor/src/logic/counter.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/rigor/src/logic/notices.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/roadmap/src/logic/main.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/roadmap/src/logic/milestone.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/roadmap/src/logic/milestones.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/runners/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/capacity.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/runners/src/io/dispatch.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/runners/src/io/health.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/runners/src/io/main.js": {
+      "cells": 1,
+      "deep": 3
+    },
+    "packages/runners/src/io/module/parser.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/overhead.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/pack.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/runners/src/io/package.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/policy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/probe.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/runners/src/io/request.js": {
+      "cells": 6,
+      "deep": 1
+    },
+    "packages/runners/src/io/result.js": {
+      "cells": 3,
+      "deep": 6
+    },
+    "packages/runners/src/io/retry.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/run.js": {
+      "cells": 6,
+      "deep": 1
+    },
+    "packages/runners/src/io/source/scan.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/runners/src/io/tooling/committed.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/runners/src/io/tooling/dirty.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/tooling/remote.js": {
+      "cells": 5,
+      "deep": 1
+    },
+    "packages/runners/src/io/tooling/snapshot.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/io/utilization.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/runners/src/io/wait.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/runners/src/logic/stage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/src/logic/urls.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/tests/fixtures/advance.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/runners/tests/fixtures/fleet.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/environment.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/regeneration.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/smoke.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/source/advance.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/source/advance/origin.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/source/advance/worker.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/submit/handoff/origin.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/submit/handoff/seal.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/take.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/trusted/policy.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/trusted/policy/committed.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/sandbox/src/io/verify.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/io/agent/session.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/seats/src/io/agent/tree.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/io/checkout.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/io/hold.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/seats/src/io/lanes.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/seats/src/io/main.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/io/order.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/seats/src/io/projects.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/seats/src/io/wake.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/seats/src/logic/address.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/bounds.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/computer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/github/origin.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/github/remote.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/lane/lead.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/seats/src/logic/lane/lead/policy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/lane/lookup.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/line/capacity.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/seats/src/logic/line/capacity/board.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/line/settings.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/seats/src/logic/line/settings/cli.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/seats/src/logic/presence.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/seats/src/logic/references.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/review/lineage.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/seats/src/logic/review/routing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/logic/route/escalation.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/sentinels/src/io/command.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "packages/sentinels/src/io/dispatch.js": {
+      "cells": 5,
+      "deep": 1
+    },
+    "packages/sentinels/src/io/findings.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/sentinels/src/io/main.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sentinels/src/io/returns.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/sentinels/src/io/runner.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/sentinels/src/io/serve.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sentinels/src/io/wake.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/shouts/src/io/watch.js": {
+      "cells": 7,
+      "deep": 0
+    },
+    "packages/shouts/src/logic/readable.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/approval.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/approval/bootstrap.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/draft.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/gate/move.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/spec/src/io/gate/renames.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/spec/src/io/reference/authors.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/reference/lines.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/reference/release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/refreeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/revisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/row/apply.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/spec/src/io/row/decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/row/drafts.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/row/stale.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/rows/approved.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/spec/src/io/ruling.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/signature.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/io/verdicts.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/logic/fact/identity.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/logic/fact/reference.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/spec/src/logic/siblings.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/state/src/io/engine.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/io/engine/folder.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/io/engine/metadata.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/io/engine/move/submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/io/engine/numbers.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/io/implies.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/state/src/logic/admission.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/bar.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/clauses.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/fact.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/freeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/record/findings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/record/landing.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/register.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/rehome.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/reopen.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/engine/move/verify.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/evidence.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/grant.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/recorded/move.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/recorded/refusal.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/relay/sender.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/returns.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/settings.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/state/src/logic/submission/proof.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/src/logic/submission/size.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/state/tests/fixtures/api.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/stats/light.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/actions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/carrying.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/cost.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/stats/src/io/cost/analytics.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/cost/batch.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/stats/src/io/cost/due.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/cost/ledger.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/cost/shared.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/stats/src/io/cost/usage.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/io/main.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/stats/src/logic/bar.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/build/calibration.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/build/time.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/capacity/refresh.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/flow.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/flow/replay.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/stats/src/logic/flow/replay/history.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/flow/window.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/stats/src/logic/moves.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/pipeline.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/stats/src/logic/time.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/baseline/check.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/baseline/spec/approval.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board.js": {
+      "cells": 10,
+      "deep": 4
+    },
+    "packages/store/src/io/board/access.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/store/src/io/board/add.js": {
+      "cells": 7,
+      "deep": 2
+    },
+    "packages/store/src/io/board/apply/decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/apply/rehome.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/batch.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/io/board/busy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/claim.js": {
+      "cells": 6,
+      "deep": 1
+    },
+    "packages/store/src/io/board/coordinator.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/decision/answer.js": {
+      "cells": 5,
+      "deep": 1
+    },
+    "packages/store/src/io/board/decision/pass.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/store/src/io/board/edit.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/store/src/io/board/event/log.js": {
+      "cells": 4,
+      "deep": 1
+    },
+    "packages/store/src/io/board/facade.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/fact.js": {
+      "cells": 7,
+      "deep": 1
+    },
+    "packages/store/src/io/board/guards.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/handoff/open.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/handoff/take.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/health.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/hold.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/hold/item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/hold/lane.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/indexes.js": {
+      "cells": 2,
+      "deep": 2
+    },
+    "packages/store/src/io/board/inventory.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/store/src/io/board/item/dependencies.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/item/slice.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/lane/lead.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/link.js": {
+      "cells": 1,
+      "deep": 9
+    },
+    "packages/store/src/io/board/link/envelope.js": {
+      "cells": 1,
+      "deep": 7
+    },
+    "packages/store/src/io/board/link/relay.js": {
+      "cells": 1,
+      "deep": 3
+    },
+    "packages/store/src/io/board/link/ssh.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/members.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/merged.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/milestones.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/next.js": {
+      "cells": 5,
+      "deep": 1
+    },
+    "packages/store/src/io/board/order.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/io/board/patch/attach.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/patch/remove.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/ports.js": {
+      "cells": 4,
+      "deep": 1
+    },
+    "packages/store/src/io/board/query.js": {
+      "cells": 7,
+      "deep": 2
+    },
+    "packages/store/src/io/board/read/shouts.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/read/light.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/read/snapshot.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/record/decisions.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/record/landing/batch.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/store/src/io/board/record/landing/flake.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/record/landing/waiver.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/refreeze.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/store/src/io/board/register.js": {
+      "cells": 6,
+      "deep": 1
+    },
+    "packages/store/src/io/board/release/hold.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/release/lane.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/reopen.js": {
+      "cells": 6,
+      "deep": 3
+    },
+    "packages/store/src/io/board/repair.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/repository.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/reserve/next.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/reserve/review.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/review/family.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/review/lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/review/note.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/review/offer.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/board/schema.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/settings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/shout.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/store/src/io/board/sqlite.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/state.js": {
+      "cells": 8,
+      "deep": 0
+    },
+    "packages/store/src/io/board/submit.js": {
+      "cells": 6,
+      "deep": 3
+    },
+    "packages/store/src/io/board/verify.js": {
+      "cells": 5,
+      "deep": 1
+    },
+    "packages/store/src/io/board/wait.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/withdraw.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/board/write.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/store/src/io/board/write/lock.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/store/src/io/board/write/preparation.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/board/writer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/builder/family.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/companion.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/exchange.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/io/history.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/home.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/memory.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/outside.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/receipts.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/io/relaxation.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/requests.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/routing.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/submission.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/io/submit/handoff/retry.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/io/submit/outcome.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/advance.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/activity/delivery.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/activity/feed.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/activity/news.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/audience.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/store/src/logic/board/claim.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/escalate.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/gap.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/holds.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/inbox.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/item/lookup.js": {
+      "cells": 2,
+      "deep": 1
+    },
+    "packages/store/src/logic/board/jobs.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/landing/lease.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/landing/test/defects.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/link.js": {
+      "cells": 1,
+      "deep": 2
+    },
+    "packages/store/src/logic/board/milestones.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/notices.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/receipts.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/reland.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/rigor.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/rigor/auto.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/rigor/provenance.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/stale/apply.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/stale/claim.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/stale/state/policy.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/board/stats.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/clock.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/exit/rules/claim.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/store/src/logic/exit/rules/continuation.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/logic/item/diagnosis.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/src/logic/known/main/autofile.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/store/src/logic/known/main/reworks.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/reasons.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/store/src/logic/red/return.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/request.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/logic/rework.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/cell.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/dispatch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/stats/compare.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/stats/time.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/sync/src/io/git/lock.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/sync/src/io/git/repair.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/sync/src/io/main.js": {
+      "cells": 6,
+      "deep": 0
+    },
+    "packages/transport/src/io/channel.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/io/gate.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/io/main.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/io/pull.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/transport/src/io/pull/http.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/io/ssh/shards.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/logic/result.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/logic/token.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/index.js": {
+      "cells": 1,
+      "deep": 1
+    },
+    "packages/verify/light.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/bar/actor.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/verify/src/io/bar/coverage.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/bar/readiness.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/check/accept.js": {
+      "cells": 2,
+      "deep": 2
+    },
+    "packages/verify/src/io/check/widen.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/compare.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/comparison.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/io/kernel.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/machine.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/proof/caught.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/proof/counters.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/rejection.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/review/composition.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/review/default.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/io/review/independence.js": {
+      "cells": 4,
+      "deep": 1
+    },
+    "packages/verify/src/io/review/packet.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/review/routing.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/verify/src/io/review/tier.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/rule/proof/append.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/io/rule/proof/counts.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/io/rule/proof/coverage.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/verdict/admission.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/io/verdict/freshness.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/io/verdict/trunk.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/io/verdict/withdrawal.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/logic/advance.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/logic/bar/check.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/logic/baseline.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/logic/next.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/logic/post/move.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/logic/proof/native.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/logic/proof/provenance.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/logic/required.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/logic/review/eligibility.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/logic/review/policy.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/logic/review/reachability.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/logic/verdict/assurance.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/logic/verdict/machine.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/verify/src/logic/verdict/retry.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/logic/verdict/reviews.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "src/api-http.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/audit-failure-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-act-on-activity.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-activity-delivery-store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-activity-delivery.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-activity-feed.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-activity-news.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-add-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-answer-decision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-append-fact.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-apply-rehome-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-apply-row-decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-approve-outside.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-attach-item-patch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-build-order.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-busy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-claim.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-command-write.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-coordinator-hold.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-edit-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-ensure-coordinator.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-escalate.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-finish-landing-batch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-health.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-hold-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-hold-lane.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-inbox-store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-intake-outside.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-item-dependencies.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-landing-exceptions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-landing-local-lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-landing-test-defects.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-line-settings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-maintain-stale-state.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-merged.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-next-for.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-open-handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-pass-decision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-person-authority-schema.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-publish-repair.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-attempt.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-health-findings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-landing-batch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-landing-flake.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-landing-waiver.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-next-idle.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-record-row-decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-recurring-jobs.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-refreeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-register.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-rehome.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-relay-refusal.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-release-claim.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-release-item-hold.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-release-lane.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-remove-item-patch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-request-companion.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-reserve-next-review.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-reserve-review.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-review-offer.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-review-release-note.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-set-lane-lead.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-shout-audience.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-shout.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-signing-recovery.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-stale-claim-release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-stale-state-maintenance.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-stale-state-policy.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-stale-state-store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-stats.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-take-handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-verify.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-withdraw.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-worker-inbox.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/board-write-preparation.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/companion.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/config.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-advance-item-source.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-answer-decision.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-append-fact.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-apply-row-decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-claim.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-edit-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-edit-milestone.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-follow-item-patches.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-freeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-item-patch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-queue-submit-handoff.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-record-gate-run.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-record-health-findings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-record-proof-run.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-record-train-landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-refreeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-register.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-rehome-item.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-reopen.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-steps.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-move-verify.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/exit-rules-continuation.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/exit-rules-state.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/git-landing-batches.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/item-offer-contract.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/item-patch-paths.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/item-receipt.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/known-main-autofile.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/lifecycle-move.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-accept.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-claim.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-escalate.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-intake.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-lapse.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-patch.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-refreeze.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-rehome-import.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-reject.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-release.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-reopen.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-reserve.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-submit-merge.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-move-withdraw.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/machine-shared.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/main-facts-cache.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "src/outside-store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/products.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/proof-counter-read.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/proof-counters.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/relay-device-keys.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/relay-sender-worker.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/release-headlines.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/release-reasons.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/release-version.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/rework-family-routing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/routing-capacity.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/row-decision-text.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/row-decisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/run-timing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/runner-stage-model.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/sentinels.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/settings-read.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/source-advance-return.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/spec-approval-baseline.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/spec-revisions.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/submission-record.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/submit-handoff-read.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/submit-handoff-state.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/submit-outcome.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/trusted-policy-read.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/landing/receipts.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/io/run/tests.js": {
+      "cells": 3,
+      "deep": 1
+    },
+    "packages/landing/src/io/scripts/release.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/src/io/slot/services.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/cli/tests/fixtures/init/shards.js": {
+      "cells": 1,
+      "deep": 0
+    }
+  },
+  "cells": {
+    "apps/cli": {
+      "imports": [
+        "activity",
+        "api",
+        "apps/lib",
+        "apps/relay",
+        "apps/runner",
+        "apps/view",
+        "blueprints",
+        "codemap",
+        "commits",
+        "config",
+        "doctrine",
+        "drive",
+        "flakes",
+        "gate",
+        "git",
+        "github",
+        "health",
+        "items",
+        "jobs",
+        "kernel",
+        "keys",
+        "land",
+        "landing",
+        "link",
+        "mcp",
+        "merge",
+        "moves",
+        "outbox",
+        "pages",
+        "person",
+        "resources",
+        "rigor",
+        "roadmap",
+        "runners",
+        "sandbox",
+        "seats",
+        "sentinels",
+        "shouts",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "sync",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "<-apps/view": {
+      "imports": [],
+      "deepImporters": 2
+    },
+    "<-state": {
+      "imports": [],
+      "deepImporters": 29
+    },
+    "<-landing": {
+      "imports": [],
+      "deepImporters": 6
+    },
+    "<-kernel": {
+      "imports": [],
+      "deepImporters": 36
+    },
+    "apps/lib": {
+      "imports": [
+        "apps/cli",
+        "blueprints",
+        "commits",
+        "config",
+        "drive",
+        "flakes",
+        "gate",
+        "git",
+        "github",
+        "health",
+        "items",
+        "jobs",
+        "kernel",
+        "landing",
+        "link",
+        "moves",
+        "outbox",
+        "person",
+        "resources",
+        "rigor",
+        "runners",
+        "sandbox",
+        "seats",
+        "sentinels",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "apps/relay": {
+      "imports": [
+        "api",
+        "apps/cli",
+        "apps/lib",
+        "apps/view",
+        "config",
+        "flakes",
+        "gate",
+        "github",
+        "health",
+        "items",
+        "kernel",
+        "keys",
+        "landing",
+        "link",
+        "moves",
+        "pages",
+        "person",
+        "sandbox",
+        "seats",
+        "sentinels",
+        "spec",
+        "state",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "apps/runner": {
+      "imports": [
+        "codemap",
+        "commits",
+        "config",
+        "gate",
+        "git",
+        "kernel",
+        "resources",
+        "runners",
+        "sandbox",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "<-runners": {
+      "imports": [],
+      "deepImporters": 9
+    },
+    "<-gate": {
+      "imports": [],
+      "deepImporters": 17
+    },
+    "apps/view": {
+      "imports": [
+        "api",
+        "blueprints",
+        "config",
+        "doctrine",
+        "gate",
+        "git",
+        "items",
+        "kernel",
+        "link",
+        "person",
+        "rigor",
+        "roadmap",
+        "seats",
+        "sentinels",
+        "spec",
+        "state",
+        "store",
+        "sync"
+      ],
+      "deepImporters": 0
+    },
+    "<-doctrine": {
+      "imports": [],
+      "deepImporters": 3
+    },
+    "(root)": {
+      "imports": [
+        "api",
+        "apps/cli",
+        "apps/lib",
+        "apps/runner",
+        "apps/view",
+        "codemap",
+        "commits",
+        "config",
+        "doctrine",
+        "drive",
+        "flakes",
+        "gate",
+        "git",
+        "items",
+        "kernel",
+        "keys",
+        "landing",
+        "merge",
+        "moves",
+        "outbox",
+        "queue",
+        "resources",
+        "runners",
+        "sandbox",
+        "seats",
+        "sentinels",
+        "spec",
+        "state",
+        "store",
+        "transport",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "<-codemap": {
+      "imports": [],
+      "deepImporters": 6
+    },
+    "<-apps/cli": {
+      "imports": [],
+      "deepImporters": 3
+    },
+    "<-verify": {
+      "imports": [],
+      "deepImporters": 21
+    },
+    "activity": {
+      "imports": [
+        "git",
+        "kernel",
+        "person",
+        "spec",
+        "state",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "api": {
+      "imports": [
+        "activity",
+        "blueprints",
+        "config",
+        "git",
+        "health",
+        "items",
+        "kernel",
+        "link",
+        "pages",
+        "person",
+        "roadmap",
+        "seats",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "blueprints": {
+      "imports": [
+        "config",
+        "git",
+        "kernel",
+        "person",
+        "spec"
+      ],
+      "deepImporters": 0
+    },
+    "codemap": {
+      "imports": [
+        "config",
+        "gate",
+        "git",
+        "kernel",
+        "landing",
+        "outbox",
+        "resources",
+        "seats",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "commits": {
+      "imports": [
+        "codemap",
+        "config",
+        "git",
+        "kernel",
+        "seats",
+        "spec"
+      ],
+      "deepImporters": 0
+    },
+    "config": {
+      "imports": [
+        "git",
+        "kernel",
+        "queue",
+        "resources"
+      ],
+      "deepImporters": 0
+    },
+    "doctrine": {
+      "imports": [
+        "config",
+        "git",
+        "kernel",
+        "resources",
+        "sandbox",
+        "spec",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "drive": {
+      "imports": [
+        "apps/lib",
+        "jobs",
+        "kernel",
+        "pin",
+        "receipt",
+        "transport"
+      ],
+      "deepImporters": 0
+    },
+    "flakes": {
+      "imports": [
+        "codemap",
+        "config",
+        "gate",
+        "git",
+        "github",
+        "kernel",
+        "landing",
+        "sandbox",
+        "seats",
+        "state",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "gate": {
+      "imports": [
+        "apps/cli",
+        "apps/lib",
+        "apps/view",
+        "codemap",
+        "commits",
+        "config",
+        "doctrine",
+        "git",
+        "items",
+        "kernel",
+        "landing",
+        "link",
+        "outbox",
+        "person",
+        "resources",
+        "runners",
+        "sandbox",
+        "seats",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "transport",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "<-config": {
+      "imports": [],
+      "deepImporters": 5
+    },
+    "<-spec": {
+      "imports": [],
+      "deepImporters": 2
+    },
+    "git": {
+      "imports": [
+        "apps/cli",
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "github": {
+      "imports": [
+        "config",
+        "gate",
+        "git",
+        "items",
+        "kernel",
+        "landing",
+        "runners",
+        "sandbox",
+        "seats",
+        "spec",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "health": {
+      "imports": [
+        "activity",
+        "codemap",
+        "commits",
+        "config",
+        "gate",
+        "git",
+        "items",
+        "landing",
+        "link",
+        "merge",
+        "resources",
+        "sandbox",
+        "seats",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "items": {
+      "imports": [
+        "codemap",
+        "commits",
+        "config",
+        "git",
+        "kernel",
+        "resources",
+        "seats",
+        "spec",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "jobs": {
+      "imports": [
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "keys": {
+      "imports": [
+        "git",
+        "kernel",
+        "person",
+        "seats",
+        "state",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "land": {
+      "imports": [
+        "jobs",
+        "kernel",
+        "pin",
+        "receipt"
+      ],
+      "deepImporters": 0
+    },
+    "landing": {
+      "imports": [
+        "apps/cli",
+        "apps/lib",
+        "apps/runner",
+        "apps/view",
+        "codemap",
+        "commits",
+        "config",
+        "doctrine",
+        "flakes",
+        "gate",
+        "git",
+        "items",
+        "jobs",
+        "kernel",
+        "merge",
+        "outbox",
+        "receipt",
+        "resources",
+        "runners",
+        "sandbox",
+        "seats",
+        "spec",
+        "state",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "link": {
+      "imports": [
+        "config",
+        "git",
+        "items",
+        "kernel",
+        "keys",
+        "pages",
+        "person",
+        "sandbox",
+        "seats",
+        "spec",
+        "state",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "mcp": {
+      "imports": [
+        "config",
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "merge": {
+      "imports": [
+        "codemap",
+        "git",
+        "items",
+        "kernel",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "moves": {
+      "imports": [
+        "apps/cli",
+        "git",
+        "items",
+        "kernel",
+        "merge",
+        "sandbox",
+        "seats",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "<-merge": {
+      "imports": [],
+      "deepImporters": 1
+    },
+    "outbox": {
+      "imports": [
+        "git",
+        "kernel",
+        "keys",
+        "link",
+        "pages",
+        "seats",
+        "state",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "pages": {
+      "imports": [
+        "activity",
+        "config",
+        "git",
+        "items",
+        "kernel",
+        "state",
+        "stats",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "person": {
+      "imports": [
+        "config",
+        "git",
+        "kernel",
+        "sandbox",
+        "spec",
+        "state",
+        "stats",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "pin": {
+      "imports": [
+        "git",
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "queue": {
+      "imports": [
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "receipt": {
+      "imports": [
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "resources": {
+      "imports": [
+        "apps/lib",
+        "drive",
+        "gate",
+        "git",
+        "kernel",
+        "queue",
+        "runners",
+        "transport"
+      ],
+      "deepImporters": 0
+    },
+    "rigor": {
+      "imports": [
+        "codemap",
+        "doctrine",
+        "gate",
+        "git",
+        "items",
+        "kernel",
+        "landing",
+        "resources",
+        "runners",
+        "sentinels",
+        "spec",
+        "state",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "roadmap": {
+      "imports": [
+        "config",
+        "git",
+        "kernel",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "runners": {
+      "imports": [
+        "apps/cli",
+        "apps/runner",
+        "commits",
+        "config",
+        "gate",
+        "git",
+        "items",
+        "kernel",
+        "queue",
+        "resources",
+        "sandbox",
+        "seats",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "sandbox": {
+      "imports": [
+        "codemap",
+        "config",
+        "git",
+        "items",
+        "kernel",
+        "merge",
+        "seats",
+        "spec",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "seats": {
+      "imports": [
+        "config",
+        "git",
+        "kernel",
+        "queue",
+        "resources",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "sentinels": {
+      "imports": [
+        "config",
+        "git",
+        "health",
+        "items",
+        "kernel",
+        "link",
+        "person",
+        "resources",
+        "runners",
+        "seats",
+        "spec",
+        "state",
+        "store",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "shouts": {
+      "imports": [
+        "api",
+        "git",
+        "items",
+        "kernel",
+        "seats",
+        "store",
+        "sync"
+      ],
+      "deepImporters": 0
+    },
+    "spec": {
+      "imports": [
+        "codemap",
+        "config",
+        "git",
+        "kernel",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "state": {
+      "imports": [
+        "api",
+        "apps/cli",
+        "apps/lib",
+        "apps/view",
+        "config",
+        "gate",
+        "kernel",
+        "queue"
+      ],
+      "deepImporters": 0
+    },
+    "stats": {
+      "imports": [
+        "config",
+        "git",
+        "items",
+        "kernel",
+        "seats",
+        "state"
+      ],
+      "deepImporters": 0
+    },
+    "store": {
+      "imports": [
+        "apps/cli",
+        "apps/lib",
+        "codemap",
+        "config",
+        "git",
+        "items",
+        "kernel",
+        "merge",
+        "moves",
+        "queue",
+        "resources",
+        "roadmap",
+        "seats",
+        "spec",
+        "state",
+        "stats",
+        "verify"
+      ],
+      "deepImporters": 0
+    },
+    "sync": {
+      "imports": [
+        "commits",
+        "config",
+        "git",
+        "kernel",
+        "landing",
+        "state",
+        "store"
+      ],
+      "deepImporters": 0
+    },
+    "transport": {
+      "imports": [
+        "kernel",
+        "pin"
+      ],
+      "deepImporters": 0
+    },
+    "verify": {
+      "imports": [
+        "codemap",
+        "config",
+        "git",
+        "items",
+        "kernel",
+        "merge",
+        "queue",
+        "seats",
+        "state",
+        "stats"
+      ],
+      "deepImporters": 0
+    },
+    "<-stats": {
+      "imports": [],
+      "deepImporters": 1
+    },
+    "<-apps/runner": {
+      "imports": [],
+      "deepImporters": 1
+    },
+    "<-apps/lib": {
+      "imports": [],
+      "deepImporters": 1
+    }
+  },
+  "lightDoors": {
+    "apps/cli/light.js": 2,
+    "apps/runner/light.js": 24,
+    "apps/view/light.js": 1,
+    "packages/drive/light.js": 9,
+    "packages/commits/light.js": 12,
+    "packages/verify/light.js": 17,
+    "packages/store/light.js": 34,
+    "packages/doctrine/light.js": 50,
+    "packages/gate/light.js": 10,
+    "packages/sandbox/light.js": 15,
+    "packages/config/light.js": 9,
+    "packages/seats/light.js": 27,
+    "packages/runners/light.js": 40,
+    "packages/git/light.js": 12,
+    "packages/resources/light.js": 27,
+    "packages/kernel/light.js": 7
+  }
+}

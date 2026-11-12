@@ -1,17 +1,18 @@
-/** Git identity, committed reads, adapters and publication evidence shared behind legacy shims [C7]. */
-export * from "./src/shell/committed-file-reader.js";
-export * from "./src/shell/git-adapter.js";
-export * from "./src/shell/git-launch-ratchet.js";
-export * from "./src/shell/git-memory.js";
-export * from "./src/shell/git.js";
-export * from "./src/shell/pre-push-receipts.js";
-export * from "./src/shell/push-native-evidence.js";
-export * from "./src/shell/queued-item-lease.js";
-export * from "./src/shell/source-advance-nudge.js";
-export * from "./src/shell/trunk-revision.js";
-export * from "./src/shell/worktree.js";
-export * from "./core.js";
-export * from "./src/shell/git-trunk-ref.js";
-export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/shell/tool-commands.js';
-export * from "./src/shell/check-receipts.js";
-export { checkCommandDefinition } from './src/shell/check-definition.js';
+/** Git identity, reads, adapters and evidence behind legacy shims [C7]. */
+export * from "./src/io/committed.js";
+export * from "./src/io/launch/ratchet.js";
+export * from "./src/io/memory.js";
+export * from "./src/io/main.js";
+export * from "./src/io/receipts.js";
+export * from "./src/io/evidence.js";
+export * from "./src/io/lease.js";
+export * from "./src/io/nudge.js";
+export * from "./src/io/trunk/revision.js";
+export * from "./src/io/worktree.js";
+export * from "./light.js";
+export * from "./src/logic/selectors.js";
+export * from "./src/logic/batches.js";
+export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/io/tools.js';
+export * from "./src/io/check/receipts.js";
+export { checkCommandDefinition } from './src/io/check/definition.js';
+export { blobOid, indexedFiles } from './src/io/check/project-files.js';

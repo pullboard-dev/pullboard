@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "rules": {
+    "root-entry": 0,
+    "alias-root": 4,
+    "cell-entry": 7,
+    "alias-door": 27,
+    "alias-folder": 89,
+    "src-entry": 0,
+    "test-placement": 12,
+    "test-mirror": 663,
+    "data-group": 0,
+    "journey-folder": 0,
+    "name-repeat": 388,
+    "name-length": 1582,
+    "name-group": 156
+  }
+}

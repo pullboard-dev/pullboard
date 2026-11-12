@@ -1,13 +1,13 @@
 /** Sentinel scheduling, health scanning and their command and serve loops behind one front door [C7,CD60,CD64]. */
-export * from "./src/shell/dispatch-health.js";
-export * from "./src/core/gone-claims.js";
-export * from "./src/shell/health-sentinel.js";
-export * from "./src/shell/rejected-work-return.js";
-export * from "./src/shell/sentinel-command.js";
-export * from "./src/shell/sentinel-cpu.js";
-export * from "./src/shell/sentinel-runner.js";
-export * from "./src/shell/sentinels.js";
-export * from "./src/shell/serve-sentinel.js";
-export { REVIEW_WAKE_WAIT_MS, wakeReviewCapacity } from './src/shell/review-capacity-wake.js';
-export { waitBudgets, waitItemFields, waitKey } from './src/core/wait-budgets.js';
-export { openWaitKey, recordWaits, waitLines, waitsSnapshot } from './src/shell/waits.js';
+export * from "./src/io/dispatch.js";
+export * from "./src/logic/gone.js";
+export * from "./src/io/findings.js";
+export * from "./src/io/returns.js";
+export * from "./src/io/command.js";
+export * from "./src/io/cpu.js";
+export * from "./src/io/runner.js";
+export * from "./src/io/main.js";
+export * from "./src/io/serve.js";
+export { REVIEW_WAKE_WAIT_MS, wakeReviewCapacity } from './src/io/wake.js';
+export { waitBudgets, waitItemFields, waitKey } from './src/logic/budgets.js';
+export { openWaitKey, recordWaits, waitPidRecorded, waitLines, waitsSnapshot } from './src/io/waits.js';

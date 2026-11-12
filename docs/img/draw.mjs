@@ -5,7 +5,7 @@
  * states this file has no place for is refused, never left out.
  *
  * After changing a figure or the lifecycle, redraw them from the repo root: node docs/img/draw.mjs
- * test/readme.test.js fails while a committed figure differs from what this draws.
+ * apps/cli/journeys/doctrine/readme.test.js fails while a committed figure differs from what this draws.
  */
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';

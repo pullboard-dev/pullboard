@@ -2,7 +2,7 @@
   "name": "pullboard",
   "itemSizeBudget": 150,
   "gate": "npm run gate",
-  "affectedTests": "node bin/run-tests.js",
+  "affectedTests": "node packages/gate/src/io/run/tests.js",
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
@@ -52,11 +52,11 @@
       3176
     ],
     "auditOnly": [
-      "test/machine.test.js",
-      "test/refusal-next-steps.test.js",
-      "test/e2e.test.js",
+      "apps/cli/journeys/verify/machine.test.js",
+      "apps/cli/journeys/submit/steps.test.js",
+      "apps/cli/journeys/merged/e2e.test.js",
       "docs/formats.test.js",
-      "packages/store/tests/verdict-check.test.js"
+      "apps/cli/journeys/verify/check.test.js"
     ]
   },
   "submit": {
@@ -68,47 +68,46 @@
     "returnToBoard": true
   },
   "submitInvariants": [
-    "test/refusal-next-steps.test.js",
-    "test/machine.test.js"
+    "apps/cli/journeys/submit/steps.test.js",
+    "apps/cli/journeys/verify/machine.test.js"
   ],
   "registryGuards": [
     {
       "inputs": [
-        "packages/api/src/shell/api.js",
-        "apps/view/src/shell/serve.js",
-        "packages/store/src/shell/native-board-state.js",
-        "packages/store/src/core/native-state-clock.js",
-        "packages/pages/src/shell/relay-presentation.js",
-        "packages/store/src/shell/exchange.js",
-        "packages/store/src/shell/board-schema.js",
-        "packages/store/src/shell/board-schema-source.js",
-        "packages/state/src/shell/formats/board-schema.json",
-        "packages/state/src/shell/machine.js",
-        "packages/moves/src/shell/move-registry.js",
-        "apps/relay/src/shell/browser-model.js"
+        "packages/api/src/io/main.js",
+        "apps/view/src/io/serve.js",
+        "packages/store/src/io/board/state.js",
+        "packages/store/src/logic/clock.js",
+        "packages/pages/src/io/relay/presentation.js",
+        "packages/store/src/io/exchange.js",
+        "packages/store/src/io/board/schema.js",
+        "packages/store/src/io/board/schema/source.js",
+        "packages/state/src/io/formats/schema.json",
+        "packages/state/src/io/machine.js",
+        "packages/moves/src/io/registry.js",
+        "apps/relay/src/io/browser/model.js"
       ],
       "tests": [
-        "test/relay-parity.test.js",
-        "test/relay-parity-clock.test.js"
+        "apps/cli/journeys/relay/parity.test.js",
+        "apps/cli/journeys/relay/parity/clock.test.js"
       ]
     },
     {
       "inputs": [
-        "packages/moves/src/core/moves/**",
-        "packages/moves/src/shell/moves/**",
-        "packages/state/src/core/recorded-move.js",
-        "src/api-moves.js",
-        "packages/moves/src/shell/move-registry.js",
-        "src/discovery.js"
+        "packages/moves/src/logic/moves/**",
+        "packages/moves/src/io/moves/**",
+        "packages/state/src/logic/recorded/move.js",
+        "packages/moves/src/io/registry.js"
       ],
       "tests": [
-        "test/relay-credential.test.js",
-        "test/move-registry.test.js"
+        "apps/cli/journeys/relay/credential.test.js",
+        "apps/cli/journeys/move/registry.test.js"
       ]
     },
     {
       "inputs": [
-        "src/**",
+        "apps/**",
+        "packages/**",
         "docs/formats.md"
       ],
       "tests": [
@@ -117,17 +116,15 @@
     },
     {
       "inputs": [
-        "src/help.js",
-        "src/commands/**",
-        "src/cli-main.js"
+        "apps/cli/src/io/**"
       ],
       "tests": [
-        "test/readme.test.js"
+        "apps/cli/journeys/doctrine/readme.test.js"
       ]
     },
     {
       "inputs": [
-        "relay/**",
+        "apps/relay/**",
         "docs/architecture.md"
       ],
       "tests": [
@@ -150,14 +147,10 @@
   "lanes": {
     "core": {
       "owns": [
-        "src/",
-        "bin/",
-        "test/",
         "packages/",
         "apps/",
         "package.json",
         ".github/workflows/",
-        "relay/",
         "docs/api.md",
         "docs/api.test.js",
         "docs/lifecycle.md",
@@ -195,7 +188,7 @@
       "owns": [
         "docs/",
         "README.md",
-        "test/readme.test.js",
+        "apps/cli/journeys/doctrine/readme.test.js",
         "skills/",
         "DOCTRINE.md",
         "PRACTICE.md",
@@ -212,12 +205,153 @@
     },
     "view": {
       "owns": [
-        "src/view.css",
-        "src/view/",
         "apps/view/",
-        "test/cockpit.test.js",
-        "test/cockpit/",
-        "test/journeys.test.js"
+        "packages/codemap/data/plan/45-app-view.json",
+        "apps/cli/journeys/shout/journeys.test.js",
+        "apps/cli/journeys/agents/actors.test.js",
+        "apps/cli/journeys/agents/main.test.js",
+        "apps/cli/journeys/blueprint/fit.test.js",
+        "apps/cli/journeys/claim/display.test.js",
+        "apps/cli/journeys/claim/live.test.js",
+        "apps/cli/journeys/doctrine/main.test.js",
+        "apps/cli/journeys/doctrine/redesign.test.js",
+        "apps/cli/journeys/export/addresses.test.js",
+        "apps/cli/journeys/export/shouts.test.js",
+        "apps/cli/journeys/export/control.test.js",
+        "apps/cli/journeys/export/fetch.test.js",
+        "apps/cli/journeys/export/lan.test.js",
+        "apps/cli/journeys/export/public.test.js",
+        "apps/cli/journeys/fact/plan/state.test.js",
+        "apps/cli/journeys/fact/snapshot.test.js",
+        "apps/cli/journeys/fact/snapshot/",
+        "apps/cli/journeys/hold/demo.test.js",
+        "apps/cli/journeys/inbox/projects.test.js",
+        "apps/cli/journeys/inbox/sidebar.test.js",
+        "apps/cli/journeys/inbox/tabs.test.js",
+        "apps/cli/journeys/init/browser.test.js",
+        "apps/cli/journeys/init/clock.test.js",
+        "apps/cli/journeys/init/compare.test.js",
+        "apps/cli/journeys/init/empty.test.js",
+        "apps/cli/journeys/init/geometry.test.js",
+        "apps/cli/journeys/init/home.test.js",
+        "apps/cli/journeys/init/origin.test.js",
+        "apps/cli/journeys/init/perf.test.js",
+        "apps/cli/journeys/init/provenance.test.js",
+        "apps/cli/journeys/init/scope.test.js",
+        "apps/cli/journeys/init/speed.test.js",
+        "apps/cli/journeys/lifecycle/chart.test.js",
+        "apps/cli/journeys/lifecycle/native.test.js",
+        "apps/cli/journeys/lifecycle/returns.test.js",
+        "apps/cli/journeys/merged/consistency.test.js",
+        "apps/cli/journeys/merged/dashboard.test.js",
+        "apps/cli/journeys/milestone/approvals.test.js",
+        "apps/cli/journeys/milestone/auth.test.js",
+        "apps/cli/journeys/milestone/board.test.js",
+        "apps/cli/journeys/milestone/component.test.js",
+        "apps/cli/journeys/milestone/dashboard/journey.test.js",
+        "apps/cli/journeys/milestone/dashboard/visibility.test.js",
+        "apps/cli/journeys/milestone/env.test.js",
+        "apps/cli/journeys/milestone/limit.test.js",
+        "apps/cli/journeys/milestone/newcomer.test.js",
+        "apps/cli/journeys/milestone/order.test.js",
+        "apps/cli/journeys/milestone/routes.test.js",
+        "apps/cli/journeys/milestone/title.test.js",
+        "apps/cli/journeys/milestone/vocabulary.test.js",
+        "apps/cli/journeys/refreeze/timeline.test.js",
+        "apps/cli/journeys/relay/cockpit.test.js",
+        "apps/cli/journeys/relay/hosted/boards.test.js",
+        "apps/cli/journeys/relay/hosted/deadline.test.js",
+        "apps/cli/journeys/relay/needs.test.js",
+        "apps/cli/journeys/relay/person/cockpit-requests.test.js",
+        "apps/cli/journeys/relay/person/scroll.test.js",
+        "apps/cli/journeys/relay/signin.test.js",
+        "apps/cli/journeys/relay/transport.test.js",
+        "apps/cli/journeys/release/header.test.js",
+        "apps/cli/journeys/rigor/view.test.js",
+        "apps/cli/journeys/roadmap/card.test.js",
+        "apps/cli/journeys/roadmap/cockpit.test.js",
+        "apps/cli/journeys/roadmap/cockpit/",
+        "apps/cli/journeys/roadmap/count.test.js",
+        "apps/cli/journeys/roadmap/counts.test.js",
+        "apps/cli/journeys/roadmap/held.test.js",
+        "apps/cli/journeys/roadmap/redesign.test.js",
+        "apps/cli/journeys/roadmap/walk.test.js",
+        "apps/cli/journeys/run/first.test.js",
+        "apps/cli/journeys/sentinel/needs/draft.test.js",
+        "apps/cli/journeys/sentinel/needs/panel.test.js",
+        "apps/cli/journeys/sentinels/needs.test.js",
+        "apps/cli/journeys/settings/context.test.js",
+        "apps/cli/journeys/settings/main.test.js",
+        "apps/cli/journeys/settings/redesign.test.js",
+        "apps/cli/journeys/shout/activity.test.js",
+        "apps/cli/journeys/shout/activity/journey.test.js",
+        "apps/cli/journeys/shout/activity/polish.test.js",
+        "apps/cli/journeys/shout/dashboard.test.js",
+        "apps/cli/journeys/shout/fixture.test.js",
+        "apps/cli/journeys/shout/journey.test.js",
+        "apps/cli/journeys/shout/layout.test.js",
+        "apps/cli/journeys/shout/overlap.test.js",
+        "apps/cli/journeys/shout/prose.test.js",
+        "apps/cli/journeys/shout/references.test.js",
+        "apps/cli/journeys/shout/rows.test.js",
+        "apps/cli/journeys/shout/search.test.js",
+        "apps/cli/journeys/shout/shouts.test.js",
+        "apps/cli/journeys/shout/shouts/",
+        "apps/cli/journeys/shout/shouts/redesign.test.js",
+        "apps/cli/journeys/shout/toggle.test.js",
+        "apps/cli/journeys/shout/words.test.js",
+        "apps/cli/journeys/show/rows.test.js",
+        "apps/cli/journeys/spec/cockpit.test.js",
+        "apps/cli/journeys/spec/cockpit/",
+        "apps/cli/journeys/spec/descriptions.test.js",
+        "apps/cli/journeys/spec/redesign.test.js",
+        "apps/cli/journeys/spec/revision.test.js",
+        "apps/cli/journeys/stats/cockpit.test.js",
+        "apps/cli/journeys/submit/notes.test.js",
+        "apps/cli/journeys/verify/fixes.test.js",
+        "apps/cli/journeys/verify/item/panel.test.js",
+        "apps/cli/journeys/verify/item/timeline.test.js",
+        "apps/cli/journeys/verify/walk.test.js",
+        "apps/cli/journeys/view/cost/tab.test.js",
+        "apps/cli/journeys/view/cost/tab/redesign.test.js",
+        "apps/cli/journeys/view/detail.test.js",
+        "apps/cli/journeys/view/move.test.js",
+        "apps/cli/journeys/view/startup.test.js",
+        "apps/cli/journeys/waits/item.test.js",
+        "apps/cli/journeys/withdraw/items.test.js",
+        "apps/cli/journeys/withdraw/items-baseline.test.js",
+        "apps/cli/journeys/withdraw/items-detail.test.js",
+        "apps/cli/journeys/withdraw/items-links.test.js",
+        "apps/cli/journeys/withdraw/items-pipeline-refresh.test.js",
+        "apps/cli/journeys/withdraw/items-pipeline-throttle.test.js",
+        "apps/cli/journeys/withdraw/items-pipeline.test.js",
+        "apps/cli/journeys/withdraw/items-shape.test.js",
+        "apps/cli/journeys/withdraw/items-timeline.test.js",
+        "apps/cli/journeys/withdraw/items-toolbar.test.js",
+        "apps/cli/journeys/withdraw/projector.test.js",
+        "apps/cli/tests/fixtures/cockpit/",
+        "apps/cli/tests/fixtures/cockpit/activity.js",
+        "apps/cli/tests/fixtures/cockpit/approval.js",
+        "apps/cli/tests/fixtures/cockpit/barrier.mjs",
+        "apps/cli/tests/fixtures/cockpit/harness.js",
+        "apps/cli/tests/fixtures/cockpit/health.js",
+        "apps/cli/tests/fixtures/cockpit/hosted.js",
+        "apps/cli/tests/fixtures/cockpit/journey/deadline.js",
+        "apps/cli/tests/fixtures/cockpit/journey/routes.js",
+        "apps/cli/tests/fixtures/cockpit/lan.js",
+        "apps/cli/tests/fixtures/cockpit/lifecycle/seed/native.js",
+        "apps/cli/tests/fixtures/cockpit/lifecycle/seed/ordinary.js",
+        "apps/cli/tests/fixtures/cockpit/line.js",
+        "apps/cli/tests/fixtures/cockpit/machine.js",
+        "apps/cli/tests/fixtures/cockpit/perf/generate.mjs",
+        "apps/cli/tests/fixtures/cockpit/perf/run.mjs",
+        "apps/cli/tests/fixtures/cockpit/perf/speed.mjs",
+        "apps/cli/tests/fixtures/cockpit/stable.js",
+        "apps/cli/tests/fixtures/cockpit/usage.js",
+        "apps/cli/tests/fixtures/cockpit/view.js",
+        "packages/gate/tests/fixtures/cockpit/probe.mjs",
+        "packages/gate/tests/io/static/style.test.js",
+        "packages/gate/tests/stable.test.js"
       ],
       "specs": [
         "N26",
@@ -228,8 +362,11 @@
     }
   },
   "shared": [
-    "test/chrome-fixture.js",
-    "test/cockpit/fixture.js"
+    "apps/cli/tests/fixtures/chrome.js",
+    "apps/cli/tests/fixtures/cockpit/harness.js",
+    "packages/gate/data/tests/test-fixtures.json",
+    "packages/gate/data/tests/test-journeys.json",
+    "packages/gate/data/tests/tiers.json"
   ],
   "commits": {
     "requireIds": [
@@ -239,7 +376,7 @@
     "noEmoji": true,
     "noHostName": true
   },
-  "staticChecks": "node --experimental-vm-modules --disable-warning=ExperimentalWarning bin/static-style-checks.js",
+  "staticChecks": "node --experimental-vm-modules --disable-warning=ExperimentalWarning apps/cli/src/io/static/checks.js",
   "flakes": {
     "rerun": true,
     "quarantine": true
@@ -255,8 +392,9 @@
     "enabled": true,
     "every": "1h",
     "grace": "1d",
-    "exclude": [
-      "/Users/coreyolson/Code/Open Source/pullboard-local-core-24"
-    ]
+    "exclude": []
+  },
+  "trunk": {
+    "remote": "coreyolson@100.109.124.33:pb-trunk"
   }
 }

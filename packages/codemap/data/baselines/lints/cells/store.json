@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "cell": "store",
+  "baseSha256": "0355e2e6949e91cade9a20ee4e7d9eeab6a5567031c4c26e1e4cb252d1fb82ea",
+  "metrics": {
+    "boundaries": {
+      "remove": [],
+      "allowances": {
+        "packages/github/src/io/pr/publish.js->src/board.js": 1
+      }
+    }
+  },
+  "sha256": "bf369fb771700a732b34ebcca88257bf1e662b8c22639ae782b5ef8048fde49c"
+}

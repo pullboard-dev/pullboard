@@ -1,0 +1,5 @@
+{
+  "src/queue-order.js": "packages/queue/src/logic/order.js",
+  "src/queue-settings.js": "packages/queue/src/io/settings.js",
+  "src/routing-capacity.js": "packages/queue/src/logic/capacity.js"
+}

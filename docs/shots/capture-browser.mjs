@@ -1,6 +1,6 @@
 /** Real Chrome capture with explicit document and data readiness (I13,A10). */
 import { writeFile } from 'node:fs/promises';
-import { startChrome } from '../../test/chrome-fixture.js';
+import { startChrome } from '../../apps/cli/tests/fixtures/chrome.js';
 
 /** Start Chrome with a disposable profile and return the DevTools connection for its page. */
 export async function browser(chrome, profile, url) {

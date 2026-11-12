@@ -1,0 +1,505 @@
+{
+  "apps/cli/src/io/presence.js": {
+    "daemon-loop": 1,
+    "unref": 1
+  },
+  "apps/cli/src/io/trace.js": {
+    "state-file": 2
+  },
+  "apps/cli/src/io/setup.js": {
+    "state-file": 9
+  },
+  "apps/cli/src/io/commands/add.js": {
+    "daemon-loop": 1
+  },
+  "apps/cli/src/io/commands/claim.js": {
+    "daemon-loop": 1
+  },
+  "apps/cli/src/io/commands/next.js": {
+    "daemon-loop": 1
+  },
+  "apps/cli/src/io/commands/shadow-batch.js": {
+    "state-file": 1
+  },
+  "apps/cli/src/io/commands/spec.js": {
+    "state-file": 2
+  },
+  "apps/cli/src/io/commands/view.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/cli/src/io/exit/rules.js": {
+    "state-file": 2
+  },
+  "apps/cli/src/io/init/finish.js": {
+    "state-file": 3
+  },
+  "apps/cli/src/io/init.js": {
+    "state-file": 14
+  },
+  "apps/cli/src/io/next/monitor.js": {
+    "unref": 1
+  },
+  "apps/cli/src/io/pinned/tool/build.js": {
+    "state-file": 5
+  },
+  "apps/cli/src/io/submit/remote.js": {
+    "state-file": 9
+  },
+  "apps/cli/src/io/submit/wait.js": {
+    "daemon-loop": 1
+  },
+  "apps/cli/src/io/submit/handoff.js": {
+    "state-file": 11
+  },
+  "apps/cli/src/io/tool/build.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/cli/src/io/tour.js": {
+    "state-file": 6
+  },
+  "apps/cli/src/io/scale.js": {
+    "detached": 1
+  },
+  "apps/cli/src/io/worktree/maintenance/archive.js": {
+    "state-file": 2
+  },
+  "apps/cli/src/io/worktree/maintenance/observation.js": {
+    "state-file": 3
+  },
+  "apps/cli/src/io/worktree/maintenance/scheduler.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/lib/src/io/worker/checkpoint/relay.js": {
+    "daemon-loop": 2,
+    "unref": 1
+  },
+  "apps/cli/src/io/sender.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/relay/src/io/service.js": {
+    "daemon-loop": 1,
+    "unref": 1
+  },
+  "apps/runner/src/io/private/check/worker.js": {
+    "detached": 1
+  },
+  "apps/runner/src/io/custody.js": {
+    "daemon-loop": 3,
+    "unref": 1
+  },
+  "apps/runner/src/io/private/privacy.js": {
+    "state-file": 6
+  },
+  "apps/runner/src/io/worker/cleanup.js": {
+    "daemon-loop": 1,
+    "unref": 2
+  },
+  "apps/runner/src/io/worker/process.js": {
+    "daemon-loop": 3,
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/view/src/io/background.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/view/src/io/serve.js": {
+    "state-file": 8
+  },
+  "packages/codemap/src/io/cells/shims.js": {
+    "state-file": 5
+  },
+  "docs/tools/guarded-docs-refresh.js": {
+    "state-file": 1
+  },
+  "packages/resources/src/io/handoff/worker/detach.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "apps/cli/src/io/hook/composed.js": {
+    "state-file": 1
+  },
+  "packages/landing/src/io/main/red/refresh.js": {
+    "state-file": 2
+  },
+  "apps/cli/src/io/resident/board.js": {
+    "daemon-loop": 1,
+    "unref": 1
+  },
+  "apps/cli/src/io/resident/client.js": {
+    "detached": 1,
+    "state-file": 1,
+    "unref": 1
+  },
+  "packages/gate/src/io/run-tests.js": {
+    "daemon-loop": 4,
+    "state-file": 23,
+    "unref": 2
+  },
+  "packages/api/src/io/http.js": {
+    "daemon-loop": 1,
+    "unref": 1
+  },
+  "packages/blueprints/src/io/fit.js": {
+    "state-file": 6
+  },
+  "packages/codemap/src/io/cell/uses.js": {
+    "state-file": 2
+  },
+  "packages/codemap/src/io/cell/parser/worker.js": {
+    "daemon-loop": 2
+  },
+  "packages/codemap/src/io/cell/parser.js": {
+    "state-file": 4,
+    "unref": 3
+  },
+  "packages/codemap/src/io/map.js": {
+    "state-file": 3
+  },
+  "packages/codemap/src/io/main/lints.js": {
+    "state-file": 1
+  },
+  "packages/doctrine/src/io/checks.js": {
+    "state-file": 4
+  },
+  "packages/doctrine/src/io/fast.js": {
+    "state-file": 3
+  },
+  "packages/flakes/src/io/native.js": {
+    "state-file": 6
+  },
+  "packages/gate/src/io/inventory.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/gate/src/io/check/baseline/worker.js": {
+    "detached": 1,
+    "state-file": 3,
+    "unref": 1
+  },
+  "packages/gate/src/io/check/baseline.js": {
+    "state-file": 1
+  },
+  "packages/gate/src/io/coordinator/release.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/receipt.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/slot.js": {
+    "daemon-loop": 2
+  },
+  "packages/gate/src/io/main/audit/nudge.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/gate/src/io/main/audit/scheduler.js": {
+    "daemon-loop": 1,
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/gate/src/io/main/audit/state.js": {
+    "state-file": 4
+  },
+  "packages/gate/src/io/main/audit/worker.js": {
+    "daemon-loop": 1,
+    "state-file": 5
+  },
+  "packages/codemap/src/io/module/imports.js": {
+    "state-file": 3
+  },
+  "packages/gate/src/io/refusal/trial.js": {
+    "state-file": 4
+  },
+  "packages/gate/src/io/release.js": {
+    "state-file": 3
+  },
+  "packages/gate/src/io/release/transport.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/seals.js": {
+    "state-file": 1
+  },
+  "packages/gate/src/io/run/shell.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/test/action/cache.js": {
+    "state-file": 5
+  },
+  "packages/gate/src/io/test/drain.js": {
+    "unref": 1
+  },
+  "packages/gate/src/io/test/economics/placement.js": {
+    "state-file": 5
+  },
+  "packages/gate/src/io/test/file/dispatch.js": {
+    "state-file": 4
+  },
+  "packages/gate/src/io/test/summary.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/test/run.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/test/tier/selection.js": {
+    "state-file": 1
+  },
+  "packages/gate/src/io/test/value/timing.js": {
+    "state-file": 2
+  },
+  "packages/gate/src/io/timed.js": {
+    "daemon-loop": 1,
+    "detached": 1,
+    "state-file": 4
+  },
+  "packages/git/src/io/check/receipts.js": {
+    "state-file": 5
+  },
+  "packages/git/src/io/committed.js": {
+    "daemon-loop": 1
+  },
+  "packages/git/src/io/nudge.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/git/src/io/tools.js": {
+    "state-file": 1
+  },
+  "packages/github/src/io/flakes.js": {
+    "state-file": 2
+  },
+  "packages/github/src/io/pr/publish.js": {
+    "state-file": 5
+  },
+  "packages/github/src/io/publish.js": {
+    "state-file": 4
+  },
+  "packages/items/src/io/blocks.js": {
+    "state-file": 2
+  },
+  "packages/items/src/io/patch/compose.js": {
+    "state-file": 2
+  },
+  "packages/items/src/io/patch/submit.js": {
+    "state-file": 1
+  },
+  "packages/items/src/io/sessions.js": {
+    "state-file": 2
+  },
+  "packages/items/src/io/submit/recovery.js": {
+    "state-file": 3
+  },
+  "packages/items/src/io/submit/wait.js": {
+    "daemon-loop": 1
+  },
+  "packages/keys/src/io/relay.js": {
+    "state-file": 3
+  },
+  "packages/keys/src/io/relay/client.js": {
+    "daemon-loop": 1,
+    "state-file": 3
+  },
+  "packages/landing/src/io/automatic/scheduler.js": {
+    "state-file": 1
+  },
+  "packages/landing/src/io/smoke.js": {
+    "state-file": 7
+  },
+  "packages/landing/src/io/plan/check.js": {
+    "state-file": 1
+  },
+  "packages/landing/src/io/resource.js": {
+    "daemon-loop": 3,
+    "unref": 2
+  },
+  "packages/landing/src/io/shards.js": {
+    "detached": 1
+  },
+  "packages/landing/src/io/step/batch.js": {
+    "state-file": 1
+  },
+  "packages/landing/src/io/step/publish.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/landing/src/io/worker.js": {
+    "daemon-loop": 2,
+    "detached": 1
+  },
+  "packages/landing/src/io/prune.js": {
+    "state-file": 3
+  },
+  "packages/landing/src/io/main/red.js": {
+    "state-file": 9
+  },
+  "packages/link/src/io/relay/canary/health.js": {
+    "state-file": 4
+  },
+  "packages/link/src/io/relay/lock.js": {
+    "daemon-loop": 1
+  },
+  "packages/link/src/io/relay/relink.js": {
+    "state-file": 4
+  },
+  "packages/link/src/io/relay/proof.js": {
+    "state-file": 4
+  },
+  "packages/link/src/io/relay.js": {
+    "state-file": 5
+  },
+  "packages/merge/src/io/mechanical.js": {
+    "state-file": 4
+  },
+  "packages/merge/src/io/compose.js": {
+    "state-file": 1
+  },
+  "packages/outbox/src/io/relay/settle.js": {
+    "daemon-loop": 2
+  },
+  "packages/outbox/src/io/relay/checkpoint.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/outbox/src/io/relay/worker.js": {
+    "daemon-loop": 2,
+    "unref": 1
+  },
+  "packages/pages/src/logic/sealed.js": {
+    "daemon-loop": 1
+  },
+  "packages/pages/src/io/relay/client.js": {
+    "daemon-loop": 1
+  },
+  "packages/person/src/io/confirmation.js": {
+    "daemon-loop": 1
+  },
+  "packages/resources/src/io/heartbeat/blocked.js": {
+    "unref": 1
+  },
+  "packages/resources/src/io/controller/custody.js": {
+    "state-file": 4
+  },
+  "packages/resources/src/io/handoff/worker/cap.js": {
+    "daemon-loop": 1,
+    "detached": 1
+  },
+  "packages/resources/src/io/liveness.js": {
+    "detached": 1,
+    "unref": 1
+  },
+  "packages/resources/src/io/renewal.js": {
+    "unref": 1
+  },
+  "packages/resources/src/io/main.js": {
+    "daemon-loop": 3,
+    "state-file": 2,
+    "unref": 1
+  },
+  "packages/rigor/src/io/proof.js": {
+    "detached": 1,
+    "state-file": 1,
+    "unref": 2
+  },
+  "packages/rigor/src/io/quality.js": {
+    "state-file": 5
+  },
+  "packages/runners/src/io/tooling/committed.js": {
+    "state-file": 5
+  },
+  "packages/runners/src/io/controller/watch.js": {
+    "daemon-loop": 1,
+    "unref": 1
+  },
+  "packages/runners/src/io/run.js": {
+    "detached": 1,
+    "state-file": 4
+  },
+  "packages/runners/src/io/dispatch.js": {
+    "daemon-loop": 1,
+    "unref": 1
+  },
+  "packages/runners/src/io/module/parser/worker.js": {
+    "daemon-loop": 1
+  },
+  "packages/runners/src/io/module/parser.js": {
+    "state-file": 4,
+    "unref": 2
+  },
+  "packages/runners/src/io/request.js": {
+    "state-file": 1
+  },
+  "packages/runners/src/io/source/scan.js": {
+    "state-file": 5
+  },
+  "packages/sandbox/src/io/captured.js": {
+    "detached": 1
+  },
+  "packages/sandbox/src/io/environment.js": {
+    "state-file": 3
+  },
+  "packages/sandbox/src/io/verify.js": {
+    "state-file": 12
+  },
+  "packages/sandbox/src/io/source/advance/worker.js": {
+    "daemon-loop": 1,
+    "state-file": 2
+  },
+  "packages/sandbox/src/io/regeneration.js": {
+    "state-file": 3
+  },
+  "packages/seats/src/io/agent/hook.js": {
+    "detached": 1
+  },
+  "packages/seats/src/io/projects.js": {
+    "state-file": 5
+  },
+  "packages/seats/src/io/wake.js": {
+    "unref": 1
+  },
+  "packages/sentinels/src/io/runner.js": {
+    "detached": 1,
+    "state-file": 1,
+    "unref": 2
+  },
+  "packages/sentinels/src/io/serve.js": {
+    "unref": 1
+  },
+  "packages/spec/src/io/rows/approved.js": {
+    "state-file": 3
+  },
+  "packages/spec/src/io/signature.js": {
+    "state-file": 10
+  },
+  "packages/stats/src/io/cost/due.js": {
+    "detached": 1,
+    "state-file": 4,
+    "unref": 1
+  },
+  "packages/stats/src/io/cost/ledger.js": {
+    "state-file": 3
+  },
+  "packages/sync/src/io/git/lock.js": {
+    "daemon-loop": 1
+  },
+  "packages/sync/src/io/main.js": {
+    "state-file": 2
+  },
+  "packages/verify/src/io/comparison.js": {
+    "detached": 1,
+    "state-file": 5,
+    "unref": 1
+  },
+  "packages/verify/src/io/review/packet.js": {
+    "state-file": 3
+  },
+  "packages/verify/src/io/compare.js": {
+    "state-file": 2
+  },
+  "packages/seats/src/io/timing.js": {
+    "state-file": 2
+  }
+}

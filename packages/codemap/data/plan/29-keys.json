@@ -1,0 +1,43 @@
+{
+ "order": 29,
+ "name": "keys",
+ "kind": "package",
+ "root": "packages/keys",
+ "frontDoor": "packages/keys/index.js",
+ "dryRunName": "relay-keys",
+ "paths": [
+  ["src/relay-device-keys.js","packages/keys/src/logic/device.js","seed"],
+  ["src/relay-key.js","packages/keys/src/io/relay.js","seed"],
+  ["src/relay-pairing-client.js","packages/keys/src/io/relay/client.js","seed"],
+  ["src/relay-person-enrollment.js","packages/keys/src/io/relay/enrollment.js","seed"],
+  ["test/relay-pairing-options.test.js","packages/keys/tests/relay-pairing-options.test.js","seed"]
+ ],
+ "reexports": [],
+ "imports": [
+  {"cell":"kernel","imports":4,"before":true},
+  {"cell":"git","imports":1,"before":true},
+  {"cell":"state","imports":2,"before":true},
+  {"cell":"seats","imports":2,"before":true},
+  {"cell":"store","imports":3,"before":true},
+  {"cell":"person","imports":6,"before":true},
+  {"cell":"link","imports":3,"before":false}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": 0,
+  "shims": 4,
+  "boundaries": 0,
+  "strays": -1,
+  "documents": 0,
+  "cyclesIfUncut": 7,
+  "assetReads": 0
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 23/43: keys moves into packages/keys behind shims",
+  "criterion": "Cells move 23 of 43 (RFC 0006; plan entry 23 in packages/codemap/data/plan/cells.json): the 5 paths the entry lists for package keys move with git mv to their planned targets under packages/keys, and packages/keys/index.js is the front door, re-exporting the 4 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 2 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource 0, shims +4, boundaries 0) and none rises; node packages/codemap/src/io/cells/scripts/plan.js --moved keys passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node packages/codemap/src/io/cells/scripts/plan.js --moved keys",
+  "after": ["kernel","git","state","seats","store","person"]
+ }
+}

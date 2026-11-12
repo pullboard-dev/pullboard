@@ -31,4 +31,4 @@ jobs:
         working-directory: trusted-cla
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node bin/check-cla.js
+        run: node packages/gate/src/io/check/cla.js

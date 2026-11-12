@@ -1,9 +1,11 @@
 /** jobs front door: the durable job store, one row per gate job or landing batch [C7]. */
-export { createJob, nameJob, writeStep, jobView, jobsOf, leasedJobs } from "./src/shell/job-store.js";
-export { takeJob, renewLease, reclaimLapsed, releaseLease, finishJob } from "./src/shell/job-lease.js";
-export { reserveReview, renewReview, reclaimLapsedReviews, releaseReview, reviewOffer, reviewJobId } from "./src/shell/review-lease.js";
-export { LEASE_MS, leaseLapsed } from "./src/core/lease-rules.js";
-export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/shell/job-shadow.js";
-export { gatePanel, stalledGates } from "./src/shell/gate-panel.js";
-export { gatePanelState } from "./src/core/gate-panel.js";
-export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/shell/gate-span-file.js";
+export { atomically, createJob, nameJob, writeStep, jobView, jobsOf, leasedJobs } from "./src/io/store.js";
+export { takeJob, renewLease, reclaimLapsed, releaseLease, finishJob } from "./src/io/lease.js";
+export { reserveReview, renewReview, reclaimLapsedReviews, releaseReview, reviewOffer, reviewJobId } from "./src/io/review.js";
+export { LEASE_MS, leaseLapsed } from "./src/logic/rules.js";
+export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/io/shadow.js";
+export { gatePanel, stalledGates } from "./src/io/gate/panel.js";
+export { gatePanelState } from "./src/logic/panel.js";
+export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/io/gate/span.js";
+export { BLOB_THRESHOLD_BYTES, blobDirOf, putBlob, readBlob, readPayload, stubOf, parseStub } from "./src/io/blobs.js";
+export { spawnReachable, launchJobPlist, LAUNCH_LABEL_PREFIX } from "./src/io/launch.js";

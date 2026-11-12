@@ -1,4 +1,0 @@
-{
-  "src/shout-readable.js": "packages/shouts/src/core/shout-readable.js",
-  "src/watch.js": "packages/shouts/src/shell/watch.js"
-}

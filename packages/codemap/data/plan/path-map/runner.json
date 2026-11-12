@@ -1,0 +1,21 @@
+{
+  "src/chrome-clone-cleanup.js": "apps/runner/src/io/chrome.js",
+  "src/private-check-worker.js": "apps/runner/src/io/private/check/worker.js",
+  "src/runner-custody.js": "apps/runner/src/io/custody.js",
+  "src/runner-private-check.js": "apps/runner/src/io/private/privacy.js",
+  "src/runner-private-mode.js": "apps/runner/src/io/private/guard.js",
+  "src/runner-stage-read.js": "apps/runner/src/io/stage.js",
+  "src/runner-stage.js": "apps/runner/src/logic/stage.js",
+  "src/runner-worker.js": "apps/runner/src/io/worker.js",
+  "src/runner-worker-state.js": "apps/runner/src/io/worker/context.js",
+  "src/runner-worker-health.js": "apps/runner/src/io/worker/health.js",
+  "src/runner-worker-spec.js": "apps/runner/src/io/worker/spec.js",
+  "src/runner-worker-cleanup.js": "apps/runner/src/io/worker/cleanup.js",
+  "src/runner-worker-environment.js": "apps/runner/src/io/worker/environment.js",
+  "src/runner-worker-process.js": "apps/runner/src/io/worker/process.js",
+  "src/runner-worker-git.js": "apps/runner/src/io/worker/git.js",
+  "src/runner-worker-checkout.js": "apps/runner/src/io/worker/checkout.js",
+  "src/runner-worker-command.js": "apps/runner/src/io/worker/command.js",
+  "src/runner-worker-receipt.js": "apps/runner/src/io/worker/receipt.js",
+  "src/runner-worker-main.js": "apps/runner/src/io/worker/entry.js"
+}

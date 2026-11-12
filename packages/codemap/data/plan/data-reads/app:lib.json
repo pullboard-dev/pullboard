@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "reads": [
+    {
+      "file": "apps/cli/journeys/submit/compare.test.js",
+      "line": 197,
+      "expression": "box.cache",
+      "kind": "config",
+      "why": "Reads the fixture's own submit comparison cache that the command under test wrote; generated test-result data, not cli source."
+    }
+  ]
+}

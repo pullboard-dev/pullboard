@@ -1,61 +1,133 @@
 ---
 name: pullboard-plan
-description: Turn a project's approved spec rows into work items on the board, in the right lanes and in the right order, so builder agents can pick them up without colliding. Use when rows have just been approved, when the board is empty, or when asked to plan, break work into items, or set up lanes.
+description: Turn a project's approved spec rows into work items on the board, in the right lanes and order, so builder agents pick them up without colliding. Use when rows have just been approved, when the board is empty, or when asked to plan, break work into items, or set up lanes.
 ---
 
 # Plan the work
 
-You turn approved rows into items builders can claim. You do not build.
+- You turn approved rows into items workers can claim. You never build.
+- Every item carries its bar: what done means, written before any code exists.
+- Workers build to the bar; a verifier checks every line. Sharper bars, sharper work.
 
-1. Read SPEC.md (approved rows only; rows marked `wont` or `retired` are never built or cited), DOCTRINE.md (or PRACTICE.md when it is the only legacy file) and `pullboard lanes`. If the lanes do not fit the work, propose a change to `pullboard.json` to the person rather than forcing items into the wrong lane. Read the repo's conventions too, and write every brief in them: the module system (`"type"` in package.json), the test runner, where tests live.
-2. **Contracts first.** Find what two lanes will share: a data shape, a module's functions, a file format. Make one item for each shared contract, in the lane that will own it, and add the items that use it with `--after <its id>`. A builder waiting on a contract claims something else; nobody copies another lane's code.
-3. **One item per verifiable piece.** Each item:
-   - sits in the lane that owns its files
-   - cites with `--specs` only the rows it meets in full; a verifier rejects an item that cites a row it does not meet
-   - has a `--criterion` a stranger could check without asking you, with the exact command, input and expected output. Write it as at most 3 numbered clauses, each one checkable requirement; split a clause that says "and" into two, or into two items
-   - has a `--brief` (or `--brief-file`) when a builder starting cold would need more than the criterion. The criterion says what; the brief says how. Write it in four labelled parts:
+## Read first
 
-     ```
-     Files:
-     - packages/store/index.js
-     - packages/store/tests/store.test.js
-     Change:
-     - add(text) returns the new task's number; numbers start at 1 and are never reused
-     Test:
-     - in packages/store/tests/store.test.js, two adds return 1 and 2, and a remove then an add returns 3
-     Out of scope: every other file; no new dependencies
-     ```
+1. The checklist:
+   - `pullboard prompt plan`
+2. SPEC.md: approved rows only.
+   - `wont` and `retired` rows are never built or cited.
+3. DOCTRINE.md (PRACTICE.md in legacy repos).
+4. The lanes:
+   - `pullboard lanes`
+   - Lanes don't fit? Propose a `pullboard.json` change to the person.
+   - Never force an item into the wrong lane.
+5. The repo's conventions: module system, test runner, test folder.
+   - Write every brief in them.
+6. Board problems:
+   - `pullboard doctor`
 
-     Builders commit and submit their own work, so a brief never forbids git. Only the packs `pullboard run` writes say so, because there the runner commits.
-   - has a `--check`, set at filing, whenever it can: the one command that proves it, such as `node --test packages/store/tests/store.test.js`. The check must fail before the work and pass after it.
-4. **Route each item to the cheapest model that can build it.** Every item an expensive model builds that a cheaper one could have is waste.
-   - `--route light`: a small or local model can build it from the brief alone. Mechanical work: wiring, a field through three files, a test for a stated case, a rename.
-   - `--route mid`: a capable model such as Haiku or Sonnet: a small feature, a bug with a known cause.
-   - Leave on the default strong route what needs judgment: a shared contract, a design choice, an edge the brief cannot settle.
-   - Route for the builders who will join. An item routed above every builder's tier is never built: make it lighter with a full brief, or tell the person the fleet needs a stronger builder.
-   - Below strong, an item needs `--criterion`, `--check`, and a brief whose Files sit in the item's lane and whose Test says what it asserts; `add` refuses it otherwise. Agents take their own tier first, then lighter ones; a builder that cannot get an item green escalates it one tier up.
-5. **Order with `--after`.** An item that needs another's result waits for it. Keep the chains short; parallel lanes are the point.
-6. **Simplest version first.** Plan the smallest thing that meets the rows. Every addition needs a row that asks for it.
-7. **Real inputs early.** If the project has real inputs (files, an API, data), plan an early item that runs on them, so surprises surface before everything else is built.
-8. Rows gated by review (style, constraints) need no item of their own unless there is work to do; list them in your report.
+## Steps
+
+1. **Contracts first:** what two lanes share (a data shape, a module, a file format).
+   - One item per contract, in the lane that owns it.
+   - Items that use it: `--after <its id>`.
+2. **One item per verifiable piece.** See Each item.
+3. **Route** to the cheapest model that can build it. See Routes.
+4. **Order** with `--after`. Keep chains short; parallel lanes are the point.
+5. **Simplest first:** every addition needs a row asking for it.
+6. **Real inputs early:** files, an API, data. Plan an early item that runs on them.
+7. **Review-gated rows** (style, constraints): no item unless there's work. List them in your report.
+
+## Each item
+
+1. **Lane:** the one that owns its files.
+2. **Specs:** only rows it meets in full.
+3. **Criterion (the bar):** a stranger can check it without asking you.
+   - At most 3 numbered clauses, one fact each.
+   - Each ends with its proof: `[test]`, `[command]` or `[measurement]`.
+   - Name the exact command, input and expected output.
+   - A clause with "and" becomes two.
+4. **Wiring:** a behavior change names its production callers in the brief's Files.
+   - One clause shows it on the real path. A unit test alone is no proof it's wired.
+5. **Check:** the one command that proves it. Fails before the work, passes after.
+6. **Brief:** when a cold worker needs more than the criterion. The criterion says what; the brief says how.
 
 ```
-pullboard add store "Task file format and store module" --specs G7,D3 --criterion "1. store.add('x') returns 1. 2. It writes the file in TODO_FILE." --check "node --test packages/store/tests/store.test.js"
-pullboard add cli "todo add prints the new number" --specs G1 --after 1 --criterion "todo add 'buy milk' exits 0 and prints 1" --check "node --test apps/cli/tests/cli.test.js"
-pullboard add cli "todo help lists every command" --specs G9 --after 2 --route light \
-  --criterion "todo help exits 0 and names add, list, done and remove" --check "node --test apps/cli/tests/cli.test.js" \
-  --brief "Add a help case to the command switch in apps/cli/index.js, next to add. Copy how add prints. Test it in apps/cli/tests/cli.test.js the way the add test runs the CLI."
+Files:
+- packages/store/index.js
+- packages/store/tests/store.test.js
+Change:
+- add(text) returns the new task's number
+- numbers start at 1 and are never reused
+Test:
+- two adds return 1, then 2
+- a remove, then an add, returns 3
+Out of scope:
+- every other file
+- new dependencies
 ```
 
-To change a brief or a route later: `pullboard edit <id> --brief "..."` or `--route strong|light`. The criterion changes only by `pullboard refreeze`.
+- A brief never forbids git: workers commit and submit their own work.
+  - Except under `pullboard run --agent`, where the runner commits.
+
+## Routes
+
+| Route | Builder | For |
+|---|---|---|
+| `light` | a small or local model | mechanical: wiring, a rename, a test for a stated case |
+| `mid` | Haiku or Sonnet class | a small feature, a bug with a known cause |
+| strong (default) | the strongest | judgment: a shared contract, a design choice |
+
+1. **Light and mid** need all three, or `add` refuses:
+   - `--criterion`
+   - `--check`
+   - a brief with Files in the lane and a Test
+2. **Route for your workers.** Too hard for all of them? Lighten it with a full brief, or tell the person.
+3. **Stuck:** a worker that can't get it green moves it one route up.
+
+## Example
+
+```
+# 1. The contract: the store module two lanes share
+pullboard add store "Store module" --specs G7 \
+  --criterion "1. store.add('x') returns 1 [test]." \
+  --check "node --test packages/store/tests/store.test.js"
+
+# 2. Uses the contract, so it waits for item 1
+pullboard add cli "todo add prints the number" --specs G1 --after 1 \
+  --criterion "1. todo add 'milk' prints 1 [test]." \
+  --check "node --test apps/cli/tests/cli.test.js"
+
+# 3. Mechanical, so light, with a brief
+pullboard add cli "todo help lists commands" --specs G9 --after 2 --route light \
+  --criterion "1. todo help names add, list, done and remove [test]." \
+  --check "node --test apps/cli/tests/cli.test.js" \
+  --brief-file briefs/todo-help.md
+```
+
+## Change later
+
+1. Brief or route:
+   - `pullboard edit <id> --brief "..."`
+   - `pullboard edit <id> --route strong|light`
+2. Criterion:
+   - `pullboard edit <id> --criterion "..." --reason "<what the old bar got wrong>"`
+   - A worker already on it runs `pullboard refreeze <id>`.
+
+## Milestones
+
+1. Read the release order:
+   - `pullboard roadmap`
+2. Create one, add or remove items:
+   - `pullboard milestone add`
+   - `pullboard milestone items`
+3. Reorder, relabel or retire an empty one:
+   - `pullboard milestone move`
+   - `pullboard milestone edit`
+   - `pullboard milestone remove`
 
 ## Done
 
-Every approved must-row is cited by an item, or named in your report with the reason it needs none. `pullboard list` shows the order through `after`.
-
-## Pullboard commands for this job
-
-- When you begin planning, run `pullboard prompt plan` for the role-specific checklist and `pullboard doctor` to find board-integrity problems.
-- When you need to preserve release order, run `pullboard roadmap` before changing milestones.
-- When you need to create a milestone, run `pullboard milestone add`; append or remove its item references with `pullboard milestone items`.
-- When you need to change an existing milestone's order or label, run `pullboard milestone move` or `pullboard milestone edit`; when retiring an empty milestone, run `pullboard milestone remove`.
+1. Every approved row with tier must is cited by an item, or named in your report with why not.
+2. `pullboard list` shows the order through `after`.
+3. Draft or pending rows: ask the person to approve them:
+   - `pullboard view`

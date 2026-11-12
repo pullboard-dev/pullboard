@@ -1,32 +1,43 @@
 ---
 name: pullboard-verify
-description: Verify another agent's submitted item at its exact commit, against the criterion frozen when it was claimed, and record a typed verdict. Use when an item awaits verification, or when asked to verify, check or review a submitted item.
+description: Verify another agent's submitted item at its exact commit, against the criterion frozen at claim, and record a typed verdict. Use when an item awaits verification, or when asked to verify, check or review a submitted item.
 ---
 
 # Verify a submitted item
 
-You never verify your own work. You judge the frozen criterion as written, at the commit that was submitted.
+- Never verify your own work: anything your session built or submitted, under any seat.
+- Judge the frozen criterion as written, at the submitted commit.
+- Work only in the worktree `pullboard worktree review` made. Start every command with `cd <your worktree> &&`.
+- Never switch the main checkout. It's the coordinator's.
 
-Work only in your own worktree, the one `pullboard worktree review` made. Your shell may start each command in the main checkout, which is the coordinator's, so begin every command with `cd <your worktree> &&`. Never switch the main checkout to another commit.
+## Steps
 
-1. `pullboard next --verify` names the next submitted item you did not build, and its commit. `pullboard show <id>` gives the criterion as frozen at claim.
-2. Check out exactly that commit, in your worktree: `cd <your worktree> && git switch --detach <commit>`.
-3. Do not run the gate. Accept reuses the gate's recorded proof (RFC 0006 A4), so read the gate runs on the item in `pullboard show <id>` and the diff against the bar. Then test what the recorded runs do not cover, with the strongest proof the board can record:
-   - **Break it and watch it fail**, only for a bar clause the gate's recorded runs do not cover. Revert or break the change on a saved copy, show the check fails, restore the copy, show it passes.
-   - Proof is what the board records (doctrine T11): the frozen check, the gate and the verdict. Keep no evidence folders, packets, manifests or custody rules of your own; cite the board's receipts and facts. When the board's runs cannot decide an item, ask the coordinator to sharpen its bar.
-   - **Use the method the criterion names.** If it says "two real processes" or "after a restart", use exactly that; a weaker stand-in is not proof.
-   - **Run the behavior** and read the output.
-   - **Read the code** only when the criterion is about the code itself. It is the weakest proof.
-   - **Check the house rules too.** Read the approved rows of DOCTRINE.md (or PRACTICE.md when it is the only legacy file) that the change touches. A broken one is a reject with reason OTHER, naming the row.
-   - **Try the edges.** Today and yesterday for dates; zero, one and the limit for numbers; empty for lists; the first and the last. Most bugs live at an edge the builder's tests skipped.
-   - **Keep checks contained.** Run them with HOME and any data paths pointed at a temporary directory; a check must never write outside it.
-4. Decide:
-   - Every row the item cites must be met. If it cites a row it does not serve, reject with OTHER and name the row, so the coordinator fixes the citation; never accept around it.
-   - `pullboard verify <id> accept --no-next --note "<what you broke or which edge you tried, and what happened>"`, only when the criterion is met as written. The note is required: passing tests alone are not proof.
-   - `pullboard verify <id> reject --no-next --reason <CODE> --clause "<exact failing wording from the frozen bar>" --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER. Quote the same frozen requirement consistently. Two rejects of the same frozen clause hold the item until the coordinator or person sharpens its bar.
-5. Verify and release hand you the next build unless you pass `--no-next`; always pass it, then run `pullboard next --verify` for the next review.
-6. If the check could not run for reasons that are not the work's fault, such as a broken environment or a flaky run under load, do not reject. Shout the coordinator what happened.
+1. **Find:** `pullboard next --verify` names the item and its commit. `pullboard show <id>` shows the frozen criterion and the gate's runs.
+2. **Check out:** `cd <your worktree> && git switch --detach <commit>`.
+3. **Read:** the gate's runs and the diff against the bar. Never rerun the gate; accept reuses its proof (RFC 0006 A4).
+4. **Prove:** test only what the gate's runs don't cover. See Proof.
+5. **Decide:** every row the item cites must be met. A cited row it doesn't serve: reject with OTHER, naming the row.
+   - **Accept** only when the criterion is met as written. The note is required:
+     `pullboard verify <id> accept --no-next --note "<what you broke or which edge you tried, and what happened>"`
+   - **Reject** quoting the frozen wording, the same way every time:
+     `pullboard verify <id> reject --no-next --reason <CODE> --clause "<exact failing wording, or the row for a doctrine break or wrong citation>" --note "<what failed, and the proof that would settle it>"`
+     Codes: TEST_FAILURE (a check fails), BEHAVIOR_MISMATCH (it runs but does the wrong thing), INSUFFICIENT_EVIDENCE (the named proof is missing or can't be run), STALE_HEAD (the commit is out of date), OTHER (a doctrine row or a wrong citation).
+     Two rejects of one clause hold the item until its bar is sharpened.
+6. **Next:** always pass `--no-next`, then run `pullboard next --verify`.
+7. **Couldn't run:** a broken environment or a flaky run isn't the work's fault. Never reject. Shout the coordinator, then `pullboard release <id> --reason BLOCKED --no-next` and take the next review.
 
-## Pullboard commands for this review
+## Proof
 
-- When you need the role-specific verification checklist before checking a submission, run `pullboard prompt verify`.
+Use the strongest proof that fits:
+- **Break it:** revert or break the change on a saved copy. Show the check fails, restore, show it passes.
+- **The named method:** "after a restart" means after a restart. A stand-in is no proof.
+- **Run the behavior** and read the output.
+- **Read the code** only when the criterion is about the code. It's the weakest proof.
+
+Every review:
+- **Doctrine:** a broken approved DOCTRINE.md row the change touches is a reject with OTHER, naming the row (PRACTICE.md in legacy repos).
+- **Edges:** today and yesterday; zero, one and the limit; empty; first and last.
+- **Contained:** point HOME and data paths at a temp directory. Never write outside it.
+- **Board records only** (doctrine T11): cite the board's receipts and facts. No evidence folders of your own. If the runs can't decide, ask the coordinator to sharpen the bar.
+
+Checklist: `pullboard prompt verify`.

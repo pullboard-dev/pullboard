@@ -1,5 +1,5 @@
 #!/bin/sh
 # This repo is pullboard itself, so its hooks run the source in this checkout.
+# The CLI times the whole hook and stops it after 120 s; the staged static check runs inside the hook process.
 root=$(git rev-parse --show-toplevel)
-node --experimental-vm-modules --disable-warning=ExperimentalWarning "$root/bin/checks/changed-static.js" --staged-hook || exit 1
-exec node "$root/bin/pullboard.js" hook pre-commit
+PULLBOARD_HOOK_STATIC=packages/gate/src/io/changed/scripts/static.js exec node "$root/apps/cli/pullboard.js" hook pre-commit

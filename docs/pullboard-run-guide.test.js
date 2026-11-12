@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { GUARDS } from '../packages/state/src/core/machine-declaration.js';
+import { GUARDS } from '../packages/state/index.js';
 
 /** @pullboard-world-pin reads the shipped run guide to check it against the guard's refusal list. */
 const skill = readFileSync(new URL('../skills/pullboard-run/SKILL.md', import.meta.url), 'utf8');
@@ -29,8 +29,8 @@ test('clause 1: the guide names the notBuilder identity refusals the guard raise
 test('clause 2: step 5 starts verifiers in a separate session, never as subagents of the coordinator [C7]', () => {
   const line = skill.split('\n').find(row => row.startsWith('5. **Verify'));
   assert.ok(line, 'the guide has a step 5 for verifying');
-  assert.match(line, /separate agent session/u, 'step 5 starts a separate agent session');
-  assert.match(line, /never a subagent of your own session/u, 'step 5 forbids a subagent of the coordinator session');
+  assert.match(line, /separate session/u, 'step 5 starts a separate session');
+  assert.match(line, /never a subagent of yours/u, 'step 5 forbids a subagent of the coordinator session');
   assert.match(line, /SELF_SESSION_VERIFY/u, 'step 5 names the refusal');
   assert.doesNotMatch(line, /start a subagent with its opening lines/u, 'step 5 no longer starts a subagent');
 });

@@ -1,0 +1,4 @@
+{
+  "src/shout-readable.js": "packages/shouts/src/logic/readable.js",
+  "src/watch.js": "packages/shouts/src/io/watch.js"
+}

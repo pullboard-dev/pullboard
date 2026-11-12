@@ -1,5 +1,0 @@
-{
-  "name": "seats",
-  "help": "  pullboard seats                     current seat states and local 24-hour timing ledger\n",
-  "required": { "seats": "array" }
-}

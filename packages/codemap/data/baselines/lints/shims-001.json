@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "metric": "shims",
+  "allowances": {
+    "packages/kernel/src/logic/discovery.js": 1,
+    "packages/kernel/src/logic/lex.js": 1,
+    "packages/kernel/src/logic/refused.js": 1,
+    "packages/kernel/src/logic/registry.js": 1,
+    "packages/kernel/src/logic/words.js": 1,
+    "packages/mcp/src/logic/main.js": 1,
+    "packages/queue/src/io/queue-order.js": 1,
+    "packages/queue/src/io/settings.js": 1,
+    "src/bar-ready-setting.js": 1,
+    "src/gate-wait.js": 1,
+    "src/index.js": 1,
+    "src/landing-batch-history.js": 1,
+    "src/runner-policy.js": 1,
+    "src/train-mechanical-merge.js": 1,
+    "temporary:src/json.js->src/next-step-words.js": 1,
+    "temporary:src/runner-policy.js->src/trusted-policy-read.js": 1
+  }
+}

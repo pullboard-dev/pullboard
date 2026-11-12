@@ -1,0 +1,54 @@
+/** Idle seats get actionable native queue guidance through CLI and session hooks [N2,I6]. */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { agentHookCommand } from '../../../../packages/seats/index.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+
+test('a seat with no claim is sent to pullboard next and never told to wait for assignment [N2,I6]', async (t) => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Completed setup item', '--criterion', 'A setup marker exists', '--check', 'test -f web/setup')).code, 0);
+  assert.equal((await box.runLocal(box.repo, 'withdraw', '1', 'Setup is complete')).code, 0);
+  const view = await helpers.startView(box, box.repo);
+  await view.stop();
+  assert.equal((await box.runLocal(box.web, 'inbox', '--json')).code, 0);
+  const resumed = (await box.runLocal(box.web, 'resume', '--json'));
+  assert.equal(resumed.code, 0, resumed.err || resumed.out);
+  const card = JSON.parse(resumed.out);
+  assert.equal(card.setup, null, 'the real board setup has finished before testing an idle seat');
+  assert.equal(card.holding.length, 0);
+  assert.match(card.next, /^pullboard next\b/u, 'an idle seat pulls the ranked queue instead of waiting to be assigned');
+  assert.doesNotMatch(card.next, /wait for (?:an? )?assignment|wait to be assigned/iu);
+  const guide = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
+  assert.match(guide, /no (?:active )?claim[\s\S]{0,100}pullboard next/iu, 'generated guidance states the idle-seat rule');
+  const settings = JSON.parse(readFileSync(join(box.repo, '.claude/settings.json'), 'utf8'));
+  const command = settings.hooks.SessionStart.flatMap(entry => entry.hooks).find(hook => hook.command === agentHookCommand('SessionStart'))?.command;
+  assert.ok(command, 'the generated SessionStart hook runs pullboard hook SessionStart');
+  const hooked = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(hooked.status, 0, hooked.failure || hooked.stderr || hooked.stdout);
+  const context = JSON.parse(hooked.stdout).hookSpecificOutput?.additionalContext ?? '';
+  assert.match(context, /next: pullboard next/u, 'the actual session hook gives the same queue instruction');
+  assert.doesNotMatch(context, /wait for (?:an? )?assignment|wait to be assigned/iu);
+  // 4657576b18: a plain next with no lane work finishes at once with the end-your-turn answer, never a refusal.
+  const empty = (await box.runLocal(box.web, 'next', '--json'));
+  assert.equal(empty.code, 0, empty.out);
+  const idle = JSON.parse(empty.out);
+  assert.equal(idle.item, null);
+  assert.equal(idle.next, 'nothing for this seat: end your turn', 'no-work output tells the seat to end its turn, not to wait');
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Held work', '--criterion', 'A marker exists', '--check', 'test -f web/ready')).code, 0);
+  assert.equal((await box.runLocal(box.repo, 'hold', 'web', '--reason', 'Release approval is pending')).code, 0);
+  const held = (await box.runLocal(box.web, 'next', '--json'));
+  assert.equal(held.code, 0, held.out);
+  const heldAnswer = JSON.parse(held.out);
+  assert.equal(heldAnswer.item, null);
+  assert.match(heldAnswer.reasons.join('\n'), /Release approval is pending/u, 'a real lane hold is explained, not bypassed');
+  assert.equal((await box.runLocal(box.repo, 'hold', 'web', '--off')).code, 0);
+  const next = (await box.runLocal(box.web, 'next', '--json'));
+  assert.equal(next.code, 0, next.err || next.out);
+  assert.equal(JSON.parse(next.out).item.item_title, 'Held work', 'normal next takes the work once its hold is released');
+});

@@ -5,70 +5,105 @@ description: Turn a client's ask into SPEC.md rows together with the person, one
 
 # Decompose an ask into the spec
 
-You turn what the client asked for into SPEC.md rows. You draft; the person decides.
+- You turn what the client asked for into SPEC.md rows.
+- You draft; the person decides.
 
-## Before you start
+## Read first
 
-- Read every document in `ask/`, or the brief the person points you to. Read SPEC.md and DOCTRINE.md (or PRACTICE.md when it is the only legacy file) if they exist.
-- Run `pullboard spec check`, so you start from a clean spec.
+1. The checklist:
+   - `pullboard prompt decompose`
+2. Every document in `ask/`, or the brief the person points to.
+3. SPEC.md and DOCTRINE.md (PRACTICE.md in legacy repos), if they exist.
+4. A clean start:
+   - `pullboard spec check`
+5. States or transitions involved:
+   - `pullboard lifecycle`
 
-## The row format
-
-One requirement per line:
+## The row
 
 ```
 - G1.2 [draft, must] Same file twice is a no-op. | gate: idempotency test | serves: G1
 ```
 
-- **id:** a track letter and a number. Ids are permanent: once a row is committed, commits and items may cite it, so it is never deleted, renumbered or reused.
-- **status:** `approved` only on the person's word. Your rows are `draft`. An open question is `pending`, with its text phrased as the question; a pending row has no gate. `wont` is a row the person cut: it stays, with its id and text, and nothing builds it. `retired` is a row that no longer applies.
-- **tier:** `must` or `aim`.
-- **text:** one requirement, under 20 words.
-- **gate:** the test or check that would prove it.
+| Part | Means |
+|---|---|
+| id | track letter and number; permanent, never reused |
+| tier | `must` if the client needs it, `aim` if nice to have |
+| text | one requirement, under 20 words |
+| gate | the test or check that proves it; required once a must-row is approved |
+| serves | the row it supports, if any |
 
-## How to work
+| Status | Means |
+|---|---|
+| `draft` | yours, proposed |
+| `pending` | an open question |
+| `approved` | the person said yes |
+| `wont` | cut by the person |
+| `retired` | no longer applies |
 
-1. Group the ask into tracks: the goals, the main things the product handles, money, people and roles, constraints, outside dependencies. One `##` section per track.
-2. Draft rows track by track. Each row traces to something the client said. Nothing the client did not ask for is ever approved.
-3. Sort what the ask leaves open:
-   - **A sensible default exists and a wrong guess is cheap:** write a draft row that states the assumption, such as "Reminders go by text; email can come later." The person can flip it.
-   - **It changes scope, money, safety or a must-row:** write a pending row phrased as a question.
+## Steps
 
-   Ask only what blocks a must-row; a spec with forty questions is a spec nobody answers.
-   - **Ask at most five questions.** If you have more, keep the five with the most at stake (money, data loss, safety, what the client will see) and turn the rest into draft rows that state your assumption.
-   - **A question must change something the client sees.** If either answer would suit them, decide, and state it in a draft row. How the product stores or numbers things internally is yours to decide.
-   - **Optional (aim) features get one question at most:** is it in scope now?
-   - **If the ask shows an example,** such as a date or a command, the example answers the format question.
-4. Look hard for what clients leave out:
-   - two statements that cannot both be true
-   - a number the system needs that nobody gave
-   - a need nobody mentioned: refunds, privacy, what happens when something runs out
-   - an outside party nobody chose: payments, an existing system
-   - a nice-to-have phrased as a must, or the reverse
-   - what happens on bad input: an unknown id, a malformed value
-   - whether ids or numbers are ever reused
-   - what an empty list or first run shows
+1. **Tracks:** group the ask, one `##` section per track.
+   - Goals, what the product handles, money, people and roles, constraints, outside dependencies.
+2. **Draft** rows. Each traces to something the client said.
+3. **Open points:**
+   - A cheap guess: a draft row stating it ("Reminders go by text; email later").
+   - Scope, money, safety or a must-row at stake: a pending row, written as the question.
+   - Two statements that can't both be true: a pending row quoting both.
+4. **Look for what clients leave out.** See Gaps.
+5. **Make every must-row testable:** the exact word, format, number or comparison.
+   - Not "overdue tasks are flagged".
+   - "A task due before today's local date shows the word overdue."
+6. **Show the person** one track at a time.
+   - Pending questions one at a time, most at stake first, each with your recommended answer.
+7. **After each answer,** keep the id and update the row:
+   - pending becomes approved, the answer as its text;
+   - draft becomes approved;
+   - a must-row gets its gate now.
+   - `pullboard spec check`
 
-   - dates and times: compared to what, and in whose time zone
+## Questions
 
-   When you restate a constraint, quote the client's words; a paraphrase can change its meaning.
+1. **Five at most:** the ones with the most at stake.
+   - Money, data loss, safety, what the client sees.
+2. **The rest** become draft rows stating your assumption.
+3. **Only what the client sees.** Internal storage and numbering are yours.
+   - Decide, and state it in a draft row.
+4. **Aim features:** one question at most: in scope now?
+5. **An example in the ask** (a date, a command) answers its own format question.
 
-   Every must-row must be testable without a guess. Name the exact word, format, number or comparison it means: not "overdue tasks are flagged" but "a task due before today's local date shows the word overdue". If the client did not say, write your assumption into the draft row; the person will flip it if it is wrong.
-5. Show the person one track at a time. Ask the pending questions one at a time, the most consequential first, each with your recommended answer.
-6. After each answer, update the row and keep its id: pending becomes approved with the answer as its text, or draft becomes approved. Run `pullboard spec check`.
-7. Never mark a row approved without the person saying so. Never delete or renumber a row, even to tidy the numbering. When the person cuts one, mark it `wont`; when one stops applying, mark it `retired`. The commit refuses a deleted row.
+## Gaps
+
+- Two statements that can't both be true.
+- A number the system needs that nobody gave.
+- A need nobody mentioned: refunds, privacy, running out.
+- An outside party nobody chose: payments, an existing system.
+- A nice-to-have written as a must, or the reverse.
+- Bad input: an unknown id, a malformed value.
+- Ids or numbers reused, or not.
+- What an empty list or a first run shows.
+- Dates and times: compared to what, in whose time zone.
+- Quote the client when you restate a constraint. A paraphrase can change it.
+
+## Never
+
+- Mark a row approved without the person saying so.
+- Delete or renumber a row, even to tidy. The commit refuses it.
+  - Cut: mark it `wont`.
+  - Stopped applying: mark it `retired`.
+- Approve anything the client didn't ask for.
 
 ## Done
 
-- Every part of the ask is covered by a row, or by a stated reason it is out of scope.
-- Every approved must-row names its gate.
-- For every must-row you could write the exact check: the command, the input and the expected output.
-- What remains pending is only the questions the person has not answered yet.
-- Each gate is written so the item that serves the row can carry it as a bar of at most 3 numbered clauses, each one checkable requirement, with its check set at filing.
-- `pullboard spec check` passes, and the spec is committed with a `docs(spec): ...` message. Docs commits need not cite row ids.
-
-## Pullboard commands for this job
-
-- When you need the role-specific decomposition checklist, run `pullboard prompt decompose`.
-- When you need the current rows in a readable table, run `pullboard spec view`; when you need one row and its history, run `pullboard spec show <id>`.
-- When a request depends on valid lifecycle states or transitions, run `pullboard lifecycle` before drafting rows.
+1. Every part of the ask has a row, or a reason it's out of scope.
+2. Every approved must-row has a gate.
+3. Each gate can become a bar: at most 3 numbered clauses, each checkable.
+4. Only unanswered questions stay pending.
+5. Check, then commit with a `docs(spec): ...` message (no row ids needed):
+   - `pullboard spec check`
+6. Read it back:
+   - `pullboard spec view`
+   - `pullboard spec show <id>`
+7. Ask the person to approve the rows:
+   - `pullboard view`
+   - Agents can't approve: `pullboard spec approve` is refused.
