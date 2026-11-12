@@ -76,6 +76,7 @@ import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
 import { proveBatches } from './shards/proof.js';
+import { reusedShardFiles } from './shards/proof.js';
 import { shardPassStore } from './shards/proof.js';
 import { plainCheckRun } from './shards/green.js';
 import { reusableGreenRun } from './shards/green.js';
@@ -143,13 +144,34 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
     proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner };
 }
 
+/**
+ * The proof files whose green shard is already recorded for this tree, so the gate need not lease a slot for them.
+ * Why: a fully reused proof took a browser slot it never used; #3400 held about 8 (8 Nov) [C7].
+ *
+ * @param {string} root
+ * @param {{ proofFiles: string[], testRunner?: string, selection?: {full?: boolean} }} plan
+ * @param {string} [runner] - The test runner prefix the proof command uses.
+ * @returns {string[]}
+ */
+export function reusedProofFiles(root, plan, runner = plan.testRunner) {
+  if (!plan.proofFiles.length || plan.selection?.full || !runner?.trim()) return [];
+  let tree = null;
+  try { tree = git(root, ['rev-parse', 'HEAD^{tree}']).trim(); } catch { return []; }
+  const passes = shardPassStore(tree, `${runner.trimEnd()} `);
+  return passes ? reusedShardFiles(passes, plan.proofFiles) : [];
+}
+
 /** Decide whether a planned submit needs a browser or GUI slot; a remote analysis runs this beside its plan. */
-export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback }) {
-  const { check, selection, deferFullFallback, deferSelection, proofFiles } = plan;
+export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [] }) {
+  const { check, selection, deferFullFallback, deferSelection } = plan;
+  // Files whose recorded pass is reused run nowhere, so they ask for no browser or GUI slot [C7].
+  const reused = new Set(reusedFiles);
+  const proofFiles = plan.proofFiles.filter(file => !reused.has(file));
+  const allReused = plan.proofFiles.length > 0 && !proofFiles.length;
   const checkUsesBrowser = check ? (!allowBrowserFreeChecks || await checkNeedsBrowser(root, check, { onFallback: onBrowserFallback })) : false;
   const proofUsesBrowser = deferFullFallback || deferSelection
     ? (proofFiles.length > 0 && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })))
-    : (selection.full || !allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback }));
+    : (selection.full || !allReused && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })));
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
   return { browser: checkUsesBrowser || proofUsesBrowser, gui };
@@ -232,7 +254,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
-  const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
+  const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback,
+    reusedFiles: reusedProofFiles(root, plan, config.affectedTests) });
   // Each runner-wait poll and a beat while tests run report progress to a driving drive cell (#3829).
   const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */

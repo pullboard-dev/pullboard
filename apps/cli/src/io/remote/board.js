@@ -1,6 +1,6 @@
 /**
- * Board reads over HTTP for a seat whose board lives on another host: with board.url set, show and whoami ask the
- * board host's pullboard serve and open no board.sqlite [P7].
+ * Board calls over HTTP for a seat whose board lives on another host: with board.url set, join, show and whoami ask
+ * the board host's pullboard serve and open no board.sqlite [P7].
  */
 import { execFileSync } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
@@ -17,18 +17,21 @@ export function remoteBoard() {
 }
 
 /**
- * GET one API path from the board host and decode its JSON, turning transport and key failures into refusals.
+ * GET one API path from the board host, or POST a JSON body to it, and decode its JSON, turning transport and key
+ * failures into refusals.
  * @param {{ url: string, token: string }} remote
  * @param {string} path An absolute API path.
+ * @param {object} [body] A JSON object to POST; omitted for a GET.
  * @returns {Promise<any>}
  */
-function getJson(remote, path) {
+function getJson(remote, path, body) {
   const origin = new URL(remote.url).origin;
   const target = new URL(origin + path);
   const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
+  const headers = { authorization: `Bearer ${remote.token}`, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) };
   return new Promise((resolve, reject) => {
     const unreachable = (why) => new Refused('BOARD_UNREACHABLE', `cannot reach board.url ${origin} (${why}); start pullboard serve on the board host, or fix it with pullboard settings board.url <url>`);
-    const request = send(target, { headers: { authorization: `Bearer ${remote.token}`, accept: 'application/json' }, timeout: READ_TIMEOUT_MS }, (response) => {
+    const request = send(target, { method: body ? 'POST' : 'GET', headers, timeout: READ_TIMEOUT_MS }, (response) => {
       let body = '';
       response.setEncoding('utf8');
       response.on('data', (part) => { body += part; });
@@ -46,7 +49,7 @@ function getJson(remote, path) {
     });
     request.once('timeout', () => request.destroy(Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })));
     request.once('error', (error) => reject(unreachable(error.code ?? error.message)));
-    request.end();
+    request.end(body ? JSON.stringify(body) : undefined);
   });
 }
 
@@ -99,14 +102,17 @@ async function whoamiRemote(io, remote, cwd) {
 }
 
 /**
- * Run show or whoami against the board host and return the exit code; a refusal prints its code and next step.
+ * Run join, show or whoami against the board host and return the exit code; a refusal prints its code and next step.
  * @param {any} io
  * @param {{ positionals: string[] }} parsed
  * @param {{ url: string, token: string }} remote
  */
 export async function runRemoteRead(io, parsed, remote) {
   try {
-    if (parsed.positionals[0] === 'show') await showRemote(io, remote, parsed.positionals);
+    if (parsed.positionals[0] === 'join') {
+      const postMove = async (move) => getJson(remote, `${await boardPath(remote)}/moves`, move);
+      await (await import('../commands/join.js')).joinRemote(io, parsed, new URL(remote.url).origin, postMove);
+    } else if (parsed.positionals[0] === 'show') await showRemote(io, remote, parsed.positionals);
     else await whoamiRemote(io, remote, io.cwd);
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
