@@ -34,7 +34,6 @@ import { verdictsFor } from "./query.js";
 import { listItems } from "./query.js";
 import { listAgents } from "./query.js";
 import { reviewHolder } from "./query.js";
-import { itemHold } from "./query.js";
 import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
@@ -274,7 +273,8 @@ export function nextFor(board, options) {
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
     && (!ownRejectionFirst || entry.item_verdict === 'REJECT' && entry.item_built_by === agentId));
   const mine = laneItems
-    .filter((entry) => { const held = itemHold(board, entry.item_id); if (held) skip(entry, 'ITEM_HELD'); return !held; })
+    // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
+    .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
