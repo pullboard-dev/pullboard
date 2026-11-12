@@ -79,6 +79,7 @@ export { LANDING_LEASE_ENGINE } from './src/logic/engines/landing-lease-engine.j
 export { LANDING_LOCAL_LEASE_ENGINE } from './src/logic/engines/landing-local-lease-engine.js';
 export { LAND_COLLISION_ENGINE } from './src/logic/engines/landing-collision-engine.js';
 export { LANE_LEAD_ENGINE } from './src/logic/engines/lane-lead-engine.js';
+export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { LEASE_LAPSE_ENGINE } from './src/logic/engines/lease-lapse-engine.js';
 export { LEDGER_QUARANTINE_ENGINE } from './src/logic/engines/ledger-quarantine-engine.js';
 export { LINE_CAPACITY_ENGINE } from './src/logic/engines/line-capacity-engine.js';
