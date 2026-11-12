@@ -42,7 +42,7 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import {
   findChromeExecutable,
   relayWorkBudgetMs,
-  startChrome,
+  startChrome as startRelayChrome,
 } from '../../tests/fixtures/relay/browser.js';
 import {
   pairStudioPhone,
@@ -51,6 +51,16 @@ import {
   studioCommand,
   studioProject,
 } from '../../tests/fixtures/relay/studio.js';
+
+/**
+ * Start relay Chrome as a person who last chose Items on this device: pages land on the Dashboard since #2289, and
+ * these cases read the item list (#2556). A saved tab keeps the address clean, unlike a click that writes #items.
+ */
+async function startChrome(options) {
+  const chrome = await startRelayChrome(options);
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('pb.tab', 'items');" });
+  return chrome;
+}
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -178,8 +188,6 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
-/** Pages land on the Dashboard; these cases read the item list, so the person last chose Items on this device. */
-const ITEMS_TAB_CHOSEN = "localStorage.setItem('pb.tab', 'items');";
 
 /** Rethrow a stalled pairing wait with the page and relay-call state that explain it, masking every board key. */
 async function pairingFailure(chrome, box, error, { boards, keys, since }) {
@@ -236,7 +244,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: ITEMS_TAB_CHOSEN + ' window.setInterval = () => 0;'
+    source: 'window.setInterval = () => 0;'
       + ' window.__relayPageErrors = [];'
       + " addEventListener('error', event => window.__relayPageErrors.push(String(event.error?.stack ?? event.message).slice(0, 400)));"
       + " addEventListener('unhandledrejection', event => window.__relayPageErrors.push(String(event.reason?.stack ?? event.reason).slice(0, 400)));",
@@ -304,7 +312,6 @@ test('the relay reads an addressed shout [H5,N38]', {
   const key = readFileSync(box.keyFile, 'utf8').trim();
   const chrome = await startChrome();
   t.after(() => chrome.close());
-  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: ITEMS_TAB_CHOSEN });
   await signIn(chrome, box);
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')");
@@ -404,7 +411,7 @@ test('a board without a snapshot waits without reloading the page [H5,H16]', {
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: ITEMS_TAB_CHOSEN + ' sessionStorage.setItem("pullboard.test.page-starts", String(Number(sessionStorage.getItem("pullboard.test.page-starts") || 0) + 1)); localStorage.setItem("pullboard.relay.keys.v1", ' +
+    source: 'sessionStorage.setItem("pullboard.test.page-starts", String(Number(sessionStorage.getItem("pullboard.test.page-starts") || 0) + 1)); localStorage.setItem("pullboard.relay.keys.v1", ' +
       JSON.stringify(JSON.stringify({ [healthy.board]: healthyKey, [waiting.id]: waiting.encoded, [waitingEvents.id]: waitingEvents.encoded })) + ');',
   });
   await signIn(chrome, box);
