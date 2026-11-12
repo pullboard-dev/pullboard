@@ -14,6 +14,8 @@ import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { testWaitReport } from '../test/waits.js';
+import { cliLaunchReport } from '../test/launches.js';
+import { cliLaunchGrowth } from '../test/launches.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
 import { relayBoundaryProblems } from '../relay.js';
@@ -117,6 +119,8 @@ function workerBundleRows(root) {
  */
 export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-waits', run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'cli-launches', run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/cli-launches.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Test sources are scanned one file at a time, so each file's sites are kept by blob [5567].
   { name: 'test-fixtures', run: (root, sources, context = MEMORY) => {
