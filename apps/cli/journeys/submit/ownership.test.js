@@ -20,6 +20,7 @@ import {
   runFixtureGit,
   safeFixtureDiagnostic,
 } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { openBoard } from '../../../lib/index.js';
 import {
   closeBoard,
@@ -28,8 +29,6 @@ import {
   submitHandoff,
   deferOwnership,
 } from '../../../../packages/store/index.js';
-
-const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Require actual native command success before interpreting its document. */
 function document(result) {
@@ -46,7 +45,7 @@ function observe(box) {
 }
 
 /** Build a legitimate historical commit before hooks exist, then join and submit it under current native guards. */
-function fixture(t, { gate = 'true', handoff = true } = {}) {
+async function fixture(t, { gate = 'true', handoff = true } = {}) {
   const helpers = createE2eHelpers();
   let box;
   t.after(async () => {
@@ -68,8 +67,11 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
   /** Use real Git with the fixture's isolated environment, including normal commit hooks after init. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8' });
-  /** Run the candidate CLI only against this private board. */
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** Run the production dispatcher in this process against this private board only. */
+  const run = async (cwd, ...args) => {
+    const result = await runCliInProcess(args, { cwd, env });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr, failure: null };
+  };
   git(repo, ...['init', '-q', '-b', 'main']); // the repository is the fixture's own, before any hook exists
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, submit: { handoff },
     verify: { policy: 'any', family: 'off' }, lanes: { web: { owns: ['web/'], specs: ['G1'] } } }));
@@ -81,26 +83,26 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   writeFileSync(join(builder, 'coordinator.txt'), 'owner must inspect this exact change\n');
   git(builder, 'add', '-A'); git(builder, 'commit', '-q', '-m', 'feat: historical finished source');
   // Native init installs the real hooks only now. No hook is disabled, bypassed or removed.
-  const initialized = run(repo, 'init');
+  const initialized = await run(repo, 'init');
   assert.equal(initialized.status, 0, initialized.failure || initialized.stderr);
   git(repo, 'add', '-A'); git(repo, 'commit', '-q', '--allow-empty', '-m', 'chore: initialize owner fixture [G1]');
   const claimBase = git(repo, 'rev-parse', 'HEAD');
-  document(fixtureJoin(run, builder, 'web', '--model', FIXTURE_MODEL, '--route', 'strong', '--json'));
-  const added = document(fixtureAdd(run, repo, 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
+  document(await fixtureJoin(run, builder, 'web', '--model', FIXTURE_MODEL, '--route', 'strong', '--json'));
+  const added = document(await fixtureAdd(run, repo, 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The finished web file is present.', '--check', 'test -f web/done.txt',
     '--brief', 'Files: web/done.txt.\nChange: preserve the historical finished source for its owner.\nTest: the real frozen command checks web/done.txt.', '--wait', '--json'));
   const id = added.item.item_id;
   // Freeze the claim at the clean main base, then restore the already-finished historical source.
   git(builder, 'switch', '--detach', claimBase);
-  const claimed = document(run(builder, 'claim', String(id), '--json'));
+  const claimed = document(await run(builder, 'claim', String(id), '--json'));
   git(builder, 'switch', 'web/historical');
-  box = { repo, builder, root: builder, itemFolder: claimed.itemFolder, env, git, run, id, helpers, file: join(repo, '.git', 'pullboard', 'board.sqlite') };
+  box = { repo, builder, root: builder, itemFolder: claimed.itemFolder, env, git, runLocal: run, id, helpers, file: join(repo, '.git', 'pullboard', 'board.sqlite') };
   return box;
 }
 
 test('a green coordinator-owned path waits in its owner next with the exact diff and frees its builder [B3,L1,V4] [clause 1]', async t => {
-  const box = fixture(t);
-  const acknowledgment = document(box.run(box.root, 'submit', String(box.id), '--no-next', '--json'));
+  const box = await fixture(t);
+  const acknowledgment = document(await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(acknowledgment.queued, true, 'the ordinary captured gate must run');
   await box.helpers.waitFor(() => { // budget: actual native gate completion ceiling, no elapsed-time assertion.
     const current = observe(box);
@@ -120,19 +122,19 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   assert.equal(diff.status, 0, diff.failure || diff.stderr);
   assert.equal(wait.diff, diff.stdout, 'the preserved diff keeps its exact bytes, including its final newline');
   assert.equal(box.git(box.root, 'rev-parse', wait.sourceRef).trim(), wait.commit, 'the exact finished source remains pinned');
-  const owner = document(box.run(box.repo, 'next', '--build', '--json'));
+  const owner = document(await box.runLocal(box.repo, 'next', '--build', '--json'));
   assert.equal(owner.action, 'ownership');
   assert.equal(owner.ownershipWaiting[0].item, box.id);
   assert.deepEqual(owner.ownershipWaiting[0].paths, wait.paths);
   assert.equal(owner.ownershipWaiting[0].diff, wait.diff);
-  const inbox = document(box.run(box.repo, 'inbox', '--json'));
+  const inbox = document(await box.runLocal(box.repo, 'inbox', '--json'));
   const notices = inbox.shouts.filter(shout => shout.shout_text.includes(wait.sourceRef));
   assert.equal(notices.length, 1, 'the owner receives one source-bound notification');
   assert.ok(notices[0].shout_text.includes(wait.diff), 'the notice includes the exact diff');
-  const peer = document(fixtureAdd(box.run, box.repo, 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
+  const peer = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The next finished web file is present.', '--check', 'test -f web/done.txt',
     '--brief', 'Files: web/next.txt.\nChange: the freed builder can take ordinary work.\nTest: the next fixture check.', '--wait', '--json'));
-  const next = document(box.run(box.builder, 'next', '--build', '--json'));
+  const next = document(await box.runLocal(box.builder, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, peer.item.item_id, 'the builder can claim its next ordinary item');
   assert.equal(next.item.item_owner, wait.agentId);
   // Repeating the same native source receipt cannot notify the owner or release another item again.
@@ -147,9 +149,9 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   } finally { closeBoard(board); }
 });
 
-test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4] [clause 1]', t => {
-  const box = fixture(t, { gate: 'false', handoff: false });
-  const failed = box.run(box.root, 'submit', String(box.id), '--no-next', '--json');
+test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4] [clause 1]', async t => {
+  const box = await fixture(t, { gate: 'false', handoff: false });
+  const failed = await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json');
   assert.notEqual(failed.status, 0);
   assert.equal(JSON.parse(failed.stdout).error.code, 'GATE_RED');
   const state = observe(box);

@@ -41,24 +41,24 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   runFixtureGit(['add', '-A'], { cwd: box.root, env: box.env });
   runFixtureGit(['commit', '-m', 'chore: commit private seat-address policy'], { cwd: box.root, env: box.env });
   const recipient = await seat(box, box.root, box.env, 'recipient', box.cliAt);
-  const initial = document(await box.cliAt(recipient.path, 'whoami'));
+  const initial = document(await box.cliAtLocal(recipient.path, 'whoami'));
   const initialItemId = box.before.tables.item.find(row => row.item_status === 'open')?.item_id;
   assert.ok(Number.isSafeInteger(initialItemId), 'the fixture starts with an open private item for a native claim-lapsing interrupt');
   assert.match(initial.address, /^pullboard:[0-9a-f]{32}:[A-Za-z0-9_-]+$/u, 'each real joined seat exposes its stable board-bound address');
 
   await box.link();
-  const pairing = document(await box.cli('relay', 'pair'));
+  const pairing = document(await box.cliLocal('relay', 'pair'));
   const second = await box.otherDeviceJoin(pairing.code);
   const sender = await seat(box, second.root, second.env, 'sender', second.cliAt);
   const sent = document(await second.cliAt(sender.path, 'shout', initial.address, 'An authenticated remote message'));
-  const inbox = document(await box.cliAt(recipient.path, 'inbox'));
+  const inbox = document(await box.cliAtLocal(recipient.path, 'inbox'));
   const received = inbox.shouts.find(row => row.shout_id === sent.id);
   assert.equal(received?.shout_to, recipient.id);
   assert.equal(received?.shout_from, sender.id, 'sender comes from the authenticated remote seat');
   assert.equal(received?.shout_text, 'An authenticated remote message');
-  assert.ok(!document(await box.cli('inbox')).shouts.some(row => row.shout_id === sent.id), 'the coordinator is not the addressee');
+  assert.ok(!document(await box.cliLocal('inbox')).shouts.some(row => row.shout_id === sent.id), 'the coordinator is not the addressee');
   assert.ok(!document(await second.cliAt(sender.path, 'inbox')).shouts.some(row => row.shout_id === sent.id), 'the sender is not the addressee');
-  assert.equal(document(await box.cliAt(recipient.path, 'whoami')).address, initial.address, 'pairing and synchronization do not rename a seat');
+  assert.equal(document(await box.cliAtLocal(recipient.path, 'whoami')).address, initial.address, 'pairing and synchronization do not rename a seat');
 
   const foreign = initial.address.replace(/^pullboard:[0-9a-f]{32}:/u, 'pullboard:ffffffffffffffffffffffffffffffff:');
   const ungranted = await second.cliAt(sender.path, 'shout', foreign, 'Must not be delivered');
@@ -111,8 +111,8 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
     localInbox = replica.prepare(`SELECT * ${UNREAD_SHOUT_SQL}`).all(...unreadShoutBindings(0, sender.id, agent.agent_lane));
   } finally { replica.close(); }
   assert.ok(localInbox.some(row => row.shout_id === pending.id), 'the revoked inbox write leaves its pending message unread');
-  for (const rows of [document(await box.cliAt(recipient.path, 'inbox')).shouts,
-    document(await box.cli('inbox')).shouts, localInbox]) {
+  for (const rows of [document(await box.cliAtLocal(recipient.path, 'inbox')).shouts,
+    document(await box.cliLocal('inbox')).shouts, localInbox]) {
     assert.ok(!rows.some(row => row.shout_id === queued.id
       || ['After revocation', 'After known revocation'].includes(row.shout_text)),
     'neither revoked message reaches a genuine recipient, coordinator or sender inbox');
