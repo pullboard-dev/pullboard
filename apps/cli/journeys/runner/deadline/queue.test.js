@@ -50,6 +50,8 @@ test('clause 1: an executing runner command keeps its test budget after the admi
     assert.equal(result.status, 0, fixtureResultContext(result));
     assert.match(result.stdout, /ADMITTED_LONG_COMMAND/u);
     assert.equal(gateResult(result.stdout).runner, HOST + '-drop', 'a ready runner is not canceled or duplicated locally');
+    // The stand-in records its request as it exits, which can follow the controller's result (#5743).
+    await observe(() => existsSync(box.requests) && readFileSync(box.requests, 'utf8').trim() !== '', 'the stand-in request record');
     assert.equal(readFileSync(box.requests, 'utf8').trim().split('\n').length, 1);
   } catch (error) {
     const lines = existsSync(box.stderrLog) ? readFileSync(box.stderrLog, 'utf8').split('\n') : [];
