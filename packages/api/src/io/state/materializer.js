@@ -222,10 +222,20 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
       return Object.defineProperty({ ...answer, delta: JSON.parse(joined(parts, unseen)) }, 'reportValidator', { value: record.reportValidator });
     },
-    /** The ids of the items a search shows, from the latest record's search texts. */
+    /**
+     * The ids of the items a search shows, from the held record's search texts, answered at once and never after a build.
+     * Why: on a live board the revision moves every few seconds and a build takes 4-30 s, so a search that waited for the
+     * newest build waited 6-7 s [A2,C7]. A changed board starts the build that catches up, and the next search finds
+     * the change; a board never read before has no held record and waits for its first build.
+     */
     async search(board, text) {
       const words = String(text).trim().toLowerCase();
-      const record = await latest(board);
+      const entry = boardEntry(board);
+      let record = entry.record;
+      if (record) {
+        const revision = revisionOf(entry);
+        if (revision === null || record.revision !== revision) { entry.wanted = revision; if (entry.inflight === null) request(entry); }
+      } else record = await latest(board);
       return record.search.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
     },
     /**
