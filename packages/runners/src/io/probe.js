@@ -1,7 +1,7 @@
 /** The controller-side SSH health probe, apart from the transport the worker loads so the worker bundle leaves out its SSH and GUI-session closure [C7]. */
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
-import { spawnSsh } from '../../../transport/index.js';
+import { spawnSsh } from '../../../transport/light.js';
 import { guiSession } from '../../../gate/light.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */

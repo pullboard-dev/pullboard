@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/pin",
  "frontDoor": "packages/pin/index.js",
+ "lightFrontDoor": "packages/pin/light.js",
  "paths": [],
  "reexports": [],
  "imports": [

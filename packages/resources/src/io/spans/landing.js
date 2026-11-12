@@ -9,9 +9,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { appendGateSpan } from '../../../../jobs/index.js';
-import { gateSpanFolder } from '../../../../jobs/index.js';
-import { readGateSpans } from '../../../../jobs/index.js';
+import { appendGateSpan } from '../../../../jobs/light.js';
+import { gateSpanFolder } from '../../../../jobs/light.js';
+import { readGateSpans } from '../../../../jobs/light.js';
 
 /** The environment keys naming this process's open landing span sink: its folder and its run id. */
 const FOLDER_KEY = 'PULLBOARD_LANDING_SPAN_FOLDER';
