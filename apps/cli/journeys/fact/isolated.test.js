@@ -14,7 +14,7 @@ import {
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const FIXTURE_KEYS = ['PULLBOARD_HOME', 'PULLBOARD_INFRA_RETRY_BACKOFF_MS', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
+const FIXTURE_KEYS = ['PULLBOARD_CLAIM_BEATER', 'PULLBOARD_HOME', 'PULLBOARD_INFRA_RETRY_BACKOFF_MS', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
 
 test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fixture model [C7]', () => {
   const saved = { ...process.env };
