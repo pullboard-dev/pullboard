@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { editMilestone } from '../../../../packages/store/index.js';
-import { MILESTONE_PERSON_LIMIT_ENGINE } from '../../../../packages/state/light.js';
+import { MILESTONE_PERSON_LIMIT_ENGINE } from '../../../../packages/state/index.js';
 import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
 
