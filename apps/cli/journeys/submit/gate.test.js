@@ -32,6 +32,9 @@ import {
   refuseSandboxBlocked,
   sandboxBlockedOperation,
 } from '../../../../packages/gate/index.js';
+import { coordinatorLocal } from './gate/local.js';
+import { runLocal } from './gate/local.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { SPEC } from '../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../tests/fixtures/submit/gate.js';
@@ -59,7 +62,7 @@ function copyRepositoryFixture(box, repository, tracked) {
   return pending ? commitAll(box) : head;
 }
 
-test('submit without a frozen check reports no item check and still runs affected tests [V4,C7,V16]', (t) => {
+test('submit without a frozen check reports no item check and still runs affected tests [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
@@ -67,13 +70,13 @@ test('submit without a frozen check reports no item check and still runs affecte
   put(box.root, 'test/b.test.js', "import assert from 'node:assert/strict'; assert.fail('unrelated');\n");
   commitAll(box);
   box = builderRepo(box);
-  assert.equal(box.coordinator('add', 'build', 'No frozen command').code, 0);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await coordinatorLocal(box, 'add', 'build', 'No frozen command')).code, 0);
+  assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): update selected source [G1]');
   const marker = join(box.dir, 'without-check.log');
   box.env.AFFECTED_MARKER = marker;
-  const result = box.run('submit', '1', '--json');
+  const result = await runLocal(box, 'submit', '1', '--json');
   assert.equal(result.code, 0, result.err);
   const receipt = JSON.parse(result.out);
   assert.match(receipt.gate.report, /no item check/u);
@@ -84,25 +87,25 @@ test('submit without a frozen check reports no item check and still runs affecte
   assert.equal(readFileSync(marker, 'utf8'), 'ran');
 });
 
-test('a red frozen item check refuses submit before affected tests run [V4,C7,V16]', (t) => {
+test('a red frozen item check refuses submit before affected tests run [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   seedGraph(box);
   box = builderRepo(box);
-  const added = box.coordinator('add', 'build', 'Frozen check', '--check', 'node -e "process.exit(process.env.CHECK_REFUSE ? 1 : 0)"');
+  const added = await coordinatorLocal(box, 'add', 'build', 'Frozen check', '--check', 'node -e "process.exit(process.env.CHECK_REFUSE ? 1 : 0)"');
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): update selected source [G1]');
   box.env.CHECK_REFUSE = '1';
-  const refused = box.run('submit', '1');
+  const refused = await runLocal(box, 'submit', '1');
   assert.equal(refused.code, 1, refused.out);
   assert.match(refused.err + refused.out, /GATE_RED/u);
   assert.match(refused.err, /item check red/u);
 });
 
 
-test('CommonJS and nested package scopes fall back instead of silently missing require edges [V4,V16]', (t) => {
+test('CommonJS and nested package scopes fall back instead of silently missing require edges [V4,V16]', async (t) => {
   const common = privateRepo(t);
   put(common.root, 'package.json', '{"type":"commonjs"}\n');
   put(common.root, 'src/a.js', 'module.exports = 1;\n');
@@ -137,7 +140,7 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
 
 
 for (const mode of ['topic parent', 'merge commit']) {
-  test(`affected tests include source changes carried by a ${mode} [V4,C7,V16]`, (t) => {
+  test(`affected tests include source changes carried by a ${mode} [V4,C7,V16]`, async (t) => {
     let box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
     seedGraph(box);
@@ -149,8 +152,8 @@ for (const mode of ['topic parent', 'merge commit']) {
       'assert.equal(value, 1);',
     ].join('\n'));
     box = builderRepo(box);
-    assert.equal(box.coordinator('add', 'build', 'Merged source', '--check', 'true').code, 0);
-    assert.equal(box.run('claim', '1').code, 0);
+    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Merged source', '--check', 'true')).code, 0);
+    assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     const branch = box.git('branch', '--show-current');
     box.git('checkout', '-q', '-b', 'topic');
     put(box.root, mode === 'topic parent' ? 'src/a.js' : 'src/notes.js', 'export const value = 2;\n');
@@ -166,11 +169,12 @@ for (const mode of ['topic parent', 'merge commit']) {
     assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3, 'the candidate really has two parents');
     const marker = join(box.dir, 'merged-test-ran.log');
     box.env.AFFECTED_MARKER = marker;
+    // Process-level: the unchanged importer runs under its own node --test, not the CLI.
     const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the merged source regression');
     assert.match(standalone.stdout, /ERR_ASSERTION/u);
     rmSync(marker);
-    const refused = box.run('submit', '1');
+    const refused = await runLocal(box, 'submit', '1');
     assert.equal(refused.code, 1, refused.out || refused.err);
     assert.match(refused.err + refused.out, /GATE_RED/u);
     assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
@@ -179,7 +183,7 @@ for (const mode of ['topic parent', 'merge commit']) {
   });
 }
 
-test('clause 1: a computed-import test joins the selection only when it declares what it loads, and undeclared forces full [V4,C7]', (t) => {
+test('clause 1: a computed-import test joins the selection only when it declares what it loads, and undeclared forces full [V4,C7]', async (t) => {
   const box = privateRepo(t);
   const original = seedGraph(box);
   put(box.root, 'test/c.test.js', "export const load = path => import(path);\n");
@@ -205,7 +209,7 @@ test('clause 1: a computed-import test joins the selection only when it declares
 
 
 /** Test-tree readers are data dependencies even when no import reaches their scanner. */
-test('a changed test file selects the scanners that read test files [C7,B3]', (t) => {
+test('a changed test file selects the scanners that read test files [C7,B3]', async (t) => {
   const box = privateRepo(t);
   seedGraph(box);
   const declaration = '/** @pullboard-test-input test-tree */\n';
@@ -236,7 +240,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
   // Use committed repository sources so a real scanner cannot be replaced by a synthetic stand-in.
   const repository = resolve(import.meta.dirname, '../../../..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/', 'packages/gate/tests/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/', 'apps/cli/journeys/hold/', 'packages/gate/tests/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
@@ -253,7 +257,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
 });
 
 /** Source-tree declarations cover text scanners without broadening unrelated import closures. */
-test('a source change selects the tests that scan sources [C7,B3]', (t) => {
+test('a source change selects the tests that scan sources [C7,B3]', async (t) => {
   const box = privateRepo(t);
   seedGraph(box);
   const sourceInput = '/** @pullboard-test-input source-tree */\n';
@@ -294,7 +298,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
 
   const repository = resolve(import.meta.dirname, '../../../..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'packages/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'apps/cli/journeys/init/boundary.test.js', 'apps/cli/journeys/verify/machine.test.js', 'apps/cli/journeys/submit/gate.test.js', 'packages/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
@@ -310,7 +314,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
   }
 });
 
-test('affected selection says explicitly when no claim head was recorded [V4,C7]', (t) => {
+test('affected selection says explicitly when no claim head was recorded [V4,C7]', async (t) => {
   const box = privateRepo(t);
   seedGraph(box);
   const selection = selectAffectedTests(box.root, { base: null, trunk: 'refs/heads/main' });
@@ -319,7 +323,7 @@ test('affected selection says explicitly when no claim head was recorded [V4,C7]
 });
 
 
-test('affected selection reads old edges and all changes at the trunk merge base [V4,C7]', (t) => {
+test('affected selection reads old edges and all changes at the trunk merge base [V4,C7]', async (t) => {
   const box = privateRepo(t);
   const trunk = seedGraph(box);
   box.git('rm', 'src/a.js');
@@ -331,7 +335,7 @@ test('affected selection reads old edges and all changes at the trunk merge base
 });
 
 
-test('affected submit includes branch changes made before the item claim [V4,C7,V16]', (t) => {
+test('affected submit includes branch changes made before the item claim [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   seedGraph(box);
@@ -339,11 +343,11 @@ test('affected submit includes branch changes made before the item claim [V4,C7,
   box = builderRepo(box);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): source before claim [G1]');
-  assert.equal(box.coordinator('add', 'build', 'Existing source change', '--check', 'true').code, 0);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await coordinatorLocal(box, 'add', 'build', 'Existing source change', '--check', 'true')).code, 0);
+  assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/other.js', 'export const other = false;\n');
   commitAll(box, 'feat(core): source after claim [G1]');
-  const refused = box.run('submit', '1');
+  const refused = await runLocal(box, 'submit', '1');
   assert.equal(refused.code, 1, refused.out || refused.err);
   assert.match(refused.err + refused.out, /GATE_RED/u);
   assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
@@ -352,7 +356,7 @@ test('affected submit includes branch changes made before the item claim [V4,C7,
 
 
 for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
-  test(`affected submit on main includes a ${mode} since its claim [V4,C7,V16]`, (t) => {
+  test(`affected submit on main includes a ${mode} since its claim [V4,C7,V16]`, async (t) => {
     const box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test', lanes: { core: { owns: ['src/', 'test/'], specs: ['G'] } } }));
     seedGraph(box);
@@ -364,9 +368,8 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
       'assert.equal(value, 1);',
     ].join('\n'));
     commitAll(box);
-    const added = box.run('add', 'coordinator', 'Main checkout source', '--check', 'true');
-    assert.equal(added.code, 0, added.err);
-    const claimed = box.run('claim', '1');
+    await fileFixtureItem(box, box.root, { lane: 'coordinator', title: 'Main checkout source', check: 'true', run: (cwd, ...args) => runLocal({ ...box, root: cwd }, ...args) });
+    const claimed = await runLocal(box, 'claim', '1');
     assert.equal(claimed.code, 0, claimed.err);
     if (mode === 'deleted source') {
       box.git('rm', 'src/a.js');
@@ -388,11 +391,12 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
     assert.equal(box.git('branch', '--show-current'), 'main', 'submit runs in the actual main checkout');
     const marker = join(box.dir, 'main-importer-ran.log');
     box.env.AFFECTED_MARKER = marker;
+    // Process-level: the unchanged importer runs under its own node --test, not the CLI.
     const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the source regression');
     assert.match(standalone.stdout, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
     rmSync(marker, { force: true });
-    const refused = box.run('submit', '1');
+    const refused = await runLocal(box, 'submit', '1');
     assert.equal(refused.code, 1, refused.out || refused.err);
     assert.match(refused.err + refused.out, /GATE_RED/u);
     assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
@@ -414,31 +418,31 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     assert.match(result.err, /run the gate outside the sandbox/u);
     assert.match(result.err, /keep the tests unchanged/u);
   }
-  await t.test('full gates distinguish listener denial from ordinary failures [I1,C7]', () => {
+  await t.test('full gates distinguish listener denial from ordinary failures [I1,C7]', async () => {
     const box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: command }));
     seedGraph(box);
     box.env.BLOCKED_DIAGNOSTIC = 'Error: listen EPERM: operation not permitted 127.0.0.1:0';
-    blocked(box.run('gate'), 'listen');
+    blocked(await runLocal(box, 'gate'), 'listen');
     const log = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate.log'));
     assert.match(readFileSync(log, 'utf8'), /Error: listen EPERM/u, 'the original diagnostic is retained');
     assert.ok(existsSync(log + '.profile.json'), 'ordinary timings are retained');
     box.env.BLOCKED_DIAGNOSTIC = 'Error: bind EACCES: permission denied 127.0.0.1:0';
-    blocked(box.run('gate'), 'bind');
+    blocked(await runLocal(box, 'gate'), 'bind');
     for (const diagnostic of [
       'AssertionError [ERR_ASSERTION]: expected EPERM when listen was called',
       'Error: listen EADDRINUSE: address already in use',
       `Error: EACCES: permission denied, open '${join(box.root, 'inside.txt')}'`,
     ]) {
       box.env.BLOCKED_DIAGNOSTIC = diagnostic;
-      const ordinary = box.run('gate');
+      const ordinary = await runLocal(box, 'gate');
       assert.equal(ordinary.code, 1, ordinary.out + ordinary.err);
       assert.doesNotMatch(ordinary.out + ordinary.err, /SANDBOX_BLOCKED/u);
       assert.match(ordinary.out, /gate red/u);
     }
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node -e "require(\'node:assert/strict\').fail(\'ordinary assertion\')"' }));
     commitAll(box);
-    const assertion = box.run('gate');
+    const assertion = await runLocal(box, 'gate');
     assert.equal(assertion.code, 1);
     assert.match(assertion.out, /AssertionError/u);
     assert.doesNotMatch(assertion.out + assertion.err, /SANDBOX_BLOCKED/u);
@@ -446,11 +450,11 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     commitAll(box);
     box.env.BLOCKED_DIAGNOSTIC = 'Error: listen EPERM: operation not permitted';
     box.env.BLOCKED_EXIT = '0';
-    const green = box.run('gate');
+    const green = await runLocal(box, 'gate');
     assert.equal(green.code, 0, green.err);
     assert.doesNotMatch(green.out + green.err, /SANDBOX_BLOCKED/u, 'a successful diagnostic is not a refusal');
   });
-  await t.test('real outside-file TAP denials refuse while permission assertions stay ordinary [I1,C7]', () => {
+  await t.test('real outside-file TAP denials refuse while permission assertions stay ordinary [I1,C7]', async () => {
     let box = privateRepo(t);
     const runner = `${JSON.stringify(process.execPath)} ${JSON.stringify(resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'))} test/permission.test.js`;
     const directory = join(box.dir, 'readonly-outside-worktree');
@@ -465,16 +469,16 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     commitAll(box);
     box = builderRepo(box);
     chmodSync(directory, 0o500); // The real add baseline must observe the same outside-file refusal.
-    assert.equal(box.coordinator('add', 'build', 'Real permission check', '--check', runner).code, 0);
-    assert.equal(box.run('claim', '1').code, 0);
+    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Real permission check', '--check', runner)).code, 0);
+    assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
     commitAll(box, 'feat(core): update selected source [G1]');
-    const item = { ...JSON.parse(box.coordinator('show', '1', '--json').out), item_commit: box.git('rev-parse', 'HEAD').trim() };
+    const item = { ...JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out), item_commit: box.git('rev-parse', 'HEAD').trim() };
     try {
       assert.throws(() => writeFileSync(outside, 'sentinel'), { code: 'EACCES' }, 'the operating system actually denies this write');
-      blocked(box.run('gate'), outside);
-      blocked(box.run('check', '1', '--yes'), outside);
-      blocked(box.run('submit', '1'), outside);
+      blocked(await runLocal(box, 'gate'), outside);
+      blocked(await runLocal(box, 'check', '1', '--yes'), outside);
+      blocked(await runLocal(box, 'submit', '1'), outside);
       const privateResult = checkAtCommit(box.root, item);
       assert.equal(privateResult.state, 'red');
       assert.ok(privateResult.sandboxBlocked?.includes(outside), 'the real private checker scans the TAP record');
@@ -485,14 +489,14 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
       assert.ok(existsSync(privateResult.profilePath));
       put(box.root, 'test/permission.test.js', prefix + `test('ordinary assertion mentioning permission', () => { try { ${operation}; } catch (error) { assert.fail(error.message); } });\n`);
       commitAll(box);
-      const ordinary = box.run('gate');
+      const ordinary = await runLocal(box, 'gate');
       assert.equal(ordinary.code, 1);
       assert.match(ordinary.out, /ERR_ASSERTION/u);
       assert.doesNotMatch(ordinary.out + ordinary.err, /SANDBOX_BLOCKED/u);
       const printedDiagnostic = `Error: EACCES: permission denied, open '${outside}'`;
       put(box.root, 'test/permission.test.js', prefix + `test('ordinary assertion prints a permission-looking diagnostic', () => { console.error(${JSON.stringify(printedDiagnostic)}); assert.equal(1, 2); });\n`);
       commitAll(box);
-      const printedAssertion = box.run('gate');
+      const printedAssertion = await runLocal(box, 'gate');
       assert.equal(printedAssertion.code, 1);
       assert.doesNotMatch(printedAssertion.out + printedAssertion.err, /SANDBOX_BLOCKED/u);
       assert.match(printedAssertion.out, /ERR_ASSERTION/u);
@@ -500,25 +504,25 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
       const multilineDiagnostic = `ordinary assertion detail\nError: EACCES: permission denied, open '${outside}'`;
       put(box.root, 'test/permission.test.js', prefix + `test('multiline assertion detail contains a permission-looking line', () => { assert.fail(${JSON.stringify(multilineDiagnostic)}); });\n`);
       commitAll(box);
-      const multilineAssertion = box.run('gate');
+      const multilineAssertion = await runLocal(box, 'gate');
       assert.equal(multilineAssertion.code, 1);
       assert.doesNotMatch(multilineAssertion.out + multilineAssertion.err, /SANDBOX_BLOCKED/u);
       assert.match(multilineAssertion.out, /ERR_ASSERTION/u);
       assert.match(multilineAssertion.out, /Error: EACCES: permission denied/u);
       put(box.root, 'test/permission.test.js', prefix + `test('ordinary assertion logs a caught OS error', () => { try { ${operation}; } catch (error) { console.error(error); } assert.equal(1, 2); });\n`);
       commitAll(box);
-      const caughtAssertion = box.run('gate');
+      const caughtAssertion = await runLocal(box, 'gate');
       assert.equal(caughtAssertion.code, 1);
       assert.doesNotMatch(caughtAssertion.out + caughtAssertion.err, /SANDBOX_BLOCKED/u);
       assert.match(caughtAssertion.out, /ERR_ASSERTION/u);
       put(box.root, 'test/permission.test.js', denied);
       commitAll(box);
     } finally { chmodSync(directory, 0o700); }
-    const allowed = box.run('gate');
+    const allowed = await runLocal(box, 'gate');
     assert.equal(allowed.code, 0, allowed.out + allowed.err);
     assert.equal(readFileSync(outside, 'utf8'), 'blocked', 'the unchanged real write succeeds when access is restored');
   });
-  await t.test('module-startup outside-file denials preserve fatal TAP evidence [I1,C7]', (t) => {
+  await t.test('module-startup outside-file denials preserve fatal TAP evidence [I1,C7]', async (t) => {
     const box = privateRepo(t);
     const runner = `${JSON.stringify(process.execPath)} ${JSON.stringify(resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'))} test/permission.test.js`;
     put(box.root, 'pullboard.json', JSON.stringify({ gate: runner }));
@@ -531,7 +535,7 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     chmodSync(directory, 0o500);
     try {
       assert.throws(() => writeFileSync(outside, 'sentinel'), { code: 'EACCES' }, 'the OS blocks the exact outside path');
-      const result = box.run('gate');
+      const result = await runLocal(box, 'gate');
       const rawPath = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate.log'));
       const innerGateLog = readFileSync(rawPath, 'utf8');
       t.diagnostic(JSON.stringify({ actualPermissionSentinel: 'EACCES', command: 'pullboard gate', code: result.code, stdout: result.out, stderr: result.err, innerGateLog }));
@@ -544,34 +548,34 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
       assert.match(innerGateLog, /failureType: '?testCodeFailure'?(?:\r?\n|$)/u);
       assert.match(innerGateLog, /not ok \d+ - (?:.*\/)?test\/permission\.test\.js/u);
     } finally { chmodSync(directory, 0o700); }
-    const allowed = box.run('gate');
+    const allowed = await runLocal(box, 'gate');
     assert.equal(allowed.code, 0, allowed.out + allowed.err);
     assert.equal(readFileSync(outside, 'utf8'), 'blocked during module evaluation');
   });
-  await t.test('frozen checks retain outside-file refusal before submit proof [I1,C7]', () => {
+  await t.test('frozen checks retain outside-file refusal before submit proof [I1,C7]', async () => {
     let box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
     seedGraph(box);
     box = builderRepo(box);
-    const added = box.coordinator('add', 'build', 'Sandbox check', '--check', command);
+    const added = await coordinatorLocal(box, 'add', 'build', 'Sandbox check', '--check', command);
     assert.equal(added.code, 0, added.err);
-    assert.equal(box.run('claim', '1').code, 0);
+    assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
     commitAll(box, 'feat(core): update selected source [G1]');
     const outside = join(box.dir, 'outside.txt');
     box.env.BLOCKED_DIAGNOSTIC = `Error: EACCES: permission denied, open '${outside}'`;
-    blocked(box.run('check', '1', '--yes'), 'open');
-    blocked(box.run('submit', '1'), 'open');
+    blocked(await runLocal(box, 'check', '1', '--yes'), 'open');
+    blocked(await runLocal(box, 'submit', '1'), 'open');
     const log = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-submit.log.check.log'));
     assert.ok(readFileSync(log, 'utf8').includes(outside), 'the exact refused path remains in the raw log');
     box.env.BLOCKED_DIAGNOSTIC = 'AssertionError [ERR_ASSERTION]: ordinary assertion';
-    const ordinary = box.run('submit', '1');
+    const ordinary = await runLocal(box, 'submit', '1');
     assert.equal(ordinary.code, 1);
     assert.match(ordinary.err, /GATE_RED/u);
     assert.doesNotMatch(ordinary.err, /SANDBOX_BLOCKED/u);
     box.env.BLOCKED_EXIT = '0';
-    assert.equal(box.run('submit', '1').code, 0, 'the unchanged check can pass when the operation is allowed');
-    const item = JSON.parse(box.coordinator('show', '1', '--json').out);
+    assert.equal((await runLocal(box, 'submit', '1')).code, 0, 'the unchanged check can pass when the operation is allowed');
+    const item = JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out);
     /** Run the actual private checker with only these fixture diagnostics in its child environment. */
     function privateCheck(diagnostic) {
       const savedDiagnostic = process.env.BLOCKED_DIAGNOSTIC;
@@ -596,11 +600,11 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     const inside = privateCheck("Error: EACCES: permission denied, open './inside.txt'");
     assert.equal(inside.state, 'red');
     assert.equal(inside.sandboxBlocked, null, 'a private-clone file stays inside that check worktree');
-    assert.equal(JSON.parse(box.coordinator('show', '1', '--json').out).item_status, 'submitted', 'checks alone record no verdict');
+    assert.equal(JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out).item_status, 'submitted', 'checks alone record no verdict');
   });
 });
 
-test('nested TAP child denials require bounded matching fatal details [C7,B26]', (t) => {
+test('nested TAP child denials require bounded matching fatal details [C7,B26]', async (t) => {
   const box = privateRepo(t);
   const outside = join(box.dir, 'outside-denied.txt');
   /** Build a failed child TAP record with configurable structured error fields. */
@@ -676,7 +680,7 @@ test('nested TAP child denials require bounded matching fatal details [C7,B26]',
 });
 
 /** Project-declared static guards reject unchanged-gate import regressions before costly proof. */
-test('clause 1: a submit runs the static style checks first [C7]', t => {
+test('clause 1: a submit runs the static style checks first [C7]', async (t) => {
   // Source under src/, packages/ and apps/ has its multi-binding imports split at commit (776212f0fc), so the violation lives in a .jsx file the splitter skips.
   let box = privateRepo(t);
   const marker = join(box.dir, 'item-check-ran');
@@ -697,21 +701,21 @@ test('clause 1: a submit runs the static style checks first [C7]', t => {
   ].join('\n'));
   commitAll(box);
   box = builderRepo(box);
-  const added = box.coordinator('add', 'build', 'Static style before proof', '--check', check);
+  const added = await coordinatorLocal(box, 'add', 'build', 'Static style before proof', '--check', check);
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   const candidateConfig = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   candidateConfig.staticChecks = '';
   put(box.root, 'pullboard.json', JSON.stringify(candidateConfig));
   put(box.root, 'src/cli.jsx', "import { join, resolve } from 'node:path';\nexport const fixture = join;\n");
   commitAll(box, 'feat(core): expose the missed static guard [G1]');
   rmSync(marker, { force: true });
-  const submitted = box.run('submit', '1', '--json', '--infra', 'the static guard fixture edits its pullboard.json');
+  const submitted = await runLocal(box, 'submit', '1', '--json', '--infra', 'the static guard fixture edits its pullboard.json');
   assert.notEqual(submitted.code, 0, 'submit must refuse a static import violation before any item proof');
   assert.match(submitted.out + submitted.err, /src\/cli\.jsx:1: one import binding per line/u);
   assert.equal(existsSync(marker), false, 'the frozen item check must not run after an early static refusal');
-  assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed');
-  const checked = box.run('check', '1', '--yes', '--json');
+  assert.equal(JSON.parse((await runLocal(box, 'show', '1', '--json')).out).item_status, 'claimed');
+  const checked = await runLocal(box, 'check', '1', '--yes', '--json');
   assert.notEqual(checked.code, 0, 'an explicit check must run the same accepted project guard first');
   assert.match(checked.out + checked.err, /src\/cli\.jsx:1: one import binding per line/u);
   assert.equal(existsSync(marker), false, 'neither a submit nor a check bypasses the failed static guard');
