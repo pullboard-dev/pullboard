@@ -14,6 +14,7 @@ import {
 import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { stopSender } from './sender.js';
+import { runCliInProcess } from '../process.js';
 import {
   cpSync,
   existsSync,
@@ -159,6 +160,46 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
   });
 }
 
+/**
+ * Run the production CLI in this process with the same result shape as childResult. The loopback relay shares
+ * this event loop and the command is awaited, so it answers while the command runs; a stalled command fails at
+ * the same upload-derived deadline instead of being killed, because a process cannot kill itself safely.
+ * Callers that need a real process (the fetch-trace preload, live streams, signals) keep childResult [C7].
+ */
+async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
+  const startedAt = performance.now();
+  const argv = [...args, '--json'];
+  let deadlineMs = cliChildDeadlineMs(initialSnapshotUploads);
+  let work = uploadWork(initialSnapshotUploads);
+  let timer;
+  let finished = false;
+  const stalled = new Promise((_, reject) => {
+    /** Re-check the observed work, then re-arm one short timer until the command settles. */
+    const check = () => {
+      if (finished) return;
+      work = uploadWork(observedSnapshotUploads?.() ?? initialSnapshotUploads);
+      if (work.overLimit) return reject(new Error(`declared upload work limit exceeded; recorded work ${JSON.stringify(work)}`));
+      deadlineMs = Math.max(deadlineMs, cliChildDeadlineMs(work.budgetUnits));
+      if (performance.now() - startedAt >= deadlineMs) return reject(new Error(`in-process command stalled: upload-derived deadline ${deadlineMs}ms exceeded; recorded work ${JSON.stringify(work)}`));
+      timer = setTimeout(check, 20);
+    };
+    timer = setTimeout(check, 20);
+  });
+  stalled.catch(() => {});
+  let run;
+  try { run = await Promise.race([runCliInProcess(argv, { cwd: root, env }), stalled]); }
+  finally { finished = true; clearTimeout(timer); }
+  const report = (detail = '') => reportFixtureChildFailure({ command: process.execPath, args: ['in-process', ...argv], status: run.code, signal: null,
+    elapsedMs: performance.now() - startedAt, stderr: run.stderr, env, detail });
+  let document;
+  try { document = JSON.parse(run.stdout); }
+  catch (error) { throw new Error(report(`private relay fixture command did not return JSON: ${error.message}`)); }
+  work = uploadWork(observedSnapshotUploads?.() ?? initialSnapshotUploads);
+  deadlineMs = Math.max(deadlineMs, cliChildDeadlineMs(work.budgetUnits));
+  return { code: run.code, document, failure: run.code === 0 ? null : report(), snapshotUploads: work.legacyUploads,
+    snapshotWork: { ...work, observed: typeof observedSnapshotUploads === 'function' }, snapshotDeadlineMs: deadlineMs };
+}
+
 export { childResult as relayFixtureChild };
 
 /**
@@ -280,7 +321,8 @@ globalThis.fetch = function tracedFetch(input, init) {
     }
     let result;
     try {
-      result = await childResult(root, childEnv, [CLI, ...args, '--json'], observedWork, initialUploads);
+      result = traceSnapshotWrites ? await childResult(root, childEnv, [CLI, ...args, '--json'], observedWork, initialUploads)
+        : await inProcessResult(root, childEnv, args, observedWork, initialUploads);
     } catch (error) {
       if (traceSnapshotWrites) {
         const evidence = JSON.stringify({ fetches: childTrace(), relayReceives: snapshotWriteLog.slice(writesBefore), uploadWork: observedWork() });
@@ -313,7 +355,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   }
   /** Invoke the production CLI from another worktree sharing this fixture's repository and home. */
   async function cliAt(cwd, ...args) {
-    return childResult(cwd, env, [CLI, ...args, '--json']);
+    return inProcessResult(cwd, env, args);
   }
   /** Bound a CLI child using the exact snapshot count asserted by its fixture flow. */
   async function cliWithSnapshotUploads(snapshotUploads, ...args) {
