@@ -836,10 +836,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/land/parallel.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/landing/environment.js": {
       "cells": 2,
       "deep": 0

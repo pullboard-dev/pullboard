@@ -2011,9 +2011,6 @@
   "apps/cli/journeys/land/accept.test.js": {
     "hand-policy": 1
   },
-  "apps/cli/tests/fixtures/land/parallel.js": {
-    "hand-policy": 2
-  },
   "packages/landing/tests/logic/land/why.test.js": {
     "raw-board": 4
   },
