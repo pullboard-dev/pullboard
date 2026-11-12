@@ -46,3 +46,5 @@ export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/toolin
 export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/io/handoff/capacity.js';
 export { staleDispatcherTools, dispatcherPass, handOver } from './src/io/handoff/handover.js';
 export { installRunnerService, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { mainRedUpdates } from './src/logic/main/reds.js';
+export { filesOfMain } from './src/io/main/reds.js';
