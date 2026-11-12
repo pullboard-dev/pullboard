@@ -217,7 +217,7 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
 }
 
 /** A pulled land job, run in the runner's own landing checkout under its cache: merge, check, push trunk by compare-and-swap [P7]. */
-async function landJobHandler(claim, { cache, renew }) {
+async function landJobHandler(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
 }
