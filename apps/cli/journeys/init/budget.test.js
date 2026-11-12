@@ -39,9 +39,9 @@ function seed(file) {
 }
 
 /** Run one real CLI process, returning its wall time in ms; the command must succeed. */
-async function timed(box, cwd, ...args) {
+function timed(box, cwd, ...args) {
   const started = performance.now();
-  const result = (await box.runLocal(cwd, ...args));
+  const result = box.run(cwd, ...args);
   const ms = performance.now() - started;
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
   return { ms, out: result.out };
@@ -50,7 +50,7 @@ async function timed(box, cwd, ...args) {
 /** The middle of an odd-sized sample. */
 const median = (values) => [...values].sort((a, b) => a - b)[values.length >> 1];
 
-test('claim, join and patch attach each finish under five seconds at production board scale [C7,V4,H16]', async t => {
+test('claim, join and patch attach each finish under five seconds at production board scale [C7,V4,H16]', t => {
   const box = helpers.project('true');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   seed(file);
@@ -63,16 +63,16 @@ test('claim, join and patch attach each finish under five seconds at production 
   for (let round = 0; round < 3; round++) {
     const dir = join(box.dir, `web-r${round}`);
     box.git(box.repo, 'worktree', 'add', '-q', dir, '-b', `web/round-${round}`);
-    joins.push(await timed(box, dir, 'join', 'web', '--route', 'strong').ms);
+    joins.push(timed(box, dir, 'join', 'web', '--route', 'strong').ms);
     const item = JSON.parse(fixtureAdd(box.run, box.repo, 'web', `Timed work ${round}`, '--specs', 'G1', '--json').out).item.item_id;
-    claims.push(await timed(box, dir, 'claim', String(item)).ms);
-    const author = JSON.parse((await box.runLocal(dir, 'whoami', '--json')).out).id;
+    claims.push(timed(box, dir, 'claim', String(item)).ms);
+    const author = JSON.parse(box.run(dir, 'whoami', '--json').out).id;
     const source = box.git(dir, 'rev-parse', 'HEAD');
     submitFixture(board, item, { agentId: author, commit: source, tree: box.git(dir, 'rev-parse', `${source}^{tree}`) });
     const patchFile = join(box.dir, `round-${round}.patch`);
     writeFileSync(patchFile, ['diff --git a/web/p.js b/web/p.js', 'new file mode 100644', 'index 0000000..e69de29',
       '--- /dev/null', '+++ b/web/p.js', '@@ -0,0 +1 @@', '+export const patched = true;', ''].join('\n'));
-    patches.push(await timed(box, box.repo, 'patch', 'attach', String(item), patchFile, '--key', 'timed', '--author', author, '--source', source, '--json').ms);
+    patches.push(timed(box, box.repo, 'patch', 'attach', String(item), patchFile, '--key', 'timed', '--author', author, '--source', source, '--json').ms);
   }
   t.diagnostic(JSON.stringify({ joinMs: joins, claimMs: claims, patchMs: patches }));
   for (const [name, values] of Object.entries({ join: joins, claim: claims, patch: patches })) {
