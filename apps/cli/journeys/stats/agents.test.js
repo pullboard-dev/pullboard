@@ -16,6 +16,8 @@ import {
 import { apiHttpBox } from '../../tests/fixtures/api.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureOpenBoard } from '../../tests/fixtures/testkit.js';
+import { createJob } from '../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../packages/jobs/index.js';
 
 test('rigor drafts and sentinel runs do not count as agent seats [N26]', t => {
   const at = '2026-10-28T12:00:00.000Z';
@@ -88,9 +90,17 @@ function seedSeats(db) {
   put(iso('11:10:00.000'), 'coordinator', 'merged', 2);
   put(iso('11:20:00.000'), 'coordinator', 'merged', 99);
   put(iso('12:30:00.000'), 'core-1', 'claim', 7);
+  // The submit's own record, written a moment later, is not the seat's next action.
+  insert.run(iso('09:50:00.200'), 'core-1', 'fact', 1, '{}');
+  // Test runs the seats started: the queue records which seat asked.
+  for (const [id, seat, time] of [['test:one', 'core-1', '09:55:00.000'], ['test:two', 'core-2', '09:42:00.000']]) {
+    const now = Date.parse(iso(time));
+    createJob(db, { id, kind: 'test-run', base: 'seed', now });
+    writeStep(db, id, 'queued', { agent: seat, items: [], files: ['x.test.js'] }, { now });
+  }
 }
 
-test('stats agents: seeded claims, submits and merges give exact per-seat counts, rates and most held [C7,#6136]', async t => {
+test('stats agents: seeded events and test runs give exact per-seat counts, rates, most held and wait [C7,#6136,#6137]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -103,17 +113,19 @@ test('stats agents: seeded claims, submits and merges give exact per-seat counts
     window: { from: '2026-10-11T12:00:00.000Z', until: iso('12:00:00.000'), hours: 24 },
     seats: [
       { seat: 'core-1', claims: 3, submits: 2, landings: 2, claimsPerHour: 0.13, submitsPerHour: 0.08, landingsPerHour: 0.08, maxHeld: 2,
+        wait: { samples: 3, pending: 0, p50Ms: 600000, p90Ms: 1500000, maxMs: 1500000 },
         hours: [
           { hour: iso('09:00:00.000'), claims: 2, submits: 1, landings: 0 },
           { hour: iso('10:00:00.000'), claims: 1, submits: 1, landings: 1 },
           { hour: iso('11:00:00.000'), claims: 0, submits: 0, landings: 1 },
         ] },
       { seat: 'core-2', claims: 1, submits: 1, landings: 1, claimsPerHour: 0.04, submitsPerHour: 0.04, landingsPerHour: 0.04, maxHeld: 2,
+        wait: { samples: 1, pending: 1, p50Ms: 120000, p90Ms: 120000, maxMs: 120000 },
         hours: [{ hour: iso('09:00:00.000'), claims: 1, submits: 1, landings: 1 }] },
     ],
     unattributedLandings: 1,
   });
   const text = await box.runLocal(box.web, 'stats', 'agents', '--until', '2026-10-12T12:00:00Z');
   assert.equal(text.code, 0, text.stderr);
-  assert.match(text.stdout, /core-1: claimed 3 \(0\.13\/h\), submitted 2 \(0\.08\/h\), landed 2 \(0\.08\/h\), most held 2/u);
+  assert.match(text.stdout, /core-1: claimed 3 \(0\.13\/h\), submitted 2 \(0\.08\/h\), landed 2 \(0\.08\/h\), most held 2; wait after a submit or test start p50 600\.0s p90 1500\.0s \(3 timed, 0 pending\)/u);
 });
