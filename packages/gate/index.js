@@ -30,6 +30,7 @@ export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVEN
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
+export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
 export { guiSession } from "./src/io/gui/session.js";
@@ -95,6 +96,7 @@ export {
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
 export { changedStaticFailures, stagedHookFailures } from './src/io/changed/static.js';
 export { STATIC_CHECKS, runStaticRegistry } from './src/io/static/check/registry.js';
+export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
