@@ -37,13 +37,13 @@ function addPolicyItem(board, title) {
     check: 'true', brief: 'Files: web/feature.js\nTest: the frozen check passes.' });
 }
 
-test('an unrelated accepted policy change keeps a real re-claim\'s bar digest, so a queued submit matches it [B4,V2,V4]', t => {
+test('an unrelated accepted policy change keeps a real re-claim\'s bar digest, so a queued submit matches it [B4,V2,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = boardFor(t, box.repo);
   const id = addPolicyItem(board, 'Unrelated policy refresh');
-  const firstClaim = box.run(box.web, 'claim', String(id), '--json');
+  const firstClaim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(firstClaim.code, 0, firstClaim.out + firstClaim.err);
   const before = store.getItem(board, id);
   assert.equal(JSON.parse(before.item_frozen).policy, undefined, 'a new freeze holds the bar alone');
@@ -52,7 +52,7 @@ test('an unrelated accepted policy change keeps a real re-claim\'s bar digest, s
   commitPolicy(box, box.repo, config => {
     config.landing.manualOverride = !config.landing.manualOverride;
   });
-  const nextClaim = box.run(box.web, 'claim', String(id), '--json');
+  const nextClaim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(nextClaim.code, 0, nextClaim.out + nextClaim.err);
 
   const after = store.getItem(board, id);
@@ -74,31 +74,31 @@ test('an unrelated accepted policy change keeps a real re-claim\'s bar digest, s
   assert.equal(queued.job.digest, after.item_frozen_digest);
 });
 
-test('a change to this item lane policy re-claims with the same bar digest, never NO_POLICY [B4,V2,V4]', t => {
+test('a change to this item lane policy re-claims with the same bar digest, never NO_POLICY [B4,V2,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = boardFor(t, box.repo);
   const id = addPolicyItem(board, 'Lane policy change');
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
   const before = store.getItem(board, id);
   store.release(board, id, 'web-1', 'fixture release', undefined, 'OTHER');
   commitPolicy(box, box.repo, config => { config.lanes.web.owns = ['web/', 'test/']; });
 
-  const result = box.run(box.web, 'claim', String(id), '--json');
+  const result = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(result.code, 0, result.out + result.err);
   assert.doesNotMatch(result.out + result.err, /NO_POLICY/u);
   assert.equal(store.getItem(board, id).item_status, 'claimed');
   assert.equal(store.getItem(board, id).item_frozen_digest, before.item_frozen_digest);
 });
 
-test('clause 2: a submit already queued survives an unrelated accepted policy change and a lane change still refuses with its key [B4,V2,V4]', t => {
+test('clause 2: a submit already queued survives an unrelated accepted policy change and a lane change still refuses with its key [B4,V2,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = boardFor(t, box.repo);
   const id = addPolicyItem(board, 'Queued before policy change');
-  const claim = box.run(box.web, 'claim', String(id), '--json');
+  const claim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claim.code, 0, claim.out + claim.err);
   const folder = JSON.parse(claim.out).itemFolder;
   const committed = helpers.commitFile(box, folder, 'web/feature.js', 'export const ready = true;\n', 'feat(web): queued before policy change [G1]');

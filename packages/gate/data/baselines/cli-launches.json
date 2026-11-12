@@ -74,23 +74,14 @@
   "apps/cli/journeys/claim/adopts/session.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/claim/branch.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/claim/complete.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/claim/display.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/claim/folder.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/claim/git.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/claim/hygiene.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/claim/latency.test.js": {
     "launch": 1
@@ -98,34 +89,10 @@
   "apps/cli/journeys/claim/live.test.js": {
     "launch": 14
   },
-  "apps/cli/journeys/claim/overlap.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/policy.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/policy/detached.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/policy/live.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/claim/policy/work.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/claim/race.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/claim/report.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/claim/reuse.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/claim/static.test.js": {
-    "launch": 2
-  },
-  "apps/cli/journeys/claim/tip.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/companion/attach.test.js": {
