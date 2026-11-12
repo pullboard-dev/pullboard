@@ -282,7 +282,7 @@ await withGateSlot(process.cwd(),async lease=>{
   const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:nestedEnv(box.env),detached:true,stdio:['ignore','pipe','pipe','ipc']});
   const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
   try {
-    const deadline=Date.now()+30_000;
+    const deadline=Date.now()+70_000; // the nested runner spends about 30 s selecting files on a loaded runner before its body starts
     while(!existsSync(ready)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,20));
     assert.equal(existsSync(ready),true,'actual test body started before owner cancellation');
     assert.ok(messages.some(m=>Number.isSafeInteger(m.runner)),'owned exact runner identified');
@@ -325,7 +325,7 @@ await withGateSlot(process.cwd(),async lease=>{
   const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
   try {
     // The body writes its marker once it runs; wait on the directory's change events, not on a timer.
-    await new Promise(resolve=>{const stop=setTimeout(()=>{watcher.close();resolve();},30_000);const watcher=watch(box.dir,()=>{if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});
+    await new Promise(resolve=>{const stop=setTimeout(()=>{watcher.close();resolve();},70_000);const watcher=watch(box.dir,()=>{if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});
     assert.equal(existsSync(ready),true,'the file was running when the landing stopped the shard');
     child.send('stop-shard');
     const ended=await closed;assert.equal(ended.code,0,stderr);
