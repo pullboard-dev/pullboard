@@ -34,7 +34,7 @@ test('land names sibling conflicts whose reviews share the unchanged main [B3,R3
     assert.equal(accepted.code, 0, accepted.out + accepted.err);
     // budget: hang ceiling for one loopback runner land job inside the file limit, never a speed assertion.
     await waitForCondition(index === 0 ? () => Boolean(merged(entry.item)) : conflicted, `#${entry.item}'s land job posts its receipt`,
-      { signal: AbortSignal.timeout(60_000), state });
+      { signal: AbortSignal.timeout(60_000), state: () => ({ ...state(), accepted: (accepted.out + accepted.err).slice(-600) }) });
   }
   assert.match(merged(entries[0].item) ?? '', /^[0-9a-f]{40}$/u, 'the first sibling lands by its runner land job');
   assert.equal(box.git(box.repo, 'show', `main:${file}`), 'PASS\n// first sibling', 'trunk holds the first sibling');
