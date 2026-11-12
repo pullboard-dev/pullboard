@@ -149,7 +149,7 @@ test('a spec edit with no move reaches the next checkpoint, and an idle command 
 
   // Nothing changed: the publisher reads the board, finds the page the relay already has, and uploads nothing.
   const idle = box.calls.length;
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await new Promise(next => setTimeout(next, 4_000)); // budget: declared quiet period plus a read, so an upload would show.
   assert.equal(box.calls.slice(idle).filter(checkpointUpload).length, 0, 'an idle command re-sent no unchanged page');
 
@@ -157,7 +157,7 @@ test('a spec edit with no move reaches the next checkpoint, and an idle command 
   writeFileSync(join(box.root, 'SPEC.md'), '# Checkpoint fixture spec\n\n## G · Goals\n\n- G1 [draft, must] SPEC_ONLY_CHECKPOINT_1014 | gate: review\n');
   const edited = box.calls.length;
   const started = Date.now();
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await publisherDone(box, edited, 1);
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 5_000, `the spec edit reached a checkpoint in ${elapsed} ms`); // budget: ceiling from the review: a presentation-only change goes out within five seconds.
@@ -181,7 +181,7 @@ test('a move returns while the publisher asks whether an upload pause is over [H
   const release = setTimeout(() => box.holdProbes(false), 10_000); // budget: ceiling: a held probe ends well after the move's limit.
   t.after(() => { clearTimeout(release); box.holdProbes(false); });
   const from = box.calls.length;
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const deadline = Date.now() + 15_000;
   while (box.heldProbes() === 0 && Date.now() < deadline) await new Promise(next => setTimeout(next, 50));
   assert.equal(box.heldProbes(), 1, 'the publisher\'s pause probe is in flight and held');
