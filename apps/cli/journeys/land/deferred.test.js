@@ -11,7 +11,6 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
 import { calls } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
-import { landingTimeoutFixture } from '../../../../packages/store/tests/fixtures/timeout.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 /** Exercise deferred and affected landings against real private Git worktrees [B3,R3,C7,V4]. */
 const e2e = createE2eHelpers();
@@ -93,4 +92,5 @@ test('a publish gate run is recorded and a red and green pair it sees files the 
   assert.equal(calls(box).length - before, 3, 'each receipt represents one actual full publish gate');
 });
 
-test('a landing gate past its timeout stops cleanly [E27,E29]', () => landingTimeoutFixture({ landProject, itemWorktree, submitItem, acceptItem, onBoard, json }));
+// The landing-gate timeout case went with the host landing batch: a runner land job runs no host landing gate, and L6e
+// deletes that engine (#6119), so it is no longer journeyed here [P7,#6577].

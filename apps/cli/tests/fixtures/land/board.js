@@ -21,6 +21,27 @@ export function onBoard(box, action, clock) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
+/**
+ * The board's runner land jobs, oldest first: the items each offered, when a runner first claimed it, and its last receipt.
+ * Why: under pull dispatch a landing is a runner land job, not a host landing batch, so journeys read its job record [P7,#6577].
+ *
+ * @param {object} box - The e2e project box.
+ * @returns {{ id: string, items: number[], offeredAt: number, claimedAt: number | null, receipt: object | null }[]}
+ */
+export function landJobs(box) {
+  // @pullboard-board-file journey: a read-only look at the land jobs the real CLI and runner wrote.
+  const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    return db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
+      const steps = db.prepare('SELECT job_step_name AS name, job_step_payload AS payload, job_step_at AS at FROM job_step WHERE job_step_job = ? ORDER BY job_step_seq, job_step_id').all(job.job_id);
+      const offered = JSON.parse(steps.find(step => step.name === 'offered')?.payload ?? '{}');
+      const receipts = steps.filter(step => step.name === 'receipt');
+      return { id: job.job_id, items: (offered.payload?.items ?? []).map(entry => entry.id), offeredAt: job.job_created,
+        claimedAt: steps.find(step => step.name === 'claimed')?.at ?? null, receipt: receipts.length ? JSON.parse(receipts.at(-1).payload).receipt : null };
+    });
+  } finally { db.close(); }
+}
+
 /** Return append-only public events for receipt and replay assertions. */
 export function events(box) { return onBoard(box, (board) => store.events(board)); }
 

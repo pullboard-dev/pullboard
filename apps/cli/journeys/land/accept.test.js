@@ -1,21 +1,17 @@
 /** Accepted items land at once, in batches of one, on the automatic lander [C7]. */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { landJobs } from '../../tests/fixtures/land/board.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../packages/store/index.js';
-import { automaticLandingDirectory } from '../../../../packages/landing/index.js';
 import { cadenceApplies } from '../../../../packages/landing/index.js';
-import { cadenceDeferral } from '../../../../packages/landing/index.js';
-import { configFromSource } from '../../../../packages/config/index.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = new URL('../../pullboard.js', import.meta.url).pathname;
@@ -135,23 +131,22 @@ async function accept(box, item) {
 }
 
 /**
- * Wait until the item records merged and the lander has finished its wake, then return the batch that landed it.
+ * Wait until the item records merged, then return the runner land job that landed it.
+ * Why: under pull dispatch an ACCEPT offers a land job the loopback local runner lands; its receipt marks the item merged [P7,#6577].
  *
  * @param {object} box - The e2e project box.
  * @param {object} item - The fixture item.
  * @returns {Promise<object>}
  */
-async function landedBatch(box, item) {
-  const pending = join(automaticLandingDirectory(box.repo), 'pending.json');
-  await waitForCondition(() => !existsSync(pending) && onBoard(box, board => Boolean(store.getItem(board, item.id).item_merged_commit)),
-    `the automatic lander lands #${item.id}`, {
+async function landedJob(box, item) {
+  await waitForCondition(() => onBoard(box, board => Boolean(store.getItem(board, item.id).item_merged_commit)),
+    `the runner land job lands #${item.id}`, {
       signal: AbortSignal.timeout(150_000),
-      state: () => ({ pending: existsSync(pending) ? readFileSync(pending, 'utf8') : null,
-        item: onBoard(box, board => store.getItem(board, item.id).item_status) }),
+      state: () => ({ item: onBoard(box, board => store.getItem(board, item.id).item_status), jobs: landJobs(box) }),
     });
-  const batch = onBoard(box, board => store.landingBatches(board)).find(entry => (entry.items ?? []).some(member => member.id === item.id));
-  assert.ok(batch, `a landing batch carries #${item.id}`);
-  return batch;
+  const job = landJobs(box).find(entry => entry.items.includes(item.id) && entry.receipt?.outcome === 'landed');
+  assert.ok(job, `a landed land job carries #${item.id}`);
+  return job;
 }
 
 /**
@@ -159,13 +154,13 @@ async function landedBatch(box, item) {
  *
  * @param {object} box - The e2e project box.
  * @param {object} item - The fixture item.
- * @param {object} batch - The batch that landed it.
+ * @param {object} job - The land job that landed it.
  * @param {number} acceptedAt - When its ACCEPT was made.
  * @returns {number} how long after the ACCEPT the landing started, in ms
  */
-function assertLandedAlone(box, item, batch, acceptedAt) {
-  assert.deepEqual((batch.items ?? []).map(member => member.id), [item.id], `#${item.id} lands alone, in a batch of one`);
-  const startedMs = Date.parse(batch.startedAt) - acceptedAt;
+function assertLandedAlone(box, item, job, acceptedAt) {
+  assert.deepEqual(job.items, [item.id], `#${item.id} lands alone, in a land job of one`);
+  const startedMs = job.claimedAt - acceptedAt;
   assert.ok(startedMs <= START_WITHIN_MS, `#${item.id}'s landing started ${startedMs} ms after its ACCEPT; the bar is ${START_WITHIN_MS} ms`); // budget: declared ceiling of the frozen bar, within 60 s of an ACCEPT
   const merged = onBoard(box, board => store.getItem(board, item.id).item_merged_commit);
   assert.match(merged ?? '', /^[0-9a-f]{40}$/u, `#${item.id} records merged`);
@@ -179,19 +174,16 @@ test('clause 1: within 60 s of an ACCEPT the automatic lander starts that item\'
   const [first, second] = items;
 
   const one = await accept(box, first);
-  const firstBatch = await landedBatch(box, first);
-  t.diagnostic(`first landing started ${assertLandedAlone(box, first, firstBatch, one.acceptedAt)} ms after its ACCEPT`);
+  const firstJob = await landedJob(box, first);
+  t.diagnostic(`first landing started ${assertLandedAlone(box, first, firstJob, one.acceptedAt)} ms after its ACCEPT`);
   assert.equal(onBoard(box, board => store.getItem(board, second.id).item_merged_commit), null, 'the unaccepted item waits');
 
-  // The 30-minute cadence is live: a hand landing now would defer behind the first batch.
-  const policy = configFromSource(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  assert.ok(onBoard(box, board => cadenceDeferral(board, policy, firstBatch.branch, () => {}))?.deferredUntil, 'a hand landing waits on the cadence');
   assert.equal(cadenceApplies({ automatic: true }), false, 'an accept\'s automatic landing never waits on it');
   assert.equal(cadenceApplies({ automatic: true, due: true }), true, 'a due landing keeps its queue cadence');
   assert.equal(cadenceApplies({}), true, 'a hand landing keeps its cadence');
 
   const two = await accept(box, second);
-  const secondBatch = await landedBatch(box, second);
-  assert.notEqual(secondBatch.id, firstBatch.id, 'the second accept gets its own landing');
-  t.diagnostic(`second landing started ${assertLandedAlone(box, second, secondBatch, two.acceptedAt)} ms after its ACCEPT, inside the cadence`);
+  const secondJob = await landedJob(box, second);
+  assert.notEqual(secondJob.id, firstJob.id, 'the second accept gets its own landing');
+  t.diagnostic(`second landing started ${assertLandedAlone(box, second, secondJob, two.acceptedAt)} ms after its ACCEPT, inside the cadence`);
 });
