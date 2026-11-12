@@ -9,12 +9,17 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
+import { offerJob } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
+/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
+export const SHARD_JOB_KIND = 'gate-shard';
+// Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
+const MAX_SHARDS = 32;
 
 /** The newest gate job offered for an item, so an older candidate's receipt reads as stale. */
 function latestGateJob(db, item) {
@@ -83,6 +88,106 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   return ids;
 }
 
+/** The request a job was offered with, or null. */
+function offeredRequest(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
+  return row ? JSON.parse(row.job_step_payload) : null;
+}
+
+/** The newest receipt posted for a job, or null. */
+function postedReceipt(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
+  return row ? JSON.parse(row.job_step_payload) : null;
+}
+
+/** Quote one word for a shell, as the gate's planner quotes the files it names. */
+function shellWord(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+/** The shard jobs offered for one gate job, oldest first. */
+function shardJobs(db, job) {
+  const prefix = `${job}:shard:`;
+  return db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
+}
+
+/**
+ * Offer a gate's proof as shard jobs: its plan's files split round-robin into one shard per runner's worth of cores,
+ * each a job any runner pulls and runs through the gate's own bootstrap and entry. Null when the plan is not one the
+ * board can split. Why the board offers them: it already holds the queue, so runners never need offer credentials [P7].
+ *
+ * @returns {{ applied: true, outcome: 'sharded', shards: string[] } | null}
+ */
+function offerProofShards(board, { job, receipt, offered }) {
+  const gate = receipt?.gate ?? {};
+  const plan = gate.proofPlan;
+  const files = Array.isArray(plan?.files) ? plan.files : [];
+  const cores = Number.isSafeInteger(plan?.cores) && plan.cores > 0 ? plan.cores : 0;
+  if (receipt?.status === undefined || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || (gate.phases ?? []).some(phase => phase.status !== 0)
+    || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores || files.length <= cores
+    || files.some(file => typeof file !== 'string' || !PROJECT_FILE.test(file))) return null;
+  const request = offeredRequest(board.db, job);
+  const gateRequest = request?.request;
+  if (!Array.isArray(gateRequest?.run) || typeof gateRequest.input?.entry !== 'string') return null;
+  const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
+  const buckets = Array.from({ length: count }, () => []);
+  files.forEach((file, at) => buckets[at % count].push(file));
+  const ids = buckets.map((part, index) => {
+    const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
+    return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
+      request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command } } } } }).id;
+  });
+  store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
+    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });
+  return { applied: true, outcome: 'sharded', shards: ids };
+}
+
+/**
+ * The gate receipt the shards of one proof make together: the gate's own receipt with one proof phase that is green
+ * only when every shard is, naming every failing case its red shards name (none when any red shard names none).
+ */
+function combinedReceipt(gateReceipt, shards) {
+  const gate = gateReceipt.gate ?? {};
+  const parts = shards.map(({ job, posted }) => {
+    const shardGate = posted?.receipt?.gate ?? {};
+    const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
+    const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
+    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0 };
+  });
+  const reds = parts.filter(part => !part.green);
+  const counts = parts.map(part => tailCounts(part.phase?.tail));
+  const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
+  const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? part.phase?.tail ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
+  const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
+    sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
+    ...(reds.length ? { failures } : {}) };
+  const { proofPlan, ...rest } = gate;
+  const green = !reds.length;
+  return { ...gateReceipt, status: green ? 0 : 1, gate: { ...rest, green, phases: [...(gate.phases ?? []), proof], steps: { ...gate.steps, proof: Math.max(0, ...parts.map(part => Number(part.ms) || 0)) },
+    shards: parts.map(part => ({ job: part.job, runner: part.runner, green: part.green, files: part.files })) } };
+}
+
+/**
+ * Apply one shard's receipt: nothing until every shard of its gate has posted, then the shards' combined receipt as
+ * the gate's result, red when any shard is red. Why at the last post: the gate result is one record, never a partial proof [P7].
+ *
+ * @returns {{ applied: boolean, outcome: string, remaining?: number }}
+ */
+export function applyShardReceipt(board, { job }, ports = {}) {
+  const parent = offeredRequest(board.db, job)?.request?.gate;
+  if (typeof parent !== 'string') return { applied: false, outcome: 'not-shard' };
+  const shards = shardJobs(board.db, parent);
+  const remaining = shards.filter(row => row.job_step !== 'done').length;
+  if (remaining) return { applied: false, outcome: 'waiting', remaining };
+  const gateReceipt = postedReceipt(board.db, parent)?.receipt;
+  if (!gateReceipt?.gate?.proofPlan) return { applied: false, outcome: 'not-shard' };
+  const combined = combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) })));
+  return applyGateReceipt(board, { job: parent, receipt: combined }, ports);
+}
+
 /** One line per part that failed: analysis refusals, each failing case of a red phase (its output's tail when it names none), or the job's own error. */
 export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
@@ -98,6 +203,7 @@ export function failingParts(receipt) {
     if (cases.length) parts.push(...cases.map(row => `${phase.role} failed: ${row.file} :: ${clip(row.name)}`));
     else parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.tail)}`);
   }
+  if (gate.proofPlan) parts.push('proof: the gate left its proof to shard jobs the board could not offer; submit again');
   if (!parts.length && receipt?.status !== 0) parts.push(`the gate job exited ${receipt?.status ?? receipt?.signal}`);
   return parts;
 }
@@ -174,6 +280,11 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     : item?.item_status !== 'claimed' || item.item_owner !== submit.agentId ? 'the item is no longer claimed by the seat that submitted it'
     : item.item_frozen_digest !== submit.digest ? 'the item\'s bar was refrozen since the submit' : null;
   if (stale) return { applied: false, outcome: 'stale', reason: stale };
+  // A gate that left its proof to shards waits for them; the gate result applies when the last shard posts [P7].
+  if (receipt?.gate?.proofPlan) {
+    const sharded = offerProofShards(board, { job, receipt, offered });
+    if (sharded) return sharded;
+  }
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   if (receipt?.status === 0 && receipt?.gate?.green === true) {
     try { recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check }); }
@@ -241,6 +352,7 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
 export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
+  if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   return { applied: false, outcome: 'recorded' };
 }
