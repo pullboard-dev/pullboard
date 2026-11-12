@@ -1654,7 +1654,7 @@
   "apps/cli/journeys/merged/ratchet.test.js": {
     "raw-board": 5
   },
-  "apps/cli/journeys/flakes/landing.test.js": {
+  "apps/cli/journeys/flakes/interrupted.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/flakes/main.test.js": {
