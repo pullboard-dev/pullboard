@@ -29,22 +29,22 @@ const { LIGHT_BRIEF } = e2e;
 after(e2e.cleanup);
 
 /** Assert that an add or edit refusal names S10 and tells the author how to fix the bar. */
-function refusal(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+async function refusal(box, cwd, ...args) {
+  const result = (await box.runLocal(cwd, ...args, '--json'));
   assert.equal(result.code, 1, `${args.join(' ')} unexpectedly succeeded: ${result.out}\n${result.err}`);
   assert.match(result.out + result.err, /S10/u);
   assert.match(result.out + result.err, /remove|drop/u, 'the refusal gives the author a direct next step');
 }
 
-test('clause 1: add and edit refuse per-item criteria that require the full suite or CI [S10]', () => {
+test('clause 1: add and edit refuse per-item criteria that require the full suite or CI [S10]', async () => {
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox, { withWorktree: false });
-  const existing = fixtureAdd(box.run, box.repo, 'web', 'Scoped check item', '--criterion', 'The page renders. [test]',
-    '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
+  const existing = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Scoped check item', '--criterion', 'The page renders. [test]',
+    '--brief', LIGHT_BRIEF, '--check', 'true', '--json'));
   assert.equal(existing.code, 0, existing.err || existing.out);
   const id = JSON.parse(existing.out).item.item_id;
-  const original = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_criterion;
+  const original = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).item_criterion;
 
   for (const criterion of [
     'The full suite passes as run by the submit gate. [test]',
@@ -52,9 +52,9 @@ test('clause 1: add and edit refuse per-item criteria that require the full suit
     'CI passes before this item is done. [test]',
     'CI is green before this item is complete. [test]',
   ]) {
-    refusal(box, box.repo, 'add', 'web', 'Out-of-scope gate criterion', '--criterion', criterion, '--brief', LIGHT_BRIEF, '--check', 'true');
-    refusal(box, box.repo, 'edit', String(id), '--criterion', criterion);
-    const after = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+    (await refusal(box, box.repo, 'add', 'web', 'Out-of-scope gate criterion', '--criterion', criterion, '--brief', LIGHT_BRIEF, '--check', 'true'));
+    (await refusal(box, box.repo, 'edit', String(id), '--criterion', criterion));
+    const after = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
     assert.equal(after.item_criterion, original, 'a rejected edit leaves the stored item bar unchanged');
   }
   assert.doesNotThrow(() => checkPerItemCriterion('The full suite passes as run by the submit gate.', PER_ITEM_FULL_SUITE_ENGINE - 1),
@@ -69,34 +69,34 @@ test('clause 1: add and edit refuse per-item criteria that require the full suit
     "Drop the words 'the full suite passes as run by the submit gate' from old bars. [test]",
     'CI runs the gate on every push; this item is complete when its named test passes. [test]',
   ]) {
-    const added = fixtureAdd(box.run, box.repo, 'web', 'Scoped check item', '--criterion', criterion,
-      '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
+    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Scoped check item', '--criterion', criterion,
+      '--brief', LIGHT_BRIEF, '--check', 'true', '--json'));
     assert.equal(added.code, 0, added.err || added.out);
   }
 });
 
-test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy bars while preserving their frozen snapshots [S10]', () => {
+test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy bars while preserving their frozen snapshots [S10]', async () => {
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox);
   const ids = [];
   for (const label of ['Open', 'Claimed', 'Submitted']) {
-    const added = fixtureAdd(box.run, box.repo, 'web', `${label} legacy bar`, '--criterion', 'The named test passes. [test]',
-      '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
+    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', `${label} legacy bar`, '--criterion', 'The named test passes. [test]',
+      '--brief', LIGHT_BRIEF, '--check', 'true', '--json'));
     assert.equal(added.code, 0, added.err || added.out);
     ids.push(JSON.parse(added.out).item.item_id);
   }
   const secondBuilder = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', secondBuilder, '-b', 'web/two');
   assert.match(fixtureJoin(box.run, secondBuilder, 'web').out, /joined as web-2/u);
-  assert.equal(box.run(box.web, 'claim', String(ids[1])).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(ids[1]))).code, 0);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   let board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { submitFixture(board, ids[1], { agentId: 'web-1', commit, tree }); }
   finally { closeBoard(board); }
-  assert.equal(box.run(secondBuilder, 'claim', String(ids[2])).code, 0);
+  assert.equal((await box.runLocal(secondBuilder, 'claim', String(ids[2]))).code, 0);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   const original = new Map([
@@ -131,7 +131,7 @@ test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy 
   } finally {
     closeBoard(board);
   }
-  const sweep = box.run(box.repo, 'bar', 'sweep-full-suite', '--json');
+  const sweep = (await box.runLocal(box.repo, 'bar', 'sweep-full-suite', '--json'));
   assert.equal(sweep.code, 0, `${sweep.out}\n${sweep.err}`);
   const result = JSON.parse(sweep.out);
   assert.deepEqual(result.changed.map(row => row.id).sort((a, b) => a - b), ids.slice().sort((a, b) => a - b));

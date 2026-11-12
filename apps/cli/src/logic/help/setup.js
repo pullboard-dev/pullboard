@@ -36,10 +36,12 @@ export const setupHelp = `Set up
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
                                         measures the runner's cores and memory; --slots declares a fixed count that always wins
   pullboard runner measure [<ssh-host>]  re-measure cores and memory on the runner itself (run it again after a hardware change)
+  pullboard runner drain <ssh-host>     take a runner out of rotation: no new job, running jobs finish; undrain returns it
   pullboard runner list                 each runner's slots and browsers, measured cores and memory, and the slots the formula gives
   pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
   pullboard runner install-serve <ssh-host> --board <board-url> [--key <key>] | --remove
                                         run runner serve on that runner as a login service that restarts on exit
+  pullboard runner local [--off]        this machine's own runner on loopback; a pull submit starts it, --off stops it
   pullboard view [--project] [--port N] [--no-open]  every project on this machine in your browser; default http://127.0.0.1:${DEFAULT_VIEW_PORT}
   pullboard view --lan                  a private link for a phone on the local IPv4 network
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port

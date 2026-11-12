@@ -262,6 +262,11 @@
       "order": 49,
       "name": "app:relay",
       "file": "packages/codemap/data/plan/49-app-relay.json"
+    },
+    {
+      "order": 50,
+      "name": "search",
+      "file": "packages/codemap/data/plan/50-search.json"
     }
   ],
   "stays": [
@@ -2180,8 +2185,6 @@
     "apps/cli->state",
     "apps/lib->apps/runner",
     "apps/lib->transport",
-    "(root)->gate",
-    "(root)->seats",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
@@ -2190,6 +2193,7 @@
     "resources->git",
     "codemap->git",
     "codemap->kernel",
+    "config->kernel",
     "gate->codemap",
     "runners->config",
     "runners->verify",
@@ -2200,10 +2204,6 @@
     "runners->resources",
     "runners->transport",
     "activity->store",
-    "(root)->apps/cli",
-    "(root)->apps/lib",
-    "(root)->apps/view",
-    "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
     "apps/cli->seats",
@@ -2231,16 +2231,14 @@
     "github->store",
     "items->git",
     "items->kernel",
-    "items->store",
     "items->queue",
     "queue->kernel",
     "api->jobs",
     "api->kernel",
-      "keys->store",
+    "keys->store",
     "landing->git",
     "landing->pin",
     "landing->store",
-    "landing->store/src",
     "apps/cli->apps/lib/src",
     "landing->resources",
     "landing->runners",
@@ -2294,12 +2292,8 @@
     "commits->kernel",
     "sandbox->commits",
     "rigor->store",
-    "(root)->store",
     "spec->kernel",
     "gate->spec",
-    "(root)->doctrine",
-    "(root)->codemap",
-    "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine",
     "health->doctrine",
@@ -2317,6 +2311,7 @@
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
-    "apps/relay->seats"
+    "apps/relay->seats",
+    "search->store"
   ]
 }

@@ -1,5 +1,6 @@
 import { requireLandingCompanions } from '../guards.js';
 import { requireLandingModuleResolution } from '../guards.js';
+import { requireLandingSecretFree } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { resolveMechanicalIndex } from '../../../../merge/index.js';
@@ -172,7 +173,8 @@ export async function mergeGroup(state, items) {
   state.landingWrites = [...landingWrites].sort();
   requireLandingCompanions(batch.root, state.board, merged, tip);
   // A named batch is scanned by the runner job beside its static checks (step/trunk.js), not on the coordinator [C7,#5559].
-  if (!scanRidesRunner(state)) await requireLandingModuleResolution(batch.root, batch.base, tip);
+  // The secret scan stays on the coordinator either way: the runner runs the candidate's own scan.js [#5968].
+  if (scanRidesRunner(state)) requireLandingSecretFree(batch.root, batch.base, tip); else await requireLandingModuleResolution(batch.root, batch.base, tip);
   return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 

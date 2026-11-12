@@ -21,12 +21,12 @@ function refusingRemote(box) {
   return remote;
 }
 
-test('a refused first sync push leaves no git-sync.json marker and its refusal never says run pullboard sync [C7,#3088]', t => {
+test('a refused first sync push leaves no git-sync.json marker and its refusal never says run pullboard sync [C7,#3088]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();
   const remote = refusingRemote(box);
-  const refused = box.run(box.repo, 'sync', '--json');
+  const refused = (await box.runLocal(box.repo, 'sync', '--json'));
   assert.notEqual(refused.code, 0, 'origin refused, so sync cannot report success');
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'GIT_SYNC_REMOTE');
@@ -35,7 +35,7 @@ test('a refused first sync push leaves no git-sync.json marker and its refusal n
   assert.equal(String(box.git(remote, 'for-each-ref', 'refs/pullboard/board') ?? '').trim(), '', 'origin holds no board');
 });
 
-test('with a marker origin never accepted, other commands warn and write local-only, never GIT_SYNC_LOCK_BUSY or GIT_SYNC_REMOTE [C7,#3088]', t => {
+test('with a marker origin never accepted, other commands warn and write local-only, never GIT_SYNC_LOCK_BUSY or GIT_SYNC_REMOTE [C7,#3088]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();
@@ -44,15 +44,15 @@ test('with a marker origin never accepted, other commands warn and write local-o
   writeFileSync(join(box.repo, '.git', 'pullboard', 'git-sync.json'), JSON.stringify({ version: 1, remote: 'origin',
     ref: 'refs/pullboard/board', writer: { command: 'sync', pid: 99999999, at: '2026-11-04T19:36:00.000Z' } }) + '\n');
   for (const title of ['First local write', 'Second local write']) {
-    const added = fixtureAdd(box.run, box.repo, 'web', title, '--json');
+    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--json'));
     assert.equal(added.code, 0, `${title}: ${added.out}\n${added.err}`);
     assert.doesNotMatch(added.out + added.err, /GIT_SYNC_LOCK_BUSY|GIT_SYNC_REMOTE|run pullboard sync/u);
     assert.match(added.out + added.err, /runs local-only/u, 'the command warns, in its diagnostics, that it runs local-only');
   }
-  const shouted = box.run(box.web, 'shout', 'all', 'still writing locally', '--json');
+  const shouted = (await box.runLocal(box.web, 'shout', 'all', 'still writing locally', '--json'));
   assert.equal(shouted.code, 0, `${shouted.out}\n${shouted.err}`);
   assert.doesNotMatch(shouted.out + shouted.err, /GIT_SYNC_LOCK_BUSY|GIT_SYNC_REMOTE|run pullboard sync/u);
-  const board = JSON.parse(box.run(box.repo, 'export').out);
+  const board = JSON.parse((await box.runLocal(box.repo, 'export')).out);
   assert.deepEqual(board.tables.item.map(item => item.item_title).sort(), ['First local write', 'Second local write']);
   assert.equal(existsSync(join(box.repo, '.git', 'pullboard', 'git-sync-pending.json')), false, 'no push intent was sealed');
 });

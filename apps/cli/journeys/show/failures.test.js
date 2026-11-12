@@ -16,7 +16,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 
-test('a red baseline with two real failing cases prints both first error lines in show [C7]', t => {
+test('a red baseline with two real failing cases prints both first error lines in show [C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const bin = join(box.dir, 'ssh-bin');
@@ -26,9 +26,9 @@ test('a red baseline with two real failing cases prints both first error lines i
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'ssh-requests.jsonl') });
   box.env.PATH = bin + ':' + box.env.PATH;
-  const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
+  const registered = await box.inProcess(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(registered.code, 0, registered.err);
-  const settings = box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json');
+  const settings = await box.inProcess(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json');
   assert.equal(settings.code, 0, settings.err);
   // The private CLI launches its own test process, not a child of this node:test protocol.
   delete box.env.NODE_TEST_CONTEXT;
@@ -38,7 +38,7 @@ test('a red baseline with two real failing cases prints both first error lines i
   const added = fixtureAdd(box.run, box.repo, 'web', 'Repair both cases', '--specs', 'G1', '--criterion', 'Both cases pass.', '--check', 'node --test two-fail.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const shown = box.run(box.repo, 'show', String(id));
+  const shown = await box.inProcess(box.repo, 'show', String(id));
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /first broken case: first diagnostic/u);
   assert.match(shown.out, /second broken case: second diagnostic/u);

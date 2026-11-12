@@ -39,7 +39,7 @@ function gone(pid) {
 }
 
 /** A native project with handoff on and a gate that holds while the candidate says "hold", until released. */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -64,9 +64,9 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Replaced running handoff', '--specs', 'G1',
-    '--criterion', 'A new head replaces a running gate.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Replaced running handoff', '--specs', 'G1',
+    '--criterion', 'A new head replaces a running gate.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   t.after(async () => {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
@@ -78,16 +78,16 @@ function fixture(t) {
 }
 
 test('submitting head B while head A gates cancels A, frees its slot and queues B [C7,V4]', async t => {
-  const box = fixture(t);
+  const box = (await fixture(t));
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
   const first = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
   const owner = driverRecord(box.boardFile, first.id);
 
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'pass\n', 'feat(web): next candidate [G1]').status, 0);
-  const next = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
+  const next = (await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.doesNotMatch(next.out + next.err, /SUBMIT_HANDOFF_PENDING/u, 'a new head is never refused behind the old gate');
   assert.equal(document(next).queued, true, 'head B queued its own gate');
   const after = state(box, box.id);

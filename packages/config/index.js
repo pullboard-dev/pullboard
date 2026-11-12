@@ -52,6 +52,7 @@ export {
   pullPilot,
   pullGateFor,
   jobQueueMode,
+  localRunnerEnabled,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
@@ -71,6 +72,8 @@ export {
   addRunner,
   recordRunnerMeasurement,
   removeRunner,
+  setRunnerDrain,
+  drainedRunnerHosts,
   machineSettingsFile,
 } from './src/io/settings.js';
 export {
@@ -80,6 +83,8 @@ export {
   specTemplate,
   practiceTemplate,
   renderAgentsBlock,
+  renderCoordinatorGuide,
+  COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
   plainGateWords,
   claudeLoopRules,
@@ -103,6 +108,9 @@ export {
   SETTING_DESCRIPTIONS,
   CLI_SETTABLE,
   describeSetting,
+  settingDescriptions,
+  compatibilityToggleProblems,
+  INVENTORY_FILE,
 } from './src/io/settings/descriptions.js';
 export {
   knownConfigKeys,
@@ -139,3 +147,4 @@ export {
 
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
+export { boardRemote, setBoardRemote } from './src/io/settings.js';

@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   readGateReceipt,
   receiptFields,
@@ -99,6 +100,7 @@ function assertMeasured(run, box, output) {
 
 test('a direct full suite records one durable source-bound run, including a complete red run [C7,H16]', async t => {
   const box = timingProject(t);
+  // Process-level: a direct suite-runner process, its exit code and stdout frames are the behaviour under test.
   const run = async red => runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: red }, encoding: 'utf8' });
   const green = await run('0');
@@ -119,6 +121,7 @@ test('a direct full suite records one durable source-bound run, including a comp
   const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.deepEqual(nativeFlakeQuarantines(board), [], 'direct-suite evidence cannot establish a quarantine'); }
   finally { store.closeBoard(board); }
+  // Process-level: the direct suite runner's stdout timing frame.
   const filtered = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js', '--test-skip-pattern=first', 'test/one.test.js', 'test/two.test.js'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(filtered.status, 0, filtered.stderr + filtered.stdout);
@@ -147,6 +150,7 @@ const receipt=readGateReceipt(receiptStore(process.cwd()),run.receiptId);
 const board=openBoard('.git/pullboard/board.sqlite');
 try { board.enginePorts.store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'}); } finally {store.closeBoard(board);}
 console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));`;
+  // Process-level: runs the fixture repo's own installed runtime as a separate node process.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr + result.stdout);
   const rows = recorded(box);
@@ -209,6 +213,7 @@ const receipt=readGateReceipt(receiptStore(root),run.receiptId);
 console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:receipt.head,tree:receipt.tree},
  green:run.isGreen,waiver,accounted,covered,stamp:existsSync('.git/pullboard-gate-green')}));
 } finally {store.closeBoard(board);}`;
+  // Process-level: runs the fixture repo's own installed runtime as a separate node process.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: '1' }, encoding: 'utf8' });
   t.diagnostic(JSON.stringify({ stage: 'actual selected landing capture', status: result.status,
@@ -232,6 +237,7 @@ console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:rece
 test('an all-reused direct invocation preserves a receipt without inventing a fresh full suite [C7,H16]', async t => {
   const box = timingProject(t);
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '1' };
+  // Process-level: direct suite-runner processes sharing a reuse cache.
   const first = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(first.status, 0, first.stderr + first.stdout);
   const second = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
@@ -251,8 +257,8 @@ test('a real red publish preflight retains its board receipt and does not rerun 
   box.git(box.dir, 'init', '--bare', '-q', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'remote', 'set-url', '--push', 'origin', join(box.dir, 'nonexistent-push-target'));
-  const publish = () => runFixtureChildAsync(process.execPath, ['apps/cli/pullboard.js', 'publish', '--json'],
-    { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: '1' }, encoding: 'utf8' });
+  const publish = () => runCliInProcess(['publish', '--json'],
+    { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: '1' } });
   const red = await publish();
   assert.equal(red.status, 1, red.stderr + red.stdout);
   const runs = recorded(box);
@@ -293,6 +299,7 @@ assert.equal(first.unavailable,undefined); assert.equal(first.files[0].result,'r
 const again=await compareMainFailures(root,red.profile,undefined,red.output,options);
 assert.equal(again.files[0].result,'red'); assert.equal(ids.length,1);
 console.log(JSON.stringify({ids}));`;
+  // Process-level: runs the fixture repo's own installed runtime as a separate node process.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: '1' }, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr + result.stdout);

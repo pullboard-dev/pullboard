@@ -11,6 +11,7 @@ import { seatWakeCommand } from '../../../../../packages/seats/index.js';
 import { registerSeatWake } from '../../../../../packages/seats/index.js';
 import {
   COORDINATOR,
+  COORDINATOR_GUIDE_FILE,
 } from '../../../../../packages/config/index.js';
 import {
   isLane,
@@ -23,6 +24,7 @@ import {
   relayLinked,
 } from '../../../../../packages/link/index.js';
 import * as store from '../../../../../packages/store/index.js';
+import { execFileSync } from 'node:child_process';
 import { itemFolderSeat } from '../item/folder/identity.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
@@ -38,6 +40,28 @@ import {
   withBoardRead,
   primaryCheckoutRoot,
 } from '../entry.js';
+
+/**
+ * Join a lane on the board host board.url names [P7]. The served board registers the seat with a remote marker in
+ * place of a path here, and this worktree's git config pullboard.agent keeps its name for later board calls.
+ * @param {any} io
+ * @param {{ positionals: string[], values: any }} parsed
+ * @param {string} origin The board host, as the seat prints it.
+ * @param {(move: object) => Promise<any>} postMove Posts one move to the served board.
+ */
+export async function joinRemote(io, { positionals, values }, origin, postMove) {
+  const lane = positionals[1];
+  if (!lane) throw new Refused('NO_LANE', 'name a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
+  const model = requiredModel(values.model, process.env, `join ${shellWord(lane)}`);
+  const ctx = context(io);
+  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
+  const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: values.family }) } });
+  // Per-worktree config, so each seat's worktree in one clone keeps its own name.
+  execFileSync('git', ['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
+  execFileSync('git', ['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
+  io.result?.({ agent: result.agent, lane, route, model, board: origin });
+  io.say(`joined as ${result.agent} in the ${lane} lane via ${origin}${route === 'light' ? ', on the light route' : ''}`);
+}
 
 /** Run `pullboard join` and return its exit code. */
 export async function run(io, { first, values }) {
@@ -69,6 +93,7 @@ export async function run(io, { first, values }) {
     const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
     io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
     io.say(`declared ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the coordinator lane`);
+    io.say(`coordinator: read ${COORDINATOR_GUIDE_FILE} before you route anything`);
     return 0;
   }
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {

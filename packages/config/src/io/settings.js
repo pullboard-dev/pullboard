@@ -19,6 +19,7 @@ import {
 import { validateRunner } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
 import { validateServe } from '../logic/settings.js';
+import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -114,6 +115,32 @@ export function setWorkerBudget(budget) {
   return next;
 }
 
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
+}
+
+/**
+ * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token'} key
+ * @param {string} value
+ */
+export function setBoardRemote(key, value) {
+  const current = loadMachineSettings();
+  const { [key]: _old, ...rest } = current.board ?? {};
+  const board = value === 'off' ? rest : { ...rest, [key]: value };
+  validateBoardRemote(board, 'the command line');
+  const { board: _board, ...others } = current;
+  const next = Object.keys(board).length ? { ...others, board } : others;
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Set the runner deadline for new work without changing any admitted or queued run. */
 export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
@@ -177,6 +204,14 @@ export function pullGateFor(item) {
   const { items, share } = pullPilot();
   if (items.includes(Number(item))) return true;
   return share > 0 && createHash('sha256').update(`pull-pilot:${item}`).digest().readUInt32BE(0) % 10_000 < share * 100;
+}
+
+/**
+ * Whether this machine may run its own local runner: on unless gate.localRunner is exactly false. Why on: a solo
+ * user's machine is board host and runner at once, so pulled gates and landings need no setup [P7].
+ */
+export function localRunnerEnabled() {
+  return loadMachineSettings().gate?.localRunner !== false;
 }
 
 /**
@@ -409,6 +444,28 @@ export function recordRunnerMeasurement(host, observation) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/**
+ * Take a registered runner out of rotation (`drain`) or back in: dispatch and pull claims give it no new job, its running
+ * jobs keep their leases and finish. Why: a runner jammed overnight and nothing could rest it while a fix rolled out.
+ */
+export function setRunnerDrain(host, drain) {
+  return updateRunnerSettings(host, () => {
+    const current = loadMachineSettings();
+    const index = (current.runners ?? []).findIndex(runner => runner.host === host);
+    if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is not registered`, 'run pullboard runner list');
+    const { drain: _drained, ...rest } = current.runners[index];
+    const runner = validateRunner(drain ? { ...rest, drain: true } : rest);
+    const runners = [...current.runners]; runners[index] = runner;
+    writeMachineSettings({ ...current, runners });
+    return runner;
+  }, { observation: true });
+}
+
+/** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */
+export function drainedRunnerHosts() {
+  return (loadMachineSettings().runners ?? []).filter(runner => runner.drain === true).map(runner => runner.host);
 }
 
 /** Stop dispatching to a runner immediately; admitted jobs keep their leases until they finish. */

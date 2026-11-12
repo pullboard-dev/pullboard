@@ -6,6 +6,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { chmodSync } from 'node:fs';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -69,22 +70,22 @@ function sandbox() {
   function git(cwd, ...args) {
     return runFixtureGit(args, { cwd, env });
   }
-  /** Run the real CLI in a child whose lifetime is bounded by the test runner. */
+  /** Run the production CLI in this process. */
   function run(cwd, args) {
-    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return runCliInProcess(args, { cwd, env });
   }
-  return { dir, env, git, run };
+  return { dir, env, git, local: run };
 }
 
 /** Initialize and commit a real private Git repository with one configured lane. */
-function project() {
+async function project() {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   mkdirSync(join(repo, 'web'));
   writeFileSync(join(repo, 'web', 'result.txt'), 'baseline fixture\n');
-  const initialized = box.run(repo, ['init']);
+  const initialized = await box.local(repo, ['init']);
   assert.equal(initialized.status, 0, initialized.stderr);
   const configFile = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -137,8 +138,8 @@ function runWorker(box, id, request) {
   });
 }
 
-test('[V2,H16] a saved worker receipt retries after relay metadata is repaired without rerunning its check', () => {
-  const box = project();
+test('[V2,H16] a saved worker receipt retries after relay metadata is repaired without rerunning its check', async () => {
+  const box = await project();
   const marker = join(box.dir, 'check-runs.txt');
   const command = markerCheck(marker);
   const { id, baseline } = addPendingItem(box, command);
@@ -172,7 +173,7 @@ test('[V2,H16] a saved worker receipt retries after relay metadata is repaired w
   } finally { closeBoard(pendingBoard); }
 
   rmSync(relayFile);
-  const retried = box.run(box.repo, ['show', String(id), '--json']);
+  const retried = await box.local(box.repo, ['show', String(id), '--json']);
   assert.equal(retried.status, 0, `${retried.stdout}${retried.stderr}`);
   const shown = JSON.parse(retried.stdout);
   assert.equal(shown.item_check_baseline.command, command);
@@ -184,7 +185,7 @@ test('[V2,H16] a saved worker receipt retries after relay metadata is repaired w
   assert.deepEqual(readdirSync(receiptDir), [], 'successful retry removes the durable receipt');
   assert.equal(readFileSync(marker, 'utf8'), 'ran\n', 'receipt retry does not execute the check again');
 
-  const repeated = box.run(box.repo, ['show', String(id), '--json']);
+  const repeated = await box.local(box.repo, ['show', String(id), '--json']);
   assert.equal(repeated.status, 0, `${repeated.stdout}${repeated.stderr}`);
   assert.equal(readFileSync(marker, 'utf8'), 'ran\n');
   const finalBoard = openBoard(join(box.repo, BOARD_FILE));
