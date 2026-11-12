@@ -14,7 +14,7 @@ test('claim reads trunk config and worktree list once [C7]', (t) => {
   const box = helpers.project('true');
   const log = join(box.dir, 'spawns.log');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Folder spawns', diagnose: false, args: ['--specs', 'G1'] }).item_id;
-  Object.assign(box.env, spawnEnv(log));
+  Object.assign(box.env, spawnEnv(log), { PULLBOARD_SPAWN_STACK: '1' });
   writeFileSync(log, '');
   const claim = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claim.code, 0, claim.err + claim.out);
