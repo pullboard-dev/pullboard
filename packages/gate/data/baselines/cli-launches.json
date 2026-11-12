@@ -1478,9 +1478,6 @@
   "apps/cli/journeys/shout/http/agent.test.js": {
     "launch": 8
   },
-  "apps/cli/journeys/shout/item.test.js": {
-    "launch": 12
-  },
   "apps/cli/journeys/shout/journey.test.js": {
     "launch": 7
   },
@@ -1489,9 +1486,6 @@
   },
   "apps/cli/journeys/shout/layout.test.js": {
     "launch": 25
-  },
-  "apps/cli/journeys/shout/main.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/shout/overlap.test.js": {
     "launch": 2
@@ -1505,17 +1499,11 @@
   "apps/cli/journeys/shout/prose.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/shout/readable.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/shout/references.test.js": {
     "launch": 15
   },
-  "apps/cli/journeys/shout/refusal.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/shout/routing.test.js": {
-    "launch": 11
+    "launch": 1
   },
   "apps/cli/journeys/shout/rows.test.js": {
     "launch": 1

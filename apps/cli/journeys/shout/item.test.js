@@ -19,12 +19,12 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
 
-test('an explicit item keeps all, person and lane names as literal message text [B7,A2,N19]', () => {
+test('an explicit item keeps all, person and lane names as literal message text [B7,A2,N19]', async () => {
   const box = fixtures.project('true');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Literal item messages', '--specs', 'G1', '--criterion', 'item messages retain text');
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Literal item messages', '--specs', 'G1', '--criterion', 'item messages retain text');
   assert.equal(added.code, 0, added.err);
   for (const text of ['all', 'person', 'web']) {
-    const sent = box.run(box.web, 'shout', '--item', '1', text, '--json');
+    const sent = await box.runIn(box.web, 'shout', '--item', '1', text, '--json');
     assert.equal(sent.code, 0, `${text}: ${sent.err}${sent.out}`);
     const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
@@ -33,7 +33,7 @@ test('an explicit item keeps all, person and lane names as literal message text 
       assert.equal(row.shout_text, text);
     } finally { store.closeBoard(board); }
   }
-  const explicit = box.run(box.web, 'shout', 'web', 'explicit recipient with item', '--item', '1', '--json');
+  const explicit = await box.runIn(box.web, 'shout', 'web', 'explicit recipient with item', '--item', '1', '--json');
   assert.equal(explicit.code, 0, explicit.err);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -44,15 +44,15 @@ test('an explicit item keeps all, person and lane names as literal message text 
 });
 
 
-test('explicit news follows normal CLI and API argument authority [R2,N26,H16,A2]', () => {
+test('explicit news follows normal CLI and API argument authority [R2,N26,H16,A2]', async () => {
   const box = fixtures.project('true');
   const text = 'A private release belongs in the session-start digest.';
   const argv = moveArgs({ verb: 'shout', args: { to: 'all', text, news: true } });
   assert.deepEqual(argv, ['shout', '--news', '--json', '--', 'all', text], 'API news uses the normal literal CLI flag');
-  const sent = box.run(box.repo, ...argv);
+  const sent = await box.runIn(box.repo, ...argv);
   assert.equal(sent.code, 0, sent.err || sent.out);
   const id = JSON.parse(sent.out).id;
-  const inbox = box.run(box.web, 'inbox', '--json');
+  const inbox = await box.runIn(box.web, 'inbox', '--json');
   assert.equal(inbox.code, 0, inbox.err || inbox.out);
   const delivered = JSON.parse(inbox.out);
   assert.equal(delivered.shouts.some(shout => shout.shout_id === id), false, 'news is not delivered twice as an ordinary message');
@@ -64,7 +64,7 @@ test('explicit news follows normal CLI and API argument authority [R2,N26,H16,A2
     const before = store.events(board);
     for (const [root, args] of [[box.web, ['shout', 'all', 'An agent cannot hide a broadcast', '--news', '--json']],
       [box.repo, ['shout', 'all', 'A decision is not expendable news', '--news', '--decision', '--json']]]) {
-      const refused = box.run(root, ...args);
+      const refused = await box.runIn(root, ...args);
       assert.notEqual(refused.code, 0, refused.err || refused.out);
       assert.equal(JSON.parse(refused.out).error?.code, 'BAD_NEWS', refused.err || refused.out);
       assert.deepEqual(store.events(board), before, 'refused news appends no native event');
@@ -72,17 +72,17 @@ test('explicit news follows normal CLI and API argument authority [R2,N26,H16,A2
   } finally { store.closeBoard(board); }
 });
 
-test('an unchanged inbox read never waits on the board write lock while another seat holds a claim [R2,N26,B3]', () => {
+test('an unchanged inbox read never waits on the board write lock while another seat holds a claim [R2,N26,B3]', async () => {
   const box = fixtures.project('true');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   for (const [lane, title] of [['web', 'Quiet inbox'], ['api', 'Busy neighbour']]) {
-    const added = fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', 'inbox stays read-only');
+    const added = await fixtureAdd(box.runIn, box.repo, lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', 'inbox stays read-only');
     assert.equal(added.code, 0, added.err);
   }
   const neighbour = join(box.dir, 'api-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/neighbour', neighbour, 'main');
   for (const [root, args] of [[neighbour, ['join', 'api', '--route', 'strong']], [neighbour, ['claim', '2']], [box.web, ['claim', '1']], [box.web, ['inbox']]]) {
-    const done = box.run(root, ...args);
+    const done = await box.runIn(root, ...args);
     assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
   }
   // Another writer holds the board for the whole read: a read that takes no write answers at once instead of
@@ -91,14 +91,14 @@ test('an unchanged inbox read never waits on the board write lock while another 
   try {
     writer.exec('BEGIN IMMEDIATE');
     const started = Date.now();
-    const read = box.run(box.web, 'inbox', '--json');
+    const read = await box.runIn(box.web, 'inbox', '--json');
     const waited = Date.now() - started;
     writer.exec('ROLLBACK');
     assert.equal(read.code, 0, read.err || read.out);
     assert.ok(waited < store.BOARD_BUSY_TIMEOUT_MS, `a repeat inbox with nothing new waited ${waited} ms for the board write lock`);
-    const sent = box.run(box.repo, 'shout', 'web', 'something new for the web lane');
+    const sent = await box.runIn(box.repo, 'shout', 'web', 'something new for the web lane');
     assert.equal(sent.code, 0, sent.err);
-    const delivered = JSON.parse(box.run(box.web, 'inbox', '--json').out);
+    const delivered = JSON.parse((await box.runIn(box.web, 'inbox', '--json')).out);
     assert.ok(delivered.shouts.some(shout => shout.shout_text === 'something new for the web lane'), 'new shouts are still delivered');
   } finally { writer.close(); }
 });
@@ -123,13 +123,13 @@ test('a seat whose session spans many seats derives its family without a per-sea
   } finally { store.closeBoard(board); }
 });
 
-test('a repeat inbox with nothing new never scans the event, shout, seat or metadata tables [R2,N26]', () => {
+test('a repeat inbox with nothing new never scans the event, shout, seat or metadata tables [R2,N26]', async () => {
   const box = fixtures.project('true');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Scan-free inbox', '--specs', 'G1', '--criterion', 'a quiet inbox reads by index');
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Scan-free inbox', '--specs', 'G1', '--criterion', 'a quiet inbox reads by index');
   assert.equal(added.code, 0, added.err);
   for (const args of [['claim', '1'], ['inbox']]) {
-    const done = box.run(box.web, ...args);
+    const done = await box.runIn(box.web, ...args);
     assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
   }
   // Record every statement the quiet read prepares, in the real CLI process, then ask SQLite how it would run each.
@@ -139,11 +139,11 @@ test('a repeat inbox with nothing new never scans the event, shout, seat or meta
     'const prepare = DatabaseSync.prototype.prepare;',
     `DatabaseSync.prototype.prepare = function (sql) { appendFileSync(${JSON.stringify(log)}, JSON.stringify(sql) + '\\n'); return prepare.call(this, sql); };`,
   ].join('\n'));
-  const read = box.run(box.web, 'inbox', '--json');
+  const read = await box.runIn(box.web, 'inbox', '--json');
   assert.equal(read.code, 0, read.err || read.out);
   const inherited = box.env.NODE_OPTIONS;
   box.env.NODE_OPTIONS = [inherited, `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ');
-  const quiet = box.run(box.web, 'inbox', '--json');
+  const quiet = await box.runIn(box.web, 'inbox', '--json');
   if (inherited === undefined) delete box.env.NODE_OPTIONS; else box.env.NODE_OPTIONS = inherited;
   assert.equal(quiet.code, 0, quiet.err || quiet.out);
   assert.deepEqual(JSON.parse(quiet.out).shouts, [], 'the measured read had nothing new');
