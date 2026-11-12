@@ -801,7 +801,7 @@
     "launch": 1
   },
   "apps/cli/journeys/verify/check.test.js": {
-    "launch": 9
+    "launch": 5
   },
   "apps/cli/journeys/runner/overhead.test.js": {
     "launch": 1
@@ -961,9 +961,6 @@
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/resume/presence/hooks.test.js": {
-    "launch": 10
   },
   "apps/cli/journeys/sentinel/needs/draft.test.js": {
     "launch": 1
