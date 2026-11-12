@@ -75,14 +75,14 @@ test('the staged checker refuses a source with two import bindings on one line, 
 
 test('clause 1, clause 2: the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
   const box = staticProject();
-  mkdirSync(join(box.repo, 'packages/gate/src'), { recursive: true });
-  writeFileSync(join(box.repo, 'packages/gate/src/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
-  box.git(box.repo, 'add', 'packages/gate/src/two.js');
+  mkdirSync(join(box.repo, 'packages/gate/src/io'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/gate/src/io/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
+  box.git(box.repo, 'add', 'packages/gate/src/io/two.js');
   const step = () => runChecker(box, CHECKER);
   const first = step();
   assert.equal(first.status, 0, first.stderr);
-  assert.match(first.stderr, /pullboard pre-commit: fixed: split multi-binding import lines in packages\/gate\/src\/two\.js and staged them/u);
-  assert.equal(box.git(box.repo, 'show', ':packages/gate/src/two.js').trimEnd(), "import {\n  readFileSync,\n  existsSync,\n} from 'node:fs';\nexport const a = [readFileSync, existsSync];");
+  assert.match(first.stderr, /pullboard pre-commit: fixed: split multi-binding import lines in packages\/gate\/src\/io\/two\.js and staged them/u);
+  assert.equal(box.git(box.repo, 'show', ':packages/gate/src/io/two.js').trimEnd(), "import {\n  readFileSync,\n  existsSync,\n} from 'node:fs';\nexport const a = [readFileSync, existsSync];");
   const second = step();
   assert.equal(second.status, 0, second.stderr);
   assert.doesNotMatch(second.stderr, /fixed:/u, 'a fixed file is never fixed or refused again');
