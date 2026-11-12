@@ -2541,8 +2541,19 @@
     "raw-board": 4
   },
   "apps/cli/journeys/resume/presence.test.js": {
-    "raw-board": 34,
-    "tempdir": 5,
+    "raw-board": 15,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+    "raw-board": 14,
+    "tempdir": 2
+  },
+  "apps/cli/journeys/resume/presence/hooks.test.js": {
+    "raw-board": 4,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/resume/presence/gone.test.js": {
+    "raw-board": 1,
     "model": 1
   },
   "packages/sandbox/tests/privacy/guard.test.js": {
