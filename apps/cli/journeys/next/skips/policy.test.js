@@ -1,4 +1,4 @@
-/** next passes over an item frozen under an older submit policy; claim by id still refuses NO_POLICY [C7]. */
+/** next and claim never pass over or refuse an item for a policy change; the bar alone is frozen [B4,C7,L2,V3]. */
 import assert from 'node:assert/strict';
 import {
   readFileSync,
@@ -15,40 +15,63 @@ function success(box, cwd, ...args) {
   return result;
 }
 
-/** Commit a change to the web lane's policy on main, as the coordinator does. */
-function changeWebLane(box) {
+/** Commit one change to pullboard.json on main, as the coordinator does. */
+function commitConfig(box, change, message) {
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.lanes.web.owns = [...config.lanes.web.owns, 'assets/'];
+  change(config);
   writeFileSync(file, JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: change web lane policy');
+  box.git(box.repo, 'commit', '-q', '-m', message);
 }
 
-/** Two open web items: #1 frozen before a lane policy change, #2 added after it. */
-function staleThenFresh(t) {
+/** #1 frozen, then its lane's specs change (a bar-changing policy move), then fresh #2 and #3. */
+function barChangedThenFresh(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   success(box, box.repo, 'add', 'web', 'Stale item', '--specs', 'G1', '--criterion', 'The page renders.');
   success(box, box.repo, 'refreeze', '1');
-  changeWebLane(box);
-  success(box, box.repo, 'add', 'web', 'Fresh item', '--specs', 'G1', '--criterion', 'The footer renders.');
-  success(box, box.repo, 'refreeze', '2');
+  commitConfig(box, config => { config.lanes.web.specs = ['G1', 'G2']; }, 'chore: widen web specs');
+  for (const title of ['Fresh item', 'Third item']) {
+    success(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} renders.`);
+  }
   return box;
 }
 
-test('next hands the seat a buildable item instead of refusing NO_POLICY on a stale one [C7]', t => {
-  const box = staleThenFresh(t);
-  const result = box.run(box.web, 'next');
-  assert.equal(result.code, 0, result.err || result.out);
-  assert.match(result.out, /skipped #1: \[NO_POLICY\]/, 'the stale item is named, not refused');
-  assert.match(result.out, /claimed #2: Fresh item/);
+test('clause 1: next claims an item whose lane policy changed after its freeze, never skipping it [B4,C7]', t => {
+  const box = barChangedThenFresh(t);
+  const first = box.run(box.web, 'next');
+  assert.equal(first.code, 0, first.err || first.out);
+  assert.doesNotMatch(first.out, /skipped #1|NO_POLICY/u);
+  assert.match(first.out, /claimed #1: Stale item/u);
 });
 
-test('claim by id on the stale item still refuses NO_POLICY with its refresh step [C7]', t => {
-  const box = staleThenFresh(t);
+test('clause 2: no stale-policy marker or coordinator shout is raised for a policy change [B4,B7]', t => {
+  const box = barChangedThenFresh(t);
+  success(box, box.web, 'next');
+  const shown = success(box, box.repo, 'show', '1', '--json').out;
+  assert.equal(shown.split('staleFrozenPolicy').length - 1, 0, 'no marker fact');
+  assert.doesNotMatch(success(box, box.repo, 'inbox').out, /next passes over #1/u, 'no shout to the coordinator');
+});
+
+test('clause 3: a shrunk owns list that moves no path the bar names refreshes at claim (#3793) [L2,V3]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  commitConfig(box, config => { config.lanes.web.owns = ['web/', 'assets/']; }, 'chore: grow web lane');
+  success(box, box.repo, 'add', 'web', 'Shrunk item', '--specs', 'G1', '--criterion', 'The page renders.');
+  success(box, box.repo, 'refreeze', '1');
+  commitConfig(box, config => { config.lanes.web.owns = ['web/']; }, 'chore: shrink web lane');
+  const result = box.run(box.web, 'next');
+  assert.equal(result.code, 0, result.err || result.out);
+  assert.doesNotMatch(result.out, /NO_POLICY/u);
+  assert.match(result.out, /claimed #1: Shrunk item/u);
+});
+
+test('claim by id on an item whose lane policy changed claims it, never NO_POLICY [B4,C7]', t => {
+  const box = barChangedThenFresh(t);
   const result = box.run(box.web, 'claim', '1');
-  assert.notEqual(result.code, 0);
-  assert.match(`${result.out}${result.err}`, /NO_POLICY[\s\S]*refresh the item/);
+  assert.equal(result.code, 0, result.err || result.out);
+  assert.doesNotMatch(`${result.out}${result.err}`, /NO_POLICY/u);
 });

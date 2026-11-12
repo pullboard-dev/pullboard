@@ -472,6 +472,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/shouts/:id` | One shout from any point in the board's history, including its decision and answer fields |
 | `GET /api/v1/boards/:board/tokens` | This linked board's agent-token metadata |
 | `POST /api/v1/boards/:board/tokens` | Revoke one token named by its opaque id |
+| `POST /api/v1/boards/:board/jobs` | The runner job queue, only when `gate.runnerDispatch` is `pull` (`JOBS_NOT_PULL` otherwise). Body `{action: "claim", runner, capabilities, kinds?}` returns `{claim, trunk}`: the oldest open job whose needs the runner has, with its candidate commit, its `run` argv and a lease token, or `null`; `trunk` is the board's `trunk.remote` setting (else the board host's repository), where `pullboard runner serve` fetches the candidate. `renew`, `release` and `receipt` (with `{receipt}`) name `{job, runner, token}`; a token that is not the job's current claim is refused `JOB_LEASE_MOVED`. A lapsed lease reopens the job for the next claim. |
 | `GET /api/v1/boards/:board/code?ref=path:lines@commit&before=...` | A bounded preview of committed file lines from that registered board |
 | `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order, and their event-log format version |
 | `GET /api/v1/events?boards=<id>,<id>` | One live stream of every named board's events and changed signals, each tagged with its board |

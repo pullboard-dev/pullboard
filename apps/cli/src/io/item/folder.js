@@ -186,6 +186,11 @@ function branchCheckout(root, ref) {
   return null;
 }
 
+/** The ITEM_FOLDER_PROTECTED refusal for an item branch held in a locked or foreign folder, which no claim adopts. */
+function protectedFolderRefusal(ref, path) {
+  return new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
+}
+
 /** The ITEM_FOLDER_UNFINISHED refusal for a folder left mid-merge, rebase or cherry-pick, or null; the folder is only read (#3763). */
 function unfinishedFolderRefusal(path, id) {
   const operation = unfinishedOperation(path, tryGit);
@@ -215,7 +220,7 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   const tree = branchCheckout(ctx.info.root, ref);
   if (!tree || tree.path === desired) return false;
   const suffix = `-item-${id}`;
-  if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${tree.path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
+  if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw protectedFolderRefusal(ref, tree.path);
   const found = agentAt(board, tree.path.slice(0, -suffix.length));
   const holder = found && itemFolderPath(found.agent_path, id) === tree.path ? found : null;
   /** Recheck ownership after every asynchronous archive notification, before touching the checkout. */
@@ -274,8 +279,11 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
 export async function liveFolderRefusal(ctx, board, me, id) {
   if (me.id === 'coordinator') return null;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
-  const folder = existsSync(path) ? path : branchCheckout(ctx.info.root, branch(me.lane, id))?.path;
+  const prior = existsSync(path) ? null : branchCheckout(ctx.info.root, branch(me.lane, id));
+  const folder = prior ? prior.path : path;
   if (!folder || !existsSync(folder)) return null;
+  // A locked or foreign folder is never adopted (recoverPriorFolder); next passes over its item instead of refusing the call.
+  if (prior && (prior.locked || !folder.endsWith(`-item-${id}`))) return protectedFolderRefusal(branch(me.lane, id), folder);
   const session = await import('../join.js');
   try { session.endedItemFolderSession(board, me, folder); }
   catch (error) {

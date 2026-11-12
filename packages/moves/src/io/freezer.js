@@ -29,7 +29,10 @@ import { liveCriterionSpec } from '../../../doctrine/index.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
 
 /**
- * Freeze a criterion from committed policy, refreshing trunk policy only on an explicit refreeze.
+ * Freeze the bar alone: title, criterion, check and cited spec rows, never pullboard.json [B4,R2].
+ *
+ * Why: a pinned policy commit went stale with every policy change and stranded items NO_POLICY; policy is
+ * read live per move instead. A bar frozen by the previous release keeps its pinned policy text (N-1).
  *
  * @param {{ root: string, isMain: boolean, config: any }} checkout - the repository root, whether it is the main checkout, and its loaded config
  * @param {{ captureVerifyPolicy?: boolean, board?: any, applyingDecisions?: any[] }} [options]
@@ -40,7 +43,7 @@ export function criterionFreezer({ root, isMain, config: checkoutConfig }, { cap
   let doctrine;
   // agentDoctrine falls back to this checkout's own doctrine only when no main facts were read.
   const reader = { info: { root, isMain }, get doctrine() { return doctrine ??= loadDoctrine(root, checkoutConfig); } };
-  /** Freeze the criterion and, when requested, the trunk lane and verifier policy. */
+  /** Freeze the criterion; captureVerifyPolicy now only means a refreeze, which drops a legacy policy pin. */
   return (item) => {
     // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
     const readsMain = board && !(isMain && !headCommit(root));
@@ -55,22 +58,10 @@ export function criterionFreezer({ root, isMain, config: checkoutConfig }, { cap
     const facts = readsMain ? mainCriterionFacts(root,
       { ...(sourcePolicy ? { commit: sourcePolicy.commit } : {}), cacheEligible }) : null;
     const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
-    const needsPinnedPolicy = !prior || captureVerifyPolicy;
-    let policy = prior?.policy ?? null;
-    if (needsPinnedPolicy && !(isMain && !headCommit(root))) {
-      policy = { version: 1, commit: sourcePolicy?.commit ?? mainPolicy(root).commit };
-    }
-    let config;
-    if (policy && needsPinnedPolicy) {
-      const commit = /^[0-9a-f]{40,64}$/.test(policy.commit ?? '')
-        ? policy.commit
-        : (/^[0-9a-f]{40,64}$/.test(item.item_claim_head ?? '') ? item.item_claim_head : mainPolicy(root).commit);
-      config = policyAt(root, commit).config;
-      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family,
-        ...(Number.isSafeInteger(config.verify.familyRelaxAt) && config.verify.familyRelaxAt > 0 ? { familyRelaxAt: config.verify.familyRelaxAt } : {}) } };
-    } else {
-      config = policy ? itemPolicy(root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : checkoutConfig;
-    }
+    // Only a bar frozen by the previous release still carries a pinned policy; it keeps reproducing it so its
+    // digest reads and verifies unchanged (N-1). Every new freeze, and every refreeze, is the bar alone [B4,R2].
+    const legacy = !captureVerifyPolicy && prior?.policy ? prior.policy : null;
+    const config = legacy ? itemPolicy(root, { ...item, item_frozen: JSON.stringify({ policy: legacy }) }).config : checkoutConfig;
     // Only spec apply's already validated native decision events are being materialized now [S18,V2].
     const applying = new Map(applyingDecisions.map(record => [record.event, record]));
     const decisions = board ? store.rowDecisions(board).map(record => {
@@ -82,11 +73,12 @@ export function criterionFreezer({ root, isMain, config: checkoutConfig }, { cap
     if (board) refuseAgentApprovedRows(root, { board, config: facts?.config ?? config, item }, { store, verifiedPasskeyRowDecision });
     const spec = board && facts ? liveCriterionSpec(root, facts, item, decisions) : loadSpec(root, config);
     const frozen = frozenCriterion(spec, item, rules);
-    if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
-    const coverage = signed?.coverage ? barCoverageForPolicy(root, item, signed.coverage, { commit: policy.commit, config }) : null;
+    const coverageCommit = legacy?.commit ?? (signed?.coverage ? sourcePolicy?.commit ?? mainPolicy(root).commit : null);
+    const coverage = signed?.coverage ? barCoverageForPolicy(root, item, signed.coverage, { commit: coverageCommit, config: legacy ? config : policyAt(root, coverageCommit).config }) : null;
     const machine = board ? machineVerification(board, item) : null;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
+    if (!legacy && !machine && !coverage) return frozen;
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
 }
