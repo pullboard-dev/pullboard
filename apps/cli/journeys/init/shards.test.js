@@ -277,6 +277,9 @@ for (const count of [1, 3]) test(`collect-all retains two real failures and late
 });
 
 
+/** The fixture's env without the outer run's node:test context, which would make the nested tests.js emit v8 events and never start the body. */
+function nestedEnv(env){const clean={...env};delete clean.NODE_TEST_CONTEXT;return clean;}
+
 test('a collect-all shard cancelled by its owner reports drained but incomplete [C7,V4]', {timeout:90_000}, async t => {
   const box=fixture({runner:false});
   t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
@@ -303,7 +306,7 @@ await withGateSlot(process.cwd(),async lease=>{
  const report=parseCollectionReports(output,{id:${JSON.stringify(id)},scope:'shard',shard:'1/1',plannedFiles:['test/a.test.js'],requireComplete:false});
  process.send({terminal:true,code,signal,report,output});
 },{ executionServices,remote:false,browser:true,agent:'collect-cancel-fixture'});process.disconnect();`;
-  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:box.env,detached:true,stdio:['ignore','pipe','pipe','ipc']});
+  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:nestedEnv(box.env),detached:true,stdio:['ignore','pipe','pipe','ipc']});
   const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
   try {
     const deadline=Date.now()+30_000;
@@ -345,11 +348,11 @@ await withGateSlot(process.cwd(),async lease=>{
  const[code,signal]=await closed;
  process.send({terminal:true,code,signal,output});
 },{ executionServices,remote:false,browser:true,agent:'shard-stop-fixture'});process.disconnect();`;
-  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:box.env,detached:true,stdio:['ignore','pipe','pipe','ipc']});
+  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:nestedEnv(box.env),detached:true,stdio:['ignore','pipe','pipe','ipc']});
   const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
   try {
     // The body writes its marker once it runs; wait on the directory's change events, not on a timer.
-    await new Promise(resolve=>{const watcher=watch(box.dir,()=>{if(existsSync(ready)){watcher.close();resolve();}});if(existsSync(ready)){watcher.close();resolve();}});
+    await new Promise(resolve=>{const stop=setTimeout(()=>{watcher.close();resolve();},30_000);const watcher=watch(box.dir,()=>{if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});
     assert.equal(existsSync(ready),true,'the file was running when the landing stopped the shard');
     child.send('stop-shard');
     const ended=await closed;assert.equal(ended.code,0,stderr);
