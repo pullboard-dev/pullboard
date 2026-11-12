@@ -33,7 +33,7 @@ const logged = new Map();
  * @param {number} [now]
  * @returns {Refused}
  */
-export function missingBoard(id, failures, now = Date.now()) {
+function missingBoard(id, failures, now = Date.now()) {
   if (!failures.length) return new Refused('NO_BOARD', `no registered board ${id}; run pullboard serve in its repo and use GET /api/v1/boards`);
   const named = failures.map(({ root, error }) => {
     const code = error?.code ?? error?.name ?? 'Error';
