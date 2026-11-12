@@ -27,6 +27,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
@@ -327,7 +328,10 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   installSshStandIn({ bin: runnerBin, worker, home: runnerHome, machineHome: runnerMachine,
     requests: join(box.dir, 'runner-requests.jsonl'), nodeCommand: process.execPath });
   box.env.PATH = runnerBin + delimiter + box.env.PATH;
-  box.cli(box.root, 'runner', 'add', HOST, '--slots', '1', '--browser', '0');
+  // In process: registering the runner is setup, not the watch under test, so it costs no CLI launch.
+  const runnerAdd = ['runner', 'add', HOST, '--slots', '1', '--browser', '0'];
+  const registered = await runCliInProcess(runnerAdd, { cwd: box.root, env: box.env });
+  assert.equal(registered.status, 0, `runner add: ${registered.stderr}${registered.stdout}`);
   const builder = box.cli(box.root, 'worktree', 'app', '--model', 'watch-builder');
   const waiting = box.cli(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
     '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait').item;
