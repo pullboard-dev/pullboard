@@ -78,6 +78,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--specs': ['--specs <ids>', 'the spec rows the item answers, such as G1,K3'],
   '--files': ['--files <paths>', 'the files the child takes over from the parent'],
   '--force-size': ['--force-size "reason"', 'keeps a bar whole despite the size hint; records the reason as a fact'],
+  '--not-duplicate-of': ['--not-duplicate-of "<id> why"', 'files an item that reads like an open one; records why it differs'],
   '--accept-green': ['--accept-green "reason"', 'keeps a check that already passes on main; records the reason as a fact'],
   '--split-coordinator': 'files the lane part of a bar that names coordinator-owned paths; the coordinator piece goes after it',
   '--sensitive': 'selects Strict review; edit can set it while the item is open',
