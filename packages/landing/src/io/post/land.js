@@ -8,6 +8,7 @@ import { defaultItemRoute } from '../../../../items/index.js';
 import { criterionCells } from '../../../../items/index.js';
 import { mainRedRootCause } from '../../../../items/index.js';
 import { mainRedKeyLines } from '../../../../items/index.js';
+import { mainRedEvidenceLines } from '../../../../items/index.js';
 import { fileMainRed } from '../../../../items/index.js';
 import { typedRequests } from '../../../../store/index.js';
 import { getItem } from '../../../../store/index.js';
@@ -127,7 +128,7 @@ export async function postLandSuite(state, ports) {
             const title = files.length > 1 ? `Red cluster: ${cause.slice(0, 120)}` : `Main red: ${files[0]}`;
             const id = await state.write('addItem', [{ by: 'coordinator', lane, title, route: defaultItemRoute(criterion, criterionCells(batch.root)), specIds: [], parentId: null, after: [],
               criterion,
-              brief: `Files: ${files.join(', ')}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}\n${mainRedKeyLines(fresh)}`,
+              brief: `Files: ${files.join(', ')}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}\n${mainRedKeyLines(fresh)}${mainRedEvidenceLines(rows)}`,
               check: `${String(state.config.affectedTests ?? '').trim()} ${files.map(word).join(' ')}` }]);
             for (const file of files) filed.push({ file, item: id });
             return id;
