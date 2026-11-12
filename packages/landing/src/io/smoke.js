@@ -63,6 +63,44 @@ function scratchEnvironment(home) {
     PULLBOARD_MACHINE_HOME: join(home, 'machine-home'), PULLBOARD_USAGE_CHECKPOINT: 'inline' };
 }
 
+/** The script a smoke child runs: each chain's commands in order, the chains side by side, one JSON line back. */
+const CHAIN_RUNNER = `
+  const { spawn } = require('node:child_process');
+  const { entry, timeout, chains } = JSON.parse(process.argv[1]);
+  const run = step => new Promise(done => {
+    const child = spawn(process.execPath, [entry, ...step.args], { cwd: step.cwd });
+    let stdout = '', stderr = '', error = null;
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeout);
+    child.stdout.on('data', part => { stdout += part; });
+    child.stderr.on('data', part => { stderr += part; });
+    child.on('error', failure => { error = failure.message; });
+    child.on('close', (status, signal) => { clearTimeout(timer); done({ status, signal, stdout, stderr, error }); });
+  });
+  Promise.all(chains.map(async chain => {
+    const rows = [];
+    for (const step of chain) { const result = await run(step); rows.push({ label: step.label, result }); if (result.status !== 0) break; }
+    return rows;
+  })).then(all => process.stdout.write(JSON.stringify(all)));
+`;
+
+/**
+ * Run chains of pullboard commands of the candidate side by side, each chain in order, stopping a chain at its first failure.
+ * Why: the smoke was nine node starts in a row, about a second each, so the independent ones now overlap (#6284).
+ *
+ * @param {string} entry - The candidate's apps/cli/pullboard.js.
+ * @param {NodeJS.ProcessEnv} env - The scratch environment every command runs in.
+ * @param {{cwd: string, label: string, args: string[]}[][]} chains
+ * @returns {({label: string, result: {status: number|null, signal: string|null, stdout: string, stderr: string, error: string|null}}|undefined)[]} Outcomes flattened in declaration order.
+ */
+function runChains(entry, env, chains) {
+  const child = spawnSync(process.execPath, ['-e', CHAIN_RUNNER, JSON.stringify({ entry, timeout: COMMAND_MS, chains })], { env, encoding: 'utf8', timeout: COMMAND_MS * 2 });
+  if (child.status !== 0) {
+    const label = chains.flat().map(step => step.label).join(' and ');
+    return [{ label, result: { status: child.status, signal: child.signal, stdout: '', stderr: child.stderr ?? '', error: child.error?.message ?? null } }];
+  }
+  return JSON.parse(child.stdout).flat();
+}
+
 /**
  * Run the candidate's CLI through its everyday commands on a scratch board and refuse the landing on the first
  * non-zero exit, naming the command. No skip list applies. A candidate that ships no apps/cli/pullboard.js has no CLI to smoke.
@@ -88,34 +126,38 @@ export function runLandingCliSmoke(candidate, { record = false, git: launch = gi
       const result = launch(['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env, encoding: 'utf8' });
       if (result.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not prepare its scratch repository (git ${args[0]}): ${result.stderr.trim()}`);
     };
+    const ran = [];
+    /** Run chains of commands side by side, each chain in order, and refuse on the first failure in declaration order. */
+    const pullboard = (...chains) => {
+      const outcomes = runChains(entry, env, chains);
+      for (const outcome of outcomes) {
+        if (outcome === undefined) continue;
+        const { label, result } = outcome;
+        if (result.status !== 0) {
+          const lines = (result.error ?? result.stderr ?? '').trim().split('\n').filter(line => line.trim() && !/ExperimentalWarning|trace-warnings/u.test(line));
+          // Node prints the throwing source line and a caret first; lead with the line naming the error, such as the missing module's path.
+          const named = lines.findIndex(line => /^\w*Error\b/u.test(line.trim()));
+          const why = (named > 0 ? [lines[named], ...lines.slice(0, named)] : lines).slice(0, 3).join(' ');
+          throw new Refused('LAND_CLI_SMOKE', `the candidate's \`pullboard ${label}\` exits ${result.status ?? result.signal ?? 'with an error'} on a scratch board: ${why}; fix it before landing`);
+        }
+        ran.push(label);
+      }
+    };
+    // help needs no board, so it runs beside init; list, show and status only read, so they run beside claim then next.
     mkdirSync(repo);
     git(repo, 'init', '-q', '-b', 'main');
-    const ran = [];
-    const pullboard = (cwd, label, ...args) => {
-      const result = spawnSync(process.execPath, [entry, ...args], { cwd, env, encoding: 'utf8', timeout: COMMAND_MS });
-      if (result.status !== 0) {
-        const lines = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => line.trim() && !/ExperimentalWarning|trace-warnings/u.test(line));
-        // Node prints the throwing source line and a caret first; lead with the line naming the error, such as the missing module's path.
-        const named = lines.findIndex(line => /^\w*Error\b/u.test(line.trim()));
-        const why = (named > 0 ? [lines[named], ...lines.slice(0, named)] : lines).slice(0, 3).join(' ');
-        throw new Refused('LAND_CLI_SMOKE', `the candidate's \`pullboard ${label}\` exits ${result.status ?? result.signal ?? 'with an error'} on a scratch board: ${why}; fix it before landing`);
-      }
-      ran.push(label);
-    };
-    pullboard(repo, 'help', 'help');
-    pullboard(repo, 'init', 'init');
+    pullboard([{ cwd: repo, label: 'help', args: ['help'] }], [{ cwd: repo, label: 'init', args: ['init'] }]);
     writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
     writeFileSync(join(repo, 'SPEC.md'), SPEC);
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     git(repo, 'worktree', 'add', '-q', seat, '-b', 'core/smoke');
-    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke', '--route', 'strong');
-    pullboard(repo, 'add', 'add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists');
-    pullboard(seat, 'list', 'list');
-    pullboard(seat, 'show', 'show', '1');
-    pullboard(seat, 'claim', 'claim', '1');
-    pullboard(seat, 'next', 'next');
-    pullboard(seat, 'status', 'status');
+    // join writes the seat and add writes the item; neither reads the other, so they run beside each other.
+    pullboard([{ cwd: seat, label: 'join', args: ['join', 'core', '--model', 'smoke', '--route', 'strong'] }],
+      [{ cwd: repo, label: 'add', args: ['add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists'] }]);
+    pullboard([{ cwd: seat, label: 'list', args: ['list'] }], [{ cwd: seat, label: 'show', args: ['show', '1'] }],
+      [{ cwd: seat, label: 'claim', args: ['claim', '1'] }, { cwd: seat, label: 'next', args: ['next'] }],
+      [{ cwd: seat, label: 'status', args: ['status'] }]);
     if (record) recordSmokeReceipt(candidate, launch);
     return { ran };
   } finally { rmSync(home, { recursive: true, force: true }); }

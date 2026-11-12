@@ -116,8 +116,10 @@ export function getItem(board, id) {
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
   const stored = itemById(board, id);
-  const item = { ...current(board, stored), item_stage: itemStage(stored, pulledGateRecords(board.db, id).get(id) ?? handoffRecord(board.db, id) ?? null,
+  const pulled = pulledGateRecords(board.db, id, Date.parse(now(board))).get(id);
+  const item = { ...current(board, stored), item_stage: itemStage(stored, pulled ?? handoffRecord(board.db, id) ?? null,
     Boolean(board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='merged' LIMIT 1").get(id)), now(board)) };
+  if (item.item_stage === 'in the gate' && pulled?.noRunner) item.item_gate_runner = 'none';
   const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
   const source = outsideSource(board, id);
