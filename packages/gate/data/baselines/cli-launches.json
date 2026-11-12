@@ -248,9 +248,6 @@
   "apps/cli/journeys/fact/checks.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/relay/needs.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/handoff/checkout.test.js": {
     "launch": 1
   },
@@ -280,9 +277,6 @@
   },
   "packages/seats/tests/io/checkout.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/roadmap/redesign.test.js": {
-    "launch": 13
   },
   "packages/gate/tests/io/test/cleanup/background.test.js": {
     "launch": 1
@@ -418,9 +412,6 @@
   },
   "packages/gate/tests/io/run/tests/selection.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/fact/snapshot/replay.test.js": {
-    "launch": 10
   },
   "apps/cli/journeys/publish/usage/cap.test.js": {
     "launch": 3
@@ -870,7 +861,7 @@
     "launch": 3
   },
   "apps/cli/journeys/export/shouts.test.js": {
-    "launch": 6
+    "launch": 1
   },
   "apps/cli/journeys/stats/log.test.js": {
     "launch": 3
@@ -1421,9 +1412,6 @@
   "apps/cli/journeys/relay/upload.test.js": {
     "launch": 22
   },
-  "apps/cli/journeys/fact/snapshot/roadmap.test.js": {
-    "launch": 8
-  },
   "apps/cli/journeys/relay/deploy.test.js": {
     "launch": 2
   },
@@ -1588,9 +1576,6 @@
   },
   "apps/cli/journeys/forget/meta.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/roadmap/counts.test.js": {
-    "launch": 8
   },
   "apps/cli/journeys/queue/order.test.js": {
     "launch": 3
@@ -1801,9 +1786,6 @@
   },
   "apps/cli/journeys/verify/accept/fast.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/roadmap/held.test.js": {
-    "launch": 7
   },
   "apps/cli/journeys/view/services.test.js": {
     "launch": 1
