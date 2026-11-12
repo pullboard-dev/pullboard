@@ -1,6 +1,5 @@
 /** Machine-wide gate capacity settings through the actual CLI [O5,O6]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
@@ -17,35 +16,46 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { captureCommandInProcess } from '../../tests/fixtures/process.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { installRegistrationProbeStandIn } from '../../tests/fixtures/runner/ssh.js';
 
-const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
+
+/** Run one command in an isolated machine home, in this process, with optional extra environment. */
+function machineCli(home, argv, extra = {}) {
+  return runCliInProcess(argv, { env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, ...extra } });
+}
 
 /** Run settings in an isolated machine home, returning its structured CLI result. */
 function settings(home, ...args) {
-  return runFixtureChild(process.execPath, [BIN, 'settings', ...args, '--json'], {
-    encoding: 'utf8', env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home },
-  });
+  return machineCli(home, ['settings', ...args, '--json']);
 }
 
-test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses invalid values', () => {
+/** Read machineHome() under one exact environment, in this process, with the environment restored afterwards. */
+async function machineHomeUnder(env) {
+  let home;
+  const { machineHome } = await import(MACHINE_HOME_MODULE);
+  await captureCommandInProcess(() => { home = machineHome(); return 0; }, [], { env });
+  return home;
+}
+
+test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses invalid values', async () => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-settings-'));
   try {
-    const initial = settings(home);
+    const initial = await settings(home);
     assert.equal(initial.status, 0, initial.stderr);
     assert.equal(JSON.parse(initial.stdout).settings.gateSlots, 2);
 
-    const changed = settings(home, 'gateSlots', '3');
+    const changed = await settings(home, 'gateSlots', '3');
     assert.equal(changed.status, 0, changed.stderr);
     assert.equal(JSON.parse(changed.stdout).settings.gateSlots, 3);
     assert.equal(JSON.parse(readFileSync(join(home, 'settings.json'), 'utf8')).gateSlots, 3);
-    assert.equal(JSON.parse(settings(home).stdout).settings.gateSlots, 3);
+    assert.equal(JSON.parse((await settings(home)).stdout).settings.gateSlots, 3);
 
     const saved = readFileSync(join(home, 'settings.json'), 'utf8');
     for (const [value, code] of [['0', 'BAD_GATE_SLOTS'], ['abc', 'USAGE']]) {
-      const refusedSet = settings(home, 'gateSlots', value);
+      const refusedSet = await settings(home, 'gateSlots', value);
       assert.equal(readFileSync(join(home, 'settings.json'), 'utf8'), saved, `${value} leaves settings.json unchanged`);
       assert.equal(refusedSet.status, 1, `${value}: ${refusedSet.stdout}${refusedSet.stderr}`);
       const error = JSON.parse(refusedSet.stdout).error;
@@ -54,7 +64,7 @@ test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses 
     }
 
     writeFileSync(join(home, 'settings.json'), JSON.stringify({ gateSlots: 0 }));
-    const refused = settings(home);
+    const refused = await settings(home);
     assert.equal(refused.status, 1);
     assert.equal(JSON.parse(refused.stdout).error.code, 'BAD_GATE_SLOTS');
 
@@ -62,40 +72,32 @@ test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses 
     const bin = join(home, 'bin');
     mkdirSync(bin);
     installRegistrationProbeStandIn({ bin });
-    const runner = runFixtureChild(process.execPath, [BIN, 'runner', 'add', 'settings-fixture.invalid', '--slots', '1', '--browser', '1', '--json'], {
-      encoding: 'utf8', env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, PATH: `${bin}:${process.env.PATH}` },
-    });
+    const runner = await machineCli(home, ['runner', 'add', 'settings-fixture.invalid', '--slots', '1', '--browser', '1', '--json'],
+      { PATH: `${bin}:${process.env.PATH}` });
     assert.equal(runner.status, 0, `${runner.stdout}${runner.stderr}`);
-    const browserZero = settings(home, 'browserSlots', '0');
+    const browserZero = await settings(home, 'browserSlots', '0');
     assert.equal(browserZero.status, 0, `${browserZero.stdout}${browserZero.stderr}`);
-    const gateZero = settings(home, 'gateSlots', '0');
+    const gateZero = await settings(home, 'gateSlots', '0');
     assert.equal(gateZero.status, 0, `${gateZero.stdout}${gateZero.stderr}`);
     assert.equal(JSON.parse(gateZero.stdout).settings.gateSlots, 0);
     assert.equal(JSON.parse(readFileSync(join(home, 'settings.json'), 'utf8')).gateSlots, 0);
-    assert.equal(JSON.parse(settings(home).stdout).settings.gateSlots, 0, 'a registered runner makes zero local slots valid');
+    assert.equal(JSON.parse((await settings(home)).stdout).settings.gateSlots, 0, 'a registered runner makes zero local slots valid');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test('[Q4] the machine pool ignores board and HOME overrides unless explicitly selected', () => {
-  const script = `import { machineHome } from ${JSON.stringify(MACHINE_HOME_MODULE)}; process.stdout.write(machineHome());`;
+test('[Q4] the machine pool ignores board and HOME overrides unless explicitly selected', async () => {
   const env = { ...process.env, HOME: '/private/home', PULLBOARD_HOME: '/private/board' };
   delete env.PULLBOARD_MACHINE_HOME;
   delete env.PULLBOARD_ACCOUNT_HOME;
   // Outside a test run (no runner pid), the default is the OS account's own home.
   const outside = { ...env };
   delete outside.PULLBOARD_TEST_RUNNER_PID;
-  const defaultHome = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env: outside });
-  assert.equal(defaultHome.status, 0, defaultHome.stderr);
-  assert.equal(defaultHome.stdout, join(userInfo().homedir, '.pullboard'));
-  const account = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env: { ...env, PULLBOARD_ACCOUNT_HOME: '/private/account' } });
-  assert.equal(account.stdout, join('/private/account', '.pullboard'), 'a test run substitutes its own account home [C7]');
+  assert.equal(await machineHomeUnder(outside), join(userInfo().homedir, '.pullboard'));
+  assert.equal(await machineHomeUnder({ ...env, PULLBOARD_ACCOUNT_HOME: '/private/account' }), join('/private/account', '.pullboard'),
+    'a test run substitutes its own account home [C7]');
 
   const override = join(tmpdir(), 'pullboard-private-machine-home');
-  const privateHome = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
-    encoding: 'utf8', env: { ...env, PULLBOARD_MACHINE_HOME: override },
-  });
-  assert.equal(privateHome.status, 0, privateHome.stderr);
-  assert.equal(privateHome.stdout, resolve(override));
+  assert.equal(await machineHomeUnder({ ...env, PULLBOARD_MACHINE_HOME: override }), resolve(override));
 });
 
 test('the settings API reports every setting with its scope, value, default and source and never a secret [O5,O6]', async () => {
@@ -114,9 +116,9 @@ test('a line setting change is a recorded move with its reason and its range [R1
   let board, replica;
   t.after(() => { if (replica) store.closeBoard(replica); if (board) store.closeBoard(board); fixtures.cleanup(); });
   const box = fixtures.project('true');
-  const initial = box.run(box.repo, 'settings', 'line', '--json');
+  const initial = await box.runLocal(box.repo, 'settings', 'line', '--json');
   const numbers = { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 };
-  const changed = box.run(box.repo, 'settings', 'line', 'reviewsFirst', 'on', '--reason', 'Review waiting exceeds the target',
+  const changed = await box.runLocal(box.repo, 'settings', 'line', 'reviewsFirst', 'on', '--reason', 'Review waiting exceeds the target',
     '--window', JSON.stringify(numbers), '--json');
   assert.equal(changed.code, 0, `a board setting change succeeds: ${changed.err}${changed.out}`);
   assert.equal(initial.code, 0, initial.err);
@@ -159,26 +161,26 @@ test('a line setting change is a recorded move with its reason and its range [R1
 });
 
 /** The public opt-in persists only machine policy and validates both CLI and file inputs. */
-test('gate.runnersOnly defaults off and has a validated public on/off setting [C7,O5]', () => {
+test('gate.runnersOnly defaults off and has a validated public on/off setting [C7,O5]', async () => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-runner-only-settings-'));
   try {
-    const initial = settings(home);
+    const initial = await settings(home);
     assert.equal(initial.status, 0, initial.stderr);
     assert.equal(JSON.parse(initial.stdout).settings.gate.runnersOnly, false);
-    const changed = settings(home, 'gate.runnersOnly', 'on');
+    const changed = await settings(home, 'gate.runnersOnly', 'on');
     assert.equal(changed.status, 0, changed.stderr);
     assert.equal(JSON.parse(changed.stdout).settings.gate.runnersOnly, true);
     const file = join(home, 'settings.json');
     const saved = readFileSync(file, 'utf8');
-    const invalid = settings(home, 'gate.runnersOnly', 'yes');
+    const invalid = await settings(home, 'gate.runnersOnly', 'yes');
     assert.equal(invalid.status, 1);
     assert.equal(JSON.parse(invalid.stdout).error.code, 'BAD_MACHINE_SETTINGS');
     assert.equal(readFileSync(file, 'utf8'), saved);
-    const off = settings(home, 'gate.runnersOnly', 'off');
+    const off = await settings(home, 'gate.runnersOnly', 'off');
     assert.equal(off.status, 0, off.stderr);
     assert.equal(JSON.parse(off.stdout).settings.gate.runnersOnly, false);
     writeFileSync(file, JSON.stringify({ gate: { runnersOnly: 'true' } }));
-    const malformed = settings(home);
+    const malformed = await settings(home);
     assert.equal(malformed.status, 1);
     assert.equal(JSON.parse(malformed.stdout).error.code, 'BAD_MACHINE_SETTINGS');
   } finally { rmSync(home, { recursive: true, force: true }); }
