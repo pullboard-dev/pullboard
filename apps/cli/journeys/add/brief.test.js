@@ -42,9 +42,20 @@ async function json(box, ...args) {
   return JSON.parse(result.out);
 }
 
+/** Commit empty files at `paths` on the fixture main, so a bar that names them is one a build can satisfy. */
+function seedPaths(box, paths) {
+  for (const path of paths) {
+    mkdirSync(join(box.repo, path, '..'), { recursive: true });
+    writeFileSync(join(box.repo, path), '');
+  }
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed bar paths');
+}
+
 test('add accepts one cell, refuses three cells and records an explicit size override [B35,C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
+  seedPaths(box, ['packages/alpha/a.js', 'packages/alpha/b.js', 'packages/beta/b.js', 'packages/gamma/c.js']);
   const one = (await json(box, 'add', 'web', 'Small', '--specs', 'G1', '--criterion', 'Update packages/alpha/a.js and packages/alpha/b.js.')).item;
   assert.equal(one.item_title, 'Small');
   const criterion = 'Update packages/alpha/a.js, packages/beta/b.js and packages/gamma/c.js.';
@@ -66,6 +77,7 @@ test('add accepts one cell, refuses three cells and records an explicit size ove
 test('add accepts three numbered clauses and refuses a fourth even inside one cell [B35,C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
+  seedPaths(box, ['packages/alpha/a.js']);
   const criterion = '(1) Read packages/alpha/a.js. (2) Change it. (3) Prove it.';
   await json(box, 'add', 'web', 'Three clauses', '--specs', 'G1', '--criterion', criterion);
   const refused = await fixtureAdd(box.runLocal, box.repo, 'web', 'Four clauses', '--specs', 'G1', '--criterion', criterion + ' (4) Also publish it.', '--json');
