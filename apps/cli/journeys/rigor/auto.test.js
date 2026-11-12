@@ -274,7 +274,7 @@ test('a person can replace automatic advice without breaking a later spec apply 
   } finally { box.close(); }
 });
 
-test('a stale person decision refuses spec apply before any unrelated automatic draft is written [D1,B26,S1]', () => {
+test('a stale person decision refuses spec apply before any unrelated automatic draft is written [D1,B26,S1]', async () => {
   const box = fixture();
   try {
     const config = loadConfig(box.root);
@@ -284,7 +284,7 @@ test('a stale person decision refuses spec apply before any unrelated automatic 
     writeFileSync(spec, readFileSync(spec, 'utf8').replace('Keep the product coherent.', 'Changed after the decision.'));
     for (const title of ['First', 'Second']) { const id = box.submit(title); box.reject(id); }
     const before = ['SPEC.md', 'DOCTRINE.md'].map(file => readFileSync(join(box.root, file), 'utf8'));
-    const applied = box.run('spec', 'apply', '--json');
+    const applied = (await box.runLocal('spec', 'apply', '--json'));
     assert.equal(applied.status, 1, applied.stdout + applied.stderr);
     assert.equal(JSON.parse(applied.stdout).error.code, 'STALE_ROW_DECISION');
     assert.deepEqual(['SPEC.md', 'DOCTRINE.md'].map(file => readFileSync(join(box.root, file), 'utf8')), before);

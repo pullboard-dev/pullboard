@@ -25,20 +25,20 @@ const { FILES, landProject, submitItem, acceptItem } = makeLandProjectFixtures({
   sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = 'reland-fixture'; return box; } });
 
 /** Add and claim one strong-routed item in its own worktree; a checked item otherwise routes light and needs a brief. */
-function itemWorktree(box, number) {
+async function itemWorktree(box, number) {
   const path = join(box.dir, `land-${number}`), file = FILES[number - 1];
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(fixtureJoin(box.run, path, 'web', '--route', 'strong').code, 0);
   const added = json(box, box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--route', 'strong',
     '--criterion', `land fixture ${number} remains valid`, '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`);
   const item = added.item.item_id;
-  const claimed = box.run(path, 'claim', String(item));
+  const claimed = (await box.runLocal(path, 'claim', String(item)));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   return { path, item, file };
 }
 
 /** Accept one real fixture item, then reopen it from main for a batch-wide landing red that names another test. */
-function reopenedAccepted() {
+async function reopenedAccepted() {
   const box = landProject();
   // The landing then gates the whole merged tree; this bar is about the return, not affected-test selection.
   const config = join(box.repo, 'pullboard.json');
@@ -46,18 +46,18 @@ function reopenedAccepted() {
   assert.ok(affectedTests);
   writeFileSync(config, JSON.stringify(policy, null, 2));
   box.git(box.repo, 'commit', '-q', '-m', 'chore: gate whole landings', 'pullboard.json');
-  const entry = itemWorktree(box, 1);
+  const entry = (await itemWorktree(box, 1));
   submitItem(box, entry);
   acceptItem(box, entry);
-  const reopened = box.run(box.repo, 'reopen', String(entry.item), '--note', `web/land-9.test.js: batch runner red; merge commit ${'a'.repeat(40)}`);
+  const reopened = (await box.runLocal(box.repo, 'reopen', String(entry.item), '--note', `web/land-9.test.js: batch runner red; merge commit ${'a'.repeat(40)}`));
   assert.equal(reopened.code, 0, reopened.err);
   assert.equal(json(box, box.repo, 'show', String(entry.item)).item_status, 'open');
   const since = events(box).at(-1).event_id;
   return { box, entry, since };
 }
 
-test('an open landing return with its accept and green gate at its head returns to verified and lands [C7,#2997]', () => {
-  const { box, entry, since } = reopenedAccepted();
+test('an open landing return with its accept and green gate at its head returns to verified and lands [C7,#2997]', async () => {
+  const { box, entry, since } = (await reopenedAccepted());
   const result = json(box, box.repo, 'land');
   assert.deepEqual(result.landed, [entry.item], JSON.stringify(result));
   const item = json(box, box.repo, 'show', String(entry.item));
@@ -72,8 +72,8 @@ test('an open landing return with its accept and green gate at its head returns 
   assert.equal(JSON.parse(reland.event_detail).accept, accept.verdict_id, 'the event names the accept it relies on');
 });
 
-test('an open landing return that conflicts with main stays open with its conflicting files named [C7,#2997]', () => {
-  const { box, entry, since } = reopenedAccepted();
+test('an open landing return that conflicts with main stays open with its conflicting files named [C7,#2997]', async () => {
+  const { box, entry, since } = (await reopenedAccepted());
   assert.equal(e2e.commitFile(box, box.repo, entry.file, 'MAIN CHANGED\n', 'test(web): change the same file on main [G1]').status, 0);
   json(box, box.repo, 'land');
   json(box, box.repo, 'land');

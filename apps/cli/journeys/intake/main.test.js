@@ -20,7 +20,7 @@ function refusal(result, expected) {
   assert.equal(JSON.parse(result.out || result.err).error.code, expected, result.out + result.err);
 }
 
-test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', t => {
+test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url,
     '--criterion', 'The contributed behavior works.', '--check', 'node --test test/contribution.test.js');
@@ -37,8 +37,8 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', t
   assert.equal(item.outside.maintainerReplied, true);
   assert.equal(item.outside.sensitive, true, 'relay code requires owner approval');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), box.base, 'intake never checks out or executes the PR');
-  refusal(box.run(box.web, 'verify', id, 'accept', '--note', 'unsafe host path', '--json'), 'OUTSIDE_SANDBOX_REQUIRED');
-  refusal(box.run(box.web, 'verify', id, 'accept', '--sandbox', '--note', 'missing provider', '--json'), 'SANDBOX_PROVIDER_REQUIRED');
+  refusal((await box.runLocal(box.web, 'verify', id, 'accept', '--note', 'unsafe host path', '--json')), 'OUTSIDE_SANDBOX_REQUIRED');
+  refusal((await box.runLocal(box.web, 'verify', id, 'accept', '--sandbox', '--note', 'missing provider', '--json')), 'SANDBOX_PROVIDER_REQUIRED');
 
   // These simulated image versions/TAP rows prove adapter/receipt protocol only, never real containment.
   const provider = configureFixtureSandbox(box);
@@ -50,7 +50,7 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', t
   assert.equal(item.outside.sandbox.tree, box.tree);
   assert.deepEqual(item.outside.sandbox.runs.map(run => run.environment.node), ['22.13.1', '24.21.0']);
   assert.equal(item.outside.ownerApproval, null);
-  refusal(box.run(box.repo, 'land', '--json'), 'OUTSIDE_OWNER_APPROVAL');
+  refusal((await box.runLocal(box.repo, 'land', '--json')), 'OUTSIDE_OWNER_APPROVAL');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD') === box.commit, false, 'sensitive PR never reaches the local trunk without its owner');
   fixtureJSON(box, box.repo, 'intake', 'approve', id);
   item = fixtureJSON(box, box.repo, 'show', id);
@@ -118,24 +118,24 @@ test('outside sealing and command-bearing changes require owner approval [B26,V3
   assert.ok(source.sensitivity.some(reason => reason.path === 'packages/kernel/src/logic/seal.js' && reason.rule === 'declared-sensitive-path'));
 });
 
-test('a returned outside pull request cannot be claimed as native build work [V1,V3]', t => {
+test('a returned outside pull request cannot be claimed as native build work [V1,V3]', async t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
   fixtureJSON(box, box.repo, 'reopen', id, '--note', 'outside author must revise its pull request');
-  refusal(box.run(box.web, 'claim', id, '--json'), 'OUTSIDE_NATIVE_BUILD');
+  refusal((await box.runLocal(box.web, 'claim', id, '--json')), 'OUTSIDE_NATIVE_BUILD');
   const item = fixtureJSON(box, box.repo, 'show', id);
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_built_by, 'outside:github:outside-contributor');
 });
 
-test('an outside author revision is re-intaken only after normal return and clears exact-commit approval [V1,V3,B26]', t => {
+test('an outside author revision is re-intaken only after normal return and clears exact-commit approval [V1,V3,B26]', async t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
   fixtureJSON(box, box.repo, 'intake', 'approve', id);
   const next = advanceOutsideFixture(box, 'apps/relay/src/io/deploy/outside.js', 'export const outside = "revised owned fixture";\n');
-  refusal(box.run(box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js', '--json'), 'OUTSIDE_HEAD_CHANGED');
+  refusal((await box.runLocal(box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js', '--json')), 'OUTSIDE_HEAD_CHANGED');
   assert.equal(fixtureJSON(box, box.repo, 'show', id).item_commit, box.commit, 'source refresh cannot replace an active submission');
   fixtureJSON(box, box.repo, 'reopen', id, '--note', 'outside author supplied a new exact head');
   const refreshed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');

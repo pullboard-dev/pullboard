@@ -128,12 +128,12 @@ test('[C7] the private runner keeps Git identity detection disabled after fixtur
 });
 
 /** Initialize and commit a real repo with SPEC, DOCTRINE, an SQLite board and private lanes. */
-function project({ spec = BASE_SPEC, doctrine = BASE_DOCTRINE } = {}) {
+async function project({ spec = BASE_SPEC, doctrine = BASE_DOCTRINE } = {}) {
   const box = sandbox();
   mkdirSync(join(box.dir, 'repo'));
   const root = realpathSync(join(box.dir, 'repo'));
   box.git(root, 'init', '-q', '-b', 'main');
-  const initialized = box.run(root, ['init']);
+  const initialized = (await box.runLocal(root, ['init']));
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   const configFile = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -151,24 +151,24 @@ function project({ spec = BASE_SPEC, doctrine = BASE_DOCTRINE } = {}) {
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: set up row decision fixture');
   const fixture = { ...box, root };
-  fixture.web = addWorktree(fixture, 'web', 'web/one');
+  fixture.web = (await addWorktree(fixture, 'web', 'web/one'));
   return fixture;
 }
 
 /** Create a real joined agent checkout so its identity cannot be inferred from a spoofable flag. */
-function addWorktree(box, lane, branch) {
+async function addWorktree(box, lane, branch) {
   const path = join(box.dir, lane);
   box.git(box.root, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, ['join', lane]);
+  const joined = (await box.runLocal(path, ['join', lane]));
   assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
   return path;
 }
 
 /** Run an ordinary terminal or agent CLI command with optional environment markers. */
-function command(box, cwd, ...args) {
+async function command(box, cwd, ...args) {
   const { extraEnv = {} } = args.at(-1) ?? {};
   const actualArgs = args.at(-1)?.extraEnv ? args.slice(0, -1) : args;
-  return box.run(cwd, actualArgs, extraEnv);
+  return (await box.runLocal(cwd, actualArgs, extraEnv));
 }
 
 /** Read the event count from the private SQLite file without opening or migrating the board. */
@@ -309,7 +309,7 @@ async function viewDecision(request, boardPath, verb, args) {
 }
 
 test('[B26] failed view request names its cause', async (t) => {
-  const box = project();
+  const box = (await project());
   const preload = join(box.dir, 'stderr-preload.mjs');
   writeFileSync(preload, [
     ...Array.from({ length: 25 }, (_, index) => `process.stderr.write('stderr-tail-${String(index + 1).padStart(2, '0')}\\n');`),
@@ -343,7 +343,7 @@ test('[B26] failed view request names its cause', async (t) => {
 });
 
 test('[B26,S18,S19] a declined row keeps its text and its reason', async function pendingThenApply(t) {
-  const box = project();
+  const box = (await project());
   const specPath = join(box.root, SPEC_FILE);
   const doctrinePath = join(box.root, DOCTRINE_FILE);
   const beforeSpec = readFileSync(specPath, 'utf8');
@@ -352,7 +352,7 @@ test('[B26,S18,S19] a declined row keeps its text and its reason', async functio
 
   const request = await startView(t, box);
   const boardPath = await viewBoardPath(request, box.root);
-  const identity = command(box, box.web, 'whoami', '--json');
+  const identity = (await command(box, box.web, 'whoami', '--json'));
   assert.equal(identity.status, 0, identity.stderr);
   const agentDecision = await request(`${boardPath}/moves`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -361,9 +361,9 @@ test('[B26,S18,S19] a declined row keeps its text and its reason', async functio
   assert.equal(agentDecision.status, 409, 'a named API agent cannot become the person');
   assert.equal((await agentDecision.json()).error.code, 'B26_PERSON_APPROVAL');
   await viewDecision(request, boardPath, 'spec-approve', { ids: 'G1' });
-  const declined = command(box, box.root, 'spec', 'decline', 'G2', '--reason', 'not needed', '--json');
+  const declined = (await command(box, box.root, 'spec', 'decline', 'G2', '--reason', 'not needed', '--json'));
   assert.equal(declined.status, 0, `${declined.stdout}${declined.stderr}`);
-  const doctrineApproval = command(box, box.root, 'spec', 'approve', 'doctrine:L1', '--json');
+  const doctrineApproval = (await command(box, box.root, 'spec', 'approve', 'doctrine:L1', '--json'));
   assert.equal(doctrineApproval.status, 0, `${doctrineApproval.stdout}${doctrineApproval.stderr}`);
   assert.equal(readFileSync(specPath, 'utf8'), beforeSpec, 'approve and decline only append board decisions');
   assert.equal(readFileSync(doctrinePath, 'utf8'), beforeDoctrine, 'the doctrine source also waits for coordinator apply');
@@ -372,14 +372,14 @@ test('[B26,S18,S19] a declined row keeps its text and its reason', async functio
   let pendingG2;
   let pendingG2Human;
   for (const [key, stage] of [['G1', 'approved, pending apply'], ['G2', 'declined, pending apply'], ['doctrine:L1', 'approved, pending apply']]) {
-    const shown = command(box, box.root, 'spec', 'show', key, '--json');
+    const shown = (await command(box, box.root, 'spec', 'show', key, '--json'));
     assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
     const row = JSON.parse(shown.stdout).row;
     assert.ok(row.decision, `${key} includes the recorded decision`);
     assert.equal(row.stage, stage);
     if (key === 'G2') {
       pendingG2 = row;
-      pendingG2Human = command(box, box.root, 'spec', 'show', 'G2');
+      pendingG2Human = (await command(box, box.root, 'spec', 'show', 'G2'));
       assert.equal(pendingG2Human.status, 0, `${pendingG2Human.stdout}${pendingG2Human.stderr}`);
     }
   }
@@ -387,7 +387,7 @@ test('[B26,S18,S19] a declined row keeps its text and its reason', async functio
   assert.equal(stateResponse.status, 200);
   const pendingState = await stateResponse.json();
 
-  const applied = command(box, box.root, 'spec', 'apply', '--json');
+  const applied = (await command(box, box.root, 'spec', 'apply', '--json'));
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
   const g1 = sourceRow(box, SPEC_FILE, 'G1');
   const g2 = sourceRow(box, SPEC_FILE, 'G2');
@@ -411,67 +411,67 @@ test('[B26,S18,S19] a declined row keeps its text and its reason', async functio
   assert.equal(pendingState.state.practice.find((row) => row.id === 'L1').stage, 'approved, pending apply');
   assert.deepEqual(g3, { ...parseSpec(beforeSpec).rows.find((row) => row.id === 'G3') }, 'an unaffected row keeps every parsed field');
   assert.equal(l1.status, 'approved', 'coordinator apply also handles the repo doctrine file');
-  const shownApplied = command(box, box.root, 'spec', 'show', 'G2', '--json');
+  const shownApplied = (await command(box, box.root, 'spec', 'show', 'G2', '--json'));
   assert.equal(shownApplied.status, 0, `${shownApplied.stdout}${shownApplied.stderr}`);
   assert.equal(JSON.parse(shownApplied.stdout).row.text, 'Decline this row.');
   assert.equal(JSON.parse(shownApplied.stdout).row.reason, 'not needed');
-  const humanApplied = command(box, box.root, 'spec', 'show', 'G2');
+  const humanApplied = (await command(box, box.root, 'spec', 'show', 'G2'));
   assert.equal(humanApplied.status, 0, `${humanApplied.stdout}${humanApplied.stderr}`);
   assert.match(humanApplied.stdout, /reason: not needed/u);
   const appliedState = await request(`${boardPath}/state`);
   assert.equal((await appliedState.json()).state.spec.find((row) => row.id === 'G2').reason, 'not needed');
 
   writeFileSync(specPath, readFileSync(specPath, 'utf8').replace('Decline this row.', 'A later unrelated row text.'));
-  const staleReason = command(box, box.root, 'spec', 'show', 'G2', '--json');
+  const staleReason = (await command(box, box.root, 'spec', 'show', 'G2', '--json'));
   assert.equal(staleReason.status, 0, `${staleReason.stdout}${staleReason.stderr}`);
   assert.equal(Object.hasOwn(JSON.parse(staleReason.stdout).row, 'reason'), false, 'an applied reason is hidden once its exact row text changes');
   const staleState = await request(`${boardPath}/state`);
   assert.equal(Object.hasOwn((await staleState.json()).state.spec.find((row) => row.id === 'G2'), 'reason'), false);
   const afterEvents = eventCount(box);
-  const again = command(box, box.root, 'spec', 'apply', '--json');
+  const again = (await command(box, box.root, 'spec', 'apply', '--json'));
   assert.equal(again.status, 0, again.stderr);
   assert.deepEqual(JSON.parse(again.stdout).applied, []);
   assert.equal(eventCount(box), afterEvents, 'a second apply does not duplicate the receipt');
 });
 
-test('[B26] agent markers and agent worktrees cannot decide rows; only the coordinator applies them', function guardPersonAndCoordinatorActions() {
-  const box = project();
+test('[B26] agent markers and agent worktrees cannot decide rows; only the coordinator applies them', async function guardPersonAndCoordinatorActions() {
+  const box = (await project());
   const original = readFileSync(join(box.root, SPEC_FILE), 'utf8');
   const before = eventCount(box);
   for (const marker of AGENT_SHELL_MARKERS) {
-    const refused = box.run(box.root, ['spec', 'approve', 'G1', '--json'], { [marker]: 'agent-fixture' });
+    const refused = (await box.runLocal(box.root, ['spec', 'approve', 'G1', '--json'], { [marker]: 'agent-fixture' }));
     assert.equal(refused.status, 1, `${marker}: ${refused.stdout}${refused.stderr}`);
     assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL', marker);
     assert.equal(readFileSync(join(box.root, SPEC_FILE), 'utf8'), original, `${marker} cannot edit SPEC.md`);
     assert.equal(eventCount(box), before, `${marker} cannot append a board decision`);
   }
-  const fromWorktree = box.run(box.web, ['spec', 'approve', 'G1', '--json']);
+  const fromWorktree = (await box.runLocal(box.web, ['spec', 'approve', 'G1', '--json']));
   assert.equal(fromWorktree.status, 1, `${fromWorktree.stdout}${fromWorktree.stderr}`);
   assert.equal(JSON.parse(fromWorktree.stdout).error.code, 'B26_PERSON_APPROVAL');
   assert.equal(eventCount(box), before, 'an agent worktree cannot act as the person without a shell marker');
 
-  const approved = command(box, box.root, 'spec', 'approve', 'G1', '--json');
+  const approved = (await command(box, box.root, 'spec', 'approve', 'G1', '--json'));
   assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
   const pending = readFileSync(join(box.root, SPEC_FILE), 'utf8');
-  const agentApply = box.run(box.web, ['spec', 'apply', '--json']);
+  const agentApply = (await box.runLocal(box.web, ['spec', 'apply', '--json']));
   assert.equal(agentApply.status, 1, `${agentApply.stdout}${agentApply.stderr}`);
   assert.equal(readFileSync(join(box.root, SPEC_FILE), 'utf8'), pending, 'an agent cannot apply a pending decision');
-  const applied = command(box, box.root, 'spec', 'apply', '--json');
+  const applied = (await command(box, box.root, 'spec', 'apply', '--json'));
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
   assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
 });
 
-test('[B26,S18,S19] stale row text refuses apply without changing any approved row', function staleApplyIsAtomic() {
-  const box = project();
+test('[B26,S18,S19] stale row text refuses apply without changing any approved row', async function staleApplyIsAtomic() {
+  const box = (await project());
   for (const id of ['G1', 'G2']) {
-    const approved = command(box, box.root, 'spec', 'approve', id, '--json');
+    const approved = (await command(box, box.root, 'spec', 'approve', id, '--json'));
     assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
   }
   const source = join(box.root, SPEC_FILE);
   const edited = readFileSync(source, 'utf8').replace('Decline this row.', 'Someone edited this row after approval.');
   writeFileSync(source, edited);
   const beforeApply = readFileSync(source, 'utf8');
-  const refused = command(box, box.root, 'spec', 'apply', '--json');
+  const refused = (await command(box, box.root, 'spec', 'apply', '--json'));
   assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
   const document = JSON.parse(refused.stdout);
   assert.ok(document.error, 'stale decision refusal stays a structured CLI refusal');
@@ -488,22 +488,22 @@ function makeKey(path) {
   return { privateKey: path, publicKey: `${path}.pub` };
 }
 
-test('[B26,S18,S19] signer-required approval signs the exact applied row and tampering is refused', function signedRowDecision() {
+test('[B26,S18,S19] signer-required approval signs the exact applied row and tampering is refused', async function signedRowDecision() {
   const signedSpec = `# Signed row decision fixture\n\n## G · Goals\n- G1 [draft, must] This exact row requires the person's signature. | gate: true | signers: CO\n`;
-  const box = project({ spec: signedSpec });
+  const box = (await project({ spec: signedSpec }));
   const key = makeKey(join(box.dir, 'co-signing-key'));
   box.git(box.root, 'config', 'user.signingkey', key.privateKey);
-  const listed = command(box, box.root, 'spec', 'signers', 'add', '--key', key.publicKey, '--by', 'CO', '--json');
+  const listed = (await command(box, box.root, 'spec', 'signers', 'add', '--key', key.publicKey, '--by', 'CO', '--json'));
   assert.equal(listed.status, 0, `${listed.stdout}${listed.stderr}`);
 
-  const approve = command(box, box.root, 'spec', 'approve', 'G1', '--by', 'CO', '--json');
+  const approve = (await command(box, box.root, 'spec', 'approve', 'G1', '--by', 'CO', '--json'));
   assert.equal(approve.status, 0, `${approve.stdout}${approve.stderr}`);
   assert.ok(JSON.parse(approve.stdout).decisions[0].signature, 'approval carries its signature before any source apply');
   assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'draft');
   assert.equal(existsSync(join(box.root, '.pullboard', 'signoffs.jsonl')), false, 'signing the pending decision writes no checkout receipt');
-  const applied = command(box, box.root, 'spec', 'apply', '--json');
+  const applied = (await command(box, box.root, 'spec', 'apply', '--json'));
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
-  const check = command(box, box.root, 'spec', 'check');
+  const check = (await command(box, box.root, 'spec', 'check'));
   assert.equal(check.status, 0, `${check.stdout}${check.stderr}`);
 
   const ledger = join(box.root, '.pullboard', 'signoffs.jsonl');
@@ -516,7 +516,7 @@ test('[B26,S18,S19] signer-required approval signs the exact applied row and tam
       entry.type === 'row-decision' && entry.id === 'G1' ? { ...entry, [field]: `${entry[field]} altered` } : entry
     ));
     writeFileSync(ledger, `${tampered.map((entry) => JSON.stringify(entry)).join('\n')}\n`);
-    const refused = command(box, box.root, 'spec', 'check');
+    const refused = (await command(box, box.root, 'spec', 'check'));
     assert.notEqual(refused.status, 0, `${field} is signed`);
     assert.match(`${refused.stdout}${refused.stderr}`, /BAD_SIGNATURE/u, `${field} tampering invalidates the approval receipt`);
   }
@@ -524,7 +524,7 @@ test('[B26,S18,S19] signer-required approval signs the exact applied row and tam
 });
 
 test('[B26,S19,V3] a view approval binds proposed wording without changing the source before apply', async function approvedRewrite(t) {
-  const box = project();
+  const box = (await project());
   const file = join(box.root, SPEC_FILE);
   const before = readFileSync(file, 'utf8');
   const text = 'The person approved this exact revised promise.';
@@ -548,7 +548,7 @@ test('[B26,S19,V3] a view approval binds proposed wording without changing the s
   assert.equal(row.text, 'Keep this unaffected row.');
   assert.equal(row.decision.text, text, 'the one existing decision record binds the proposed target');
   assert.equal(row.stage, 'approved, pending apply');
-  const apply = command(box, box.root, 'spec', 'apply');
+  const apply = (await command(box, box.root, 'spec', 'apply'));
   assert.equal(apply.status, 0, `${apply.stdout}${apply.stderr}`);
   assert.equal(sourceRow(box, SPEC_FILE, 'G3').text, text);
   box.git(box.root, 'add', SPEC_FILE);
@@ -562,12 +562,12 @@ test('a same-text gate change makes an approval stale everywhere [S1,B26]', asyn
     ['tier', 'G1 [draft, must]', 'G1 [draft, aim]'],
     ['format', 'Approve this row. | gate:', 'Approve this row.  | gate:'],
   ]) {
-    const box = project();
+    const box = (await project());
     const key = makeKey(join(box.dir, 'stale-signing-key'));
     box.git(box.root, 'config', 'user.signingkey', key.privateKey);
-    const signer = command(box, box.root, 'spec', 'signers', 'add', '--key', key.publicKey, '--by', 'CO', '--json');
+    const signer = (await command(box, box.root, 'spec', 'signers', 'add', '--key', key.publicKey, '--by', 'CO', '--json'));
     assert.equal(signer.status, 0, signer.stderr);
-    const approval = command(box, box.root, 'spec', 'approve', 'G1', '--by', 'CO', '--json');
+    const approval = (await command(box, box.root, 'spec', 'approve', 'G1', '--by', 'CO', '--json'));
     assert.equal(approval.status, 0, approval.stderr);
     assert.ok(JSON.parse(approval.stdout).decisions[0].signature);
     const file = join(box.root, SPEC_FILE);
@@ -577,7 +577,7 @@ test('a same-text gate change makes an approval stale everywhere [S1,B26]', asyn
     writeFileSync(file, edited);
     writeFileSync(join(box.web, SPEC_FILE), edited);
     assert.equal(sourceRow(box, SPEC_FILE, 'G1').text, 'Approve this row.');
-    const shown = command(box, box.root, 'spec', 'show', 'G1', '--json');
+    const shown = (await command(box, box.root, 'spec', 'show', 'G1', '--json'));
     assert.equal(shown.status, 0, shown.stderr);
     const row = JSON.parse(shown.stdout).row;
     assert.match(row.stage ?? '', /STALE/u, field + ': the changed signed row is stale, never approved pending apply');
@@ -590,7 +590,7 @@ test('a same-text gate change makes an approval stale everywhere [S1,B26]', asyn
     assert.equal(state.spec.find(entry => entry.id === 'G1').stage, row.stage, 'the live API uses the same exact source match');
     assert.equal(state.spec.find(entry => entry.id === 'G1').decision, undefined);
     assert.ok(state.needs.some(need => need.kind === 'draft'), 'the changed approval returns to the person');
-    const resume = command(box, box.web, 'resume', '--json');
+    const resume = (await command(box, box.web, 'resume', '--json'));
     assert.equal(resume.status, 0, resume.stderr);
     const setup = JSON.parse(resume.stdout).setup;
     assert.ok(setup.rowIds.includes('G1'));
@@ -598,51 +598,51 @@ test('a same-text gate change makes an approval stale everywhere [S1,B26]', asyn
     assert.match(setup.question, /STALE/u);
     assert.match(setup.question, new RegExp(field));
     assert.match(setup.question, /person.*approve.*again/u);
-    const health = command(box, box.root, 'health', '--json');
+    const health = (await command(box, box.root, 'health', '--json'));
     assert.equal(health.status, 1, health.stderr);
     const stale = JSON.parse(health.stdout).stuck.find(entry => entry.cause === 'STALE_ROW_DECISION');
     assert.ok(stale, field + ': health names the blocked approval');
     assert.match(stale.why, new RegExp(field));
     assert.match(stale.next, /person.*approve.*again/u);
-    const digest = command(box, box.root, 'digest');
+    const digest = (await command(box, box.root, 'digest'));
     assert.equal(digest.status, 0, digest.stderr);
     assert.match(digest.stdout, /STALE/u);
     assert.match(digest.stdout, new RegExp(field));
-    const page = command(box, box.root, 'spec', 'view', '--json');
+    const page = (await command(box, box.root, 'spec', 'view', '--json'));
     assert.equal(page.status, 0, page.stderr);
     assert.match(readFileSync(JSON.parse(page.stdout).path, 'utf8'), /STALE/u, 'the offline listing does not hide the stale approval');
-    const apply = command(box, box.root, 'spec', 'apply', '--json');
+    const apply = (await command(box, box.root, 'spec', 'apply', '--json'));
     assert.equal(apply.status, 1, apply.stderr);
     assert.equal(JSON.parse(apply.stdout).error.code, 'STALE_ROW_DECISION');
     assert.equal(readFileSync(file, 'utf8'), edited, 'refusal writes no part of the signed source');
-    const renewed = command(box, box.root, 'spec', 'approve', 'G1', '--by', 'CO', '--json');
+    const renewed = (await command(box, box.root, 'spec', 'approve', 'G1', '--by', 'CO', '--json'));
     assert.equal(renewed.status, 0, renewed.stderr);
     const renewedRecord = JSON.parse(renewed.stdout).decisions[0];
     assert.ok(renewedRecord.signature, 'the renewed person approval is signed too');
-    const current = command(box, box.root, 'spec', 'show', 'G1', '--json');
+    const current = (await command(box, box.root, 'spec', 'show', 'G1', '--json'));
     assert.equal(JSON.parse(current.stdout).row.stage, 'approved, pending apply', 'a new person decision clears staleness');
 
     const renewedState = (await (await request(`${boardPath}/state`)).json()).state;
     const renewedRow = renewedState.spec.find(entry => entry.id === 'G1');
     assert.equal(renewedRow.stage, 'approved, pending apply', 'the live API clears the stale projection');
     assert.ok(renewedRow.decision, 'the live API retains the renewed decision');
-    const resumed = command(box, box.web, 'resume', '--json');
+    const resumed = (await command(box, box.web, 'resume', '--json'));
     assert.equal(resumed.status, 0, resumed.stderr);
     const resumedSetup = JSON.parse(resumed.stdout).setup;
     assert.ok(resumedSetup.approvedRowIds?.includes('G1'), 'resume recognizes G1 as awaiting apply');
     assert.ok(!resumedSetup.rowIds.includes('G1'), 'resume no longer presents G1 as a draft needing a fresh decision');
-    const recoveredHealth = command(box, box.root, 'health', '--json');
+    const recoveredHealth = (await command(box, box.root, 'health', '--json'));
     const recoveredHealthReport = JSON.parse(recoveredHealth.stdout);
     assert.ok(!recoveredHealthReport.stuck.some(entry => entry.cause === 'STALE_ROW_DECISION'), 'health clears the stale finding after renewed approval');
-    const recoveredDigest = command(box, box.root, 'digest');
+    const recoveredDigest = (await command(box, box.root, 'digest'));
     assert.equal(recoveredDigest.status, 0, recoveredDigest.stderr);
     const currentStuck = recoveredDigest.stdout.split('## Stuck and who moves it')[1].split('## Open work')[0];
     assert.doesNotMatch(currentStuck, /STALE/u, 'digest clears the current stale warning while retaining historical shouts');
-    const recoveredPage = command(box, box.root, 'spec', 'view', '--json');
+    const recoveredPage = (await command(box, box.root, 'spec', 'view', '--json'));
     assert.equal(recoveredPage.status, 0, recoveredPage.stderr);
     assert.doesNotMatch(readFileSync(JSON.parse(recoveredPage.stdout).path, 'utf8'), /STALE/u, 'offline listing clears the stale warning after renewed approval');
 
-    const applied = command(box, box.root, 'spec', 'apply', '--json');
+    const applied = (await command(box, box.root, 'spec', 'apply', '--json'));
     assert.equal(applied.status, 0, applied.stderr);
     assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
   }
