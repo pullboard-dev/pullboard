@@ -1271,6 +1271,9 @@
   "apps/cli/journeys/resume/plans.test.js": {
     "launch": 4
   },
+  "apps/cli/journeys/resume/presence.test.js": {
+    "launch": 17
+  },
   "apps/cli/journeys/resume/tour-demo.test.js": {
     "launch": 2
   },
