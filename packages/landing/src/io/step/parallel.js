@@ -24,6 +24,9 @@ import { bisect } from './diagnose.js';
 import { returnCulprits } from './diagnose.js';
 import { returnCulprit } from './diagnose.js';
 import { judgeRed } from './judge.js';
+import { splitBaseRed } from './diagnose.js';
+import { diagnose } from './diagnose.js';
+import { fileRepairItems } from './diagnose.js';
 import { publish } from './publish.js';
 import { landsOnTrunk } from './publish.js';
 import { inlineDeferredGuards } from './trunk.js';
@@ -201,12 +204,17 @@ function parallelGreenBase(state, gate) {
     && observation.classification === 'possible-regression' && observation.mainReceipt?.green === true));
 }
 
+/** Judge a red gate with the live diagnose.js ports. */
+function judgeLive(state, gate) {
+  return judgeRed(state, gate, { split: splitBaseRed, rerun: diagnose, repair: fileRepairItems });
+}
+
 /**
  * The index of the last prefix proven green: green, waived, or judged red-free (main's cases charged, flakes
  * quarantined after one green rerun). A judged prefix carries its proof; one left red carries its twice-red cases.
  * Why: a red that main shares or that passes its rerun never becomes a trunk-holding test defect [C7,#5838,#5862].
  */
-export async function provenThrough(state, results, { judge = judgeRed, promote = promoteCandidate } = {}) {
+export async function provenThrough(state, results, { judge = judgeLive, promote = promoteCandidate } = {}) {
   let green = results.findLastIndex(result => result.gate?.isGreen || result.gate && waivedProof(state, result.gate));
   while (green < results.length - 1 && results[green + 1].gate) {
     // The rerun reads the batch worktree, so it must hold the judged composition first.
