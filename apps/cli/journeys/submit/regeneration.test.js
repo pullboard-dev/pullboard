@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { waitFor } from '../../tests/fixtures/gate/resource.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { withBrief } from '../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../tests/fixtures/submit/gate.js';
@@ -31,8 +33,14 @@ function tool(box, name, ...args) {
   return result.stdout;
 }
 
+/** The same call as box.run, answered by the production dispatcher in this process, with no node start-up. */
+async function local(box, cwd, ...args) {
+  const result = await runCliInProcess(withBrief(...args), { cwd, env: box.env });
+  return { code: result.status, out: result.stdout, err: result.stderr };
+}
+
 /** A claimed project with real cell placement, a lint baseline and a deliberately deferred ordinary full gate. */
-function project(t, remove = false) {
+async function project(t, remove = false) {
   const main = privateRepo(t);
   const marker = join(main.dir, 'full-gate.txt');
   put(main.root, 'pullboard.json', JSON.stringify({ gate: `FULL_GATE_MARKER='${marker}' node --test test/work.test.js`,
@@ -77,8 +85,8 @@ test('the leaf matches accepted main [G1]', () => {
   writeCellLintBaseline(main.root, baseline, { initialize: true });
   commitAll(main);
   const box = builderRepo(main, ['packages/', 'bin/', 'apps/']);
-  assert.equal(box.coordinator('add', 'build', 'Recorded tool change', '--criterion', 'the leaf moves behind its door [test]', '--specs', 'G1', '--check', 'node --test test/work.test.js').code, 0);
-  assert.equal(box.run('claim', '1').code, 0);
+  assert.equal((await local(box, main.root, 'add', 'build', 'Recorded tool change', '--criterion', 'the leaf moves behind its door [test]', '--specs', 'G1', '--check', 'node --test test/work.test.js')).code, 0);
+  assert.equal((await local(box, box.root, 'claim', '1')).code, 0);
   return { main, box, marker };
 }
 
@@ -101,6 +109,7 @@ function advance(main) {
 
 /** Read the item once its queued gate has settled; the fixture's detached worker runs the real gate. */
 function settledSubmit(box) {
+  // Process-level: waitFor polls synchronously, so this read of the detached worker's result stays a launch.
   const settled = () => {
     const item = JSON.parse(box.run('show', '1', '--json').out);
     return ['queued', 'running'].includes(item.queuedSubmit?.state) ? null : item;
@@ -109,7 +118,7 @@ function settledSubmit(box) {
 }
 
 for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, async t => {
-  const { main, box, marker } = project(t, command === 'remove-shims');
+  const { main, box, marker } = await project(t, command === 'remove-shims');
   let original = move(box, main.dir);
   if (command === 'remove-shims') {
     tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'build');
@@ -126,8 +135,9 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   try { await warmAcceptedCells(main.root, currentMain, { withCheckout: withMainCheckout, withLock: withFileLock }); }
   finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
   assert.equal(existsSync(marker), false);
+  // Process-level: the detached gate worker and its full-gate marker need a real submit process.
   const submitted = box.run('submit', '1', '--wait', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
-  assert.equal(submitted.code, 0, submitted.err + submitted.out + (submitted.code ? `\nCurrent item: ${box.run('show', '1', '--json').out}` : ''));
+  assert.equal(submitted.code, 0, submitted.err + submitted.out + (submitted.code ? `\nCurrent item: ${(await local(box, box.root, 'show', '1', '--json')).out}` : ''));
   // A seat holding its claim gets submit back at once [P7]; the journey reads the queued gate's settled result.
   assert.equal(JSON.parse(submitted.out).queued, true, 'the regenerated source goes through the queued handoff');
   const item = await settledSubmit(box);
@@ -151,14 +161,14 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.equal(recordedToolCommits(box.root, currentMain, head).at(-1).commands[0].tool, command, 'another main advance can replay this new head too');
 });
 
-test('a hand edit mixed into a tool result retains the ordinary main-conflict refusal and its source [C7,V6]', t => {
-  const { main, box, marker } = project(t);
+test('a hand edit mixed into a tool result retains the ordinary main-conflict refusal and its source [C7,V6]', async t => {
+  const { main, box, marker } = await project(t);
   move(box, main.dir);
   put(box.root, 'src/leaf.js', readFileSync(join(box.root, 'src/leaf.js'), 'utf8') + '// handwritten addition\n');
   const original = commitAll(box, 'refactor(core): retain a handwritten addition [G1]');
   const currentMain = advance(main);
   assert.equal(recordedToolCommits(box.root, currentMain, original), null);
-  const submitted = box.run('submit', '1', '--json', '--infra', 'mixed-source refusal fixture');
+  const submitted = await local(box, box.root, 'submit', '1', '--json', '--infra', 'mixed-source refusal fixture');
   assert.notEqual(submitted.code, 0);
   assert.match(submitted.err + submitted.out, /MERGE_CONFLICT/u);
   assert.equal(box.git('rev-parse', 'HEAD'), original);
