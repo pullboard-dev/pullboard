@@ -143,8 +143,11 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');
-  const diag = cli(box, box.builder, 'resume', '--diagnostics');
-  const nxt = cli(box, box.builder, 'next', '--no-take');
-  assert.fail(`DEBUG resume ${diag.status}\n${diag.stdout}${diag.stderr}\nNEXT ${nxt.status}\n${nxt.stdout}${nxt.stderr}`);
+  const again = cli(box, box.builder, 'submit', String(box.item), '--wait', '--no-next', '--json');
+  const shown = cli(box, box.builder, 'show', String(box.item));
+  const nxt = cli(box, box.builder, 'next');
+  const diag = { status: again.status, stdout: again.stdout.slice(0, 1500), stderr: again.stderr.slice(0, 500) };
+  const sh = shown.stdout.split('\n').filter(l => /refus|lost|worker|gate|queued/iu.test(l)).join('\n');
+  assert.fail(`DEBUG resubmit ${diag.status}\n${diag.stdout}${diag.stderr}\nSHOW\n${sh}\nNEXT ${nxt.status}\n${nxt.stdout.slice(0, 800)}${nxt.stderr}`);
   assert.equal(submittedProof(box), null, 'a lost worker cannot fabricate a gate outcome');
 });
