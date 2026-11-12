@@ -11,6 +11,8 @@ import {
   resolve,
 } from 'node:path';
 import { packageFiles } from './package/files.js';
+import { LEGACY_WORKER_ENTRY } from '../logic/entries.js';
+import { WORKER_ENTRY } from '../logic/entries.js';
 import { requireEdges } from '../logic/urls.js';
 import { runtimeUrls } from '../logic/urls.js';
 import { TOOLING_MANIFEST_NAME } from './source/scan.js';
@@ -74,10 +76,7 @@ function isFolder(root, target) {
   try { return statSync(join(root, target)).isDirectory(); } catch { return false; }
 }
 
-/** The worker entry a 0.9.3 tree holds; accepted only while that file exists, one release back. */
-export const LEGACY_WORKER_ENTRY = 'apps/runner/src/io/scripts/worker.js';
-/** The worker entry once it lives in its cell. */
-export const WORKER_ENTRY = 'apps/runner/runner-worker.js';
+export { LEGACY_WORKER_ENTRY, WORKER_ENTRY };
 
 /** The worker entry of this tree: the legacy path while it exists (0.9.3 layout), else the cell path. */
 export function workerEntry(root) {
