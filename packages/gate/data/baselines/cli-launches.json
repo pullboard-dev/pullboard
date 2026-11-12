@@ -1809,10 +1809,7 @@
     "launch": 9
   },
   "apps/cli/journeys/view/e2e.test.js": {
-    "launch": 18
-  },
-  "apps/cli/journeys/view/main.test.js": {
-    "launch": 7
+    "launch": 4
   },
   "apps/cli/journeys/view/move.test.js": {
     "launch": 1
@@ -1821,7 +1818,7 @@
     "launch": 15
   },
   "apps/cli/journeys/view/services.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/view/startup.test.js": {
     "launch": 1
