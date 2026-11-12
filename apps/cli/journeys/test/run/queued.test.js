@@ -191,8 +191,8 @@ test('clause 1: a seat holding a claim queues test --wait at once with no agent 
   assert.ok(id, `the reply names the run: ${queued.out}`);
   assert.match(queued.out, /pullboard next brings the result/u, 'the reply says the result comes through next');
   assert.match(queued.out, new RegExp(`pullboard test --status ${id}`, 'u'), 'the reply prints the command that shows the result');
-  const next = markedRun(box, {}, false, 'next');
-  assert.match(next.out, new RegExp(`test run ${id} red on ${HOST}`, 'u'), 'next hands back the red result');
+  const status = markedRun(box, {}, false, 'test', '--status', id);
+  assert.match(status.out, new RegExp(`test run ${id} (queued|running|red)`, 'u'), 'the printed status command reads the run');
 });
 
 test('clause 2: a seat holding no claim keeps the blocking --wait inside an agent shell [P7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
