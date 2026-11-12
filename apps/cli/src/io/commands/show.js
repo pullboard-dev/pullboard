@@ -157,7 +157,7 @@ export async function run(io, { first, values }) {
     const testRuntimes = hasTestRuntimes ? testRuntimeRows(receipt.testRuntimes) : null;
     const environment = hasTestRuntimes ? testRuntimeEnvironment(testRuntimes) : receipt.environment;
     const runtime = environment ? `Node ${environment.node} ${environment.platform}/${environment.arch}` : 'runtime unknown';
-    const counts = Object.values(receipt.counts).some(value => value === null) ? 'test counts unknown'
+    const counts = !receipt.counts || Object.values(receipt.counts).some(value => value === null) ? 'test counts unknown'
       : `${receipt.counts.passed} pass, ${receipt.counts.failed} fail, ${receipt.counts.skipped} skip`;
     io.say(`receipt ${receipt.id}: ${receipt.kind}, item #${receipt.item}`);
     io.say(`  commit ${receipt.commit ?? 'unknown'}; tree ${receipt.tree ?? 'unknown'}; frozen ${receipt.frozenDigest ?? 'unknown'}`);
