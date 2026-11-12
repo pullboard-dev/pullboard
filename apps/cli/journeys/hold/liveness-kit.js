@@ -36,6 +36,14 @@ const STEPS = {
     box.submit(id); // the submit is the work done: past it the board owns the item, so a dead holder cannot strand it
     return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' };
   },
+  async verify(box, id) {
+    box.submit(id);
+    // The reviewer takes the verify: `next` reserves the submitted item for it, then it is the holder that breaks.
+    const taken = await cli(box, box.seats.sibling.path, ['next']);
+    if (taken.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the reviewer's next ran red before the fault: ${taken.out}${taken.err}`);
+    const reviewer = box.seats.sibling;
+    return { holder: reviewer, done: item => item.item_status !== 'submitted' || item.item_reviewer !== reviewer.id };
+  },
 };
 
 /** The step names the kit knows. */
