@@ -144,7 +144,7 @@ test('an interrupted batch whose worktree is gone is blocked and a fresh batch l
 
 test('a batch whose landing process is still live is left alone [B35,B3]', async t => {
   const { box, reviewer, first, trunk } = await waitingItem(t);
-  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: process.pid });
+  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: process.ppid }); // the parent is a live process other than this in-process adopter, whose own pid never counts as live
   const second = await acceptItem(box, reviewer, 'second.txt', 'Second result');
   assert.equal(second.verify.code, 0, 'the verdict stands; only landing waits');
   assert.match(second.verify.err, /LAND_ADOPT/u);
