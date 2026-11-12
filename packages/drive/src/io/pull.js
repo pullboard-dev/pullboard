@@ -28,6 +28,7 @@ import { totalmem } from 'node:os';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
 import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
@@ -331,7 +332,7 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]
  */
 export function jobEnvironment(cache, name, job, host = process.env) {
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
-  rmSync(folder, { recursive: true, force: true });
+  try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
   for (const path of [home, temporary]) mkdirSync(path, { recursive: true, mode: 0o700 });
   const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
   const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
@@ -511,11 +512,12 @@ function gateReceipt(result, commit, durationMs) {
 /**
  * Whether a machine under this load takes another job: its one-minute load is under `share` of its cores [P7].
  * Why: with no runners the machine runs its own gates, and a job taken at any load thrashed a busy Mac; the row waits in the queue instead.
+ * A runner with no job running still takes one at any load, so a person on one busy machine always gets their gate [P7].
  *
- * @param {{ load: number, cores: number, share: number }} machine
+ * @param {{ load: number, cores: number, share: number, running?: number }} machine - running: jobs this runner holds now; default 1.
  */
-export function localLoadAdmits({ load, cores, share }) {
-  return load < share * cores;
+export function localLoadAdmits({ load, cores, share, running = 1 }) {
+  return running === 0 || load < share * cores;
 }
 
 /**
@@ -532,7 +534,7 @@ export function localLoadAdmits({ load, cores, share }) {
  * @param {number | string} [options.jobs] - How many jobs run at once; default PULLBOARD_RUNNER_JOBS, else serveSlots().
  * @param {number} [options.cores] - This runner's cores, shared out between its jobs; default availableParallelism().
  * @param {AbortSignal} [options.signal]
- * @param {() => boolean} [options.admit] - Asked before each claim; false leaves the queue untouched and tries again after the idle wait.
+ * @param {(state: { running: number }) => boolean} [options.admit] - Asked before each claim, with the jobs it holds now; false leaves the queue untouched and tries again after the idle wait.
  * @param {typeof fetch} [options.fetchImpl]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(line: string) => void} [options.say]
@@ -543,10 +545,11 @@ export function localLoadAdmits({ load, cores, share }) {
  *   slot's own folder, the serve's cache for slot 0.
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
@@ -667,7 +670,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
       post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
-    const env = { ...job.env, [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(workers), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    // The gate bootstrap judges a project whose main is not Pullboard's tree with this runner's own install (#6265).
+    const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: fileURLToPath(new URL('../../../../', import.meta.url)), [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(workers), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
@@ -682,7 +686,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const survivors = await reapJob(claim.job, running.pid, { claim: tag, graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
-    rmSync(job.folder, { recursive: true, force: true });
+    // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
+    try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
       await queueCall(endpoint, { action: 'release', ...held }, fetchImpl).catch(() => { /* the lease lapses instead */ });
@@ -714,7 +719,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   while (!signal?.aborted && !failure) {
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
-    if (!admit()) {
+    if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([sleep(idleMs), ...active]); continue;
     }

@@ -16,6 +16,7 @@ function schema(base) {
     cells: fields(['cache', 'shimMaxAgeDays']),
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
+    claims: { ...shape(base.claims), ...fields(['perSeat']) },
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
     landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
