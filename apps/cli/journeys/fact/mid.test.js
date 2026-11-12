@@ -17,8 +17,11 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
 /** A plain `add` that names no route: the shared fixture runner files bare adds as strong (#5428), so these cases spawn the CLI themselves. */
-function plainAdd(helpers, box, ...args) {
-  const result = runFixtureChild(process.execPath, [helpers.BIN, 'add', ...args], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+function plainAdd(helpers, box, ...args) { return plainCli(helpers, box, 'add', ...args); }
+
+/** Run any pullboard command the same way. */
+function plainCli(helpers, box, command, ...args) {
+  const result = runFixtureChild(process.execPath, [helpers.BIN, command, ...args], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr };
 }
 
@@ -87,7 +90,7 @@ test('clause 1: a diagnosis fact on a strong item keeps it strong and prints the
     assert.equal(added.code, 0, added.err + added.out);
     ids[route] = JSON.parse(added.out).item.item_id;
   }
-  const fact = id => runFixtureChild(process.execPath, [helpers.BIN, 'fact', String(id), 'diagnosis', diagnosis], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const fact = id => { const r = plainCli(helpers, box, 'fact', String(id), 'diagnosis', diagnosis); return { status: r.code, stdout: r.out, stderr: r.err }; };
   const strong = fact(ids.strong);
   assert.equal(strong.status, 0, `${strong.stderr}${strong.stdout}`);
   assert.match(strong.stdout, new RegExp(`pullboard edit ${ids.strong} --route light`, 'u'), strong.stdout);
