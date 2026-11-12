@@ -65,7 +65,7 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
     if (diagnosis) {
       board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
         .run(`item_diagnosis:${id}`, JSON.stringify({ ...diagnosis, factId, by: agentId, criterion: item.item_criterion, check: item.item_check }));
-      // A strong item keeps its route and brief: the coordinator lowers it with pullboard edit, so a cold seat never claims work that needs Opus.
+      // A strong item keeps its route and brief: the coordinator lowers it with pullboard edit, so a cold seat never claims work that needs the strong route.
       if (item.item_route !== 'strong') setItem(board, id, { item_route: 'light', item_brief: diagnosisBrief(diagnosis) });
     }
     const result = tellFactImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), factFromEvent(trigger), { id, implies, supersedes });
