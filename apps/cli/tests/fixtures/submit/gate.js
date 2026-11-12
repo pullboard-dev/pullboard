@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
+import { fixtureMachineSettings } from '../testkit.js';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -20,7 +21,7 @@ const dirs = [];
 export const SPEC = '# Submit proof fixture\n\n## G · Goals\n- G1 [approved, must] The selected test proves the change. | gate: test\n';
 
 after(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
 });
 
 /** Resolve the real CLI relative to this test without importing any project dependencies. */
@@ -32,7 +33,7 @@ function resolveBin() {
 export function privateRepo(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-gate-')));
   dirs.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }));
   const root = join(dir, 'repo');
   mkdirSync(root);
   const env = {
@@ -48,6 +49,9 @@ export function privateRepo(t) {
   };
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.NODE_TEST_CONTEXT;
+  // These submits hold their gate in the submitting process, so the fixture pins controller dispatch [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   /** Run real Git in this fixture with only the fixture's configured identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
@@ -67,7 +71,7 @@ export function privateRepo(t) {
 }
 
 /** Add items with the criterion, route and brief the board now requires; every other move passes through. */
-function withBrief(...args) {
+export function withBrief(...args) {
   if (args[0] !== 'add' || args.includes('--route')) return args;
   const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
   if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];

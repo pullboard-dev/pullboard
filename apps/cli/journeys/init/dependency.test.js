@@ -40,8 +40,7 @@ function fixture(t, health = {}) {
   git(repo, 'commit', '-qm', 'fixture: base');
   const base = git(repo, 'rev-parse', 'HEAD');
   let at = Date.now() + 60_000;
-  mkdirSync(join(repo, '.git', 'pullboard'), { recursive: true });
-  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(':memory:', { now: () => new Date(at) });
   t.after(() => {
     store.closeBoard(board);
     if (priorHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = priorHome;

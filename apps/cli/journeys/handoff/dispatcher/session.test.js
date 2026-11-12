@@ -20,6 +20,7 @@ import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
 /** Read only the native item, queue state and gate receipts from the private fixture board. */
 function nativeState(box, id) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = getItem(board, id);

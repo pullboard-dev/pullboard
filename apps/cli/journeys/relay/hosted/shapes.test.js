@@ -627,7 +627,7 @@ async function buildBoards(t, boards, engines) {
     }
   };
   if (boards === 'excluded') {
-    assert.equal((await box.cli('relay', 'off')).code, 0, 'relay off excludes the board');
+    assert.equal((await box.cliLocal('relay', 'off')).code, 0, 'relay off excludes the board');
     await relayOnAll(box);
   }
   if (boards === 'healthy') { await enrollAndRevoke(); linked.push(linkOf(box, box.root)); }
@@ -649,11 +649,11 @@ async function buildBoards(t, boards, engines) {
   if (boards === 'mixed') {
     const big = await siblingProject(box, 'big', 'fixture/big');
     const skipped = await siblingProject(box, 'skipped', 'fixture/skipped');
-    assert.equal((await box.cliAt(skipped, 'relay', 'off')).code, 0, 'one project is excluded');
+    assert.equal((await box.cliAtLocal(skipped, 'relay', 'off')).code, 0, 'one project is excluded');
     await enrollAndRevoke();
     box.legacySnapshotApi('bad-route');
     box.rejectSnapshots({ status: 400, code: 'BAD_REQUEST', message: 'the body exceeds 14000000 bytes; send a smaller snapshot' });
-    assert.equal((await box.cliAt(big, 'relay', 'on', '--url', box.origin)).code, 0, 'the big project links, paused for size');
+    assert.equal((await box.cliAtLocal(big, 'relay', 'on', '--url', box.origin)).code, 0, 'the big project links, paused for size');
     linked.push(linkOf(box, box.root), linkOf(box, big));
   }
   const view = await boardView(box);
@@ -813,15 +813,15 @@ test('a board over the size limit is named with its size and the limit, beside a
   box.limitSnapshots(null);
   const healthy = await siblingProject(box, 'healthy-sibling', 'fixture/healthy-sibling');
   const healthyLane = Object.keys(JSON.parse(readFileSync(join(healthy, 'pullboard.json'), 'utf8')).lanes)[0];
-  assert.equal((await box.cliAt(healthy, 'add', healthyLane, BOARD_ITEM)).code, 0,
+  assert.equal((await box.cliAtLocal(healthy, 'add', healthyLane, BOARD_ITEM)).code, 0,
     'the healthy board has the real item required by the unchanged visibility probe');
-  assert.equal((await box.cliAt(healthy, 'relay', 'on', '--url', box.origin)).code, 0);
+  assert.equal((await box.cliAtLocal(healthy, 'relay', 'on', '--url', box.origin)).code, 0);
   const mixed = await visit(paired, { route: front.route(session, null), phone: true }, true);
   assert.equal(mixed.board, true, 'the healthy sibling remains readable');
   assert.match(mixed.words, /fixture\/repository[^.]*too (?:big|large)/iu, 'keep the size blocker beside the healthy board');
   assert.ok(mixed.words.includes(refusal.sealedBytes + ' bytes') && mixed.words.includes(refusal.limit + ' bytes'));
   box.legacySnapshotApi(false);
-  assert.equal((await box.cli('status')).code, 0, 'the offered bounded-snapshot upgrade actually resumes publication');
+  assert.equal((await box.cliLocal('status')).code, 0, 'the offered bounded-snapshot upgrade actually resumes publication');
   const recovered = await visit(paired, { route: front.route(session, null), phone: true }, true);
   assert.equal(recovered.board, true);
   assert.doesNotMatch(recovered.words, /too (?:big|large)|128 bytes/iu, 'a successful snapshot clears its stale size notice');
@@ -867,7 +867,7 @@ test('an excluded board is named as excluded with the step that includes it [H5,
   assert.ok(await pairingPage.poll(OPEN_BOARD, 8_000), 'the genuine enrolled browser opens the healthy board');
   await pairingPage.close();
   const excluded = await siblingProject(box, 'excluded-project', 'fixture/excluded-board');
-  assert.equal((await box.cliAt(excluded, 'relay', 'off')).code, 0);
+  assert.equal((await box.cliAtLocal(excluded, 'relay', 'off')).code, 0);
   const metadata = await fetch(box.origin + '/api/v1/devices/exclusions', { headers: { cookie: 'pb_session=' + session } });
   assert.equal(metadata.status, 200);
   const publicInventory = await metadata.json();
@@ -883,12 +883,12 @@ test('an excluded board is named as excluded with the step that includes it [H5,
   assert.equal(named.board, true, 'the healthy board remains readable beside the exclusion');
   assert.match(named.words, /fixture\/excluded-board[^.]*excluded/iu, 'only the device-wrapped browser decrypts the excluded name');
   assert.match(named.words, /pullboard relay on/u, 'the named exclusion carries its include command');
-  assert.equal((await box.cliAt(excluded, 'relay', 'on', '--url', box.origin)).code, 0,
+  assert.equal((await box.cliAtLocal(excluded, 'relay', 'on', '--url', box.origin)).code, 0,
     'the offered ordinary command actually includes the excluded board');
   const cleared = await fetch(box.origin + '/api/v1/devices/exclusions', { headers: { cookie: 'pb_session=' + session } });
   assert.equal(cleared.status, 200);
   assert.deepEqual((await cleared.json()).exclusions, [], 'including the board clears its published exclusion');
-  assert.equal((await box.cliAt(excluded, 'relay', 'off')).code, 0,
+  assert.equal((await box.cliAtLocal(excluded, 'relay', 'off')).code, 0,
     'off also publishes from the removed board’s own machine credential');
   const removed = await fetch(box.origin + '/api/v1/devices/exclusions', { headers: { cookie: 'pb_session=' + session } });
   assert.equal(removed.status, 200);
@@ -941,7 +941,7 @@ test('the matrix runs as its own job, outside the landing gate [H5,C7]', () => {
   assert.match(job, /run: npm run hosted-shapes/u);
   assert.equal(workflow.match(/npm run hosted-shapes|PULLBOARD_HOSTED_SHAPES|hosted-shapes\.test\.js/gu).length, 1, 'no other job runs the matrix');
   const scripts = JSON.parse(readFileSync(new URL('../../../../../package.json', import.meta.url), 'utf8')).scripts;
-  assert.equal(scripts['hosted-shapes'], 'PULLBOARD_HOSTED_SHAPES=1 node packages/gate/src/io/run/tests.js apps/cli/journeys/relay/hosted/shapes.test.js', 'one script runs the matrix as its own job');
+  assert.equal(scripts['hosted-shapes'], 'PULLBOARD_HOSTED_SHAPES=1 node apps/cli/src/io/run/tests.js apps/cli/journeys/relay/hosted/shapes.test.js', 'one script runs the matrix as its own job');
   assert.equal(/hosted-shapes|PULLBOARD_HOSTED_SHAPES/u.test(scripts.gate + scripts.test), false, 'the gate and npm test never set it');
 });
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/check/signoffs.js */
 /** A fresh board's real installed hook accepts only its live claimed item as a temporary citation [I1,N26]. */
 import assert from 'node:assert/strict';
 import {
@@ -21,7 +21,7 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('a push whose base has no maintainers list passes with the policy not active [C1,C7]', () => {
+test('a push whose base has no maintainers list passes with the policy not active [C1,C7]', async () => {
   const box = e2e.sandbox();
   const repo = join(box.dir, 'signoff-bootstrap');
   mkdirSync(repo);
@@ -79,12 +79,12 @@ test('a push whose base has no maintainers list passes with the policy not activ
   assert.doesNotMatch(refused.stdout, /policy not active/u);
 });
 
-test('an outside commit without a sign-off is refused with its fix [C1,C7]', () => {
+test('an outside commit without a sign-off is refused with its fix [C1,C7]', async () => {
   const box = e2e.sandbox();
   const repo = join(box.dir, 'signoff-hook');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  moved(box, repo, 'init');
+  await moved(box, repo, 'init');
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.maintainers = ['agent@example.com'];
@@ -170,26 +170,26 @@ test('an outside commit without a sign-off is refused with its fix [C1,C7]', () 
 });
 
 /** Require a real CLI move to succeed before a dependent fixture step. */
-function moved(box, root, ...args) {
-  const result = box.run(root, ...args);
+async function moved(box, root, ...args) {
+  const result = await box.runLocal(root, ...args);
   assert.equal(result.code, 0, result.err || result.out);
   return result;
 }
 
-test('a fresh board accepts a first commit that cites its item [I1,N26]', () => {
+test('a fresh board accepts a first commit that cites its item [I1,N26]', async () => {
   const box = e2e.sandbox();
   const repo = join(box.dir, 'fresh');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  moved(box, repo, 'init');
-  moved(box, repo, 'lane', 'add', 'app', '--owns', 'app/');
+  await moved(box, repo, 'init');
+  await moved(box, repo, 'lane', 'add', 'app', '--owns', 'app/');
   mkdirSync(join(repo, 'app'));
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up the fresh board');
-  const rows = JSON.parse(moved(box, repo, 'spec', '--json').out).rows;
+  const rows = JSON.parse((await moved(box, repo, 'spec', '--json')).out).rows;
   assert.equal(rows.filter(row => row.file === 'SPEC.md' && row.status === 'approved').length, 0, 'the real fresh board has no approved row');
   for (const title of ['Own first feature', 'Another builder feature', 'Unclaimed feature']) {
-    moved(box, repo, 'add', 'app', title, '--criterion', title + ' works.');
+    await moved(box, repo, 'add', 'app', title, '--criterion', title + ' works.');
   }
   const own = join(box.dir, 'own');
   const other = join(box.dir, 'other');
@@ -198,8 +198,8 @@ test('a fresh board accepts a first commit that cites its item [I1,N26]', () => 
     const joined = joinFixtureSeat(box, root, 'app');
     assert.equal(joined.code, 0, joined.err || joined.out);
   }
-  moved(box, own, 'claim', '1');
-  moved(box, other, 'claim', '2');
+  await moved(box, own, 'claim', '1');
+  await moved(box, other, 'claim', '2');
   mkdirSync(join(own, 'app'));
   writeFileSync(join(own, 'app/first.txt'), 'first useful feature\n');
   box.git(own, 'add', 'app/first.txt');
@@ -208,16 +208,16 @@ test('a fresh board accepts a first commit that cites its item [I1,N26]', () => 
     assert.notEqual(refused.status, 0, citation + ' cannot replace an owned live claim');
     assert.match(refused.stderr, /pullboard commit-msg/iu, 'the actual installed message hook refuses the citation');
   }
-  moved(box, own, 'release', '1', '--reason', 'BLOCKED');
+  await moved(box, own, 'release', '1', '--reason', 'BLOCKED');
   const released = box.tryGit(own, 'commit', '-q', '-m', 'feat(app): build the first feature #1');
   assert.notEqual(released.status, 0, 'a released claim cannot authorize a citation');
-  moved(box, own, 'claim', '1');
+  await moved(box, own, 'claim', '1');
   const first = box.tryGit(own, 'commit', '-q', '-m', 'feat(app): build the first feature #1');
   assert.equal(first.status, 0, first.failure || first.stderr || first.stdout);
 
-  const drafted = JSON.parse(moved(box, repo, 'spec', 'draft', 'The first useful feature works.', '--json').out).id;
-  moved(box, repo, 'spec', 'approve', drafted);
-  moved(box, repo, 'spec', 'apply');
+  const drafted = JSON.parse((await moved(box, repo, 'spec', 'draft', 'The first useful feature works.', '--json')).out).id;
+  await moved(box, repo, 'spec', 'approve', drafted);
+  await moved(box, repo, 'spec', 'apply');
   box.git(repo, 'add', 'SPEC.md');
   box.git(repo, 'commit', '-q', '-m', 'docs: record the approved requirement');
   box.git(own, 'merge', '--no-edit', 'main');

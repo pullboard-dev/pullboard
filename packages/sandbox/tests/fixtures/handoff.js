@@ -5,6 +5,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -25,7 +26,9 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
   try {
     // The surrounding fixture intentionally edits policy; capture its actual bytes in a clean source.
     writeFileSync(join(root, 'pullboard.json'), readFileSync(join(box.root, 'pullboard.json')));
-    git(root, ['add', '--', 'pullboard.json']);
+    // One path no lane owns, so only the coordinator does; the claim below is based before it [B3,L1,V4].
+    writeFileSync(join(root, 'parity-owner-wait.txt'), 'Owned by the coordinator.\n');
+    git(root, ['add', '--', 'pullboard.json', 'parity-owner-wait.txt']);
     const tree = git(root, ['write-tree']);
     const parent = git(root, ['rev-parse', 'HEAD']);
     const commit = git(root, ['commit-tree', tree, '-p', parent, '-m', 'fixture: queued-submit parity source']);
@@ -38,7 +41,7 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
     const digest = createHash('sha256').update(text).digest('hex');
     const leaseMs = 3600000;
     const exitClaimKey = randomUUID();
-    store.claim(board, item, { agentId, lane: box.lane, leaseMs, head: commit,
+    store.claim(board, item, { agentId, lane: box.lane, leaseMs, head: parent,
       freeze: () => ({ text, digest }), exitRules: { enabled: true, tokens: 100, calls: 10 }, exitClaimKey });
     // Synthetic numeric progress exercises projection only, never real model usage or a budget stop.
     const progress = await exercise('recordExitProgress', () => store.recordExitProgress(board,
@@ -62,6 +65,22 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
     assert.equal(completed?.state, 'red');
     assert.equal(store.getItem(board, item).item_status, 'claimed', 'a real red completion keeps the queued claim for its builder');
     assert.equal(store.getItem(board, item).item_commit, null, 'job observations never invent submitted source');
+    // The same clean source is green at its exact frozen criterion and holds a path only another lane owns, so
+    // it waits for that owner. The stored receipt is native fixture input; no gate ran and nothing is submitted.
+    const receipt = { version: 2, id: randomUUID(), kind: 'submit', head: commit, tree, main,
+      command: 'c'.repeat(64), green: true, failures: [], load: null, at: board.clock.now().toISOString(),
+      proof: { item, frozenDigest: digest, seat: agentId, environment: null, runner: null, exitCode: 0,
+        counts: { passed: 1, failed: 0, skipped: 0 }, durationMs: 1, sourceClean: true } };
+    const folder = join(box.root, '.git', 'pullboard', 'gate-receipts');
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, `${receipt.id}.json`), board.runtimePorts.sourceAdvanceReceipts.receiptBody(receipt));
+    store.recordProofRun(board, { agentId, itemId: item, receiptId: receipt.id });
+    const wait = await exercise('deferOwnership', () => store.deferOwnership(board, item,
+      { root, agentId, commit, tree, main, receiptIds: [receipt.id] }));
+    assert.deepEqual(wait?.paths, ['parity-owner-wait.txt'], 'a refused setup never counts as ownership parity');
+    assert.deepEqual(wait.owners, ['coordinator']);
+    assert.equal(store.getItem(board, item).item_status, 'open', 'routing frees the builder');
+    assert.equal(store.getItem(board, item).item_commit, null, 'owner waiting is never a submission');
     const states = store.events(board, { itemId: item }).filter(event => event.event_kind === 'submit-handoff')
       .map(event => JSON.parse(event.event_detail).state);
     assert.deepEqual(states, ['queued', 'running', 'red'], 'all three real mutations carry their public event before parity coverage');

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Review routing never offers an item to a seat that shares a parent session with its author [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json apps/cli/src/logic/help/additions.js docs/api.md docs/cli-help.txt docs/formats.md docs/tools/update-docs.js */
 /** @pullboard-test-input docs-tree */
 /** @pullboard-test-input apps/cli/src/io/documentation/*.json */
 /** @pullboard-test-input apps/cli/src/io/documentation/events/*.json */
@@ -40,7 +40,8 @@ test('one command detects and repairs each stale output while retaining authored
   for (const file of GENERATED_DOC_PATHS) {
     const path = join(box.root, file), before = readFileSync(path, 'utf8');
     const changed = ['docs/formats.md', 'docs/api.md'].includes(file)
-      ? before.replace(/^(\| ---[^\n]*\n)/mu, '$1| stale generated cell | stale |\n') : before + '\nstale generated output\n';
+      ? before.replace(/^(\| ---[^\n]*\n)/mu, '$1| stale generated cell | stale |\n')
+      : before + (file.endsWith('.js') ? '\n// stale generated output\n' : '\nstale generated output\n');
     assert.notEqual(changed, before, `${file} was actually changed`);
     writeFileSync(path, changed);
     const failed = box.node('docs/tools/update-docs.js', '--check');

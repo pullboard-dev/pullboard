@@ -15,6 +15,7 @@ import { deliverHealthNotices } from "../../logic/board/receipts.js";
 import { HEALTH_SENTINEL_ENGINE } from "../../logic/board/receipts.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { PERSON } from "./query.js";
+import { agentModel } from "./query.js";
 
 import { CPU_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { hasPendingCpuNotices } from "../../logic/board/receipts.js";
@@ -55,15 +56,17 @@ export function applyHealthFindings(board, { agentId, observedRevision, findings
     const agents = listAgents(board);
     const lanes = [...new Set(agents.map(agent => agent.agent_lane))];
     const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+    // The sentinel is no seat, so what it records names the model of the seat whose scan sent it.
+    const model = agentModel(board, agentId) ?? 'unknown';
     /** Deliver through ordinary feed/inbox records without registering a synthetic worktree seat. */
     const log = (finding, cleared) => {
       const item = finding.item === null ? null : itemById(board, finding.item);
       logEvent(board, 'sentinel', cleared ? 'health-resolved' : 'health-failure', finding.item, {
         key: finding.key, cause: `refusal:${finding.cause}`, since: finding.since, subject: finding.subject,
-        owner: finding.owner, commit: item?.item_commit ?? null, engine: HEALTH_SENTINEL_ENGINE,
+        owner: finding.owner, commit: item?.item_commit ?? null, engine: HEALTH_SENTINEL_ENGINE, model,
       });
     };
-    const deferred = deliverHealthNotices({ resolved, added, pending, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes }),
+    const deferred = deliverHealthNotices({ resolved, added, pending, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes, detail: { model } }),
       targets: finding => healthTargets(finding, { engine, coordinator: COORDINATOR, person: PERSON, lanes, agents }) });
     for (const returned of returns) {
       const { item, ...detail } = returned;

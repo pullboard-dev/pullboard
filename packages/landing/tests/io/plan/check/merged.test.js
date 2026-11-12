@@ -41,10 +41,11 @@ function fixture() {
   roots.push(root);
   git(root, 'init', '-q', '-b', 'main');
   const tool = [
-    "import { readdirSync, readFileSync } from 'node:fs';",
+    "import { existsSync, readdirSync, readFileSync } from 'node:fs';",
     "const placed = JSON.parse(readFileSync('packages/codemap/data/plan/cells.json', 'utf8')).placed;",
-    "const missing = readdirSync('bin').filter(file => file.endsWith('.js') && file !== 'cells-plan.js' && !placed.includes(`bin/${file}`));",
-    "for (const file of missing) console.error(`not in packages/codemap/data/plan/cells.json: bin/${file}`);",
+    "const dir = 'apps/cli/src/io/hook';",
+    "const missing = existsSync(dir) ? readdirSync(dir).filter(file => file.endsWith('.js') && !placed.includes(`${dir}/${file}`)) : [];",
+    "for (const file of missing) console.error(`not in packages/codemap/data/plan/cells.json: ${dir}/${file}`);",
     'process.exitCode = missing.length ? 1 : 0;',
     '',
   ].join('\n');
@@ -55,7 +56,7 @@ function fixture() {
 test('merged refuses a landing commit with an unplaced path and names it [C7]', () => {
   const root = fixture();
   const bad = commit(root, { 'apps/cli/src/io/hook/composed.js': 'export {};\n' }, 'unplaced');
-  assert.throws(() => requireLandingPlanCheck(root, bad), error => error.code === 'LAND_PLAN_UNPLACED' && /bin\/hook-composed\.js/u.test(error.message));
+  assert.throws(() => requireLandingPlanCheck(root, bad), error => error.code === 'LAND_PLAN_UNPLACED' && /apps\/cli\/src\/io\/hook\/composed\.js/u.test(error.message));
 });
 
 test('merged accepts a landing commit whose paths are all placed, and a repository with no plan [C7]', () => {
@@ -71,7 +72,7 @@ test('merged accepts a landing commit whose paths are all placed, and a reposito
 
 test('the scratch checkout is gone after the check, pass or fail [C7]', () => {
   const root = fixture();
-  const bad = commit(root, { 'bin/x.js': 'export {};\n' }, 'unplaced');
+  const bad = commit(root, { 'apps/cli/src/io/hook/x.js': 'export {};\n' }, 'unplaced');
   assert.throws(() => requireLandingPlanCheck(root, bad));
   assert.equal(git(root, 'worktree', 'list').split('\n').length, 1);
 });

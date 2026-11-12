@@ -191,7 +191,7 @@ Approved-row revision proposals use `row_drafts` entries with `revises`, `file`,
 
 Engine 56 (`BOARD_SENTINEL_ENGINE`) adds board-owned watch proposals, exact person approve/decline decisions, ordered due-run claims and completed run receipts. Approval binds the entire execution definition; changing it creates a pending proposal. Replay records history without executing commands. Every non-cancelled red run records `sentinel:<name>` for Rigor; feed notices only mark failure and recovery transitions. Older engines refuse these operations and this new cause form before replay. Published engine-55 readers reject these moves by their newer engine number before interpreting an operation.
 
-The board's committed `flakes.rerun` setting defaults off. Off retains released execution, including landing's whole-file diagnosis and first legacy `landing_flake`; the new ledger still records the original failure. On permits one exact-target diagnostic for a supported structured Node test at unchanged source, never green-by-retry. Built-in `node --test` is supported; a `packages/gate/src/io/run/tests.js` script is recognized only when its committed bytes on candidate and pinned main match the bundled Native runner. Its filename alone does not establish selector support, and a probe that executes other targets remains unclassified. A pinned green main marks a possible regression, not a flake. Unknown selectors, source changes or unsupported remote execution evidence remain unclassified; no local substitute is run for a remote admission. A confirmed second sighting drafts an ordinary strong repair item, not an approved spec or doctrine row. A landed repair reads fixed until another sighting. Enabled landing consumes its captured pair without another legacy diagnosis or first-sighting legacy defect; saved typed relationships prevent remeasurement on adoption. Diagnostic-recording failures are reported while the original red and completed evidence remain retained. Older engines refuse the new operation and typed landing relationships before changing rows or the replay cursor; legacy `landing_flake` meaning and the schema/event-log versions are unchanged.
+The board's committed `flakes.rerun` setting defaults off. Off retains released execution, including landing's whole-file diagnosis and first legacy `landing_flake`; the new ledger still records the original failure. On permits one exact-target diagnostic for a supported structured Node test at unchanged source, never green-by-retry. Built-in `node --test` is supported; a `apps/cli/src/io/run/tests.js` script is recognized only when its committed bytes on candidate and pinned main match the bundled Native runner. Its filename alone does not establish selector support, and a probe that executes other targets remains unclassified. A pinned green main marks a possible regression, not a flake. Unknown selectors, source changes or unsupported remote execution evidence remain unclassified; no local substitute is run for a remote admission. A confirmed second sighting drafts an ordinary strong repair item, not an approved spec or doctrine row. A landed repair reads fixed until another sighting. Enabled landing consumes its captured pair without another legacy diagnosis or first-sighting legacy defect; saved typed relationships prevent remeasurement on adoption. Diagnostic-recording failures are reported while the original red and completed evidence remain retained. Older engines refuse the new operation and typed landing relationships before changing rows or the replay cursor; legacy `landing_flake` meaning and the schema/event-log versions are unchanged.
 
 The board's committed `rigor.budget` setting is the number of lines of non-test code one change may add, net, before `pullboard rigor quality` names it under its size-budget rule; it defaults to 400, and `--budget` overrides it for one run.
 
@@ -383,6 +383,16 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout` | `shout_evidence_commit` | `TEXT` | `nullable` |
 | `shout` | `shout_request` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
 | `shout` | `shout_request_outcome` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
+| `test_result` | `test_result_id` | `INTEGER` | `PRIMARY KEY` |
+| `test_result` | `test_result_file` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_input_key` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_command` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_context` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_status` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_receipt` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `test_result` | `test_result_origin` | `TEXT` | `NOT NULL` |
+| `test_result` | `test_result_commit` | `TEXT` | `nullable` |
+| `test_result` | `test_result_at` | `INTEGER` | `NOT NULL` |
 | `verdict` | `verdict_id` | `INTEGER` | `PRIMARY KEY` |
 | `verdict` | `item_id` | `INTEGER` | `NOT NULL`; `REFERENCES item(item_id)` |
 | `verdict` | `verdict_by` | `TEXT` | `NOT NULL` |
@@ -416,6 +426,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
 | `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
+| `test_result_key` | `test_result` | `test_result_input_key`, `test_result_command`, `test_result_context` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
 
@@ -477,7 +488,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `title` and `previousTitle` (the new title and the one it replaced), optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
 | `escalate` | builder, or coordinator | `from`, `to`, `note`, `attempt`, `rejections` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
@@ -585,7 +596,7 @@ A `submit` may carry `submissionSize: {base, head, lines, method}`. `base` is th
 
 `pullboard.json` may set `"itemSizeBudget"` to a positive whole number of changed lines; it defaults to 100. A successful submit whose diff against current main adds plus deletes more than twice that budget prints one note with the count and suggests splitting into a chain of smaller items. At or below twice the budget it prints no size note. This advice never blocks submission; the budget is read from accepted main.
 
-`pullboard.json` may set `affectedTests` to a command prefix that runs selected test files. When it is absent, `submit` runs the configured `gate` in full. When present and the import graph can safely select a subset, Pullboard appends the selected file paths to this prefix; an uncertain selection still runs the full gate. For example, this repository opts in with `"affectedTests": "node packages/gate/src/io/run/tests.js"`. Projects using another test framework can leave the setting out and keep their configured gate, such as `npm test`.
+`pullboard.json` may set `affectedTests` to a command prefix that runs selected test files. When it is absent, `submit` runs the configured `gate` in full. When present and the import graph can safely select a subset, Pullboard appends the selected file paths to this prefix; an uncertain selection still runs the full gate. For example, this repository opts in with `"affectedTests": "node apps/cli/src/io/run/tests.js"`. Projects using another test framework can leave the setting out and keep their configured gate, such as `npm test`.
 
 `pullboard.json` may set `worktrees` to `"inside"` or `"beside"`. Fresh `pullboard init` writes `"inside"`, placing new agent worktrees under `.claude/worktrees/<lane>-N`; it also adds `.claude/worktrees/` to `.gitignore` and prints guidance for dot-scanner ignore rules. An omitted setting defaults to `"beside"` to preserve existing sibling paths (`../<repo>-<lane>-N`). `pullboard resume --diagnostics`, JSON v1 `pullboard resume --json`, and `pullboard help worktree` show the active location from the primary checkout's config.
 

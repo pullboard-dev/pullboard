@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input docs/formats.md packages/config/src/logic/json.js packages/spec/src/logic/grammar.js packages/store/src/io/board/schema/source.js */
 /** @pullboard-test-input packages/state/src/io/formats/*.json */
 /** Real train merges retain additive registry changes and refuse edits [B3,R3,C7]. */
 import assert from 'node:assert/strict';
@@ -181,6 +181,13 @@ test('new format declarations and move files are discovered without a shared reg
     version: { kind: 'constant', file: 'src/fixture.js', constant: 'FIXTURE_VERSION' }, source: '`FIXTURE_VERSION`', upgrade: 'preserve' }));
   writeFileSync(join(root, 'src/fixture.js'), 'export const FIXTURE_VERSION = 7;\n');
   assert.equal(discoverFormats(root).find(entry => entry.name === 'fixture').version, 7);
+  for (const file of ['../src/fixture.js', '/src/fixture.js', 'packages/spec/src/logic/../grammar.js', 'packages/spec/src/logic//grammar.js']) {
+    writeFileSync(join(root, 'packages/state/src/io/formats/fixture.json'), JSON.stringify({ name: 'fixture', order: 60,
+      version: { kind: 'constant', file, constant: 'FIXTURE_VERSION' }, source: '`FIXTURE_VERSION`', upgrade: 'preserve' }));
+    assert.throws(() => discoverFormats(root), /format version source must name its source module/u, file);
+  }
+  writeFileSync(join(root, 'packages/state/src/io/formats/fixture.json'), JSON.stringify({ name: 'fixture', order: 60,
+    version: { kind: 'constant', file: 'src/fixture.js', constant: 'FIXTURE_VERSION' }, source: '`FIXTURE_VERSION`', upgrade: 'preserve' }));
   rmSync(join(root, 'src/fixture.js'));
   assert.throws(() => discoverFormats(root), /ENOENT.*fixture\.js/u, 'a descriptor cannot name a missing source');
   writeFileSync(join(root, 'src/fixture.js'), 'export const FIXTURE_VERSION = 7;\n');

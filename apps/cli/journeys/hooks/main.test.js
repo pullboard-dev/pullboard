@@ -47,6 +47,7 @@ import {
 } from '../../../../packages/commits/index.js';
 import { parseSpec } from '../../../../packages/spec/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
@@ -56,14 +57,13 @@ after(e2e.cleanup);
 const SPEC = { ...parseSpec('## G\n- G1 [approved, must] One. | gate: t\n- G2 [retired] Gone.\n'), name: 'SPEC.md' };
 const RULES = defaults().commits;
 
-test("a hook nudges and never blocks, fails open on error or timeout, and init merges with the user's hooks [I6]", () => {
+test("a hook nudges and never blocks, fails open on error or timeout, and init merges with the user's hooks [I6]", async () => {
   const box = e2e.project('true');
-  const result = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'SessionStart'], {
+  const result = await runCliInProcess(['hook', 'SessionStart'], {
     cwd: box.web, env: box.env, input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: box.web }),
-    encoding: 'utf8',
   });
-  assert.equal(result.status, 0, `a native session-start hook must nudge without refusing: ${result.stdout}${result.stderr}`);
-  const response = JSON.parse(result.stdout);
+  assert.equal(result.code, 0, `a native session-start hook must nudge without refusing: ${result.out}${result.err}`);
+  const response = JSON.parse(result.out);
   assert.equal(response.continue === false || response.decision === 'block', false);
   assert.equal(response.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.match(response.hookSpecificOutput.additionalContext, /pullboard|work|claim/i);
@@ -72,7 +72,7 @@ test("a hook nudges and never blocks, fails open on error or timeout, and init m
   const codexMine = { description: 'My existing hooks', hooks: { SessionEnd: 'unrelated vendor metadata', SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: 'echo my-start' }] }] } };
   writeFileSync(claude, JSON.stringify(mine));
   writeFileSync(codex, JSON.stringify(codexMine));
-  assert.equal(box.run(box.repo, 'init', '--no-permissions').code, 0,
+  assert.equal((await box.runLocal(box.repo, 'init', '--no-permissions')).code, 0,
     'the actual init entrypoint merges existing agent hooks');
   const configured = [claude, codex].map(file => JSON.parse(readFileSync(file, 'utf8')));
   assert.ok(configured[0].hooks.SessionEnd.some(group => group.hooks.some(handler => handler.command.includes('hook SessionEnd'))));
@@ -94,58 +94,59 @@ test("a hook nudges and never blocks, fails open on error or timeout, and init m
     assert.equal(missing.stdout, '');
   }
   const once = [readFileSync(claude, 'utf8'), readFileSync(codex, 'utf8')];
-  assert.equal(box.run(box.repo, 'hooks').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'hooks')).code, 0);
   assert.deepEqual([readFileSync(claude, 'utf8'), readFileSync(codex, 'utf8')], once, 'merging twice is idempotent');
 
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Native stop reminder', '--criterion', 'committed work is named', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Native stop reminder', '--criterion', 'committed work is named', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/nudge.txt', 'committed work\n', 'feat(web): nudge work [G1]').status, 0);
   // Contract probes use current documented vendor envelopes, never an actual user's transcript.
   // https://learn.chatgpt.com/docs/hooks and https://code.claude.com/docs/en/hooks
   for (const vendor of ['codex', 'claude']) {
     const payload = { session_id: `private-${vendor}-fixture`, cwd: box.web, hook_event_name: 'Stop', stop_hook_active: false,
       ...(vendor === 'codex' ? { turn_id: 'private-turn', last_assistant_message: null } : { transcript_path: join(box.dir, 'private-unused.jsonl') }) };
-    const stop = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'Stop'], { cwd: box.web, env: box.env, input: JSON.stringify(payload), encoding: 'utf8' });
-    assert.equal(stop.status, 0, stop.stderr);
-    const notice = JSON.parse(stop.stdout);
+    const stop = await runCliInProcess(['hook', 'Stop'], { cwd: box.web, env: box.env, input: JSON.stringify(payload) });
+    assert.equal(stop.code, 0, stop.err);
+    const notice = JSON.parse(stop.out);
     assert.equal(notice.continue === false || notice.decision === 'block', false);
     assert.match(notice.systemMessage, new RegExp(`#${id}\\b`));
   }
-  const broken = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'SessionStart'], { cwd: box.dir, env: box.env, encoding: 'utf8' });
-  assert.equal(broken.status, 0);
-  assert.match(JSON.parse(broken.stdout).systemMessage, /warning.*continuing/i);
-  const unknown = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'FutureVendorEvent'], { cwd: box.dir, env: box.env, encoding: 'utf8' });
-  assert.equal(unknown.status, 0);
-  assert.equal(unknown.stdout, '');
+  const broken = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.dir, env: box.env });
+  assert.equal(broken.code, 0);
+  assert.match(JSON.parse(broken.out).systemMessage, /warning.*continuing/i);
+  const unknown = await runCliInProcess(['hook', 'FutureVendorEvent'], { cwd: box.dir, env: box.env });
+  assert.equal(unknown.code, 0);
+  assert.equal(unknown.out, '');
   const slow = join(box.dir, 'slow-git');
   mkdirSync(slow);
   writeFileSync(join(slow, 'git'), '#!/bin/sh\nexec /bin/sleep 10\n');
   chmodSync(join(slow, 'git'), 0o755);
+  // Process-level: the hook's wall-clock timeout against a hung git needs a real child.
   const timeout = runFixtureChild(process.execPath, [e2e.BIN, 'hook', 'SessionStart'], {
     cwd: box.web, env: { ...box.env, PATH: `${slow}:${box.env.PATH}` }, encoding: 'utf8',
   });
   assert.equal(timeout.status, 0);
   assert.match(JSON.parse(timeout.stdout).systemMessage, /timed out.*continuing/i);
-  const doctor = box.run(box.repo, 'doctor', '--json');
+  const doctor = (await box.runLocal(box.repo, 'doctor', '--json'));
   const status = JSON.parse(doctor.out).agentHooks.find(hook => hook.vendor === 'Codex');
   assert.deepEqual(status.events, ['SessionStart', 'Stop']);
   assert.equal(status.trust, 'unverified', 'installation never fabricates vendor trust');
   const validCodex = readFileSync(codex, 'utf8');
   writeFileSync(codex, '{ malformed user JSON');
-  const malformed = box.run(box.repo, 'hooks');
+  const malformed = (await box.runLocal(box.repo, 'hooks'));
   assert.equal(malformed.code, 0);
   assert.match(malformed.out, /warning.*kept.*unchanged/i);
   assert.equal(readFileSync(codex, 'utf8'), '{ malformed user JSON');
   writeFileSync(codex, validCodex);
-  assert.equal(box.run(box.repo, 'hooks', 'uninstall').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'hooks', 'uninstall')).code, 0);
   assert.deepEqual(JSON.parse(readFileSync(claude, 'utf8')), mine);
   assert.deepEqual(JSON.parse(readFileSync(codex, 'utf8')), codexMine);
   const disabled = join(box.dir, 'disabled');
   mkdirSync(disabled);
   box.git(disabled, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(disabled, 'init', '--no-hooks', '--no-permissions').code, 0);
+  assert.equal((await box.runLocal(disabled, 'init', '--no-hooks', '--no-permissions')).code, 0);
   assert.equal(existsSync(join(disabled, '.codex/hooks.json')), false);
   assert.equal(existsSync(join(disabled, '.claude/settings.json')), false);
 });
@@ -310,7 +311,7 @@ test('a staged diff beyond the safe output limit is a private coded refusal [P4]
   assert.throws(() => stagedProblems(box.root), (error) => {
     assert.ok(error instanceof Refused);
     assert.equal(error.code, 'DIFF_TOO_LARGE');
-    assert.match(error.message, /split the change into smaller commits, then retry/);
+    assert.match(error.message, /large\.txt alone exceeds the safe scan limit; split that file into smaller commits, then retry/);
     assert.ok(!error.message.includes(marker));
     return true;
   });
@@ -332,23 +333,23 @@ test('a refused merge message points to the message git writes, which is exempt 
 });
 
 
-test('a spec-less feature commit is told a path that works [S1,B26]', () => {
+test('a spec-less feature commit is told a path that works [S1,B26]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'newcomer');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
-  const initialized = box.run(root, 'init');
+  const initialized = (await box.runLocal(root, 'init'));
   assert.equal(initialized.code, 0, initialized.err || initialized.out);
   const source = readFileSync(join(root, 'SPEC.md'), 'utf8');
   assert.match(source, /- G1 \[draft, must\]/u, 'the fresh spec visibly contains a fenced format example');
-  const listed = box.run(root, 'spec', '--json');
+  const listed = (await box.runLocal(root, 'spec', '--json'));
   assert.equal(listed.code, 0, listed.err || listed.out);
   assert.deepEqual(JSON.parse(listed.out).rows.filter(row => row.file === 'SPEC.md'), [], 'the example is not a real row');
-  assert.equal(box.run(root, 'lane', 'add', 'app', '--owns', 'app/').code, 0);
+  assert.equal((await box.runLocal(root, 'lane', 'add', 'app', '--owns', 'app/')).code, 0);
   mkdirSync(join(root, 'app'));
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: set up the private board');
-  const added = fixtureAdd(box.run, root, 'app', 'Build the first useful thing', '--criterion', 'The first useful thing works.', '--json');
+  const added = (await fixtureAdd(box.runLocal, root, 'app', 'Build the first useful thing', '--criterion', 'The first useful thing works.', '--json'));
   assert.equal(added.code, 0, added.err || added.out);
   assert.equal(JSON.parse(added.out).item.item_spec_ids, '');
   writeFileSync(join(root, 'app/first.txt'), 'first useful thing\n');
@@ -367,13 +368,13 @@ test('a spec-less feature commit is told a path that works [S1,B26]', () => {
   assert.notEqual(copiedExample.status, 0);
   assert.match(copiedExample.stderr, /G1 is not in SPEC\.md/u);
   assert.match(copiedExample.stderr, /fenced.*example.*not.*rows/iu, 'the refusal explains why the visible format example is not a row');
-  const drafted = box.run(root, 'spec', 'draft', 'The first useful thing works.', '--json');
+  const drafted = (await box.runLocal(root, 'spec', 'draft', 'The first useful thing works.', '--json'));
   assert.equal(drafted.code, 0, drafted.err || drafted.out);
   const id = JSON.parse(drafted.out).id;
   const citedBeforeApproval = box.tryGit(root, 'commit', '-q', '-m', `feat(app): build the first useful thing [${id}]`);
   assert.equal(citedBeforeApproval.status, 0, citedBeforeApproval.failure || citedBeforeApproval.stderr || citedBeforeApproval.stdout);
   for (const args of [['spec', 'approve', id], ['spec', 'apply']]) {
-    const result = box.run(root, ...args);
+    const result = (await box.runLocal(root, ...args));
     assert.equal(result.code, 0, result.err || result.out);
   }
   writeFileSync(join(root, 'app/first.txt'), 'first useful thing, approved\n');
@@ -390,12 +391,12 @@ test('a spec-less feature commit is told a path that works [S1,B26]', () => {
   }
 });
 
-test('a lane agent drafts a row and cites it without leaving its lane [S1,B26]', () => {
+test('a lane agent drafts a row and cites it without leaving its lane [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists').code, 0);
-  const claimed = box.run(box.web, 'claim', '1');
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists')).code, 0);
+  const claimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
-  const drafted = box.run(box.web, 'spec', 'draft', 'A person sees their list', '--json');
+  const drafted = (await box.runLocal(box.web, 'spec', 'draft', 'A person sees their list', '--json'));
   assert.equal(drafted.code, 0, drafted.out + drafted.err);
   const id = JSON.parse(drafted.out).id;
   assert.match(id, /^G\d+$/u, `spec draft prints the new id: ${drafted.out}`);
@@ -405,42 +406,42 @@ test('a lane agent drafts a row and cites it without leaving its lane [S1,B26]',
   box.git(box.web, 'add', 'web/list.html');
   const commit = box.tryGit(box.web, 'commit', '-q', '-m', `feat(web): show the list [${id}]`);
   assert.equal(commit.status, 0, `the lane cites its drafted row in a feature commit: ${commit.stderr}`);
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, `the lane submits with the gate pullboard spec check: ${submitted.out}${submitted.err}`);
 
   // The coordinator's spec apply writes the board draft into SPEC.md as a draft row, and the person approves it there.
   const row = () => readFileSync(join(box.repo, 'SPEC.md'), 'utf8').split('\n').find((line) => line.startsWith(`- ${id} `));
   assert.equal(row(), undefined, 'until apply, SPEC.md does not hold the lane draft');
-  const applied = box.run(box.repo, 'spec', 'apply');
+  const applied = (await box.runLocal(box.repo, 'spec', 'apply'));
   assert.equal(applied.code, 0, applied.out + applied.err);
   assert.match(applied.out, new RegExp(`${id} drafted from a lane, for the person to approve`, 'u'));
   assert.equal(row(), `- ${id} [draft, must] A person sees their list | gate: review`, 'spec apply writes the draft at its own id');
-  assert.equal(box.run(box.repo, 'spec', 'approve', id).code, 0, 'the person approves the drafted row as before');
-  assert.equal(box.run(box.repo, 'spec', 'apply').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'spec', 'approve', id)).code, 0, 'the person approves the drafted row as before');
+  assert.equal((await box.runLocal(box.repo, 'spec', 'apply')).code, 0);
   assert.match(row(), /\[approved, must\]/u, 'the approved row is applied');
 });
 
-test('a lane draft and a coordinator draft never share an id, in either order [S1,B26]', () => {
+test('a lane draft and a coordinator draft never share an id, in either order [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
-  const draft = (cwd, text) => {
-    const result = box.run(cwd, 'spec', 'draft', text, '--json');
+  const draft = async (cwd, text) => {
+    const result = (await box.runLocal(cwd, 'spec', 'draft', text, '--json'));
     assert.equal(result.code, 0, result.out + result.err);
     return JSON.parse(result.out).id;
   };
   // Lane first: the coordinator's next id skips the lane's board draft.
-  const laneFirst = draft(box.web, 'A lane row drafted first');
-  const coordinatorAfter = draft(box.repo, 'A coordinator row drafted after');
+  const laneFirst = (await draft(box.web, 'A lane row drafted first'));
+  const coordinatorAfter = (await draft(box.repo, 'A coordinator row drafted after'));
   // Coordinator first, committed through the installed hooks: the lane's older files lack it, and its next id still skips it.
-  const coordinatorFirst = draft(box.repo, 'A coordinator row drafted first');
+  const coordinatorFirst = (await draft(box.repo, 'A coordinator row drafted first'));
   box.git(box.repo, 'add', 'SPEC.md');
   const committed = box.tryGit(box.repo, 'commit', '-q', '-m', `docs(spec): draft two rows [${coordinatorAfter},${coordinatorFirst}]`);
   assert.equal(committed.status, 0, committed.stderr);
-  const laneAfter = draft(box.web, 'A lane row drafted after');
+  const laneAfter = (await draft(box.web, 'A lane row drafted after'));
   const ids = [laneFirst, coordinatorAfter, coordinatorFirst, laneAfter];
   assert.equal(new Set(ids).size, 4, `every proposal keeps its own id: ${ids.join(', ')}`);
   assert.equal(box.tryGit(box.web, 'status', '--porcelain').stdout, '', 'the lane edits no file outside its lane');
 
-  const applied = box.run(box.repo, 'spec', 'apply');
+  const applied = (await box.runLocal(box.repo, 'spec', 'apply'));
   assert.equal(applied.code, 0, applied.out + applied.err);
   assert.doesNotMatch(applied.out, /holds other text/u);
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
@@ -448,7 +449,7 @@ test('a lane draft and a coordinator draft never share an id, in either order [S
     [coordinatorFirst, 'A coordinator row drafted first'], [laneAfter, 'A lane row drafted after']]) {
     assert.ok(spec.includes(`- ${id} [draft, must] ${text} | gate: review`), `${id} keeps its own text as a draft after apply`);
   }
-  const approve = box.run(box.web, 'spec', 'approve', laneAfter);
+  const approve = (await box.runLocal(box.web, 'spec', 'approve', laneAfter));
   assert.notEqual(approve.code, 0, 'a lane cannot approve its own draft; the person does');
 });
 
@@ -456,6 +457,7 @@ test('a lane draft and a main-checkout draft started at the same moment keep dis
   const box = e2e.project('pullboard spec check');
   const cli = resolve(import.meta.dirname, '../../pullboard.js');
   /** Start one real spec draft without waiting for it. */
+  // Process-level: two separate processes contend for the board lock.
   const start = (cwd, text) => runFixtureChildAsync(process.execPath, [cli, 'spec', 'draft', text, '--json'], { cwd, env: box.env });
   const proposals = [];
   for (let pair = 1; pair <= 4; pair += 1) {
@@ -469,15 +471,16 @@ test('a lane draft and a main-checkout draft started at the same moment keep dis
   assert.equal(new Set(proposals.map(({ id }) => id)).size, proposals.length, `every proposal keeps its own id: ${proposals.map(({ id }) => id).join(', ')}`);
   assert.equal(box.tryGit(box.web, 'status', '--porcelain').stdout, '', 'the lane edits no file outside its lane');
 
-  const applied = box.run(box.repo, 'spec', 'apply');
+  const applied = (await box.runLocal(box.repo, 'spec', 'apply'));
   assert.equal(applied.code, 0, applied.out + applied.err);
   assert.doesNotMatch(applied.out, /holds other text/u);
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   for (const { id, text } of proposals) assert.ok(spec.includes(`- ${id} [draft, must] ${text} | gate: review`), `${id} keeps its own text as a draft after apply`);
-  assert.notEqual(box.run(box.web, 'spec', 'approve', proposals[0].id).code, 0, 'a lane cannot approve its own draft; the person does');
+  assert.notEqual((await box.runLocal(box.web, 'spec', 'approve', proposals[0].id)).code, 0, 'a lane cannot approve its own draft; the person does');
 
   // The same headline with a different gate and tier is another proposal: each writer keeps its own definition.
   const headline = 'A row both writers name alike';
+  // Process-level: two separate processes contend for the board lock.
   const [lane, main] = await Promise.all([
     runFixtureChildAsync(process.execPath, [cli, 'spec', 'draft', headline, '--gate', 'true', '--aim', '--json'], { cwd: box.web, env: box.env }),
     runFixtureChildAsync(process.execPath, [cli, 'spec', 'draft', headline, '--gate', 'false', '--json'], { cwd: box.repo, env: box.env }),
@@ -490,11 +493,11 @@ test('a lane draft and a main-checkout draft started at the same moment keep dis
   assert.deepEqual([laneRow.row.gate, laneRow.row.tier], ['true', 'aim'], 'the lane gets back its own definition');
   assert.deepEqual([mainRow.row.gate, mainRow.row.tier], ['false', 'must'], 'the main checkout gets back its own definition');
   assert.equal(box.tryGit(box.web, 'status', '--porcelain').stdout, '');
-  assert.equal(box.run(box.repo, 'spec', 'apply').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'spec', 'apply')).code, 0);
   const both = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   assert.ok(both.includes(`- ${laneRow.id} [draft, aim] ${headline} | gate: true`), 'the lane row is applied as it was asked');
   assert.ok(both.includes(`- ${mainRow.id} [draft, must] ${headline} | gate: false`), 'the main row stays as it was written');
-  assert.notEqual(box.run(box.web, 'spec', 'approve', laneRow.id).code, 0, 'the person alone approves');
+  assert.notEqual((await box.runLocal(box.web, 'spec', 'approve', laneRow.id)).code, 0, 'the person alone approves');
 });
 
 test('a hook names a Pullboard version mismatch instead of running old rules [C1,I2]', (t) => {
@@ -605,6 +608,7 @@ function cellRepo(t) {
   const box = stagedRepo(t);
   mkdirSync(join(box.root, 'bin/checks'), { recursive: true });
   mkdirSync(join(box.root, 'test'), { recursive: true });
+  mkdirSync(join(box.root, 'packages/gate/data/tests'), { recursive: true });
   writeFileSync(join(box.root, 'packages/gate/data/tests/test-cells.json'), JSON.stringify({ journeys: { 'test/listed.test.js': 'drives the CLI end to end' } }) + '\n');
   writeFileSync(join(box.root, 'test/old.test.js'), "import { test } from 'node:test';\n");
   box.git('add', '-A');
@@ -619,7 +623,7 @@ test('#4005 clause 1: committing a new unlisted root test is refused naming the 
   assert.throws(() => stagedProblems(box.root), (error) => {
     assert.ok(error instanceof Refused);
     assert.equal(error.code, 'ROOT_TEST_UNLISTED');
-    assert.match(error.message, /test\/new\.test\.js is a new root test that bin\/checks\/test-cells\.json does not list as a journey/u);
+    assert.match(error.message, /test\/new\.test\.js is a new root test that packages\/gate\/data\/tests\/test-cells\.json does not list as a journey/u);
     assert.match(error.next, /packages\/<cell>\/tests\//u);
     return true;
   });

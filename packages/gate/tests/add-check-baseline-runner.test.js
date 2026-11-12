@@ -16,7 +16,7 @@ import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { measureBaseline } from '../src/io/check/baseline/worker.js';
 
-const EXPECTED = { command: 'node packages/gate/src/io/run/tests.js test/a.test.js', main: 'a'.repeat(40) };
+const EXPECTED = { command: 'node apps/cli/src/io/run/tests.js test/a.test.js', main: 'a'.repeat(40) };
 
 test('clause 2: with no runner registered the baseline is pending, never run on this machine [C7,V2]', async () => {
   // No execution services at all: nothing may run locally.

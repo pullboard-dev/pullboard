@@ -39,24 +39,22 @@ import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { fallbackReclaim } from '../reclaim.js';
-import {
-  agentDisplayName,
-  MainSpecMerged,
-  checkMainVerifier,
-  claimFreezer,
-  claimOrdered,
-  cdTo,
-  context,
-  displayedWait,
-  idArg,
-  nextOnce,
-  ordered,
-  sayBrief,
-  span,
-  whoAmI,
-  withBoard,
-  withBoardRead,
-} from '../entry.js';
+import { agentDisplayName } from '../context.js';
+import { cdTo } from '../context.js';
+import { context } from '../context.js';
+import { idArg } from '../context.js';
+import { sayBrief } from '../context.js';
+import { span } from '../context.js';
+import { withBoard } from '../context.js';
+import { withBoardRead } from '../context.js';
+import { MainSpecMerged } from '../claim.js';
+import { claimFreezer } from '../claim.js';
+import { claimOrdered } from '../claim.js';
+import { ordered } from '../claim.js';
+import { checkMainVerifier } from '../verify.js';
+import { displayedWait } from '../next.js';
+import { nextOnce } from '../next.js';
+import { whoAmI } from '../join.js';
 import {
   refuseWhileBuilding,
   sayReviewOffer,
@@ -285,8 +283,15 @@ async function nextWithProgress(io, values, progress) {
           return 0;
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
-        io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        // An infrastructure stop is not the candidate's red: next gives the same instruction show does, and nothing to build (#4989).
+        const infraStop = returned?.gate?.code === 'GATE_INFRA_EXHAUSTED';
+        if (!infraStop) io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
         if (returned) {
+          if (infraStop) {
+            io.say(`infrastructure stop at ${String(returned.gate.commit).slice(0, 12)}, not a red on the candidate: GATE_INFRA_EXHAUSTED${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            io.say(`next: ${returned.gate.next ?? 'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'}`);
+            return 0;
+          }
           if (returned.gate) {
             io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
             for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
@@ -349,7 +354,7 @@ async function nextWithProgress(io, values, progress) {
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
-    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
+    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
     if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else {

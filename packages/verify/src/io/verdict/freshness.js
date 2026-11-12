@@ -113,14 +113,28 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const histories = new Map();
   const validatedBaselines = new Map();
   const changes = new Map();
+  const ancestry = new Map();
+  const reads = new Map();
+  /** One Git read per distinct argument list within this projector; objects are immutable, so a repeat is the same answer [E8]. */
+  const readOnce = args => {
+    const key = JSON.stringify(args);
+    if (!reads.has(key)) reads.set(key, readGit(root, args));
+    return reads.get(key);
+  };
+  /** Git's exit status for 'checked is an ancestor of tip', asked once per distinct commit within this projector. */
+  const ancestryStatus = (checked, target) => {
+    const key = `${checked} ${target}`;
+    if (!ancestry.has(key)) ancestry.set(key, gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', checked, target],
+      { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' }).status);
+    return ancestry.get(key);
+  };
   /** Query only first-parent commits touching these literal paths, retaining merges and reverts. */
   const history = (baseline, paths) => {
     // A reviewed trunk that left main (a rebased or rewritten branch) is judged from merge-base(trunk, main).
     if (!validatedBaselines.has(baseline)) {
-      const onMain = gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', baseline, tip],
-        { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-      if (onMain.status === 0) validatedBaselines.set(baseline, baseline);
-      else if (onMain.status === 1) {
+      const onMain = ancestryStatus(baseline, tip);
+      if (onMain === 0) validatedBaselines.set(baseline, baseline);
+      else if (onMain === 1) {
         let shared = '';
         try { shared = readGit(root, ['merge-base', baseline, tip]).trim(); } catch { /* reported below */ }
         if (!shared) throw new FreshnessFailure(`the reviewed trunk ${baseline.slice(0, 12)} is not on main and shares no history with it; merge current main and re-review`);
@@ -167,10 +181,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       if (review && verdictReviewProblem(review, item.item_commit)) throw new FreshnessFailure('the sealed review does not match the submitted commit; re-review the clean composition');
       const checked = review?.head ?? item.item_commit;
       // A physical landing is final only when it includes the checked composition.
-      const landed = gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', checked, tip],
-        { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-      if (landed.status === 0) return null;
-      if (landed.status !== 1) throw new FreshnessFailure(`the checked commit ${checked.slice(0, 12)} is missing from this replica; fetch it or re-review`);
+      const landed = ancestryStatus(checked, tip);
+      if (landed === 0) return null;
+      if (landed !== 1) throw new FreshnessFailure(`the checked commit ${checked.slice(0, 12)} is missing from this replica; fetch it or re-review`);
       if (mismatch) return { code: 'STALE_VERDICT', file: null, commit: item.item_merged_commit,
         reviewedTrunk: review.trunk, main: tip, landingCode: 'LAND_ITEM_MOVED', checked: review.head,
         reason: `the older landing recorded ${item.item_merged_commit}, which does not contain checked composition ${review.head}` };
@@ -183,9 +196,11 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       if (!review) {
         // Legacy receipts did not seal a reviewed trunk. Use a conservative claim-base bound,
         // never invent a capture time or rewrite those immutable receipts.
-        const baseline = readGit(root, ['merge-base', item.item_claim_head, tip]).trim();
+        const baseline = readOnce(['merge-base', item.item_claim_head, tip]).trim();
+        // A claim base that is the trunk tip has no commits after it, so no path can have changed: skip the diff.
+        if (baseline === tip) return null;
         review = { trunk: baseline,
-          paths: readGit(root, ['diff', '--no-renames', '--name-only', '-z', baseline, item.item_commit, '--']).split('\0').filter(Boolean), legacy: true };
+          paths: readOnce(['diff', '--no-renames', '--name-only', '-z', baseline, item.item_commit, '--']).split('\0').filter(Boolean), legacy: true };
       }
       if (!review.legacy && verdictReviewProblem(review, item.item_commit)) throw new FreshnessFailure('the sealed review does not match the submitted commit; re-review the clean composition');
       const paths = new Set(review.paths);

@@ -1,6 +1,8 @@
 /** A plain label, one sentence, group and display unit for every setting in the settings inventory [O5,O6,N26]. */
+import { Refused } from '../../../../kernel/light.js';
 
-// [key, label, one sentence on what it does, group, unit]. Wording is checked against each setting's reader in src/.
+// [key, label, one sentence on what it does, group, unit, compatibility?]. Wording is checked against each setting's reader in src/.
+// A compatibility toggle keeps an old behaviour and ends `{ compat: true, removeBy: 'YYYY-MM-DD' }`, one row per line [O6,C7].
 const ROWS = [
   ['exitRules.enabled', 'Session exit rules', 'Off by default; stop a claim at its known native budget or repeated failure and require a same-family handoff.', 'Order', 'on/off'],
   ['exitRules.tokens', 'Tokens per claim', 'Input plus output tokens, including cached reads as recorded; unknown usage never triggers a stop.', 'Order', 'count'],
@@ -15,6 +17,13 @@ const ROWS = [
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
+  ['gate.runnerDispatch', 'How runner jobs are watched', 'pull (default) offers each job as a row a runner takes, the loopback local runner when none is registered, and finishes in short processes, so waiting costs none; controller keeps one controller process per runner job until its result.', 'Capacity', 'controller/pull', { compat: true, removeBy: '2026-12-31' }],
+  ['gate.pullPilot.items', 'Pull gate pilot items', 'While runner jobs are watched by controller, submits of these item numbers take the pull gate as one runner job and every other submit stays on the controller path.', 'Capacity', 'list', { compat: true, removeBy: '2026-12-31' }],
+  ['gate.pullPilot.share', 'Pull gate pilot share', 'While runner jobs are watched by controller, this percentage of items, chosen by item number, take the pull gate on submit; 0 with no pilot items sends every submit through the controller path.', 'Capacity', 'percent', { compat: true, removeBy: '2026-12-31' }],
+  ['gate.localLoadShare', 'Local runner load share', 'With no registered runners, the local runner takes a job only while this machine\'s one-minute load is under this share of its cores (default 1.0 per core); the job waits in the queue otherwise.', 'Capacity', 'number'],
+  ['gate.localRunner', 'Local runner', 'On (default): with no registered runners, the first pull submit starts one runner serve on this machine against the board API on loopback, so gates and landings need no setup; off leaves pulled jobs for other runners.', 'Capacity', 'on/off'],
+  ['gate.submitAuthorization', 'Where submit authorization runs', 'runner (default) checks a queued submit\'s lane ownership inside its one runner analysis job beside doctrine and test selection, while local keeps that check on this machine, as it always is with no runner.', 'Capacity', 'runner/local'],
+  ['gate.mainComparison', 'Compare red runs with main', 'on-red (default) compares a red submit or review run with main to tell known main reds from new ones; off treats a red gate as red, with no main comparison and no carried-red acceptance.', 'Capacity', 'on-red/off'],
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
@@ -26,12 +35,14 @@ const ROWS = [
   // This machine: Runners
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
+  ['serve.address', 'Board API address', 'The interface address pullboard serve listens on; off loopback every request needs this machine\'s board key, so runners on the network can pull jobs.', 'Runners', 'address'],
+  ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once, computed from the runner slots when unset and lowered only by this setting, never by a launching command.', 'Capacity', 'count'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
-  ['inspection.clauses', 'Legacy inspection preference', 'This legacy machine value does not control submit; accepted main sets verify.inspectClauses for the board.', 'Order', 'on/off'],
+  ['inspection.clauses', 'Legacy inspection preference', 'This legacy machine value does not control submit; accepted main sets verify.inspectClauses for the board.', 'Order', 'on/off', { compat: true, removeBy: '2026-12-31' }],
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
   ['view.background', 'Keep the view running', 'Init and resume keep pullboard view running, so pullboard.dev can open this computer\'s boards.', 'Background', 'on/off'],
@@ -70,6 +81,7 @@ const ROWS = [
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
   ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Project', 'list'],
+  ['trunk.remote', 'Trunk remote', 'The git URL runners fetch candidates from and landing pushes the trunk to, with gate.runnerDispatch pull as a runner job that pushes only if trunk has not moved; empty uses the board host\'s own repository.', 'Project', 'text'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],
@@ -93,6 +105,7 @@ const ROWS = [
   ['cells.shimMaxAgeDays', 'Shim removal age', 'Health names compatibility shims left beyond this many days after their cell move landed.', 'Checks', 'days'],
   ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
+  ['rigor.autoDraft', 'Draft unproved Rigor rules', 'Rigor drafts a rule for a repeated failure before any fix is proven; false keeps only drafts you prove with rigor draft --red/--green.', 'Checks', 'on/off'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
   ['flakes.quarantine', 'Quarantine flaky tests', 'A test that keeps flaking is set aside so it stops blocking work.', 'Checks', 'on/off'],
   ['testConcurrency.files', 'Test files at once', 'How many test files run at the same time.', 'Checks', 'count'],
@@ -109,6 +122,8 @@ const ROWS = [
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
+  ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
+  ['review.excludeEarlierHolders', 'Exclude earlier holders from review', 'On refuses a review reservation by any seat that ever claimed, built, submitted or released the item; off excludes only its current builder and submitters.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims
@@ -124,11 +139,12 @@ const ROWS = [
   ['submitDeferAbove', 'Defer large selections', 'A submit whose selection names more test files than this runs only its check and invariants, and landing runs the rest.', 'Landing', 'count'],
   ['landingShards', 'Landing test shards', 'How many shards the landing gate splits its test files into.', 'Landing', 'count'],
   ['landing.publish', 'Publish separately', 'Landing happens locally and the push goes out through pullboard publish.', 'Landing', 'choice'],
-  ['landing.perItem', 'Per-item landing', 'Landing takes one verified item at a time in accept order and runs only that item\'s plan; a red item goes back to open alone and the next item lands.', 'Landing', 'on/off'],
+  ['landing.perItem', 'Per-item landing', 'A landing takes every verified item that merges cleanly; a red batch bisects to its culprit and lands the rest, and a red batch of one goes back to open alone.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
   ['landing.auditOnly', 'Audit-only tests', 'Test files the per-item landing gate leaves to the post-landing audit, which files a red there as a main red; off unless listed.', 'Landing', 'list'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
+  ['landing.trunkRemote', 'Trunk remote (old name)', 'Deprecated: the old name for trunk.remote, read for one release when trunk.remote is empty and removed after it; set trunk.remote instead.', 'Landing', 'text', { compat: true, removeBy: '2026-12-31' }],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
   // This repo: Commits
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],
@@ -163,7 +179,58 @@ const ROWS = [
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; apps/cli/journeys/settings/descriptions.test.js holds this equal to help.js SETTING_FORMS.
 const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses']);
 
-export const SETTING_DESCRIPTIONS = Object.freeze(Object.fromEntries(ROWS.map(([key, label, description, group, unit]) => [key, Object.freeze({ label, description, group, unit, cli: CLI_FORMS.has(key) ? key : null })])));
+const DATE = /^\d{4}-\d{2}-\d{2}$/u;
+
+/**
+ * Build the frozen description map from inventory rows, refusing a compatibility toggle with no removeBy date.
+ * Why: a leftover toggle quietly keeps an old path alive; every one must carry the day it goes [O6,C7].
+ *
+ * @param {Array<[string, string, string, string, string, { compat?: boolean, removeBy?: string }?]>} rows
+ * @returns {Readonly<Record<string, object>>}
+ */
+export function settingDescriptions(rows) {
+  return Object.freeze(Object.fromEntries(rows.map(([key, label, description, group, unit, toggle]) => {
+    if (toggle?.compat && !(DATE.test(toggle.removeBy ?? '') && !Number.isNaN(Date.parse(toggle.removeBy)))) {
+      throw new Refused('COMPAT_NEEDS_REMOVE_BY', `setting ${key} is a compatibility toggle with no removeBy date`, `add removeBy: 'YYYY-MM-DD' to the ${key} row in ${INVENTORY_FILE}`);
+    }
+    return [key, Object.freeze({ label, description, group, unit, cli: CLI_FORMS.has(key) ? key : null, ...(toggle?.compat ? { compat: true, removeBy: toggle.removeBy } : {}) })];
+  })));
+}
+
+export const INVENTORY_FILE = 'packages/config/src/io/settings/descriptions.js';
+export const SETTING_DESCRIPTIONS = settingDescriptions(ROWS);
+
+/** The compatibility rows in one inventory source, read as text so main's copy can be judged too, with their lines. */
+function compatibilityRows(source) {
+  return (source ?? '').split('\n').flatMap((line, index) => {
+    // Any line marked compat: true is a row, whichever order its properties come in; one with no key fails closed (key null).
+    if (!/^\s*(\.\.\.)?\[/u.test(line) || !/\bcompat:\s*true\b/u.test(line)) return []; // only inventory-row lines, never this function's own code
+    return [{ key: /^\s*\['([^']+)',/u.exec(line)?.[1] ?? null, removeBy: /\bremoveBy:\s*'([^']*)'/u.exec(line)?.[1] ?? null, line: index + 1 }];
+  });
+}
+
+/**
+ * Static check over the settings inventory: a compatibility toggle past its removeBy date, or with none, fails with the
+ * step that removes it, and the toggle count is a ratchet that may only fall against accepted main's [O6,C7].
+ *
+ * @param {string} source - The candidate inventory source.
+ * @param {string} accepted - Main's inventory source, or '' when main has none.
+ * @param {number} [now] - Milliseconds since the epoch; today's UTC date decides "past".
+ * @returns {string[]} One `path:line: message` per failure.
+ */
+export function compatibilityToggleProblems(source, accepted, now = Date.now()) {
+  const today = new Date(now).toISOString().slice(0, 10);
+  const rows = compatibilityRows(source);
+  const problems = rows.flatMap(({ key, removeBy, line }) => !key
+    ? [`${INVENTORY_FILE}:${line}: a row marked compat: true cannot be read; next: write it as ['key', ...] on one line ending { compat: true, removeBy: 'YYYY-MM-DD' }`]
+    : !removeBy || !DATE.test(removeBy)
+    ? [`${INVENTORY_FILE}:${line}: compatibility toggle ${key} has no removeBy date; next: add removeBy: 'YYYY-MM-DD' to its row`]
+    : removeBy < today ? [`${INVENTORY_FILE}:${line}: compatibility toggle ${key} passed its removeBy date ${removeBy}; next: remove ${key}, its reader and its inventory row`] : []);
+  const before = compatibilityRows(accepted).length;
+  // Main tracks toggles once its inventory names removeBy; from then on the count may only fall.
+  if (/removeBy/u.test(accepted ?? '') && rows.length > before) problems.push(`${INVENTORY_FILE}:1: compatibility toggles grew from ${before} to ${rows.length}; the count only falls; next: remove a toggle before adding one`);
+  return problems;
+}
 export const CLI_SETTABLE = Object.freeze([...CLI_FORMS]);
 
 /** The label, sentence, group and unit for a setting key, or null for a key nobody has described. */

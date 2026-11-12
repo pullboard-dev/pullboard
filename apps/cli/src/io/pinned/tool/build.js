@@ -5,17 +5,21 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
-// Straight to the one module: the kernel front door would load 13 modules into every thin resident client.
-import { Refused } from '../../../../../../packages/kernel/index.js';
+import { inflateSync } from 'node:zlib';
+// Use the public browser-safe door to keep the thin resident client from loading the full kernel.
+import { Refused } from '../../../../../../packages/kernel/browser.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -29,8 +33,105 @@ function git(root, args, binary = false) {
   return binary ? result.stdout : result.stdout.trim();
 }
 
+/**
+ * Answer the repository location from Git's own files, or null when only Git can: an alternate selector,
+ * a separate work tree, a bare setting or anything unreadable. Why: this runs on every command's path, and a
+ * Git child costs more than reading two small files [C7].
+ */
+function fileLocation(cwd) {
+  try {
+    for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) if (process.env[name]) return null;
+    let top = realpathSync(cwd);
+    while (!existsSync(join(top, '.git'))) {
+      const parent = dirname(top);
+      if (parent === top) return null;
+      top = parent;
+    }
+    let gitDir = join(top, '.git');
+    let commonDir = gitDir;
+    if (!statSync(gitDir).isDirectory()) {
+      const pointer = /^gitdir: (.+)$/mu.exec(readFileSync(gitDir, 'utf8'));
+      if (!pointer) return null;
+      gitDir = realpathSync(resolve(top, pointer[1].trim()));
+      commonDir = realpathSync(resolve(gitDir, readFileSync(join(gitDir, 'commondir'), 'utf8').trim()));
+    }
+    commonDir = realpathSync(commonDir);
+    const config = readFileSync(join(commonDir, 'config'), 'utf8');
+    if (/^\s*worktree\s*=/imu.test(config) || /^\s*bare\s*=\s*(?:true|yes|on|1)\s*$/imu.test(config)
+      || /objectformat\s*=\s*sha256/iu.test(config) || /^\s*\[extensions\]/imu.test(config) && /refstorage/iu.test(config)
+      || existsSync(join(gitDir, 'config.worktree'))) return null;
+    return { root: top, commonDir, directory: join(commonDir, 'pullboard', 'tool-builds') };
+  } catch { return null; }
+}
+
+/** Read one loose Git object's body, or null when it is packed or absent so Git itself must answer. */
+function looseObject(commonDir, oid) {
+  try {
+    const raw = inflateSync(readFileSync(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2))));
+    const end = raw.indexOf(0);
+    return { type: raw.subarray(0, raw.indexOf(32)).toString(), body: raw.subarray(end + 1) };
+  } catch { return null; }
+}
+
+/** Resolve the primary checkout's HEAD commit from loose or packed refs; undefined when Git must answer. */
+function primaryHead(commonDir) {
+  try {
+    // A real refs/main-worktree/HEAD would outrank the pseudo-ref, so only Git can name the commit then.
+    if (existsSync(join(commonDir, 'refs', 'main-worktree', 'HEAD'))
+      || /^[a-f0-9]+ refs\/main-worktree\/HEAD$/mu.test(existsSync(join(commonDir, 'packed-refs')) ? readFileSync(join(commonDir, 'packed-refs'), 'utf8') : '')) return undefined;
+    const head = readFileSync(join(commonDir, 'HEAD'), 'utf8').trim();
+    if (/^[a-f0-9]{40}$/u.test(head)) return head;
+    const name = /^ref: (refs\/.+)$/u.exec(head)?.[1];
+    if (!name) return undefined;
+    if (existsSync(join(commonDir, name))) {
+      const value = readFileSync(join(commonDir, name), 'utf8').trim();
+      return /^[a-f0-9]{40}$/u.test(value) ? value : undefined;
+    }
+    for (const line of readFileSync(join(commonDir, 'packed-refs'), 'utf8').split('\n')) {
+      const [oid, ref] = line.split(' ');
+      if (ref === name && /^[a-f0-9]{40}$/u.test(oid)) return oid;
+    }
+  } catch { /* Fall through to Git. */ }
+  return undefined;
+}
+
+/** Read pullboard.json at the primary checkout's HEAD from loose objects; undefined when Git must answer, null when absent. */
+function committedConfigFromObjects(commonDir) {
+  const commit = primaryHead(commonDir);
+  if (!commit) return undefined;
+  const parsed = looseObject(commonDir, commit);
+  const tree = parsed?.type === 'commit' ? /^tree ([a-f0-9]{40})$/mu.exec(parsed.body.toString('latin1'))?.[1] : null;
+  const root = tree && looseObject(commonDir, tree);
+  if (root?.type !== 'tree') return undefined;
+  const bytes = root.body;
+  for (let at = 0; at < bytes.length;) {
+    const space = bytes.indexOf(32, at), nul = bytes.indexOf(0, space);
+    if (space < 0 || nul < 0) return undefined;
+    const name = bytes.subarray(space + 1, nul).toString();
+    const oid = bytes.subarray(nul + 1, nul + 21).toString('hex');
+    at = nul + 21;
+    if (name !== 'pullboard.json') continue;
+    const blob = looseObject(commonDir, oid);
+    return blob?.type === 'blob' ? blob.body.toString('utf8') : undefined;
+  }
+  return null;
+}
+
 /** Locate shared storage before loading any live-trunk configuration parser. */
 export function toolBuildLocation(cwd) {
+  // A worktree needs a .git marker in its ancestry unless Git was explicitly pointed elsewhere.
+  // Avoid starting Git for ordinary help from a directory that cannot contain a board.
+  if (!process.env.GIT_DIR) {
+    let directory;
+    try { directory = realpathSync(cwd); } catch { directory = null; }
+    while (directory && !existsSync(join(directory, '.git'))) {
+      const parent = dirname(directory);
+      if (parent === directory) return null;
+      directory = parent;
+    }
+  }
+  const located = fileLocation(cwd);
+  if (located) return located;
   const result = spawnSync('git', ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-common-dir'],
     { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (result.status !== 0) return null;
@@ -42,7 +143,9 @@ export function toolBuildLocation(cwd) {
 /** Read only this bootstrap's setting from the primary committed config; newer unrelated keys stay opaque. */
 export function toolBuildPolicy(location) {
   let raw;
-  try { raw = JSON.parse(git(location.root, ['show', 'main-worktree/HEAD:pullboard.json'])); }
+  const committed = committedConfigFromObjects(location.commonDir);
+  if (committed === null) return { enabled: false, refreshMs: 3_600_000 };
+  try { raw = JSON.parse(committed ?? git(location.root, ['show', 'main-worktree/HEAD:pullboard.json'])); }
   catch { return { enabled: false, refreshMs: 3_600_000 }; }
   const value = raw.toolBuild;
   if (value === undefined) return { enabled: false, refreshMs: 3_600_000 };

@@ -52,7 +52,7 @@ function graph(t) {
   git('init','-q','-b','main');
   put('package.json','{"type":"module"}\n');
   put('src/api.js','export const version = 1;\n');
-  put('apps/cli/journeys/milestone/api.test.js',"import '../src/api.js';\n");
+  put('test/api.test.js',"import '../src/api.js';\n");
   put('src/labels.js',"import {readFileSync} from 'node:fs'; export const types=['feat','fix','docs','test']; export const config=()=>readFileSync('config.json'); export const isDoc=path=>path.startsWith('docs/');\n");
   put('test/unrelated.test.js',"import '../src/labels.js'; import assert from 'node:assert/strict'; assert.ok(true);\n");
   put('docs/api.md','# API\n');
@@ -70,7 +70,7 @@ test('a docs change selects the tests that read it [V4,C7]', (t) => {
   const commit = box.commit();
   const combined = selectAffectedTests(box.root,{base,commit});
   assert.equal(combined.full,false,'documenting an API change must retain focused selection');
-  assert.deepEqual(combined.files,['docs/api.test.js','apps/cli/journeys/milestone/api.test.js','test/docs.test.js']);
+  assert.deepEqual(combined.files,['docs/api.test.js','test/api.test.js','test/docs.test.js']);
   const docs = selectAffectedTests(box.root,{base,commit,changed:['docs/api.md']});
   assert.equal(docs.full,false);
   assert.deepEqual(docs.files,['docs/api.test.js','test/docs.test.js']);
@@ -81,7 +81,7 @@ test('a docs change selects the tests that read it [V4,C7]', (t) => {
 
 test('doc readers include helper imports, directory paths and old edges [V4,C7]', (t) => {
   const box = graph(t);
-  box.put('test/doc-helper.js',"import {readFileSync} from 'node:fs'; export const text=readFileSync(new URL('../../../../../docs/api.md',import.meta.url),'utf8');\n");
+  box.put('test/doc-helper.js',"import {readFileSync} from 'node:fs'; export const text=readFileSync(new URL('../docs/api.md',import.meta.url),'utf8');\n");
   box.put('test/helper-reader.test.js',"import './doc-helper.js';\n");
   box.put('test/split-reader.test.js',"import {readFileSync} from 'node:fs'; import {join} from 'node:path'; readFileSync(join('docs','api.md'),'utf8');\n");
   box.put('test/template-reader.test.js',"import {readdirSync} from 'node:fs'; const name='api'; readdirSync(`docs/${name}`);\n");
@@ -106,8 +106,8 @@ test('an unread doc adds no tests and doc readers come from Git objects [V4,C7]'
   box.put('docs/unread.md','# No readers\n');
   const commit = box.commit();
   box.put('test/unrelated.test.js',"import {readFileSync} from 'node:fs'; readFileSync('docs/unread.md');\n");
-  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[]});
-  assert.deepEqual(selectAffectedTests(box.root,{base,commit,changed:['src/api.js','docs/unread.md']}).files,['apps/cli/journeys/milestone/api.test.js']);
+  assert.deepEqual(selectAffectedTests(box.root,{base,commit}),{full:false,reason:'',files:[],reasons:{}});
+  assert.deepEqual(selectAffectedTests(box.root,{base,commit,changed:['src/api.js','docs/unread.md']}).files,['test/api.test.js']);
 });
 
 
@@ -138,7 +138,7 @@ test('escaped literal templates select their documentation inputs [V4,C7]', (t) 
 
 test('a docs path built inline still selects its reader [V4,C7]', (t) => {
   const box = graph(t);
-  box.put('test/array-reader.test.js', `import {readFileSync} from 'node:fs'; readFileSync(new URL(['../../../../..','docs','api.md'] /* docs input */ .join('/'),import.meta.url),'utf8');\n`);
+  box.put('test/array-reader.test.js', `import {readFileSync} from 'node:fs'; readFileSync(new URL(['..','docs','api.md'] /* docs input */ .join('/'),import.meta.url),'utf8');\n`);
   box.put('test/inline-join.test.js', "import {readFileSync} from 'node:fs'; import {join} from 'node:path'; const root='.',name='api.md'; readFileSync(join(root,'docs',name),'utf8');\n");
   box.put('test/inline-template.test.js', "import {readFileSync} from 'node:fs'; readFileSync(`do\\x63s/api.md`,'utf8');\n");
   box.put('test/comment-only-reader.test.js', "// Reads api.md by name only; no path syntax here.\n");
@@ -156,6 +156,7 @@ test('a docs path built inline still selects its reader [V4,C7]', (t) => {
   const base = box.commit();
   box.put('docs/api.md','# Updated API\n');
   const commit = box.commit();
+  // Process-level: runs the committed reader test as its own node process to prove it passes as written.
   const reader = runFixtureChild(process.execPath, [join(box.root,'test/array-reader.test.js')], { cwd:box.root, encoding:'utf8' });
   assert.equal(reader.status,0,reader.failure ?? reader.stderr?.toString('utf8') ?? 'the committed array reader did not run');
   assert.deepEqual(selectAffectedTests(box.root,{base,commit}).files,
@@ -177,14 +178,14 @@ test('a docs path built inline still selects its reader [V4,C7]', (t) => {
 
 test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) => {
   const box = graph(t);
-  box.put('apps/cli/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import './serve.js';\n");
-  box.put('src/serve.js', "import '../../../src/io/cockpit.js';\n");
+  box.put('apps/cli/pullboard.js', "import './src/cli.js';\n");
+  box.put('apps/cli/src/cli.js', "import './serve.js';\n");
+  box.put('apps/cli/src/serve.js', "import './io/cockpit.js';\n");
   box.put('apps/cli/src/io/cockpit.js', 'export const version = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
-  box.put('apps/cli/tests/fixtures/cockpit/harness.js', "const BIN = '../../bin/pullboard.js';\n");
-  box.put('apps/cli/journeys/withdraw/items.test.js', "import './fixture.js';\n");
-  box.put('test/direct-cli.test.js', "const BIN = '../../../pullboard.js';\n");
+  box.put('apps/cli/tests/fixtures/cockpit/harness.js', "const BIN = 'apps/cli/pullboard.js';\n");
+  box.put('apps/cli/journeys/withdraw/items.test.js', "import '../../tests/fixtures/cockpit/harness.js';\n");
+  box.put('test/direct-cli.test.js', "const BIN = 'apps/cli/pullboard.js';\n");
   const base = box.commit();
 
   box.put('apps/cli/src/io/cockpit.js', 'export const version = 2;\n');
@@ -201,7 +202,7 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
   assert.ok(!unrelated.files.includes('test/direct-cli.test.js'), 'an unrelated source change does not select a direct CLI test');
   assert.ok(!unrelated.files.includes('apps/cli/journeys/withdraw/items.test.js'), 'an unrelated source change does not select a fixture caller');
 
-  box.put('src/cli.js', 'export const uncommitted = true;\n');
+  box.put('apps/cli/src/cli.js', 'export const uncommitted = true;\n');
   const committedGraph = selectAffectedTests(box.root, { base, commit });
   assert.deepEqual(committedGraph.files, changedCockpit.files, 'selection ignores uncommitted source bytes');
 });
@@ -247,17 +248,17 @@ test('a change to one test file selects only what reads it [V4,C7]', (t) => {
   // A computed import whose target the file declares: it reads src/api.js and nothing else.
   box.put('test/loader.test.js', "/** @pullboard-test-loads src/api.js */\nconst name = 'api';\nawait import(new URL(`../src/${name}.js`, import.meta.url).href);\n");
   const base = box.commit();
-  box.put('apps/cli/journeys/milestone/api.test.js', "import '../src/api.js'; // one test file changed\n");
+  box.put('test/api.test.js', "import '../src/api.js'; // one test file changed\n");
   let commit = box.commit();
   let selection = selectAffectedTests(box.root, { base, commit });
   assert.equal(selection.full, false, 'a change to one test file keeps focused selection');
-  assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js'], 'an unrelated computed-import test is not selected');
+  assert.deepEqual(selection.files, ['test/api.test.js'], 'an unrelated computed-import test is not selected');
 
   box.put('src/api.js', 'export const version = 2;\n');
   commit = box.commit();
   selection = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
   assert.equal(selection.full, false);
-  assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js', 'test/loader.test.js'], 'the declared reader of a changed module is selected');
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/loader.test.js'], 'the declared reader of a changed module is selected');
 
   selection = selectAffectedTests(box.root, { base, commit, changed: ['src/labels.js'] });
   assert.deepEqual(selection.files, ['test/unrelated.test.js'], 'a module it does not declare leaves the loader out');
@@ -268,22 +269,22 @@ test('a change to one test file selects only what reads it [V4,C7]', (t) => {
   selection = selectAffectedTests(box.root, { base, commit, changed: ['src/labels.js'] });
   assert.deepEqual(selection.files, ['test/literal.test.js', 'test/unrelated.test.js'], 'a literal path names the module the import reads');
   selection = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
-  assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js', 'test/loader.test.js'], 'the literal reader is left out of an unrelated change');
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/loader.test.js'], 'the literal reader is left out of an unrelated change');
 
   // A computed import that declares nothing cannot be read, so that file always runs and says why; the rest stay focused.
   box.put('test/guess.test.js', 'await import(process.env.GUESS);\n');
   commit = box.commit();
-  selection = selectAffectedTests(box.root, { base, commit, changed: ['apps/cli/journeys/milestone/api.test.js'] });
+  selection = selectAffectedTests(box.root, { base, commit, changed: ['test/api.test.js'] });
   assert.equal(selection.full, false, 'one unreadable test never forces the whole suite');
-  assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js', 'test/guess.test.js'], 'the unreadable test runs beside the selection, nothing else');
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/guess.test.js'], 'the unreadable test runs beside the selection, nothing else');
   assert.match(selection.reason, /test\/guess\.test\.js/u, 'the selection names the file that cannot be read');
 
   // A test importing the unreadable test reaches what it reads, so it runs too.
   box.put('test/uses-guess.test.js', "import './guess.test.js';\n");
   commit = box.commit();
-  selection = selectAffectedTests(box.root, { base, commit, changed: ['apps/cli/journeys/milestone/api.test.js'] });
+  selection = selectAffectedTests(box.root, { base, commit, changed: ['test/api.test.js'] });
   assert.equal(selection.full, false);
-  assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js', 'test/guess.test.js', 'test/uses-guess.test.js'], 'an importer of the unreadable test runs with it');
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/guess.test.js', 'test/uses-guess.test.js'], 'an importer of the unreadable test runs with it');
 });
 
 test('an undeclared non-literal specifier, through a helper or a path builder, always runs its own file [V4,C7]', (t) => {
@@ -291,7 +292,7 @@ test('an undeclared non-literal specifier, through a helper or a path builder, a
     "function pick(fallback) { return process.env.CASE_MODULE || fallback; }\nawait import(new URL(pick('../src/api.js'), import.meta.url).href);\n",
     "const helpers = { pick: (fallback) => process.env.CASE_MODULE || fallback };\nawait import(new URL(helpers.pick('../src/api.js'), import.meta.url).href);\n",
     // A path builder is a call too: without a declaration even join(dir, literal) is not resolved (#803's refrozen bar).
-    "import { join } from 'node:path';\nconst dir = process.env.CASE_DIR ?? '../../../../..';\nawait import(join(import.meta.dirname, dir, 'src/api.js'));\n",
+    "import { join } from 'node:path';\nconst dir = process.env.CASE_DIR ?? '..';\nawait import(join(import.meta.dirname, dir, 'src/api.js'));\n",
   ]) {
     const box = graph(t);
     box.put('src/b.js', 'export const value = 1;\n');
@@ -354,15 +355,15 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
 
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {
   const box = graph(t);
-  box.put('apps/cli/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import '../../../src/io/commands/index.js';\nimport '../../../../../packages/state/src/io/machine.js';\n");
+  box.put('apps/cli/pullboard.js', "import './src/cli.js';\n");
+  box.put('apps/cli/src/cli.js', "import './io/commands/index.js';\nimport '../../../packages/state/src/io/machine.js';\n");
   box.put('apps/cli/src/io/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('apps/cli/src/io/commands/alpha.js', 'export function run() { return 0; }\n');
   box.put('packages/state/src/io/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('packages/state/src/logic/engines/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
-  box.put('test/direct-cli.test.js', "const BIN = '../../../pullboard.js';\n");
-  box.put('test/machine-reader.test.js', "import '../../../../../packages/state/src/io/machine.js';\n");
+  box.put('test/direct-cli.test.js', "const BIN = 'apps/cli/pullboard.js';\n");
+  box.put('test/machine-reader.test.js', "import '../packages/state/src/io/machine.js';\n");
   box.put('test/unrelated.test.js', "import '../src/unrelated.js';\n");
   const base = box.commit();
 
@@ -385,8 +386,8 @@ test('runtime discovery and the selector agree on which files are engines and co
   const box = graph(t);
   box.put('packages/state/src/io/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('apps/cli/src/io/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
-  box.put('test/reader.test.js', "import '../../../../../packages/state/src/io/machine.js';\n");
-  box.put('test/commands.test.js', "import '../../../src/io/commands/index.js';\n");
+  box.put('test/reader.test.js', "import '../packages/state/src/io/machine.js';\n");
+  box.put('test/commands.test.js', "import '../apps/cli/src/io/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
   for (const [file, reader] of [['packages/state/src/logic/engines/check-alpha-engine.js', 'test/reader.test.js'], ['packages/state/src/logic/engines/check.alpha-engine.js', 'test/reader.test.js'],
@@ -404,11 +405,12 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const box = graph(t);
   const sourceRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   // Real source modules declare committed data inputs too; copy their complete tracked source/input tree.
-  const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
+  // The runner reader imports the app launcher, which hands the gate engine its loaders, so the copy carries the launcher too.
+  const sourceInputs = packageFiles(sourceRoot).filter(path => path === 'apps/cli/src/io/run/tests.js' || (/^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path)));
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
-  box.put('apps/cli/journeys/milestone/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
-  box.put('apps/cli/journeys/spec/person.test.js', "import '../src/config.js';\n");
-  box.put('test/runner-reader.test.js', "import '../../../../../packages/gate/src/io/run/tests.js';\n");
+  box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
+  box.put('apps/cli/journeys/spec/person.test.js', "import '../../../../src/config.js';\n");
+  box.put('test/runner-reader.test.js', "import '../apps/cli/src/io/run/tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
   const mapped = mappedWorkingSource(sourceRoot, 'src/config.js');
@@ -495,6 +497,9 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/sandbox/tests/privacy/guard.test.js',
     'packages/gate/tests/logic/wait.test.js',
     'packages/gate/tests/io/test/waits.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
+    'packages/gate/tests/io/test/launches.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
@@ -513,8 +518,11 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/gate/tests/io/test/waits.test.js',
     'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
+    'packages/gate/tests/io/static/operations.test.js',
+    'packages/gate/tests/io/stores.test.js',
+    'packages/gate/tests/io/test/launches.test.js',
   ];
-  assert.equal(guards.length, 8, 'all selected guards are scanned');
+  assert.equal(guards.length, 11, 'all selected guards are scanned');
   for (const guardScanFile of scanFiles) {
     assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
     const source = readFileSync(join(root, guardScanFile), 'utf8');

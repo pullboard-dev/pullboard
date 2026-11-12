@@ -65,26 +65,26 @@ function refusal(result, code, itemId, pendingFields) {
   return document.error;
 }
 
-test("clause 1: the coordinator corrects a claimed item's criterion without release [V2]", (t) => {
+test("clause 1: the coordinator corrects a claimed item's criterion without release [V2]", async (t) => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
 
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json'));
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const claim = box.run(box.web, 'claim', String(id), '--json');
+  const claim = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claim.code, 0, claim.err || claim.out);
   const before = store.getItem(board, id);
 
-  const routeEdit = box.run(box.repo, 'edit', String(id), '--route', 'mid', '--json');
+  const routeEdit = (await box.runLocal(box.repo, 'edit', String(id), '--route', 'mid', '--json'));
   assert.match(refusal(routeEdit, 'HELD', id).message, /change its route, criterion or check only while it is open/u);
   assert.equal(store.getItem(board, id).item_route, before.item_route, 'a claimed route remains unchanged after refusal');
-  const agentEdit = box.run(box.web, 'edit', String(id), '--criterion', 'an agent cannot change the frozen bar', '--json');
+  const agentEdit = (await box.runLocal(box.web, 'edit', String(id), '--criterion', 'an agent cannot change the frozen bar', '--json'));
   assert.match(refusal(agentEdit, 'HELD', id).message, /only the coordinator may edit it while held/u);
 
-  const corrected = box.run(box.repo, 'edit', String(id), '--criterion', 'the corrected criterion', '--check', 'true && true', '--reason', 'the fixture corrects its bar', '--json');
+  const corrected = (await box.runLocal(box.repo, 'edit', String(id), '--criterion', 'the corrected criterion', '--check', 'true && true', '--reason', 'the fixture corrects its bar', '--json'));
   assert.equal(corrected.code, 0, corrected.err || corrected.out);
   const adopted = store.getItem(board, id);
   assert.equal(adopted.item_criterion, 'the corrected criterion');
@@ -98,19 +98,18 @@ test("clause 1: the coordinator corrects a claimed item's criterion without rele
   const notice = store.inbox(board, before.item_owner).find(entry => entry.shout_text.includes(`corrected #${id}`));
   assert.ok(notice, 'the holder receives the effective correction in the same move');
   assert.doesNotMatch(notice.shout_text, /pending|refreeze/u);
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0, 'renewal has no pending-bar refusal');
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0, 'renewal has no pending-bar refusal');
   assert.deepEqual(JSON.parse(adopted.item_frozen), {
     title: 'Correct a live bar', criterion: 'the corrected criterion', check: 'true && true',
     rows: [{ id: 'G1', text: 'The page renders.', gate: 'web test' }],
-    policy: { version: 1, commit: JSON.parse(before.item_frozen).policy.commit, verify: { policy: 'any', family: 'off' } },
-  });
+  }, 'the corrected freeze is the bar alone, no policy pin [B4]');
 
   const page = join(box.web, 'web', 'page.js');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(page, 'export const corrected = true;\n');
   box.git(box.web, 'add', 'web/page.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): use corrected criterion [G1]');
-  const submitted = box.run(box.web, 'submit', String(id), '--json');
+  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--json'));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const finalItem = store.getItem(board, id);
   assert.equal(finalItem.item_status, 'submitted');
@@ -118,13 +117,13 @@ test("clause 1: the coordinator corrects a claimed item's criterion without rele
   assert.equal(JSON.parse(finalItem.item_frozen).criterion, 'the corrected criterion');
   assert.equal(finalItem.item_commit, box.git(box.web, 'rev-parse', 'HEAD'));
 
-  const checkAdd = fixtureAdd(box.run, box.repo, 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
+  const checkAdd = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json'));
   assert.equal(checkAdd.code, 0, checkAdd.err || checkAdd.out);
   const checkId = JSON.parse(checkAdd.out).item.item_id;
-  const checkClaim = box.run(box.web, 'claim', String(checkId), '--json');
+  const checkClaim = (await box.runLocal(box.web, 'claim', String(checkId), '--json'));
   assert.equal(checkClaim.code, 0, checkClaim.err || checkClaim.out);
   const checkBefore = store.getItem(board, checkId);
-  const checkEdit = box.run(box.repo, 'edit', String(checkId), '--check', 'true && true', '--reason', 'the fixture corrects its bar', '--json');
+  const checkEdit = (await box.runLocal(box.repo, 'edit', String(checkId), '--check', 'true && true', '--reason', 'the fixture corrects its bar', '--json'));
   assert.equal(checkEdit.code, 0, checkEdit.err || checkEdit.out);
   const checkPending = store.getItem(board, checkId);
   assert.equal(checkPending.item_criterion, checkBefore.item_criterion);
@@ -136,34 +135,34 @@ test("clause 1: the coordinator corrects a claimed item's criterion without rele
   const checkNotice = store.inbox(board, checkBefore.item_owner).find(entry => entry.shout_text.includes(`corrected #${checkId}`));
   assert.ok(checkNotice, 'a check-only correction also notifies the holder');
   assert.doesNotMatch(checkNotice.shout_text, /pending|refreeze/u);
-  assert.equal(box.run(box.web, 'claim', String(checkId), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(checkId), '--json')).code, 0);
   assert.equal(store.getItem(board, checkId).item_status, 'claimed');
 
 });
 
-test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
+test("edit adds and clears an item's dependencies [B3,V2]", async (t) => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
-  const add = (title, route = 'mid') => {
-    const result = fixtureAdd(box.run, box.repo, 'web', title, '--route', route, '--criterion', title,
-      '--brief', 'Files: web/dependencies.js\nChange: update dependency links\nTest: records dependency edits', '--check', 'true', '--json');
+  const add = async (title, route = 'mid') => {
+    const result = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--route', route, '--criterion', title,
+      '--brief', 'Files: web/dependencies.js\nChange: update dependency links\nTest: records dependency edits', '--check', 'true', '--json'));
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;
   };
-  const first = add('First dependency');
-  const second = add('Second dependency');
-  const target = add('Dependency target');
+  const first = (await add('First dependency'));
+  const second = (await add('Second dependency'));
+  const target = (await add('Dependency target'));
 
-  const added = box.run(box.repo, 'edit', String(target), '--after', `${first},${second}`, '--json');
+  const added = (await box.runLocal(box.repo, 'edit', String(target), '--after', `${first},${second}`, '--json'));
   assert.equal(added.code, 0, added.err || added.out);
   assert.equal(store.getItem(board, target).item_after, `${first},${second}`, 'edit stores both dependency ids in order');
   const addEvent = store.events(board, { itemId: target }).findLast((event) => event.event_kind === 'edit');
   assert.deepEqual(JSON.parse(addEvent.event_detail).after, [first, second], 'history records the dependency replacement');
 
-  const cleared = box.run(box.repo, 'edit', String(target), '--after', 'none', '--json');
+  const cleared = (await box.runLocal(box.repo, 'edit', String(target), '--after', 'none', '--json'));
   assert.equal(cleared.code, 0, cleared.err || cleared.out);
   assert.equal(store.getItem(board, target).item_after, '', 'none clears all dependencies');
   const clearEvent = store.events(board, { itemId: target }).findLast((event) => event.event_kind === 'edit');
@@ -171,23 +170,23 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
 
   const unchanged = store.getItem(board, target);
   const eventCount = store.events(board, { itemId: target }).length;
-  refusal(box.run(box.repo, 'edit', String(target), '--after', '999999', '--json'), 'NO_ITEM');
+  refusal((await box.runLocal(box.repo, 'edit', String(target), '--after', '999999', '--json')), 'NO_ITEM');
   assert.equal(store.getItem(board, target).item_after, unchanged.item_after, 'a missing dependency leaves the item unchanged');
   assert.equal(store.events(board, { itemId: target }).length, eventCount, 'a refused dependency creates no history event');
 
-  assert.equal(box.run(box.repo, 'edit', String(first), '--after', String(second), '--json').code, 0);
-  const cycle = box.run(box.repo, 'edit', String(second), '--after', String(first), '--json');
+  assert.equal((await box.runLocal(box.repo, 'edit', String(first), '--after', String(second), '--json')).code, 0);
+  const cycle = (await box.runLocal(box.repo, 'edit', String(second), '--after', String(first), '--json'));
   refusal(cycle, 'DEPENDENCY_CYCLE');
   assert.equal(store.getItem(board, second).item_after, '', 'a refused cycle leaves the edge unchanged');
 
-  const claimed = add('Claimed dependency target');
-  const diagnosis = box.run(box.repo, 'fact', String(claimed), 'diagnosis',
-    'Files: web/dependencies.js Change: correct dependency edges without changing the frozen bar Test case: edit adds and clears an item\'s dependencies');
+  const claimed = (await add('Claimed dependency target'));
+  const diagnosis = (await box.runLocal(box.repo, 'fact', String(claimed), 'diagnosis',
+    'Files: web/dependencies.js Change: correct dependency edges without changing the frozen bar Test case: edit adds and clears an item\'s dependencies'));
   assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
-  const claim = box.run(box.web, 'claim', String(claimed), '--json');
+  const claim = (await box.runLocal(box.web, 'claim', String(claimed), '--json'));
   assert.equal(claim.code, 0, claim.err || claim.out);
   const beforeCorrection = store.getItem(board, claimed);
-  const correction = box.run(box.repo, 'edit', String(claimed), '--after', String(first), '--json');
+  const correction = (await box.runLocal(box.repo, 'edit', String(claimed), '--after', String(first), '--json'));
   assert.equal(correction.code, 0, correction.err || correction.out);
   const pending = store.getItem(board, claimed);
   assert.equal(pending.item_after, String(first));
@@ -201,12 +200,12 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.deepEqual(JSON.parse(correctionEvent.event_detail).after, [first]);
   assert.ok(store.inbox(board, beforeCorrection.item_owner).some(entry =>
     entry.shout_text.includes(`corrected #${claimed}`) && !/pending|refreeze/u.test(entry.shout_text)));
-  const blocked = box.run(box.web, 'claim', String(claimed), '--json');
+  const blocked = (await box.runLocal(box.web, 'claim', String(claimed), '--json'));
   refusal(blocked, 'BLOCKED'); // A real prerequisite still applies; a pending-bar refusal never does.
-  const clearClaimed = box.run(box.repo, 'edit', String(claimed), '--after', 'none', '--json');
+  const clearClaimed = (await box.runLocal(box.repo, 'edit', String(claimed), '--after', 'none', '--json'));
   assert.equal(clearClaimed.code, 0, clearClaimed.err || clearClaimed.out);
   assert.deepEqual(store.pendingRefreeze(board, claimed), []);
-  const renewed = box.run(box.web, 'claim', String(claimed), '--json');
+  const renewed = (await box.runLocal(box.web, 'claim', String(claimed), '--json'));
   assert.equal(renewed.code, 0, `${renewed.out}\n${renewed.err}`);
   assert.equal(store.getItem(board, claimed).item_status, 'claimed');
   assert.equal(store.getItem(board, claimed).item_owner, beforeCorrection.item_owner);

@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
-/** A trunk test-defect hold follows its repair item's live status, and the lander's refusal names the item and status [C7]. */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js */
+/** A recorded test defect is a repair item, never a trunk hold: the lander lands beside it [C7,#5862]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -13,8 +13,6 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import * as store from '../../../../packages/store/index.js';
-import { heldTestDefects } from '../../../../packages/landing/index.js';
-import { landingPorts } from '../../tests/fixtures/landing/ports.js';
 
 const HELD = 'web/held.test.js';
 const CASE = 'held case [C7]';
@@ -23,8 +21,8 @@ const BRANCH = 'refs/heads/main';
 const REVIEWER_MODEL = 'Landing reviewer';
 
 /** Require an actual successful JSON command. */
-function json(box, root, ...args) {
-  const result = box.run(root, ...args, '--json');
+async function json(box, root, ...args) {
+  const result = await box.runLocal(root, ...args, '--json');
   assert.equal(result.code, 0, result.out + result.err);
   return JSON.parse(result.out);
 }
@@ -40,7 +38,7 @@ function commit(box, root, message) {
  * A board that lands accepted items itself, with a committed test on its trunk whose case really fails, so no run at
  * the trunk can release its defect, and a reviewer seat in another lane.
  */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -51,19 +49,19 @@ function fixture(t) {
   commit(box, box.repo, 'chore: the board lands accepted items and a red held test is committed');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api', '--model', REVIEWER_MODEL, '--route', 'strong');
+  await json(box, reviewer, 'join', 'api', '--model', REVIEWER_MODEL, '--route', 'strong');
   return { box, reviewer };
 }
 
 /** Build one web item on the current trunk and submit it, leaving it for the reviewer. */
-function submitted(box, name) {
+async function submitted(box, name) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const file = `web/${name}.txt`;
-  const id = json(box, box.repo, 'add', 'web', `Build ${name}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`).item.item_id;
-  json(box, box.web, 'claim', String(id));
+  const id = (await json(box, box.repo, 'add', 'web', `Build ${name}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`)).item.item_id;
+  await json(box, box.web, 'claim', String(id));
   writeFileSync(join(box.web, file), `${name}\n`);
   const head = commit(box, box.web, `feat(web): build ${name} [G1]`);
-  json(box, box.web, 'submit', String(id));
+  await json(box, box.web, 'submit', String(id));
   return { id, head };
 }
 
@@ -75,26 +73,20 @@ function fileDefect(box) {
     batchId: '55555555-5555-4555-8555-555555555555', branch: BRANCH }));
 }
 
-/** A trunk held by an open test defect, with one accepted item the real lander refused to land behind it. */
-function heldBehindDefect(t) {
-  const { box, reviewer } = fixture(t);
-  const item = submitted(box, 'waiting');
+/** An open test defect on the trunk, with one item accepted after it was filed. */
+async function acceptedBesideDefect(t) {
+  const { box, reviewer } = await fixture(t);
+  const item = await submitted(box, 'waiting');
   const defect = fileDefect(box);
   box.git(reviewer, 'checkout', '-q', '--detach', item.head);
-  box.run(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
-  assert.equal(json(box, box.repo, 'show', String(item.id)).item_status, 'verified', 'the item is accepted');
-  assert.equal(merged(box, item.id), null, 'the open defect held the accept-time landing');
+  await box.runLocal(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
+  assert.equal((await json(box, box.repo, 'show', String(item.id))).item_status, 'verified', 'the item is accepted');
   return { box, item, defect };
 }
 
 /** Whether the board recorded the item merged. */
 function merged(box, id) {
   return onBoard(box, board => store.getItem(board, id).item_merged_commit ?? null);
-}
-
-/** The defects the real landing step holds the current trunk with. */
-function held(box) {
-  return onBoard(box, board => heldTestDefects(box.repo, board, { branch: BRANCH, commit: box.git(box.repo, 'rev-parse', 'main') }, landingPorts));
 }
 
 /**
@@ -116,32 +108,11 @@ function landerPass(box) {
   return { log: run.stdout, result: JSON.parse(line.slice('RESULT '.length)) };
 }
 
-test('clause 1: a trunk held by a test-defect item that is then withdrawn: the lander\'s next pass drops the hold and lands the waiting accepted item, with no coordinator landing [C7]', { timeout: 300_000 }, t => { // budget: one held accept and two real lander passes in a private repo; hang ceiling, not speed.
-  const { box, item, defect } = heldBehindDefect(t);
-  assert.deepEqual(held(box).map(row => [row.item, row.status]), [[defect.item, 'open']], 'the open repair item holds the trunk');
-  const refused = landerPass(box);
-  assert.equal(refused.result?.backoff?.outcome, 'LAND_TEST_DEFECT', `the lander's pass is refused while the item is open: ${refused.log}`);
-  assert.deepEqual(Object.keys(refused.result.backoff.marks.held), [HELD], 'the backed-off lander watches the held test file');
-  assert.equal(merged(box, item.id), null);
-
-  const withdrawn = box.run(box.repo, 'withdraw', String(defect.item), 'the held test needs no repair');
-  assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
-  assert.equal(onBoard(box, board => store.getItem(board, defect.item).item_status), 'withdrawn');
-  assert.deepEqual(onBoard(box, board => store.landingTestDefects(board)).map(row => row.item), [defect.item],
-    'the defect record is unchanged: the hold follows the item\'s live status, not a cleared record');
-  assert.deepEqual(held(box), [], 'a withdrawn repair item holds nothing');
-
-  // No pullboard land: the scheduled lander's own next pass lands the waiting item.
-  const next = landerPass(box);
-  assert.doesNotMatch(next.log, /LAND_TEST_DEFECT/u, 'the next pass is not refused');
-  assert.ok(merged(box, item.id), `the lander's next pass lands the waiting accepted item: ${next.log}`);
-  assert.deepEqual(onBoard(box, board => store.events(board).filter(event => event.event_kind === 'landing-test-defect-closed')), [],
-    'nothing closed the defect, and its test is still red: the withdrawal alone released the trunk');
-});
-
-test('clause 2: the lander\'s LAND_TEST_DEFECT refusal names the defect item and its live status in worker.log [C7]', { timeout: 300_000 }, t => { // budget: one held accept and one real lander pass in a private repo; hang ceiling, not speed.
-  const { box, defect } = heldBehindDefect(t);
-  const pass = landerPass(box);
-  assert.match(pass.log, new RegExp(`landing held: \\[LAND_TEST_DEFECT\\] this trunk is held by #${defect.item} \\(open; web/held\\.test\\.js\\)`, 'u'),
-    `the lander's stdout, kept as worker.log, names the holding item and its status: ${pass.log}`);
+test('clause 1: an open test-defect repair item no longer holds the trunk: the lander\'s first pass lands the waiting accepted item [C7,#5862]', { timeout: 300_000 }, async t => { // budget: one accept and one real lander pass in a private repo; hang ceiling, not speed.
+  const { box, item, defect } = await acceptedBesideDefect(t);
+  assert.equal(onBoard(box, board => store.getItem(board, defect.item).item_status), 'open', 'the repair item is still open');
+  // No pullboard land and no withdrawal: the accept-time landing or the scheduled lander's own pass lands the item.
+  const pass = merged(box, item.id) ? { log: '' } : landerPass(box);
+  assert.doesNotMatch(pass.log, /LAND_TEST_DEFECT/u, `the pass is not refused: ${pass.log}`);
+  assert.ok(merged(box, item.id), `the accepted item lands beside the open defect: ${pass.log}`);
 });

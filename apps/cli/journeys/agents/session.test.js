@@ -31,6 +31,8 @@ import {
 import { DatabaseSync } from 'node:sqlite';
 import { listResources } from "../../../../packages/resources/index.js";
 import { SSH_SHELL_MARKERS } from "../../../../packages/kernel/index.js";
+import { runCliInProcess } from "../../tests/fixtures/process.js";
+import { requireSessionIndependence } from "../../tests/fixtures/testkit.js";
 import { waitForCondition } from "../../tests/fixtures/runner/holders.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -62,36 +64,36 @@ function sandbox() {
   function git(cwd, ...args) {
     return runFixtureGit(args, { cwd, env: base });
   }
-  /** Run the actual CLI with an explicit agent session or markerless terminal. */
-  function run(cwd, args, { session, sessionKey = 'CLAUDE_CODE_SESSION_ID', agent = true, extra = {} } = {}) {
+  /** Run the actual CLI dispatch in process with an explicit agent session or markerless terminal. */
+  function inProcess(cwd, args, { session, sessionKey = 'CLAUDE_CODE_SESSION_ID', agent = true, extra = {} } = {}) {
     const env = { ...base, ...extra };
     if (agent) {
       env.CLAUDECODE = '1';
       if (session !== undefined) env[sessionKey] = session;
     }
-    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return runCliInProcess(args, { cwd, env });
   }
-  return { dir, base, git, run };
+  return { dir, base, git, inProcess };
 }
 
 /** Create the main checkout and one joined lane worktree with a private board. */
-function project() {
+async function project() {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(repo, ['init'], { agent: false }).status, 0);
+  assert.equal((await box.inProcess(repo, ['init'], { agent: false })).status, 0);
   writeFileSync(join(repo, 'pullboard.json'), `${JSON.stringify(CONFIG, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   mkdirSync(join(repo, 'web'));
   writeFileSync(join(repo, 'web', 'page.txt'), 'ready\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize session fixture');
-  const added = box.run(repo, ['add', 'web', 'fixture item', '--specs', 'G1', '--json'], { agent: false });
+  const added = (await box.inProcess(repo, ['add', 'web', 'fixture item', '--specs', 'G1', '--json'], { agent: false }));
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const web = join(box.dir, 'web-agent');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/session');
-  const joined = box.run(web, ['join', 'web', '--family', 'Fixture-Builder', '--route', 'strong'], { agent: false });
+  const joined = (await box.inProcess(web, ['join', 'web', '--family', 'Fixture-Builder', '--route', 'strong'], { agent: false }));
   assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
   return { ...box, repo, web, boardFile: resolve(repo, box.git(repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'board.sqlite') };
 }
@@ -133,14 +135,14 @@ function assertNoRawSession(box, cwd, secrets, sessionKey = 'CLAUDE_CODE_SESSION
   assert.ok(Number.isFinite(Date.parse(binding.at)));
 }
 
-test('a second session cannot write in the main checkout until takeover [B3,B7]', () => {
-  const box = project();
+test('a second session cannot write in the main checkout until takeover [B3,B7]', async () => {
+  const box = await project();
   const first = 'claude-session-secret-first-273';
   const second = 'claude-session-secret-second-273';
-  const initial = box.run(box.repo, ['shout', 'web', 'first session owns main', '--json'], { session: first });
+  const initial = (await box.inProcess(box.repo, ['shout', 'web', 'first session owns main', '--json'], { session: first }));
   assert.equal(initial.status, 0, `${initial.stdout}${initial.stderr}`);
   const before = boardSnapshot(box.boardFile);
-  const refused = box.run(box.repo, ['shout', 'web', 'must not land', '--json'], { session: second });
+  const refused = (await box.inProcess(box.repo, ['shout', 'web', 'must not land', '--json'], { session: second }));
   assert.notEqual(refused.status, 0);
   const error = JSON.parse(refused.stdout).error;
   assert.equal(error.code, 'NOT_YOUR_CHECKOUT');
@@ -150,85 +152,85 @@ test('a second session cannot write in the main checkout until takeover [B3,B7]'
   assert.deepEqual(boardSnapshot(box.boardFile), before, 'refusal leaves all board counts unchanged');
   const worktrees = box.git(box.repo, 'worktree', 'list', '--porcelain');
   for (const args of [['init'], ['worktree', 'web'], ['hooks'], ['spec', 'apply'], ['hook', 'pre-commit'], ['submit', '1']]) {
-    const blocked = box.run(box.repo, [...args, '--json'], { session: second });
+    const blocked = (await box.inProcess(box.repo, [...args, '--json'], { session: second }));
     assert.equal(blocked.status, 1, `${args.join(' ')} must refuse another session before side effects`);
     assert.equal(JSON.parse(blocked.stdout).error.code, 'NOT_YOUR_CHECKOUT');
     assert.deepEqual(boardSnapshot(box.boardFile), before, `${args.join(' ')} leaves every board row intact`);
     assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), worktrees, 'the wrong session cannot create a worktree first');
   }
 
-  const takeover = box.run(box.repo, ['takeover', '--json'], { session: second });
+  const takeover = (await box.inProcess(box.repo, ['takeover', '--json'], { session: second }));
   assert.equal(takeover.status, 0, `${takeover.stdout}${takeover.stderr}`);
   const rows = boardSnapshot(box.boardFile);
   assert.ok(rows.event.slice(before.event.length).some(row => row.event_kind === 'shout' && row.event_by === 'coordinator'), 'takeover is recorded through an existing ordered shout event');
   assert.match(rows.shout.at(-1).shout_text, /coordinator \(Test Model\) took over/);
   assert.equal(rows.shout.at(-1).shout_to, 'person');
   assert.equal(rows.shout.length, before.shout.length + 1, 'main-checkout takeover records the person notice');
-  const after = box.run(box.repo, ['shout', 'web', 'second session owns main', '--json'], { session: second });
+  const after = (await box.inProcess(box.repo, ['shout', 'web', 'second session owns main', '--json'], { session: second }));
   assert.equal(after.status, 0, `${after.stdout}${after.stderr}`);
   assertNoRawSession(box, box.repo, [first, second]);
   const beforeSelf = boardSnapshot(box.boardFile);
-  const self = box.run(box.repo, ['shout', 'coordinator', 'cannot address myself', '--json'], { agent: false });
+  const self = (await box.inProcess(box.repo, ['shout', 'coordinator', 'cannot address myself', '--json'], { agent: false }));
   assert.notEqual(self.status, 0);
   assert.deepEqual(boardSnapshot(box.boardFile), beforeSelf, 'self-addressed shout is refused without changing the board');
 });
 
-test('lane ownership is session-scoped and takeover preserves the joined agent [B3,B7]', () => {
-  const box = project();
+test('lane ownership is session-scoped and takeover preserves the joined agent [B3,B7]', async () => {
+  const box = await project();
   const first = 'codex-thread-secret-first-273';
   const second = 'codex-thread-secret-second-273';
-  const claim = box.run(box.web, ['claim', '1', '--json'], { session: first, sessionKey: 'CODEX_THREAD_ID' });
+  const claim = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: first, sessionKey: 'CODEX_THREAD_ID' }));
   assert.equal(claim.status, 0, `${claim.stdout}${claim.stderr}`);
-  const sameSession = box.run(box.web, ['claim', '1', '--json'], { session: first, sessionKey: 'CODEX_THREAD_ID' });
+  const sameSession = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: first, sessionKey: 'CODEX_THREAD_ID' }));
   assert.equal(sameSession.status, 0, `${sameSession.stdout}${sameSession.stderr}`);
   const before = boardSnapshot(box.boardFile);
-  const refused = box.run(box.web, ['claim', '1', '--json'], { session: second, sessionKey: 'CODEX_THREAD_ID' });
+  const refused = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: second, sessionKey: 'CODEX_THREAD_ID' }));
   assert.notEqual(refused.status, 0);
   assert.equal(JSON.parse(refused.stdout).error.code, 'NOT_YOUR_CHECKOUT');
   assert.match(JSON.parse(refused.stdout).error.message, /web-1/u);
   assert.match(JSON.parse(refused.stdout).error.next, /git worktree add --detach/u);
   assert.deepEqual(boardSnapshot(box.boardFile), before, 'refused lane write leaves event and item counts unchanged');
 
-  const takeover = box.run(box.web, ['takeover', '--json'], { session: second, sessionKey: 'CODEX_THREAD_ID' });
+  const takeover = (await box.inProcess(box.web, ['takeover', '--json'], { session: second, sessionKey: 'CODEX_THREAD_ID' }));
   assert.equal(takeover.status, 0, `${takeover.stdout}${takeover.stderr}`);
   assert.equal(boardSnapshot(box.boardFile).event.length, before.event.length + 1, 'lane takeover records one event');
   assert.equal(boardSnapshot(box.boardFile).shout.at(-1).shout_to, 'coordinator');
-  const after = box.run(box.web, ['claim', '1', '--json'], { session: second, sessionKey: 'CODEX_THREAD_ID' });
+  const after = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: second, sessionKey: 'CODEX_THREAD_ID' }));
   assert.equal(after.status, 0, `${after.stdout}${after.stderr}`);
   assertNoRawSession(box, box.web, [first, second], 'CODEX_THREAD_ID');
 });
 
-test('no-session shells are one session and markerless terminals retain their writes [B3,B7]', () => {
-  const box = project();
-  const sentinel = box.run(box.web, ['claim', '1', '--json'], { session: undefined });
+test('no-session shells are one session and markerless terminals retain their writes [B3,B7]', async () => {
+  const box = await project();
+  const sentinel = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: undefined }));
   assert.equal(sentinel.status, 0, `${sentinel.stdout}${sentinel.stderr}`);
-  const noSessionAgain = box.run(box.web, ['claim', '1', '--json'], { session: undefined });
+  const noSessionAgain = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: undefined }));
   assert.equal(noSessionAgain.status, 0, `${noSessionAgain.stdout}${noSessionAgain.stderr}`);
-  const terminalRead = box.run(box.web, ['show', '1', '--json'], { agent: false });
+  const terminalRead = (await box.inProcess(box.web, ['show', '1', '--json'], { agent: false }));
   assert.equal(terminalRead.status, 0, `${terminalRead.stdout}${terminalRead.stderr}`);
   assert.equal(JSON.parse(terminalRead.stdout).item_status, 'claimed');
   const beforeIdentified = boardSnapshot(box.boardFile);
-  const identified = box.run(box.web, ['release', '1', '--reason', 'BLOCKED', '--json'], { session: 'identified-after-sentinel-273', sessionKey: 'CODEX_SESSION_ID' });
+  const identified = (await box.inProcess(box.web, ['release', '1', '--reason', 'BLOCKED', '--json'], { session: 'identified-after-sentinel-273', sessionKey: 'CODEX_SESSION_ID' }));
   assert.equal(identified.status, 1);
   assert.equal(JSON.parse(identified.stdout).error.code, 'NOT_YOUR_CHECKOUT');
   assert.deepEqual(boardSnapshot(box.boardFile), beforeIdentified);
-  const terminalWrite = box.run(box.web, ['shout', 'all', 'the markerless terminal still works', '--json'], { agent: false });
+  const terminalWrite = (await box.inProcess(box.web, ['shout', 'all', 'the markerless terminal still works', '--json'], { agent: false }));
   assert.equal(terminalWrite.status, 0, terminalWrite.stdout + terminalWrite.stderr);
-  const secondSessionRead = box.run(box.web, ['show', '1', '--json'], { session: 'read-from-another-session-273' });
+  const secondSessionRead = (await box.inProcess(box.web, ['show', '1', '--json'], { session: 'read-from-another-session-273' }));
   assert.equal(secondSessionRead.status, 0, secondSessionRead.stdout + secondSessionRead.stderr);
 
   // Existing relay-person-request coverage should be retained: this private CLI fixture does not
   // establish a linked relay or inject io.personRequest, so an ordinary shout is not a substitute.
   // A decision addressed to its own sender must be refused rather than self-answered.
   const beforeSelf = boardSnapshot(box.boardFile);
-  const self = box.run(box.repo, ['shout', 'coordinator', 'self decision', '--decision', '--json'], { agent: false });
+  const self = (await box.inProcess(box.repo, ['shout', 'coordinator', 'self decision', '--decision', '--json'], { agent: false }));
   assert.notEqual(self.status, 0);
   assert.deepEqual(boardSnapshot(box.boardFile), beforeSelf, 'self-addressed decision is refused without a write');
 });
 
-test('a shout from the local view as the person is recorded as the person [N26,B26,B3,B7]', () => {
-  const box = project();
-  const owner = box.run(box.repo, ['shout', 'web', 'agent owns this checkout', '--json'], { session: 'view-owner-session-273' });
+test('a shout from the local view as the person is recorded as the person [N26,B26,B3,B7]', async () => {
+  const box = await project();
+  const owner = (await box.inProcess(box.repo, ['shout', 'web', 'agent owns this checkout', '--json'], { session: 'view-owner-session-273' }));
   assert.equal(owner.status, 0, owner.stdout + owner.stderr);
   assert.equal(boardSnapshot(box.boardFile).shout.at(-1).shout_from, 'coordinator', 'an agent-shell shout keeps the coordinator as author');
   const file = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-dir'), 'pullboard-checkout-session.json');
@@ -262,7 +264,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
 });
 
 test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 45_000 }, async () => {
-  const box = project();
+  const box = await project();
   const started = join(box.dir, 'gate-started');
   const release = join(box.dir, 'gate-release');
   const gateFile = join(box.dir, 'holding-gate.cjs');
@@ -275,7 +277,7 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure holding gate');
   box.git(box.web, 'merge', '--quiet', 'main');
-  const claim = box.run(box.web, ['claim', '1', '--json'], { session: 'active-write-273', sessionKey: 'CODEX_SESSION_ID' });
+  const claim = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: 'active-write-273', sessionKey: 'CODEX_SESSION_ID' }));
   assert.equal(claim.status, 0, claim.stdout + claim.stderr);
   writeFileSync(join(box.web, 'web/page.txt'), 'changed for the claimed item\n');
   box.git(box.web, 'add', 'web/page.txt');
@@ -328,7 +330,7 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
     assert.equal(taken.code, 0, taken.failure ?? taken.output);
     assert.equal(boardSnapshot(box.boardFile).item[0].item_status, 'submitted');
     const beforeRefusal = boardSnapshot(box.boardFile);
-    const old = box.run(box.web, ['shout', 'coordinator', 'old session cannot write', '--json'], { session: 'active-write-273', sessionKey: 'CODEX_SESSION_ID' });
+    const old = (await box.inProcess(box.web, ['shout', 'coordinator', 'old session cannot write', '--json'], { session: 'active-write-273', sessionKey: 'CODEX_SESSION_ID' }));
     assert.equal(old.status, 1);
     assert.equal(JSON.parse(old.stdout).error.code, 'NOT_YOUR_CHECKOUT');
     assert.deepEqual(boardSnapshot(box.boardFile), beforeRefusal);
@@ -341,8 +343,8 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   }
 });
 
-test('a remote shell is recognized by any SSH marker [B26,E22]', () => {
-  const box = project();
+test('a remote shell is recognized by any SSH marker [B26,E22]', async () => {
+  const box = await project();
   for (const key of SSH_SHELL_MARKERS) delete box.base[key];
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G2 [draft, must] A probe row for person moves. | gate: true\n`);
   box.git(box.repo, 'commit', '-qam', 'docs: draft a probe row');
@@ -355,7 +357,7 @@ test('a remote shell is recognized by any SSH marker [B26,E22]', () => {
   const before = boardSnapshot(box.boardFile);
   for (const extra of shells) {
     const label = Object.keys(extra).join('+');
-    const refused = box.run(box.repo, ['spec', 'approve', 'G2', '--json'], { agent: false, extra });
+    const refused = (await box.inProcess(box.repo, ['spec', 'approve', 'G2', '--json'], { agent: false, extra }));
     assert.equal(refused.status, 1, `${label}: ${refused.stdout}${refused.stderr}`);
     const error = JSON.parse(refused.stdout).error;
     assert.equal(error.code, 'B26_PERSON_CHANNEL', `${label} gives the person-channel refusal`);
@@ -363,11 +365,11 @@ test('a remote shell is recognized by any SSH marker [B26,E22]', () => {
     assert.match(error.next, /pullboard view/u, `${label} points the person at the view`);
     assert.deepEqual(boardSnapshot(box.boardFile), before, `${label} records no person decision`);
   }
-  const local = box.run(box.repo, ['spec', 'approve', 'G2', '--json'], { agent: false });
+  const local = (await box.inProcess(box.repo, ['spec', 'approve', 'G2', '--json'], { agent: false }));
   assert.equal(local.status, 0, `no SSH marker allows the person move: ${local.stdout}${local.stderr}`);
 
   box.git(box.repo, 'remote', 'add', 'origin', 'https://github.com/example/session-fixture.git');
-  const relay = box.run(box.repo, ['relay', 'on', '--url', 'http://127.0.0.1:9', '--json'], { agent: false, extra: { SSH_CLIENT: markers.SSH_CLIENT } });
+  const relay = (await box.inProcess(box.repo, ['relay', 'on', '--url', 'http://127.0.0.1:9', '--json'], { agent: false, extra: { SSH_CLIENT: markers.SSH_CLIENT } }));
   const relayError = JSON.parse(relay.stdout || '{}').error;
   assert.notEqual(relayError?.code, 'B26_PERSON_CHANNEL', `relay on over SSH keeps its own channel: ${relay.stdout}${relay.stderr}`);
   assert.equal(relayError?.code, 'RELAY_UNAVAILABLE', 'relay on over SSH reaches the relay');
@@ -382,23 +384,24 @@ async function waitForReviewComparison(box) {
     { signal: AbortSignal.timeout(60_000), state: () => existsSync(jobs) ? readdirSync(jobs) : 'no comparison jobs' });
 }
 
-test('a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async () => {
-  const box = project();
+test('review.independence session: a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async () => {
+  const box = await project();
   const builder = 'codex-thread-secret-builder-921';
-  const build = (args) => box.run(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
-  assert.equal(build(['claim', '1', '--json']).status, 0);
+  const build = (args) => box.inProcess(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
+  assert.equal((await build(['claim', '1', '--json'])).status, 0);
   writeFileSync(join(box.web, 'web', 'page.txt'), 'built\n');
   box.git(box.web, 'commit', '-qam', 'feat(web): build the fixture item [G1]');
-  const submitted = build(['submit', '1', '--json']);
+  const submitted = await build(['submit', '1', '--json']);
   assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
   await waitForReviewComparison(box);
   // The same session opens a review seat of its own: a different seat name, the same session.
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
-  const reviewAs = (session, args) => box.run(review, args, { session, sessionKey: 'CODEX_THREAD_ID' });
-  assert.equal(reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--route', 'strong', '--json']).status, 0);
+  requireSessionIndependence(review);
+  const reviewAs = (session, args) => box.inProcess(review, args, { session, sessionKey: 'CODEX_THREAD_ID' });
+  assert.equal((await reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--route', 'strong', '--json'])).status, 0);
   const before = boardSnapshot(box.boardFile);
-  const own = reviewAs(builder, ['verify', '1', 'accept', '--note', 'checked the page', '--json']);
+  const own = await reviewAs(builder, ['verify', '1', 'accept', '--note', 'checked the page', '--json']);
   assert.notEqual(own.status, 0, 'the building session cannot accept its own item from another seat');
   const error = JSON.parse(own.stdout).error;
   assert.equal(error.code, 'SELF_SESSION_VERIFY');
@@ -410,61 +413,61 @@ test('a verdict from the agent session that built the item is refused under any 
   assert.equal(ledger.includes(builder), false, 'the local item ledger keeps only the session digest');
   // Another session takes over that review seat and gives the verdict.
   const other = 'codex-thread-secret-reviewer-921';
-  assert.equal(reviewAs(other, ['takeover', '--json']).status, 0);
-  const accepted = reviewAs(other, ['verify', '1', 'accept', '--note', 'checked the page', '--json']);
+  assert.equal((await reviewAs(other, ['takeover', '--json'])).status, 0);
+  const accepted = await reviewAs(other, ['verify', '1', 'accept', '--note', 'checked the page', '--json']);
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
 });
 
-test('a session whose claims cannot be recorded is refused before it moves, never let through [V1,B3]', () => {
-  const box = project();
+test('a session whose claims cannot be recorded is refused before it moves, never let through [V1,B3]', async () => {
+  const box = await project();
   const ledger = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'item-sessions.jsonl');
   writeFileSync(ledger, '', { mode: 0o400 });
   chmodSync(ledger, 0o400);
   const before = boardSnapshot(box.boardFile);
-  const claim = box.run(box.web, ['claim', '1', '--json'], { session: 'codex-thread-secret-unrecorded-921', sessionKey: 'CODEX_THREAD_ID' });
+  const claim = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: 'codex-thread-secret-unrecorded-921', sessionKey: 'CODEX_THREAD_ID' }));
   assert.notEqual(claim.status, 0, 'an unrecordable claim is refused');
   const error = JSON.parse(claim.stdout).error;
   assert.equal(error.code, 'SESSION_LEDGER');
   assert.match(error.next, /chmod u\+rw/u);
   assert.deepEqual(boardSnapshot(box.boardFile), before, 'the refused claim moved nothing');
   chmodSync(ledger, 0o600);
-  assert.equal(box.run(box.web, ['claim', '1', '--json'], { session: 'codex-thread-secret-unrecorded-921', sessionKey: 'CODEX_THREAD_ID' }).status, 0, 'a writable ledger lets it through');
+  assert.equal((await box.inProcess(box.web, ['claim', '1', '--json'], { session: 'codex-thread-secret-unrecorded-921', sessionKey: 'CODEX_THREAD_ID' })).status, 0, 'a writable ledger lets it through');
   assert.match(readFileSync(ledger, 'utf8'), /"move":"claim"/u);
 });
 
 /** Open a helper seat from the web seat inside an agent session, returning the CLI result and the helper's Git directory. */
-function openHelper(box, session, { agent = true, from = box.web } = {}) {
-  const made = box.run(from, ['worktree', 'web', '--model', 'Helper Model', '--json'], { session, sessionKey: 'CODEX_THREAD_ID', agent });
+async function openHelper(box, session, { agent = true, from = box.web } = {}) {
+  const made = (await box.inProcess(from, ['worktree', 'web', '--model', 'Helper Model', '--json'], { session, sessionKey: 'CODEX_THREAD_ID', agent }));
   assert.equal(made.status, 0, `${made.stdout}${made.stderr}`);
   const result = JSON.parse(made.stdout);
   const gitDir = resolve(result.path, box.git(result.path, 'rev-parse', '--git-dir'));
   return { result, gitDir, file: join(gitDir, 'pullboard-parent-session.json') };
 }
 
-test('a helper seat records the agent that opened it [N2,B13]', () => {
-  const box = project();
-  const parent = JSON.parse(box.run(box.web, ['whoami', '--json'], { agent: false }).stdout).id;
+test('a helper seat records the agent that opened it [N2,B13]', async () => {
+  const box = await project();
+  const parent = JSON.parse((await box.inProcess(box.web, ['whoami', '--json'], { agent: false })).stdout).id;
   const session = 'codex-thread-secret-parent-800';
-  const helper = openHelper(box, session);
+  const helper = await openHelper(box, session);
   assert.equal(existsSync(helper.file), true, 'opening the seat inside an agent session records its parent with no flag');
   const record = JSON.parse(readFileSync(helper.file, 'utf8'));
   assert.equal(record.parent, parent, 'the record names the agent that opened the seat');
   assert.equal(record.digest, createHash('sha256').update(JSON.stringify(['CODEX_THREAD_ID', session])).digest('hex'));
   assert.equal(readFileSync(helper.file, 'utf8').includes(session), false, 'the record keeps only the session digest');
-  const lone = openHelper(box, undefined, { agent: false });
+  const lone = await openHelper(box, undefined, { agent: false });
   assert.equal(existsSync(lone.file), false, 'a seat a person opens has no parent');
   // The link never borrows a claim: the helper claims as itself, and the parent holds nothing.
-  const claimed = box.run(helper.result.path, ['claim', '1', '--json'], { session: 'codex-thread-secret-helper-800', sessionKey: 'CODEX_THREAD_ID' });
+  const claimed = (await box.inProcess(helper.result.path, ['claim', '1', '--json'], { session: 'codex-thread-secret-helper-800', sessionKey: 'CODEX_THREAD_ID' }));
   assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
-  assert.equal(JSON.parse(box.run(box.web, ['show', '1', '--json'], { agent: false }).stdout).item_owner, helper.result.agent);
+  assert.equal(JSON.parse((await box.inProcess(box.web, ['show', '1', '--json'], { agent: false })).stdout).item_owner, helper.result.agent);
 });
 
-test('agents lists each agent with its helpers [N2,B13]', () => {
-  const box = project();
-  const parent = JSON.parse(box.run(box.web, ['whoami', '--json'], { agent: false }).stdout).id;
-  const helper = openHelper(box, 'codex-thread-secret-parent-800');
-  assert.equal(box.run(helper.result.path, ['claim', '1', '--json'], { session: 'codex-thread-secret-helper-800', sessionKey: 'CODEX_THREAD_ID' }).status, 0);
-  const listed = box.run(box.web, ['agents', '--json'], { agent: false });
+test('agents lists each agent with its helpers [N2,B13]', async () => {
+  const box = await project();
+  const parent = JSON.parse((await box.inProcess(box.web, ['whoami', '--json'], { agent: false })).stdout).id;
+  const helper = await openHelper(box, 'codex-thread-secret-parent-800');
+  assert.equal((await box.inProcess(helper.result.path, ['claim', '1', '--json'], { session: 'codex-thread-secret-helper-800', sessionKey: 'CODEX_THREAD_ID' })).status, 0);
+  const listed = (await box.inProcess(box.web, ['agents', '--json'], { agent: false }));
   assert.equal(listed.status, 0, `${listed.stdout}${listed.stderr}`);
   const agents = JSON.parse(listed.stdout).agents;
   const top = agents.find((agent) => agent.id === parent);
@@ -473,21 +476,21 @@ test('agents lists each agent with its helpers [N2,B13]', () => {
   assert.deepEqual(top.helpers[0].holds.map((hold) => hold.item), [1], 'the helper shows what it holds');
   assert.deepEqual(top.holds, [], 'the parent holds nothing the helper claimed');
   assert.equal(agents.some((agent) => agent.id === helper.result.agent), false, 'a helper is listed only under its parent');
-  const text = box.run(box.web, ['agents'], { agent: false });
+  const text = (await box.inProcess(box.web, ['agents'], { agent: false }));
   assert.equal(text.status, 0);
   assert.match(text.stdout, new RegExp(`${helper.result.agent}[^\\n]*#1`, 'u'), 'the text view shows the helper and its item');
 });
 
-test('agents gives the coordinator a row with the helpers it opened [N2,B13]', () => {
-  const box = project();
-  const helper = openHelper(box, 'codex-thread-coordinator-800', { from: box.repo });
+test('agents gives the coordinator a row with the helpers it opened [N2,B13]', async () => {
+  const box = await project();
+  const helper = await openHelper(box, 'codex-thread-coordinator-800', { from: box.repo });
   assert.equal(JSON.parse(readFileSync(helper.file, 'utf8')).parent, 'coordinator', 'the main checkout is recorded as the parent');
-  const listed = JSON.parse(box.run(box.repo, ['agents', '--json'], { agent: false }).stdout).agents;
+  const listed = JSON.parse((await box.inProcess(box.repo, ['agents', '--json'], { agent: false })).stdout).agents;
   const top = listed.find((agent) => agent.id === 'coordinator');
   assert.ok(top, 'the coordinator has its own row');
   assert.deepEqual(top.helpers.map((agent) => agent.id), [helper.result.agent], 'its helper is nested under it');
   assert.equal(listed.some((agent) => agent.id === helper.result.agent), false, 'the helper is not a top-level agent');
-  const lines = box.run(box.repo, ['agents'], { agent: false }).stdout.split(/\r?\n/u);
+  const lines = (await box.inProcess(box.repo, ['agents'], { agent: false })).stdout.split(/\r?\n/u);
   const at = lines.findIndex((line) => line.startsWith('coordinator'));
   assert.ok(at >= 0, 'the text view has a coordinator line');
   assert.match(lines[at + 1] ?? '', new RegExp(`^ {2}\\S.*${helper.result.agent}|^ {2}.*\\(web lane\\)`, 'u'), 'the helper is indented under it');

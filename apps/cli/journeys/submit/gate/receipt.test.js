@@ -20,8 +20,8 @@ const RUN = 'node --test --test-reporter=./web/outcome-reporter.js web/gate-tick
 const CRITERION = 'The page meets its bar:\n1) web/gate-ticks.test.js proves the heading [test]\n2) web/gate-ticks.test.js proves the count [test]';
 
 /** Run a Pullboard command and fail with its full output when it is refused. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -57,7 +57,7 @@ function outcomeReporter(box) {
 }
 
 /** A claimed web item with the given criterion and a committed test file whose second case may fail. */
-function builderItem(criterion, { failing = false, brief = 'Files:\n- web/page.html\nTest:\n- web/gate-ticks.test.js' } = {}) {
+async function builderItem(criterion, { failing = false, brief = 'Files:\n- web/page.html\nTest:\n- web/gate-ticks.test.js' } = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   const configPath = join(box.repo, 'pullboard.json');
@@ -71,10 +71,10 @@ function builderItem(criterion, { failing = false, brief = 'Files:\n- web/page.h
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', builder, '-b', 'web/gate-ticks');
   joinFixtureSeat(box, builder, 'web');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Gate ticks its own clauses', '--specs', 'G1', '--criterion', criterion,
-    '--check', RUN, '--route', 'strong', '--brief', brief, '--json').out);
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Gate ticks its own clauses', '--specs', 'G1', '--criterion', criterion,
+    '--check', RUN, '--route', 'strong', '--brief', brief, '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   mkdirSync(join(builder, 'web'), { recursive: true });
   writeFileSync(join(builder, 'web/page.html'), '<h1>Dashboard</h1><p>Count: 3</p>\n');
   writeFileSync(join(builder, 'web/gate-ticks.test.js'), [
@@ -91,35 +91,35 @@ function builderItem(criterion, { failing = false, brief = 'Files:\n- web/page.h
 }
 
 /** The tick notes the item's thread carries, as text. */
-function tickNotes(box, id) {
-  const shown = JSON.parse(ok(box, box.repo, 'show', String(id), '--detail', '--json').out);
+async function tickNotes(box, id) {
+  const shown = JSON.parse((await ok(box, box.repo, 'show', String(id), '--detail', '--json')).out);
   return JSON.stringify(shown).match(/clause \d \[test\][^"]*/gu) ?? [];
 }
 
-test('clause 1 and 2: a [test] clause naming a test file submits with no pre-proof tick, and the green gate ticks it with its named cases [C7,V4]', { timeout: 300_000 }, () => {
-  const { box, builder, id } = builderItem(CRITERION);
-  const submitted = box.run(builder, 'submit', String(id), '--no-next', '--json');
+test('clause 1 and 2: a [test] clause naming a test file submits with no pre-proof tick, and the green gate ticks it with its named cases [C7,V4]', { timeout: 300_000 }, async () => {
+  const { box, builder, id } = await builderItem(CRITERION);
+  const submitted = await box.runLocal(builder, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   assert.doesNotMatch(submitted.err + submitted.out, /CLAUSE_UNTICKED/u, 'no pre-proof tick was needed');
   assert.equal(JSON.parse(submitted.out).gate.green, true, 'the gate ran the named file');
-  const ticks = tickNotes(box, id);
+  const ticks = await tickNotes(box, id);
   assert.equal(ticks.length, 2, `the gate ticked each clause: ${ticks.join(' | ')}`);
   assert.match(ticks[0], /^clause 1 \[test\]: .*web\/gate-ticks\.test\.js.*the heading is present/u);
   assert.match(ticks[1], /^clause 2 \[test\]: .*web\/gate-ticks\.test\.js.*the count appears/u);
 });
 
-test('clause 2: a red gate leaves the clause unticked and returns the item [C7,V4]', { timeout: 300_000 }, () => {
-  const { box, builder, id } = builderItem(CRITERION, { failing: true });
-  const submitted = box.run(builder, 'submit', String(id), '--no-next', '--json');
+test('clause 2: a red gate leaves the clause unticked and returns the item [C7,V4]', { timeout: 300_000 }, async () => {
+  const { box, builder, id } = await builderItem(CRITERION, { failing: true });
+  const submitted = await box.runLocal(builder, 'submit', String(id), '--no-next', '--json');
   assert.notEqual(submitted.code, 0, 'a red gate does not submit');
   assert.doesNotMatch(submitted.err + submitted.out, /CLAUSE_UNTICKED/u);
-  assert.deepEqual(tickNotes(box, id), [], 'a red gate ticks nothing');
-  assert.equal(JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).item_status ?? JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).status, 'claimed', 'the item stays with its builder');
+  assert.deepEqual(await tickNotes(box, id), [], 'a red gate ticks nothing');
+  assert.equal(JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out).item_status ?? JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out).status, 'claimed', 'the item stays with its builder');
 });
 
-test('clause 3: a measurement clause and a test clause naming no file still refuse CLAUSE_UNTICKED until a fact is recorded [C7,V4]', { timeout: 300_000 }, () => {
-  const { box, builder, id } = builderItem('The page meets its bar:\n1) web/gate-ticks.test.js proves the heading [test]\n2) the page loads under 2 s [measurement]\n3) the count is right [test]', { brief: 'Files:\n- web/page.html\nChange:\n- Keep the page valid.' });
-  const refused = box.run(builder, 'submit', String(id), '--no-next');
+test('clause 3: a measurement clause and a test clause naming no file still refuse CLAUSE_UNTICKED until a fact is recorded [C7,V4]', { timeout: 300_000 }, async () => {
+  const { box, builder, id } = await builderItem('The page meets its bar:\n1) web/gate-ticks.test.js proves the heading [test]\n2) the page loads under 2 s [measurement]\n3) the count is right [test]', { brief: 'Files:\n- web/page.html\nChange:\n- Keep the page valid.' });
+  const refused = await box.runLocal(builder, 'submit', String(id), '--no-next');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err, /CLAUSE_UNTICKED/u);
   assert.match(refused.err, /clause 2 \(the page loads under 2 s/u, 'the measurement clause needs a fact');

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input test-tree */
 /**
  * The view-pure source adapter and its gate hook [N26,C7]: it compiles source, never runs a browser,
@@ -21,7 +20,7 @@ import { viewPureReport } from '../../src/io/static/view.js';
 import { viewTestProblems } from '../../../view/light.js';
 
 const REPO = resolve(import.meta.dirname, '../../../..');
-const GOOD = 'test/cockpit/good.test.js', BAD = 'test/cockpit/bad.test.js', RENDER = 'src/view/example.js';
+const GOOD = 'apps/cli/journeys/cockpit/good.test.js', BAD = 'apps/cli/journeys/cockpit/bad.test.js', RENDER = 'src/view/example.js';
 const ROLES = {
   [GOOD]: { kind: 'logic', reason: 'Seeded data through the actual renderer' },
   [BAD]: { kind: 'logic', reason: 'Seeded data through the actual renderer' },
@@ -30,9 +29,9 @@ const COVERAGE = [{ module: RENDER, names: ['render'], tests: [GOOD] }];
 
 /** Exercise the authoritative policy API over a pure imported module, without executing source. */
 function importedPolicy(source, requests = []) {
-  return viewTestProblems({ sources: new Map([[GOOD, "import { read } from '../../src/pure.js'; read();"], ['src/pure.js', source],
+  return viewTestProblems({ sources: new Map([[GOOD, "import { read } from '../../../../src/pure.js'; read();"], ['src/pure.js', source],
     ['src/data.js', 'export const supplied = { durationMinutes: 120 }; export const window = supplied;']]),
-    edges: new Map([[GOOD, ['../../src/pure.js']], ['src/pure.js', requests], ['src/data.js', []]]), roots: [GOOD],
+    edges: new Map([[GOOD, ['../../../../src/pure.js']], ['src/pure.js', requests], ['src/data.js', []]]), roots: [GOOD],
     roles: { [GOOD]: ROLES[GOOD] }, coverage: [] });
 }
 
@@ -87,9 +86,9 @@ function tree(t, enforcedList) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   /** Write one private source file. */
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); };
-  const test = "import { render } from '../../src/view/example.js'; render({ title: 'hi' });";
+  const test = "import { render } from '../../../../src/view/example.js'; render({ title: 'hi' });";
   put(GOOD, test);
-  put(BAD, test + " import { run } from '../helper.js'; run();");
+  put(BAD, test + " import { run } from '../../../../test/helper.js'; run();");
   put(RENDER, 'export function render(input) { return input.title; }');
   put('test/helper.js', "import { spawnSync } from 'node:child_process'; import { readFileSync } from 'node:fs'; export const run = () => spawnSync('chrome', [readFileSync('x')]);");
   if (enforcedList) put(ENFORCED_FILE, JSON.stringify({ roots: enforcedList }));
@@ -135,8 +134,8 @@ test('the gate fails closed when the list is missing, empty or names an unusable
   assert.ok(viewPureGate(missing.root, { roles: ROLES, coverage: COVERAGE }).failures.length > 0, 'no list is a failure, never a pass');
   const empty = tree(t, []);
   assert.match(enforcedRoots(empty.root).problems[0].text, /empty or not an array/u);
-  const absent = tree(t, ['test/cockpit/gone.test.js']);
-  assert.ok(viewPureGate(absent.root, { roles: ROLES, coverage: COVERAGE }).failures.some(finding => finding.text.includes('not a test/cockpit test file')));
+  const absent = tree(t, ['apps/cli/journeys/cockpit/gone.test.js']);
+  assert.ok(viewPureGate(absent.root, { roles: ROLES, coverage: COVERAGE }).failures.some(finding => finding.text.includes('not a view test file')));
   const journey = tree(t, [GOOD]);
   const relabeled = { ...ROLES, [GOOD]: { kind: 'journey', reason: 'Relabeled to dodge the lint' } };
   assert.ok(viewPureGate(journey.root, { roles: relabeled, coverage: COVERAGE }).failures.some(finding => finding.text.includes('no logic role')),

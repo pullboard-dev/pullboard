@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/kernel/index.js packages/landing/index.js packages/landing/src/io/step/selection.js packages/store/index.js */
 /** Adopted landing batches count every RUNNER_SOURCE attempt and never resume a held item [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -86,6 +86,7 @@ function landRuns(box, entry, { mode, runs }) {
     '  merged: store.getItem(board, entry.id).item_merged_commit, blocked: selectedHeld.blocked, ready: selectedHeld.ready.map(item => item.item_id), readyAfter: selectedAfter.ready.map(item => item.item_id) }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
+  // Process-level: the driver opens the board and the landing engine directly, which a journey may not import in process (raw-board and cell-edge ratchets); a separate node process is its seam.
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(entry.item), entry.commit, mode, String(runs)],
     { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
@@ -172,6 +173,7 @@ function trunkCrashRuns(box, entry) {
     'console.log("RESULT " + JSON.stringify({ base, errors, lines, atCrash, afterAdopt, afterOff }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
+  // Process-level: same driver seam as landRuns, a separate node process that opens the board and landing engine directly.
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(entry.item)],
     { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);

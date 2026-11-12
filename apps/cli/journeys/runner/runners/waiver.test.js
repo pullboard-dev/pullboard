@@ -45,7 +45,7 @@ test('review655 a registered runner honors the same live person waiver at landin
   writeFileSync(join(repo, failing), "import { test } from 'node:test'; test('review655 known waived runner flake', () => { throw new Error('known private flaky failure'); });\n");
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node tooling/bin/run-tests.js --test-concurrency=1 ' + failing }) + '\n');
+  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node tooling/apps/cli/src/io/run/tests.js --test-concurrency=1 ' + failing }) + '\n');
   box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
   const store = await import('../../../../../packages/store/index.js');
@@ -107,7 +107,7 @@ test('review655 a registered runner honors the same live person waiver at landin
       assert.equal(existsSync(join(repo, '.git', 'pullboard-gate-green')), false);
       return { ...finished, document: JSON.parse(finished.stdout), raw: readFileSync(join(repo, '.git', 'pullboard-gate.log'), 'utf8') };
     };
-    const tests = 'node tooling/bin/run-tests.js --test-concurrency=1 ' + failing;
+    const tests = 'node tooling/apps/cli/src/io/run/tests.js --test-concurrency=1 ' + failing;
     const throughCat = await remoteGate(tests + ' | cat', 'test: retain a remote TAP producer account');
     assert.equal(throughCat.status, 0, fixtureResultContext(throughCat));
     assert.equal(throughCat.document.green, false);

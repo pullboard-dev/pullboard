@@ -11,6 +11,22 @@ import { parseProblems } from '../logic/sweep.js';
 import { sweepItems } from '../logic/sweep.js';
 import { ordered } from './claim.js';
 
+/** Describe only repairs whose checker rule supplies a concrete, scope-preserving change. */
+function diagnosisFor(item, problems) {
+  const found = problems.filter((problem) => problem.file === item.file);
+  if (!found.length || found.some((problem) => problem.rule !== 'no-var')) return null;
+  const lines = found.map((problem) => `- line ${problem.line}${problem.col ? `:${problem.col}` : ''} ${problem.rule}: ${problem.message}`);
+  return [
+    `Files: ${item.file}`,
+    'Change:',
+    'Replace each flagged var with let or const as appropriate, preserving scope and behavior:',
+    ...lines,
+    'Out of scope: other files, suppressions, disabled rules, or behavior changes.',
+    'Test case:',
+    `The unchanged check (${item.check}) reports no problems for ${item.file}, and existing tests pass.`,
+  ].join('\n');
+}
+
 /**
  * `pullboard sweep` (N15, N17): run a checker, then file one routed item per file it flags, each
  * with the problems in its brief and the checker on that file as its check. Each check runs once
@@ -54,12 +70,16 @@ export async function sweepHere(ctx, board, me, values) {
       blind.push(item.file);
       continue;
     }
+    const diagnosis = item.route === 'light' ? diagnosisFor(item, problems) : null;
+    const route = item.route === 'light' && !diagnosis ? 'mid' : item.route;
     if (values['dry-run']) {
-      ctx.io.say(`would file: ${item.title} (${item.lane} lane, ${item.route})`);
+      ctx.io.say(`would file: ${item.title} (${item.lane} lane, ${route})`);
       continue;
     }
-    const id = await ordered(ctx, board, 'addItem', [{ by: me.id, lane: item.lane, title: item.title, criterion: item.criterion, brief: item.brief, route: item.route, check: item.check }]);
-    ctx.io.say(`#${id} ${item.title} (${item.lane} lane, ${item.route})`);
+    const initialRoute = route === 'light' ? 'mid' : route;
+    const id = await ordered(ctx, board, 'addItem', [{ by: me.id, lane: item.lane, title: item.title, criterion: item.criterion, brief: item.brief, route: initialRoute, check: item.check }]);
+    if (diagnosis) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'diagnosis', text: diagnosis }]);
+    ctx.io.say(`#${id} ${item.title} (${item.lane} lane, ${route})`);
   }
   if (skipped.length) ctx.io.say(`already open: ${skipped.join(', ')}`);
   if (blind.length) {

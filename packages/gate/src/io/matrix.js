@@ -31,11 +31,18 @@ import {
 const ROOT = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
+/** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
+export const HARNESS_FILES = Object.freeze({
+  'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
+  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'live-driver': 'driver', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a',
+  'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
+});
+
 /** Board command latency target per command, from the 2 Nov speed rule. */
 const COMMAND_TARGET_MS = 200;
 
 /**
- * Every hop, in pipeline order. `harness` names packages/gate/tests/fixtures/pipeline/<harness>.harness.js, or null when none
+ * Every hop, in pipeline order. `harness` names the file HARNESS_FILES names under packages/gate/tests/fixtures/pipeline, or null when none
  * exists. `live` reads the hop's production receipt from a gate-health report: it returns what was seen and whether
  * it agrees with the invariant, or null when the report says nothing about the hop. `fix` names the commit a repro
  * row's harness must fail before.
@@ -82,6 +89,10 @@ export const HOPS = Object.freeze([
     invariant: 'A green gate puts the item in review, waiting on an independent reviewer.' },
   { id: 'accept-merged', stage: 'Land', hop: 'accept → landing batch → merged', harness: 'e2e',
     invariant: 'An accept lands through a batch: main moves to the recorded merge and is pushed.' },
+  { id: 'landing-reopen', stage: 'Land', hop: 'reject or reopen during landing', harness: 'landing-reopen',
+    invariant: 'An item reopened between selection and merge drops out of the landing batch: main never takes its commit and it records no merge.' },
+  { id: 'shout-scope', stage: 'All', hop: 'a shout names an item this seat cannot act on', harness: 'shout-scope',
+    invariant: 'A shout ends next --wait only for an item open in the seat\'s lane, claimed by it or reservable by it; any other shout is printed and the wait goes on.' },
   { id: 'command-latency', stage: 'All', hop: 'board command latency', harness: 'board-commands',
     invariant: `Seat commands answer in under ${COMMAND_TARGET_MS} ms, and none loads more modules than its ratcheted ceiling.`,
     live: (report, extra) => extra.statusMs === undefined ? null
@@ -162,7 +173,7 @@ const ROW_MARK = '# hop-row ';
 function runHarness(name, { against }) {
   const started = performance.now();
   const env = { ...process.env, ...(against ? { PULLBOARD_HOP_AGAINST: against } : {}) };
-  const child = spawn(process.execPath, ['--no-warnings', join(HARNESSES, `${name}.harness.js`)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['--no-warnings', join(HARNESSES, `${HARNESS_FILES[name] ?? name}.js`)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const rows = [];
   let output = '', pending = '';
   child.stdout.setEncoding('utf8').on('data', chunk => {

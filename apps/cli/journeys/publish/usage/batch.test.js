@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js */
 /** Pending historical usage publishes once without extending the lifecycle writer [N2,C7,H16]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -48,8 +48,8 @@ function fixture(t, count = 48) {
 test('a real claim publishes all 48 pending revisions in one transaction and retries without duplicates [N2,C7]', t => {
   const { box, helpers, board, agent, ids } = fixture(t);
   t.after(() => store.closeBoard(board));
-  const cli = pathToFileURL(join(helpers.BIN, '../../apps/cli/index.js')).href;
-  const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
+  const cli = pathToFileURL(join(helpers.BIN, '../../cli/index.js')).href;
+  const checkpoint = pathToFileURL(join(helpers.BIN, '../../../packages/stats/src/io/cost/checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,cli\$claimOrdered as claimOrdered,cli\$freezer as freezer,cli\$ordered as ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../../lib/index.js', import.meta.url).href)};
@@ -106,8 +106,8 @@ test('usage batches retain authentication, atomic rollback, per-record deduplica
 test('1001 pending revisions progress across bounded commands and never duplicate or disappear [N2,C7,H16]', t => {
   const {box,helpers,board,agent,ids}=fixture(t,USAGE_BATCH_LIMIT+1);
   t.after(()=>store.closeBoard(board));
-  const cli=pathToFileURL(join(helpers.BIN,'../../apps/cli/index.js')).href;
-  const checkpoint=pathToFileURL(join(helpers.BIN,'../../packages/stats/src/shell/cost-checkpoint.js')).href;
+  const cli=pathToFileURL(join(helpers.BIN,'../../cli/index.js')).href;
+  const checkpoint=pathToFileURL(join(helpers.BIN,'../../../packages/stats/src/io/cost/checkpoint.js')).href;
   const code=`import {context,withBoard,whoAmI,cli\$ordered as ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../../lib/index.js', import.meta.url).href)};

@@ -135,3 +135,35 @@ test('normalization never accounts for process failures, missing summaries or ca
   assert.equal(failureSignatures({ ...run, stages: [{ status: 1, output: output.replace('# cancelled 0', '# cancelled 1') }] }, fixture.executionRoot), null);
   assert.equal(failureSignatures({ ...run, stages: [{ status: 1, output: output + 'unaccounted subprocess failure\n' }] }, fixture.executionRoot), null);
 });
+
+/** One TAP failure block whose message and stack name a runner job directory outside any temporary root. */
+function jobBlock(job, fn = 'assertLinked') {
+  const checkout = `/home/example/.pullboard-runner/jobs/${job}/checkout`;
+  return `not ok 1 - real device sign-in links the board
+  ---
+  duration_ms: 1.5
+  type: 'test'
+  location: '${checkout}/apps/cli/journeys/relay/device.test.js:30:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    real device sign-in links the board; state in /home/example/.pullboard-runner/jobs/${job}/state/board.json
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'strictEqual'
+  stack: |-
+    ${fn} (file://${checkout}/apps/cli/tests/fixtures/relay/client.js:457:22)
+    Test.run (node:internal/test_runner/test:1047:25)
+  ...`;
+}
+
+test('failures carry a stable signature that survives different runner job directories while the raw one moves [C7]', () => {
+  const run = (job, fn) => retainedRun([jobBlock(job, fn)], `/home/example/.pullboard-runner/jobs/${job}/checkout`)[0];
+  const first = run('r7k2m9');
+  const second = run('x3p8q1');
+  const other = run('x3p8q1', 'assertSeated');
+  assert.notEqual(first.signature, second.signature, 'the raw signature changes between identical runs');
+  assert.equal(first.stable, 'AssertionError:ERR_ASSERTION:strictEqual @ apps/cli/tests/fixtures/relay/client.js#assertLinked');
+  assert.equal(first.stable, second.stable);
+  assert.notEqual(first.stable, other.stable);
+  assert.equal(first.stableData, second.stableData, 'asserted values are the same in both runs');
+});
