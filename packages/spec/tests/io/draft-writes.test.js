@@ -5,10 +5,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { loadDoctrine } from '../../../doctrine/index.js';
 import { draftRow } from '../../index.js';
 
 const CONFIG = { spec: 'SPEC.md' };
+/** The doctrine door's shape with no doctrine rows, so the draft sees only SPEC.md. */
+const loadDoctrine = () => ({ name: 'DOCTRINE.md', repo: { file: 'DOCTRINE.md', name: 'DOCTRINE.md', exists: false, rows: [], problems: [], sections: [] } });
 const SPEC = '# Spec\n\n## G · Goals\n\n- G1 [approved, must] Existing row. | gate: a test\n';
 
 /** A fixture repo root holding only a SPEC.md. */
