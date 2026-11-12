@@ -203,7 +203,7 @@ export function assertMatchingLandingHost(helpers) {
   'landing flags the stand-in verdict from another environment');
 }
 
-/** S7e: an interaction with no item culprit files a test defect and holds every new batch. */
+/** S7e: an interaction with no item culprit files a test defect; a recorded defect never refuses a landing, which retries the gate and lands nothing until the red is corrected or waived [C7,#5862]. */
 export function assertNoCulpritTrunkHold(helpers) {
   const box = fixture(helpers);
   const entries = [verified(box, 'a', { touchTest: true }), verified(box, 'b')];
@@ -219,15 +219,41 @@ export function assertNoCulpritTrunkHold(helpers) {
   assert.equal(defect.test, 'web/landing.test.js');
   assert.equal(defect.batchId, held.batch.id);
   assert.ok(boardRead(box, board => store.getItem(board, defect.item)));
-  const brief = (r) => ({ code: r.code, err: r.document?.error?.code, landed: r.document?.landed, culprits: r.document?.culprits, state: r.document?.batch?.state, refusal: r.document?.batch?.refusal, errtext: String(r.err).slice(0, 300) });
-  const trace = {};
-  const gateRuns = () => boardRead(box, board => store.events(board).filter(event => event.event_kind === 'gate-run').length);
-  trace.gate0 = gateRuns();
-  trace.again = brief(command(box, box.repo, 'land'));
-  trace.gate1 = gateRuns();
-  trace.waive = brief(command(box, box.repo, 'land', '--waive', defect.test, '--until', '2099-01-01', '--reason', 'Private fixture interaction is tracked by its defect.'));
-  trace.waived = brief(command(box, box.repo, 'land'));
-  trace.items = boardRead(box, board => entries.map(entry => store.getItem(board, entry.id).item_status));
-  trace.defects = boardRead(box, board => store.events(board).filter(event => event.event_kind.startsWith('landing-')).map(event => event.event_kind));
-  assert.fail(JSON.stringify(trace));
+  const again = command(box, box.repo, 'land');
+  assert.equal(again.document?.error, undefined, 'a recorded test defect never refuses a landing [#5862]');
+  assert.deepEqual(again.document?.landed, [], 'a candidate-only test edit does not look like a committed trunk correction');
+  assert.equal(again.document?.batch?.state, 'test-defect', 'the unchanged red is judged again and stays a test defect');
+  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), base);
+  boardRead(box, board => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal',
+    id: 'expired-host-fixture', test: defect.test, until: '2000-01-02', reason: 'Expired private fixture waiver.' }),
+  { now: () => new Date('2000-01-01T00:00:00Z') });
+  assert.deepEqual(command(box, box.repo, 'land').document?.landed, [],
+    'an expired person waiver cannot release the red');
+  success(box, box.repo, 'land', '--waive', defect.test, '--until', '2099-01-01', '--reason', 'Private fixture interaction is tracked by its defect.');
+  const waived = success(box, box.repo, 'land');
+  assert.deepEqual(waived.landed, entries.map(entry => entry.id));
+  assert.equal(waived.batch.proof.tree, box.git(waived.batch.root, 'rev-parse', 'HEAD^{tree}'));
+  assert.ok(waived.batch.proof.failures.every(failure => failure.waiver), 'the red tree stays explicitly waived');
+
+  const fixed = fixture(helpers);
+  const fixedEntries = [verified(fixed, 'a'), verified(fixed, 'b')];
+  assert.deepEqual(success(fixed, fixed.repo, 'land').landed, []);
+  const heldTest = readFileSync(join(fixed.repo, 'web/landing.test.js'), 'utf8');
+  writeFileSync(join(fixed.repo, 'web/landing.test.js'), heldTest + '// An uncommitted edit is not a correction.\n');
+  assert.deepEqual(command(fixed, fixed.repo, 'land').document?.landed, [],
+    'an uncommitted test edit does not release the red');
+  writeFileSync(join(fixed.repo, 'web/landing.test.js'), [
+    "import { test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { existsSync, readFileSync } from 'node:fs';",
+    "test('the two changes coexist [E27,E29]', () => {",
+    "  if (existsSync('web/a.txt') && existsSync('web/b.txt')) {",
+    "    assert.equal(readFileSync('web/a.txt', 'utf8') + readFileSync('web/b.txt', 'utf8'), 'a\\nb\\n');",
+    '  }',
+    '});',
+  ].join('\n') + '\n');
+  commit(fixed, fixed.repo, 'fix(web): correct the interaction expectation [G1]');
+  for (const entry of fixedEntries) rechecked(fixed, entry);
+  assert.deepEqual(success(fixed, fixed.repo, 'land').landed, fixedEntries.map(entry => entry.id),
+    'a correction to the held test releases the trunk without a waiver');
 }
