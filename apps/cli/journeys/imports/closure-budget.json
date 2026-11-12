@@ -4,6 +4,6 @@
   "show 1": 1156,
   "list": 1310,
   "next": 1658,
-  "test --status x": 1190,
+  "test --status x": 1165,
   "hook commit-msg": 1535
 }
