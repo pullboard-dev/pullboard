@@ -133,7 +133,9 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     const line = `returned #${id} to its builder unreviewed: it no longer merges onto the trunk (${files.map(shownPath).join(', ')})`;
     if (ctx.io.stderr) ctx.io.stderr.write(line + '\n'); else ctx.io.err?.(line);
   }
-  const reservation = { agentId: me.id, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
+  // A review that plain next reserved on its own lapses in 5 minutes unless the seat starts it, so one idle builder never locks out the real reviewer.
+  const leaseMs = values.unstartedReviewLapse ? Math.min(ctx.config.reviewLeaseMs, 5 * 60_000) : ctx.config.reviewLeaseMs;
+  const reservation = { agentId: me.id, leaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
@@ -143,7 +145,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     ctx.io.nextPhase?.('review reservation', id);
     return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }
-  const selection = { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
+  const selection = { agentId: me.id, lane: me.lane, leaseMs, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
     omitIds: values.omitIds,
     observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems, reviewer: me.id }),
