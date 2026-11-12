@@ -20,6 +20,7 @@ export { formatJson };
 /** Version four adds plan-shard rows and config defaults; older receipts replay with the older policy [H16]. */
 export const MECHANICAL_VERSION = 4;
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/[a-z0-9-]+\.json$/u;
+const PLAN_READS = /^packages\/codemap\/data\/plan\/data-reads\/[a-z0-9:-]+\.json$/u;
 
 /**
  * The defaults object's top-level settings, each with the comment lines above it and the lines nested under it.
@@ -158,6 +159,8 @@ function identity(value) {
 
 /** A plan row is named by its path (array rows), its first value (object rows) or itself (text rows). */
 function rowName(row) {
+  // A data-read row is one read: its file, line and expression together, since a file carries many reads.
+  if (row !== null && typeof row === 'object' && !Array.isArray(row) && 'file' in row && 'line' in row && 'expression' in row) return identity([row.file, row.line, row.expression]);
   if (Array.isArray(row)) return identity(row[0]);
   if (row !== null && typeof row === 'object') return identity(Object.values(row)[0]);
   return identity(row);
@@ -249,7 +252,7 @@ function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION
   if (path.endsWith('.json')) {
     try {
       const plan = version >= 4 && PLAN_SHARD.test(path);
-      const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs), plan);
+      const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs), plan || (version >= 4 && PLAN_READS.test(path)));
       if (merged === CONFLICT) return null;
       if (plan) return { kind: 'json', keys: Object.keys(merged ?? {}), source: formatJson(merged) + '\n' };
       const indent = /\n([ \t]+)\S/u.exec(ours)?.[1];
@@ -272,6 +275,12 @@ function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION
 function gitData(root, args, gitDirectory) {
   return spawnSync('git', ['--no-replace-objects', ...(gitDirectory ? [`--git-dir=${gitDirectory}`] : []), '-c', 'core.quotepath=false', ...args],
     { cwd: root, env: cleanGitEnvironment(), maxBuffer: 32 * 1024 * 1024 });
+}
+
+/** The merged text of one plan data file, or the path when both sides changed the same entry; the landing's own decision [C7,D3]. */
+export function mergePlanData(path, ancestor, ours, theirs) {
+  const resolution = sourceResolution(path, ancestor, ours, theirs);
+  return resolution?.source === undefined ? { conflicts: [path] } : { source: resolution.source };
 }
 
 /** Read exactly three regular-file stages with identical modes and valid UTF-8, refusing deletes and symlinks. */

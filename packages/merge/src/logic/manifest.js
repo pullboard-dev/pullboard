@@ -8,6 +8,12 @@ const ABSENT = Symbol('absent');
 /** Identify the exact data-only paths allowed during source composition. */
 export function rowManifest(path) { return Object.hasOwn(FIELDS, path); }
 
+// The plan's per-cell shards and its data-read files: plain JSON data a conflict may merge by entry [C7,D3].
+const PLAN_DATA = /^packages\/codemap\/data\/plan\/(?:[a-z0-9-]+|data-reads\/[a-z0-9:-]+)\.json$/u;
+
+/** True for a path whose conflict may merge by entry wherever main is composed: the row manifests and the plan data files. */
+export function mergeableData(path) { return rowManifest(path) || PLAN_DATA.test(path); }
+
 /** Ignore JSON object key order without changing array order or conflating absence with null. */
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);

@@ -111,9 +111,23 @@ export async function nextHere(io, values) {
   }
   finally {
     progress.stop(); await monitor?.close();
+    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
+ * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
+ *
+ * @param {any} io
+ * @param {{phase: string, ms: number}[]} phases Slowest first.
+ */
+function sayNextProfile(io, phases) {
+  const write = text => (io.stderr?.write ? io.stderr.write(text + '\n') : io.err?.(text));
+  for (const row of phases) write(`next profile: ${row.phase} ${Math.round(row.ms)} ms`);
+  write(`next profile: total ${Math.round(phases.reduce((sum, row) => sum + row.ms, 0))} ms; slowest three: ${phases.slice(0, 3).map(row => row.phase).join(', ')}`);
 }
 
 /**
@@ -315,7 +329,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
-        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
+        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
