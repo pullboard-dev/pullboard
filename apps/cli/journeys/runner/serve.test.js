@@ -146,6 +146,8 @@ async (t) => {
   const folders = served.jobs.map(job => /folder (\S+)/u.exec(job.receipt.tail)[1]);
   assert.notEqual(folders[0], folders[1], 'each concurrent job ran in its own checkout');
   assert.ok(served.jobs.every(job => /slow done/u.test(job.receipt.tail)), 'both ran to the end, the second claimed while the first held its slot');
+  const fetched = execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/pullboard/fetched/'], { cwd: join(cache, 'git'), encoding: 'utf8' }).trim();
+  assert.equal(fetched, `refs/pullboard/fetched/${commit}`, 'the fetched commit keeps a ref, so the next fetch negotiates from it instead of taking all of trunk');
 });
 
 test('#5805 clauses 1 and 2: a pulled job\'s detached child carries PULLBOARD_RUNNER_JOB and is gone before the job\'s receipt posts [P7]', { timeout: 90_000 }, // budget: as clause 1.

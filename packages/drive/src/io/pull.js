@@ -37,6 +37,8 @@ const CEILING_MS = 3_600_000;
 const REAP_MS = 2_000;
 // Budget: one concurrent job per 3 cores, so a ten-core runner serves 3 jobs and leaves room for each job's own workers.
 const CORES_PER_JOB = 3;
+// Budget: 32 fetched-commit refs give a fetch recent haves; one ref file each.
+const FETCHED_REFS = 32;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
@@ -128,12 +130,22 @@ async function fetchCommit(store, trunk, commit) {
   if (!SHA.test(String(commit ?? ''))) return `the job names no commit (${commit})`;
   if ((await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) return null;
   if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
-  const byId = await git(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, commit]);
+  // The fetched commit keeps a ref, so the next fetch offers it as a have and takes only new objects. A store with no
+  // refs offered none, and every job pulled trunk's whole history, 200k objects and 4-5 minutes per claim (#5805).
+  const byId = await git(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, `+${commit}:refs/pullboard/fetched/${commit}`]);
   if (byId.status !== 0) {
     const heads = await git(store, ['fetch', '-q', '--no-tags', '--', trunk, '+refs/heads/*:refs/remotes/trunk/*']);
     if (heads.status !== 0) return heads.stderr || byId.stderr;
   }
+  await pruneFetched(store);
   return (await git(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0 ? null : `trunk remote has no commit ${commit}`;
+}
+
+/** Keep the newest fetched-commit refs only: enough haves to negotiate small fetches, without a ref per job ever run. */
+async function pruneFetched(store, keep = FETCHED_REFS) {
+  const listed = await git(store, ['for-each-ref', '--sort=-committerdate', '--format=%(refname)', 'refs/pullboard/fetched/']);
+  const old = listed.status === 0 ? listed.stdout.split('\n').filter(Boolean).slice(keep) : [];
+  for (const ref of old) await git(store, ['update-ref', '-d', ref]);
 }
 
 /**
@@ -403,6 +415,22 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const held = { job: claim.job, runner: id, token: claim.token };
     say(`claimed ${claim.job} (attempt ${claim.attempt}) at ${claim.candidate} in slot ${slot}`);
     if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot))) };
+    // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
+    // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
+    let lost = false, onLost = () => {};
+    const renewer = setInterval(() => {
+      queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
+        if (renewed.renewed === false) { lost = true; onLost(); }
+      }, error => {
+        if (error instanceof BoardUnreachable) { say(`renewal skipped: ${error.message}`); return; }
+        lost = true; onLost();
+      });
+    }, renewMs);
+    try { return await runHeld(claim, trunk, held, () => lost, stop => { onLost = stop; }); }
+    finally { clearInterval(renewer); }
+  };
+  /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
+  const runHeld = async (claim, trunk, held, isLost, whenLost) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
     let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [];
     if (!run.length) {
@@ -427,23 +455,18 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       await reliably({ action: 'release', ...held }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
       return { job: claim.job, outcome: 'released' };
     }
+    if (isLost()) { await dropCheckout(cache, checkout); say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
     const started = Date.now();
     const job = jobEnvironment(cache, name, claim.job);
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null, env: job.env });
-    let lost = false;
-    // Renew while the job runs. An unreachable board only skips a renewal; a moved lease stops the job.
-    const renewer = setInterval(() => {
-      queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
-        if (renewed.renewed === false) { lost = true; running.stop(); }
-      }, error => {
-        if (error instanceof BoardUnreachable) { say(`renewal skipped: ${error.message}`); return; }
-        lost = true; running.stop();
-      });
-    }, renewMs);
+    // An unreachable board only skips a renewal; a moved lease stops the job.
+    whenLost(() => running.stop());
+    if (isLost()) running.stop();
     // A stopped runner stops its job and hands it back at once, so the next puller need not wait out the lease.
     const stopping = () => running.stop();
     signal?.addEventListener('abort', stopping, { once: true });
-    const result = await running.done.finally(() => { clearInterval(renewer); signal?.removeEventListener('abort', stopping); });
+    const result = await running.done.finally(() => { signal?.removeEventListener('abort', stopping); });
+    const lost = isLost();
     // Every process the job started ends before its receipt posts, a detached one too: its group, then its marker (#5805).
     const survivors = await reapJob(claim.job, running.pid, { graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
