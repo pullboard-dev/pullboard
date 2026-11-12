@@ -1,8 +1,11 @@
 /** Per-item Git worktrees for a joined seat [B5,C7]. */
 import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { basename } from 'node:path';
+import { resolve } from 'node:path';
 import { dirname } from 'node:path';
 import { agentAt } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
@@ -316,6 +319,40 @@ function advanceToMain(path) {
   if (tryGit(path, ['merge', '--no-edit', '-q', trunk]).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
 }
 
+/**
+ * Whether a folder's Git link is gone: no `.git` entry, or a `.git` file naming a worktree directory that was removed.
+ * @param {string} path the item folder
+ * @returns {boolean}
+ */
+function worktreeGone(path) {
+  const link = `${path}/.git`;
+  if (!existsSync(link)) return true;
+  let text;
+  try { text = readFileSync(link, 'utf8'); } catch { return false; }
+  const target = /^gitdir:\s*(.+)$/mu.exec(text)?.[1]?.trim();
+  return Boolean(target) && !existsSync(resolve(path, target));
+}
+
+/**
+ * Move a folder whose worktree was removed out of the way and prune the dead registration, so claim makes a working one.
+ * Why: next handed such a folder out as the item folder, and every Git command in it failed [C7,#4990].
+ * The old files are kept beside it; the item branch keeps its commits, and the one-line note says whether any wait for submit.
+ * @param {string} root the repository root
+ * @param {string} path the item folder
+ * @param {string} ref the item branch
+ * @returns {void}
+ */
+function replaceGoneFolder(root, path, ref) {
+  const kept = `${path}.gone-${Date.now()}`;
+  renameSync(path, kept);
+  tryGit(root, ['worktree', 'prune']);
+  const exists = tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0;
+  const ahead = exists ? Number(tryGit(root, ['rev-list', '--count', `${trunkBranch(root)}..${ref}`]).stdout) || 0 : 0;
+  process.stderr.write(`item folder ${path} had lost its Git worktree; its old files are kept at ${kept}. `
+    + (ahead > 0 ? `${ref} holds ${ahead} earlier commit${ahead === 1 ? '' : 's'} not on ${trunkBranch(root)}: the new folder has them, so build on them and submit.\n`
+      : `${ref} holds no earlier commits: nothing waits to be submitted.\n`));
+}
+
 /** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
@@ -341,6 +378,7 @@ async function openFolder(ctx, me, id, options = {}) {
       hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
   }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
+  if (existsSync(path) && worktreeGone(path)) replaceGoneFolder(root, path, ref);
   if (existsSync(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
     if (!options.renewed) {
