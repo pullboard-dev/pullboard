@@ -713,9 +713,6 @@
   "apps/cli/journeys/patch/item/diff.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/patch/item/journey.test.js": {
-    "launch": 5
-  },
   "apps/cli/journeys/patch/item/patches.test.js": {
     "launch": 7
   },
