@@ -1172,9 +1172,6 @@
   "apps/cli/journeys/roadmap/walk.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/inbox/events.test.js": {
-    "launch": 12
-  },
   "packages/gate/tests/run-tests-timeout.test.js": {
     "launch": 3
   },
