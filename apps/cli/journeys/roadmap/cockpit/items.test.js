@@ -148,7 +148,8 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
         assert.equal(forecastLayout.display,'block',`${width}/${scheme}: the three facts stay in one flowing header line`);assert.equal(forecastLayout.rate,'1.2 items an hour');assert.equal(forecastLayout.pace,'7 landed in the last 6 h, 7 in the last 2 h');assert.match(forecastLayout.completion,/^done in about 6 days, [A-Za-z]+ (?:overnight|morning|afternoon|evening|night)$/u);assert.equal(forecastLayout.rateBold,0);assert.equal(forecastLayout.paceBold,0);
         assert.equal(read.segments.reduce((sum,row)=>sum+row[1],0),6,'the six supplied states sum to total');
         assert.ok(read.segments.every(row=>row[2]>0&&Math.abs(row[2]-read.bar/6)<1),`${width}/${scheme}: every supplied state occupies its share`);
-        assert.ok(read.width<=read.viewport,`${width}/${scheme}: the header stays inside the viewport`);
+        const overflow=read.width>read.viewport?await chrome.stable("JSON.stringify([...document.querySelectorAll('body *')].filter(e=>e.getClientRects().length&&e.getBoundingClientRect().right>innerWidth+.5).slice(0,12).map(e=>[e.tagName+'.'+String(e.className).slice(0,50),Math.round(e.getBoundingClientRect().left),Math.round(e.getBoundingClientRect().right)]))"):'';
+        assert.ok(read.width<=read.viewport,`${width}/${scheme}: the header stays inside the viewport: ${read.width} > ${read.viewport}; wider than the viewport: ${overflow}`);
         const emptyPlan=JSON.parse(await chrome.stable(`JSON.stringify({summary:Boolean(${milestone('Empty plan')}?.querySelector('.roadmap-summary,.roadmap-left')),empty:${milestone('Empty plan')}?.querySelector('.milestone-empty')?.textContent||''})`));
         assert.deepEqual(emptyPlan,{summary:false,empty:'No items yet.'},`${width}/${scheme}: an empty plan shows no header, only No items yet`);
       }
@@ -309,7 +310,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     const remote = await opened('blocked-roadmap-other#2');
     assert.match(remote, /Waits on#1 unclaimed/u); assert.match(remote, /Review the remote dependency/u);
     assert.match(remote, /Sent back.*Remote latest finding/u); assert.doesNotMatch(remote, /More detail stays in Items/u);
-    const metrics = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('blocked-roadmap-other#2')},d=r.querySelector('.roadmap-after').getBoundingClientRect(),t=r.querySelector('.t').getBoundingClientRect();return {visible:d.width>0&&d.left>=t.left&&d.right<=t.right,after:[d.left,d.right,d.width],title:[t.left,t.right],text:r.querySelector('.t').textContent,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
+    const metrics = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('blocked-roadmap-other#2')},d=r.querySelector('.roadmap-after').getBoundingClientRect(),t=r.querySelector('.t').getBoundingClientRect();return {visible:d.width>0&&d.left>=t.left&&d.right<=t.right,after:[d.left,d.right,d.width],title:[t.left,t.right],columns:getComputedStyle(r).gridTemplateColumns,children:[...r.children].map(k=>[String(k.className).slice(0,30),Math.round(k.getBoundingClientRect().width)]),row:r.getBoundingClientRect().width,text:r.querySelector('.t').textContent,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
     assert.ok(metrics.visible, `the remote blocker mark stays visible on a phone: ${JSON.stringify(metrics)}`); assert.ok(metrics.width<=metrics.viewport);
     await press(chrome, `${row('blocked-roadmap-other#2')}.parentElement.querySelector('.milestone-why a[data-go]')`);
     await chrome.waitFor("view.tab==='items' && document.querySelector('#detail h2')?.textContent.includes('Remote sent-back work')");
