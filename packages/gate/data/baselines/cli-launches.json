@@ -1674,7 +1674,7 @@
     "launch": 1
   },
   "apps/cli/journeys/release/model.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/runner/browser/runners.test.js": {
     "launch": 1
