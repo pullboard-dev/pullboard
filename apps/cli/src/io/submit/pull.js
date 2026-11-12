@@ -27,6 +27,8 @@ import { primaryCheckoutRoot } from '../worktree.js';
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 /** Budget: the most failing cases a red phase names in its receipt, so a receipt stays under the queue's size cap. */
 const PHASE_CASES = 100;
+/** Budget: the receipt size proof-ledger rows are trimmed to, under the queue's 64 KiB cap. */
+const RECEIPT_FIT = 60_000;
 /** The capabilities a runner needs to take a gate job, or a pulled test job, which runs through the same bootstrap. */
 export const GATE_NEEDS = ['node22'];
 
@@ -96,8 +98,12 @@ const runPhase = (role, command, PATH) => {
   const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
     env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
-  receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
-    ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
+  const text = output.toString('utf8'), failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
+  let ledger = null;
+  try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
+  receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
+    ...(ran.status !== 0 ? { failures } : {}), ...(ledger ? { ledger } : {}) });
 };
 if (shard) runPhase('proof', shard.command, cliPath());
 else {
@@ -132,6 +138,12 @@ else {
 // A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
 receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
   : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
+// Ledger rows give way first when the receipt nears the queue's cap; each phase counts what it left out.
+for (let phase; Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT} && (phase = receipt.phases.findLast(row => row.ledger?.files.length));) {
+  const drop = Math.ceil(phase.ledger.files.length / 4);
+  phase.ledger.files.splice(-drop);
+  phase.ledger.omitted += drop;
+}
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
