@@ -19,7 +19,7 @@ import { runInHostedItemFolder } from '../../index.js';
 import { cachedTrunkPack } from '../../src/io/worktree.js';
 import { checkoutCandidate } from '../../../drive/index.js';
 import { boardEndpoint } from '../../../drive/index.js';
-import { boardTrunkPack } from '../../../drive/src/io/pull.js';
+import { boardTrunkPack } from '../../../drive/index.js';
 import { createApiHandler } from '../../../api/index.js';
 import { servedTrunkPack } from '../../index.js';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
