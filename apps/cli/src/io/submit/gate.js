@@ -114,22 +114,11 @@ const step = async (name, work) => {
 };
 const refuse = (code, message) => Object.assign(new Error(message), { name: 'Refused', code });
 const OBJECT = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
-const present = commit => spawnSync('git', ['--no-replace-objects', 'cat-file', '-e', commit + '^{commit}'], { cwd: root, stdio: 'ignore' }).status === 0;
 /**
- * Fetch each named commit this checkout lacks from the job's trunk remote, by id first, then by the remote's branches;
- * return the ones still missing. Why: a job checkout holds only main and the candidate, while an item claimed on
- * another item's commit has its claim base only on that item's branch, so its lane policy was unreadable here (#5808).
+ * The named commits this checkout still lacks after fetching them from the job's trunk remote (#5808). Main's items
+ * cell owns the fetch, so a runner job fetches a missing trunk commit in one place [C7]; a main without it fetches nothing.
  */
-const fetchMissing = (commits, remote) => {
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
-  const fetch = args => spawnSync('git', ['fetch', '-q', '--no-tags', '--no-write-fetch-head', '--', remote, ...args], { cwd: root, env, stdio: 'ignore' });
-  let missing = commits.filter(commit => !present(commit));
-  if (!missing.length || !remote || remote.startsWith('-')) return missing;
-  for (const commit of missing) spawnSync('git', ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--no-write-fetch-head', '--', remote, commit], { cwd: root, env, stdio: 'ignore' });
-  missing = missing.filter(commit => !present(commit));
-  if (missing.length) fetch(['+refs/heads/*:refs/pullboard/trunk-heads/*']);
-  return missing.filter(commit => !present(commit));
-};
+const fetchMissing = (commits, remote) => typeof items.fetchMissingCommits === 'function' ? items.fetchMissingCommits(root, commits, remote) : [];
 const trusted = command => command.split(/(\\s+)/u).map(word => /^[\\w./-]+\\.[cm]?js$/u.test(word) && !isAbsolute(word)
   && existsSync(join(tools, word)) ? JSON.stringify(join(tools, word)) : word).join('');
 try {
