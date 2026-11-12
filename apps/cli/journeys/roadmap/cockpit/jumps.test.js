@@ -9,6 +9,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import * as store from '../../../../../packages/store/index.js';
 import {
   tapTarget,
   machine,
@@ -21,6 +22,7 @@ import {
   closeSnapshotChrome,
   press,
   proofShot,
+  earlier,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 
@@ -42,20 +44,24 @@ test('the roadmap panel jumps to each release [N26]', {
   const shippedBranch = alpha.itemBranches.get(`${alpha.baseBranch}:1`);
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
   box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'Shipped first line.\nThis line stays in the expanded history.', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '2');
+  // The board's own writer, as shout/journey.test.js uses it: a release add is one call here, not one CLI process each.
+  const arrange = (add) => earlier(alpha.repo, Date.now(), (board) => add((name, note, items) => store.addMilestone(board, { agentId: 'coordinator', name, note, items, ...(items.length ? { reason: 'Arrange fixture release' } : {}) })));
+  arrange((add) => {
+    add('0.8.6', 'Shipped first line.\nThis line stays in the expanded history.', [1]);
+    add('0.8.7', 'The next release.', [2]);
+  });
   box.run(alpha.repo, 'milestone', 'ship', '0.8.6', '--next', '0.8.7');
   stage('shipped-release');
-  for (const name of ['0.8.8', '0.8.9', '0.8.10', '0.8.11', '0.8.12', '0.8.13', '0.8.14', '0.8.15', '0.8.16', '0.8.17', '0.8.18', '0.8.19']) {
-    box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Queued after the next release.');
-  }
+  arrange((add) => {
+    for (const name of ['0.8.8', '0.8.9', '0.8.10', '0.8.11', '0.8.12', '0.8.13', '0.8.14', '0.8.15', '0.8.16', '0.8.17', '0.8.18', '0.8.19']) add(name, 'Queued after the next release.', []);
+  });
   stage('setup-end');
   const view = await startView(box);
   stage('view-ready');
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-panel-jumps-'));
-  let chrome;
-  /** Read panel selection, list targets, and page overflow after the shared Chrome wait. */
-  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
+  const profiles = ['a', 'b'].map((name) => mkdtempSync(join(tmpdir(), `pullboard-roadmap-panel-jumps-${name}-`)));
+  const chromes = [];
+  /** Read panel selection, list targets, and page overflow after the shared Chrome wait, with each arrival mark set so far. */
+  const reader = (chrome) => async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const panel = document.querySelector('#roadmap-panel'), list = document.querySelector('#roadmap-list');
     const buttons = [...panel.querySelectorAll('[data-roadmap-jump]')];
     const targets = [...list.querySelectorAll(':scope > [data-key]')];
@@ -65,12 +71,14 @@ test('the roadmap panel jumps to each release [N26]', {
       targets:targets.map(e=>({key:e.dataset.key,rect:rect(e),arrival:e.classList.contains('roadmap-arrival'),expanded:e.querySelector(':scope > .milestone-head')?.getAttribute('aria-expanded')})),
       panel:rect(panel),bar:{top:bar.top,bottom:bar.bottom},strip:rect(panel.querySelector('.roadmap-releases')),
       stripWidth:panel.querySelector('.roadmap-releases').scrollWidth,stripClient:panel.querySelector('.roadmap-releases').clientWidth,
-      viewport:document.documentElement.clientWidth,scrollY:window.scrollY,pageWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)};
+      viewport:document.documentElement.clientWidth,scrollY:window.scrollY,pageWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),arrivals:window.__arrivals||[]};
   })())`));
   try {
-    chrome = await openRoadmapChrome(executable, view.link.href, profile);
+    // Two Chromes read the one view: the first checks the panel's edge and then the phone width, the second the wide
+    // width, so the two widths' fourteen jumps run side by side instead of one after the other.
+    const [chrome, wide] = await Promise.all(profiles.map(async (profile) => { const opened = await openRoadmapChrome(executable, view.link.href, profile); chromes.push(opened); return opened; }));
     stage('chrome-ready');
-    await chrome.waitFor('data?.project?.milestones?.length === 14');
+    await Promise.all([chrome, wide].map((each) => each.waitFor('data?.project?.milestones?.length === 14')));
     stage('state-ready');
     // The panel's breakpoint is below 900px, not at it: at 900 the panel stays on the right, sticky, with its own
     // Shipping; at 899 it is the chip row above the list, and the counts sit under the next release.
@@ -95,8 +103,10 @@ test('the roadmap panel jumps to each release [N26]', {
         assert.ok(edge.page <= width, `${at}: no sideways scroll: ${JSON.stringify(edge)}`);
       }
     }
-    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
-    for (const width of [375, 1280]) {
+    /** Drive one width's panel checks and its fourteen jumps in one Chrome. */
+    async function pass(chrome, width) {
+      const read = reader(chrome);
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
@@ -137,7 +147,7 @@ test('the roadmap panel jumps to each release [N26]', {
         await press(chrome, `document.querySelector('#roadmap-panel [data-roadmap-jump="${key}"]')`);
         const moved = await read();
         const target = moved.targets.find((entry) => entry.key === key);
-        const marked = JSON.parse(await chrome.stable('JSON.stringify(window.__arrivals)')).includes(key);
+        const marked = moved.arrivals.includes(key);
         assert.ok(marked && target.rect.bottom > moved.bar.bottom && target.rect.top < 900, `${width}: selecting ${key} scrolls it into view and marks it: ${JSON.stringify({ ...target, marked })}`);
         const atTop = moved.targets.find((entry) => entry.rect.bottom > moved.bar.bottom + 8)?.key || moved.targets.at(-1).key;
         assert.equal(moved.buttons.find((button) => button.key === atTop).current, 'location', `${width}: the panel marks the release actually at the top of the list`);
@@ -155,9 +165,10 @@ test('the roadmap panel jumps to each release [N26]', {
       assert.ok(scrolled.pageWidth <= scrolled.viewport, `${width}: navigation keeps the page within its width`);
       if (width >= 900) assert.ok(scrolled.panel.top >= scrolled.bar.bottom + 8 && scrolled.panel.top <= scrolled.bar.bottom + 24, `desktop panel stays beside the list while scrolling: ${JSON.stringify(scrolled.panel)}`);
     }
+    await Promise.all([pass(chrome, 375), pass(wide, 1280)]);
   } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    rmSync(profile, { recursive: true, force: true });
+    for (const each of chromes) await closeSnapshotChrome(each);
+    for (const profile of profiles) rmSync(profile, { recursive: true, force: true });
     await view.stop();
   }
 });
