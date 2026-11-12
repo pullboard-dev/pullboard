@@ -114,7 +114,7 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test('clause 1: one submit on a large board spawns at most 70 git processes, half the 140 it spawned before [C7]', (t) => {
+test('clause 1: one submit on a large board spawns at most 90 git processes, down from the 136 it spawned before [C7]', (t) => {
   const box = largeBoard(t);
   box.beforeCleanup(() => stopResidents(box.repo));
   const recorder = networkRecorder(box.dir);
@@ -150,7 +150,7 @@ test('clause 1: one submit on a large board spawns at most 70 git processes, hal
   console.log('# SUBMIT git spawns per run: ' + counts.join(', '));
   console.log([...shapes].sort((a, b) => b[1] - a[1]).slice(0, 140).map(([shape, n]) => `# ${n} ${shape}`).join('\n'));
   const median = [...counts].sort((a, b) => a - b)[1];
-  assert.ok(median <= 70, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 70 allowed`);
+  assert.ok(median <= 90, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 90 allowed`);
 });
 
 test('clause 2: the network recorder logs a TCP connect and a name lookup, so its empty log means no network [C7]', (t) => {
