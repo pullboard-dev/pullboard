@@ -16,6 +16,7 @@ import { loadConfig } from '../../../../config/index.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
+import { operationEntryProblems } from './operations.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
 import { relayBoundaryProblems } from '../relay.js';
@@ -127,6 +128,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1) }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/cli-launches.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
+  { name: 'operation-entries', run: root => operationEntryProblems(root) },
   // Test sources are scanned one file at a time, so each file's sites are kept by blob [5567].
   { name: 'test-fixtures', reads: TEST, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('test-fixtures', 1);
