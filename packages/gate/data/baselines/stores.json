@@ -316,6 +316,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
     },
+    "markdown-allowlist.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/logic/markdown/allowlist.js"
+    },
     "missing-paths.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/paths/lint.js"
