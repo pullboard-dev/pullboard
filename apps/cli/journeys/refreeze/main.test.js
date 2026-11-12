@@ -79,20 +79,20 @@ test('[V2,H16] unchanged detection cannot bypass authority or rewrite old-engine
   assert.equal(store.getItem(legacy.board, legacy.id).item_status, 'open');
 });
 
-test('[V2] the actual CLI reports an identical refreeze as retained and preserves the claim', t => {
+test('[V2] the actual CLI reports an identical refreeze as retained and preserves the claim', async t => {
   const e2e = createE2eHelpers();
   const box = e2e.project('true');
   t.after(e2e.cleanup);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Same frozen bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'The promise stays the same', '--check', 'true', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Same frozen bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'The promise stays the same', '--check', 'true', '--json'));
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   // @pullboard-board-file journey: the actual CLI and this reader share the same durable board
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const before = store.getItem(board, id);
-    const repeated = box.run(box.repo, 'refreeze', String(id), '--json');
+    const repeated = (await box.runLocal(box.repo, 'refreeze', String(id), '--json'));
     assert.equal(repeated.code, 0, repeated.err || repeated.out);
     assert.equal(JSON.parse(repeated.out).unchanged, true);
     assert.deepEqual(store.getItem(board, id), before);

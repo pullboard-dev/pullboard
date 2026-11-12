@@ -13,12 +13,12 @@ import { committedBoardHoldBaselineProblems } from '../../../../packages/store/i
 import { boardHoldLines } from '../../../../packages/store/index.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js'; // the two inline-script children below stay processes: they hold a real SQLite writer in a separate process
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('one 1.2-second outer hold is logged with its command, seat and item, while 0.2 seconds is not [C7,P4]', () => {
+test('one 1.2-second outer hold is logged with its command, seat and item, while 0.2 seconds is not [C7,P4]', async () => {
   const box = helpers.project('true');
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'hold-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -79,7 +79,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n'
     + JSON.stringify({ version: 1, at: { toString: null }, heldMs: 1_200, command: 'invalid', seat: 'web-1' }) + '\n');
   for (const heldMs of [1_100, 1_700, 2_300, 3_100]) appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), JSON.stringify({ ...holds[0], command: 'sample', heldMs }) + '\n');
-  const result = box.run(box.repo, 'stats', '--window', '24h', '--json');
+  const result = await box.runLocal(box.repo, 'stats', '--window', '24h', '--json');
   assert.equal(result.code, 0, result.err);
   const stats = JSON.parse(result.out).boardHolds;
   assert.equal(stats.invalidLines, 3, 'malformed diagnostic rows cannot crash a stats query or count as a hold');
@@ -88,9 +88,10 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').slowestMs, holds[0].heldMs);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').totalMs, holds[0].heldMs);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').p50Ms, holds[0].heldMs);
+  // Process-level case: an unrefused throw from a future window must end a real CLI with a nonzero exit; in process it would propagate to the test.
   const narrow = box.run(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
   assert.notEqual(narrow.code, 0, 'invalid future windows do not quietly report an invented zero');
-  const shown = box.run(box.repo, 'stats', '--window', '24h');
+  const shown = await box.runLocal(box.repo, 'stats', '--window', '24h');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /board write holds >1s:/u);
   assert.match(shown.out, /fixture-hold: 1 holds; total \d+ ms; p50 \d+ ms; max \d+ ms/u);
