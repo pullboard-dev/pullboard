@@ -975,7 +975,7 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/landing/accept.test.js": {
-    "launch": 4
+    "launch": 1
   },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
