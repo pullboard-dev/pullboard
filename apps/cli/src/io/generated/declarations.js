@@ -31,29 +31,47 @@ function namedTable(root, name, heading, names) {
   return docTable(heading, rows);
 }
 
-/** List every event declaration below the events folder, one level of grouping folders included. */
-function eventFiles(directory) {
+/** The current and frozen legacy roots identify an event declaration by its full path [A5,C7]. */
+const EVENT_DIRECTORY = 'apps/cli/src/io/documentation/events';
+const LEGACY_EVENT_DIRECTORY = 'apps/cli/src/shell/documentation/events';
+
+/** Collect nested declaration files without following symlinks or accepting malformed directories. */
+function eventFiles(root, relative = '') {
+  const directory = join(root, EVENT_DIRECTORY, relative);
   return readdirSync(directory).sort().flatMap(name => {
-    const path = join(directory, name);
-    if (lstatSync(path).isDirectory()) return /^[a-z][a-z0-9-]*$/u.test(name) ? eventFiles(path) : [];
+    const file = relative ? `${relative}/${name}` : name;
+    const stat = lstatSync(join(directory, name));
+    if (stat.isSymbolicLink()) throw new Error(`invalid event declaration ${file}`);
+    if (stat.isDirectory()) {
+      if (!/^[a-z][a-z0-9_-]*$/u.test(name)) throw new Error(`invalid event declaration ${file}`);
+      return eventFiles(root, file);
+    }
     if (!name.endsWith('.json')) return [];
-    if (!/^[a-z][a-z0-9_-]*\.json$/u.test(name) || !lstatSync(path).isFile()) throw new Error(`invalid event declaration ${name}`);
-    return [path];
+    if (!/^[a-z][a-z0-9_-]*\.json$/u.test(name) || !stat.isFile()) throw new Error(`invalid event declaration ${file}`);
+    return [file];
   });
 }
 
 /** Render event descriptions from independent per-kind files, retaining historical version annotations. */
 function eventTable(root) {
+  const directory = join(root, EVENT_DIRECTORY);
+  const map = JSON.parse(readFileSync(join(root, 'packages/codemap/data/plan/path-map/freeze.json'), 'utf8'));
+  if (!map || typeof map !== 'object' || Array.isArray(map)) throw new Error('invalid frozen event path map');
   const kinds = new Set();
-  const entries = eventFiles(join(root, 'apps/cli/src/io/documentation/events')).flatMap(path => {
-    const row = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof row.kind !== 'string' || !/^[a-z][a-z0-9_-]*$/u.test(row.kind) || kinds.has(row.kind)
-        || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${path}`);
-    kinds.add(row.kind);
+  const entries = eventFiles(root).flatMap(file => {
+    const row = JSON.parse(readFileSync(join(directory, file), 'utf8'));
+    const kind = row?.kind;
+    if (typeof kind !== 'string' || !/^[a-z][a-z0-9_-]*$/u.test(kind)) throw new Error(`invalid event identity ${file}`);
+    const oldPath = `${LEGACY_EVENT_DIRECTORY}/${kind}.json`;
+    const expected = Object.hasOwn(map, oldPath) ? map[oldPath] : `${EVENT_DIRECTORY}/${kind}.json`;
+    const actual = `${EVENT_DIRECTORY}/${file}`;
+    if (typeof expected !== 'string' || !expected.startsWith(`${EVENT_DIRECTORY}/`) || expected.split('/').some(part => !part || part === '.' || part === '..')
+      || actual !== expected || kinds.has(kind) || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${file}`);
+    kinds.add(kind);
     return row.entries.map(entry => {
       if (!Number.isSafeInteger(entry.order) || entry.order < 0 || typeof entry.actor !== 'string'
-          || typeof entry.detail !== 'string') throw new Error(`invalid event description ${path}`);
-      return { ...entry, kind: row.kind };
+          || typeof entry.detail !== 'string') throw new Error(`invalid event description ${file}`);
+      return { ...entry, kind };
     });
   }).sort((a, b) => a.order - b.order || a.kind.localeCompare(b.kind));
   return docTable(['Kind', 'Actor', 'Detail fields'], entries.map(entry => [`\`${entry.kind}\``, entry.actor, entry.detail]));

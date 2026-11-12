@@ -28,6 +28,7 @@ import {
   headTree,
   invalidateGitFacts,
   isClean,
+  treeUntouched,
   tryGit,
   untracked,
 } from "../../../git/index.js";
@@ -68,14 +69,14 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
   let trunk = main ?? null;
   if (!trunk) { try { trunk = mainPolicy(root).commit; } catch { /* Missing main prevents classification. */ } }
   return { head, tree: tree?.status === 0 ? tree.stdout.trim() : null, main: trunk, privateCheck,
-    clean: privateCheck || isClean(root) && untracked(root).length === 0,
+    clean: privateCheck || treeUntouched(root),
     load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) } };
 }
 
 /** Use only a known structured Node runner; arbitrary shell, Jest and Vitest commands are never replaced. */
 function nodePrefix(command, config, root, pin) {
   const executable = '(?:node|/[^\\s\'";|&`$]+/node)';
-  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?packages/gate/src/io/run/tests\\.js)(?:\\s|$)', 'u');
+  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:packages/gate|apps/cli)/src/io/run/tests\\.js)(?:\\s|$)', 'u');
   const builtin = new RegExp('^(' + executable + ')\\s+--test(?:\\s|$)', 'u');
   const match = own.exec(command);
   if (match) return knownRunner(root, pin) ? match[1] + ' ' + match[2] : null;
@@ -94,11 +95,11 @@ function nodePrefix(command, config, root, pin) {
 /** Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo. */
 function knownRunner(root, pin) {
   try {
-    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../gate/src/io/run/tests.js", import.meta.url))]);
+    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../../apps/cli/src/io/run/tests.js", import.meta.url))]);
     if (bundled.status !== 0) return false;
     return [...new Set([pin.head, pin.main].filter(Boolean))].every(commit => {
-      if (!committedTest(root, commit, 'packages/gate/src/io/run/tests.js')) return false;
-      const source = tryGit(root, ['rev-parse', '--verify', commit + ':packages/gate/src/io/run/tests.js']);
+      if (!committedTest(root, commit, 'apps/cli/src/io/run/tests.js')) return false;
+      const source = tryGit(root, ['rev-parse', '--verify', commit + ':apps/cli/src/io/run/tests.js']);
       return source.status === 0 && source.stdout === bundled.stdout;
     });
   } catch { return false; }
@@ -186,13 +187,13 @@ function diagnosticCode(error) {
  * persist one typed result per case without changing its verdict. Batching keeps a 33-case red file to two probes
  * instead of 66 [#1899]; each case still keeps its own evidence directory, receipts and classification.
  */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
+async function observeFailure({ root, outputRoot = root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit, cachedMain }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
   const load = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
   const prefix = nodePrefix(command, config, root, pin);
-  const parsed = tapTests(run.output ?? '', run.executionRoot ?? root).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
+  const parsed = tapTests(run.output ?? '', run.executionRoot ?? outputRoot).filter(row => !row.passed && row.type !== 'suite' && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType));
   const failures = parsed.length ? parsed : [{ file: null, name: null, indent: null }];
   const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   if (common.status !== 0) throw new Error('Cannot retain flake evidence without the board Git directory.');
@@ -217,11 +218,16 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
       const group = groups.get(entry.failure.file) ?? [];
       if (!group.some(other => other.failure.name === entry.failure.name)) group.push(entry);
       groups.set(entry.failure.file, group);
+    } else if (config.flakes?.rerun === true && prefix) {
+      // Name the missing fact, so a red that was never paired says which condition kept it unpaired.
+      entry.reason = !entry.failure.file || !entry.failure.name ? 'The red names no test file and case in its output; no paired rerun is possible.'
+        : !entry.named ? `${entry.failure.file} is not a committed test file at the pinned head ${pin.head.slice(0, 12)}; no paired rerun is possible.`
+          : 'A nested failing case has no structured selector; no paired rerun is possible.';
     }
   }
   const pairedReceipts = [];
   for (const [file, group] of groups) {
-    const pairedRun = probeFile(root, pin, lease, prefix, checkAtCommit, file, group);
+    const pairedRun = probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain);
     if (kind === 'submit' && pairedRun?.proofReceiptId) pairedReceipts.push(pairedRun.proofReceiptId);
   }
   const observations = [];
@@ -246,10 +252,30 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
 }
 
 /**
+ * What the main comparison already recorded for one file at the pinned main, as a result per case name, or null when
+ * it holds no usable outcome and main must be run. Why: the comparison that follows a red gate runs the same file on
+ * the same main, so the diagnostic's own main rerun was a second run of it [C7]. A green file passes every case; a
+ * red file with a named failure account fails exactly the cases it names and passes the rest of that file.
+ *
+ * @param {((file: string) => { result: string, failures?: { file?: string, ran?: string, name?: string }[] } | null | undefined) | undefined} cachedMain - Reads the recorded outcome for one file at the pinned main.
+ * @param {string} file - Repository-relative test file.
+ * @param {string[]} names - The failing case names to resolve.
+ * @returns {Map<string, boolean> | null}
+ */
+export function recordedMainResults(cachedMain, file, names) {
+  let outcome = null;
+  try { outcome = typeof cachedMain === 'function' ? cachedMain(file) : null; } catch { outcome = null; }
+  if (outcome?.result === 'green') return new Map(names.map(name => [name, true]));
+  if (outcome?.result !== 'red' || !Array.isArray(outcome.failures) || !outcome.failures.length) return null;
+  const failed = new Set(outcome.failures.filter(row => (row.ran ?? row.file) === file || row.file === file).map(row => row.name));
+  return new Map(names.map(name => [name, !failed.has(name)]));
+}
+
+/**
  * Run one candidate probe and one main probe for every failing case of one file, selecting the cases by exact name,
  * then classify each case from its own result in those two shared receipts.
  */
-function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
+function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain) {
   const names = group.map(entry => entry.failure.name);
   const pattern = '^(?:' + names.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$';
   const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(file);
@@ -263,7 +289,9 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
   if (pairGap) gaps.push(pairGap);
   const pairResults = pairRun.unverified || pairGap ? new Map() : targetResults(pairRun, root, names);
   let mainRun = null, mainResults = new Map();
-  if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, file)) {
+  const recorded = pin.main && pin.main !== pin.head && committedTest(root, pin.main, file) ? recordedMainResults(cachedMain, file, names) : null;
+  if (recorded) mainResults = recorded;
+  else if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, file)) {
     mainRun = privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
     const mainGap = mainRun.executionRunner ? remoteGap(mainRun, pin, 'main remote') : null;
     if (mainGap) gaps.push(mainGap);
@@ -275,7 +303,7 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
     entry.paired = saveReceipt(entry.directory, entry.id, 'paired', pairRun);
     if (mainRun) entry.mainReceipt = saveReceipt(entry.directory, entry.id, 'main', mainRun);
     const pairResult = pairResults.get(entry.failure.name) ?? null;
-    const mainResult = pin.main === pin.head ? false : mainRun ? mainResults.get(entry.failure.name) ?? null : null;
+    const mainResult = pin.main === pin.head ? false : mainRun || recorded ? mainResults.get(entry.failure.name) ?? null : null;
     if (mainResult === true) { entry.classification = 'possible-regression'; entry.reason = 'The exact target passes on pinned main; this candidate failure is not a flake observation.'; }
     else if (pairResult === true && mainResult === false) { entry.classification = 'flake'; entry.reason = 'The red target passed its one paired rerun at the same pinned head; original red retained.'; }
     else if (pairResult === false) { entry.classification = 'stable-red'; entry.reason = 'The target remains red in its one paired rerun; original red retained.'; }

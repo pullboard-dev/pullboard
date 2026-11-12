@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/commands/gate.js apps/cli/src/io/commands/relay.js packages/commits/src/io/hooks.js packages/gate/src/io/check/baseline.js packages/gate/src/io/run/shell.js packages/git/index.js packages/resources/index.js packages/sandbox/src/io/trusted/policy.js packages/sentinels/src/io/main.js packages/state/src/io/machine.js packages/store/index.js packages/store/src/io/board.js packages/store/src/io/board/event/log.js packages/store/src/logic/board/landing/lease.js */
 /**
  * A command pays only for its own modules and asks Git for repository facts once: the real CLI runs under a
  * module-load hook and a counting Git shim, so the count is what a person's terminal and the git hooks pay [C7].

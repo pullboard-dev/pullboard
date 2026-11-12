@@ -46,10 +46,10 @@ function seat(box, name, lane) {
 }
 
 /** Run through the normal session binding, restoring the fixture environment after each command. */
-function run(box, actor, ...args) {
+async function run(box, actor, ...args) {
   const before = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = actor.session;
-  try { return box.run(actor.root, ...args, ...(['submit', 'verify', 'release', 'next'].includes(args[0]) ? ['--no-next'] : []), '--json'); }
+  try { return await box.runLocal(actor.root, ...args, ...(['submit', 'verify', 'release', 'next'].includes(args[0]) ? ['--no-next'] : []), '--json'); }
   finally { if (before === undefined) delete box.env.CODEX_THREAD_ID; else box.env.CODEX_THREAD_ID = before; }
 }
 
@@ -62,7 +62,7 @@ function actorGit(box, actor, ...args) {
 }
 
 /** Build real Git and persistent SQLite state with a core command requiring its view companion. */
-function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs' } = {}) {
+async function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs' } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -79,10 +79,10 @@ function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs
   const coordinator = { root: box.repo, session: box.env.CODEX_THREAD_ID };
   const builder = seat(box, 'presubmit-builder', 'core');
   const author = seat(box, 'presubmit-author', 'view');
-  const id = document(run(box, coordinator, 'add', 'core', 'Core command needs its view import',
+  const id = document(await run(box, coordinator, 'add', 'core', 'Core command needs its view import',
     '--specs', 'G1', '--criterion', 'The real core command imports the approved view module.',
     '--check', check)).item.item_id;
-  document(run(box, builder, 'claim', String(id)));
+  document(await run(box, builder, 'claim', String(id)));
   mkdirSync(join(builder.root, 'core'));
   const entered = join(box.dir, 'entered'), release = join(box.dir, 'release');
   const pause = hold ? `const fs = require('node:fs');fs.writeFileSync(${JSON.stringify(entered)}, 'entered');while(!fs.existsSync(${JSON.stringify(release)}))Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20);\n` : '';
@@ -103,8 +103,8 @@ function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs
 }
 
 /** Attach the lane author's exact immutable bytes through the real coordinator CLI. */
-function attach(f, key = 'approved-view', source = f.source, file = f.patchFile, author = f.author.id) {
-  return document(run(f.box, f.coordinator, 'patch', 'attach', String(f.id), file,
+async function attach(f, key = 'approved-view', source = f.source, file = f.patchFile, author = f.author.id) {
+  return document(await run(f.box, f.coordinator, 'patch', 'attach', String(f.id), file,
     '--key', key, '--author', author, '--source', source));
 }
 
@@ -145,14 +145,14 @@ try {
 }
 
 test('claimed companion submits the real core command and records exact composed native proof [C7,V4,H16]', async t => {
-  const f = fixture(t);
-  attach(f);
+  const f = await fixture(t);
+  await attach(f);
   const claimed = store.getItem(f.board, f.id);
   assert.equal(claimed.item_status, 'claimed');
   assert.equal(claimed.item_owner, f.builder.id);
   const beforeHead = f.box.git(f.builder.root, 'rev-parse', 'HEAD');
   const beforeIndex = f.box.git(f.builder.root, 'write-tree');
-  const submitted = document(run(f.box, f.builder, 'submit', String(f.id)));
+  const submitted = document(await run(f.box, f.builder, 'submit', String(f.id)));
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   assert.equal(store.getItem(f.board, f.id).item_commit, f.source);
   const event = store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1);
@@ -192,14 +192,14 @@ test('claimed companion submits the real core command and records exact composed
   assert.equal(f.box.git(f.builder.root, 'worktree', 'list', '--porcelain').includes('pullboard-companion-submit-'), false);
 });
 
-test('an ordinary builder commit follows its unchanged companion without coordinator rebinding [C7,V4]', t => {
-  const f = fixture(t);
-  attach(f);
+test('an ordinary builder commit follows its unchanged companion without coordinator rebinding [C7,V4]', async t => {
+  const f = await fixture(t);
+  await attach(f);
   writeFileSync(join(f.builder.root, 'core/second.cjs'), 'module.exports = 2;\n');
   f.box.git(f.builder.root, 'add', 'core/second.cjs');
   actorGit(f.box, f.builder, 'commit', '-m', 'feat(core): advance real builder head [G1]');
   const moved = f.box.git(f.builder.root, 'rev-parse', 'HEAD');
-  document(run(f.box, f.builder, 'submit', String(f.id)));
+  document(await run(f.box, f.builder, 'submit', String(f.id)));
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   assert.ok(store.proofReceipts(f.board, f.id).length > 0, 'the followed composition actually executes');
   assert.equal(store.itemPatches(f.board, f.id)[0].key, 'approved-view');
@@ -208,12 +208,12 @@ test('an ordinary builder commit follows its unchanged companion without coordin
   assert.equal(itemPatchAuthors(f.board, f.id).length, 1, 'following never removes original author custody');
 });
 
-test('a nonapplying claimed companion refuses by key without mutating builder source [C7,V4]', t => {
-  const f = fixture(t);
+test('a nonapplying claimed companion refuses by key without mutating builder source [C7,V4]', async t => {
+  const f = await fixture(t);
   const bad = join(f.box.dir, 'conflicting.patch');
   writeFileSync(bad, 'diff --git a/view/missing.cjs b/view/missing.cjs\n--- a/view/missing.cjs\n+++ b/view/missing.cjs\n@@ -1 +1 @@\n-missing old content\n+new content\n');
-  attach(f, 'cannot-apply-view', f.source, bad);
-  const rejected = run(f.box, f.builder, 'submit', String(f.id));
+  await attach(f, 'cannot-apply-view', f.source, bad);
+  const rejected = await run(f.box, f.builder, 'submit', String(f.id));
   assert.equal(rejected.code, 1);
   assert.match(rejected.out + rejected.err, /cannot-apply-view/u);
   assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
@@ -221,13 +221,13 @@ test('a nonapplying claimed companion refuses by key without mutating builder so
   assert.equal(f.box.git(f.builder.root, 'status', '--porcelain'), '');
 });
 
-test('claimed patch lanes and original builder lane edits remain independently enforced [C7,V4,B2]', t => {
-  const f = fixture(t);
-  const wrong = run(f.box, f.coordinator, 'patch', 'attach', String(f.id), f.patchFile,
+test('claimed patch lanes and original builder lane edits remain independently enforced [C7,V4,B2]', async t => {
+  const f = await fixture(t);
+  const wrong = await run(f.box, f.coordinator, 'patch', 'attach', String(f.id), f.patchFile,
     '--key', 'wrong-author', '--author', f.builder.id, '--source', f.source);
   assert.equal(wrong.code, 1);
   assert.match(wrong.out + wrong.err, /OUTSIDE_LANE/u);
-  attach(f);
+  await attach(f);
   mkdirSync(join(f.builder.root, 'view'));
   writeFileSync(join(f.builder.root, 'view/illegal.cjs'), 'module.exports = 9;\n');
   f.box.git(f.builder.root, 'add', 'view/illegal.cjs');
@@ -238,14 +238,14 @@ test('claimed patch lanes and original builder lane edits remain independently e
   finally { if (previous === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = previous; }
   assert.notEqual(hook.status, 0);
   assert.match(hook.stderr, /outside|lane|view/iu);
-  const submitted = run(f.box, f.builder, 'submit', String(f.id));
+  const submitted = await run(f.box, f.builder, 'submit', String(f.id));
   assert.equal(submitted.code, 1);
   assert.match(submitted.out + submitted.err, /DIRTY|OUTSIDE_LANE/u);
   assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
 });
 
-test('claimed attachment replay preserves its state and rejects historical protocol downgrade [C7,H16]', t => {
-  const f = fixture(t);
+test('claimed attachment replay preserves its state and rejects historical protocol downgrade [C7,H16]', async t => {
+  const f = await fixture(t);
   const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
@@ -263,23 +263,23 @@ test('claimed attachment replay preserves its state and rejects historical proto
   assert.deepEqual(applyEngineMove(replica, move, { sequence: 1, at: '2026-10-28T00:00:00.000Z' }), result);
 });
 
-test('unproved or changed companion binding cannot be sealed as original-head submit proof [C7,V4,H16]', t => {
-  const f = fixture(t);
-  attach(f);
+test('unproved or changed companion binding cannot be sealed as original-head submit proof [C7,V4,H16]', async t => {
+  const f = await fixture(t);
+  await attach(f);
   const binding = prepareItemPatchSubmit(f.builder.root, f.board, store.getItem(f.board, f.id), f.source);
   assert.throws(() => sealItemPatchSubmit(f.board, f.id, { agentId: f.builder.id, commit: f.source,
     tree: binding.sourceTree }), { code: 'ITEM_PATCH_CHANGED' });
   assert.throws(() => sealItemPatchSubmit(f.board, f.id, { agentId: f.builder.id, commit: f.source,
     tree: binding.sourceTree, companion: { ...binding, receiptIds: ['not-a-native-proof'] } }), { code: 'ITEM_PATCH_CHANGED' });
-  document(run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
+  document(await run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
   assert.throws(() => sealItemPatchSubmit(f.board, f.id, { agentId: f.builder.id, commit: f.source,
     tree: binding.sourceTree, companion: { ...binding, receiptIds: ['not-a-native-proof'] } }), { code: 'ITEM_PATCH_CHANGED' });
 });
 
 
 test('coordinator removal during the actual gate prevents sealing its superseded companion proof [C7,V4,H16]', async t => {
-  const f = fixture(t, { hold: true });
-  attach(f);
+  const f = await fixture(t, { hold: true });
+  await attach(f);
   const previous = f.box.env.CODEX_THREAD_ID;
   f.box.env.CODEX_THREAD_ID = f.builder.session;
   let child;
@@ -288,7 +288,7 @@ test('coordinator removal during the actual gate prevents sealing its superseded
   finally { if (previous === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = previous; }
   try {
     await f.helpers.waitFor(() => existsSync(f.entered), 'the actual frozen companion check', 60000); // budget: failure hang ceiling for admitted child startup; no elapsed-time assertion.
-    document(run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
+    document(await run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
   } finally { writeFileSync(f.release, 'released'); }
   const completed = await child.closed;
   assert.equal(completed.code, 1, child.stdoutText + child.stderrText);
@@ -300,11 +300,11 @@ test('coordinator removal during the actual gate prevents sealing its superseded
 });
 
 
-test('companion phases preserve zero, criterion-only deferred and blank-check proof-only policy [C7,V4,H16]', t => {
+test('companion phases preserve zero, criterion-only deferred and blank-check proof-only policy [C7,V4,H16]', async t => {
   for (const mode of [{ deferred: true }, { check: '' }, { deferred: true, check: '' }]) {
-    const f = fixture(t, mode);
-    attach(f);
-    document(run(f.box, f.builder, 'submit', String(f.id)));
+    const f = await fixture(t, mode);
+    await attach(f);
+    document(await run(f.box, f.builder, 'submit', String(f.id)));
     const detail = JSON.parse(store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1).event_detail);
     assert.deepEqual(detail.companion.phases.map(phase => phase.role), mode.deferred && mode.check === '' ? [] : [mode.deferred ? 'criterion' : 'proof']);
     const options = { ...detail, agentId: f.builder.id };

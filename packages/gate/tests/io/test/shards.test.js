@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js */
 /** Gate owns the test-run shard orchestration; runner and landing steps arrive as injected services [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -62,7 +62,7 @@ const services = {
   } },
   landing: { ...executionServices.landing, constrainedLandingHost: (root) => { seen.landingHost++; return executionServices.landing.constrainedLandingHost(root); } },
 };
-const result = await runTestShards({ parseProcessCensus, root: ${JSON.stringify(root)}, runner: ${JSON.stringify(join(root, 'packages/gate/src/io/run/tests.js'))},
+const result = await runTestShards({ parseProcessCensus, root: ${JSON.stringify(root)}, runner: ${JSON.stringify(join(root, 'apps/cli/src/io/run/tests.js'))},
   files: ${JSON.stringify(FILES)}, count: 2, needsBrowser: async () => false, needsGui: async () => false,
   runnerAdmission: { runnerOnly: ${quarantine} }, executionServices: services, runnerKinds: { RunnerDropped }, write: text => log.push(text),
   pinSource: () => { seen.pins++; return { commit: 'a'.repeat(40), fingerprint: 'fixture' }; },

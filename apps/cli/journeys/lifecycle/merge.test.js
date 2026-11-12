@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-test-loads packages/state/src/shell/engine.js packages/state/src/core/engines/source-advance-engine.js packages/landing/index.js */
+/** @pullboard-test-input packages/landing/index.js packages/state/index.js packages/state/src/logic/engines/source-advance-engine.js */
+/** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/logic/engines/source-advance-engine.js packages/landing/index.js */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
@@ -56,10 +56,12 @@ test('a clean main move keeps the accepted verdict on its genuinely checked merg
 });
 
 test('a real source conflict reopens the same item with its exact file and leaves the verdict immutable [C7,V4,H16]',{timeout:180000},async t=>{
-  const box=await mainMovedFixture(t,{conflict:true});box.trigger();const terminal=await box.settled();
+  // Keep the independently scheduled automatic lander from returning this item before the source worker.
+  const box=await mainMovedFixture(t,{conflict:true,manualLanding:true});box.trigger();const terminal=await box.settled();
   assert.equal(terminal.item.item_status,'open',JSON.stringify(terminal.rows));const now=state(box);
   const returned=JSON.parse(now.events.findLast(row=>row.event_kind==='reopen').event_detail);
   assert.deepEqual(returned.conflict.files,['web/feature.js']);assert.equal(returned.conflict.trunk,box.trunk);
+  assert.ok(returned.sourceAdvanceReturn, `source advance return missing from reopen: ${JSON.stringify(returned)}`);
   assert.equal(returned.sourceAdvanceReturn.submitted,box.accepted);assert.deepEqual(now.verdicts,box.original.verdicts);
   assert.equal(now.proofs.length,0,'an actual source conflict does not invent or execute a merged proof');
   const history = box.board(board => box.store.events(board));
@@ -89,7 +91,7 @@ test('an unreviewed submission keeps its queue place and still needs an independ
 test('source-advance replay binds native episode, exact receipts and old-engine prefix without caller green [C7,V4,H16]',{timeout:180000},async t=>{
   const box=await mainMovedFixture(t);box.trigger();await box.settled();const now=state(box);
   const engine=await import(pathToFileURL(join(box.installed,'packages/state/index.js')));
-  const {SOURCE_ADVANCE_ENGINE}=await import(pathToFileURL(join(box.installed,'packages/state/src/core/engines/source-advance-engine.js')));
+  const {SOURCE_ADVANCE_ENGINE}=await import(pathToFileURL(join(box.installed,'packages/state/src/logic/engines/source-advance-engine.js')));
   const detail=JSON.parse(now.events.find(row=>row.event_kind==='source_advanced').event_detail);
   const {model,person,...proof}=detail;
   const originalMove={version:1,engine:SOURCE_ADVANCE_ENGINE,id:randomUUID(),operation:'advanceItemSource',args:[box.id,{agentId:'coordinator',proof}]};

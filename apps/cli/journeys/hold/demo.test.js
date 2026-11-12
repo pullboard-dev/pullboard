@@ -26,6 +26,12 @@ import {
   holdLive,
 } from '../../tests/fixtures/cockpit/harness.js';
 import {
+  armDecisionPressCapture,
+  finishDecisionPressCapture,
+  armPhoneAnswerLifecycleCapture,
+  finishPhoneAnswerLifecycleCapture,
+} from '../../tests/fixtures/cockpit/demo-capture.js';
+import {
   armLaneReleaseCapture,
   finishLaneReleaseCapture,
   includeLaneReleaseCapture,
@@ -35,203 +41,6 @@ import {
   stageNaturalSpecChips,
   measureNaturalSpecChips,
 } from '../../tests/fixtures/cockpit/stable.js';
-
-/** Observe the decision target, its render-time replacement, and native pointer geometry without changing input. */
-async function armDecisionPressCapture(chrome, selector) {
-  return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const root = document.querySelector('#decisions');
-    const initial = document.querySelector(${JSON.stringify(selector)});
-    if (!root || !initial) return { armed: false, reason: 'decision target was absent before press' };
-    const events = [], renders = [], mutations = [], resizes = [];
-    /** Read the old or current button's viewport box without mutating layout. */
-    const box = element => {
-      if (!element) return null;
-      const rect = element.getBoundingClientRect();
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, connected: element.isConnected };
-    };
-    /** Identify the action node and record whether it is the original native target. */
-    const identity = element => element ? { tag: element.tagName, className: String(element.className || '').slice(0, 80),
-      action: element.getAttribute('data-go'), connected: element.isConnected, isInitial: element === initial, box: box(element) } : null;
-    const initialSnapshot = identity(initial);
-    /** Keep a bounded native-event sample with both target identities and their measured boxes. */
-    const sample = (type, detail = {}) => {
-      if (events.length >= 40) return;
-      const current = document.querySelector(${JSON.stringify(selector)});
-      events.push({ type, at: performance.now(), pointerId: detail.pointerId ?? null,
-        x: detail.clientX ?? null, y: detail.clientY ?? null, hitWasInitial: detail.hitWasInitial ?? null,
-        scrollX, scrollY,
-        initial: identity(initial), initialAtArm: initialSnapshot, current: identity(current) });
-    };
-    let prototype = root, descriptor = null;
-    while (prototype && !descriptor) {
-      descriptor = Object.getOwnPropertyDescriptor(prototype, 'innerHTML');
-      prototype = Object.getPrototypeOf(prototype);
-    }
-    if (!descriptor?.get || !descriptor?.set) return { armed: false, reason: 'native innerHTML descriptor unavailable' };
-    const previousOwn = Object.getOwnPropertyDescriptor(root, 'innerHTML');
-    Object.defineProperty(root, 'innerHTML', { configurable: true, enumerable: descriptor.enumerable,
-      /** Preserve the native element getter while observing production assignments to the decision panel. */
-      get() { return descriptor.get.call(root); },
-      /** Retain inline cockpit frames without exposing the view URL or its capability. */
-      set(value) {
-        if (renders.length < 20) renders.push({ at: performance.now(), oldInitialConnected: initial.isConnected,
-          stack: (new Error().stack || '').split('\\n').filter(line => line.includes(location.origin))
-            .map(line => line.replace(/https?:\\/\\/[^\\s)]+:(\\d+):(\\d+)/g, 'cockpit.inline:$1:$2')).slice(0, 4) });
-        return descriptor.set.call(root, value);
-      } });
-    /** Record real browser pointer and mouse events at the document capture boundary. */
-    const listener = event => {
-      const hasPoint = Number.isFinite(event.clientX) && Number.isFinite(event.clientY);
-      sample(event.type, { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY,
-        hitWasInitial: hasPoint ? document.elementFromPoint(event.clientX, event.clientY) === initial : null });
-    };
-    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click']) document.addEventListener(type, listener, true);
-    window.addEventListener('scroll', listener, true);
-    /** Record bounded panel mutations, including whether the original action was removed. */
-    const observer = new MutationObserver(records => {
-      if (mutations.length < 20) mutations.push({ at: performance.now(), records: records.length,
-        removedInitial: records.some(record => [...record.removedNodes].some(node => node === initial || node.contains?.(initial))),
-        current: identity(document.querySelector(${JSON.stringify(selector)})) });
-    });
-    observer.observe(root, { childList: true, subtree: true, attributes: true, characterData: true });
-    /** Record native box-size notifications for the original and current action. */
-    const resize = new ResizeObserver(entries => {
-      if (resizes.length < 20) resizes.push({ at: performance.now(), entries: entries.length,
-        initial: box(initial), current: box(document.querySelector(${JSON.stringify(selector)})) });
-    });
-    resize.observe(initial);
-    window.__decisionPressCapture = { armed: true, selector: ${JSON.stringify(selector)}, viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
-      armedAt: performance.now(), initial: identity(initial), events, renders, mutations, resizes,
-      /** Stop all observation and restore the native innerHTML property before returning evidence. */
-      finish() {
-        sample('capture-finish');
-        observer.disconnect(); resize.disconnect();
-        for (const type of ['pointermove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click']) document.removeEventListener(type, listener, true);
-        window.removeEventListener('scroll', listener, true);
-        if (previousOwn) Object.defineProperty(root, 'innerHTML', previousOwn); else delete root.innerHTML;
-        const result = { armed: true, selector: this.selector, viewport: this.viewport, armedAt: this.armedAt,
-          initial: this.initial, events: this.events, renders: this.renders, mutations: this.mutations, resizes: this.resizes };
-        delete window.__decisionPressCapture;
-        return result;
-      } };
-    sample('capture-armed');
-    return { armed: true, initial: identity(initial), viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio } };
-  })())`, "document.querySelector('#decisions')"));
-}
-
-/** Finish capture on the stable Needs-you root, removing every observer even after a failed press. */
-async function finishDecisionPressCapture(chrome) {
-  return JSON.parse(await chrome.stable(`JSON.stringify(window.__decisionPressCapture?.finish() || null)`, "document.querySelector('#decisions')"));
-}
-
-/** Observe the existing shout form's native submit, validation, input and production value-clear path without changing them. */
-async function armPhoneAnswerLifecycleCapture(chrome, answerText) {
-  return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const form = document.querySelector('#shout-form');
-    const field = document.querySelector('#shout-text');
-    if (!form || !field) return { armed: false, reason: 'shout form or text field was absent' };
-    const originalForm = form;
-    const originalField = field;
-    const events = [];
-    const cap = 100;
-    const sentinel = ${JSON.stringify(answerText)};
-    const observerErrors = [];
-    let droppedEvents = 0;
-    const sample = (type, extra = {}) => {
-      try {
-        if (events.length >= cap) { droppedEvents += 1; return; }
-        const answerMode = document.querySelector('#answering');
-        const submit = form.querySelector('[type="submit"]');
-        const rect = submit?.getBoundingClientRect();
-        const consoleNode = document.querySelector('#console');
-        let acting = null, answering = null, viewStateAvailable = false;
-        try { if (typeof view !== 'undefined') { viewStateAvailable = true; acting = view.acting ?? null; answering = view.answering ? { id: view.answering.id, rootMatches: view.answering.root === view.root } : null; } }
-        catch { /* DOM state remains useful when module-local state is not exposed to this evaluation. */ }
-        events.push({ type, wallAt: Date.now(), monotonicAt: performance.now(), valueLength: field.value.length,
-          sentinelMatch: field.value === sentinel, answerModeVisible: Boolean(answerMode && !answerMode.hidden),
-          answerModeTextLength: answerMode?.innerText?.length ?? 0,
-          validity: { valid: field.validity.valid, valueMissing: field.validity.valueMissing, tooLong: field.validity.tooLong },
-          formConnected: originalForm.isConnected, sameForm: document.querySelector('#shout-form') === originalForm,
-          fieldConnected: originalField.isConnected, sameField: document.querySelector('#shout-text') === originalField,
-          viewStateAvailable, acting, answering, console: consoleNode ? { className: consoleNode.className, hidden: consoleNode.hidden,
-            textLength: consoleNode.textContent.length } : null,
-          submit: submit ? { connected: submit.isConnected, disabled: submit.disabled,
-            x: rect?.x ?? null, y: rect?.y ?? null, width: rect?.width ?? null, height: rect?.height ?? null } : null,
-          ...extra });
-      } catch (error) {
-        if (observerErrors.length < 20) observerErrors.push({ type });
-      }
-    };
-    const safeSample = (type, details) => {
-      try { sample(type, details()); }
-      catch { if (observerErrors.length < 20) observerErrors.push({ type }); }
-    };
-    const onInput = event => safeSample(event.type, () => ({ isTrusted: event.isTrusted }));
-    const onSubmitCapture = event => safeSample('submit-capture', () => ({ isTrusted: event.isTrusted, defaultPrevented: event.defaultPrevented }));
-    const onSubmitBubble = event => safeSample('submit-bubble', () => ({ isTrusted: event.isTrusted, defaultPrevented: event.defaultPrevented }));
-    const onInvalid = event => safeSample('invalid', () => ({ isTrusted: event.isTrusted, targetId: event.target?.id ?? null,
-      validity: event.target?.validity ? { valid: event.target.validity.valid, valueMissing: event.target.validity.valueMissing } : null }));
-    const onClick = event => safeSample('send-click', () => ({ isTrusted: event.isTrusted,
-      onSendButton: Boolean(event.target?.closest?.('#shout-send')) }));
-    const fieldDescriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field), 'value');
-    if (!fieldDescriptor?.get || !fieldDescriptor?.set) return { armed: false, reason: 'native textarea value descriptor was unavailable' };
-    const priorField = Object.getOwnPropertyDescriptor(field, 'value');
-    const priorRequestSubmit = Object.getOwnPropertyDescriptor(form, 'requestSubmit');
-    const nativeRequestSubmit = form.requestSubmit;
-    if (typeof nativeRequestSubmit !== 'function') return { armed: false, reason: 'native requestSubmit was unavailable' };
-    Object.defineProperty(field, 'value', { configurable: true,
-      get() { return fieldDescriptor.get.call(this); },
-      set(value) {
-        try {
-          const before = fieldDescriptor.get.call(this);
-          const after = typeof value === 'string' ? value : null;
-          const stack = (new Error().stack || '').split('\\n').slice(1, 6)
-            .map(line => line.replace(/https?:\\/\\/[^\\s)]+:(\\d+):(\\d+)/g, 'view.inline:$1:$2'));
-          safeSample('value-set', () => ({ beforeLength: before.length, afterLength: after?.length ?? null,
-            beforeSentinel: before === sentinel, afterSentinel: after === sentinel, stack }));
-        } catch { safeSample('value-set-observer-error', () => ({})); }
-        return fieldDescriptor.set.call(this, value);
-      } });
-    Object.defineProperty(form, 'requestSubmit', { configurable: true, writable: true,
-      value(...args) {
-        safeSample('requestSubmit-call', () => ({ submitterId: args[0]?.id ?? null, submitterConnected: args[0]?.isConnected ?? null }));
-        try { return nativeRequestSubmit.apply(this, args); }
-        finally { safeSample('requestSubmit-return', () => ({})); }
-      } });
-    form.addEventListener('submit', onSubmitCapture, true);
-    form.addEventListener('submit', onSubmitBubble, false);
-    form.addEventListener('invalid', onInvalid, true);
-    field.addEventListener('input', onInput, true);
-    field.addEventListener('change', onInput, true);
-    form.addEventListener('click', onClick, true);
-    const capture = { armed: true, armedAt: Date.now(), monotonicArmedAt: performance.now(), events,
-      finish() {
-        sample('capture-finish');
-        form.removeEventListener('submit', onSubmitCapture, true);
-        form.removeEventListener('submit', onSubmitBubble, false);
-        form.removeEventListener('invalid', onInvalid, true);
-        field.removeEventListener('input', onInput, true);
-        field.removeEventListener('change', onInput, true);
-        form.removeEventListener('click', onClick, true);
-        if (priorField) Object.defineProperty(field, 'value', priorField); else delete field.value;
-        if (priorRequestSubmit) Object.defineProperty(form, 'requestSubmit', priorRequestSubmit); else delete form.requestSubmit;
-        const result = { armed: true, complete: droppedEvents === 0 && observerErrors.length === 0,
-          droppedEvents, observerErrors, cap, armedAt: this.armedAt, monotonicArmedAt: this.monotonicArmedAt,
-          viewport: { width: innerWidth, height: innerHeight }, events: this.events };
-        delete window.__phoneAnswerLifecycleCapture;
-        return result;
-      } };
-    window.__phoneAnswerLifecycleCapture = capture;
-    sample('capture-armed');
-    return { armed: true, armedAt: capture.armedAt, viewport: capture.viewport, initialValueLength: field.value.length };
-  })())`));
-}
-
-/** Remove the answer lifecycle observers and restore the native textarea/form properties. */
-async function finishPhoneAnswerLifecycleCapture(chrome) {
-  return JSON.parse(await chrome.stable(`JSON.stringify(window.__phoneAnswerLifecycleCapture?.finish() || null)`, "document.querySelector('#shout-form')"));
-}
-
 
 test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N26,N27]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
@@ -293,7 +102,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const b=e.getBoundingClientRect(),edges=e.matches('.seg button')?[...e.querySelectorAll('.seg-hit')].map(x=>x.getBoundingClientRect()):[],r={x:b.x,y:Math.min(b.top,...edges.map(x=>x.top)),right:b.right,bottom:Math.max(b.bottom,...edges.map(x=>x.bottom)),width:b.width};r.height=r.bottom-r.y;return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
@@ -323,6 +132,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     };
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await assertFirstStateDelay(chrome, t);
     await chrome.stable(`(() => {
@@ -337,7 +148,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     for (const width of [375, 1280]) {
       if (width === 1280) {
         box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision');
-        await chrome.waitFor("document.querySelector('#needs').innerText.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in Needs; no throughput claim.
+        await chrome.waitFor("document.querySelector('#feed').textContent.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in the shout feed; no throughput claim.
       }
       await setViewport(width);
       await click('[data-tab="items"]');
@@ -349,7 +160,9 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
         await click('#proj-switch');
         await click(`[data-root="${demo.repo}"]`);
-        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo' && !!document.querySelector('#chain .row')");
+        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
+        await click('[data-tab=items]');
+        await chrome.waitFor("!!document.querySelector('#chain .row')");
       }
       assert.ok(await chrome.stable("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
       assert.ok(await chrome.stable("!!document.querySelector('#needs:not([hidden])')"), `${width}: Needs you is visible`);
@@ -358,7 +171,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       assert.ok(await chrome.stable("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
       await checkLayout(width, 'items, Needs you and detail');
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
-        await click(`[data-tab="${tab}"]`);
+        await click(`.tab[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
         if (tab === 'spec') {
           await waitRendered(['#spec-chips button']);
@@ -369,42 +182,40 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
         }
         if (tab === 'activity') {
-          await chrome.waitFor(`(() => {
-            const element = [...document.querySelectorAll('#activity .what')].find(node => node.textContent === ${JSON.stringify(wrapTitle)});
-            return element?.getBoundingClientRect().width > 0 && element.firstChild?.nodeType === Node.TEXT_NODE;
-          })()`);
-          const wrap = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-            const element=[...document.querySelectorAll('#activity .what')].find(node=>node.textContent===${JSON.stringify(wrapTitle)});
-            if(!element) return null;
-            const text=element.firstChild, ranges=(word)=>{const start=text.textContent.indexOf(word),range=document.createRange();range.setStart(text,start);range.setEnd(text,start+word.length);return [...range.getClientRects()].map(rect=>({x:rect.x,y:rect.y,width:rect.width}));};
-            const lines=(rects)=>new Set(rects.map(rect=>Math.round(rect.y))).size;
-            return {width:element.clientWidth,height:element.getBoundingClientRect().height,wordLines:lines(ranges('boundary')),tokenLines:lines(ranges('abcdef0123456789'.repeat(12)))};
+          const findTitle = `(() => [...document.querySelectorAll('#activity .activity-item')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`;
+          await chrome.waitFor(`(() => { const element = ${findTitle}; return element?.getBoundingClientRect().width > 0; })()`);
+          const fit = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+            const element = ${findTitle};
+            if (!element) return null;
+            const row = element.closest('.activity-event').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
+            return {rowRight: row.right, boxRight: box.right, boxWidth: box.width, boxHeight: box.height, lineHeight: parseFloat(style.fontSize) * 2, overflow: style.textOverflow, whiteSpace: style.whiteSpace, clipped: element.scrollWidth > element.clientWidth, title: element.title};
           })())`));
-          assert.ok(wrap, `${width}: the activity feed shows the long item title`);
-          assert.equal(wrap.wordLines, 1, `${width}: a normal word stays together at a line boundary: ${JSON.stringify(wrap)}`);
-          assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
+          assert.ok(fit, `${width}: the activity feed shows the long item title`);
+          assert.ok(fit.boxWidth > 0 && fit.boxRight <= fit.rowRight + 1, `${width}: the ellipsized title stays inside its row: ${JSON.stringify(fit)}`);
+          assert.ok(fit.whiteSpace === 'nowrap' && fit.overflow === 'ellipsis' && fit.clipped && fit.boxHeight < fit.lineHeight, `${width}: the long title is one ellipsized line: ${JSON.stringify(fit)}`);
+          assert.equal(fit.title, wrapTitle, `${width}: the full title stays available in the title attribute`);
         }
         if (tab === 'shouts') {
-          await chrome.stable("(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))").then(open => open ? chrome.click("document.querySelector('.asks-toggle[data-fold=\"waiting\"]')") : undefined);
-          await waitRendered(['#decisions .shout:not(:has(.answer)) header', '#decisions .shout:not(:has(.answer)) .text', '#decisions .shout .answer']);
+          await click('[data-shout-thread="none"]');
+          await waitRendered(['#feed .shout:not(:has(.answer)) header', '#feed .shout:not(:has(.answer)) .text', '#feed .shout .answer']);
           const asks = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-            const waiting = document.querySelector('#decisions .shout:not(:has(.answer))');
+            const waiting = document.querySelector('#feed .shout:not(:has(.answer))');
             const waitingMeta = waiting?.querySelector('header');
             const waitingText = waiting?.querySelector('.text');
-            const button = document.querySelector('#decisions .shout .answer');
+            const button = document.querySelector('#feed .shout .answer');
             const answerText = button?.closest('.shout-main').querySelector('.text');
             const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}; };
             return {
-              waitingIsNeedsYou: document.querySelector('#decisions').classList.contains('needs-you'),
               waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
-              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta.querySelector('.who')).lineHeight),
+              waitingMetaLine: waitingMeta && Math.max(...[...waitingMeta.children].map(e => e.getBoundingClientRect().height)),
+              waitingMetaRows: waitingMeta && new Set([...waitingMeta.children].flatMap(e => { const range = document.createRange(); range.selectNodeContents(e); return [...range.getClientRects()].map(r => Math.round(r.top + r.height / 2)); }).map(y => Math.round(y / 6))).size,
               waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
               answerText: answerText && rect(answerText), button: button && rect(button),
             };
           })())`));
-          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoAnswer, `${width}: the waiting ask is a card in the Needs-you panel without an Answer button`);
-          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
+          assert.ok(asks.waitingHasNoAnswer, `${width}: the waiting ask is a conversation card without an Answer button`);
+          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1 && asks.waitingMetaRows === 1,
             `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
           assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
             `${width}: waiting ask text spans the card: ${JSON.stringify(asks)}`);
@@ -438,10 +249,11 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await submit('#shout-form');
       await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
 
-      await chrome.waitFor("!!document.querySelector('#decisions [data-go]')");
-      const decision = await chrome.stable("document.querySelector('#decisions [data-go]')?.getAttribute('data-go')");
+      await click('[data-shout-thread="none"]');
+      await chrome.waitFor("!!document.querySelector('#feed [data-go]')");
+      const decision = await chrome.stable("document.querySelector('#feed [data-go]')?.getAttribute('data-go')");
       assert.ok(decision, `${width}: a decision is offered for answer`);
-      const decisionSelector = `#decisions [data-go="${decision}"]`;
+      const decisionSelector = `#feed [data-go="${decision}"]`;
       let decisionCaptureArmed = false;
       let decisionPressError = null;
       let decisionCapture = null;
@@ -785,6 +597,8 @@ test('the spec chip measurement survives a redraw [N26,C7]', {
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await press(chrome, "document.querySelector('[data-tab=spec]')");
     await chrome.waitFor("document.querySelectorAll('#spec-chips button:not([data-natural-chip])').length >= 2");

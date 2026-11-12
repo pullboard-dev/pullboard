@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js apps/cli/light.js packages/codemap/data/plan/cells.json packages/codemap/data/plan/path-map/cli.json packages/codemap/src/io/cells/scripts/plan.js */
 /** An app cell may declare a light front door, apps/<name>/core.js, the way a package does; a pure front door stays a package's [C7,D3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

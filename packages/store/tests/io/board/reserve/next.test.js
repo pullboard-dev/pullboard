@@ -26,6 +26,8 @@ function backlog(t, submitted = SUBMITTED, { crossFamily = false } = {}) {
   const ids = [];
   for (let index = 0; index < submitted; index++) ids.push(submitWaiting(board, index + 1));
   now = new Date(now.getTime() + 16 * 60_000);
+  // A reservation holds only while its reviewer's heartbeat is under two minutes old, so every seat is live now.
+  for (let seat = 1; seat <= SEATS; seat++) store.heartbeatSeat(board, `core-${seat}`);
   return { board, ids, advance: ms => { now = new Date(now.getTime() + ms); } };
 }
 

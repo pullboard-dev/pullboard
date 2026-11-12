@@ -6,7 +6,12 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
+import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
+import { jobBlobsPending } from "./blobs.js";
+import { migrateJobBlobs } from "./blobs.js";
+import { compactBoard } from "./blobs.js";
+import { sharedColumnsAhead } from "./schema.js";
 import {
   SCHEMA,
   SCHEMA_VERSION,
@@ -27,7 +32,7 @@ export function requireRuntimePorts(ports) {
   }
   if (!Array.isArray(ports.operations) || ports.operations.some(name => typeof name !== 'string')) throw new Refused('NO_POLICY', 'Supply the native operation names from the move registry.');
   if (typeof ports.logEvent !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply logEvent.');
-  for (const name of ['guardStore', 'refreshStoreDeclarations', 'storeTriggers']) {
+  for (const name of ['guardStore', 'refreshStoreDeclarations', 'repairDrift', 'storeTriggers']) {
     if (typeof ports.guards[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply guards.${name}.`);
   }
   for (const name of ['atomic', 'normalizeReviewDefaults', 'ensureProofCounters', 'ensureHotIndexes', 'missingAdditiveIndexes', 'ensureAdditiveIndexes', 'configureBoardJournal', 'closeBoardWrites']) {
@@ -87,7 +92,7 @@ export function requireRuntimePorts(ports) {
 export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext, gitRoot, ports } = {}) {
   const runtimePorts = requireRuntimePorts(ports);
   if (!clock || typeof clock.now !== 'function') throw new Refused('NO_POLICY', 'Supply the native board clock before opening storage.');
-  const { guardStore, refreshStoreDeclarations, storeTriggers } = runtimePorts.guards;
+  const { guardStore, refreshStoreDeclarations, repairDrift, storeTriggers } = runtimePorts.guards;
   const { atomic, ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes } = runtimePorts.lifecycle;
   const { sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
     boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion,
@@ -131,7 +136,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     const board = { db, clock, writeContext, gitRoot, onDiagnostic, runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts };
     let warmCounters = true;
     if (isMain !== false || file === ':memory:') {
-      // Migrate and audit only a board whose version is behind; a drifted shape is reported and left alone (#1047).
+      // Migrate and audit only a board whose version is behind; a drifted shape gets only repairDrift's safe repair (#1047, #5825).
       let standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION, readEventLogVersion(db) < EVENT_LOG_VERSION);
       if (standing === 'behind' || standing === 'unstamped') atomic(board, () => {
         if (standing === 'behind') {
@@ -144,6 +149,8 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
         recordSchemaStamp(db, SCHEMA_DIGEST);
       }, { reviewPolicy: false });
       if (refreshStoreDeclarations(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
+      // A drifted board still gains additive tables, and its guards and stamp when the rest of its shape matches (#5825).
+      if (standing === 'drifted' && repairDrift(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
       // Index-only upgrades keep the data version/digest unchanged. Install and restamp together;
       // drifted or read-only stores never take this path, and old clients accept the resulting stamp.
       if (standing !== 'drifted' && missingAdditiveIndexes(db)) atomic(board, () => {
@@ -151,11 +158,19 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
         ensureAdditiveIndexes(db);
         recordSchemaStamp(db, SCHEMA_DIGEST);
       }, { reviewPolicy: false });
+      if (standing !== 'drifted') settleJobBlobs(db, onDiagnostic);
       if (standing === 'drifted') { warmCounters = false; reportDrift(file, onDiagnostic); }
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL, migrate, storeTriggers)), onDiagnostic);
+      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL + LEDGER_SCHEMA_SQL, migrate, storeTriggers);
+      // Code behind trunk refuses before any write: carrying on replayed newer caches under the lock for minutes (#5899).
+      const ahead = sharedColumnsAhead(db, expected);
+      if (ahead.length) {
+        throw new Refused('UNMERGED_SCHEMA', `this code is older than the shared board, which has ${ahead.length} column${ahead.length === 1 ? '' : 's'} it does not know (${ahead.slice(0, 3).join(', ')}${ahead.length > 3 ? ', ...' : ''}); an old writer must not change a newer board`,
+          'run the main checkout\'s pullboard (the pullboard on your PATH), or merge main into this worktree, then retry');
+      }
+      reportSharedSchema(file, sharedSchemaDiagnostic(db, expected), onDiagnostic);
     }
     guardMoves(board);
     // Writable commands catch up old writers or missing local projections once. Read-only open
@@ -176,6 +191,23 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }
     throw boardNotWritable(file, boardBusyError(file, startedAt, error));
   }
+}
+
+/**
+ * Run the one-time job blob move and the compaction it earns, never failing the open: a board that cannot do either now
+ * (busy, no disk room) opens as it is and tries again on a later open.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {((line: string) => void) | undefined} onDiagnostic
+ */
+function settleJobBlobs(db, onDiagnostic) {
+  try {
+    if (!jobBlobsPending(db)) return;
+    const moved = migrateJobBlobs(db);
+    if (moved.moved || moved.pruned) onDiagnostic?.(`job payloads: ${moved.moved} moved to blobs, ${moved.pruned} old copies pruned`);
+    const compact = compactBoard(db);
+    if (compact.compacted) onDiagnostic?.(`board compacted: ${compact.before} to ${compact.after} bytes`);
+  } catch (error) { onDiagnostic?.(`job payload move deferred: ${error?.message ?? error}`); }
 }
 
 /**

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
 import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import {
   dirname,
@@ -10,14 +11,17 @@ import {
   resolve,
 } from 'node:path';
 import { packageFiles } from './package/files.js';
+import { requireEdges } from '../logic/urls.js';
 import { runtimeUrls } from '../logic/urls.js';
+import { TOOLING_MANIFEST_NAME } from './source/scan.js';
 import { createRunnerModuleParser } from './module/parser.js';
 import { parseWithPaths } from './module/parser.js';
-import {
-  commonJsWithCompiler as commonJsIn,
-  importsWithCompiler as importsIn,
-  Refused,
-} from '../../../kernel/index.js';
+import { commonJsWithCompiler as commonJsIn } from '../../../kernel/index.js';
+import { importsWithCompiler as importsIn } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/index.js';
+
+/** Files an export writes at run time; a URL to one names no shipped source. */
+const RUNTIME_ONLY = new Set([TOOLING_MANIFEST_NAME]);
 
 /** Name the exact path that cannot safely enter the trusted runtime; never expand transfer limits. */
 function unavailable(file, reason) {
@@ -38,6 +42,7 @@ function importTarget(value) {
 /** Resolve only builtins, explicit relative paths and the current package's declared imports. */
 function dependency(file, specifier, manifest) {
   if (isBuiltin(specifier)) return null;
+  if (specifier === '(computed)') return null; // A computed dynamic import resolves at run time, not at capture.
   let target = specifier;
   if (target.startsWith('#')) {
     const entries = Object.entries(manifest.imports ?? {});
@@ -59,7 +64,14 @@ function dependency(file, specifier, manifest) {
     target = posix.normalize(posix.join(dirname(file), target));
   }
   if (target.startsWith('../') || target.startsWith('/') || /[\\\u0000-\u001f\u007f?#]/u.test(target)) unavailable(file, `unsafe import ${specifier}`);
+  // A directory URL (new URL('../..', import.meta.url)) names a folder, not a file to ship or read.
+  if (target === '.' || target.endsWith('/')) return null;
   return target;
+}
+
+/** True for a path under root that is a folder; such a runtime URL is a location, not a module in the closure. */
+function isFolder(root, target) {
+  try { return statSync(join(root, target)).isDirectory(); } catch { return false; }
 }
 
 /** The worker entry a 0.9.3 tree holds; accepted only while that file exists, one release back. */
@@ -69,16 +81,17 @@ export const WORKER_ENTRY = 'apps/runner/runner-worker.js';
 
 /** The worker entry of this tree: the legacy path while it exists (0.9.3 layout), else the cell path. */
 export function workerEntry(root) {
+  if (existsSync(join(root, 'src/runner-worker.js'))) return 'src/runner-worker.js';
   return existsSync(join(root, LEGACY_WORKER_ENTRY)) ? LEGACY_WORKER_ENTRY : WORKER_ENTRY;
 }
 
 /** Reuse only successful exact-source analysis inside this reader; every read validates fresh paths and bytes. */
-export function runnerPackageReader(root, entry = workerEntry(root)) {
+export function runnerPackageReader(root, entry = workerEntry(root), step = () => {}) {
   let analyses = new Map();
   return () => {
     const parser = createRunnerModuleParser();
     try {
-      const current = derivePackage(root, entry, analyses, parser.parse);
+      const current = derivePackage(root, entry, analyses, parser.parse, step);
       analyses = current.analyses;
       return current.runtime;
     } finally { parser.close(); }
@@ -89,15 +102,16 @@ export function runnerPackageReader(root, entry = workerEntry(root)) {
  * Return all actual worker dependencies plus the real manifest, with stable path-bound bytes. The transfer bound applies to
  * the gzipped capsule that carries them (remoteWorkerLaunch), and the raw size is ratcheted by packages/gate/data/ceilings/worker-bundle.json (#4140).
  */
-export function runnerPackage(root, entry = workerEntry(root)) {
-  return runnerPackageReader(root, entry)();
+export function runnerPackage(root, entry = workerEntry(root), step = () => {}) {
+  return runnerPackageReader(root, entry, step)();
 }
 
-/** Resolve the complete closure again, retaining pure analysis only for this successful generation's exact bytes. */
-function derivePackage(root, entry, previous, parse) {
+/** Resolve the complete closure again, retaining pure analysis only for this successful generation's exact bytes; `step` names each phase as it starts. */
+function derivePackage(root, entry, previous, parse, step) {
   let allowed;
   let manifest;
   try {
+    step('list the package files');
     allowed = new Set(packageFiles(root));
     manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   } catch (error) { unavailable('package.json', error.message); }
@@ -108,6 +122,7 @@ function derivePackage(root, entry, previous, parse) {
     const level = [...new Set(pending)].filter(file => !Object.hasOwn(files, file)).sort();
     pending = [];
     if (!level.length) break;
+    step(`read ${level.length} closure files from ${level[0]}`);
     for (const file of level) {
       if (!allowed.has(file)) unavailable(file, 'the import closure leaves package.json files');
       files[file] = readFileSync(join(root, file), 'utf8');
@@ -119,22 +134,24 @@ function derivePackage(root, entry, previous, parse) {
     const sources = changed.map(file => files[file]);
     // Without either loader spelling or an identifier escape, the CommonJS probe has no candidates.
     // importsIn still compiles every changed module; potential loader text keeps the full V8 probe.
+    step(`parse ${changed.length} changed modules`);
     const suspects = changed.filter(file => files[file].includes('require')
       || files[file].includes('createRequire') || files[file].includes('\\u'));
     const findings = suspects.length ? commonJsIn(suspects.map(file => files[file]), parseWithPaths(parse, suspects.map(file => join(root, file)))) : [];
     const common = new Set(suspects.filter((_file, index) => findings[index]));
     const imports = sources.length ? importsIn(sources, parseWithPaths(parse, changed.map(file => join(root, file)))) : [];
     for (const [index, file] of changed.entries()) {
-      if (common.has(file)) unavailable(file, 'an opaque CommonJS loader prevents a complete import closure');
-      const runtime = runtimeUrls(sources[index], parseWithPaths(parse, [join(root, file)]));
+      const loaded = common.has(file) ? requireEdges(sources[index]) : [];
+      if (loaded === null) unavailable(file, 'an opaque CommonJS loader prevents a complete import closure');
+      const runtime = runtimeUrls(sources[index], parseWithPaths(parse, [join(root, file)]), RUNTIME_ONLY);
       if (runtime === null) unavailable(file, 'an opaque runtime URL prevents a complete import closure');
-      analyses.set(file, Object.freeze({ source: files[file], edges: Object.freeze([...imports[index], ...runtime]) }));
+      analyses.set(file, Object.freeze({ source: files[file], edges: Object.freeze([...imports[index], ...runtime, ...loaded]) }));
     }
     for (const file of modules) {
       if (!analyses.has(file)) analyses.set(file, previous.get(file));
       for (const specifier of analyses.get(file).edges) {
         const target = dependency(file, specifier, manifest);
-        if (target !== null) pending.push(target);
+        if (target !== null && !isFolder(root, target)) pending.push(target);
       }
     }
   }
@@ -142,9 +159,9 @@ function derivePackage(root, entry, previous, parse) {
 }
 
 
-/** The uncompressed size of the worker bundle a launch installs, as JSON of every closure file (#4140). */
-export function workerBundleBytes(root, entry = workerEntry(root)) {
-  return Buffer.byteLength(JSON.stringify(runnerPackage(root, entry).files));
+/** The uncompressed size of the worker bundle a launch installs, as JSON of every closure file (#4140); `step` hears each phase, so a hang can be named. */
+export function workerBundleBytes(root, entry = workerEntry(root), step = () => {}) {
+  return Buffer.byteLength(JSON.stringify(runnerPackage(root, entry, step).files));
 }
 
 /** The gate-policy loader the runner controller loads; it and its static imports are fingerprinted for a warmed controller (#1510). */

@@ -64,6 +64,7 @@ async function greenAudited(t) {
   commit(repo, 'test/a.test.js', "import {test} from 'node:test';test('a',()=>{});\n", 'chore: base',
     new Date(Date.now() - 3600000).toISOString());
   const file = join(repo, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file journey: the worker's writer and the audit read the same repository board file
   const db = openBoard(file, undefined, { isMain: true, gitRoot: repo });
   let identity, alpha, beta;
   try {
@@ -80,6 +81,7 @@ async function greenAudited(t) {
   const read = action => { const board = openBoardForRead(file); try { return action(board); } finally { closeBoard(board); } };
   /** Apply one ordered move to the real board, as the worker's writer does. */
   const write = async (operation, args) => {
+    // @pullboard-board-file journey: the worker's writer and the audit read the same repository board file
     const board = openBoard(file, undefined, { isMain: true, gitRoot: repo });
     try { return store[operation](board, ...args); } finally { closeBoard(board); }
   };
@@ -145,6 +147,7 @@ test('a bare hotfix with no trailer item files the regression to the coordinator
  */
 function landBatch(fixture, item, base, tip) {
   const file = join(fixture.repo, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file journey: the worker's writer and the audit read the same repository board file
   const db = openBoard(file, undefined, { isMain: true, gitRoot: fixture.repo });
   try {
     db.executionEngineVersion = 1;

@@ -2,7 +2,7 @@
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { closeBoard } from '../../../../apps/lib/index.js';
+import { closeBoard } from '../../index.js';
 import { fixtureCommittedGraph } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { openKitBoard } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
@@ -114,6 +114,7 @@ export function cellSandbox(t, { model = FIXTURE_MODEL } = {}) {
     PULLBOARD_MACHINE_HOME: join(scratch.root, 'machine-home'),
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
+    PULLBOARD_CLAIM_BEATER: '0',
     PULLBOARD_MODEL: model,
   });
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Coordinator-authored frozen timing reaches real submit/review leases and durable receipts [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -30,7 +29,7 @@ function document(result) {
 }
 
 for (const timing of [true, false]) {
-  test(`frozen check timing ${timing} controls actual submit and verify admission and receipts [C7,V4]`, t => {
+  test(`frozen check timing ${timing} controls actual submit and verify admission and receipts [C7,V4]`, async t => {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
     const box = helpers.project('true');
@@ -47,14 +46,14 @@ for (const timing of [true, false]) {
     box.git(box.repo, 'commit', '-q', '-m', 'test: real timing admission target [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const command = 'node --test --test-reporter=tap test/admission.test.js';
-    document(fixtureAdd(box.run, box.repo, 'web', 'Real timing check', '--criterion', 'the actual selected check executes', '--check', command,
-      ...(timing ? ['--check-timing', 'true'] : []), '--specs', 'G1', '--wait', '--json'));
-    document(box.run(box.web, 'claim', '1', '--json'));
-    const frozen = document(box.run(box.repo, 'show', '1', '--json'));
+    document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Real timing check', '--criterion', 'the actual selected check executes', '--check', command,
+      ...(timing ? ['--check-timing', 'true'] : []), '--specs', 'G1', '--wait', '--json')));
+    document((await box.runLocal(box.web, 'claim', '1', '--json')));
+    const frozen = document((await box.runLocal(box.repo, 'show', '1', '--json')));
     assert.equal(JSON.parse(frozen.item_frozen).checkTiming === true, timing);
     if (!timing) assert.equal(Object.hasOwn(JSON.parse(frozen.item_frozen), 'checkTiming'), false, 'unflagged historical bytes remain absent');
     helpers.commitFile(box, box.web, 'web/change.txt', 'actual candidate\n', 'feat(web): real timing candidate [G1]');
-    const submitted = document(box.run(box.web, 'submit', '1', '--no-next', '--json'));
+    const submitted = document((await box.runLocal(box.web, 'submit', '1', '--no-next', '--json')));
     assert.equal(submitted.gate.green, true, 'actual native submit check and proof completed');
     const submitReceipt = recentReceipts(box.repo).filter(row => row.kind === 'submit').at(-1);
     assert.ok(submitReceipt, 'native submit persisted its real admission receipt');
@@ -72,7 +71,7 @@ for (const timing of [true, false]) {
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
     document(fixtureJoin(box.run, reviewer, 'api', '--model', FIXTURE_MODEL, '--json'));
-    const accepted = document(box.run(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json'));
+    const accepted = document((await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json')));
     assert.equal(accepted.decision, 'ACCEPT');
     const reviewReceipt = recentReceipts(box.repo).filter(row => row.kind === 'review').at(-1);
     assert.ok(reviewReceipt, 'native verification persisted its real admission receipt');

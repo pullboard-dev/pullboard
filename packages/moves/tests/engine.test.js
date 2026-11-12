@@ -31,6 +31,7 @@ import { COMMAND_FILE } from '../../kernel/index.js';
 import { discovered } from '../../kernel/index.js';
 import { ENGINE_REGISTRY } from '../../state/index.js';
 import { ENGINE_VERSION } from '../../state/index.js';
+import { REJECT_OPEN_ENGINE } from '../../state/index.js';
 import { discoverEngines } from '../../state/index.js';
 import { Refused } from '../../kernel/light.js';
 import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
@@ -660,6 +661,8 @@ test('return-window engine admission uses the receipt time rather than replica c
     store.verify(board, id, { agentId: 'web-2', decision: 'REJECT', reason: 'OTHER', note: 'proof', clause: 'Engine fixture',
       head: 'a'.repeat(40), digest: 'f'.repeat(64), policy: 'any', reopenFirstRefusalMinutes: 30 });
   }, 66);
+  // These controls prove replay of the former first-refusal window, which engines from REJECT_OPEN_ENGINE no longer seal.
+  for (const copy of [insideClock, expiredClock]) copy.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   const before = boardRows(expiredClock, item);
   const old = { ...claimMove(expiredClock, item, 'web-2'), engine: 65 };
   assert.throws(() => applyEngineMove(expiredClock, old, { sequence: 1, at: '2026-10-07T16:05:00.000Z' }), /engine/);
@@ -685,7 +688,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
     assert.equal(lines.length,1,`${file} has exactly one exported engine declaration`);
     const match=/^export const [A-Z][A-Z0-9_]*_ENGINE = (?:(\d+)|unassignedEngine\(\));$/u.exec(lines[0]);
     assert.ok(match,`${file} declares its landed number or the accepted unassigned placeholder`);
-    if (match[1]===undefined) assert.ok(text.split('\n').includes("import { unassignedEngine } from '../../../test/engine-next.js';"),`${file} imports its real placeholder`);
+    if (match[1]===undefined) assert.ok(text.split('\n').includes("import { unassignedEngine } from './engine-next.js';"),`${file} imports its real placeholder`);
     return {file,number:match[1]===undefined ? null : Number(match[1])};
   });
   const next=Math.max(0,...declarations.map(row=>row.number??0))+1;

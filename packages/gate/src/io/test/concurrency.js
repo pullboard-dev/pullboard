@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { Refused } from '../../../../kernel/index.js';
+import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 
 /** Detect the performance-core budget on Apple Silicon, or the runtime's usable CPU budget elsewhere. */
 export function performanceCores() {
@@ -18,8 +19,24 @@ export function performanceCores() {
   return Math.max(1, availableParallelism());
 }
 
+/** Set to 1 by a pulled runner job's entry: this host is the whole job's execution host, with no other gate to share it [P7]. */
+export const PULLED_JOB_ENV = 'PULLBOARD_PULLED_JOB';
+
+/**
+ * The cores a run's files spread over by default: inside a pulled runner job, the job's share of the runner's cores
+ * that its serve set, else every core; elsewhere the performance cores.
+ * Why every core: a pulled gate runs its whole proof as one run on one runner, where the controller deals it to many
+ * runner slots; at the 4 performance cores of a 10-core runner, a 115-file proof took 575 s (#5790).
+ * Why a share: a serve runs several jobs at once, and each taking every core oversubscribed the runner (#5919).
+ */
+export function executionCores(env = process.env) {
+  if (env[PULLED_JOB_ENV] !== '1') return performanceCores();
+  const share = Number(env[JOB_WORKERS_ENV]);
+  return Number.isSafeInteger(share) && share > 0 ? share : Math.max(1, availableParallelism());
+}
+
 /** One policy for native file concurrency and the separate per-run browser-file limit. */
-export function testConcurrency(root, cores = performanceCores()) {
+export function testConcurrency(root, cores = executionCores()) {
   const file = join(root, 'pullboard.json');
   let config = {};
   if (existsSync(file)) {

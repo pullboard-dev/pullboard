@@ -78,6 +78,7 @@ export { ADMISSION_POLL_FRESH_MS } from './runner/placement.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
+  runnerDeadlineOutput,
   runnerWaitReasons,
   runnerWaitLine,
 } from './runner/reasons.js';
@@ -260,6 +261,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
       if (table === 'waiter' && !columns.includes('polled')) db.exec('ALTER TABLE waiter ADD COLUMN polled INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('follow_up_aware')) db.exec('ALTER TABLE waiter ADD COLUMN follow_up_aware INTEGER NOT NULL DEFAULT 0');
+      if (table === 'waiter' && !columns.includes('diagnostic_aware')) db.exec('ALTER TABLE waiter ADD COLUMN diagnostic_aware INTEGER NOT NULL DEFAULT 0');
     }
     pinLegacyReclaimInputs(db); // Older reclaim timers never fire [#3164]. Older clients insert the default zero. A trigger witnesses short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
@@ -431,9 +433,9 @@ function sweepLeases(db) {
   const cutoff = Date.now() - LEASE_MS;
   const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity });
   for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
-    // A live but hung gate process cannot retain a queue place indefinitely.
-    const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
-    if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+    // A live but hung or orphaned waiter (any resource, e.g. a repo source-cache pin) cannot retain a queue place indefinitely.
+    const staleBeat = row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
+    if (staleBeat || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
   }
   return relaunches;
 }
@@ -477,7 +479,7 @@ function queueOrder(scope) {
 
 /** Read the complete resource line with the metadata every admission view orders identically. */
 function queuedWaiters(db, name) {
-  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons, polled, follow_up_aware AS followUpAware FROM waiter WHERE name = ?').all(name);
+  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons, polled, follow_up_aware AS followUpAware, diagnostic_aware AS diagnosticAware FROM waiter WHERE name = ?').all(name);
 }
 
 /** Current holders and the waiting line in admission order, each waiter naming its class (aged only while class order is on). */
@@ -503,7 +505,7 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
   const ageMs = order.reviewsFirst ? order.ageMs : Infinity;
   const line = orderedWaiters(queued, now, order)
     .filter(entry => name !== 'browser' || entry.browser === 1)
-    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, polled, followUpAware, ...entry }) => {
+    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, polled, followUpAware, diagnosticAware, ...entry }) => {
       const current = queueClass(entry, now, ageMs);
       return { ...project(entry), queueClass: current.name, ...(current.effective < current.base ? { agedFrom: current.declared } : {}) };
     });
@@ -635,7 +637,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     for (const runner of runners) {
       if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !runnerCompatible(db, runner, waiter, unavailable)) continue;
       const used = usage.get(runner.host);
-      if (used.timing || drain?.host === runner.host || reserved === runner.host) continue;
+      if (runner.drain === true || used.timing || drain?.host === runner.host || reserved === runner.host) continue;
       free += Math.max(0, waiter.browser === 1 ? Math.min(runner.slots - used.slots, runner.browser - used.browsers) : runner.slots - used.slots);
     }
     return free - competing >= headroom;
@@ -655,6 +657,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
         if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (runner.drain === true) return false; // `pullboard runner drain`: no new job while it finishes the running ones
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -1023,6 +1026,7 @@ export async function takeResource(options) {
   let leaseUntil = '';
   let initialTicket = resume?.ticket;
   let lastRunnerWait = '';
+  const deadlineMemory = {};
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
     const result = await renewWithBeat(file, token, table === 'waiter', async () => { await options.beforeAdmission?.(); return options.onWait?.(state); });
@@ -1078,7 +1082,7 @@ export async function takeResource(options) {
         // Remote eligibility is metadata on this same ticket; the kind and flags decide the
         // admission class, and the ticket keeps arrival order within it.
         const inserted = db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(queueOrder(scope)), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
-        db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(requiredExecutor, token);
+        db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1, diagnostic_aware = 1 WHERE token = ?').run(requiredExecutor, token);
         initialTicket = Number(inserted.lastInsertRowid);
       }
     }));
@@ -1109,13 +1113,13 @@ export async function takeResource(options) {
         if (!waiter) {
           if (resume && initialTicket && name !== 'gate') {
             db.prepare('INSERT OR IGNORE INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(initialTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
-            db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(requiredExecutor, token);
+            db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1, diagnostic_aware = 1 WHERE token = ?').run(requiredExecutor, token);
             return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
           }
           // A removed gate ticket has lost its priority, including any saved release-order ticket.
           queuedAt = new Date().toISOString();
           const rejoined = db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, name === 'gate' ? null : resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
-          db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(requiredExecutor, token);
+          db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1, diagnostic_aware = 1 WHERE token = ?').run(requiredExecutor, token);
           initialTicket = Number(rejoined.lastInsertRowid);
           return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
         }
@@ -1306,7 +1310,7 @@ export async function takeResource(options) {
               db.prepare('DELETE FROM holder WHERE token = ?').run(token);
               db.prepare('INSERT INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 .run(requeueTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote && (!local || runnerOnly)), marker, 1, boardKey, releaseRank, requeueOpportunity, Number(shortEligible), Number(gui), Number(timing), 1);
-              db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(retryRestriction ? JSON.stringify(retryRestriction) : '', token);
+              db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1, diagnostic_aware = 1 WHERE token = ?').run(retryRestriction ? JSON.stringify(retryRestriction) : '', token);
             });
           } catch (error) {
             transferred = false;
@@ -1338,7 +1342,7 @@ export async function takeResource(options) {
         const line = runnerWaitLine(acquired.state.runnerWait);
         if (line !== lastRunnerWait) { process.stderr.write(line + '\n'); lastRunnerWait = line; }
       }
-      if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
+      if (acquired.state.runnerDeadline) for (const line of runnerDeadlineOutput(deadlineMemory, acquired.state.runnerDeadline, acquired.state.runnerWait, Date.now())) process.stderr.write(line + '\n');
       await keepItemLease(acquired.state, 'waiter');
       if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), beatingProbes(options, db, token)).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);
@@ -1362,9 +1366,17 @@ export async function takeResource(options) {
         runner: error.infrastructureAttempt?.runners?.[0]?.host ?? null, runners: error.infrastructureAttempt?.runners ?? [],
         at: new Date().toISOString(), message: error.message }];
     }
-    try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); } catch { /* Preserve the original error. */ }
+    dropWaiterRow(db, token);
     db.close();
     throw error;
+  }
+}
+
+/** Delete this attempt's waiter row, retrying while the pool is locked so a retry's new token never leaves an orphan ahead of it; the sweep covers what remains. */
+function dropWaiterRow(db, token) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); return; }
+    catch (error) { if (error?.code !== 'SLOT_DB_LOCKED') return; /* Preserve the original error. */ }
   }
 }
 

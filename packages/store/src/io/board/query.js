@@ -1,4 +1,3 @@
-import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { withDerivedFamily } from "../../../../items/light.js";
 import { withDerivedFamilies } from "../../../../items/light.js";
@@ -9,10 +8,9 @@ import { projectReviewFamily } from "../../../../verify/index.js";
 import { withSeatPresence } from "../presence.js";
 import { projectItemDecisions } from "../../../../items/index.js";
 import { itemById } from "../../logic/board/item/lookup.js";
-import { submitGateInFlight } from "../../logic/red/return.js";
+import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
 import { handoffRecord } from "../submit/handoff/records.js";
-import { handoffRecords } from "../submit/handoff/records.js";
 import {
   activityEventDetail,
   activityInterests,
@@ -46,13 +44,10 @@ export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../
 
 export const PERSON = 'person';
 
-/**
- * The board's time as ISO text.
- *
- * @param {any} board
- * @returns {string}
- */
-export const now = (board) => board.clock.now().toISOString();
+import { now } from "./read/light.js";
+import { listItems } from "./read/light.js";
+export { now, boardId, listItems, listItemsSql } from "./read/light.js";
+
 const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
@@ -64,7 +59,7 @@ const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
  * @returns {boolean}
  */
 export function isHeld(board, item) {
-  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || submitGateInFlight(board, item));
+  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || itemWorkInFlight(board, item));
 }
 
 /**
@@ -104,10 +99,6 @@ export function reviewReleasesSinceSubmit(board, itemId, agentId = null) {
   return releases;
 }
 
-/** The persistent local and relay identity of this board (A2). */
-export function boardId(board) {
-  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('board_id').meta_value;
-}
 
 
 /**
@@ -143,74 +134,8 @@ export function itemHold(board, id) {
   } : null;
 }
 
-/**
- * Items, newest first, as a reader should see them. Closed items (verified, withdrawn) only when
- * asked.
- *
- * @param {any} board
- * @param {{ lane?: string, all?: boolean }} [filter]
- * @returns {any[]}
- */
-export function listItems(board, { lane, all = false } = {}) {
-  const hasLane = lane !== undefined && lane !== null;
-  // One command lists the board's items many times (next did 19 times); the same unchanged board answers from memory.
-  const key = `${hasLane ? lane : ''}\0${all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
-  const version = boardDataVersion(board);
-  const remembered = LISTED.get(board.db)?.get(key), at = now(board);
-  // Any reader's clock may reuse the list: lapsed claims stay lapsed later, and live ones hold until the first expiry.
-  if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
-    return remembered.items.map(item => ({ ...item }));
-  }
-  const rows = board.db.prepare(listItemsSql({ all, hasLane })).all(...(hasLane ? [lane] : []));
-  // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
-  const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
-  // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
-  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
-  // Every item's hand-off record in one read of the job tables, where the record lives [C7].
-  const records = handoffRecords(board.db);
-  const items = rows.map((row) => {
-    const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
-    for (const key of columns) item[key] = row[key];
-    if (family !== null) item.item_review_family = family;
-    item.item_stage = itemStage(item, records.get(item.item_id) ?? null, Boolean(row.landed), at);
-    // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
-    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !submitGateInFlight(board, item)) {
-      item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
-    }
-    if (expectedBuilds && expected !== null) item.item_expected_build_minutes = JSON.parse(expected);
-    if (imported) item.item_rehome_import = JSON.parse(imported);
-    return item;
-  });
-  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first future lease
-  // ends; a lapsed claim held by its gate changes only with the gate's board_meta write, which moves the data version.
-  const expires = items.filter(item => item.item_status === 'claimed' && (item.item_lease_until ?? '') > at).map(item => item.item_lease_until).sort()[0];
-  if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
-  LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
-  return items;
-}
 
-/**
- * The SQL that lists items, with each item's landed flag read from one scan of the merged events.
- *
- * Why: a correlated EXISTS per item walked that item's whole event history to find a merged event, so the
- * all-items list of a 3,800-item board made thousands of scattered event reads and next ran past its routing
- * budget on a cold board [#3848]. The merged events are read once, through the event kind index.
- *
- * @param {{ all: boolean, hasLane: boolean }} filter
- * @returns {string}
- */
-export function listItemsSql({ all, hasLane }) {
-  return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
-      item.item_id IN (SELECT item_id FROM event WHERE event_kind='merged') AS landed
-      FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
-      LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
-      LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
-      WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
-      AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`;
-}
 
-/** Remembered item lists by connection and filter; each entry names the board data version it read. */
-const LISTED = new WeakMap();
 /** Read a stored status/owner slice, excluding claims whose leases have expired rather than caching items. */
 export function itemsInStatus(board, status, owner = null) {
   return board.db.prepare(`SELECT * FROM item WHERE item_status=? AND NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)${owner === null ? '' : ' AND item_owner=?'} ORDER BY item_id DESC`)
@@ -359,27 +284,16 @@ export function laneHolds(board) {
 
 export { rowDecisions } from "../../../../spec/index.js";
 
-/** The board's recorded row drafts, oldest first, without loading its mutation engine. */
-export function rowDrafts(board) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('row_drafts');
-  return row ? JSON.parse(row.meta_value) : [];
-}
+import { agentAt } from './read/light.js';
+import { rowDrafts } from './read/light.js';
+export { agentAt };
+export { rowDrafts };
 
 /**
  * The SQL that picks an agent's unread shouts: to it, to its lane, or to all, from anyone else.
  */
 export const UNREAD_SQL = UNREAD_SHOUT_SQL;
 
-/**
- * The agent registered for a worktree path, if any.
- *
- * @param {any} board
- * @param {string} path
- * @returns {any}
- */
-export function agentAt(board, path) {
-  return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
-}
 
 /** Check membership without reading display-only presence sidecars inside a writer. */
 export function hasAgent(board, id) {
@@ -567,7 +481,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false, fromHead = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -577,6 +491,8 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const { cursor, shoutCursor } = board.db.prepare(`SELECT
     (SELECT COALESCE(MAX(event_id),0) FROM event) AS cursor,
     (SELECT COALESCE(MAX(shout_id),0) FROM shout) AS shoutCursor`).get();
+  // A first read starts at the head: nothing before it is owed, and reading it all is the cost (#6152).
+  if (fromHead) { after = cursor; newsAfter = cursor; }
   const items = listItems(board, { all: true });
   const builds = items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId);
   const observed = typeof workingFiles === 'function' ? workingFiles(builds) : workingFiles;

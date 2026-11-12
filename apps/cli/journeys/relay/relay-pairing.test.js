@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The command shown to a second browser enrolls it without replacing the first [H15,H17]. */
 import assert from 'node:assert/strict';
@@ -9,6 +8,7 @@ import { test } from 'node:test';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { findChromeExecutable } from '../../tests/fixtures/relay/browser.js';
 import { startChrome } from '../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 /** Observe real machine enrollment until the command exits, without fabricating relay state. */
 async function pendingEnrollment(file, command) {
@@ -55,7 +55,7 @@ test('clause 1: a second browser pairs with the command the page names after the
   const firstCommand = box.startCli(['relay', 'on', '--all', '--url', box.origin]);
   const firstPending = await pendingEnrollment(machineFile, firstCommand);
   assert.ok(firstPending, 'real on --all publishes the first browser enrollment');
-  const first = await startChrome({ profileDirectory: join(box.env.HOME, 'first-browser') });
+  const first = await stableChrome(await startChrome({ profileDirectory: join(box.env.HOME, 'first-browser') }));
   browsers.push(first);
   const session = await box.phoneSession();
   assert.equal((await first.send('Network.setCookie', { name: 'pb_session', value: session.token, url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
@@ -64,17 +64,17 @@ test('clause 1: a second browser pairs with the command the page names after the
   assert.equal(firstDone.code, 0, 'the first real enrollment completes');
   await first.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 1");
   await first.waitFor("data?.project?.items?.some(item => item.title === 'private cleanup fixture item') && document.querySelector('[data-tab=items]')");
-  await first.evaluate("document.querySelector('[data-tab=items]').click()");
+  await first.click("document.querySelector('[data-tab=items]')");
   await first.waitFor("document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')");
-  const firstDevice = await first.evaluate(deviceExpression());
+  const firstDevice = await first.stable(deviceExpression());
   assert.equal(firstDevice.extractable, false);
 
-  const second = await startChrome({ profileDirectory: join(box.env.HOME, 'second-browser') });
+  const second = await stableChrome(await startChrome({ profileDirectory: join(box.env.HOME, 'second-browser') }));
   browsers.push(second);
   assert.equal((await second.send('Network.setCookie', { name: 'pb_session', value: await secondBrowserSession(box.origin), url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
   await second.navigate(box.origin + '/');
   await second.waitFor("document.querySelector('.relay-command:not([hidden]) code')?.textContent.includes('pullboard relay')");
-  const named = await second.evaluate("document.querySelector('.relay-command code').textContent.replace(/^\\$\\s*/, '').trim()");
+  const named = await second.stable("document.querySelector('.relay-command code').textContent.replace(/^\\$\\s*/, '').trim()");
   assert.match(named, /^pullboard relay /u, 'the real second browser names a native pairing command');
   const args = named.split(/\s+/u);
   assert.equal(args.shift(), 'pullboard');
@@ -86,19 +86,21 @@ test('clause 1: a second browser pairs with the command the page names after the
   assert.equal((await secondCommand.closed).code, 0, 'the second real enrollment completes');
   await second.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 1");
   await second.waitFor("data?.project?.items?.some(item => item.title === 'private cleanup fixture item') && document.querySelector('[data-tab=items]')");
-  await second.evaluate("document.querySelector('[data-tab=items]').click()");
+  await second.click("document.querySelector('[data-tab=items]')");
   await second.waitFor("document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')");
-  const secondDevice = await second.evaluate(deviceExpression());
+  const secondDevice = await second.stable(deviceExpression());
   assert.equal(secondDevice.extractable, false);
   assert.notEqual(secondDevice.id, firstDevice.id, 'independent browser profiles retain distinct keys');
   const state = JSON.parse(readFileSync(machineFile, 'utf8'));
   assert.deepEqual(state.devices.map(device => device.deviceId).sort(), [firstDevice.id, secondDevice.id].sort(), 'both browser enrollments remain on this machine');
   assert.equal(state.pending, null);
   const freshTitle = 'Fresh board content after the second browser paired';
-  assert.equal((await box.cli('add', box.lane, freshTitle)).code, 0, 'a real later native move publishes fresh content');
+  assert.equal((await box.cliLocal('add', box.lane, freshTitle)).code, 0, 'a real later native move publishes fresh content');
   for (const browser of [first, second]) {
     await browser.navigate(box.origin + '/');
-    await browser.waitFor("data?.project?.items?.some(item => item.title === " + JSON.stringify(freshTitle) + ") && document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(freshTitle) + ")");
+    await browser.waitFor("data?.project?.items?.some(item => item.title === " + JSON.stringify(freshTitle) + ") && document.querySelector('[data-tab=items]')");
+    await browser.click("document.querySelector('[data-tab=items]')");
+    await browser.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(freshTitle) + ")");
   }
-  assert.equal((await first.evaluate(deviceExpression())).id, firstDevice.id, 'the first browser still opens its board with its original key');
+  assert.equal((await first.stable(deviceExpression())).id, firstDevice.id, 'the first browser still opens its board with its original key');
 });

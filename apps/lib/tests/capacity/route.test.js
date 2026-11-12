@@ -37,6 +37,7 @@ function fixture(t) {
   runFixtureGit(['commit', '-q', '-m', 'test: private route fixture'], { cwd: root, env });
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
   const clock = { at: Date.parse('2026-10-25T00:00:00Z'), now() { return new Date(this.at); } };
+  // @pullboard-board-file persistence: the health sentinel scans this board by its file path
   board = openBoard(file, clock);
   store.register(board, { lane: 'coordinator', path: root });
   const config = loadConfig(root);

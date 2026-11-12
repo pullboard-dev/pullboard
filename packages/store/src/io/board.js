@@ -67,6 +67,7 @@ import { landingBatches } from "../../../git/index.js";
 import { recordRelayRefusal } from "./board/refusal.js";
 import { linkPublishRepair } from "./board/repair.js";
 import { register } from "./board/register.js";
+export { REMOTE_AGENT_PATH, isRemoteAgentPath } from "./board/register.js";
 import { ensureCoordinator } from "./board/coordinator.js";
 import { addItem } from "./board/add.js";
 import { validateItemAddition } from "./board/add.js";
@@ -89,6 +90,7 @@ import { reviewOffer } from "./board/review/offer.js";
 import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
+import { verdictEvidence } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -124,6 +126,7 @@ import { openHandoff } from "./board/handoff/open.js";
 import { takeHandoff } from "./board/handoff/take.js";
 import { recordNextIdle } from "./board/record/idle.js";
 import { persistShout } from "./board/shout.js";
+import { rigorAutoDraftOn } from "./board/shout.js";
 export { laneLeads };
 
 export { itemPatches, itemPatchDigest, followItemPatches } from "../../../items/index.js";
@@ -171,7 +174,7 @@ export { declareJob, recordJobRun } from "../logic/board/jobs.js";
 export { recordUsage } from "../../../stats/index.js";
 export { recordUsageBatch } from "../../../stats/index.js";
 export { recordSharedUsage } from "../../../stats/index.js";
-export { proofReceipts, recordProofRun } from "./receipts.js";
+export { proofReceipts, recordProofRun, storeTestReceipt } from "./receipts.js";
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../seats/index.js";
 export { agentAt, agentById, listAgents } from "./board/query.js";
@@ -398,7 +401,7 @@ export { itemThread } from "./board/query.js";
 export function postRigorNotices(board, trigger) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < RIGOR_NOTICE_ENGINE) return;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_AUTO_ENGINE) {
-    board.nativePorts.recordAutomaticRigorDrafts(board, trigger, persistShout);
+    if (rigorAutoDraftOn(board)) board.nativePorts.recordAutomaticRigorDrafts(board, trigger, persistShout);
     return;
   }
   for (const cause of board.nativePorts.newRigorNotices(events(board), trigger, { person: PERSON })) {
@@ -467,6 +470,7 @@ export {
   reserveReview,
   reserveNextReview,
   verify,
+  verdictEvidence,
   reopen,
   merged,
   withdraw,

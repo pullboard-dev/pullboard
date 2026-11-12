@@ -45,8 +45,8 @@
   ],
   "homepage": "https://pullboard.dev",
   "scripts": {
-    "test": "node packages/gate/src/io/run/tests.js",
+    "test": "node apps/cli/src/io/run/tests.js",
     "gate": "node packages/gate/tests/fixtures/budgets.js && node apps/cli/pullboard.js spec check && npm test",
-    "hosted-shapes": "PULLBOARD_HOSTED_SHAPES=1 node packages/gate/src/io/run/tests.js apps/cli/journeys/relay/hosted/shapes.test.js"
+    "hosted-shapes": "PULLBOARD_HOSTED_SHAPES=1 node apps/cli/src/io/run/tests.js apps/cli/journeys/relay/hosted/shapes.test.js"
   }
 }

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/worker.js packages/codemap/data/plan/46-app-runner.json */
 /** Two loaded copies of the runner worker's front door each own their handles, timers and flags [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -23,8 +23,8 @@ const a = await import(${JSON.stringify(FRONT_DOOR)});
 const b = await import(${JSON.stringify(FRONT_DOOR + '?copy=2')});
 a.runnerWorker(process.argv);
 b.runnerWorker(process.argv);
-const { beginCleanup } = await import(new URL('./runner-worker-cleanup.js', ${JSON.stringify(FRONT_DOOR)}).href);
-const { installSignalCustody } = await import(new URL('./runner-worker-process.js', ${JSON.stringify(FRONT_DOOR)}).href);
+const { beginCleanup } = await import(new URL('./worker/cleanup.js', ${JSON.stringify(FRONT_DOOR)}).href);
+const { installSignalCustody } = await import(new URL('./worker/process.js', ${JSON.stringify(FRONT_DOOR)}).href);
 const A = a.workerState, B = b.workerState;
 const report = {};
 report.distinct = A !== B && A.ownedChildren !== B.ownedChildren && A.setupPrivatePaths !== B.setupPrivatePaths && A.transportGone !== B.transportGone;

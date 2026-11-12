@@ -28,11 +28,12 @@ after(e2e.cleanup);
 
 /** Keep one real runner reservation busy in a private machine while leaving its local slot idle. */
 async function withBusyRunner(action) {
-  const box = e2e.project('node packages/gate/src/io/run/tests.js', e2e.sandbox(), { withWorktree: false });
+  const box = e2e.project('node apps/cli/src/io/run/tests.js', e2e.sandbox(), { withWorktree: false });
   const marker = join(box.dir, 'executed');
   mkdirSync(join(box.repo, 'test'));
   mkdirSync(join(box.repo, 'bin'));
-  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'suite');\n`);
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'suite');\n`);
   writeFileSync(join(box.repo, 'test/ordinary.test.js'),
     `const {test}=require('node:test');test('ordinary case',()=>require('node:fs').writeFileSync(${JSON.stringify(marker)},'named'));\n`);
   const configFile = join(box.repo, 'pullboard.json');
@@ -100,7 +101,7 @@ test('a direct full suite also honors runner-only without a CPU-load declaration
     const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
     const source = `import {runFullSuite} from ${JSON.stringify(module)};
 ${executionServicesSource(gate)}
-try { await runFullSuite(process.cwd(), ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))}, executionServices); process.exitCode=9; }
+try { await runFullSuite(process.cwd(), ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))}, executionServices); process.exitCode=9; }
 catch(error) { console.error(error.message); process.exitCode=error.code==='RUNNER_WAIT_DEADLINE'?0:8; }`;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source],
       { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 15_000 }); // budget: bound a missing private admission deadline; not a speed target.

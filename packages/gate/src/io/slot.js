@@ -343,7 +343,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'Runner-only work needs a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
-    ? executionServices.landing.captureReleaseQueue(root, item) : undefined;
+    ? await executionServices.landing.captureReleaseQueue(root, item) : undefined;
   tracker.mark('queuedAt');
   const admissionStart = Date.now();
   let lease = await takeResource({
@@ -477,7 +477,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
         // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
         // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.
-        const health = cleanup || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
+        const health = cleanup || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner, retryPolicy.startMs === 0 ? { pauseMs: 0, hostDownMs: 0 } : {}); // A zero first wait (fixtures) skips the confirming probe's pauses too, so a fast-failing stub cannot sit out the 21 s host-down window (#4575).
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
         const repeatedStop = previousStopHost === lease.runner.host;

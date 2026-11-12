@@ -1,16 +1,9 @@
+import tiers from './tiers.json' with { type: 'json' };
+
 /** Canonical model declarations used when a worktree is created without an explicit vendor family [C7]. */
 
-/** Known model labels are the only implicit family declarations; unfamiliar labels stay unknown. */
-export const MODEL_TIERS = Object.freeze({
-  'claude-haiku-6-0': Object.freeze({ family: 'anthropic', route: 'light' }),
-  'claude-opus-5-5': Object.freeze({ family: 'anthropic', route: 'strong' }),
-  'claude-sonnet-5-5': Object.freeze({ family: 'anthropic', route: 'strong' }),
-  codex: Object.freeze({ family: 'openai', route: 'strong' }),
-  'gpt-6-codex': Object.freeze({ family: 'openai', route: 'strong' }),
-  'gpt-6-luna': Object.freeze({ family: 'openai', route: 'light' }),
-  'gpt-6.1-sol': Object.freeze({ family: 'openai', route: 'strong' }),
-  'gpt-6.1-terra': Object.freeze({ family: 'openai', route: 'strong' }),
-});
+/** Known model labels (tiers.json, so the core names none itself) are the only implicit family declarations; unfamiliar labels stay unknown [P5]. */
+export const MODEL_TIERS = Object.freeze(Object.fromEntries(Object.entries(tiers).map(([label, tier]) => [label, Object.freeze({ ...tier })])));
 
 /** Return the known family and route for one exact normalized model label, or null for unknown models. */
 export function modelTier(model) {

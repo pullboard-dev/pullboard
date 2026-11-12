@@ -1,6 +1,6 @@
 /**
  * A submit gate red only in cases its main base also fails goes to review, never back to its builder, through the
- * gate runner's real output: packages/gate/src/io/run/tests.js ends every stage with its phase line on stderr, after TAP's final count
+ * gate runner's real output: apps/cli/src/io/run/tests.js ends every stage with its phase line on stderr, after TAP's final count
  * (#3794). A case main passes keeps the gate red [C7].
  */
 import assert from 'node:assert/strict';
@@ -26,6 +26,13 @@ test('clause 1: the gate runner\'s phase line after TAP\'s final count leaves th
   assert.deepEqual(tapFailures(tap(PHASES), '/repo'), [{ name: 'shared failure [G1]', file: 'test/inherited.test.js' }]);
   assert.equal(tapFailures(tap('something else failed'), '/repo'), null, 'an unknown line after the count is still unaccounted');
   assert.equal(tapFailures(tap(`${PHASES} and more`), '/repo'), null, 'only the exact phase line is the runner\'s');
+});
+
+test('clause 1: Node\'s runtime warning lines after TAP\'s final count leave the failures accounted, and a look-alike does not [C7]', () => {
+  const warning = ['(node:4242) ExperimentalWarning: SQLite is an experimental feature and might change at any time', '(Use `node --trace-warnings ...` to show where the warning was created)'];
+  assert.deepEqual(tapFailures(tap(...warning), '/repo'), [{ name: 'shared failure [G1]', file: 'test/inherited.test.js' }]);
+  assert.equal(tapFailures(tap('(node:4242) something failed'), '/repo'), null, 'only a Warning line is node\'s');
+  assert.equal(tapFailures(tap('(Use `node --trace-warnings ...` to show where the warning was created) and more'), '/repo'), null);
 });
 
 test('clause 1: a submit gate whose only failure also fails on its main base records it as a main red and returns green [C7]', { timeout: 240_000 }, t => {

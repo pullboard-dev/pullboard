@@ -18,6 +18,7 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../../tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
 /** Read private pending metadata without including ciphertext or credentials in an assertion diagnostic. */
 function state(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
@@ -50,24 +51,24 @@ test('a size-paused baseline keeps its cipher, warns once per session and resume
   const before = puts();
   const probe = await pausedCrypto(box);
   assert.equal(probe.code, 0); assert.equal(probe.document.encryptions, 0); assert.equal(probe.document.notices, 0);
-  assert.equal((await box.cli('shout', 'all', 'local work while size is paused')).code, 0);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'local work while size is paused')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   assert.equal(state(box).snapshot.sealed === saved, true, 'blocked commands retain exact durable pending ciphertext');
   assert.equal(puts(), before, 'small capabilities probes replace failed whole-board uploads');
   const originalSession = box.env.TERM_SESSION_ID;
   box.env.TERM_SESSION_ID = 'another-private-terminal-session';
-  const newSession = await box.cli('status');
+  const newSession = await box.cliLocal('status');
   assert.equal((newSession.document.diagnostics ?? []).filter(line => /relay paused/u.test(line)).length, 1);
   box.env.TERM_SESSION_ID = originalSession;
   box.legacySnapshotApi(false); box.rejectSnapshots(null);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const resumed = state(box);
   assert.equal(resumed.baselinePause, undefined); assert.equal(resumed.snapshot, undefined); assert.equal(resumed.snapshotApiVersion, 2);
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0);
   assert.ok(exported.document.tables.shout.some(row => row.shout_text === 'local work while size is paused'));
   assert.equal(box.moveAcks.length, 0, 'all paused local work belongs to the fresh accepted baseline');
-  assert.equal((await box.cli('shout', 'all', 'first ordered move after upgrade')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'first ordered move after upgrade')).code, 0);
   assert.deepEqual(box.moveAcks.map(row => row.event_id), [1]);
 });
 
@@ -79,7 +80,7 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   board.executionEngineVersion = PROOF_RUN_ENGINE - 1;
   try { store.shout(board, { from: 'coordinator', to: 'all', lanes: [box.lane], text: randomBytes(300_000).toString('base64') }); }
   finally { store.closeBoard(board); }
-  const refused = await box.cli('status');
+  const refused = await box.cliLocal('status');
   assert.equal(refused.code, 0);
   const saved = state(box);
   assert.equal(saved.checkpointRefusal.code, 'ACCOUNT_STORAGE_LIMIT');
@@ -87,13 +88,13 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   await t.test('the actual phone names the exhausted account quota before any newer checkpoint [H15,H17]', {
     skip: !findChromeExecutable() && 'Chrome is not installed',
   }, async phoneTest => {
-    const chrome = await startChrome(); phoneTest.after(() => chrome.close());
+    const chrome = await stableChrome(await startChrome()); phoneTest.after(() => chrome.close());
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
     await chrome.navigate(box.origin + '/#board=' + saved.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
     await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('relay storage limit')", 3000, 'the account quota is visible on the phone'); // budget: hang ceiling for the account-notice render handshake, not a throughput claim.
-    const notice = await chrome.evaluate("document.querySelector('#relay-notice').textContent");
+    const notice = await chrome.stable("document.querySelector('#relay-notice').textContent");
     assert.ok(notice.includes(saved.storage.account.login));
     assert.match(notice, /0\.3 MB relay storage limit/u);
     if (process.env.PULLBOARD_RELAY_PAGE_PROOF) {
@@ -104,7 +105,7 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   });
   const probe = await pausedCrypto(box);
   assert.equal(probe.code, 0); assert.equal(probe.document.encryptions, 0); assert.equal(probe.document.notices, 0);
-  assert.equal((await box.cli('shout', 'all', 'ordered move while checkpoint quota is paused')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'ordered move while checkpoint quota is paused')).code, 0);
   assert.deepEqual(box.moveAcks.map(row => row.event_id), [1]);
   assert.equal(state(box).checkpoint.sealed === saved.checkpoint.sealed, true);
   assert.equal(saved.snapshotApiVersion, 2, 'the native quota refusal occurred during a real bounded-page upload');
@@ -119,14 +120,14 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   assert.equal(staged.code, 0);
   const priorWrites = box.transit.length;
   box.setStorageQuota(3_000_000);
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const attempts = box.transit.slice(priorWrites).filter(row => row.method === 'POST' && row.path.endsWith('/publish'));
   assert.ok(attempts.length >= 1);
   assert.equal(JSON.parse(attempts[0].request).root.id, staged.document.root, 'recovery publishes the retained checkpoint graph before sealing newer state');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   assert.equal(state(box).checkpointRefusal, undefined); assert.equal(state(box).checkpoint, undefined);
   assert.equal(state(box).storage.limitBytes, 3_000_000);
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0);
   assert.equal(exported.document.tables.shout.filter(row => row.shout_text === 'ordered move while checkpoint quota is paused').length, 1);
 });

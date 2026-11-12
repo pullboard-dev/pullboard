@@ -15,3 +15,7 @@ export * from "./src/logic/batches.js";
 export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/io/tools.js';
 export * from "./src/io/check/receipts.js";
 export { checkCommandDefinition } from './src/io/check/definition.js';
+export { blobOid, indexedFiles } from './src/io/check/project-files.js';
+export { landingPermit, permitPushOptions, readPermitOptions, trunkPushVerdict } from "./src/logic/permit.js";
+export { runTrunkGuard, trunkGuardMain } from "./src/io/trunk/guard.js";
+export { installTrunkGuard, landingGuardKey, ensureLandingGuardKey } from "./src/io/trunk/install.js";

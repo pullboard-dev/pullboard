@@ -6,22 +6,13 @@ import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** List declaration files below the command-docs folder, with one level of grouping folders. */
-function declarationFiles(directory) {
-  return readdirSync(directory).sort().flatMap(name => {
-    const path = join(directory, name);
-    if (lstatSync(path).isDirectory()) return /^[a-z][a-z0-9-]*$/u.test(name) ? declarationFiles(path) : [];
-    return name.endsWith('.json') ? [path] : [];
-  });
-}
-
 /** Read independent data declarations without loading command implementations. */
 export function commandDocs(root = dirname(fileURLToPath(new URL('../../../../package.json', import.meta.url)))) {
   const directory = join(root, 'apps/cli/src/io/command-docs');
   const names = new Set();
-  const entries = declarationFiles(directory).map(path => {
-    const file = path.slice(directory.length + 1);
-    if (!/^(?:[a-z][a-z0-9-]*\/)?[a-z][a-z0-9-]*\.json$/u.test(file) || !lstatSync(path).isFile()) throw new Error(`invalid command documentation ${file}`);
+  return readdirSync(directory, { recursive: true }).filter(file => file.endsWith('.json')).sort().map(file => {
+    const path = join(directory, file);
+    if (!/^(?:[a-z][a-z0-9-]*\/)*[a-z][a-z0-9-]*\.json$/u.test(file) || !lstatSync(path).isFile()) throw new Error(`invalid command documentation ${file}`);
     const entry = JSON.parse(readFileSync(path, 'utf8'));
     if (!entry || !/^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/u.test(entry.name ?? '') || names.has(entry.name)
         || typeof entry.help !== 'string' || !entry.help.startsWith(`  pullboard ${entry.name}`)
@@ -37,7 +28,6 @@ export function commandDocs(root = dirname(fileURLToPath(new URL('../../../../pa
     names.add(entry.name);
     return entry;
   });
-  return entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 /** Extend existing result contracts, refusing a declaration that silently replaces a shipped shape. */

@@ -31,7 +31,9 @@ export function activityDeliveryState(board, agentId) {
   const start = prefix(agentId, 'pending');
   const pending = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
     .all(start, `${start}\uffff`).map(row => JSON.parse(row.meta_value));
-  return { ...(value(board, prefix(agentId, 'cursor')) ?? { through: 0, digestThrough: 0 }), pending };
+  const saved = value(board, prefix(agentId, 'cursor'));
+  // `started` is false until a first delivery is recorded: a seat's first read starts at the board head (#6152).
+  return { ...(saved ?? { through: 0, digestThrough: 0 }), started: saved !== null, pending };
 }
 
 /** Whether this seat has already received or explicitly acted on one exact interrupt [R2,N26,H16]. */

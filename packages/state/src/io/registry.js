@@ -16,7 +16,7 @@ function versionAt(root, source) {
     const highest = Math.max(1, ...values.filter(value => /^\d+$/u.test(value)).map(Number));
     return highest;
   }
-  if (!/^packages\/[a-z][a-z0-9-]*\/src\/(?:[a-z][a-z0-9-]*\/)+[a-z][a-z0-9-]*\.js$/u.test(source?.file ?? '')) throw new Error('format version source must name its source module');
+  if (!/^(?:src\/[a-z][a-z0-9-]*|packages\/[a-z][a-z0-9-]*\/src\/(?:core|shell|logic|io)\/(?:[a-z][a-z0-9-]*\/)*[a-z][a-z0-9-]*)\.js$/u.test(source?.file ?? '')) throw new Error('format version source must name its source module');
   const text = readFileSync(join(root, source.file), 'utf8');
   const pattern = source.kind === 'catalog' ? /^  version: (\d+),$/gmu
     : source.kind === 'constant' && /^[A-Z][A-Z0-9_]*$/u.test(source.constant ?? '')

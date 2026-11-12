@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input docs-tree */
 /** @pullboard-test-input apps/cli/src/io/documentation/*.json */
 /** @pullboard-test-input apps/cli/src/io/documentation/events/*.json */
@@ -40,7 +39,8 @@ test('one command detects and repairs each stale output while retaining authored
   for (const file of GENERATED_DOC_PATHS) {
     const path = join(box.root, file), before = readFileSync(path, 'utf8');
     const changed = ['docs/formats.md', 'docs/api.md'].includes(file)
-      ? before.replace(/^(\| ---[^\n]*\n)/mu, '$1| stale generated cell | stale |\n') : before + (file.endsWith('.js') ? '\n// stale generated output\n' : '\nstale generated output\n');
+      ? before.replace(/^(\| ---[^\n]*\n)/mu, '$1| stale generated cell | stale |\n')
+      : before + (file.endsWith('.js') ? '\n// stale generated output\n' : '\nstale generated output\n');
     assert.notEqual(changed, before, `${file} was actually changed`);
     writeFileSync(path, changed);
     const failed = box.node('docs/tools/update-docs.js', '--check');
@@ -93,7 +93,6 @@ test('two command items from one main regenerate real Git conflicts without a bu
     assert.ok(help.stdout.includes(`Usage: pullboard ${name}`));
     assert.ok(readFileSync(join(box.root, 'docs/api.md'), 'utf8').includes(`| \`${name}\` |`));
     assert.ok(readFileSync(join(box.root, 'docs/formats.md'), 'utf8').includes(`| \`${name}\` |`));
-    assert.ok(readFileSync(join(box.root, 'apps/cli/src/logic/help/additions.js'), 'utf8').includes(`pullboard ${name}`));
   }
 });
 

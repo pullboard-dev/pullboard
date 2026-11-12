@@ -18,7 +18,7 @@ test('clause 1: one registry lists every static check class with a function that
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
   const tree = readFileSync(new URL('../../../../src/io/static/registry.js', import.meta.url), 'utf8');
-  for (const expected of ['test-waits', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'view-pure', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
+  for (const expected of ['test-waits', 'cli-launches', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
     assert.ok(tree.includes(`name: '${expected}'`), `whole-tree class ${expected}`);
   }
   for (const expected of ['cells', 'cell-lints', 'spec-ids']) {
@@ -26,7 +26,10 @@ test('clause 1: one registry lists every static check class with a function that
   }
   const entry = readFileSync(new URL('../../../../../../apps/cli/src/io/static/checks.js', import.meta.url), 'utf8');
   assert.match(entry, /runStaticTreeRegistry\(/u);
-  assert.doesNotMatch(entry, /doctrineReport|viewPureGate|boardWriteIoProblems/u, 'the submit static command reads the registry, not an inline list');
+  assert.doesNotMatch(entry, /doctrineReport|boardWriteIoProblems/u, 'the submit static command reads the registry, not an inline list');
+  // view-pure needs the view app's test roles, so the CLI adds it after the tree registry; gate's registry names no app [V32].
+  assert.match(entry, /viewPureGate\(root\)/u, 'the CLI adds the view-pure class beside the registry');
+  assert.ok(!tree.includes("name: 'view-pure'"), 'the gate registry names no app class');
   // The import-style class compiles modules with vm.SourceTextModule, which needs the flag, so run the registry in a child.
   const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../../../../index.js', import.meta.url).href)};
 const root = ${JSON.stringify(ROOT)};

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   mkdirSync,
   readFileSync,
+  writeFileSync,
 } from 'node:fs';
 import {
   join,
@@ -55,6 +56,9 @@ export async function runnerFirstPolicyCase(e2e) {
     const added = box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1');
     assert.equal(added.code, 0, `${host} is registered: ${added.err}`);
   }
+  // With two or more runners the first is kept for timed checks by default; rotation needs every runner open to ordinary runs.
+  const keptSettings = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  writeFileSync(settingsFile, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false, runnerDispatch: 'controller' } }));
   const first = box.run(box.repo, 'settings', 'gate.runnersFirst', 'on');
   assert.equal(first.code, 0, first.err);
   const browserZero = box.run(box.repo, 'settings', 'browserSlots', '0');
@@ -111,7 +115,8 @@ export async function runnerFirstPolicyCase(e2e) {
   assert.equal(fallbackCapacity.code, 0, fallbackCapacity.err);
   const fallbackBrowser = box.run(box.repo, 'settings', 'browserSlots', '1');
   assert.equal(fallbackBrowser.code, 0, fallbackBrowser.err);
-  const fallback = runPrivateGateLease(box, `if (lease.runner && remoteAttempts++ < 2) throw new RunnerDropped(lease.runner.host);`);
+  // Every registered runner refuses once; with none reserved for timed checks that is one drop per host.
+  const fallback = runPrivateGateLease(box, `if (lease.runner && remoteAttempts++ < ${hosts.length}) throw new RunnerDropped(lease.runner.host);`);
   assert.equal(fallback.status, 0, fallback.context);
   assert.equal(fallback.stdout.trim(), 'local', 'after registered runners refuse, runner-first uses the available local slot');
 
@@ -138,16 +143,17 @@ export async function runnerFirstPolicyCase(e2e) {
   for (const folder of [runnerBin, worker, remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
   integrated.env.PATH = `${runnerBin}:${integrated.env.PATH}`;
   installSshStandIn({ bin: runnerBin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
+  // Filed before any runner exists, and waited for: with one registered the add's baseline run would be a fourth request.
+  const added = fixtureAdd(integrated.run, integrated.repo, 'web', 'Runner-first public submit', '--specs', 'G1',
+    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--wait', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
   const registered = integrated.run(integrated.repo, 'runner', 'add', runner, '--slots', '1', '--browser', '1');
   assert.equal(registered.code, 0, registered.err);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
     const setting = integrated.run(integrated.repo, 'settings', key, value);
     assert.equal(setting.code, 0, `${key} ${value}: ${setting.err}`);
   }
-  const added = fixtureAdd(integrated.run, integrated.repo, 'web', 'Runner-first public submit', '--specs', 'G1',
-    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--wait', '--json');
-  assert.equal(added.code, 0, added.err);
-  const id = JSON.parse(added.out).item.item_id;
   assert.equal(integrated.run(integrated.web, 'claim', String(id)).code, 0);
   const built = e2e.commitFile(integrated, integrated.web, 'web/runner-first.txt', 'submitted on runner\n', 'feat(web): add runner-first fixture [G1]');
   assert.equal(built.status, 0, built.stderr);
