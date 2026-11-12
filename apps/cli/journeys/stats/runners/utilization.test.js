@@ -1,5 +1,6 @@
 /** pullboard stats runners --utilization reads the board's job history and gives exact busy-over-total slot figures [C7,#6032]. */
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { runnerUtilization } from '../../../../../packages/stats/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -12,7 +13,7 @@ function fixture(t) {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const h = Math.floor(Date.now() / HOUR) * HOUR;
-  withFixtureBoard(box.boardFile, board => {
+  withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => {
     board.db.exec('DELETE FROM event');
     seed(board.db, h);
   });
@@ -37,7 +38,7 @@ function seed(db, h) {
 
 test('utilization two seeded runners give exact busy over total slots per hour, runner and overall [C7,#6032]', async t => {
   const { box, h } = fixture(t);
-  const result = await box.runLocal(box.web, 'stats', 'runners', '--utilization', '--window', '3h', '--json');
+  const result = await box.runLocal(box.repo, 'stats', 'runners', '--utilization', '--window', '3h', '--json');
   assert.equal(result.code, 0, result.err);
   const report = JSON.parse(result.out).runnersUtilization;
   assert.deepEqual(report.runners.map(row => [row.runner, row.slots, row.source, row.busyMinutes]), [['runner-a', 2, 'declared', 150], ['runner-b', 4, 'declared', 120]]);
@@ -50,7 +51,7 @@ test('utilization two seeded runners give exact busy over total slots per hour, 
   assert.deepEqual(report.overall, { slots: 6, busyMinutes: 270, utilization: 270 / 1440 });
   assert.deepEqual(report.peak, { hour: new Date(h - 2 * HOUR).toISOString(), utilization: 150 / 360 });
   assert.deepEqual(report.idleHours, [new Date(h - 3 * HOUR).toISOString(), new Date(h).toISOString()]);
-  const text = await box.runLocal(box.web, 'stats', 'runners', '--utilization', '--window', '3h');
+  const text = await box.runLocal(box.repo, 'stats', 'runners', '--utilization', '--window', '3h');
   assert.equal(text.code, 0, text.err);
   assert.match(text.out, /runner-a: 31\.3% of 2 slots \(declared\)/u);
 });
