@@ -70,31 +70,6 @@ test('a failed SSH call preserves its command exit and stderr through the synchr
   assert.match(result.diagnostic.source, /^[0-9a-f]{40}$/u);
 });
 
-test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', t => {
-  const box = fixture(t);
-  const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
-  const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
-  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(url)};
-${executionServicesSource(url)}
-    import {DatabaseSync} from 'node:sqlite';
-    const run=await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),
-      ${JSON.stringify(command)},{gateLease:lease}),{ executionServices,remote:true,onWait(){}});
-    const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
-    const unavailable=db.prepare('SELECT * FROM runner_unavailable').all();
-    const failures=db.prepare('SELECT * FROM runner_transport_error').all();db.close();
-    console.log(JSON.stringify({green:run.isGreen,output:run.output,unavailable,failures}));`);
-  assert.equal(result.green, true);
-  assert.equal(result.output.match(/RECOVERED_EXECUTION/gu)?.length, 1);
-  assert.deepEqual(result.unavailable, []);
-  assert.equal(result.failures.length, 1);
-  const diagnostic = JSON.parse(result.failures[0].diagnostic);
-  assert.equal(diagnostic.exitCode, 255);
-  assert.equal(diagnostic.confirmingProbe.healthy, true);
-  const requests = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.equal(requests.length, 3, 'failed dispatch, one confirming Node observation, one actual recovered execution');
-  assert.equal(requests[0].dropped, true);
-});
-
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
 // the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
 // alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.

@@ -3382,6 +3382,9 @@
   "apps/cli/journeys/runner/lost.test.js": {
     "hand-policy": 1
   },
+  "apps/cli/journeys/runner/lost.transient.test.js": {
+    "hand-policy": 1
+  },
   "apps/cli/tests/fixtures/runner/redispatch.js": {
     "model": 1
   },

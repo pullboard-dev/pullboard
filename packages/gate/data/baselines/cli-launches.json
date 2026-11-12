@@ -293,6 +293,9 @@
   "apps/cli/journeys/runner/lost.recovery.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/runner/lost.transient.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/merged/receipts-envelope.test.js": {
     "launch": 2
   },

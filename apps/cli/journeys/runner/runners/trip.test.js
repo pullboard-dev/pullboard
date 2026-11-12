@@ -32,6 +32,7 @@ import {
   writeFileSync,
   writeProbe,
 } from '../../../tests/fixtures/scenarios/runners.js';
+import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 
 /** Register the stand-in runner; its 3 s product probe budget can lapse while a loaded machine boots the stand-in, so a failed probe is retried (a refused add registers nothing). */
 function addRunner(repo, env) {
@@ -221,8 +222,9 @@ console.log('RUNNER_JOURNAL_FILES ' + readdirSync(journal).filter(name => /^chil
   const manyResult = gateResult(manyJournals.stdout);
   assert.equal(manyResult.isGreen, true, 'the bounded journal returns a complete successful receipt');
   assert.equal(manyResult.runner, HOST);
-  assert.equal(readRemoteGateHolders(join(remoteMachineHome, 'resources.sqlite')).length, 0,
-    'the physical runner lease is released after successful cleanup');
+  // The receipt returns before the worker's cleanup frees its lease; a loaded runner needs seconds, so wait for the release itself.
+  await waitForCondition(() => readRemoteGateHolders(join(remoteMachineHome, 'resources.sqlite')).length === 0,
+    'the physical runner lease is released after successful cleanup', { state: () => readRemoteGateHolders(join(remoteMachineHome, 'resources.sqlite')) });
   const callsAfterManyJournals = readFileSync(requests, 'utf8').trim().split('\n').length;
   assert.equal(phaseCounts(requests + '.phases').dispatched, 3, 'the large-journal command ran remotely exactly once');
 
