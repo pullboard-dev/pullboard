@@ -85,6 +85,8 @@ export function writeBoardCommand(board, operation, args, actor, { prepareInWrit
       // Claim preparation already owns its bounded retries; only queue sealing needs this outer retry.
       if (preparing && operation !== 'queueSubmitHandoff') throw error;
       if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw error;
+      // Jitter outside the rolled-back transaction, so contending preparations stop retrying in step (#6016).
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.floor(Math.random() * 25 * (attempt + 1)));
     }
   }
 }
