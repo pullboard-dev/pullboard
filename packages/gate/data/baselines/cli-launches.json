@@ -1553,9 +1553,6 @@
   "apps/cli/journeys/version/node.test.js": {
     "launch": 7
   },
-  "apps/cli/journeys/view/background.test.js": {
-    "launch": 12
-  },
   "apps/cli/journeys/view/cost/tab.test.js": {
     "launch": 1
   },
