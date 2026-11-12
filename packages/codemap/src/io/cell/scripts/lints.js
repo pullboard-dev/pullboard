@@ -47,6 +47,8 @@ withCellLintParser(compile => {
     // --check counts current main and this checkout now; no committed baseline must match either [C7].
     const main = mainCommit(root);
     process.exitCode = cachedCellsRun(root, ['cell-lints', mode, main ?? 'no-main'], () => {
+      // A committed baseline must stay hash-bound to its shards: an edit without a rebind refuses here, not only in --report [C7].
+      if (existsSync(file)) { try { readCellLintBaseline(root); } catch (error) { console.error(error.message); return 1; } }
       const current = build(), base = mainCellLintReport(root, parsers, main);
       if (!base) { console.error('no main branch to compare with; nothing can rise'); return 0; }
       // Advisory transition authority comes only from main, as in the submit check.
