@@ -27,8 +27,8 @@ import { primaryCheckoutRoot } from '../worktree.js';
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 /** Budget: the most failing cases a red phase names in its receipt, so a receipt stays under the queue's size cap. */
 const PHASE_CASES = 100;
-/** The capabilities a runner needs to take a gate job. */
-const GATE_NEEDS = ['node22'];
+/** The capabilities a runner needs to take a gate job, or a pulled test job, which runs through the same bootstrap. */
+export const GATE_NEEDS = ['node22'];
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -37,6 +37,7 @@ const GATE_NEEDS = ['node22'];
  */
 const GATE_JOB_ENTRY = `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -47,12 +48,18 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
-let light = null;
+let light = null, gate = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
-/** A red phase's failing cases by file and name, or null when its output does not account for every failure. */
-const failingCases = (status, text) => {
+// Main's gate door also lifts the run's own timing frame out of the TAP account, as the controller gate does before it reads a red proof.
+try { gate = await import(pathToFileURL(join(tools, 'packages', 'gate', 'index.js')).href); } catch { /* an older main: the plain TAP reader alone */ }
+const accounting = typeof gate?.accountedFailures === 'function' && typeof gate.timingAccountingStages === 'function' && typeof gate.timingSource === 'function';
+/** A red phase's failing cases by file and name, or null when its output does not account for every failure; run: the phase's timing id and source. */
+const failingCases = (status, text, run) => {
   let rows = null;
-  try { rows = status === 1 && light?.tapFailures ? light.tapFailures(text, root) : null; } catch { rows = null; }
+  try {
+    rows = status !== 1 ? null : accounting ? gate.accountedFailures({ isGreen: false, stages: gate.timingAccountingStages([{ status, output: text }], run.id, run.source) }, root, { nativeLeaves: true })
+      : light?.tapFailures ? light.tapFailures(text, root) : null;
+  } catch { rows = null; }
   if (!Array.isArray(rows) || !rows.length || rows.length > ${PHASE_CASES} || rows.some(row => !row?.file || !row.name)) return null;
   return rows.map(({ file, name }) => ({ file, name: String(name).slice(0, 500) }));
 };
@@ -80,10 +87,13 @@ else {
     const runner = command => command.replace(/^(\\s*\\S+\\s+)([\\w./-]+\\.[cm]?js)(?=\\s|$)/u, (all, lead, script) => !isAbsolute(script) && existsSync(join(tools, script)) ? lead + JSON.stringify(join(tools, script)) : all);
     for (const [role, command] of [['check', input.check], ['proof', analysis.plan?.proofCommand]]) {
       if (!command) continue;
-      const ran = timed(role, () => spawnSync(role === 'proof' ? runner(command) : command, { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] }));
+      // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
+      const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
+      const ran = timed(role, () => spawnSync('(' + (role === 'proof' ? runner(command) : command) + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
+        env: { ...process.env, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id }, stdio: ['ignore', 'pipe', 'pipe'] }));
       const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
       receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(output.toString('utf8')),
-        ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8')) } : {}) });
+        ...(ran.status !== 0 ? { failures: failingCases(ran.status, output.toString('utf8'), run) } : {}) });
     }
   }
 }
