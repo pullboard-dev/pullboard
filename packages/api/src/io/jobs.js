@@ -13,9 +13,8 @@ import { upsertProgressStep } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
-import { DEFAULT_JOB_CLASS } from '../../../jobs/index.js';
 import { JOB_CLASSES } from '../../../jobs/index.js';
-import { claimOrder } from '../../../jobs/index.js';
+import { claimableJobs } from '../../../jobs/index.js';
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
@@ -215,10 +214,10 @@ export function boardQueueMode(db, wanted) {
  * Why: a job is a row, not a process. Nothing on the board host waits on a runner; a dead runner only lets its lease
  * lapse, and the token the claim returns is what authenticates that runner's renewals and receipt.
  *
- * @param {import('node:sqlite').DatabaseSync} db
  * With a reserve (gate.jobReserve), the claim takes the highest priority class first and keeps each class its reserved
- * share of the runner's `jobs` slots (claimOrder); with none, the order is the one below, unchanged [C7].
+ * share of the runner's `jobs` slots; with none, landing jobs first, then test runs, then the rest, each by age (claimableJobs) [C7].
  *
+ * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
@@ -229,14 +228,9 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
-  // Order: landing jobs first, then an agent's test run, then gate shards and other bulk work, each in creation order [C7].
   return atomically(db, () => {
-    const open = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
-      ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-      WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY ${reserve ? PRIORITY_ORDER : "CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 ELSE 2 END"}, job.job_created, job.job_id LIMIT ?`).all(now, SCAN_ROWS);
-    const runnable = open.map(row => ({ row, offer: JSON.parse(row.job_step_payload) }))
-      .filter(({ row, offer }) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)));
-    const ordered = reserve ? claimOrder(runnable.map(entry => ({ ...entry, priority: entry.offer.priority ?? DEFAULT_JOB_CLASS })), { reserve, slots: jobs, held: heldClasses(db, runner, now) }) : runnable;
+    const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
+      runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
@@ -249,17 +243,6 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     }
     return null;
   });
-}
-
-/** SQL ranking an offered row by its priority class, highest first, so the scan reads high classes before its row cap. */
-const PRIORITY_ORDER = `CASE COALESCE(json_extract(step.job_step_payload, '$.priority'), '${DEFAULT_JOB_CLASS}') ${JOB_CLASSES.map((name, index) => `WHEN '${name}' THEN ${index}`).join(' ')} ELSE ${JOB_CLASSES.length} END`;
-
-/** The jobs a runner holds a live lease on now, counted by priority class. */
-function heldClasses(db, runner, now) {
-  const rows = db.prepare(`SELECT COALESCE(json_extract(step.job_step_payload, '$.priority'), '${DEFAULT_JOB_CLASS}') AS class, COUNT(*) AS held FROM job JOIN job_step AS step
-    ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-    WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') GROUP BY class`).all(runner, now);
-  return Object.fromEntries(rows.map(row => [row.class, row.held]));
 }
 
 /**
