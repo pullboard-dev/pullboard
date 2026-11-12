@@ -53,14 +53,15 @@ function acquisitionQueue() {
   };
 }
 
-/** Set only this actual worker's legitimately reserved admission before its ordinary runner preload. */
-function admissionImport(value, browser, runner, outputMarker) {
+/** Set only this actual worker's legitimately reserved admission, and its budget row's ms, before its ordinary runner preload. */
+function admissionImport(value, browser, runner, outputMarker, budgetMs) {
   const recorder = testRuntimeImport();
   const source = (recorder ? `await import(${JSON.stringify(recorder)});` : '') + `process.env[${JSON.stringify(TEST_FILE_POOL_ENV)}]=${JSON.stringify(value)};`
     + (browser ? `process.env.PULLBOARD_TEST_BROWSER_OWNER_PID=${JSON.stringify(String(process.pid))};`
       + "process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
       + 'delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;' : '')
     + `process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT=${JSON.stringify(outputMarker)};`
+    + (budgetMs ? `process.env.PULLBOARD_TEST_FILE_ROW_BUDGET_MS=${JSON.stringify(String(budgetMs))};` : '')
     + `await import(${JSON.stringify(pathToFileURL(runner).href)});`;
   return `data:text/javascript,${encodeURIComponent(source)}`;
 }
@@ -166,7 +167,9 @@ export function dispatchTestFiles(options, env) {
       const execArgv = [...options.execArgv];
       const preload = execArgv.indexOf('--import');
       if (preload < 0 || !execArgv[preload + 1]) throw new Error('test-file dispatch requires its ordinary runner preload');
-      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker);
+      // The file's own budget row also sets its watchdog kill, so a declared 200 s file is not killed at the 180 s default.
+      const rowBudget = budgets.get(testFileRelative(budgetRoot, resolve(cwd, file)))?.ms;
+      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker, rowBudget);
       fileExited = fileExitObserver(execArgv[preload + 1], file);
       const source = run({ ...options, files: [file], shard: undefined, concurrency: 1, signal,
         setup: undefined, execArgv });
