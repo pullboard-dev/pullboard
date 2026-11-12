@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,8 +23,9 @@ function goneFolder(box, id, { commit }) {
   if (commit) {
     // The earlier commit is made from the joined lane worktree: a seat cannot join inside an item folder.
     box.git(box.web, 'switch', '-q', '-c', `web/early-${id}`);
-    writeFileSync(join(box.web, 'earlier.txt'), 'ported work\n');
-    box.git(box.web, 'add', 'earlier.txt');
+    mkdirSync(join(box.web, 'web'), { recursive: true });
+    writeFileSync(join(box.web, 'web/earlier.txt'), 'ported work\n');
+    box.git(box.web, 'add', 'web/earlier.txt');
     box.git(box.web, 'commit', '-q', '-m', 'earlier work');
     box.git(box.web, 'switch', '-q', '-');
     box.git(box.web, 'branch', '-m', `web/early-${id}`, branch);
@@ -45,7 +47,7 @@ for (const commit of [true, false]) {
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
     assert.equal(JSON.parse(claimed.out).itemFolder, path);
     assert.equal(box.git(path, 'branch', '--show-current'), `web/item-${id}`, 'git works in the folder');
-    assert.equal(existsSync(join(path, 'earlier.txt')), commit, 'the branch commits are in the new folder');
+    assert.equal(existsSync(join(path, 'web/earlier.txt')), commit, 'the branch commits are in the new folder');
     assert.match(claimed.err, commit ? /1 earlier commit/u : /nothing waits to be submitted/u);
   });
 }
