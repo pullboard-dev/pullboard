@@ -88,7 +88,7 @@ import cp from 'node:child_process';
 const spawnLog = ${JSON.stringify(join(dir,'spawns.log'))};
 for (const name of ['spawnSync','execFileSync','execSync','spawn','execFile','exec']) {
   const real = cp[name];
-  cp[name] = function (...a) { const t = performance.now(); const r = real.apply(this, a); appendFileSync(spawnLog, process.pid + ' ' + name + ' ' + (typeof a[0]==='string'? a[0] : '') + ' ' + (Array.isArray(a[1])? a[1].join(' ').slice(0,90):'') + ' ' + (performance.now()-t).toFixed(1) + '\\n'); return r; };
+  cp[name] = function (...a) { const t = performance.now(); const r = real.apply(this, a); const who = new Error().stack.split('\\n').filter(l => /pullboard-local|\\/(apps|packages)\\//.test(l) && !/network-recorder/.test(l)).slice(0, 4).map(l => l.replace(/^.*\\/((?:apps|packages)\\/.*)$/, '$1').replace(/\\)$/, '')).join(' < '); appendFileSync(spawnLog, process.pid + ' ' + name + ' ' + (typeof a[0]==='string'? a[0] : '') + ' ' + (Array.isArray(a[1])? a[1].join(' ').slice(0,90):'') + ' @ ' + who + ' ' + (performance.now()-t).toFixed(1) + '\\n'); return r; };
 }
 import { syncBuiltinESMExports } from 'node:module';
 syncBuiltinESMExports();
