@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../store/index.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { auditFailureItem } from '../../../../items/index.js';
@@ -20,6 +21,7 @@ const stamp = '2026-11-12T10:00:00.000Z';
 function fixture(t) {
   const board = openCellBoard(':memory:', { now: () => new Date(stamp) });
   t.after(() => store.closeBoard(board));
+  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
   const say = [];
   const state = { board, config: { lanes: { api: { owns: ['api/'] } }, affectedTests: 'node --test' }, say: line => say.push(line),
     batch: { id: 'b1', base: 'a'.repeat(40), tip: 'b'.repeat(40), root: '/nowhere', items: [] },
