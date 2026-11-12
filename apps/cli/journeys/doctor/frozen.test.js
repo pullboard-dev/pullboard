@@ -1,5 +1,6 @@
 /** Approved row edits identify every affected frozen item without rewriting receipts [S19,V3]. */
 import assert from 'node:assert/strict';
+import { runCliInProcess } from "../../tests/fixtures/process.js";
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild as spawnSync,

@@ -78,7 +78,7 @@ test('reference point 23: actual PR create and update publish handled references
   assert.equal(provider.requests.some(request => request.path.endsWith('/merge') && request.method !== 'GET'), false);
 });
 
-test('reference point 21: shipping checks only the selected release and every landed handled reference [C7,N26]', async t => {
+test('reference point 21: shipping checks only the selected release and every landed handled reference [C7,N26]', t => {
   const box = bridgeProject(t);
   const shared = 'https://example.com/shared @Reporter';
   const first = 'https://example.com/first @FirstReporter';
@@ -87,11 +87,11 @@ test('reference point 21: shipping checks only the selected release and every la
     `Reference: ${shared}\nReference: ${first}\nReference: PRIVATE-RELEASE-SENTINEL`,
     `Reference: ${shared}\nReference: ${second}`,
   ] });
-  assert.equal((await box.runLocal(box.repo, 'milestone', 'add', '0.9.3', '--reason', 'Arrange fixture release', '--items', entries.map(entry => entry.id).join(','))).code, 0);
-  assert.equal((await box.runLocal(box.repo, 'milestone', 'add', '0.9.4')).code, 0);
-  const future = await fixtureAdd(box.runLocal, box.repo, 'web', 'Unlanded acknowledgement', '--brief', 'Reference: https://example.com/unlanded @LaterReporter', '--json');
+  assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.3', '--reason', 'Arrange fixture release', '--items', entries.map(entry => entry.id).join(',')).code, 0);
+  assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.4').code, 0);
+  const future = fixtureAdd(box.run, box.repo, 'web', 'Unlanded acknowledgement', '--brief', 'Reference: https://example.com/unlanded @LaterReporter', '--json');
   assert.equal(future.code, 0, future.err || future.out);
-  assert.equal((await box.runLocal(box.repo, 'milestone', 'items', '0.9.3', '--reason', 'Arrange fixture release', '--add', String(JSON.parse(future.out).item.item_id))).code, 0);
+  assert.equal(box.run(box.repo, 'milestone', 'items', '0.9.3', '--reason', 'Arrange fixture release', '--add', String(JSON.parse(future.out).item.item_id)).code, 0);
   /** Commit the actual release section so the check cannot read unrelated working-tree edits. */
   const changelog = lines => {
     writeFileSync(join(box.repo, 'CHANGELOG.md'), `# Changelog\n\n## [0.9.3]\n${lines.join('\n')}\n\n## [0.9.2]\n- ${shared}\n- ${first}\n- ${second}\n`);
@@ -99,7 +99,7 @@ test('reference point 21: shipping checks only the selected release and every la
     box.git(box.repo, 'commit', '-q', '-m', 'docs: prepare release acknowledgements [G1]');
   };
   changelog(['Release preparation.']);
-  const missing = await box.runLocal(box.repo, 'milestone', 'ship', '0.9.3', '--json');
+  const missing = box.run(box.repo, 'milestone', 'ship', '0.9.3', '--json');
   assert.equal(missing.code, 1, 'older release acknowledgements cannot satisfy this release');
   const refusal = JSON.parse(missing.out).error;
   assert.equal(refusal.code, 'REFERENCES_MISSING');
@@ -107,7 +107,7 @@ test('reference point 21: shipping checks only the selected release and every la
   assert.equal(refusal.message.includes('PRIVATE-RELEASE-SENTINEL'), false);
   assert.equal(refusal.message.includes('unlanded'), false);
   changelog([`- ${shared}`, `- ${first}`, `- ${second}`]);
-  const shipped = await box.runLocal(box.repo, 'milestone', 'ship', '0.9.3', '--json');
+  const shipped = box.run(box.repo, 'milestone', 'ship', '0.9.3', '--json');
   assert.equal(shipped.code, 0, shipped.err || shipped.out);
 });
 
@@ -143,11 +143,11 @@ test('historical brief references retain their old routing grammar and replay fl
   assert.throws(() => store.addItem(board, addition), { code: 'REFERENCE_IS_BOARD' }, 'new moves use the new validation');
 });
 
-test('reference point 22: add and edit refuse board-only references with the right flags [C7]', async t => {
+test('reference point 22: add and edit refuse board-only references with the right flags [C7]', t => {
   const e2e = createE2eHelpers();
   const box = e2e.project('true');
   t.after(() => e2e.cleanup());
-  const valid = await fixtureAdd(box.runLocal, box.repo, 'web', 'An external reference', '--brief', 'Reference: https://example.com/report', '--json');
+  const valid = fixtureAdd(box.run, box.repo, 'web', 'An external reference', '--brief', 'Reference: https://example.com/report', '--json');
   assert.equal(valid.code, 0, valid.err || valid.out);
   const id = JSON.parse(valid.out).item.item_id;
   for (const [reference, flag] of [['H21', '--specs H21'], ['#17', '--after'], ['17', '--after']]) {
@@ -155,7 +155,7 @@ test('reference point 22: add and edit refuse board-only references with the rig
       ['add', 'web', 'Board ids have their own flags'],
       ['edit', String(id)],
     ]) {
-      const result = await box.runLocal(box.repo, ...args, '--brief', 'Reference: ' + reference, '--json');
+      const result = box.run(box.repo, ...args, '--brief', 'Reference: ' + reference, '--json');
       assert.equal(result.code, 1, `${args[0]} must refuse Reference: ${reference}; ${result.out}${result.err}`);
       const refusal = JSON.parse(result.out).error;
       assert.equal(refusal.code, 'REFERENCE_IS_BOARD');
@@ -166,7 +166,7 @@ test('reference point 22: add and edit refuse board-only references with the rig
 
 
 /** Exercise the actual Submit lifecycle with a private changelog owned by the fixture's lane. */
-async function submitReferenceFixture(t, { handled, matchingAddition }) {
+function submitReferenceFixture(t, { handled, matchingAddition }) {
   const e2e = createE2eHelpers();
   t.after(() => e2e.cleanup());
   const box = e2e.project('true');
@@ -183,12 +183,12 @@ async function submitReferenceFixture(t, { handled, matchingAddition }) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare reference changelog fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const reference = handled ? acknowledgement : target;
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Submit reference reminder', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Submit reference reminder', '--specs', 'G1',
     '--criterion', 'The private reference change remains green.', '--check', 'test -f web/reference-change.txt',
     '--brief', `${e2e.LIGHT_BRIEF}Reference: ${reference}\n`, '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = await box.runLocal(box.web, 'claim', String(id));
+  const claimed = box.run(box.web, 'claim', String(id));
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   if (matchingAddition) {
     const file = join(box.web, 'CHANGELOG.md');
@@ -197,29 +197,29 @@ async function submitReferenceFixture(t, { handled, matchingAddition }) {
   const committed = e2e.commitFile(box, box.web, 'web/reference-change.txt', 'PASS\n',
     'feat(web): exercise reference submit [G1]');
   assert.equal(committed.status, 0, committed.stderr || committed.stdout);
-  const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
+  const submitted = box.run(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const shown = await box.runLocal(box.repo, 'show', String(id), '--json');
+  const shown = box.run(box.repo, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err || shown.out);
   assert.equal(JSON.parse(shown.out).item_status, 'submitted', 'the reminder never prevents the native submission');
   return { submitted, target, handle };
 }
 
 test('reference point 20: Submit reminds without refusing and only for missing newly added acknowledgements [C7]', async t => {
-  await t.test('an old matching line does not hide the missing addition', async t => {
-    const { submitted, target, handle } = await submitReferenceFixture(t, { handled: true, matchingAddition: false });
+  await t.test('an old matching line does not hide the missing addition', t => {
+    const { submitted, target, handle } = submitReferenceFixture(t, { handled: true, matchingAddition: false });
     const output = `${submitted.out}\n${submitted.err}`;
     const reminders = output.split(/\r?\n/u).filter(line => /changelog/iu.test(line));
     assert.ok(reminders.some(line => line.includes(target) && line.includes(`@${handle}`)),
       'successful Submit reminds about the exact handled reference missing from this change');
   });
-  await t.test('a matching newly added changelog line needs no reminder', async t => {
-    const { submitted } = await submitReferenceFixture(t, { handled: true, matchingAddition: true });
+  await t.test('a matching newly added changelog line needs no reminder', t => {
+    const { submitted } = submitReferenceFixture(t, { handled: true, matchingAddition: true });
     assert.doesNotMatch(`${submitted.out}\n${submitted.err}`, /changelog/iu,
       'the actual added acknowledgement satisfies the reminder');
   });
-  await t.test('an unhandled reference needs no acknowledgement or reminder', async t => {
-    const { submitted } = await submitReferenceFixture(t, { handled: false, matchingAddition: false });
+  await t.test('an unhandled reference needs no acknowledgement or reminder', t => {
+    const { submitted } = submitReferenceFixture(t, { handled: false, matchingAddition: false });
     assert.doesNotMatch(`${submitted.out}\n${submitted.err}`, /changelog/iu,
       'private unhandled references do not acquire an acknowledgement check');
   });
