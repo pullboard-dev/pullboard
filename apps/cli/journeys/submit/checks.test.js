@@ -86,8 +86,6 @@ import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 // main's inventory into one private machine home and hands it to the submit check as the producer's result would be.
 const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME, machineHome = privateFixtureFiles('cells-checks-machine-').root;
 process.env.PULLBOARD_MACHINE_HOME = machineHome;
-// These submits hold their checks in the submitting process, so the machine home pins controller dispatch [P7].
-fixtureMachineSettings(machineHome, { gate: { runnerDispatch: 'controller' } });
 after(() => {
   if (previousMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   rmSync(machineHome, { recursive: true, force: true });
@@ -250,7 +248,6 @@ import { cachedBindingMetadata } from '../../../../packages/codemap/index.js';
 import { exportReachability } from '../../../../packages/codemap/src/io/cell/lint/exports.js';
 import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 import { foreignNodeOptions } from '../../../../packages/gate/index.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 /** Count actual compiler children, preserving every successful V8 observation. */
 function bindingCompilerCalls(t, observed = {}) {
