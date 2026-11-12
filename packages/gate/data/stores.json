@@ -336,6 +336,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/submit/gate.js"
     },
+    "operation-entries.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/static/operations.js"
+    },
     "owner.guard.sqlite": {
       "kind": "sqlite",
       "owner": "packages/gate/src/io/main/audit/worker.js"
