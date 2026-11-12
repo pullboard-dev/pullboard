@@ -26,7 +26,7 @@ before(async () => {
   const box = e2e.project();
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Measure the closure');
   assert.equal(added.code, 0, added.err);
-  const warmed = box.run(box.web, 'whoami');
+  const warmed = await box.runLocal(box.web, 'whoami');
   assert.equal(warmed.code, 0, warmed.err);
   seat = box;
 });
