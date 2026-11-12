@@ -1,9 +1,10 @@
-/** `pullboard stats agents`: per-seat claims, submits and landings per hour, and the most items held at once, read-only over the board [C7,#6136]. */
+/** `pullboard stats agents`: per-seat claims, submits and landings per hour, the most items held at once and the wait after a submit or test start, read-only over the board [C7,#6136]. */
 import {
   agentFlow,
   agentFlowLines,
   flowWindowMinutes,
   readAgentFlowEvents,
+  readSeatActions,
 } from '../../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
 import { withBoard } from '../../entry.js';
@@ -26,7 +27,7 @@ export function runAgents(io, ctx, { second, rest, values }) {
   }
   const until = values.until === undefined ? ctx.clock.now().getTime() : instant(values.until);
   const from = until - flowWindowMinutes(values.window ?? '24h') * 60_000;
-  const agents = withBoard(ctx, board => agentFlow(readAgentFlowEvents(board.db, { until }), { from, until }));
+  const agents = withBoard(ctx, board => agentFlow(readAgentFlowEvents(board.db, { until }), { from, until }, readSeatActions(board.db, { from, until })));
   io.result?.({ agents });
   for (const line of agentFlowLines(agents)) io.say(line);
   return 0;
