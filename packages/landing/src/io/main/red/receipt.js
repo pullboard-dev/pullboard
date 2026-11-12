@@ -58,6 +58,29 @@ export function mainReceipts(root, commit, files) {
 }
 
 /**
+ * Main's nearest receipt for one file on a later main: a commit after `commit` that main-test jobs measured the file
+ * at, where the file is unchanged since `commit`. Why: main moves every few minutes, so a gate keyed to its exact main
+ * never finds a receipt a queued job writes at a newer main, and a red only on missing receipts never settles [C7,P7].
+ * Only the file's own content is compared; its imports are not followed.
+ *
+ * @param {string} root
+ * @param {string} commit - the gate's main
+ * @param {string} file
+ * @returns {ReturnType<typeof mainReceipts> | null} the receipts at the nearest such main, or null when there is none.
+ */
+export function nearbyMainReceipts(root, commit, file) {
+  let entries;
+  try { entries = readCache(cacheFile(root)).entries; } catch { return null; }
+  const quiet = (...args) => gitSpawnSync(['--no-replace-objects', ...args], { cwd: root }).status === 0;
+  for (const later of Object.keys(entries)) {
+    if (later === commit || !entries[later]?.[file] || !quiet('merge-base', '--is-ancestor', commit, later) || !quiet('diff', '--quiet', commit, later, '--', file)) continue;
+    const known = mainReceipts(root, later, [file]);
+    if (known && mainRedStatus(known.receipts, { tree: known.tree, file, command: known.command }).status !== 'missing') return known;
+  }
+  return null;
+}
+
+/**
  * Build the compare port the landing diagnose step uses: same arguments and result shape as compareMainFailures, but
  * answered from main's receipts. Every file with a receipt is answered from it (the result names its receipt ids); a
  * missing receipt enqueues its main-test job on `db` and the files are measured once through `measure`. A pinned or
