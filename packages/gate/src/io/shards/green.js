@@ -86,6 +86,12 @@ export function reusableGreenRun({ tree, head, runner, files, tooling, timingRun
 
 const IMPORT_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/gu;
 
+/** Git's trimmed output, or null when it fails. */
+function readGit(root, args) {
+  const result = tryGit(root, args);
+  return result.status === 0 ? result.stdout : null;
+}
+
 /**
  * Every repo file the test files import, directly or through each other, with the test files themselves; a path no reader
  * returns text for stays in the set, so an unreadable import is never assumed untouched.
@@ -118,7 +124,7 @@ export function importClosure(files, read) {
  * @param {{ git?: (root: string, args: string[]) => string|null }} [options]
  * @returns {object|null}
  */
-export function reusableAcrossMerge(root, wanted, { git = tryGit } = {}) {
+export function reusableAcrossMerge(root, wanted, { git = readGit } = {}) {
   const parents = String(git(root, ['rev-list', '--parents', '-n', '1', wanted.head]) ?? '').trim().split(/\s+/u).slice(1);
   if (parents.length !== 2) return null;
   const priorTree = String(git(root, ['rev-parse', `${parents[0]}^{tree}`]) ?? '').trim();
