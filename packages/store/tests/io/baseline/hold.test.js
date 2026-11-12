@@ -1,5 +1,6 @@
 /** A first baseline green on main holds its item when main's checks.provesNothing is "hold" (#5709) [C7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
 import { cellBoard } from '../../fixtures/cell.js';
@@ -32,4 +33,12 @@ test('clause 3: without the hold setting, or with a red baseline, the item stays
   store.completeCheckBaseline(red.board, red.id, { agentId: 'coordinator', expected: red.expected,
     baseline: { command: red.expected.command, main: MAIN, result: 'red' }, holdProvesNothing: true });
   assert.equal(store.getItem(red.board, red.id).item_hold_reason ?? null, null, 'a red baseline proves the check fails first');
+});
+
+test('clause 3: a green baseline that lands after the person accepted that exact check does not hold the item [C7]', t => {
+  const { board, id, expected } = pendingItem(t, '99999999-9999-4999-8999-999999999999');
+  store.acceptCheck(board, id, { agentId: 'person', channel: 'terminal', digest: createHash('sha256').update(expected.command).digest('hex') });
+  store.completeCheckBaseline(board, id, { agentId: 'coordinator', expected,
+    baseline: { command: expected.command, main: MAIN, result: 'green' }, holdProvesNothing: true });
+  assert.equal(store.getItem(board, id).item_hold_reason ?? null, null, 'the person already read and accepted this check');
 });

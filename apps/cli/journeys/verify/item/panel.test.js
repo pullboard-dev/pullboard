@@ -67,24 +67,24 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
   box.git(demo.web, 'merge', '--ff-only', 'main');
   const id = seedPanelItems(box, demo);
   assert.equal(id, 1, 'the private native fixture creates its identified primary item');
-  box.run(demo.repo, 'milestone', 'add', 'Panel release', '--reason', 'Arrange fixture release', '--items', String(id));
+  await box.inProcess(demo.repo, 'milestone', 'add', 'Panel release', '--reason', 'Arrange fixture release', '--items', String(id));
   build(box, demo, id, 'item-panel.js');
-  const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'Item panel reviewer fixture', '--json'));
+  const reviewer = JSON.parse(await box.inProcess(demo.repo, 'worktree', 'web', '--model', 'Item panel reviewer fixture', '--json'));
   let head = box.git(demo.web, 'rev-parse', 'HEAD');
   box.git(reviewer.path, 'switch', '--detach', head);
-  box.run(reviewer.path, 'next', '--verify', String(id));
-  const frozen = JSON.parse(box.run(reviewer.path, 'show', String(id), '--json'));
-  box.run(reviewer.path, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', JSON.parse(frozen.item_frozen).criterion,
+  await box.inProcess(reviewer.path, 'next', '--verify', String(id));
+  const frozen = JSON.parse(await box.inProcess(reviewer.path, 'show', String(id), '--json'));
+  await box.inProcess(reviewer.path, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', JSON.parse(frozen.item_frozen).criterion,
     '--note', Array.from({ length: 8 }, (_, index) => `The sent-back note retains its actual native detail on line ${index + 1}.`).join('\n'), '--no-next');
-  box.run(demo.web, 'claim', String(id));
+  await box.inProcess(demo.web, 'claim', String(id));
   appendFileSync(join(demo.web, 'web', 'item-panel.js'), 'export const panelRepair = true;\n');
   box.git(demo.web, 'add', 'web/item-panel.js');
   box.git(demo.web, 'commit', '-q', '-m', 'test(web): update native panel fixture [G1]');
-  box.run(demo.web, 'submit', String(id), '--no-next');
+  await box.inProcess(demo.web, 'submit', String(id), '--no-next');
   head = box.git(demo.web, 'rev-parse', 'HEAD');
   box.git(reviewer.path, 'switch', '--detach', head);
-  box.run(reviewer.path, 'next', '--verify', String(id));
-  box.run(reviewer.path, 'verify', String(id), 'accept', '--note', Array.from({ length: 8 }, (_, index) => `The accepted fixture note keeps the complete review on line ${index + 1}.`).join('\n'), '--no-next');
+  await box.inProcess(reviewer.path, 'next', '--verify', String(id));
+  await box.inProcess(reviewer.path, 'verify', String(id), 'accept', '--note', Array.from({ length: 8 }, (_, index) => `The accepted fixture note keeps the complete review on line ${index + 1}.`).join('\n'), '--no-next');
 
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-item-panel-chrome-'));
   let chrome;

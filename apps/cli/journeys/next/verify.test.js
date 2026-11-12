@@ -124,7 +124,7 @@ test('next --verify with nothing free suggests a command next accepts [C7]', asy
   assert.doesNotMatch(again.stdout + again.stderr, /USAGE/u, 'next accepts the command it suggested');
 });
 
-test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
+test('a lone newcomer starts a reviewer with one command [V1,B26]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const machine = helpers.sandbox();
@@ -140,16 +140,16 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const model = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  const initialized = box.run(box.repo, 'init', '--verbose');
+  const initialized = (await box.runLocal(box.repo, 'init', '--verbose'));
   if (model !== undefined) box.env.PULLBOARD_MODEL = model;
   assert.equal(initialized.code, 0, initialized.err);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Ready for review', '--specs', 'G1',
-    '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Ready for review', '--specs', 'G1',
+    '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready'));
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   const committed = helpers.commitFile(box, box.web, 'web/ready', 'ready\n', 'feat(web): readiness marker [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /different agent session/iu);
   const startup = submitted.out.split('\n').find(line => line.includes('git worktree add --detach'));
@@ -157,11 +157,11 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(startup, /&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
   assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
     'init explains the same reviewer path once');
-  const mainRefusal = JSON.parse(box.run(box.repo, 'next', '--verify', '1', '--json').out).error;
+  const mainRefusal = JSON.parse((await box.runLocal(box.repo, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(mainRefusal.code, 'MAIN_IS_COORDINATOR');
   assert.match(mainRefusal.next, /different agent session/iu);
   assert.match(mainRefusal.next, /git worktree add --detach.*&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
-  const self = JSON.parse(box.run(box.web, 'next', '--verify', '1', '--json').out).error;
+  const self = JSON.parse((await box.runLocal(box.web, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
   assert.match(startup, /--family "<vendor family>"/u);
   const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");

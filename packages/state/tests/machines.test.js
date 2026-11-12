@@ -53,21 +53,32 @@ function sources() {
       else if (entry.isFile() && /\.m?js$/u.test(entry.name)) found.push({ path: relative(ROOT, path).split(sep).join('/'), text: readFileSync(path, 'utf8') });
     }
   }
-  return found;
+  return found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 const SOURCES = sources();
 const ALL_TEXT = SOURCES.map(source => source.text).join('\n');
 
 /**
- * The string value of an exported constant, wherever it is declared.
+ * The string value of an exported constant as the given source sees it: declared in that file, or in the file it
+ * imports the name from.
+ *
+ * Why: several cells declare a constant of the same name with different values (LANDING_JOB_KIND), so the first
+ * declaration anywhere is not the one a creator uses.
  * @param {string} name
+ * @param {{ path: string, text: string }} from
  * @returns {string}
  */
-function constant(name) {
-  const match = new RegExp(`export const ${name} = '([^']+)'`, 'u').exec(ALL_TEXT);
-  assert.ok(match, `the code declares the constant ${name}`);
-  return match[1];
+function constant(name, from) {
+  const declared = new RegExp(`(?:export )?const ${name} = '([^']+)'`, 'u');
+  const own = declared.exec(from.text);
+  if (own) return own[1];
+  const imported = new RegExp(`(?:import|export) \\{[^}]*\\b${name}\\b[^}]*\\} from '([^']+)'`, 'u').exec(from.text);
+  assert.ok(imported, `${from.path} declares or imports the constant ${name}`);
+  const target = relative(ROOT, join(ROOT, from.path, '..', imported[1])).split(sep).join('/');
+  const source = SOURCES.find(entry => entry.path === target || entry.path === `${target}.js` || entry.path === `${target}/index.js`);
+  assert.ok(source, `${from.path} imports ${name} from ${target}, which is a source file`);
+  return constant(name, source);
 }
 
 /**
@@ -108,15 +119,15 @@ test('every item status and declared move is in the map and the page, and every 
 test('every job kind and step the code writes is in the map and the page, and every mapped one is in the code [C7]', () => {
   const page = section();
   const kinds = new Set();
-  for (const { text } of SOURCES) {
-    for (const match of text.matchAll(/\b(?:createJob|keyedResult)\([^;]*?\bkind: *(?:'([^']+)'|([A-Z][A-Z0-9_]*))/gu)) kinds.add(match[1] ?? constant(match[2]));
+  for (const source of SOURCES) {
+    for (const match of source.text.matchAll(/\b(?:createJob|keyedResult|offerJob)\([^;]*?\bkind: *(?:'([^']+)'|([A-Z][A-Z0-9_]*))/gu)) kinds.add(match[1] ?? constant(match[2], source));
   }
   const mappedKinds = new Set(MAP.jobs.map(job => job.kind));
   assert.deepEqual([...mappedKinds].sort(), [...kinds].sort(), 'the map has one table per job kind the code creates');
   const states = new Set(MAP.jobs.flatMap(job => job.states));
   const steps = new Set([...PHASES, ...FINISH_STEPS]);
-  for (const { text } of SOURCES) {
-    for (const match of text.matchAll(/\bwriteStep\([^,()]+,[^,()]+, *(?:'([^']+)'|([A-Z][A-Z0-9_]*)\b)/gu)) steps.add(match[1] ?? constant(match[2]));
+  for (const source of SOURCES) {
+    for (const match of source.text.matchAll(/\bwriteStep\([^,()]+,[^,()]+, *(?:'([^']+)'|([A-Z][A-Z0-9_]*)\b)/gu)) steps.add(match[1] ?? constant(match[2], source));
   }
   const handoff = SOURCES.find(source => source.path === 'packages/store/src/io/submit/handoff/retry.js');
   for (const match of handoff.text.matchAll(/\bstate: '([a-z-]+)'/gu)) steps.add(match[1]);

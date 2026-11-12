@@ -41,16 +41,21 @@ import {
 } from 'node:path';
 import {
   context,
+  idArg,
   ordered,
   resourceAgent,
   shellWord,
   uncommittedPolicySetup,
   withBoard,
 } from '../entry.js';
+import { actOn } from '../board/access.js';
+import { dropWithdrawnHandoffTicket } from '../submit/handoff.js';
+import { submitHandoff } from '../../../../../packages/store/index.js';
 
 /** Run `pullboard gate` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (first === 'set') return setHere(io, second, rest, values);
+  if (values.withdraw !== undefined) return withdrawGate(io, values.withdraw);
   if (values.receipt && !values.landing) throw new Refused('USAGE', 'use gate --landing --receipt to produce an exact native landing receipt');
   if (values['runner-only'] && !(values.landing && values.receipt)) throw new Refused('USAGE', 'use gate --landing --receipt --runner-only for a full runner gate');
   if (first !== undefined || second !== undefined || rest.length > 0) {
@@ -106,4 +111,20 @@ export async function run(io, { first, second, rest, values }) {
     omittedEvents: Math.max(0, gate.blockingVerdict.quarantines.length - 8) } } : {}), ...(values.landing ? { receiptId: gate.receiptId ?? null } : {}) });
   io.say(gateReport(gate));
   return gate.isGreen ? 0 : 1;
+}
+
+/**
+ * Run `pullboard gate --withdraw <id>`: record the item's queued or running gate as withdrawn and drop its place in line.
+ * Why: a gate stuck in the line had no command to stop it; the holder or the coordinator ends it, and submitting again starts a new one.
+ */
+async function withdrawGate(io, value) {
+  return actOn(io, async (ctx, board, me) => {
+    const item = idArg(value);
+    const handoff = submitHandoff(board, item);
+    const result = await ordered(ctx, board, 'completeSubmitHandoff', [item, { agentId: me.id, job: handoff?.id, withdrawn: true }]);
+    dropWithdrawnHandoffTicket(handoff);
+    io.result?.({ item, withdrawn: true, job: result?.id ?? handoff?.id ?? null });
+    io.say(`gate withdrawn for #${item}; pullboard submit ${item} starts a new one`);
+    return 0;
+  });
 }

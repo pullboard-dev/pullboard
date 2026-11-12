@@ -189,6 +189,7 @@ export { STRICT_RENAME_ENGINE } from './src/logic/engines/strict-rename-engine.j
 
 export { DEAD_HANDOFF_RETRY_ENGINE } from './src/logic/engines/dead-handoff-retry-engine.js';
 export { RUNNING_HANDOFF_ITEM_CHECK_ENGINE } from './src/logic/engines/running-handoff-item-check-engine.js';
+export { MILESTONE_PERSON_LIMIT_ENGINE } from './src/logic/engines/milestone-person-limit-engine.js';
 
 export { STRANDED_DEPENDENCY_ENGINE } from './src/logic/engines/stranded-dependency-engine.js';
 export { TWO_TIER_DIAGNOSIS_ENGINE } from './src/logic/engines/two-tier-diagnosis-engine.js';

@@ -1,4 +1,7 @@
 import { requireOwnLaneCheck } from '../lane.js';
+import { itemText } from '../../../../../packages/search/index.js';
+import { nearestOpenItems } from '../../../../../packages/search/index.js';
+import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
@@ -26,6 +29,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -139,6 +143,7 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
@@ -165,8 +170,24 @@ export async function run(io, args) {
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
+  sayRelated(io, ctx, board, id, item);
   return 0;
 });
+}
+
+/**
+ * Print the nearest open items to a new item as quiet advice after it is filed.
+ * Why here and never inside the move: advice must not cost the move any time or fail it; a missing or broken index prints nothing.
+ */
+function sayRelated(io, ctx, board, id, item) {
+  let related;
+  try {
+    related = nearestOpenItems(board, itemText(item), { sidecar: searchSidecarPath(ctx.info.root, ctx.info.commonDir), exclude: [id], limit: 3 });
+  } catch { return; }
+  if (!related.length) return;
+  // Quiet advice: stderr in text mode and a diagnostics entry in JSON, so the one `#id` line on stdout stays what scripts read.
+  io.err('related open items:');
+  for (const row of related) io.err(`  ${row.score.toFixed(3)}  #${row.id}  ${row.title}`);
 }
 
 /**

@@ -68,14 +68,18 @@ export function hostProcesses(dir) {
   return execFileSync('ps', ['-A', '-o', 'pid=,command='], { encoding: 'utf8' }).split('\n').filter(line => line.includes(dir)).length;
 }
 
-/** A real project and board under gate.runnerDispatch pull, whose main carries the stand-in tooling, and the board's loopback job API. */
-export async function pullProject(t, count, { check = () => 'true' } = {}) {
+/**
+ * A real project and board under gate.runnerDispatch pull (or the given gate settings), whose main carries the stand-in
+ * tooling (with `tooling` files over it), and the board's loopback job API. The machine's local runner stays off unless
+ * the gate settings turn it on, since these journeys drive their own runners [P7].
+ */
+export async function pullProject(t, count, { check = () => 'true', gate = { runnerDispatch: 'pull' }, tooling = {} } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' } });
-  for (const [path, text] of Object.entries(TOOLING)) { mkdirSync(dirname(join(box.repo, path)), { recursive: true }); writeFileSync(join(box.repo, path), text); }
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, ...gate } });
+  for (const [path, text] of Object.entries({ ...TOOLING, ...tooling })) { mkdirSync(dirname(join(box.repo, path)), { recursive: true }); writeFileSync(join(box.repo, path), text); }
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), staticChecks: 'node apps/cli/src/io/static/checks.js' }, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
@@ -93,12 +97,15 @@ export async function pullProject(t, count, { check = () => 'true' } = {}) {
   return { ...box, helpers, ids, boardFile, runnerHome };
 }
 
-/** Claim, commit and submit one item from its own folder; the submit must return green at once. */
-export function submitOne(box, id) {
+/**
+ * Claim, commit and submit one item from its own folder; the submit must return green at once.
+ * `change` names the one file the item commits; by default a fresh web/<id>.txt.
+ */
+export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }) {
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
-  assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): pulled gate ${id} [G1]`).status, 0);
+  assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
   const submitted = box.run(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
@@ -137,15 +144,21 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /**
  * Run `pullboard runner serve <url> --once` as its own process, with no board environment, and resolve its exit and output.
  * The stand-in tooling records its steps beside the runner's cache, since a runner's checkout is a worktree whose .git is a file.
+ * Why it serves again: --once exits on an empty queue, and a test's seat may offer its job only after the serve starts.
  */
-export function serveOnce(box, url, runner, env = {}) {
+export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_000 } = {}) {
   env = { PULLBOARD_FIXTURE_STEPS: join(box.runnerHome, `${runner}-steps.jsonl`), ...env };
   const clean = { ...box.env };
   for (const key of Object.keys(clean)) if (key.startsWith('PULLBOARD_')) delete clean[key];
-  const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--once', '--as', runner, '--directory', join(box.runnerHome, runner)],
-    { cwd: box.runnerHome, env: { ...clean, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
-  let output = '';
-  child.stdout.on('data', chunk => { output += chunk; });
-  child.stderr.on('data', chunk => { output += chunk; });
-  return new Promise(done => child.once('close', code => done({ code, output })));
+  const until = Date.now() + deadlineMs;
+  for (;;) {
+    const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--once', '--as', runner, '--directory', join(box.runnerHome, runner)],
+      { cwd: box.runnerHome, env: { ...clean, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.on('data', chunk => { output += chunk; });
+    child.stderr.on('data', chunk => { output += chunk; });
+    const served = await new Promise(done => child.once('close', code => done({ code, output })));
+    // Each new process is its own pause: its startup takes longer than a seat takes to offer its job.
+    if (served.code !== 0 || !/nothing to claim/u.test(served.output) || Date.now() > until) return served;
+  }
 }

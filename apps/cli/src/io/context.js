@@ -87,6 +87,12 @@ export function personCommandContext(io, { main, ordered } = {}) {
  * @returns {T}
  */
 export function withBoard(ctx, work, opened) {
+  // A queued submit's lock stop retries this one call in place; the submit is never restarted (ctx.lockRetry, #3370).
+  return ctx.lockRetry && !opened ? ctx.lockRetry(() => openAndRun(ctx, work, opened)) : openAndRun(ctx, work, opened);
+}
+
+/** Open the board (or take the opened one) and run `work` on it. */
+function openAndRun(ctx, work, opened) {
   const board = opened ?? ctx.nativeBoard.openBoard(ctx.file, ctx.clock, { isMain: ctx.allowSchemaUpgrade,
     gitRoot: ctx.info.root,
     writeContext: { command: ctx.io.relayCommand?.cliOperation, path: ctx.info.root,
@@ -168,8 +174,10 @@ export function displayedRefusal(io, error) {
  */
 export function withBoardRead(ctx, work) {
   const board = ctx.nativeBoard.openBoardForRead(ctx.file, ctx.clock);
-  if (board && !board.current && !ctx.allowSchemaUpgrade) store.closeBoard(board);
-  if (!board || (!board.current && !ctx.allowSchemaUpgrade)) return withBoard(ctx, work);
+  // Main repairs a drifted board on a write open, so a read there takes that path once (#5825).
+  const write = board && !board.current && (!ctx.allowSchemaUpgrade || board.drifted);
+  if (write) store.closeBoard(board);
+  if (!board || write) return withBoard(ctx, work);
   try { return withBoard(ctx, work, board); }
   catch (error) {
     if (board.current && store.writeRefused(error)) return withBoard(ctx, work);
