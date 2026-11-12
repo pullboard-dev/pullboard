@@ -34,8 +34,8 @@ function joined(parts, unseen) {
   return parts[0] + JSON.stringify(unseen) + parts[1];
 }
 
-/** The clock readings a build stamps in its texts: the flow's asOf and the state's observedAt. */
-const CLOCK_KEYS = ['"asOf":"', '"observedAt":"'];
+/** The clock readings a build stamps in its texts: the flow's asOf, the state's observedAt and the comparison window's until, which ends at that read. */
+const CLOCK_KEYS = ['"asOf":"', '"observedAt":"', '"until":"'];
 /** Where the build's clock readings sit in each text part already searched, so a later read finds them without a scan. */
 const clockPlaces = new WeakMap();
 
