@@ -84,8 +84,7 @@ function census(box) {
       write(`# landing shard ${label} attempt 1 on fake-host: ${statuses[index] ?? 'green'} in 5 ms\n`);
       const red = shard.files.includes('test/three.test.js');
       const own = shard.files.filter(file => file !== 'test/three.test.js').map(file => ({ file, name: 'passes', passed: true, skipped: false }));
-      if (own.length) write(formatTestOutcomes('00000000-0000-4000-8000-000000000000', own));
-      write([
+      write((own.length ? formatTestOutcomes('00000000-0000-4000-8000-000000000000', own) : '') + [
         ...shard.files.map(file => `# landing-file-ms 1250 ${file}`),
         ...(red ? ['not ok 1 - fails here [C7]', '  ---', "  location: '/runner/checkout/test/three.test.js:3:1'", "  failureType: 'testCodeFailure'", '  ...'] : []),
         `# tests ${shard.files.length}`,
