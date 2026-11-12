@@ -69,10 +69,10 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
   for (const args of [['milestone', 'add', 'Now', '--items', String(item), '--reason', 'Arrange fixture release'], ['milestone', 'pin', 'Now', String(item), '--reason', 'Synthetic release blocker'], ['claim', String(item)]]) {
-    const run = await box.runLocal(args[0] === 'claim' ? box.web : box.repo, ...args);
+    const run = box.run(args[0] === 'claim' ? box.web : box.repo, ...args);
     assert.equal(run.code, 0, run.err);
   }
-  const seat = JSON.parse((await box.runLocal(box.web, 'whoami', '--json')).out).id;
+  const seat = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
   const holder = child(box, ['--input-type=module', '-e', `import {takeResource} from ${JSON.stringify(RESOURCES)}; const lease=await takeResource({name:'gate',capacity:1,scope:'machine',root:process.cwd(),agent:'fixture-holder'}); console.log('held'); for await (const line of process.stdin) if(String(line).trim()==='release')break; lease.release();`], box.repo);
   children.push(holder);
   await observed(holder, () => holder.output.includes('held'), 'private gate holder');
