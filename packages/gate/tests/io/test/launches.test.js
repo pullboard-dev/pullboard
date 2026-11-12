@@ -44,6 +44,62 @@ test('clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while 
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [4, 5, 6]);
 });
 
+test('clause 1: a box member counts by whether its helper starts a process, so renaming box.cli to box.inProcess keeps the count [C7]', () => {
+  /** A local fixture whose member, named `name`, runs the CLI as a child process; the test calls it three times. */
+  const spawning = name => [
+    'function fixture() {',
+    "  const launch = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd });",
+    `  return { root, ${name}: launch };`,
+    '}',
+    'const box = fixture();',
+    `box.${name}(box.root, 'show');`,
+    `await box.${name}(box.root, 'next');`,
+    `box.${name}(box.root, 'claim', '1');`,
+  ].join('\n');
+  assert.deepEqual(cliLaunchSites(spawning('cli'), PATH).map(row => row.line), [2, 6, 7, 8]);
+  assert.deepEqual(cliLaunchSites(spawning('inProcess'), PATH).map(row => row.line), [2, 6, 7, 8], 'the renamed helper still spawns');
+  const method = 'function fixture() { return { sweep() { return spawnSync(process.execPath, [BIN, \'run\']); } }; }\nconst box = fixture();\nbox.sweep();';
+  assert.deepEqual(cliLaunchSites(method, PATH).map(row => row.line), [1, 3], 'a method member that spawns counts at each call');
+  const wrapped = 'function fixture() {\n  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args]);\n  const json = (...args) => JSON.parse(run(...args).stdout);\n  return { json };\n}\nconst box = fixture();\nbox.json(\'show\');';
+  assert.deepEqual(cliLaunchSites(wrapped, PATH).map(row => row.line), [2, 7], 'a helper that reaches a spawn through another closure counts');
+});
+
+test('clause 2: a helper that runs the CLI in-process is not counted, whatever its name [C7]', () => {
+  const source = [
+    'function fixture() {',
+    "  const cli = (cwd, ...args) => runCliInProcess(args, { cwd });",
+    "  const inProcess = async args => main([...args, '--json'], { cwd: root });",
+    '  return { root, cli, inProcess, run: inProcess, sweep: () => runDueSentinels({ root }) };',
+    '}',
+    'const box = fixture();',
+    "box.cli(box.root, 'show');",
+    "await box.inProcess(['next']);",
+    "await box.run(['resume']);",
+    'await box.sweep();',
+  ].join('\n');
+  assert.deepEqual(cliLaunchSites(source, PATH), []);
+});
+
+test('clause 1: a runner handed its command counts only when the call names node or the CLI, and a kit box keeps its spawning members [C7]', () => {
+  const runner = [
+    'function fixture() {',
+    "  const run = (cwd, command, args) => runFixtureChild(command, args, { cwd });",
+    '  return { run };',
+    '}',
+    'const box = fixture();',
+    "box.run(box.root, process.execPath, [BIN, 'whoami']);",
+    "box.run(box.root, 'git', ['status']);",
+  ].join('\n');
+  assert.deepEqual(cliLaunchSites(runner, PATH).map(row => row.line), [6]);
+  const kit = [
+    "const run = () => nextReview(ctx, board);",
+    "const box = helpers.project('true');",
+    "box.run(box.web, 'claim', '1');",
+    "await box.inProcess(box.web, 'show', '1');",
+  ].join('\n');
+  assert.deepEqual(cliLaunchSites(kit, PATH).map(row => row.line), [3], 'a closure never put on a box does not shadow the kit member');
+});
+
 test('clause 1: only test files under apps/ and packages/ have launches counted, the fixture kit and src files are not [C7]', () => {
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/tests/fixtures/e2e.js'), []);
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/src/main.js'), []);
