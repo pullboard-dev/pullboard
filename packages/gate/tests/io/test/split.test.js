@@ -27,7 +27,7 @@ function tree() {
   write(OLD, [LAUNCH, LAUNCH, SLEEP, OPEN, ''].join('\n'));
   write('packages/gate/data/baselines/cli-launches.json', json({ 'apps/other.test.js': { launch: 1 }, [OLD]: { launch: 2 } }));
   write('packages/gate/data/baselines/test-waits-baseline.json', json({ [OLD]: { sleep: 1 } }));
-  write('packages/gate/data/tests/test-fixtures.json', json({ [OLD]: { 'raw-cli': 2 } }));
+  write('packages/gate/data/tests/test-fixtures.json', json({ [OLD]: { 'raw-cli': 2, 'raw-board': 1 } }));
   write('packages/gate/src/io/board/baseline.js', `/** Ceiling. */\nexport const BOARD_FILE_BASELINE = {\n  "apps/other.test.js": 2,\n  "${OLD}": 1,\n};\n`);
   write('packages/gate/data/tests/test-journeys.json', json({ version: 1, files: { [OLD]: { cells: ['app:cli'], reasons: ['runs the CLI'] } } }));
   write('packages/gate/data/tests/tiers.json', json({ version: 1, files: [{ file: 'apps/a.test.js', tier: 'T1' }, { file: OLD, tier: 'T3' }, { file: 'apps/z.test.js', tier: 'T1' }] }));
@@ -74,7 +74,7 @@ test('a split moves every per-file registry row to its new files in one command 
     const text = file => read(file).toString('utf8'), data = file => JSON.parse(text(file));
     assert.deepEqual(data('packages/gate/data/baselines/cli-launches.json'), { 'apps/other.test.js': { launch: 1 }, [OLD]: { launch: 1 }, [NEW]: { launch: 1 } }, 'launches are counted per new file and keep their total');
     assert.deepEqual(data('packages/gate/data/baselines/test-waits-baseline.json'), { [NEW]: { sleep: 1 } }, 'the wait moved with its code');
-    assert.deepEqual(data('packages/gate/data/tests/test-fixtures.json'), { [OLD]: { 'raw-cli': 1 }, [NEW]: { 'raw-cli': 1 } }, 'fixture ceilings follow the measured sites');
+    assert.deepEqual(data('packages/gate/data/tests/test-fixtures.json'), { [OLD]: { 'raw-cli': 1 }, [NEW]: { 'raw-cli': 1, 'raw-board': 1 } }, 'fixture ceilings follow the measured sites');
     assert.match(text('packages/gate/src/io/board/baseline.js'), new RegExp(`"apps/other.test.js": 2,\\n  "${NEW}": 1,\\n\\};`, 'u'), 'the board-file ceiling names the new file only');
     assert.deepEqual(Object.keys(data('packages/gate/data/tests/test-journeys.json').files), [OLD, NEW], 'the new test inherits the journey row; the helper is no test');
     assert.deepEqual(data('packages/gate/data/tests/tiers.json').files.map(row => `${row.file}:${row.tier}`), ['apps/a.test.js:T1', `${OLD}:T3`, `${NEW}:T2`, 'apps/z.test.js:T1'], 'tiers are classified in place');
