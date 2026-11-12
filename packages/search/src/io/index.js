@@ -134,7 +134,8 @@ export function searchItemRows(board, text, { sidecar, limit = 5, exclude }) {
 export function nearestOpenItems(board, text, { sidecar, limit = 3, exclude = [] }) {
   const stored = readSearchIndex(sidecar);
   const total = board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
-  const index = stored && total - stored.ids.length <= STALE_ITEMS ? stored : buildSearchIndex(board, { sidecar });
+  // An empty stored index knows no terms, so it scores every newer item 0: rebuild it, as the first items of a board are filed against one.
+  const index = stored && stored.ids.length > 0 && total - stored.ids.length <= STALE_ITEMS ? stored : buildSearchIndex(board, { sidecar });
   const open = new Set(board.db.prepare(`SELECT item_id AS id FROM item WHERE item_status NOT IN (${CLOSED.map(() => '?').join(',')})`).all(...CLOSED).map(row => row.id));
   const skip = new Set(exclude);
   const hits = rank(index, text, { limit: Infinity, exclude });
