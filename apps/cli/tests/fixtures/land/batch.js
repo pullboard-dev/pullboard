@@ -24,9 +24,9 @@ export const PHASE_BUDGET_MS = 240_000;
  * Run one named phase, print its elapsed time, and fail naming it when it passes the budget.
  * Why: one 300 s hang ceiling hid which phase (seeding, merge and gate, publication) ate the time.
  */
-function timed(phases, name, work) {
+async function timed(phases, name, work) {
   const start = Date.now();
-  const value = work();
+  const value = await work();
   const elapsed = Date.now() - start;
   phases.push([name, elapsed]);
   console.log(`# phase ${name}: ${(elapsed / 1000).toFixed(1)} s`);
@@ -67,7 +67,7 @@ function fullRuns(box) { return allRuns(box).filter(row => !row.alone); }
  * Why: one landing per item caps the trunk near two items an hour, so the default must be the whole
  * waiting queue in one gate run, and a red batch must cost about log2(n) gates, never n.
  */
-export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, { separate = false } = {}) {
+export async function assertWholeQueueBatch({ landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, json, onBoard }, { separate = false } = {}) {
   const box = landProject();
   if (separate) {
     const path = join(box.repo, 'pullboard.json');
@@ -78,10 +78,18 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const remoteBefore = box.git(box.remote, 'rev-parse', 'main');
   const red = 10;
   box.env.LAND_SUPPRESS_RED = '1';
-  const entries = Array.from({ length: WAITING }, (_, index) => itemWorktree(box, index + 1, `web/land-${index + 1}.test.js`));
   const phases = [];
-  timed(phases, 'submit', () => { for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : 'PASS\n'); });
-  timed(phases, 'accept', () => { for (const entry of entries) acceptItem(box, entry); });
+  const entries = await timed(phases, 'setup', async () => {
+    const made = [];
+    for (let index = 0; index < WAITING; index += 1) made.push(await itemWorktreeLocal(box, index + 1, `web/land-${index + 1}.test.js`));
+    return made;
+  });
+  // The hooks make a commit slow; the commits are independent, so four run at once, then each submit takes the board in turn.
+  await timed(phases, 'commit', async () => {
+    for (let at = 0; at < entries.length; at += 4) await Promise.all(entries.slice(at, at + 4).map((entry, offset) => commitItemLocal(box, entry, at + offset === red ? 'RED\n' : 'PASS\n')));
+  });
+  await timed(phases, 'submit', async () => { for (const entry of entries) await submitItemLocal(box, entry); });
+  await timed(phases, 'accept', async () => { for (const entry of entries) await acceptItemLocal(box, entry); });
   // The acceptance proof is for the old main; a real later change makes the batch run its landing gate.
   writeFileSync(join(box.repo, 'main-advance.txt'), 'main changed after acceptance\n');
   box.git(box.repo, 'add', 'main-advance.txt');
@@ -94,7 +102,7 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const allBefore = allRuns(box).length;
   const callsBefore = calls(box).length;
 
-  const landed = timed(phases, 'land', () => box.run(box.repo, 'land', '--json'));
+  const landed = await timed(phases, 'land', () => box.run(box.repo, 'land', '--json'));
   assert.equal(landed.code, 0, `${landed.err}\n${landed.out}`);
   const result = JSON.parse(landed.out);
   landingPhases(phases, `${landed.err}\n${(result.diagnostics ?? []).join('\n')}`);
