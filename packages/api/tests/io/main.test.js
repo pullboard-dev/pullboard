@@ -184,7 +184,9 @@ test('clause 1 [P7]: a landing that touches only docs or unrelated cells keeps t
   const fresh = restartOnCodeMove({ root: code.root, revision, interval: 25, drain: 25, log: () => {},
     affects: async (from, to) => { const answer = await judge(from, to); if (!answer) skipped(); return answer; },
     close: async () => { closed++; }, relaunch: () => { relaunched++; return { pid: null }; } });
-  t.after(() => fresh.stop());
+  // The watcher's timer is unref'd for a server that has other work; this test has none, so it holds the loop open.
+  const hold = setInterval(() => {}, 1_000);
+  t.after(() => { clearInterval(hold); fresh.stop(); });
   code.put('docs/guide.md', 'two\n');
   code.put('cells/unrelated.mjs', 'export const unrelated = 2;\n');
   code.commitAll();
