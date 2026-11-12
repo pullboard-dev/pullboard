@@ -17,7 +17,7 @@ function fourItems(box) {
 /** Set claims.perSeat for the seat's own checkout. */
 function setN(box, n) {
   const file = join(box.seats.actor.path, 'pullboard.json');
-  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), claims: { perSeat: n } }));
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: n } }));
 }
 
 test('clause 1: with N=3 and four ready items where two share a file, one next claims three with disjoint files [C7]', async t => {
