@@ -28,8 +28,8 @@ function fixtureResult(result) {
 }
 
 /** Join a fixture worktree with the model and route required by current admission rules; an awaited runner gives an awaited result. */
-export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  const result = run(root, 'join', lane, '--model', model, '--route', route, '--json');
+export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', lockLane = false, run = box.run } = {}) {
+  const result = run(root, 'join', lane, '--model', model, '--route', route, ...(lockLane ? ['--lock-lane'] : []), '--json');
   return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
